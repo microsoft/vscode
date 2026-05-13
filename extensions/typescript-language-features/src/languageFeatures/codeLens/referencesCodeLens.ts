@@ -12,7 +12,7 @@ import * as PConst from '../../tsServer/protocol/protocol.const';
 import { ExecutionTarget } from '../../tsServer/server';
 import * as typeConverters from '../../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
-import { readUnifiedConfig, unifiedConfigSection } from '../../utils/configuration';
+import { ResourceUnifiedConfigValue } from '../../utils/configuration';
 import { conditionalRegistration, requireHasModifiedUnifiedConfig, requireSomeCapability } from '../util/dependentRegistration';
 import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider, getSymbolRange } from './baseCodeLensProvider';
 
@@ -22,28 +22,25 @@ const Config = Object.freeze({
 });
 
 export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+
+	private readonly _enabled: ResourceUnifiedConfigValue<boolean>;
+	private readonly _showOnAllFunctions: ResourceUnifiedConfigValue<boolean>;
+
 	public constructor(
 		client: ITypeScriptServiceClient,
 		protected _cachedResponse: CachedResponse<Proto.NavTreeResponse>,
-		private readonly language: LanguageDescription
 	) {
 		super(client, _cachedResponse);
-		this._register(
-			vscode.workspace.onDidChangeConfiguration(evt => {
-				if (
-					evt.affectsConfiguration(`${unifiedConfigSection}.${Config.enabled}`) ||
-					evt.affectsConfiguration(`${language.id}.${Config.enabled}`) ||
-					evt.affectsConfiguration(`${unifiedConfigSection}.${Config.showOnAllFunctions}`) ||
-					evt.affectsConfiguration(`${language.id}.${Config.showOnAllFunctions}`)
-				) {
-					this.changeEmitter.fire();
-				}
-			})
-		);
+
+		this._enabled = this._register(new ResourceUnifiedConfigValue<boolean>(Config.enabled, false));
+		this._register(this._enabled.onDidChange(() => this.changeEmitter.fire()));
+
+		this._showOnAllFunctions = this._register(new ResourceUnifiedConfigValue<boolean>(Config.showOnAllFunctions, false));
+		this._register(this._showOnAllFunctions.onDidChange(() => this.changeEmitter.fire()));
 	}
 
 	override async provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<ReferencesCodeLens[]> {
-		const enabled = readUnifiedConfig<boolean>(Config.enabled, false, { scope: document, fallbackSection: this.language.id });
+		const enabled = this._enabled.getValue(document);
 		if (!enabled) {
 			return [];
 		}
@@ -95,7 +92,7 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 
 		switch (item.kind) {
 			case PConst.Kind.function: {
-				const showOnAllFunctions = readUnifiedConfig<boolean>(Config.showOnAllFunctions, false, { scope: document, fallbackSection: this.language.id });
+				const showOnAllFunctions = this._showOnAllFunctions.getValue(document);
 				if (showOnAllFunctions && item.nameSpan) {
 					return getSymbolRange(document, item);
 				}
@@ -160,6 +157,6 @@ export function register(
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeLensProvider(selector.semantic,
-			new TypeScriptReferencesCodeLensProvider(client, cachedResponse, language));
+			new TypeScriptReferencesCodeLensProvider(client, cachedResponse));
 	});
 }

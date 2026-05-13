@@ -6,24 +6,35 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { EditorsOrder, IEditorIdentifier } from '../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { GroupsOrder, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
-import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
+import { getActiveResourceCandidates, getSessionForResource } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
+import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
+import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
+import { getSessionEditorComments } from './sessionEditorComments.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export const submitFeedbackActionId = 'agentFeedbackEditor.action.submit';
 export const navigatePreviousFeedbackActionId = 'agentFeedbackEditor.action.navigatePrevious';
 export const navigateNextFeedbackActionId = 'agentFeedbackEditor.action.navigateNext';
 export const clearAllFeedbackActionId = 'agentFeedbackEditor.action.clearAll';
 export const navigationBearingFakeActionId = 'agentFeedbackEditor.navigation.bearings';
+export const hasSessionEditorComments = new RawContextKey<boolean>('agentFeedbackEditor.hasSessionComments', false);
+export const hasSessionAgentFeedback = new RawContextKey<boolean>('agentFeedbackEditor.hasAgentFeedback', false);
+export const hasActiveSessionAgentFeedback = new RawContextKey<boolean>('agentFeedbackEditor.hasActiveSessionAgentFeedback', false);
+export const submitActiveSessionFeedbackActionId = 'agentFeedbackEditor.action.submitActiveSession';
 
 abstract class AgentFeedbackEditorAction extends Action2 {
 
@@ -37,16 +48,33 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
+		const chatEditingService = accessor.get(IChatEditingService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const codeReviewService = accessor.get(ICodeReviewService);
 
-		const candidates = getActiveResourceCandidates(editorService.activeEditorPane?.input);
-		const sessionResource = candidates
-			.map(candidate => agentFeedbackService.getMostRecentSessionForResource(candidate))
-			.find((value): value is URI => !!value);
-		if (!sessionResource) {
-			return;
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+
+		const activePane = editorService.activeEditorPane
+			?? editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(g => g.activeEditorPane)?.activeEditorPane
+			?? editorService.visibleEditorPanes[0];
+		const candidates = getActiveResourceCandidates(activePane?.input);
+		for (const candidate of candidates) {
+			const sessionResource = getSessionForResource(candidate, chatEditingService, sessionsManagementService)
+				?? agentFeedbackService.getMostRecentSessionForResource(candidate);
+			if (!sessionResource) {
+				continue;
+			}
+
+			const comments = getSessionEditorComments(
+				sessionResource,
+				agentFeedbackService.getFeedback(sessionResource),
+				codeReviewService.getReviewState(sessionResource).get(),
+				codeReviewService.getPRReviewState(sessionResource).get(),
+			);
+			if (comments.length > 0) {
+				return this.runWithSession(accessor, sessionResource);
+			}
 		}
-
-		return this.runWithSession(accessor, sessionResource);
 	}
 
 	abstract runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<void> | void;
@@ -65,7 +93,7 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 				id: Menus.AgentFeedbackEditorContent,
 				group: 'a_submit',
 				order: 0,
-				when: ChatContextKeys.enabled,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, hasSessionAgentFeedback),
 			},
 		});
 	}
@@ -74,9 +102,11 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
 		const editorService = accessor.get(IEditorService);
+		const logService = accessor.get(ILogService);
 
 		const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!widget) {
+			logService.error('[AgentFeedback] Cannot submit feedback: no chat widget found for session', sessionResource.toString());
 			return;
 		}
 
@@ -95,7 +125,7 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 			await editorService.closeEditors(editorsToClose);
 		}
 
-		await widget.acceptInput('Act on the provided feedback');
+		await widget.acceptInput('/act-on-feedback');
 	}
 }
 
@@ -114,27 +144,27 @@ class NavigateFeedbackAction extends AgentFeedbackEditorAction {
 				id: Menus.AgentFeedbackEditorContent,
 				group: 'navigate',
 				order: _next ? 2 : 1,
-				when: ChatContextKeys.enabled,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, hasSessionEditorComments),
 			},
 		});
 	}
 
-	override runWithSession(accessor: ServicesAccessor, sessionResource: URI): void {
+	override async runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<void> {
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
-		const editorService = accessor.get(IEditorService);
+		const codeReviewService = accessor.get(ICodeReviewService);
+		const comments = getSessionEditorComments(
+			sessionResource,
+			agentFeedbackService.getFeedback(sessionResource),
+			codeReviewService.getReviewState(sessionResource).get(),
+			codeReviewService.getPRReviewState(sessionResource).get(),
+		);
 
-		const feedback = agentFeedbackService.getNextFeedback(sessionResource, this._next);
-		if (!feedback) {
+		const comment = agentFeedbackService.getNextNavigableItem(sessionResource, comments, this._next);
+		if (!comment) {
 			return;
 		}
 
-		editorService.openEditor({
-			resource: feedback.resourceUri,
-			options: {
-				preserveFocus: false,
-				revealIfVisible: true,
-			}
-		});
+		await agentFeedbackService.revealSessionComment(sessionResource, comment.id, comment.resourceUri, comment.range);
 	}
 }
 
@@ -152,7 +182,7 @@ class ClearAllFeedbackAction extends AgentFeedbackEditorAction {
 				id: Menus.AgentFeedbackEditorContent,
 				group: 'a_submit',
 				order: 1,
-				when: ChatContextKeys.enabled,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, hasSessionAgentFeedback),
 			},
 		});
 	}
@@ -163,8 +193,69 @@ class ClearAllFeedbackAction extends AgentFeedbackEditorAction {
 	}
 }
 
+class SubmitActiveSessionFeedbackAction extends Action2 {
+
+	static readonly ID = submitActiveSessionFeedbackActionId;
+
+	constructor() {
+		super({
+			id: SubmitActiveSessionFeedbackAction.ID,
+			title: localize2('agentFeedback.submitFeedback', 'Submit Feedback'),
+			icon: Codicon.comment,
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, hasActiveSessionAgentFeedback),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionManagementService = accessor.get(ISessionsManagementService);
+		const configurationService = accessor.get(IConfigurationService);
+		const agentFeedbackService = accessor.get(IAgentFeedbackService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const editorService = accessor.get(IEditorService);
+		const logService = accessor.get(ILogService);
+
+		const activeSession = sessionManagementService.activeSession.get();
+		if (!activeSession) {
+			return;
+		}
+
+		const sessionResource = activeSession.resource;
+		const feedbackItems = agentFeedbackService.getFeedback(sessionResource);
+		if (feedbackItems.length === 0) {
+			return;
+		}
+
+		const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
+		if (!widget) {
+			logService.error('[AgentFeedback] Cannot submit feedback: no chat widget found for session', sessionResource.toString());
+			return;
+		}
+
+		// Close all editors belonging to the session resource
+		if (configurationService.getValue('workbench.editor.useModal') === 'all') {
+			const editorsToClose: IEditorIdentifier[] = [];
+			for (const { editor, groupId } of editorService.getEditors(EditorsOrder.SEQUENTIAL)) {
+				const candidates = getActiveResourceCandidates(editor);
+				const belongsToSession = candidates.some(uri =>
+					isEqual(agentFeedbackService.getMostRecentSessionForResource(uri), sessionResource)
+				);
+				if (belongsToSession) {
+					editorsToClose.push({ editor, groupId });
+				}
+			}
+			if (editorsToClose.length) {
+				await editorService.closeEditors(editorsToClose);
+			}
+		}
+
+		await widget.acceptInput('/act-on-feedback');
+	}
+}
+
 export function registerAgentFeedbackEditorActions(): void {
 	registerAction2(SubmitFeedbackAction);
+	registerAction2(SubmitActiveSessionFeedbackAction);
 	registerAction2(class extends NavigateFeedbackAction { constructor() { super(false); } });
 	registerAction2(class extends NavigateFeedbackAction { constructor() { super(true); } });
 	registerAction2(ClearAllFeedbackAction);
@@ -177,6 +268,6 @@ export function registerAgentFeedbackEditorActions(): void {
 		},
 		group: 'navigate',
 		order: -1,
-		when: ChatContextKeys.enabled,
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, hasSessionEditorComments),
 	});
 }

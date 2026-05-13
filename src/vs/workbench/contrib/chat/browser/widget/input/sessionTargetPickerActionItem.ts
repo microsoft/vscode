@@ -6,7 +6,9 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
@@ -18,14 +20,14 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
-import { AgentSessionProviders, backgroundAgentDisplayName, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+
 
 export interface ISessionTypeItem {
-	type: AgentSessionProviders;
+	type: AgentSessionTarget;
 	label: string;
 	hoverDescription: string;
 	commandId: string;
@@ -70,12 +72,12 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						id: sessionTypeItem.commandId,
 						label: sessionTypeItem.label,
 						checked: currentType === sessionTypeItem.type,
-						icon: getAgentSessionProviderIcon(sessionTypeItem.type),
+						icon: this._getSessionIcon(sessionTypeItem),
 						enabled: this._isSessionTypeEnabled(sessionTypeItem.type),
 						category: this._getSessionCategory(sessionTypeItem),
 						description: this._getSessionDescription(sessionTypeItem),
 						tooltip: '',
-						hover: { content: sessionTypeItem.hoverDescription, position: this.pickerOptions.hoverPosition },
+						hover: { content: sessionTypeItem.hoverDescription },
 						run: async () => {
 							this._run(sessionTypeItem);
 						},
@@ -105,15 +107,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			this._updateAgentSessionItems();
 		}));
 
-		// Re-render when the background agent display name changes via experiment
-		// Note: autorun runs immediately, so this also handles initial population
-		this._register(autorun(reader => {
-			backgroundAgentDisplayName.read(reader);
-			this._updateAgentSessionItems();
-			if (this.element) {
-				this.renderLabel(this.element);
-			}
-		}));
+		this._updateAgentSessionItems();
 	}
 
 	protected _run(sessionTypeItem: ISessionTypeItem): void {
@@ -129,7 +123,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		}
 	}
 
-	protected _getSelectedSessionType(): AgentSessionProviders | undefined {
+	protected _getSelectedSessionType(): AgentSessionTarget | undefined {
 		return this.delegate.getActiveSessionProvider();
 	}
 
@@ -163,51 +157,88 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
 		for (const contribution of contributions) {
+			// TODO: Remove hardcoded providers from core
 			const agentSessionType = getAgentSessionProvider(contribution.type);
-			if (!agentSessionType) {
-				continue;
+			if (agentSessionType) {
+				// Well-known session type — use hardcoded metadata
+				agentSessionItems.push({
+					type: agentSessionType,
+					label: getAgentSessionProviderName(agentSessionType),
+					hoverDescription: getAgentSessionProviderDescription(agentSessionType),
+					commandId: contribution.canDelegate ?
+						`workbench.action.chat.openNewChatSessionInPlace.${contribution.type}` :
+						`workbench.action.chat.openNewChatSessionExternal.${contribution.type}`,
+				});
+			} else {
+				// Extension-contributed session type — always use in-place
+				// (openNewChatSessionExternal requires a menu action registered
+				// by _registerMenuItems, which may not exist for extensions)
+				agentSessionItems.push({
+					type: contribution.type,
+					label: contribution.displayName ?? contribution.name ?? contribution.type,
+					hoverDescription: contribution.description ?? '',
+					commandId: `workbench.action.chat.openNewChatSessionInPlace.${contribution.type}`,
+				});
 			}
-
-			agentSessionItems.push({
-				type: agentSessionType,
-				label: getAgentSessionProviderName(agentSessionType),
-				hoverDescription: getAgentSessionProviderDescription(agentSessionType),
-				commandId: contribution.canDelegate ?
-					`workbench.action.chat.openNewChatSessionInPlace.${contribution.type}` :
-					`workbench.action.chat.openNewChatSessionExternal.${contribution.type}`,
-			});
 		}
 		this._sessionTypeItems = agentSessionItems;
 	}
 
-	protected _isVisible(type: AgentSessionProviders): boolean {
+	protected _isVisible(_type: AgentSessionTarget): boolean {
 		return true;
 	}
 
-	protected _isSessionTypeEnabled(type: AgentSessionProviders): boolean {
-		return true;
+	protected _isSessionTypeEnabled(type: AgentSessionTarget): boolean {
+		if (type === AgentSessionProviders.Local) {
+			return true; // Local is always available
+		}
+		// Disable non-local session types when their provider is not registered yet
+		return !!this.chatSessionsService.getChatSessionContribution(type);
 	}
 
 	protected _getSessionCategory(sessionTypeItem: ISessionTypeItem) {
-		return isFirstPartyAgentSessionProvider(sessionTypeItem.type) ? firstPartyCategory : otherCategory;
+		// TODO: Remove hardcoded providers from core
+		const knownType = getAgentSessionProvider(sessionTypeItem.type);
+		return knownType && isFirstPartyAgentSessionProvider(knownType) ? firstPartyCategory : otherCategory;
 	}
 
 	protected _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
 		return undefined;
 	}
 
+	private _getSessionIcon(sessionTypeItem: ISessionTypeItem): ThemeIcon {
+		// TODO: Remove hardcoded providers from core
+		const knownType = getAgentSessionProvider(sessionTypeItem.type);
+		if (knownType) {
+			return getAgentSessionProviderIcon(knownType);
+		}
+		// Extension-contributed: look up icon from the contribution
+		const contribution = this.chatSessionsService.getChatSessionContribution(sessionTypeItem.type);
+		if (contribution && ThemeIcon.isThemeIcon(contribution.icon)) {
+			return contribution.icon;
+		}
+		return Codicon.extensions;
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-session-target-picker-item');
+	}
+
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		this.setAriaLabelAttributes(element);
-		const currentType = this._getSelectedSessionType();
+		const currentType = this._getSelectedSessionType() ?? AgentSessionProviders.Local;
 
-		const label = getAgentSessionProviderName(currentType ?? AgentSessionProviders.Local);
-		const icon = getAgentSessionProviderIcon(currentType ?? AgentSessionProviders.Local);
+		// TODO: Remove hardcoded providers from core
+		const knownType = getAgentSessionProvider(currentType);
+		const label = knownType
+			? getAgentSessionProviderName(knownType)
+			: (this.chatSessionsService.getChatSessionContribution(currentType)?.displayName ?? currentType);
+		const icon = this._getSessionIcon({ type: currentType, label, hoverDescription: '', commandId: '' });
 
 		const labelElements = [];
 		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
-		if (!this.pickerOptions.onlyShowIconsForDefaultActions.get()) {
-			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
-		}
+		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...labelElements);

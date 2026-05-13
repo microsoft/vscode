@@ -1,9 +1,9 @@
 ---
 name: sessions
-description: Agent Sessions window architecture — covers the sessions-first app, layering, folder structure, chat widget, menus, contributions, entry points, and development guidelines. Use when implementing features or fixing issues in the Agent Sessions window.
+description: Agents window architecture — covers the agents-first app, layering, folder structure, chat widget, menus, contributions, entry points, and development guidelines. Use when implementing features or fixing issues in the Agents window.
 ---
 
-When working on the Agent Sessions window (`src/vs/sessions/`), always follow these guidelines:
+When working on the Agents window (`src/vs/sessions/`), always follow these guidelines:
 
 ## 1. Read the Specification Documents First
 
@@ -15,8 +15,6 @@ The `src/vs/sessions/` directory contains authoritative specification documents.
 | Layout spec | `src/vs/sessions/LAYOUT.md` | Grid structure, part positions, sizing, CSS classes, API reference |
 | AI Customizations | `src/vs/sessions/AI_CUSTOMIZATIONS.md` | AI customization editor and tree view design |
 | Chat Widget | `src/vs/sessions/browser/widget/AGENTS_CHAT_WIDGET.md` | Chat widget wrapper architecture, deferred session creation, option delivery |
-| AI Customization Mgmt | `src/vs/sessions/contrib/aiCustomizationManagement/browser/SPEC.md` | Management editor specification |
-| AI Customization Tree | `src/vs/sessions/contrib/aiCustomizationTreeView/browser/SPEC.md` | Tree view specification |
 
 If you modify the implementation, you **must** update the corresponding spec to keep it in sync. Update the Revision History table at the bottom of `LAYOUT.md` with a dated entry.
 
@@ -43,13 +41,13 @@ vs/sessions      ← Agent Sessions window (this layer)
 
 ### 2.3 How It Differs from VS Code
 
-| Aspect | VS Code Workbench | Agent Sessions Window |
+| Aspect | VS Code Workbench | Agents Window |
 |--------|-------------------|----------------------|
 | Layout | Configurable part positions | Fixed layout, no settings customization |
 | Chrome | Activity bar, status bar, banner | Simplified — none of these |
 | Primary UX | Editor-centric | Chat-first (Chat Bar is a primary part) |
 | Editors | In the grid layout | Modal overlay above the workbench |
-| Titlebar | Menubar, editor actions, layout controls | Session picker, run script, toggle sidebar/panel |
+| Titlebar | Menubar, editor actions, layout controls | Agent picker, run script, toggle sidebar/panel |
 | Navigation | Activity bar with viewlets | Sidebar (views) + sidebar footer (account) |
 | Entry point | `vs/workbench` workbench class | `vs/sessions/browser/workbench.ts` `Workbench` class |
 
@@ -62,44 +60,57 @@ src/vs/sessions/
 ├── AI_CUSTOMIZATIONS.md                    # AI customization design document
 ├── sessions.common.main.ts                 # Common (browser + desktop) entry point
 ├── sessions.desktop.main.ts                # Desktop entry point (imports all contributions)
-├── common/                                 # Shared types and context keys
-│   └── contextkeys.ts                      # ChatBar context keys
+├── common/                                 # Shared types, context keys, and theme
+│   ├── categories.ts                       # Command categories
+│   ├── contextkeys.ts                      # ChatBar and welcome context keys
+│   └── theme.ts                            # Theme contributions
 ├── browser/                                # Core workbench implementation
 │   ├── workbench.ts                        # Main Workbench class (implements IWorkbenchLayoutService)
 │   ├── menus.ts                            # Agent sessions menu IDs (Menus export)
 │   ├── layoutActions.ts                    # Layout toggle actions (sidebar, panel, auxiliary bar)
 │   ├── paneCompositePartService.ts         # AgenticPaneCompositePartService
-│   ├── style.css                           # Layout-specific styles
 │   ├── widget/                             # Agent sessions chat widget
-│   │   ├── AGENTS_CHAT_WIDGET.md           # Chat widget architecture doc
-│   │   ├── agentSessionsChatWidget.ts      # Main wrapper around ChatWidget
-│   │   ├── agentSessionsChatTargetConfig.ts # Observable target state
-│   │   ├── agentSessionsTargetPickerActionItem.ts # Target picker for input toolbar
-│   │   └── media/
-│   └── parts/                              # Workbench part implementations
-│       ├── parts.ts                        # AgenticParts enum
-│       ├── titlebarPart.ts                 # Titlebar (3-section toolbar layout)
-│       ├── sidebarPart.ts                  # Sidebar (with footer for account widget)
-│       ├── chatBarPart.ts                  # Chat Bar (primary chat surface)
-│       ├── auxiliaryBarPart.ts             # Auxiliary Bar (with run script dropdown)
-│       ├── panelPart.ts                    # Panel (terminal, output, etc.)
-│       ├── projectBarPart.ts              # Project bar (folder entries)
-│       ├── agentSessionsChatInputPart.ts   # Chat input part adapter
-│       ├── agentSessionsChatWelcomePart.ts # Welcome view (mascot + target buttons + pickers)
-│       └── media/                          # Part CSS files
+│   │   └── AGENTS_CHAT_WIDGET.md           # Chat widget architecture doc
+│   ├── parts/                              # Workbench part implementations
+│   │   ├── parts.ts                        # AgenticParts enum
+│   │   ├── titlebarPart.ts                 # Titlebar (3-section toolbar layout)
+│   │   ├── sidebarPart.ts                  # Sidebar (with footer for account widget)
+│   │   ├── chatBarPart.ts                  # Chat Bar (primary chat surface)
+│   │   ├── auxiliaryBarPart.ts             # Auxiliary Bar
+│   │   ├── panelPart.ts                    # Panel (terminal, output, etc.)
+│   │   ├── projectBarPart.ts               # Project bar (folder entries)
+│   │   └── media/                          # Part CSS files
+│   └── media/                              # Layout-specific styles
 ├── electron-browser/                       # Desktop-specific entry points
 │   ├── sessions.main.ts                    # Desktop main bootstrap
 │   ├── sessions.ts                         # Electron process entry
 │   ├── sessions.html                       # Production HTML shell
-│   └── sessions-dev.html                   # Development HTML shell
+│   ├── sessions-dev.html                   # Development HTML shell
+│   ├── titleService.ts                     # Desktop title service override
+│   └── parts/
+│       └── titlebarPart.ts                 # Desktop titlebar part
+├── services/                               # Service overrides
+│   ├── configuration/browser/              # Configuration service overrides
+│   └── workspace/browser/                  # Workspace service overrides
+├── test/                                   # Unit tests
+│   └── browser/
+│       └── layoutActions.test.ts
 └── contrib/                                # Feature contributions
     ├── accountMenu/browser/                # Account widget for sidebar footer
-    ├── aiCustomizationManagement/browser/  # AI customization management editor
+    ├── agentFeedback/browser/              # Agent feedback attachments, overlays, hover
     ├── aiCustomizationTreeView/browser/    # AI customization tree view sidebar
+    ├── applyToParentRepo/browser/          # Apply changes to parent repo
     ├── changesView/browser/                # File changes view
     ├── chat/browser/                       # Chat actions (run script, branch, prompts)
     ├── configuration/browser/              # Configuration overrides
-    └── sessions/browser/                   # Sessions view, title bar widget, active session service
+    ├── files/browser/                      # File-related contributions
+    ├── fileTreeView/browser/               # File tree view (filesystem provider)
+    ├── gitSync/browser/                    # Git sync contributions
+    ├── logs/browser/                       # Log contributions
+    ├── sessions/browser/                   # Sessions view, title bar widget, active session service
+    ├── terminal/browser/                   # Terminal contributions
+    ├── welcome/browser/                    # Welcome view contribution
+    └── workspace/browser/                  # Workspace contributions
 ```
 
 ## 4. Layout
@@ -143,7 +154,7 @@ The main editor part is hidden (`display:none`). All editors open via `MODAL_GRO
 
 ## 5. Chat Widget
 
-The Agent Sessions chat experience is built around `AgentSessionsChatWidget` — a wrapper around the core `ChatWidget` that adds:
+The Agents chat experience is built around `AgentSessionsChatWidget` — a wrapper around the core `ChatWidget` that adds:
 
 - **Deferred session creation** — the UI is interactive before any session resource exists; sessions are created on first message send
 - **Target configuration** — observable state tracking which agent provider (Local, Cloud) is selected
@@ -161,22 +172,25 @@ Read `browser/widget/AGENTS_CHAT_WIDGET.md` for the full architecture.
 
 ## 6. Menus
 
-The agent sessions window uses **its own menu IDs** defined in `browser/menus.ts` via the `Menus` export. **Never use shared `MenuId.*` constants** from `vs/platform/actions` for agent sessions UI — use the `Menus.*` equivalents instead.
+The agents window uses **its own menu IDs** defined in `browser/menus.ts` via the `Menus` export. **Never use shared `MenuId.*` constants** from `vs/platform/actions` for agents window UI — use the `Menus.*` equivalents instead.
 
 | Menu ID | Purpose |
 |---------|---------|
-| `Menus.TitleBarLeft` | Left toolbar (toggle sidebar) |
-| `Menus.TitleBarCenter` | Not used directly (see CommandCenter) |
-| `Menus.TitleBarRight` | Right toolbar (run script, open, toggle auxiliary bar) |
-| `Menus.CommandCenter` | Center toolbar with session picker widget |
-| `Menus.TitleBarControlMenu` | Submenu intercepted to render `SessionsTitleBarWidget` |
+| `Menus.ChatBarTitle` | Chat bar title actions |
+| `Menus.CommandCenter` | Center toolbar with agent picker widget |
+| `Menus.CommandCenterCenter` | Center section of command center |
+| `Menus.TitleBarContext` | Titlebar context menu |
+| `Menus.TitleBarLeftLayout` | Left layout toolbar |
+| `Menus.TitleBarSessionTitle` | Agent title in titlebar |
+| `Menus.TitleBarSessionMenu` | Agent menu in titlebar |
+| `Menus.TitleBarRightLayout` | Right layout toolbar |
 | `Menus.PanelTitle` | Panel title bar actions |
 | `Menus.SidebarTitle` | Sidebar title bar actions |
 | `Menus.SidebarFooter` | Sidebar footer (account widget) |
+| `Menus.SidebarCustomizations` | Sidebar customizations menu |
 | `Menus.AuxiliaryBarTitle` | Auxiliary bar title actions |
 | `Menus.AuxiliaryBarTitleLeft` | Auxiliary bar left title actions |
-| `Menus.OpenSubMenu` | "Open..." split button (Open Terminal, Open in VS Code) |
-| `Menus.ChatBarTitle` | Chat bar title actions |
+| `Menus.AgentFeedbackEditorContent` | Agent feedback editor content menu |
 
 ## 7. Context Keys
 
@@ -187,7 +201,7 @@ Defined in `common/contextkeys.ts`:
 | `activeChatBar` | `string` | ID of the active chat bar panel |
 | `chatBarFocus` | `boolean` | Whether chat bar has keyboard focus |
 | `chatBarVisible` | `boolean` | Whether chat bar is visible |
-
+| `sessionsWelcomeVisible` | `boolean` | Whether the agents welcome overlay is visible |
 ## 8. Contributions
 
 Feature contributions live under `contrib/<featureName>/browser/` and are registered via imports in `sessions.desktop.main.ts` (desktop) or `sessions.common.main.ts` (browser-compatible).
@@ -196,40 +210,51 @@ Feature contributions live under `contrib/<featureName>/browser/` and are regist
 
 | Contribution | Location | Purpose |
 |-------------|----------|---------|
-| **Sessions View** | `contrib/sessions/browser/` | Sessions list in sidebar, session picker, active session service |
-| **Title Bar Widget** | `contrib/sessions/browser/sessionsTitleBarWidget.ts` | Session picker in titlebar center |
+| **Sessions View** | `contrib/sessions/browser/` | Agents list in sidebar, agent picker, active session service |
+| **Title Bar Widget** | `contrib/sessions/browser/sessionsTitleBarWidget.ts` | Agent picker in titlebar center |
 | **Account Widget** | `contrib/accountMenu/browser/` | Account button in sidebar footer |
-| **Run Script** | `contrib/chat/browser/runScriptAction.ts` | Run configured script in terminal |
-| **Branch Chat Session** | `contrib/chat/browser/branchChatSessionAction.ts` | Branch a chat session |
-| **Open in VS Code / Terminal** | `contrib/chat/browser/chat.contribution.ts` | Open worktree in VS Code or terminal |
-| **Prompts Service** | `contrib/chat/browser/promptsService.ts` | Agentic prompts service override |
+| **Chat Actions** | `contrib/chat/browser/` | Chat actions (run script, branch, prompts, customizations debug log) |
 | **Changes View** | `contrib/changesView/browser/` | File changes in auxiliary bar |
-| **AI Customization Editor** | `contrib/aiCustomizationManagement/browser/` | Management editor for prompts, hooks, MCP, etc. |
+| **Agent Feedback** | `contrib/agentFeedback/browser/` | Agent feedback attachments, editor overlays, hover |
 | **AI Customization Tree** | `contrib/aiCustomizationTreeView/browser/` | Sidebar tree for AI customizations |
+| **Apply to Parent Repo** | `contrib/applyToParentRepo/browser/` | Apply changes to parent repo |
+| **Files** | `contrib/files/browser/` | File-related contributions |
+| **File Tree View** | `contrib/fileTreeView/browser/` | File tree view (filesystem provider) |
+| **Git Sync** | `contrib/gitSync/browser/` | Git sync contributions |
+| **Logs** | `contrib/logs/browser/` | Log contributions |
+| **Terminal** | `contrib/terminal/browser/` | Terminal contributions |
+| **Welcome** | `contrib/welcome/browser/` | Welcome view contribution |
+| **Workspace** | `contrib/workspace/browser/` | Workspace contributions |
 | **Configuration** | `contrib/configuration/browser/` | Configuration overrides |
 
 ### 8.2 Service Overrides
 
-The agent sessions window registers its own implementations for:
+The agents window registers its own implementations for:
 
 - `IPaneCompositePartService` → `AgenticPaneCompositePartService` (creates agent-specific parts)
 - `IPromptsService` → `AgenticPromptsService` (scopes prompt discovery to active session worktree)
 - `IActiveSessionService` → `ActiveSessionService` (tracks active session)
 
+Service overrides also live under `services/`:
+- `services/configuration/browser/` - configuration service overrides
+- `services/workspace/browser/` - workspace service overrides
+
 ### 8.3 `WindowVisibility.Sessions`
 
-Views and contributions that should only appear in the agent sessions window (not in regular VS Code) use `WindowVisibility.Sessions` in their registration.
+Views and contributions that should only appear in the agents window (not in regular VS Code) use `WindowVisibility.Sessions` in their registration.
 
 ## 9. Entry Points
 
 | File | Purpose |
 |------|---------|
-| `sessions.common.main.ts` | Common entry — imports browser-compatible services, workbench contributions |
-| `sessions.desktop.main.ts` | Desktop entry — imports desktop services, electron contributions, all `contrib/` modules |
+| `sessions.common.main.ts` | Common entry; imports browser-compatible services, workbench contributions |
+| `sessions.desktop.main.ts` | Desktop entry; imports desktop services, electron contributions, all `contrib/` modules |
 | `electron-browser/sessions.main.ts` | Desktop bootstrap |
 | `electron-browser/sessions.ts` | Electron process entry |
 | `electron-browser/sessions.html` | Production HTML shell |
 | `electron-browser/sessions-dev.html` | Development HTML shell |
+| `electron-browser/titleService.ts` | Desktop title service override |
+| `electron-browser/parts/titlebarPart.ts` | Desktop titlebar part |
 
 ## 10. Development Guidelines
 
@@ -243,7 +268,15 @@ Views and contributions that should only appear in the agent sessions window (no
 6. Use agent session part classes, not standard workbench parts
 7. Mark views with `WindowVisibility.Sessions` so they only appear in this window
 
-### 10.2 Layout Changes
+### 10.2 Validating Changes
+
+1. Run `npm run compile-check-ts-native` to run a repo-wide TypeScript compilation check (including `src/vs/sessions/`). This is a fast way to catch TypeScript errors introduced by your changes.
+2. Run `npm run valid-layers-check` to verify layering rules are not violated.
+3. Use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests (add `--grep <pattern>` to filter tests)
+
+**Important** do not run `tsc` to check for TypeScript errors always use above methods to validate TypeScript changes in `src/vs/**`.
+
+### 10.3 Layout Changes
 
 1. **Read `LAYOUT.md` first** — it's the authoritative spec
 2. Use the `agent-sessions-layout` skill for detailed implementation guidance

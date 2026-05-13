@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../nls.js';
 import type * as vscode from 'vscode';
 import { basename } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -165,7 +164,7 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 		return view as vscode.TreeView<T>;
 	}
 
-	async $getChildren(treeViewId: string, treeItemHandles?: string[]): Promise<(number | ITreeItem)[][] | undefined> {
+	async $getChildren(treeViewId: string, treeItemHandles?: string[]): Promise<(readonly (number | ITreeItem)[])[] | undefined> {
 		const treeView = this._treeViews.get(treeViewId);
 		if (!treeView) {
 			return Promise.reject(new NoTreeViewError(treeViewId));
@@ -489,7 +488,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	async getChildren(parentHandle: TreeItemHandle | Root): Promise<ITreeItem[] | undefined> {
+	async getChildren(parentHandle: TreeItemHandle | Root): Promise<readonly ITreeItem[] | undefined> {
 		const parentElement = parentHandle ? this.getExtensionElement(parentHandle) : undefined;
 		if (parentHandle && !parentElement) {
 			this._logService.error(`No tree item with id \'${parentHandle}\' found.`);
@@ -876,10 +875,14 @@ class ExtHostTreeView<T> extends Disposable {
 		if (duplicateHandle) {
 			const existingElement = this._elements.get(duplicateHandle);
 			if (existingElement) {
-				if (existingElement !== element) {
-					throw new Error(localize('treeView.duplicateElement', 'Element with id {0} is already registered', extTreeItem.id));
-				}
 				const existingNode = this._nodes.get(existingElement);
+				if (existingElement !== element) {
+					// A different element object was registered with the same ID.
+					// This can happen during concurrent tree operations (e.g., tree
+					// being switched to while data is updated). Clean up the stale
+					// element reference before re-registering with the new one.
+					this._nodes.delete(existingElement);
+				}
 				if (existingNode) {
 					const newNode = this._createTreeNode(element, extTreeItem, parentNode);
 					this._updateNodeCache(element, newNode, existingNode, parentNode);

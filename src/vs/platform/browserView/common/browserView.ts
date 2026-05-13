@@ -5,7 +5,65 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+
+const commandPrefix = 'workbench.action.browser';
+export enum BrowserViewCommandId {
+	// Tab management
+	Open = `${commandPrefix}.open`,
+	NewTab = `${commandPrefix}.newTab`,
+	QuickOpen = `${commandPrefix}.quickOpen`,
+	OpenOrList = `${commandPrefix}.openOrList`,
+	CloseAll = `${commandPrefix}.closeAll`,
+	CloseAllInGroup = `${commandPrefix}.closeAllInGroup`,
+
+	// Navigation
+	GoBack = `${commandPrefix}.goBack`,
+	GoForward = `${commandPrefix}.goForward`,
+	Reload = `${commandPrefix}.reload`,
+	HardReload = `${commandPrefix}.hardReload`,
+
+	// Editor actions
+	FocusUrlInput = `${commandPrefix}.focusUrlInput`,
+	OpenExternal = `${commandPrefix}.openExternal`,
+	OpenSettings = `${commandPrefix}.openSettings`,
+
+	// Chat actions
+	AddElementToChat = `${commandPrefix}.addElementToChat`,
+	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
+
+	// Dev Tools
+	ToggleDevTools = `${commandPrefix}.toggleDevTools`,
+
+	// Storage
+	ClearGlobalStorage = `${commandPrefix}.clearGlobalStorage`,
+	ClearWorkspaceStorage = `${commandPrefix}.clearWorkspaceStorage`,
+	ClearEphemeralStorage = `${commandPrefix}.clearEphemeralStorage`,
+
+	// Find in page
+	ShowFind = `${commandPrefix}.showFind`,
+	HideFind = `${commandPrefix}.hideFind`,
+	FindNext = `${commandPrefix}.findNext`,
+	FindPrevious = `${commandPrefix}.findPrevious`,
+}
+
+export interface IElementAncestor {
+	readonly tagName: string;
+	readonly id?: string;
+	readonly classNames?: string[];
+}
+
+export interface IElementData {
+	readonly url?: string;
+	readonly outerHTML: string;
+	readonly computedStyle: string;
+	readonly bounds: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+	readonly ancestors?: IElementAncestor[];
+	readonly attributes?: Record<string, string>;
+	readonly computedStyles?: Record<string, string>;
+	readonly dimensions?: { readonly top: number; readonly left: number; readonly width: number; readonly height: number };
+	readonly innerText?: string;
+}
 
 export interface IBrowserViewBounds {
 	windowId: number;
@@ -14,11 +72,60 @@ export interface IBrowserViewBounds {
 	width: number;
 	height: number;
 	zoomFactor: number;
+	cornerRadius: number;
 }
 
 export interface IBrowserViewCaptureScreenshotOptions {
 	quality?: number;
-	rect?: { x: number; y: number; width: number; height: number };
+	screenRect?: { x: number; y: number; width: number; height: number };
+	pageRect?: { x: number; y: number; width: number; height: number };
+}
+
+/**
+ * Identifies who owns a browser view's lifecycle.
+ * The owner is set at creation time and never changes.
+ */
+export interface IBrowserViewOwner {
+	/** The main code window ID that owns this view's lifecycle. */
+	readonly mainWindowId: number;
+	/** Optional session ID identifying the agent session that created this view. */
+	readonly sessionId?: string;
+}
+
+/**
+ * Summary information about a browser view, including its current state and
+ * ownership. Returned by the main service when listing or creating views.
+ */
+export interface IBrowserViewInfo {
+	readonly id: string;
+	readonly owner: IBrowserViewOwner;
+	readonly state: IBrowserViewState;
+}
+
+/**
+ * Editor opening hints passed from the main process to the workbench.
+ */
+export interface IBrowserViewOpenOptions {
+	readonly preserveFocus?: boolean;
+	readonly background?: boolean;
+	readonly pinned?: boolean;
+	/** The parent view ID. Used by the workbench to place the new tab in the same editor group. */
+	readonly parentViewId?: string;
+	/** When set, open in an auxiliary (new) window with these bounds. */
+	readonly auxiliaryWindow?: { x?: number; y?: number; width?: number; height?: number };
+}
+
+export interface IBrowserViewCreatedEvent {
+	readonly info: IBrowserViewInfo;
+
+	// May be omitted to create the view without opening an editor.
+	readonly openOptions?: IBrowserViewOpenOptions;
+}
+
+export interface IBrowserViewCreateOptions {
+	readonly owner: IBrowserViewOwner;
+	readonly scope: BrowserViewStorageScope;
+	readonly initialState?: Partial<IBrowserViewState>;
 }
 
 export interface IBrowserViewState {
@@ -33,13 +140,18 @@ export interface IBrowserViewState {
 	lastScreenshot: VSBuffer | undefined;
 	lastFavicon: string | undefined;
 	lastError: IBrowserViewLoadError | undefined;
+	certificateError: IBrowserViewCertificateError | undefined;
 	storageScope: BrowserViewStorageScope;
+	browserZoomIndex: number;
+	isElementSelectionActive: boolean;
 }
 
 export interface IBrowserViewNavigationEvent {
 	url: string;
+	title: string;
 	canGoBack: boolean;
 	canGoForward: boolean;
+	certificateError: IBrowserViewCertificateError | undefined;
 }
 
 export interface IBrowserViewLoadingEvent {
@@ -51,6 +163,19 @@ export interface IBrowserViewLoadError {
 	url: string;
 	errorCode: number;
 	errorDescription: string;
+	certificateError?: IBrowserViewCertificateError;
+}
+
+export interface IBrowserViewCertificateError {
+	host: string;
+	fingerprint: string;
+	error: string;
+	url: string;
+	hasTrustedException: boolean;
+	issuerName: string;
+	subjectName: string;
+	validStart: number;
+	validExpiry: number;
 }
 
 export interface IBrowserViewFocusEvent {
@@ -81,19 +206,7 @@ export interface IBrowserViewTitleChangeEvent {
 }
 
 export interface IBrowserViewFaviconChangeEvent {
-	favicon: string;
-}
-
-export enum BrowserNewPageLocation {
-	Foreground = 'foreground',
-	Background = 'background',
-	NewWindow = 'newWindow'
-}
-export interface IBrowserViewNewPageRequest {
-	resource: URI;
-	location: BrowserNewPageLocation;
-	// Only applicable if location is NewWindow
-	position?: { x?: number; y?: number; width?: number; height?: number };
+	favicon: string | undefined;
 }
 
 export interface IBrowserViewFindInPageOptions {
@@ -118,11 +231,29 @@ export enum BrowserViewStorageScope {
 export const ipcBrowserViewChannelName = 'browserView';
 
 /**
+ * Discrete zoom levels matching Edge/Chrome.
+ * Note: When those browsers say "33%" and "67%" zoom, they really mean 33.33...% and 66.66...%
+ */
+export const browserZoomFactors = [0.25, 1 / 3, 0.5, 2 / 3, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5] as const;
+export const browserZoomDefaultIndex = browserZoomFactors.indexOf(1);
+export function browserZoomLabel(zoomFactor: number): string {
+	return localize('browserZoomPercent', "{0}%", Math.round(zoomFactor * 100));
+}
+export function browserZoomAccessibilityLabel(zoomFactor: number): string {
+	return localize('browserZoomAccessibilityLabel', "Page Zoom: {0}%", Math.round(zoomFactor * 100));
+}
+
+/**
  * This should match the isolated world ID defined in `preload-browserView.ts`.
  */
 export const browserViewIsolatedWorldId = 999;
 
 export interface IBrowserViewService {
+	/**
+	 * Fires when a new browser view is created from an internal source (e.g. CDP or window.open).
+	 */
+	onDidCreateBrowserView: Event<IBrowserViewCreatedEvent>;
+
 	/**
 	 * Dynamic events that return an Event for a specific browser view ID.
 	 */
@@ -134,23 +265,37 @@ export interface IBrowserViewService {
 	onDynamicDidKeyCommand(id: string): Event<IBrowserViewKeyDownEvent>;
 	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;
 	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
-	onDynamicDidRequestNewPage(id: string): Event<IBrowserViewNewPageRequest>;
 	onDynamicDidFindInPage(id: string): Event<IBrowserViewFindInPageResult>;
 	onDynamicDidClose(id: string): Event<void>;
+	onDynamicDidSelectElement(id: string): Event<IElementData>;
+	onDynamicDidChangeElementSelectionActive(id: string): Event<boolean>;
 
 	/**
-	 * Get or create a browser view instance
-	 * @param id The browser view identifier
-	 * @param scope The storage scope for the browser view. Ignored if the view already exists.
-	 * @param workspaceId Workspace identifier for session isolation. Only used if scope is 'workspace'.
+	 * Get all known browser views with their ownership and state information.
 	 */
-	getOrCreateBrowserView(id: string, scope: BrowserViewStorageScope, workspaceId?: string): Promise<IBrowserViewState>;
+	getBrowserViews(windowId?: number): Promise<IBrowserViewInfo[]>;
+
+	/**
+	 * Get or create a browser view instance. Does not fire `onDidCreateBrowserView`.
+	 *
+	 * @param id The browser view identifier
+	 * @param options Creation options. If a view with the given ID already exists, these options are ignored.
+	 */
+	getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewState>;
 
 	/**
 	 * Destroy a browser view instance
 	 * @param id The browser view identifier
 	 */
 	destroyBrowserView(id: string): Promise<void>;
+
+	/**
+	 * Get the state of an existing browser view by ID, or throw if it doesn't exist
+	 * @param id The browser view identifier
+	 * @return The state of the browser view for the given ID
+	 * @throws If no browser view exists for the given ID
+	 */
+	getState(id: string): Promise<IBrowserViewState>;
 
 	/**
 	 * Update the bounds of a browser view
@@ -194,8 +339,9 @@ export interface IBrowserViewService {
 	/**
 	 * Reload the current page
 	 * @param id The browser view identifier
+	 * @param hard Whether to do a hard reload (bypassing cache)
 	 */
-	reload(id: string): Promise<void>;
+	reload(id: string, hard?: boolean): Promise<void>;
 
 	/**
 	 * Toggle developer tools for the browser view.
@@ -224,17 +370,11 @@ export interface IBrowserViewService {
 	captureScreenshot(id: string, options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
 
 	/**
-	 * Dispatch a key event to the browser view
-	 * @param id The browser view identifier
-	 * @param keyEvent The key event data
-	 */
-	dispatchKeyEvent(id: string, keyEvent: IBrowserViewKeyDownEvent): Promise<void>;
-
-	/**
 	 * Focus the browser view
 	 * @param id The browser view identifier
+	 * @param force Whether to force focus even if the view's window is not focused.
 	 */
-	focus(id: string): Promise<void>;
+	focus(id: string, force?: boolean): Promise<void>;
 
 	/**
 	 * Find text in the browser view's page
@@ -275,4 +415,49 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	clearStorage(id: string): Promise<void>;
+
+	/** Set the browser zoom index (independent from VS Code zoom). */
+	setBrowserZoomIndex(id: string, zoomIndex: number): Promise<void>;
+
+	/**
+	 * Trust a certificate for a given host in the browser view's session.
+	 * The page will be automatically reloaded after trusting.
+	 * @param id The browser view identifier
+	 * @param host The hostname that presented the certificate
+	 * @param fingerprint The SHA-256 fingerprint of the certificate to trust
+	 */
+	trustCertificate(id: string, host: string, fingerprint: string): Promise<void>;
+
+	/**
+	 * Revoke trust for a previously trusted certificate.
+	 * The browser view will be automatically closed after revoking.
+	 * @param id The browser view identifier
+	 * @param host The hostname to revoke the certificate for
+	 * @param fingerprint The SHA-256 fingerprint of the certificate to revoke
+	 */
+	untrustCertificate(id: string, host: string, fingerprint: string): Promise<void>;
+
+	/**
+	 * Get captured console logs for a browser view.
+	 * Console messages are automatically captured from the moment the view is created.
+	 * @param id The browser view identifier
+	 * @returns The captured console logs as a single string
+	 */
+	getConsoleLogs(id: string): Promise<string>;
+
+	/**
+	 * Toggle element selection mode in a browser view.
+	 * Element selections are delivered via {@link onDynamicDidSelectElement}.
+	 * State changes are delivered via {@link onDynamicDidChangeElementSelectionActive}.
+	 *
+	 * @param id The browser view identifier
+	 * @param enabled Whether to enable or disable. Omit to toggle.
+	 */
+	toggleElementSelection(id: string, enabled?: boolean): Promise<void>;
+
+	/**
+	 * Update the keybinding accelerators used in browser view context menus.
+	 * @param keybindings A map of command ID to accelerator label
+	 */
+	updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void>;
 }

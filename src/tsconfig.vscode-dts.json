@@ -1,7 +1,7 @@
 {
 	"compilerOptions": {
 		"noEmit": true,
-		"module": "None",
+		"module": "preserve",
 		"experimentalDecorators": false,
 		"noImplicitReturns": true,
 		"noImplicitOverride": true,

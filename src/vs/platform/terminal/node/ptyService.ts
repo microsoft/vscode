@@ -18,7 +18,7 @@ import { escapeNonWindowsPath } from '../common/terminalEnvironment.js';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from '@xterm/addon-serialize';
 import type { Unicode11Addon as XtermUnicode11Addon } from '@xterm/addon-unicode11';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from '../common/terminalProcess.js';
-import { getWindowsBuildNumber, sanitizeEnvForLogging } from './terminalEnvironment.js';
+import { sanitizeEnvForLogging } from './terminalEnvironment.js';
 import { TerminalProcess } from './terminalProcess.js';
 import { localize } from '../../../nls.js';
 import { ignoreProcessNames } from './childProcessMonitor.js';
@@ -33,6 +33,7 @@ import * as performance from '../../../base/common/performance.js';
 import pkg from '@xterm/headless';
 import { AutoRepliesPtyServiceContribution } from './terminalContrib/autoReplies/autoRepliesContribController.js';
 import { hasKey, isFunction, isNumber, isString } from '../../../base/common/types.js';
+import { getWindowsBuildNumberAsync } from '../../../base/node/windowsVersion.js';
 
 type XtermTerminal = pkg.Terminal;
 const { Terminal: XtermTerminal } = pkg;
@@ -510,10 +511,10 @@ export class PtyService extends Disposable implements IPtyService {
 			if (!isWindows) {
 				return original;
 			}
-			if (getWindowsBuildNumber() < 17063) {
+			if (await getWindowsBuildNumberAsync() < 17063) {
 				return original.replace(/\\/g, '/');
 			}
-			const wslExecutable = this._getWSLExecutablePath();
+			const wslExecutable = await this._getWSLExecutablePath();
 			if (!wslExecutable) {
 				return original;
 			}
@@ -528,10 +529,10 @@ export class PtyService extends Disposable implements IPtyService {
 			// The backend is Windows, for example a local Windows workspace with a wsl session in
 			// the terminal.
 			if (isWindows) {
-				if (getWindowsBuildNumber() < 17063) {
+				if (await getWindowsBuildNumberAsync() < 17063) {
 					return original;
 				}
-				const wslExecutable = this._getWSLExecutablePath();
+				const wslExecutable = await this._getWSLExecutablePath();
 				if (!wslExecutable) {
 					return original;
 				}
@@ -547,8 +548,8 @@ export class PtyService extends Disposable implements IPtyService {
 		return original;
 	}
 
-	private _getWSLExecutablePath(): string | undefined {
-		const useWSLexe = getWindowsBuildNumber() >= 16299;
+	private async _getWSLExecutablePath(): Promise<string | undefined> {
+		const useWSLexe = await getWindowsBuildNumberAsync() >= 16299;
 		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 		const systemRoot = process.env['SystemRoot'];
 		if (systemRoot) {

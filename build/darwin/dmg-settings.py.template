@@ -6,8 +6,9 @@ format = 'ULMO'
 badge_icon = {{BADGE_ICON}}
 background = {{BACKGROUND}}
 
-# Volume size (None = auto-calculate)
-size = None
+# Volume size
+size = '1g'
+shrink = False
 
 # Files and symlinks
 files = [{{APP_PATH}}]

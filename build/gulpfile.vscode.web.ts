@@ -33,7 +33,7 @@ const quality = (product as { quality?: string }).quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
 // esbuild-based bundle for standalone web
-function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean): Promise<void> {
+function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean, sourceMapBaseUrl?: string): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const scriptPath = path.join(REPO_ROOT, 'build/next/index.ts');
 		const args = [scriptPath, 'bundle', '--out', outDir, '--target', 'web'];
@@ -43,6 +43,9 @@ function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean): Promis
 		}
 		if (nls) {
 			args.push('--nls');
+		}
+		if (sourceMapBaseUrl) {
+			args.push('--source-map-base-url', sourceMapBaseUrl);
 		}
 
 		const proc = cp.spawn(process.execPath, args, {
@@ -71,6 +74,7 @@ export const vscodeWebResourceIncludes = [
 
 	// Welcome
 	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
+	'out-build/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 
 	// Extensions
 	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
@@ -112,6 +116,7 @@ const vscodeWebEntryPoints = [
 	buildfile.workerBackgroundTokenization,
 	buildfile.keyboardMaps,
 	buildfile.workbenchWeb,
+	buildfile.sessionsWeb,
 ].flat();
 
 /**
@@ -164,8 +169,9 @@ const minifyVSCodeWebTask = task.define('minify-vscode-web-OLD', task.series(
 gulp.task(minifyVSCodeWebTask);
 
 // esbuild-based tasks (new)
+const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 const esbuildBundleVSCodeWebTask = task.define('esbuild-vscode-web', () => runEsbuildBundle('out-vscode-web', false, true));
-const esbuildBundleVSCodeWebMinTask = task.define('esbuild-vscode-web-min', () => runEsbuildBundle('out-vscode-web-min', true, true));
+const esbuildBundleVSCodeWebMinTask = task.define('esbuild-vscode-web-min', () => runEsbuildBundle('out-vscode-web-min', true, true, `${sourceMappingURLBase}/core`));
 
 function packageTask(sourceFolderName: string, destinationFolderName: string) {
 	const destination = path.join(BUILD_ROOT, destinationFolderName);

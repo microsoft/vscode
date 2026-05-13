@@ -6,39 +6,63 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
-import { CDPEvent, CDPTargetInfo, ICDPConnection, ICDPTarget } from '../common/cdp/types.js';
+import { CDPEvent, CDPTargetInfo, ICDPConnection } from '../common/cdp/types.js';
 import { BrowserView } from './browserView.js';
 
 /**
- * Wraps a browser view's Electron debugger with per-client session management.
+ * CDP transport for a browser view, backed by the Electron debugger.
  *
- * Each client gets their own Electron debugger session, providing true isolation
- * just like connecting multiple DevTools clients to a real Chrome instance.
+ * Manages:
+ * - Electron debugger lifecycle (attach/detach)
+ * - Session registry and event routing
+ * - Auto-attach via `Target.setAutoAttach` (flatten=true)
+ *
+ * All CDP sessions on this WebContents (root + child sessions) live in a
+ * single flat registry here. Target-level abstractions (sub-target
+ * discovery, {@link ICDPTarget} contract) are handled by
+ * {@link BrowserViewCDPTarget} which wraps this class.
  */
-export class BrowserViewDebugger extends Disposable implements ICDPTarget {
+export class BrowserViewDebugger extends Disposable {
 
-	/** Map from CDP sessionId to the per-connection event emitter */
 	private readonly _sessions = this._register(new DisposableMap<string, DebugSession>());
+	private readonly _onSessionCreated = this._register(new Emitter<{ session: ICDPConnection; waitingForDebugger: boolean }>());
+	readonly onSessionCreated = this._onSessionCreated.event;
 
 	/**
-	 * The real CDP targetId discovered from Target.getTargets().
-	 * Ideally this could be fetched synchronously from the WebContents,
-	 * but in practice we need to query Electron's debugger API asynchronously to find it.
+	 * Target IDs discovered via `Target.attachedToTarget`. Consumed by
+	 * {@link BrowserViewCDPTarget} to create sub-target handles.
 	 */
-	private _realTargetId: string | undefined;
-	private _initializePromise: Promise<void> | undefined;
+	private readonly _knownTargets = new Map<string, CDPTargetInfo>();
+	get knownTargets(): ReadonlyMap<string, CDPTargetInfo> { return this._knownTargets; }
+
+	private readonly _onTargetDiscovered = this._register(new Emitter<CDPTargetInfo>());
+	/** Fired when a new targetId is seen in an attachedToTarget event. */
+	readonly onTargetDiscovered = this._onTargetDiscovered.event;
+
+	private readonly _onTargetDestroyed = this._register(new Emitter<string>());
+	/** Fired when a targetId is removed via a targetDestroyed event. */
+	readonly onTargetDestroyed = this._onTargetDestroyed.event;
+
+	private readonly _onTargetInfoChanged = this._register(new Emitter<CDPTargetInfo>());
+	/** Fired when targetInfo for a known target changes (e.g. title/url update). */
+	readonly onTargetInfoChanged = this._onTargetInfoChanged.event;
+
+	/** Whether any attached debugger session has paused JavaScript execution. */
+	private _isPaused = false;
+	get isPaused(): boolean { return this._isPaused; }
+
 	private readonly _messageHandler: (event: Electron.Event, method: string, params: unknown, sessionId?: string) => void;
 	private readonly _electronDebugger: Electron.Debugger;
+	private _targetId: string | undefined;
 
 	constructor(
 		private readonly view: BrowserView,
-		private readonly logService: ILogService
+		readonly logService: ILogService
 	) {
 		super();
 
 		this._electronDebugger = view.webContents.debugger;
 
-		// Set up message handler bound to this instance - note the sessionId parameter
 		this._messageHandler = (_event: Electron.Event, method: string, params: unknown, sessionId?: string) => {
 			this.routeCDPEvent(method, params, sessionId);
 		};
@@ -46,122 +70,161 @@ export class BrowserViewDebugger extends Disposable implements ICDPTarget {
 
 	/**
 	 * Attach to this debugger.
-	 * Creates a dedicated CDP session and returns a connection.
-	 * Dispose the returned connection to detach.
+	 * Attach to a target by its targetId, returning the session.
+	 * Works for both the root page and sub-targets.
 	 */
 	async attach(): Promise<ICDPConnection> {
-		// Ensure initialized
-		await this.initialize();
+		if (!this._targetId) {
+			const targetInfo = await this.getTargetInfo();
+			this._targetId = targetInfo.targetId;
+		}
+		return this.attachToTarget(this._targetId);
+	}
 
-		// Create a dedicated Electron session
+	async attachToTarget(targetId: string): Promise<ICDPConnection> {
+		this.ensureAttached();
 		const result = await this._electronDebugger.sendCommand('Target.attachToTarget', {
-			targetId: this._realTargetId,
+			targetId,
 			flatten: true
 		}) as { sessionId: string };
 
-		const sessionId = result.sessionId;
-		const session = new DebugSession(sessionId, this._electronDebugger);
-		this._sessions.set(sessionId, session);
-		session.onClose(() => this._sessions.deleteAndDispose(sessionId));
+		if (!this._sessions.has(result.sessionId)) {
+			throw new Error(`Failed to attach to target ${targetId}`);
+		}
 
-		return session;
+		return this._sessions.get(result.sessionId)!;
 	}
 
-	/**
-	 * Get CDP target info.
-	 * Initializes the debugger if not already done.
-	 */
 	async getTargetInfo(): Promise<CDPTargetInfo> {
-		// Ensure initialized
-		await this.initialize();
-
-		const url = this.view.webContents.getURL() || 'about:blank';
-		const title = this.view.webContents.getTitle() || url;
-
-		return {
-			targetId: this._realTargetId!,
-			type: 'page',
-			title,
-			url,
-			attached: this._sessions.size > 0,
-			canAccessOpener: false,
-			browserContextId: this.view.session.id
-		};
+		this.ensureAttached();
+		const result = await this._electronDebugger.sendCommand('Target.getTargetInfo') as { targetInfo: CDPTargetInfo };
+		return result.targetInfo;
 	}
 
 	/**
-	 * Initialize the debugger early to discover the real targetId.
+	 * Send a CDP command. Handles Electron-specific workarounds in a single place.
 	 */
-	private initialize(): Promise<void> {
-		if (!this._initializePromise) {
-			this._initializePromise = (async () => {
-				this.attachElectronDebugger();
-				await this.discoverRealTargetId();
-
-				if (!this._realTargetId) {
-					this._initializePromise = undefined; // Allow retry on failure
-					throw new Error('Could not discover real targetId for this WebContents');
-				}
-			})();
+	sendCommand(method: string, params?: unknown, sessionId?: string): Promise<unknown> {
+		// This crashes Electron. Don't pass it through.
+		if (method === 'Emulation.setDeviceMetricsOverride') {
+			return Promise.resolve({});
 		}
-		return this._initializePromise;
-	}
 
-	/**
-	 * Discover the real targetId for this WebContents
-	 */
-	private async discoverRealTargetId(): Promise<void> {
-		try {
-			const result = await this._electronDebugger.sendCommand('Target.getTargetInfo') as { targetInfo: CDPTargetInfo };
-			this._realTargetId = result.targetInfo.targetId;
-		} catch (error) {
-			this.logService.error(`[BrowserViewDebugger] Error discovering real targetId:`, error);
+		this.ensureAttached();
+		const resultPromise = this._electronDebugger.sendCommand(method, params, sessionId);
+
+		// Electron overrides dialog behavior — manually dismiss open dialogs.
+		if (method === 'Page.handleJavaScriptDialog') {
+			this.view.webContents.emit('-cancel-dialogs');
 		}
+
+		return resultPromise;
 	}
 
-	/**
-	 * Attach to the Electron debugger
-	 */
-	private attachElectronDebugger(): void {
+	private ensureAttached(): void {
 		if (this._electronDebugger.isAttached()) {
 			return;
 		}
 
-		this._electronDebugger.attach('1.3');
 		this._electronDebugger.on('message', this._messageHandler);
+		this._electronDebugger.attach('1.3');
+
+		// We use auto-attach to discover descendent targets.
+		// Regular target discovery doesn't provide ancestor information for workers,
+		// And we have to filter to avoid including targets from other pages or VS Code internals.
+		void this._electronDebugger.sendCommand('Target.setAutoAttach', {
+			autoAttach: true,
+			flatten: true,
+			waitForDebuggerOnStart: false
+		});
+		// We still set discoverTargets so we get target info updates.
+		void this._electronDebugger.sendCommand('Target.setDiscoverTargets', {
+			discover: true
+		});
+	}
+
+	private detachElectronDebugger(): void {
+		try {
+			if (this.view.webContents.isDestroyed() || !this._electronDebugger.isAttached()) {
+				return;
+			}
+
+			this._electronDebugger.removeListener('message', this._messageHandler);
+			this._electronDebugger.detach();
+		} catch {
+			// WebContents may already be destroyed or in an inconsistent state
+		}
 	}
 
 	/**
-	 * Route a CDP event to the correct connection by sessionId.
-	 * Fires on the per-connection session for the proxy to handle.
+	 * Route a CDP event from the Electron debugger.
 	 */
 	private routeCDPEvent(method: string, params: unknown, sessionId?: string): void {
-		if (!sessionId) {
-			// Events without a sessionId are managed at a higher level, so we can ignore them here.
-			return;
+		if (method === 'Target.attachedToTarget') {
+			const p = params as { sessionId: string; targetInfo: CDPTargetInfo; waitingForDebugger: boolean };
+			this.registerSession(p.sessionId, p.targetInfo, p.waitingForDebugger, sessionId);
+		} else if (method === 'Target.detachedFromTarget') {
+			const p = params as { sessionId: string };
+			this._sessions.deleteAndDispose(p.sessionId);
+		} else if (method === 'Target.targetDestroyed') {
+			const p = params as { targetId: string };
+			this.destroyTarget(p.targetId);
+		} else if (method === 'Target.targetInfoChanged' && !sessionId) {
+			const p = params as { targetInfo: CDPTargetInfo };
+			if (this._knownTargets.has(p.targetInfo.targetId)) {
+				this._knownTargets.set(p.targetInfo.targetId, p.targetInfo);
+				this._onTargetInfoChanged.fire(p.targetInfo);
+			}
+		} else if (method === 'Debugger.paused') {
+			this._isPaused = true;
+		} else if (method === 'Debugger.resumed') {
+			this._isPaused = false;
 		}
 
-		// Find the session for this sessionId and fire the event
-		const session = this._sessions.get(sessionId);
+		const session = sessionId ? this._sessions.get(sessionId) : undefined;
 		if (session) {
 			session.emitEvent({ method, params, sessionId });
 		}
 	}
 
 	/**
-	 * Detach from the Electron debugger
+	 * A target was destroyed by the Electron debugger.
+	 * Dispose all sessions belonging to that target before firing the
+	 * lifecycle event so that listeners never observe stale sessions.
 	 */
-	private detachElectronDebugger(): void {
-		if (!this._electronDebugger.isAttached()) {
-			return;
+	private destroyTarget(targetId: string): void {
+		const toDispose: string[] = [];
+		for (const [sessionId, session] of this._sessions) {
+			if (session.targetId === targetId) {
+				toDispose.push(sessionId);
+			}
+		}
+		for (const sessionId of toDispose) {
+			this._sessions.deleteAndDispose(sessionId);
 		}
 
-		this._electronDebugger.removeListener('message', this._messageHandler);
-		try {
-			this._electronDebugger.detach();
-		} catch (error) {
-			this.logService.error(`[BrowserViewDebugger] Error detaching from WebContents:`, error);
+		if (this._knownTargets.delete(targetId)) {
+			this._onTargetDestroyed.fire(targetId);
 		}
+	}
+
+	private registerSession(sessionId: string, targetInfo: CDPTargetInfo, waitingForDebugger: boolean, parentSessionId: string | undefined): DebugSession {
+		if (!this._knownTargets.has(targetInfo.targetId) && targetInfo.targetId !== this._targetId) {
+			this._knownTargets.set(targetInfo.targetId, targetInfo);
+			this._onTargetDiscovered.fire(targetInfo);
+		}
+
+		if (this._sessions.has(sessionId)) {
+			return this._sessions.get(sessionId)!;
+		}
+
+		const session = new DebugSession(parentSessionId, sessionId, targetInfo.targetId, this);
+		this._sessions.set(sessionId, session);
+		session.onClose(() => this._sessions.deleteAndDispose(sessionId));
+
+		this._onSessionCreated.fire({ session, waitingForDebugger });
+
+		return session;
 	}
 
 	override dispose(): void {
@@ -170,6 +233,12 @@ export class BrowserViewDebugger extends Disposable implements ICDPTarget {
 	}
 }
 
+/**
+ * A CDP session backed by the Electron debugger.
+ *
+ * Pure plumbing — holds a sessionId, emits events, and delegates
+ * commands to the root {@link BrowserViewDebugger}.
+ */
 class DebugSession extends Disposable implements ICDPConnection {
 	private readonly _onEvent = this._register(new Emitter<CDPEvent>());
 	readonly onEvent = this._onEvent.event;
@@ -181,19 +250,16 @@ class DebugSession extends Disposable implements ICDPConnection {
 	private _isDisposed = false;
 
 	constructor(
+		public readonly parentSessionId: string | undefined,
 		public readonly sessionId: string,
-		private readonly _electronDebugger: Electron.Debugger
+		public readonly targetId: string,
+		private readonly _debugger: BrowserViewDebugger,
 	) {
 		super();
 	}
 
-	async sendMessage(method: string, params?: unknown, _sessionId?: string): Promise<unknown> {
-		// This crashes Electron. Don't pass it through.
-		if (method === 'Emulation.setDeviceMetricsOverride') {
-			return Promise.resolve({});
-		}
-
-		return this._electronDebugger.sendCommand(method, params, this.sessionId);
+	async sendCommand(method: string, params?: unknown): Promise<unknown> {
+		return this._debugger.sendCommand(method, params, this.sessionId);
 	}
 
 	override dispose(): void {
@@ -201,9 +267,6 @@ class DebugSession extends Disposable implements ICDPConnection {
 			return;
 		}
 		this._isDisposed = true;
-
-		// Detach from the Electron session (fire and forget)
-		this._electronDebugger.sendCommand('Target.detachFromTarget', { sessionId: this.sessionId }).catch(() => { });
 
 		this._onClose.fire();
 		super.dispose();

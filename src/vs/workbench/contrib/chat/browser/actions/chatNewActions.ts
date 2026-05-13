@@ -14,7 +14,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/editing/chatEditingService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
@@ -108,6 +108,11 @@ export function registerNewChatActions() {
 						id: MenuId.ChatNewMenu,
 						group: '1_open',
 						order: 1,
+						when: ContextKeyExpr.and(
+							ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('copilot'),
+							ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('new-session'),
+							ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('comment')
+						)
 					}
 				],
 				keybinding: {
@@ -132,6 +137,40 @@ export function registerNewChatActions() {
 		}
 	}
 	);
+
+	const iconVariants = [
+		{ idSuffix: '.copilotIcon', iconValue: 'copilot', icon: Codicon.copilot },
+		{ idSuffix: '.newSessionIcon', iconValue: 'new-session', icon: Codicon.newSession },
+		{ idSuffix: '.commentIcon', iconValue: 'comment', icon: Codicon.comment },
+	] as const;
+
+	for (const variant of iconVariants) {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: ACTION_ID_NEW_CHAT + variant.idSuffix,
+					title: localize2('chat.newEdits.label', "New Chat"),
+					category: CHAT_CATEGORY,
+					icon: variant.icon,
+					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
+					f1: false,
+					menu: [{
+						id: MenuId.ChatNewMenu,
+						group: '1_open',
+						order: 1,
+						when: ChatContextKeys.newChatButtonExperimentIcon.isEqualTo(variant.iconValue)
+					}]
+				});
+			}
+
+			async run(accessor: ServicesAccessor, ...args: unknown[]) {
+				const executeCommandContext = isNewEditSessionActionContext(args[0]) ? args[0] : undefined;
+				const context = getEditingSessionContext(accessor, args);
+				await runNewChatAction(accessor, context, executeCommandContext);
+			}
+		});
+	}
+
 	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_NEW_CHAT);
 
 	registerAction2(class NewLocalChatAction extends Action2 {
@@ -164,6 +203,16 @@ export function registerNewChatActions() {
 		when: ChatContextKeys.agentSessionsViewerOrientation.notEqualsTo(AgentSessionsViewerOrientation.SideBySide), // when sessions show side by side, no need for a back button
 		group: 'navigation',
 		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.ChatTitleBarMenu, {
+		command: {
+			id: ACTION_ID_NEW_CHAT,
+			title: localize2('chat.newEdits.label', "New Chat"),
+		},
+		when: ChatContextKeys.enabled,
+		group: 'b_new',
+		order: -1,
 	});
 
 	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
@@ -229,7 +278,7 @@ export function registerNewChatActions() {
 				f1: true,
 				menu: [{
 					id: MenuId.ChatMessageRestoreCheckpoint,
-					when: ChatContextKeys.lockedToCodingAgent.negate(),
+					when: ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession),
 					group: 'navigation',
 					order: -1
 				}]

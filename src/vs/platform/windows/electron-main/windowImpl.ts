@@ -52,6 +52,7 @@ export interface IWindowCreationOptions {
 	readonly state: IWindowState;
 	readonly extensionDevelopmentPath?: string[];
 	readonly isExtensionTestHost?: boolean;
+	readonly isSessionsWindow?: boolean;
 }
 
 interface ITouchBarSegment extends electron.SegmentedControlSegment {
@@ -702,11 +703,16 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.windowState = state;
 			this.logService.trace('window#ctor: using window state', state);
 
-			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, {
+			const webPreferences: electron.WebPreferences = {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
 				additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
-				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
-			});
+				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none'
+			};
+			if (config.isSessionsWindow) {
+				webPreferences.backgroundThrottling = false; // keep agents window responsive when in background
+			}
+
+			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, webPreferences);
 
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');

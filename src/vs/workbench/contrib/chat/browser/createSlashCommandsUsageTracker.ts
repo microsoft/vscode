@@ -21,13 +21,12 @@ export class CreateSlashCommandsUsageTracker extends Disposable {
 		super();
 
 		this._register(this._chatService.onDidSubmitRequest(e => {
-			const model = this._chatService.getSession(e.chatSessionResource);
-			const lastRequest = model?.lastRequest;
-			if (!lastRequest) {
+			const message = e.message ?? this._chatService.getSession(e.chatSessionResource)?.lastRequest?.message;
+			if (!message) {
 				return;
 			}
 
-			for (const part of lastRequest.message.parts) {
+			for (const part of message.parts) {
 				if (part.kind === ChatRequestSlashCommandPart.Kind) {
 					const slash = part as ChatRequestSlashCommandPart;
 					if (CreateSlashCommandsUsageTracker._isCreateSlashCommand(slash.slashCommand.command)) {
@@ -38,8 +37,8 @@ export class CreateSlashCommandsUsageTracker extends Disposable {
 			}
 
 			// Fallback when parsing doesn't produce a slash command part.
-			const trimmed = lastRequest.message.text.trimStart();
-			const match = /^\/(create-(?:instruction|prompt|agent|skill))(?:\s|$)/.exec(trimmed);
+			const trimmed = message.text.trimStart();
+			const match = /^\/(create-(?:instructions|prompt|agent|skill))(?:\s|$)/.exec(trimmed);
 			if (match && CreateSlashCommandsUsageTracker._isCreateSlashCommand(match[1])) {
 				this._markUsed();
 			}
@@ -66,7 +65,7 @@ export class CreateSlashCommandsUsageTracker extends Disposable {
 
 	private static _isCreateSlashCommand(command: string): boolean {
 		switch (command) {
-			case 'create-instruction':
+			case 'create-instructions':
 			case 'create-prompt':
 			case 'create-agent':
 			case 'create-skill':

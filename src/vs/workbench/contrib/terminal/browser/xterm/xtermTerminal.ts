@@ -47,6 +47,7 @@ import type { IProgressState } from '@xterm/addon-progress';
 import type { CommandDetectionCapability } from '../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isNumber } from '../../../../../base/common/types.js';
+import { clamp } from '../../../../../base/common/numbers.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -90,6 +91,14 @@ export interface IXtermTerminalOptions {
 	xtermAddonImporter?: XtermAddonImporter;
 	/** Whether to disable the overview ruler. */
 	disableOverviewRuler?: boolean;
+	/**
+	 * When true, skips registering listeners on global singleton services
+	 * (configuration, theme, log level) to avoid accumulating listeners when
+	 * many detached terminals are created concurrently. The caller should use
+	 * {@link XtermTerminal.updateConfig}, {@link XtermTerminal.updateTheme},
+	 * and {@link XtermTerminal.updateLogLevel} to apply those changes externally.
+	 */
+	detached?: boolean;
 }
 
 /**
@@ -141,6 +150,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
 	get isGpuAccelerated(): boolean { return !!this._webglAddon; }
+	get isImageAddonLoaded(): boolean { return !!this._imageAddon; }
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -269,23 +279,27 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		}
 		this._core = (this.raw as ITerminalWithCore)._core as IXtermCore;
 
-		this._register(this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
-				XtermTerminal._suggestedRendererType = undefined;
-			}
-			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier')) {
-				this.updateConfig();
-			}
-			if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
-				this._updateUnicodeVersion();
-			}
-			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
-				this._updateTheme();
-			}
-		}));
+		// Skip global service listeners for detached terminals to avoid
+		// accumulating listeners when many detached instances exist concurrently.
+		if (!options.detached) {
+			this._register(this._configurationService.onDidChangeConfiguration(async e => {
+				if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
+					XtermTerminal._suggestedRendererType = undefined;
+				}
+				if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier')) {
+					this.updateConfig();
+				}
+				if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
+					this._updateUnicodeVersion();
+				}
+				if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+					this._updateTheme();
+				}
+			}));
 
-		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
-		this._register(this._logService.onDidChangeLogLevel(e => this.raw.options.logLevel = vscodeToXtermLogLevel(e)));
+			this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
+			this._register(this._logService.onDidChangeLogLevel(e => this.raw.options.logLevel = vscodeToXtermLogLevel(e)));
+		}
 
 		// Refire events
 		this._register(this.raw.onSelectionChange(() => {
@@ -528,6 +542,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	resize(columns: number, rows: number): void {
 		this._logService.debug('resizing', columns, rows);
 		this.raw.resize(columns, rows);
+	}
+
+	updateLogLevel(): void {
+		this.raw.options.logLevel = vscodeToXtermLogLevel(this._logService.getLevel());
 	}
 
 	updateConfig(): void {
@@ -916,6 +934,18 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				const AddonCtor = await this._xtermAddonLoader.importAddon('image');
 				this._imageAddon = new AddonCtor();
 				this.raw.loadAddon(this._imageAddon);
+				type TerminalImageAddonActivatedClassification = {
+					owner: 'anthonykim1';
+					comment: 'Tracks when the xterm.js image addon is loaded, including dynamic enablement';
+				};
+				this._telemetryService.publicLog2<{}, TerminalImageAddonActivatedClassification>('terminal/imageAddonActivated');
+				this._register(this._imageAddon.onImageAdded(() => {
+					type TerminalImageAddedClassification = {
+						owner: 'anthonykim1';
+						comment: 'Tracks when an image is added to the terminal via the image addon';
+					};
+					this._telemetryService.publicLog2<{}, TerminalImageAddedClassification>('terminal/imageAdded');
+				}));
 			}
 		} else {
 			try {
@@ -951,16 +981,21 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			this.raw.loadAddon(this._serializeAddon);
 		}
 
+		const lastLine = this.raw.buffer.active.length - 1;
+		if (lastLine < 0) {
+			return '';
+		}
+
 		const hasValidEndMarker = isNumber(endMarker?.line);
-		const start = isNumber(startMarker?.line) && startMarker?.line > -1 ? startMarker.line : 0;
+		const start = clamp(isNumber(startMarker?.line) && startMarker.line > -1 ? startMarker.line : 0, 0, lastLine);
 		let end = hasValidEndMarker ? endMarker.line : this.raw.buffer.active.length - 1;
 		if (skipLastLine && hasValidEndMarker) {
 			end = end - 1;
 		}
-		end = Math.max(end, start);
+		end = clamp(Math.max(end, start), start, lastLine);
 		return this._serializeAddon.serialize({
 			range: {
-				start: startMarker?.line ?? 0,
+				start,
 				end
 			}
 		});
@@ -1016,6 +1051,14 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	private _updateTheme(theme?: IColorTheme): void {
 		this.raw.options.theme = this.getXtermTheme(theme);
+	}
+
+	/**
+	 * Updates the terminal theme. Use this to externally trigger a theme
+	 * refresh for detached terminals that skip global service listeners.
+	 */
+	updateTheme(): void {
+		this._updateTheme();
 	}
 
 	refresh() {

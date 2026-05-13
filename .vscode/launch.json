@@ -20,7 +20,8 @@
 			"port": 5870,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js",
-				"${workspaceFolder}/extensions/*/out/**/*.js"
+				"${workspaceFolder}/extensions/*/out/**/*.js",
+				"${workspaceFolder}/extensions/copilot/dist/**/*.js"
 			]
 		},
 		{
@@ -48,6 +49,17 @@
 			"request": "attach",
 			"name": "Attach to Pty Host Process",
 			"port": 5877,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "attach",
+			"name": "Attach to Agent Host Process",
+			"port": 5878,
+			"restart": true,
+			"timeout": 0,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -279,6 +291,51 @@
 			},
 		},
 		{
+			"type": "chrome",
+			"request": "launch",
+			"name": "Launch VS Code Agents Internal",
+			"windows": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
+			},
+			"osx": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
+			},
+			"linux": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
+			},
+			"port": 9222,
+			"timeout": 0,
+			"env": {
+				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
+				"VSCODE_SKIP_PRELAUNCH": "1",
+				"VSCODE_DEV_DEBUG_OBSERVABLES": "1",
+			},
+			"cleanUp": "wholeBrowser",
+			"killBehavior": "polite",
+			"runtimeArgs": [
+				"--inspect-brk=5875",
+				"--no-cached-data",
+				"--crash-reporter-directory=${workspaceFolder}/.profile-oss/crashes",
+				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
+				"--disable-features=CalculateNativeWinOcclusion",
+				"--disable-extension=vscode.vscode-api-tests",
+				"--agents"
+			],
+			"userDataDir": "${userHome}/.vscode-oss-agents-dev",
+			"webRoot": "${workspaceFolder}",
+			"cascadeTerminateToConfigurations": [
+				"Attach to Extension Host"
+			],
+			"pauseForSourceMap": false,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"browserLaunchLocation": "workspace",
+			"presentation": {
+				"hidden": true,
+			},
+		},
+		{
 			// To debug observables you also need the extension "ms-vscode.debug-value-editor"
 			"type": "chrome",
 			"request": "launch",
@@ -335,6 +392,21 @@
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code-server.bat",
 			},
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"presentation": {
+				"group": "0_vscode",
+				"order": 2
+			}
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "VS Code Agent Host",
+			"outputCapture": "std",
+			"program": "./scripts/code-agent-host.js",
+			"args": ["--port", "7777", "--without-connection-token"],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
@@ -603,13 +675,24 @@
 			}
 		},
 		{
-			"name": "Component Explorer",
+			"name": "Component Explorer (Edge)",
+			"type": "msedge",
+			"request": "launch",
+			"url": "http://localhost:5337/___explorer",
+			"preLaunchTask": "Component Explorer Server",
+			"presentation": {
+				"group": "1_component_explorer",
+				"order": 4
+			}
+		},
+		{
+			"name": "Component Explorer (Chrome)",
 			"type": "chrome",
 			"request": "launch",
-			"url": "http://localhost:5199/___explorer",
-			"preLaunchTask": "Launch Monaco Editor Vite",
+			"url": "http://localhost:5337/___explorer",
+			"preLaunchTask": "Component Explorer Server",
 			"presentation": {
-				"group": "monaco",
+				"group": "1_component_explorer",
 				"order": 4
 			}
 		},
@@ -642,6 +725,22 @@
 			"stopAll": true,
 			"configurations": [
 				"Launch VS Code Internal",
+				"Attach to Main Process",
+				"Attach to Extension Host",
+				"Attach to Shared Process",
+				"Attach to Agent Host Process"
+			],
+			"preLaunchTask": "Ensure Prelaunch Dependencies",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 1
+			}
+		},
+		{
+			"name": "VS Code Agents",
+			"stopAll": true,
+			"configurations": [
+				"Launch VS Code Agents Internal",
 				"Attach to Main Process",
 				"Attach to Extension Host",
 				"Attach to Shared Process",
@@ -719,6 +818,16 @@
 			"configurations": [
 				"Launch VS Code Internal",
 				"Attach to Main Process"
+			],
+			"preLaunchTask": "Ensure Prelaunch Dependencies"
+		},
+		{
+			"name": "Renderer and Agent Host processes",
+			"stopAll": true,
+			"configurations": [
+				"Launch VS Code Internal",
+				"Attach to Main Process",
+				"Attach to Agent Host Process"
 			],
 			"preLaunchTask": "Ensure Prelaunch Dependencies"
 		},

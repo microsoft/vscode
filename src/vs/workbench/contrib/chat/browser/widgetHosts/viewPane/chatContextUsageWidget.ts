@@ -92,6 +92,7 @@ export class ChatContextUsageWidget extends Disposable {
 	readonly domNode: HTMLElement;
 
 	private readonly progressIndicator: CircularProgressIndicator;
+	private readonly percentageLabel: HTMLElement;
 
 	private readonly _isVisible = observableValue<boolean>(this, false);
 	get isVisible(): IObservable<boolean> { return this._isVisible; }
@@ -129,6 +130,9 @@ export class ChatContextUsageWidget extends Disposable {
 		const iconContainer = this.domNode.appendChild($('.icon-container'));
 		this.progressIndicator = new CircularProgressIndicator();
 		iconContainer.appendChild(this.progressIndicator.domNode);
+
+		// Percentage label (visible on hover/focus)
+		this.percentageLabel = this.domNode.appendChild($('.percentage-label'));
 
 		// Track context usage opened state
 		this._contextUsageOpenedKey = ChatContextKeys.contextUsageHasBeenOpened.bindTo(this.contextKeyService);
@@ -270,23 +274,36 @@ export class ChatContextUsageWidget extends Disposable {
 		}
 
 		const promptTokens = usage.promptTokens;
+		const completionTokens = usage.completionTokens;
 		const promptTokenDetails = usage.promptTokenDetails;
+		const outputBuffer = usage.outputBuffer;
 		const totalContextWindow = maxInputTokens + maxOutputTokens;
-		const usedTokens = promptTokens + maxOutputTokens;
-		const percentage = Math.min(100, (usedTokens / totalContextWindow) * 100);
+		const usedTokens = promptTokens + completionTokens;
+		const percentage = (usedTokens / totalContextWindow) * 100;
 
-		this.render(percentage, usedTokens, totalContextWindow, promptTokenDetails);
+		// Remaining reserve = whatever the model reserved minus what completions
+		// have already consumed. Once completions exceed the reserve, it drops to 0.
+		const outputBufferPercentage = outputBuffer !== undefined
+			? (Math.max(0, outputBuffer - completionTokens) / totalContextWindow) * 100
+			: undefined;
+
+		this.render(percentage, completionTokens, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails);
 		this.show();
 	}
 
-	private render(percentage: number, usedTokens: number, totalContextWindow: number, promptTokenDetails?: readonly { category: string; label: string; percentageOfPrompt: number }[]): void {
+	private render(percentage: number, completionTokens: number, usedTokens: number, totalContextWindow: number, outputBufferPercentage: number | undefined, promptTokenDetails?: readonly { category: string; label: string; percentageOfPrompt: number }[]): void {
 		// Store current data for use in details popup
-		this.currentData = { usedTokens, totalContextWindow, percentage, promptTokenDetails };
+		this.currentData = { usedTokens, completionTokens, totalContextWindow, percentage, outputBufferPercentage, promptTokenDetails };
 
-		// Update pie chart progress
+		// Pie chart shows actual usage percentage only
 		this.progressIndicator.setProgress(percentage);
 
-		// Update color based on usage level
+		// Update percentage label and aria-label (clamp display to 100)
+		const roundedPercentage = Math.min(100, Math.round(percentage));
+		this.percentageLabel.textContent = `${roundedPercentage}%`;
+		this.domNode.setAttribute('aria-label', localize('contextUsagePercentageLabel', "Context window usage: {0}%", roundedPercentage));
+
+		// Color based on actual usage percentage
 		this.domNode.classList.remove('warning', 'error');
 		if (percentage >= 90) {
 			this.domNode.classList.add('error');

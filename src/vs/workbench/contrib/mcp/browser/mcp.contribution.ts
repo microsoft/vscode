@@ -23,6 +23,7 @@ import { mcpDiscoveryRegistry } from '../common/discovery/mcpDiscovery.js';
 import { RemoteNativeMpcDiscovery } from '../common/discovery/nativeMcpRemoteDiscovery.js';
 import { PluginMcpDiscovery } from '../common/discovery/pluginMcpDiscovery.js';
 import { CursorWorkspaceMcpDiscoveryAdapter } from '../common/discovery/workspaceMcpDiscoveryAdapter.js';
+import { WorkspaceDotMcpDiscovery } from '../common/discovery/workspaceDotMcpDiscovery.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { mcpServerSchema } from '../common/mcpConfiguration.js';
 import { McpContextKeysController } from '../common/mcpContextKeys.js';
@@ -30,6 +31,7 @@ import { IMcpDevModeDebugging, McpDevModeDebugging } from '../common/mcpDevMode.
 import { McpLanguageModelToolContribution } from '../common/mcpLanguageModelToolContribution.js';
 import { McpRegistry } from '../common/mcpRegistry.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
+import { IMcpSandboxService, McpSandboxService } from '../common/mcpSandboxService.js';
 import { McpResourceFilesystem } from '../common/mcpResourceFilesystem.js';
 import { McpSamplingService } from '../common/mcpSamplingService.js';
 import { McpService } from '../common/mcpService.js';
@@ -46,10 +48,10 @@ import { McpConfigMigrationContribution } from './mcpMigration.js';
 import { McpResourceQuickAccess } from './mcpResourceQuickAccess.js';
 import { McpServerEditor } from './mcpServerEditor.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
-import { McpServersViewsContribution } from './mcpServersView.js';
 import { MCPContextsInitialisation, McpWorkbenchService } from './mcpWorkbenchService.js';
 
 registerSingleton(IMcpRegistry, McpRegistry, InstantiationType.Delayed);
+registerSingleton(IMcpSandboxService, McpSandboxService, InstantiationType.Delayed);
 registerSingleton(IMcpService, McpService, InstantiationType.Delayed);
 registerSingleton(IMcpWorkbenchService, McpWorkbenchService, InstantiationType.Eager);
 registerSingleton(IMcpDevModeDebugging, McpDevModeDebugging, InstantiationType.Delayed);
@@ -61,6 +63,7 @@ mcpDiscoveryRegistry.register(new SyncDescriptor(RemoteNativeMpcDiscovery));
 mcpDiscoveryRegistry.register(new SyncDescriptor(InstalledMcpServersDiscovery));
 mcpDiscoveryRegistry.register(new SyncDescriptor(ExtensionMcpDiscovery));
 mcpDiscoveryRegistry.register(new SyncDescriptor(CursorWorkspaceMcpDiscoveryAdapter));
+mcpDiscoveryRegistry.register(new SyncDescriptor(WorkspaceDotMcpDiscovery));
 mcpDiscoveryRegistry.register(new SyncDescriptor(PluginMcpDiscovery));
 
 registerWorkbenchContribution2('mcpDiscovery', McpDiscovery, WorkbenchPhase.AfterRestored);
@@ -99,7 +102,6 @@ registerWorkbenchContribution2('mcpActionRendering', MCPServerActionRendering, W
 registerWorkbenchContribution2('mcpAddContext', McpAddContextContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(MCPContextsInitialisation.ID, MCPContextsInitialisation, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(McpConfigMigrationContribution.ID, McpConfigMigrationContribution, WorkbenchPhase.Eventually);
-registerWorkbenchContribution2(McpServersViewsContribution.ID, McpServersViewsContribution, WorkbenchPhase.AfterRestored);
 
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(mcpSchemaId, mcpServerSchema);

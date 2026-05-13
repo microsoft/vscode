@@ -10,7 +10,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITerminalProcessOptions } from '../../common/terminal.js';
-import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection, type IShellIntegrationInjectionFailure, sanitizeEnvForLogging } from '../../node/terminalEnvironment.js';
+import { getShellIntegrationInjection, IShellIntegrationConfigInjection, type IShellIntegrationInjectionFailure, sanitizeEnvForLogging } from '../../node/terminalEnvironment.js';
+import { getWindowsBuildNumberSync } from '../../../../base/node/windowsVersion.js';
 
 const enabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined, isScreenReaderOptimized: false };
 const disabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: false, suggestEnabled: false, nonce: '' }, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined, isScreenReaderOptimized: false };
@@ -32,14 +33,14 @@ suite('platform - terminalEnvironment', async () => {
 	suite('getShellIntegrationInjection', async () => {
 		suite('should not enable', async () => {
 			// This test is only expected to work on Windows 10 build 18309 and above
-			(getWindowsBuildNumber() < 18309 ? test.skip : test)('when isFeatureTerminal or when no executable is provided', async () => {
+			(getWindowsBuildNumberSync() < 18309 ? test.skip : test)('when isFeatureTerminal or when no executable is provided', async () => {
 				strictEqual((await getShellIntegrationInjection({ executable: pwshExe, args: ['-l', '-NoLogo'], isFeatureTerminal: true }, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
 				strictEqual((await getShellIntegrationInjection({ executable: pwshExe, args: ['-l', '-NoLogo'], isFeatureTerminal: false }, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'injection');
 			});
 		});
 
 		// These tests are only expected to work on Windows 10 build 18309 and above
-		(getWindowsBuildNumber() < 18309 ? suite.skip : suite)('pwsh', async () => {
+		(getWindowsBuildNumberSync() < 18309 ? suite.skip : suite)('pwsh', async () => {
 			const expectedPs1 = process.platform === 'win32'
 				? `try { . "${repoRoot}\\out\\vs\\workbench\\contrib\\terminal\\common\\scripts\\shellIntegration.ps1" } catch {}`
 				: `. "${repoRoot}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1"`;
@@ -183,6 +184,17 @@ suite('platform - terminalEnvironment', async () => {
 				});
 			});
 			suite('bash', async () => {
+				suite('forceShellIntegration', async () => {
+					test('should inject when isFeatureTerminal is true but forceShellIntegration overrides it', async () => {
+						strictEqual((await getShellIntegrationInjection({ executable: 'bash', args: [], isFeatureTerminal: true, forceShellIntegration: true }, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'injection');
+					});
+					test('should not inject when isFeatureTerminal is true and forceShellIntegration is false', async () => {
+						strictEqual((await getShellIntegrationInjection({ executable: 'bash', args: [], isFeatureTerminal: true, forceShellIntegration: false }, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
+					});
+					test('should not inject when isFeatureTerminal is true and forceShellIntegration is not set', async () => {
+						strictEqual((await getShellIntegrationInjection({ executable: 'bash', args: [], isFeatureTerminal: true }, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
+					});
+				});
 				suite('should override args', async () => {
 					test('when undefined, [], empty string', async () => {
 						const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({

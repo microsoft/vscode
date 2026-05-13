@@ -549,6 +549,11 @@ export const PANEL_STICKY_SCROLL_BORDER = registerColor('panelStickyScroll.borde
 export const PANEL_STICKY_SCROLL_SHADOW = registerColor('panelStickyScroll.shadow', scrollbarShadow, localize('panelStickyScrollShadow', "Shadow color of sticky scroll in the panel."));
 
 
+// < --- Browser --- >
+
+export const BROWSER_BORDER = registerColor('browser.border', TAB_BORDER, localize('browserBorder', "Border color for integrated browser pages."));
+
+
 // < --- Profiles --- >
 
 export const PROFILE_BADGE_BACKGROUND = registerColor('profileBadge.background', {

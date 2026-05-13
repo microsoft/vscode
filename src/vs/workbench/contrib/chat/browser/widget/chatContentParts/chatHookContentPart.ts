@@ -7,16 +7,17 @@ import { $ } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IChatHookPart } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
-import { HookType, HOOK_TYPES, HookTypeValue } from '../../../common/promptSyntax/hookSchema.js';
+import { HookType, HOOK_METADATA, HookTypeValue } from '../../../common/promptSyntax/hookTypes.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import './media/chatHookContentPart.css';
 
 function getHookTypeLabel(hookType: HookTypeValue): string {
-	return HOOK_TYPES.find(hook => hook.id === hookType)?.label ?? hookType;
+	return HOOK_METADATA[hookType as HookType]?.label ?? hookType;
 }
 
 export class ChatHookContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
@@ -25,6 +26,7 @@ export class ChatHookContentPart extends ChatCollapsibleContentPart implements I
 		private readonly hookPart: IChatHookPart,
 		context: IChatContentPartRenderContext,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		const hookTypeLabel = getHookTypeLabel(hookPart.hookType);
 		const isStopped = !!hookPart.stopReason;
@@ -38,7 +40,7 @@ export class ChatHookContentPart extends ChatCollapsibleContentPart implements I
 				? localize('hook.title.warningWithTool', "Warning for {0} - {1} hook", toolName, hookTypeLabel)
 				: localize('hook.title.warning', "Warning from {0} hook", hookTypeLabel));
 
-		super(title, context, undefined, hoverService);
+		super(title, context, undefined, hoverService, configurationService);
 
 		this.icon = isStopped ? Codicon.error : isWarning ? Codicon.warning : Codicon.check;
 

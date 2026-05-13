@@ -4,29 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { DragAndDropObserver } from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { renderIcon, renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { registerOpenEditorListeners } from '../../../../platform/editor/browser/editor.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { IChatImageCarouselService } from '../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
+import { coerceImageBuffer } from '../../../../workbench/contrib/chat/common/chatImageExtraction.js';
 
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { basename } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../workbench/browser/labels.js';
 
 import { IChatRequestVariableEntry, OmittedState } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { isLocation } from '../../../../editor/common/languages.js';
 import { resizeImage } from '../../../../workbench/contrib/chat/browser/chatImageUtils.js';
 import { imageToHash, isImage } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
-import { getPathForFile } from '../../../../platform/dnd/browser/dnd.js';
+import { CodeDataTransfers, containsDragType, extractEditorsDropData, getPathForFile } from '../../../../platform/dnd/browser/dnd.js';
+import { DataTransfers } from '../../../../base/browser/dnd.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
 
 /**
@@ -51,6 +64,15 @@ export class NewChatContextAttachments extends Disposable {
 		return this._attachedContext;
 	}
 
+	setAttachments(entries: readonly IChatRequestVariableEntry[]): void {
+		this._attachedContext.length = 0;
+		this._attachedContext.push(...entries);
+		this._updateRendering();
+		this._onDidChangeContext.fire();
+	}
+
+	private readonly _resourceLabels: ResourceLabels;
+
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ITextModelService private readonly textModelService: ITextModelService,
@@ -60,8 +82,14 @@ export class NewChatContextAttachments extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@ISearchService private readonly searchService: ISearchService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
 	) {
 		super();
+		this._resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 	}
 
 	// --- Rendering ---
@@ -77,6 +105,7 @@ export class NewChatContextAttachments extends Disposable {
 		}
 
 		this._renderDisposables.clear();
+		this._resourceLabels.clear();
 		dom.clearNode(this._container);
 
 		if (this._attachedContext.length === 0) {
@@ -85,17 +114,51 @@ export class NewChatContextAttachments extends Disposable {
 		}
 
 		this._container.style.display = '';
+		this._container.classList.add('show-file-icons');
 
 		for (const entry of this._attachedContext) {
 			const pill = dom.append(this._container, dom.$('.sessions-chat-attachment-pill'));
-			const icon = entry.kind === 'image' ? Codicon.fileMedia : Codicon.file;
-			dom.append(pill, renderIcon(icon));
-			dom.append(pill, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
+			pill.tabIndex = 0;
+			pill.role = 'button';
+			const resource = URI.isUri(entry.value) ? entry.value : isLocation(entry.value) ? entry.value.uri : undefined;
+			if (entry.kind === 'image') {
+				dom.append(pill, renderIcon(Codicon.fileMedia));
+				dom.append(pill, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
+			} else {
+				const label = this._resourceLabels.create(pill, { supportIcons: true });
+				this._renderDisposables.add(label);
+				if (resource) {
+					label.setFile(resource, {
+						fileKind: entry.kind === 'directory' ? FileKind.FOLDER : FileKind.FILE,
+						hidePath: true,
+					});
+				} else {
+					label.setLabel(entry.name);
+				}
+			}
+
+			// Click to open the resource or image
+			const imageData = entry.kind === 'image' ? coerceImageBuffer(entry.value) : undefined;
+			if (imageData) {
+				pill.style.cursor = 'pointer';
+				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
+					if (this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+						const imageResource = resource ?? URI.from({ scheme: 'data', path: entry.name });
+						await this.chatImageCarouselService.openCarouselAtResource(imageResource, imageData);
+					} else if (resource) {
+						await this.openerService.open(resource, { fromUserGesture: true });
+					}
+				}));
+			} else if (resource) {
+				pill.style.cursor = 'pointer';
+				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
+					await this.openerService.open(resource, { fromUserGesture: true });
+				}));
+			}
 
 			const removeButton = dom.append(pill, dom.$('.sessions-chat-attachment-remove'));
 			removeButton.title = localize('removeAttachment', "Remove");
-			removeButton.tabIndex = 0;
-			removeButton.role = 'button';
+			removeButton.tabIndex = -1;
 			dom.append(removeButton, renderIcon(Codicon.close));
 			this._renderDisposables.add(dom.addDisposableListener(removeButton, dom.EventType.CLICK, (e) => {
 				e.stopPropagation();
@@ -106,68 +169,85 @@ export class NewChatContextAttachments extends Disposable {
 
 	// --- Drag and drop ---
 
-	registerDropTarget(element: HTMLElement): void {
-		// Use a transparent overlay during drag to capture events over the Monaco editor
-		const overlay = dom.append(element, dom.$('.sessions-chat-drop-overlay'));
+	registerDropTarget(dndContainer: HTMLElement): void {
+		const overlay = dom.append(dndContainer, dom.$('.sessions-chat-dnd-overlay'));
+		let overlayText: HTMLElement | undefined;
 
-		// Use capture phase to intercept drag events before Monaco editor handles them
-		this._register(dom.addDisposableListener(element, dom.EventType.DRAG_ENTER, (e: DragEvent) => {
-			if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
-				e.preventDefault();
-				e.dataTransfer.dropEffect = 'copy';
-				overlay.style.display = 'block';
-				element.classList.add('sessions-chat-drop-active');
+		const isDropSupported = (e: DragEvent): boolean => {
+			return containsDragType(e, DataTransfers.FILES, CodeDataTransfers.EDITORS, CodeDataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.INTERNAL_URI_LIST);
+		};
+
+		const showOverlay = () => {
+			overlay.classList.add('visible');
+			if (!overlayText) {
+				const label = localize('attachAsContext', "Attach as Context");
+				const iconAndTextElements = renderLabelWithIcons(`$(${Codicon.attach.id}) ${label}`);
+				const htmlElements = iconAndTextElements.map(element => {
+					if (typeof element === 'string') {
+						return dom.$('span.overlay-text', undefined, element);
+					}
+					return element;
+				});
+				overlayText = dom.$('span.attach-context-overlay-text', undefined, ...htmlElements);
+				overlay.appendChild(overlayText);
 			}
-		}, true));
+		};
 
-		this._register(dom.addDisposableListener(element, dom.EventType.DRAG_OVER, (e: DragEvent) => {
-			if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
-				e.preventDefault();
-				e.dataTransfer.dropEffect = 'copy';
-				if (overlay.style.display !== 'block') {
-					overlay.style.display = 'block';
-					element.classList.add('sessions-chat-drop-active');
+		const hideOverlay = () => {
+			overlay.classList.remove('visible');
+			overlayText?.remove();
+			overlayText = undefined;
+		};
+
+		this._register(new DragAndDropObserver(dndContainer, {
+			onDragOver: (e) => {
+				if (isDropSupported(e)) {
+					e.preventDefault();
+					e.stopPropagation();
+					if (e.dataTransfer) {
+						e.dataTransfer.dropEffect = 'copy';
+					}
+					showOverlay();
 				}
-			}
-		}, true));
+			},
+			onDragLeave: () => {
+				hideOverlay();
+			},
+			onDrop: async (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				hideOverlay();
 
-		this._register(dom.addDisposableListener(overlay, dom.EventType.DRAG_OVER, (e) => {
-			e.preventDefault();
-			e.dataTransfer!.dropEffect = 'copy';
-		}));
-
-		this._register(dom.addDisposableListener(overlay, dom.EventType.DRAG_LEAVE, (e) => {
-			if (e.relatedTarget && element.contains(e.relatedTarget as Node)) {
-				return;
-			}
-			overlay.style.display = 'none';
-			element.classList.remove('sessions-chat-drop-active');
-		}));
-
-		this._register(dom.addDisposableListener(overlay, dom.EventType.DROP, async (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			overlay.style.display = 'none';
-			element.classList.remove('sessions-chat-drop-active');
-
-			// Try items first (for URI-based drops from VS Code tree views)
-			const items = e.dataTransfer?.items;
-			if (items) {
-				for (const item of Array.from(items)) {
-					if (item.kind === 'file') {
-						const file = item.getAsFile();
-						if (!file) {
-							continue;
+				// Extract editor data from VS Code internal drags (e.g., explorer view)
+				const editorDropData = extractEditorsDropData(e);
+				if (editorDropData.length > 0) {
+					for (const editor of editorDropData) {
+						if (editor.resource) {
+							await this._attachFileUri(editor.resource, basename(editor.resource));
 						}
-						const filePath = getPathForFile(file);
-						if (!filePath) {
-							continue;
+					}
+					return;
+				}
+
+				// Fallback: try native file items
+				const items = e.dataTransfer?.items;
+				if (items) {
+					for (const item of Array.from(items)) {
+						if (item.kind === 'file') {
+							const file = item.getAsFile();
+							if (!file) {
+								continue;
+							}
+							const filePath = getPathForFile(file);
+							if (!filePath) {
+								continue;
+							}
+							const uri = URI.file(filePath);
+							await this._attachFileUri(uri, file.name);
 						}
-						const uri = URI.file(filePath);
-						await this._attachFileUri(uri, file.name);
 					}
 				}
-			}
+			},
 		}));
 	}
 
@@ -350,7 +430,7 @@ export class NewChatContextAttachments extends Disposable {
 			return searchResult.results.map(result => ({
 				label: basename(result.resource),
 				description: this.labelService.getUriLabel(result.resource, { relative: true }),
-				iconClass: ThemeIcon.asClassName(Codicon.file),
+				iconClasses: getIconClasses(this.modelService, this.languageService, result.resource, FileKind.FILE),
 				id: result.resource.toString(),
 			} satisfies IQuickPickItem));
 		} catch {
@@ -394,7 +474,7 @@ export class NewChatContextAttachments extends Disposable {
 						picks.push({
 							label: child.name,
 							description: this.labelService.getUriLabel(child.resource, { relative: true }),
-							iconClass: ThemeIcon.asClassName(Codicon.file),
+							iconClasses: getIconClasses(this.modelService, this.languageService, child.resource, FileKind.FILE),
 							id: child.resource.toString(),
 						});
 					}
@@ -425,6 +505,23 @@ export class NewChatContextAttachments extends Disposable {
 	}
 
 	private async _attachFileUri(uri: URI, name: string): Promise<void> {
+		let stat;
+		try {
+			stat = await this.fileService.stat(uri);
+		} catch {
+			return;
+		}
+
+		if (stat.isDirectory) {
+			this._addAttachments({
+				kind: 'directory',
+				id: uri.toString(),
+				value: uri,
+				name,
+			});
+			return;
+		}
+
 		if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(uri.path)) {
 			const readFile = await this.fileService.readFile(uri);
 			const resizedImage = await resizeImage(readFile.value.buffer);
@@ -481,6 +578,10 @@ export class NewChatContextAttachments extends Disposable {
 			name = `${baseName} ${i}`;
 		}
 		return name;
+	}
+
+	addAttachments(...entries: IChatRequestVariableEntry[]): void {
+		this._addAttachments(...entries);
 	}
 
 	private _addAttachments(...entries: IChatRequestVariableEntry[]): void {

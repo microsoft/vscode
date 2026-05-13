@@ -1,0 +1,18 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sessions-chat-agent-host-config {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.sessions-chat-agent-host-config:empty {
+	display: none;
+}
+
+.sessions-chat-agent-host-config a.action-label {
+	touch-action: manipulation;
+}

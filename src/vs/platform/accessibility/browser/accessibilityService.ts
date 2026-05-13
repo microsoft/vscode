@@ -137,8 +137,23 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	}
 
 	isScreenReaderOptimized(): boolean {
-		const config = this._configurationService.getValue('editor.accessibilitySupport');
+		const config = this.getAccessibilitySupportConfigurationValue();
 		return config === 'on' || (config === 'auto' && this._accessibilitySupport === AccessibilitySupport.Enabled);
+	}
+
+	private getAccessibilitySupportConfigurationValue(): 'auto' | 'off' | 'on' {
+		const inspectedValue = this._configurationService.inspect<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
+
+		// Resolve the setting explicitly in scope precedence order to avoid relying on
+		// resource-dependent resolution in this global service.
+		return inspectedValue.policyValue
+			?? inspectedValue.memoryValue
+			?? inspectedValue.workspaceFolderValue
+			?? inspectedValue.workspaceValue
+			?? inspectedValue.userValue
+			?? inspectedValue.applicationValue
+			?? inspectedValue.defaultValue
+			?? 'auto';
 	}
 
 	get onDidChangeReducedMotion(): Event<void> {

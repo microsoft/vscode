@@ -56,7 +56,7 @@ import { ServerTelemetryChannel } from '../../platform/telemetry/common/remoteTe
 import { IServerTelemetryService, ServerNullTelemetryService, ServerTelemetryService } from '../../platform/telemetry/common/serverTelemetryService.js';
 import { RemoteTerminalChannel } from './remoteTerminalChannel.js';
 import { createURITransformer } from '../../base/common/uriTransformer.js';
-import { ServerConnectionToken } from './serverConnectionToken.js';
+import { ServerConnectionToken, ServerConnectionTokenType } from './serverConnectionToken.js';
 import { ServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
 import { REMOTE_TERMINAL_CHANNEL_NAME } from '../../workbench/contrib/terminal/common/remote/remoteTerminalChannel.js';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from '../../workbench/services/remote/common/remoteFileSystemProviderClient.js';
@@ -77,6 +77,9 @@ import { RemoteExtensionsScannerChannel, RemoteExtensionsScannerService } from '
 import { RemoteExtensionsScannerChannelName } from '../../platform/remote/common/remoteExtensionsScanner.js';
 import { RemoteUserDataProfilesServiceChannel } from '../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { NodePtyHostStarter } from '../../platform/terminal/node/nodePtyHostStarter.js';
+import { NodeAgentHostStarter } from '../../platform/agentHost/node/nodeAgentHostStarter.js';
+import { ServerAgentHostManager } from './serverAgentHostManager.js';
+import { IServerLifetimeService, ServerLifetimeService } from './serverLifetimeService.js';
 import { CSSDevelopmentService, ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
 import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
 import { TelemetryLogAppender } from '../../platform/telemetry/common/telemetryLogAppender.js';
@@ -96,6 +99,8 @@ import { McpManagementChannel } from '../../platform/mcp/common/mcpManagementIpc
 import { AllowedMcpServersService } from '../../platform/mcp/common/allowedMcpServersService.js';
 import { IMcpGalleryManifestService } from '../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpGalleryManifestIPCService } from '../../platform/mcp/common/mcpGalleryManifestServiceIpc.js';
+import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannel } from '../../platform/sandbox/common/sandboxHelperIpc.js';
+import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelper.js';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -228,6 +233,23 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const ptyHostService = instantiationService.createInstance(PtyHostService, ptyHostStarter);
 	services.set(IPtyService, ptyHostService);
 
+	const serverLifetimeService = instantiationService.createInstance(ServerLifetimeService, {
+		enableAutoShutdown: !!args['enable-remote-auto-shutdown'],
+		shutdownWithoutDelay: !!args['remote-auto-shutdown-without-delay'],
+	});
+	services.set(IServerLifetimeService, serverLifetimeService);
+
+	if (args['agent-host-port'] || args['agent-host-path']) {
+		const agentHostStarter = instantiationService.createInstance(NodeAgentHostStarter);
+		agentHostStarter.setWebSocketConfig({
+			port: args['agent-host-port'],
+			socketPath: args['agent-host-path'],
+			host: args.host || 'localhost',
+			connectionToken: connectionToken.type === ServerConnectionTokenType.Mandatory ? connectionToken.value : undefined,
+		});
+		disposables.add(instantiationService.createInstance(ServerAgentHostManager, agentHostStarter));
+	}
+
 	services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService));
 	services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService));
 	services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService));
@@ -244,6 +266,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), oneDsAppender);
 		socketServer.registerChannel('telemetry', telemetryChannel);
+
+		socketServer.registerChannel(SANDBOX_HELPER_CHANNEL_NAME, new SandboxHelperChannel(new SandboxHelperService()));
 
 		socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(environmentService, logService, ptyHostService, productService, extensionManagementService, configurationService));
 

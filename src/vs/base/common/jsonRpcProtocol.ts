@@ -43,6 +43,7 @@ export interface IJsonRpcErrorResponse {
 }
 
 export type JsonRpcMessage = IJsonRpcRequest | IJsonRpcNotification | IJsonRpcSuccessResponse | IJsonRpcErrorResponse;
+export type JsonRpcResponse = IJsonRpcSuccessResponse | IJsonRpcErrorResponse;
 
 interface IPendingRequest {
 	promise: DeferredPromise<unknown>;
@@ -122,15 +123,31 @@ export class JsonRpcProtocol extends Disposable {
 		}) as Promise<T>;
 	}
 
-	public async handleMessage(message: JsonRpcMessage | JsonRpcMessage[]): Promise<void> {
+	/**
+	 * Handles one or more incoming JSON-RPC messages.
+	 *
+	 * Returns an array of JSON-RPC response objects generated for any incoming
+	 * requests in the message(s). Notifications and responses to our own
+	 * outgoing requests do not produce return values. For batch inputs, the
+	 * returned responses are in the same order as the corresponding requests.
+	 *
+	 * Note: responses are also emitted via the `_send` callback, so callers
+	 * that rely on the return value should not re-send them.
+	 */
+	public async handleMessage(message: JsonRpcMessage | JsonRpcMessage[]): Promise<JsonRpcResponse[]> {
 		if (Array.isArray(message)) {
+			const replies: JsonRpcResponse[] = [];
 			for (const single of message) {
-				await this._handleMessage(single);
+				const reply = await this._handleMessage(single);
+				if (reply) {
+					replies.push(reply);
+				}
 			}
-			return;
+			return replies;
 		}
 
-		await this._handleMessage(message);
+		const reply = await this._handleMessage(message);
+		return reply ? [reply] : [];
 	}
 
 	public cancelPendingRequest(id: JsonRpcId): void {
@@ -152,22 +169,25 @@ export class JsonRpcProtocol extends Disposable {
 		}
 	}
 
-	private async _handleMessage(message: JsonRpcMessage): Promise<void> {
+	private async _handleMessage(message: JsonRpcMessage): Promise<JsonRpcResponse | undefined> {
 		if (isJsonRpcResponse(message)) {
 			if (hasKey(message, { result: true })) {
 				this._handleResult(message);
 			} else {
 				this._handleError(message);
 			}
+			return undefined;
 		}
 
 		if (isJsonRpcRequest(message)) {
-			await this._handleRequest(message);
+			return this._handleRequest(message);
 		}
 
 		if (isJsonRpcNotification(message)) {
 			this._handlers.handleNotification?.(message);
 		}
+
+		return undefined;
 	}
 
 	private _handleResult(response: IJsonRpcSuccessResponse): void {
@@ -192,17 +212,18 @@ export class JsonRpcProtocol extends Disposable {
 		}
 	}
 
-	private async _handleRequest(request: IJsonRpcRequest): Promise<void> {
+	private async _handleRequest(request: IJsonRpcRequest): Promise<JsonRpcResponse> {
 		if (!this._handlers.handleRequest) {
-			this._send({
+			const response: IJsonRpcErrorResponse = {
 				jsonrpc: '2.0',
 				id: request.id,
 				error: {
 					code: JsonRpcProtocol.MethodNotFound,
 					message: `Method not found: ${request.method}`,
 				}
-			});
-			return;
+			};
+			this._send(response);
+			return response;
 		}
 
 		const cts = new CancellationTokenSource();
@@ -211,14 +232,17 @@ export class JsonRpcProtocol extends Disposable {
 		try {
 			const resultOrThenable = this._handlers.handleRequest(request, cts.token);
 			const result = isThenable(resultOrThenable) ? await resultOrThenable : resultOrThenable;
-			this._send({
+			const response: IJsonRpcSuccessResponse = {
 				jsonrpc: '2.0',
 				id: request.id,
 				result,
-			});
+			};
+			this._send(response);
+			return response;
 		} catch (error) {
+			let response: IJsonRpcErrorResponse;
 			if (error instanceof JsonRpcError) {
-				this._send({
+				response = {
 					jsonrpc: '2.0',
 					id: request.id,
 					error: {
@@ -226,17 +250,19 @@ export class JsonRpcProtocol extends Disposable {
 						message: error.message,
 						data: error.data,
 					}
-				});
+				};
 			} else {
-				this._send({
+				response = {
 					jsonrpc: '2.0',
 					id: request.id,
 					error: {
 						code: JsonRpcProtocol.InternalError,
 						message: error instanceof Error ? error.message : 'Internal error',
 					}
-				});
+				};
 			}
+			this._send(response);
+			return response;
 		} finally {
 			cts.dispose(true);
 		}
