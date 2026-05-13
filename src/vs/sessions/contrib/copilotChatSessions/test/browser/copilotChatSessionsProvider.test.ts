@@ -520,7 +520,7 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(sessions[0].mainChat.resource.toString(), resource.toString());
 	});
 
-	test('setModel applies to existing sessions and their new chats', () => {
+	test('setModel applies to existing sessions and their new chats', async () => {
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session-1' });
 		model.addSession(createMockAgentSession(resource));
 
@@ -531,7 +531,11 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(session.modelId.get(), 'copilot/gpt-4o');
 
 		const chat = provider.addChat(session.sessionId);
-		assert.strictEqual(chat.modelId.get(), 'copilot/gpt-4o');
+		try {
+			assert.strictEqual(chat.modelId.get(), 'copilot/gpt-4o');
+		} finally {
+			await provider.deleteChat(session.sessionId, chat.resource);
+		}
 	});
 
 	test('sendAndCreateChat throws for unknown session', async () => {
