@@ -36,33 +36,36 @@
  * (`AgentHostGenericConfigChips`) that handle agent-host config properties
  * not claimed by a dedicated picker. Lays out the chip slots horizontally
  * with the same gap the secondary toolbar uses between its own children.
+ *
+ * The generic chip is rendered directly (not via MenuWorkbenchToolBar), so
+ * it is not inside `.monaco-action-bar > .action-item` and misses the
+ * cursor/font-size/hover styles those ancestors provide. Restore them here
+ * to match the dedicated chip styling.
  */
 .chat-secondary-generic-chips {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
-}
 
-.chat-secondary-generic-chips:empty {
-	display: none;
-}
+	&:empty {
+		display: none;
+	}
 
-/*
- * The generic chip is rendered directly (not via MenuWorkbenchToolBar), so it
- * is not inside `.monaco-action-bar > .action-item` and misses the
- * cursor/codicon-size/hover styles those ancestors provide. Restore them here
- * to match the dedicated chip styling.
- */
-.chat-secondary-generic-chips > .agent-host-generic-chip-slot {
-	cursor: pointer;
-}
+	> .agent-host-generic-chip-slot {
+		cursor: pointer;
 
-.chat-secondary-generic-chips > .agent-host-generic-chip-slot .codicon {
-	font-size: 12px;
-}
+		.action-label {
+			font-size: 11px;
 
-.chat-secondary-generic-chips > .agent-host-generic-chip-slot .action-label:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
+			&:hover {
+				background-color: var(--vscode-toolbar-hoverBackground);
+			}
+		}
+
+		.codicon {
+			font-size: 12px;
+		}
+	}
 }
 
 /*

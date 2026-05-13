@@ -1636,7 +1636,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
-.interactive-session .chat-secondary-toolbar > .chat-secondary-input-toolbar {
+.interactive-session .chat-secondary-toolbar > .chat-secondary-input-row {
+	flex: 1 1 0;
+	min-width: 0px;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.interactive-session .chat-secondary-toolbar .chat-secondary-input-toolbar {
 	overflow: hidden;
 	min-width: 0px;
 	flex: 1 1 0;

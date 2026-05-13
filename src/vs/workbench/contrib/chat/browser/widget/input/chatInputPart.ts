@@ -2566,16 +2566,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Direct-rendered chip lane for agent-host config properties that
 		// are advertised by the agent's schema but not handled by a
 		// dedicated `MenuId.ChatInputSecondary` action (e.g. Claude's
-		// custom approval-mode property). Prepended into the secondary
-		// toolbar container so these chips appear ahead of the menu items.
-		const genericChipsContainer = dom.prepend(this.secondaryToolbarContainer, dom.$('.chat-secondary-generic-chips'));
+		// custom approval-mode property). Wrapped together with the
+		// secondary toolbar in `secondaryInputContainer` so the chips
+		// sit immediately after the toolbar's action bar in DOM order.
+		const secondaryInputContainer = dom.append(this.secondaryToolbarContainer, dom.$('.chat-secondary-input-row'));
+		const genericChipsContainer = dom.$('.chat-secondary-generic-chips');
 		const genericChipsLane = this._register(this.instantiationService.createInstance(
 			AgentHostGenericConfigChips,
 			widget,
 			secondaryPickerOptions,
 		));
 		genericChipsLane.render(genericChipsContainer);
-		this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryToolbarContainer, MenuId.ChatInputSecondary, {
+		this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, secondaryInputContainer, MenuId.ChatInputSecondary, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -2697,6 +2699,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this.secondaryToolbar.getElement().classList.add('chat-secondary-input-toolbar');
 		this.secondaryToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		dom.append(secondaryInputContainer, genericChipsContainer);
 		this._register(this.secondaryToolbar.onDidChangeMenuItems(() => {
 			// Update container reference for the pickers when the secondary toolbar hosts one.
 			// Only assign when found so we don't overwrite a valid primary container reference
