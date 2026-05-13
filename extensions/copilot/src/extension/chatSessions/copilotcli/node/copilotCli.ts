@@ -23,7 +23,6 @@ import { ResourceSet } from '../../../../util/vs/base/common/map';
 import { basename } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { getCopilotLogger } from './logger';
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -307,7 +306,6 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 	readonly onDidChangeAgents: Event<void> = this._onDidChangeAgents.event;
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ICopilotCLISDK private readonly copilotCLISDK: ICopilotCLISDK,
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
@@ -428,19 +426,8 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 	}
 
 	private async getSDKAgents(): Promise<Readonly<SweCustomAgent>[]> {
-		// The SDK spawns a process when finding agents, and this is slow.
-		// Avoid using SDK for finding agents for now, as we find them ourselves.
-		if ((false as unknown)) {
-			const workspaceFolders = this.workspaceService.getWorkspaceFolders();
-			if (workspaceFolders.length === 0) {
-				return [];
-			}
-
-			const [auth, { getCustomAgents }] = await Promise.all([this.copilotCLISDK.getAuthInfo(), this.copilotCLISDK.getPackage()]);
-			const workingDirectory = workspaceFolders[0];
-			const agents = await getCustomAgents(auth, workingDirectory.fsPath, undefined, getCopilotLogger(this.logService));
-			return agents.map(agent => this.cloneAgent(agent));
-		}
+		// The SDK path is intentionally disabled because agent discovery there
+		// spawns a process and is slower than the prompt-based discovery above.
 		return [];
 	}
 
