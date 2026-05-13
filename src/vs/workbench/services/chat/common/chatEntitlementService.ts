@@ -715,6 +715,7 @@ interface IQuotas {
 	readonly resetDateHasTime?: boolean;
 
 	readonly usageBasedBilling?: boolean;
+	readonly canUpgradePlan?: boolean;
 
 	readonly chat?: IQuotaSnapshot;
 	readonly completions?: IQuotaSnapshot;
@@ -728,6 +729,7 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 		resetDate: entitlementsData.quota_reset_date_utc ?? entitlementsData.quota_reset_date ?? entitlementsData.limited_user_reset_date,
 		resetDateHasTime: typeof entitlementsData.quota_reset_date_utc === 'string',
 		usageBasedBilling: entitlementsData.token_based_billing,
+		canUpgradePlan: entitlementsData.can_upgrade_plan,
 	};
 
 	// Legacy Free SKU Quota
