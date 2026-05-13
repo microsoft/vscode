@@ -84,6 +84,11 @@ export interface IChatQuotaService {
 	/** Reset accumulated credits for the given turn. */
 	resetTurnCredits(turnId: string): void;
 	clearQuota(): void;
+	/**
+	 * Fetches up-to-date quota data from the `copilot_internal/user` endpoint.
+	 * Errors are caught and logged.
+	 */
+	refreshQuota(): Promise<void>;
 }
 
 export const IChatQuotaService = createServiceIdentifier<IChatQuotaService>('IChatQuotaService');

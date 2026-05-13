@@ -179,7 +179,7 @@
     "@typescript/native-preview": "^7.0.0-dev.20260429",
     "@vscode/component-explorer": "^0.2.1-27",
     "@vscode/component-explorer-cli": "^0.2.1-27",
-    "@vscode/gulp-electron": "1.41.2",
+    "@vscode/gulp-electron": "1.41.3",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.20.2",
     "@vscode/test-cli": "^0.0.6",

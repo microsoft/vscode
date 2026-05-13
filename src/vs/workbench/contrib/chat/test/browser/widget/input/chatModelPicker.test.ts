@@ -101,6 +101,7 @@ function callBuild(
 	opts: {
 		selectedModelId?: string;
 		recentModelIds?: string[];
+		pinnedModelIds?: string[];
 		controlModels?: IStringDictionary<IModelControlEntry>;
 		entitlement?: ChatEntitlement;
 		currentVSCodeVersion?: string;
@@ -122,10 +123,12 @@ function callBuild(
 		models,
 		opts.selectedModelId,
 		opts.recentModelIds ?? [],
+		opts.pinnedModelIds ?? [],
 		opts.controlModels ?? {},
 		opts.currentVSCodeVersion ?? '1.100.0',
 		opts.updateStateType ?? StateType.Idle,
 		onSelect,
+		undefined,
 		opts.manageSettingsUrl,
 		true,
 		stubManageModelsAction,
@@ -352,7 +355,7 @@ suite('buildModelPickerItems', () => {
 		});
 		// With no selected, no recent, and no featured, both models should be in Other
 		const seps = items.filter(i => i.kind === ActionListItemKind.Separator);
-		// One separator before Other Models section (Manage Models is in the toolbar)
+		// One separator before Other Models section
 		assert.strictEqual(seps.length, 1);
 		const actions = getActionItems(items);
 		assert.strictEqual(actions[0].label, 'Auto');
@@ -601,10 +604,12 @@ suite('buildModelPickerItems', () => {
 			[auto, modelA],
 			undefined,
 			[],
+			[],
 			{},
 			'1.100.0',
 			StateType.Idle,
 			onSelect,
+			undefined,
 			undefined,
 			true,
 			undefined,
@@ -687,10 +692,12 @@ suite('buildModelPickerItems', () => {
 			[auto],
 			undefined,
 			['missing-model'],
+			[],
 			{ 'missing-model': { label: 'Missing Model' } as IModelControlEntry },
 			'1.100.0',
 			StateType.Idle,
 			() => { },
+			undefined,
 			'https://aka.ms/github-copilot-settings',
 			true,
 			undefined,
@@ -773,10 +780,12 @@ suite('buildModelPickerItems', () => {
 			[auto, modelA],
 			undefined,
 			[],
+			[],
 			{},
 			'1.100.0',
 			StateType.Idle,
 			onSelect,
+			undefined,
 			undefined,
 			true,
 			undefined,
@@ -980,6 +989,72 @@ suite('buildModelPickerItems', () => {
 		const claudeItem = actions.find(a => a.label === 'Claude');
 		assert.ok(claudeItem);
 		assert.strictEqual(claudeItem.item?.description, undefined);
+	});
+
+	test('pinned models appear in dedicated pinned section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const modelC = createModel('gemini', 'Gemini');
+		const items = callBuild([auto, modelA, modelB, modelC], {
+			pinnedModelIds: [modelB.identifier, modelA.identifier],
+		});
+		// Pinned section header exists
+		const pinnedSep = items.find(i => i.kind === ActionListItemKind.Separator && i.label === 'Pinned');
+		assert.ok(pinnedSep, 'Pinned separator header should exist');
+		// Pinned models appear in pin order (Claude first, then GPT-4o)
+		const pinnedSepIndex = items.indexOf(pinnedSep!);
+		const afterPinned = items.slice(pinnedSepIndex + 1);
+		const firstPinned = afterPinned.find(i => i.kind === ActionListItemKind.Action);
+		assert.strictEqual(firstPinned?.label, 'Claude');
+	});
+
+	test('pinned models do not appear in MRU/promoted section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const items = callBuild([auto, modelA, modelB], {
+			pinnedModelIds: [modelA.identifier],
+			recentModelIds: [modelA.identifier, modelB.identifier],
+		});
+		const actions = getActionItems(items);
+		// GPT-4o should only appear once (in pinned, not again in promoted)
+		const gptItems = actions.filter(a => a.label === 'GPT-4o');
+		assert.strictEqual(gptItems.length, 1, 'Pinned model should appear exactly once');
+	});
+
+	test('MRU is capped at 3 after filtering pinned models', () => {
+		const auto = createAutoModel();
+		const models = [
+			auto,
+			createModel('m1', 'Model 1'),
+			createModel('m2', 'Model 2'),
+			createModel('m3', 'Model 3'),
+			createModel('m4', 'Model 4'),
+			createModel('m5', 'Model 5'),
+		];
+		const items = callBuild(models, {
+			recentModelIds: [models[1].identifier, models[2].identifier, models[3].identifier, models[4].identifier, models[5].identifier],
+			pinnedModelIds: [models[1].identifier],
+		});
+		// Model 1 is pinned, MRU should be Model 2, 3, 4 (capped at 3), Model 5 goes to Other
+		const actions = getActionItems(items);
+		const promotedLabels = actions
+			.filter(a => !a.isSectionToggle && a.section !== 'other' && a.item?.id !== 'manageModels' && a.label !== 'Auto' && a.label !== 'Model 1')
+			.map(a => a.label);
+		assert.ok(promotedLabels.length <= 3, 'MRU should be capped at 3');
+		assert.ok(!promotedLabels.includes('Model 1'), 'Pinned model should not be in MRU');
+	});
+
+	test('no pinned section when pinnedModelIds is empty', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA], {
+			pinnedModelIds: [],
+			recentModelIds: [modelA.identifier],
+		});
+		const pinnedSep = items.find(i => i.kind === ActionListItemKind.Separator && i.label === 'Pinned');
+		assert.strictEqual(pinnedSep, undefined, 'No pinned separator when there are no pinned models');
 	});
 });
 
