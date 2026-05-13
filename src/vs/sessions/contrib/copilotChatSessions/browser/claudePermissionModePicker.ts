@@ -13,6 +13,7 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
@@ -68,6 +69,7 @@ export class ClaudePermissionModePicker extends Disposable {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 		this._autoPermissionsEnabled = this.configurationService.getValue<boolean>(ALLOW_AUTO_PERMISSIONS_SETTING) === true;
@@ -114,7 +116,8 @@ export class ClaudePermissionModePicker extends Disposable {
 			return;
 		}
 
-		const availableModes = permissionModes.filter(mode => mode.id !== 'auto' || this._autoPermissionsEnabled);
+		const autoAvailable = this._autoPermissionsEnabled && !this.chatEntitlementService.previewFeaturesDisabled;
+		const availableModes = permissionModes.filter(mode => mode.id !== 'auto' || autoAvailable);
 		const items: IActionListItem<IClaudePermissionModeItem>[] = availableModes.map(mode => ({
 			kind: ActionListItemKind.Action,
 			group: { kind: ActionListItemKind.Header, title: '', icon: mode.icon },
