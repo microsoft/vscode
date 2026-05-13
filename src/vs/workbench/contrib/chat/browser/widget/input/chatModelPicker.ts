@@ -9,7 +9,7 @@ import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { toAction } from '../../../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -181,6 +181,7 @@ function createModelItem(
 	vendorLabel?: string,
 	isUBB?: boolean,
 	ariaDescription?: string,
+	pinAction?: IAction,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	const hover = model && openerService ? getModelHoverContent(model, openerService, isUBB) : undefined;
 	return {
@@ -196,8 +197,27 @@ function createModelItem(
 		badge: vendorLabel,
 		hover: hover ? { content: hover.element, disposable: hover.disposable } : undefined,
 		tooltip: action.tooltip,
+		toolbarActions: pinAction ? [pinAction] : undefined,
 		submenuActions: action.toolbarActions?.length ? action.toolbarActions : undefined,
 	};
+}
+
+/**
+ * Creates a pin/unpin toolbar action for a model item in the picker.
+ */
+function createPinAction(
+	modelIdentifier: string,
+	isPinned: boolean,
+	onTogglePin: (modelIdentifier: string, pinned: boolean) => void,
+): IAction {
+	return toAction({
+		id: `pin.${modelIdentifier}`,
+		label: isPinned
+			? localize('chat.modelPicker.unpin', "Unpin Model")
+			: localize('chat.modelPicker.pin', "Pin Model"),
+		class: ThemeIcon.asClassName(isPinned ? Codicon.pinned : Codicon.pin),
+		run: () => onTogglePin(modelIdentifier, !isPinned),
+	});
 }
 
 /**
@@ -361,10 +381,12 @@ export function buildModelPickerItems(
 	models: ILanguageModelChatMetadataAndIdentifier[],
 	selectedModelId: string | undefined,
 	recentModelIds: string[],
+	pinnedModelIds: string[],
 	controlModels: IStringDictionary<IModelControlEntry>,
 	currentVSCodeVersion: string,
 	updateStateType: StateType,
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
+	onTogglePin: ((modelIdentifier: string, pinned: boolean) => void) | undefined,
 	manageSettingsUrl: string | undefined,
 	useGroupedModelPicker: boolean,
 	manageModelsAction: IActionWidgetDropdownAction | undefined,
@@ -436,7 +458,47 @@ export function buildModelPickerItems(
 				items.push(createModelItem(autoAction, autoModel, openerService, undefined, isUBB, autoAriaDesc));
 			}
 
-			// --- 2. Promoted section (selected + recently used + featured) ---
+			// Precompute group labels needed for inline badges
+			const allGroupKeys = new Set(
+				models.map(m => {
+					const info = getProviderGroupForModel(m, modelToGroup, languageModelsService!);
+					return getProviderGroupKey(info.vendor, info.groupName);
+				})
+			);
+			const showGroupLabel = allGroupKeys.size > 1;
+
+			// Helper to create a pin/unpin toolbar action for a model
+			const makePinAction = (model: ILanguageModelChatMetadataAndIdentifier) =>
+				onTogglePin ? createPinAction(model.identifier, pinnedModelIds.includes(model.identifier), onTogglePin) : undefined;
+
+			// --- 2. Pinned models ---
+			const pinnedSet = new Set(pinnedModelIds);
+			const pinnedModels: ILanguageModelChatMetadataAndIdentifier[] = [];
+			for (const id of pinnedModelIds) {
+				if (placed.has(id)) {
+					continue;
+				}
+				const model = resolveModel(id);
+				if (model && !placed.has(model.identifier)) {
+					markPlaced(model.identifier, model.metadata.id);
+					pinnedModels.push(model);
+				}
+			}
+			if (pinnedModels.length > 0) {
+				items.push({ kind: ActionListItemKind.Separator, label: localize('chat.modelPicker.pinned', "Pinned") });
+				for (const model of pinnedModels) {
+					const groupLabel = showGroupLabel
+						? getProviderGroupForModel(model, modelToGroup, languageModelsService!).groupName
+						: undefined;
+					const { action: pinnedAction, ariaDescription: pinnedAriaDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, undefined, showGroupLabel, isUBB);
+					items.push(createModelItem(pinnedAction, model, openerService, groupLabel, isUBB, pinnedAriaDesc, makePinAction(model)));
+				}
+			}
+
+			// --- 3. Promoted section (selected + recently used + featured) ---
+			// MRU excludes pinned models and is limited to 3 entries
+			const filteredRecentIds = recentModelIds.filter(id => !pinnedSet.has(id)).slice(0, 3);
+
 			type PromotedItem =
 				| { kind: 'available'; model: ILanguageModelChatMetadataAndIdentifier }
 				| { kind: 'unavailable'; id: string; entry: IModelControlEntry; reason: 'upgrade' | 'update' | 'admin' };
@@ -475,8 +537,8 @@ export function buildModelPickerItems(
 				tryPlaceModel(selectedModelId);
 			}
 
-			// Recently used models
-			for (const id of recentModelIds) {
+			// Recently used models (filtered to exclude pinned, limited to 3)
+			for (const id of filteredRecentIds) {
 				tryPlaceModel(id);
 			}
 
@@ -510,6 +572,9 @@ export function buildModelPickerItems(
 			// Promoted models show their provider group name inline only when more
 			// than one provider group is configured across all models.
 			if (promotedItems.length > 0) {
+				if (items.length > 0) {
+					items.push({ kind: ActionListItemKind.Separator });
+				}
 				promotedItems.sort((a, b) => {
 					const aAvail = a.kind === 'available' ? 0 : 1;
 					const bAvail = b.kind === 'available' ? 0 : 1;
@@ -521,21 +586,13 @@ export function buildModelPickerItems(
 					return aName.localeCompare(bName);
 				});
 
-				const allGroupKeys = new Set(
-					models.map(m => {
-						const info = getProviderGroupForModel(m, modelToGroup, languageModelsService!);
-						return getProviderGroupKey(info.vendor, info.groupName);
-					})
-				);
-				const showPromotedGroupLabel = allGroupKeys.size > 1;
-
 				for (const item of promotedItems) {
 					if (item.kind === 'available') {
-						const groupLabel = showPromotedGroupLabel
+						const groupLabel = showGroupLabel
 							? getProviderGroupForModel(item.model, modelToGroup, languageModelsService!).groupName
 							: undefined;
-						const { action: promotedAction, ariaDescription: promotedAriaDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!, undefined, showPromotedGroupLabel, isUBB);
-						items.push(createModelItem(promotedAction, item.model, openerService, groupLabel, isUBB, promotedAriaDesc));
+						const { action: promotedAction, ariaDescription: promotedAriaDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!, undefined, showGroupLabel, isUBB);
+						items.push(createModelItem(promotedAction, item.model, openerService, groupLabel, isUBB, promotedAriaDesc, makePinAction(item.model)));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
 					}
@@ -627,7 +684,7 @@ export function buildModelPickerItems(
 							items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 						} else {
 							const { action: bucketAction, ariaDescription: bucketAriaDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other, showGroupHeaders, isUBB);
-							items.push(createModelItem(bucketAction, model, openerService, undefined, isUBB, bucketAriaDesc));
+							items.push(createModelItem(bucketAction, model, openerService, undefined, isUBB, bucketAriaDesc, makePinAction(model)));
 						}
 					}
 				}
@@ -813,13 +870,8 @@ export class ModelPickerWidget extends Disposable {
 			this._renderLabel();
 		}));
 
-		let lastIsUBB = !!this._entitlementService.quotas.usageBasedBilling;
-		this._register(this._entitlementService.onDidChangeQuotaRemaining(() => {
-			const currentIsUBB = !!this._entitlementService.quotas.usageBasedBilling;
-			if (currentIsUBB !== lastIsUBB) {
-				lastIsUBB = currentIsUBB;
-				this._renderLabel();
-			}
+		this._register(this._entitlementService.onDidChangeUsageBasedBilling(() => {
+			this._renderLabel();
 		}));
 	}
 
@@ -954,14 +1006,27 @@ export class ModelPickerWidget extends Disposable {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
 		};
 		const manageSettingsUrl = this._productService.defaultChatAgent?.manageSettingsUrl;
+		const onTogglePin = (modelIdentifier: string, pinned: boolean) => {
+			if (pinned) {
+				this._languageModelsService.pinModel(modelIdentifier);
+			} else {
+				this._languageModelsService.unpinModel(modelIdentifier);
+			}
+			// Re-show the picker to reflect the updated pin state
+			this._actionWidgetService.hide();
+			this.show(anchorElement);
+		};
+
 		const items = buildModelPickerItems(
 			models,
 			this._selectedModel?.identifier,
 			this._languageModelsService.getRecentlyUsedModelIds(),
+			this._languageModelsService.getPinnedModelIds(),
 			controlModelsForTier,
 			this._productService.version,
 			this._updateService.state.type,
 			onSelect,
+			onTogglePin,
 			manageSettingsUrl,
 			this._delegate.useGroupedModelPicker(),
 			isUBB ? manageModelsAction : undefined,
@@ -972,6 +1037,16 @@ export class ModelPickerWidget extends Disposable {
 			this._openerService,
 			isUBB,
 		);
+
+		// Collect all hover disposables so they are properly cleaned up when the
+		// picker is hidden. The ActionListWidget only tracks the disposable for the
+		// currently-shown hover; all other items' hover disposables would leak.
+		const hoverDisposables = new DisposableStore();
+		for (const item of items) {
+			if (item.hover?.disposable) {
+				hoverDisposables.add(item.hover.disposable);
+			}
+		}
 
 		const listOptions = {
 			// Always show the filter to allow for the secondary heading to show
@@ -1003,6 +1078,7 @@ export class ModelPickerWidget extends Disposable {
 				action.run();
 			},
 			onHide: () => {
+				hoverDisposables.dispose();
 				this._nameButton?.setAttribute('aria-expanded', 'false');
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();

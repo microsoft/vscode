@@ -42,6 +42,7 @@ function createEntitlementService(opts: {
 		copilotTrackingId: undefined,
 		onDidChangeQuotaExceeded: Event.None,
 		onDidChangeQuotaRemaining: Event.None,
+		onDidChangeUsageBasedBilling: Event.None,
 		quotas: {
 			chat: opts.chat,
 			completions: opts.completions,

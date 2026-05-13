@@ -49,4 +49,73 @@ suite('markdown.engine', () => {
 			assert.deepStrictEqual([...result.containingImages], ['img.png', 'http://example.org/img.png', './img2.png']);
 		});
 	});
+
+	suite('front-matter', () => {
+		const settingName = 'preview.frontMatter';
+		const input = '---\ntitle: Hello\n---\n\n# World';
+
+		let originalValue: string | undefined;
+
+		suiteSetup(() => {
+			originalValue = vscode.workspace.getConfiguration('markdown').inspect<string>(settingName)?.globalValue;
+		});
+
+		suiteTeardown(async () => {
+			await vscode.workspace.getConfiguration('markdown').update(settingName, originalValue, vscode.ConfigurationTarget.Global);
+		});
+
+		async function setStyle(style: string) {
+			await vscode.workspace.getConfiguration('markdown').update(settingName, style, vscode.ConfigurationTarget.Global);
+		}
+
+		test('Hides front matter when style is "hide"', async () => {
+			await setStyle('hide');
+			const engine = createNewMarkdownEngine();
+			assert.strictEqual(
+				(await engine.render(input)).html,
+				'<h1 data-line="4" class="code-line" dir="auto" id="world">World</h1>\n'
+			);
+		});
+
+		test('Renders front matter as a code block when style is "codeBlock"', async () => {
+			await setStyle('codeBlock');
+			const engine = createNewMarkdownEngine();
+			const html = (await engine.render(input)).html;
+			assert.match(html, /<pre[^>]*class="[^"]*frontmatter[^"]*"[^>]*>[\s\S]*<\/pre>/);
+			assert.ok(html.includes('title'), `Expected front matter content to be rendered. Got: ${html}`);
+			assert.ok(html.includes('<h1 data-line="4"'), `Expected body to render after front matter. Got: ${html}`);
+		});
+
+		test('Renders front matter as a table when style is "table"', async () => {
+			await setStyle('table');
+			const engine = createNewMarkdownEngine();
+			assert.strictEqual(
+				(await engine.render(input)).html,
+				'<table class="frontmatter"><tbody><tr><th>title</th><td>Hello</td></tr></tbody></table>\n'
+				+ '<h1 data-line="4" class="code-line" dir="auto" id="world">World</h1>\n'
+			);
+		});
+
+		test('Shows an error when front matter has invalid YAML', async () => {
+			await setStyle('table');
+			const engine = createNewMarkdownEngine();
+			const html = (await engine.render('---\nfoo: [unclosed\n---\n\n# Body')).html;
+			assert.match(html, /<div class="frontmatter-error"[\s\S]*<\/div>/);
+			assert.ok(html.includes('<h1 data-line="4"'), `Expected body to render after error. Got: ${html}`);
+		});
+
+		test('Ignores front matter that is not at the start of the document', async () => {
+			await setStyle('table');
+			const engine = createNewMarkdownEngine();
+			const html = (await engine.render('# World\n\n---\ntitle: Hello\n---')).html;
+			assert.ok(!html.includes('<table class="frontmatter">'), `Expected no front matter table. Got: ${html}`);
+		});
+
+		test('Ignores front matter without a closing delimiter', async () => {
+			await setStyle('table');
+			const engine = createNewMarkdownEngine();
+			const html = (await engine.render('---\ntitle: Hello\n\n# World')).html;
+			assert.ok(!html.includes('<table class="frontmatter">'), `Expected no front matter table. Got: ${html}`);
+		});
+	});
 });

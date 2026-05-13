@@ -20,7 +20,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { IAgentHostFilterService } from '../../remoteAgentHost/common/agentHostFilter.js';
+// eslint-disable-next-line local/code-import-patterns -- TODO: move IAgentHostFilterService out of providers
+import { IAgentHostFilterService } from '../../providers/remoteAgentHost/common/agentHostFilter.js';
 import { IWorkspacePickerItem, IWorkspaceSelection, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from './mobile/mobileWorkspacePickerSheet.js';
 import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
