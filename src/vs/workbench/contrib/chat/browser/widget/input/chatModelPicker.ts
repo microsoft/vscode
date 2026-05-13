@@ -572,6 +572,9 @@ export function buildModelPickerItems(
 			// Promoted models show their provider group name inline only when more
 			// than one provider group is configured across all models.
 			if (promotedItems.length > 0) {
+				if (items.length > 0) {
+					items.push({ kind: ActionListItemKind.Separator });
+				}
 				promotedItems.sort((a, b) => {
 					const aAvail = a.kind === 'available' ? 0 : 1;
 					const bAvail = b.kind === 'available' ? 0 : 1;
