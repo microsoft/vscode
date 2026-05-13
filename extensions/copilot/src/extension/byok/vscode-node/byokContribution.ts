@@ -26,8 +26,10 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	public readonly id: string = 'byok-contribution';
 	private readonly _byokStorageService: IBYOKStorageService;
 	private readonly _providers: Map<string, LanguageModelChatProvider<LanguageModelChatInformation>> = new Map();
-	private readonly _byokRegistrations = this._register(new DisposableStore());
-	private _registeredWithLM = false;
+	private readonly _providerRegistrations = this._register(new DisposableStore());
+	private _providersRegistered = false;
+	private _knownModelsRefreshed = false;
+	private _knownModelsRefreshTargets: ReadonlyArray<readonly [string, AbstractLanguageModelChatProvider]> = [];
 
 	constructor(
 		@IFetcherService private readonly _fetcherService: IFetcherService,
@@ -60,56 +62,56 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 		this._providers.set(AzureBYOKModelProvider.providerId, instantiationService.createInstance(AzureBYOKModelProvider, this._byokStorageService));
 		this._providers.set(CustomOAIBYOKModelProvider.providerId, instantiationService.createInstance(CustomOAIBYOKModelProvider, this._byokStorageService));
 
-		void this._refreshKnownModels([
+		this._knownModelsRefreshTargets = [
 			[AnthropicLMProvider.providerName, anthropic],
 			[GeminiNativeBYOKLMProvider.providerName, gemini],
 			[XAIBYOKLMProvider.providerName, xai],
 			[OAIBYOKLMProvider.providerName, openai],
-		]).catch(err => {
-			this._logService.error(err instanceof Error ? err : String(err), 'BYOK: Failed to refresh known models.');
-		});
+		];
 	}
 
 	private _applyPolicy(): void {
 		const allowed = isClientBYOKAllowed(!!this._authService.anyGitHubSession, this._authService.copilotToken);
-		if (allowed && !this._registeredWithLM) {
+		if (allowed && !this._providersRegistered) {
 			for (const [providerId, provider] of this._providers) {
-				this._byokRegistrations.add(lm.registerLanguageModelChatProvider(providerId, provider));
+				this._providerRegistrations.add(lm.registerLanguageModelChatProvider(providerId, provider));
 			}
-			this._registeredWithLM = true;
+			this._providersRegistered = true;
 			this._logService.info(`BYOK: registered ${this._providers.size} provider(s): ${Array.from(this._providers.keys()).join(', ')}`);
-		} else if (!allowed && this._registeredWithLM) {
-			this._byokRegistrations.clear();
-			this._registeredWithLM = false;
+			if (!this._knownModelsRefreshed) {
+				this._knownModelsRefreshed = true;
+				void this._refreshKnownModels().catch(err => {
+					this._knownModelsRefreshed = false;
+					this._logService.warn(`BYOK: failed to refresh known models, will retry on next allowed transition: ${err instanceof Error ? err.message : String(err)}`);
+				});
+			}
+		} else if (!allowed && this._providersRegistered) {
+			this._providerRegistrations.clear();
+			this._providersRegistered = false;
 			this._logService.info('BYOK: unregistered providers due to enterprise policy.');
 		}
 	}
 
-	private async _refreshKnownModels(targets: ReadonlyArray<readonly [string, AbstractLanguageModelChatProvider]>): Promise<void> {
+	private async _refreshKnownModels(): Promise<void> {
 		const knownModels = await this._fetchKnownModelList(this._fetcherService);
 		if (this._store.isDisposed) {
 			return;
 		}
-		for (const [providerName, provider] of targets) {
+		for (const [providerName, provider] of this._knownModelsRefreshTargets) {
 			provider.updateKnownModels(knownModels[providerName]);
 		}
 	}
 
 	private async _fetchKnownModelList(fetcherService: IFetcherService): Promise<Record<string, BYOKKnownModels>> {
 		this._logService.info('BYOK: fetching known models list');
-		try {
-			const data = await (await fetcherService.fetch('https://main.vscode-cdn.net/extensions/copilotChat.json', { method: 'GET', callSite: 'byok-known-models' })).json();
-			// Use this for testing with changes from a local file. Don't check in
-			// const data = JSON.parse((await this._fileSystemService.readFile(URI.file('/Users/roblou/code/vscode-engineering/chat/copilotChat.json'))).toString());
-			if (data.version !== 1) {
-				this._logService.warn('BYOK: Copilot Chat known models list is not in the expected format. Defaulting to empty list.');
-				return {};
-			}
-			this._logService.info('BYOK: Copilot Chat known models list fetched successfully.');
-			return data.modelInfo;
-		} catch (err) {
-			this._logService.warn(`BYOK: failed to fetch known models list, defaulting to empty list: ${err instanceof Error ? err.message : String(err)}`);
+		const data = await (await fetcherService.fetch('https://main.vscode-cdn.net/extensions/copilotChat.json', { method: 'GET', callSite: 'byok-known-models' })).json();
+		// Use this for testing with changes from a local file. Don't check in
+		// const data = JSON.parse((await this._fileSystemService.readFile(URI.file('/Users/roblou/code/vscode-engineering/chat/copilotChat.json'))).toString());
+		if (data.version !== 1) {
+			this._logService.warn('BYOK: Copilot Chat known models list is not in the expected format. Defaulting to empty list.');
 			return {};
 		}
+		this._logService.info('BYOK: Copilot Chat known models list fetched successfully.');
+		return data.modelInfo;
 	}
 }

@@ -359,7 +359,11 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this.anonymousContextKey = ChatEntitlementContextKeys.chatAnonymous.bindTo(this.contextKeyService);
 		this.anonymousContextKey.set(this.anonymous);
 
-		ChatEntitlementContextKeys.clientByokEnabled.bindTo(this.contextKeyService);
+		// Only apply the workbench-side default if no other source (e.g. the Copilot extension)
+		// has already set this key; binding would otherwise reset it to the declared default.
+		if (this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.clientByokEnabled.key) === undefined) {
+			ChatEntitlementContextKeys.clientByokEnabled.bindTo(this.contextKeyService);
+		}
 
 		this.onDidChangeEntitlement = Event.map(
 			Event.filter(
