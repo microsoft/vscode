@@ -428,19 +428,15 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 	}
 
 	private async getSDKAgents(): Promise<Readonly<SweCustomAgent>[]> {
-		// Disabled for now, as ther's a perf cost of using SDK to fetch agents.
-		if ((false as unknown)) {
-			const workspaceFolders = this.workspaceService.getWorkspaceFolders();
-			if (workspaceFolders.length === 0) {
-				return [];
-			}
-
-			const [auth, { getCustomAgents }] = await Promise.all([this.copilotCLISDK.getAuthInfo(), this.copilotCLISDK.getPackage()]);
-			const workingDirectory = workspaceFolders[0];
-			const agents = await getCustomAgents(auth, workingDirectory.fsPath, undefined, getCopilotLogger(this.logService));
-			return agents.map(agent => this.cloneAgent(agent));
+		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
+		if (workspaceFolders.length === 0) {
+			return [];
 		}
-		return [];
+
+		const [auth, { getCustomAgents }] = await Promise.all([this.copilotCLISDK.getAuthInfo(), this.copilotCLISDK.getPackage()]);
+		const workingDirectory = workspaceFolders[0];
+		const agents = await getCustomAgents(auth, workingDirectory.fsPath, undefined, getCopilotLogger(this.logService));
+		return agents.map(agent => this.cloneAgent(agent));
 	}
 
 	private toCustomAgent(customAgent: vscode.ChatCustomAgent): CLIAgentInfo | undefined {
