@@ -47,6 +47,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../github/common/types.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
+import { AllChangesChangeset, BranchChangesChangeset, GitHubRepositoryChangesetResolver, GitRepositoryChangesetResolver, LastTurnChangesChangeset, UncommittedChangesChangeset } from './copilotChatSessionsChangesets.js';
 
 const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
 const STORAGE_KEY_ISOLATION_MODE = 'sessions.isolationPicker.selectedMode';
@@ -440,7 +441,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	}
 
 	update(agentSession: IAgentSession): void {
-		const session = new AgentSessionAdapter(agentSession, this.providerId, this.gitHubService);
+		const session = new AgentSessionAdapter(agentSession, this.providerId, this.gitService, this.gitHubService);
 		this._workspaceData.set(session.workspace.get(), undefined);
 		this._title.set(session.title.get(), undefined);
 		this._status.set(session.status.get(), undefined);
@@ -1188,6 +1189,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	constructor(
 		session: IAgentSession,
 		providerId: string,
+		private readonly _gitService: IGitService,
 		private readonly _gitHubService: IGitHubService,
 	) {
 		this.id = toSessionId(providerId, session.resource);
@@ -1431,7 +1433,20 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	}
 
 	private _extractChangesets(session: IAgentSession): readonly ISessionChangeset[] {
-		return [];
+		const changesets: ISessionChangeset[] = [new BranchChangesChangeset(this)];
+
+		const changesetResolver = session.providerType === AgentSessionProviders.Cloud
+			? new GitHubRepositoryChangesetResolver(this, this._gitHubService)
+			: new GitRepositoryChangesetResolver(this, this._gitService);
+
+		if (session.providerType !== AgentSessionProviders.Cloud) {
+			changesets.push(new UncommittedChangesChangeset(this, changesetResolver));
+		}
+
+		changesets.push(new AllChangesChangeset(this, changesetResolver));
+		changesets.push(new LastTurnChangesChangeset(this, changesetResolver));
+
+		return changesets;
 	}
 
 	private _extractChanges(session: IAgentSession): readonly ISessionFileChange[] {
@@ -1639,6 +1654,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
+		@IGitService private readonly gitService: IGitService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@ILabelService private readonly labelService: ILabelService,
 	) {
@@ -2847,7 +2863,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				existing.update(session);
 				changedData.push(existing);
 			} else {
-				const adapter = new AgentSessionAdapter(session, this.id, this.gitHubService);
+				const adapter = new AgentSessionAdapter(session, this.id, this.gitService, this.gitHubService);
 				this._sessionCache.set(key, adapter);
 				addedData.push(adapter);
 				cacheChanged = true;

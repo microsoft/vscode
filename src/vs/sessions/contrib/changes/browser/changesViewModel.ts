@@ -14,7 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { GitDiffChange, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { COPILOT_CLOUD_SESSION_TYPE, gitHubInfoEqual, IGitHubInfo, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { COPILOT_CLOUD_SESSION_TYPE, gitHubInfoEqual, IGitHubInfo, ISessionChangeset, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
@@ -81,6 +81,8 @@ export class ChangesViewModel extends Disposable {
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
 	readonly activeSessionIsArchivedObs: IObservable<boolean>;
 	readonly activeSessionChangesObs: IObservable<readonly ISessionFileChange[]>;
+	readonly activeSessionChangesetsObs: IObservable<readonly ISessionChangeset[] | undefined>;
+	readonly activeSessionChangesetObs: IObservable<ISessionChangeset | undefined>;
 	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
 	readonly activeSessionFirstCheckpointRefObs: IObservable<string | undefined>;
 	readonly activeSessionLastCheckpointRefObs: IObservable<string | undefined>;
@@ -94,6 +96,15 @@ export class ChangesViewModel extends Disposable {
 	private _activeSessionUncommittedChangesPromiseObs!: IObservableWithChange<IObservable<IChatSessionFileChange2[] | undefined>>;
 
 	readonly versionModeObs: ISettableObservable<ChangesVersionMode>;
+
+	private readonly _selectedChangesetId = observableValue<string | undefined>(this, undefined);
+	setChangesetId(changesetId: string | undefined): void {
+		if (this._selectedChangesetId.get() === changesetId) {
+			return;
+		}
+		this._selectedChangesetId.set(changesetId, undefined);
+	}
+
 	setVersionMode(mode: ChangesVersionMode): void {
 		if (this.versionModeObs.get() === mode) {
 			return;
@@ -132,6 +143,7 @@ export class ChangesViewModel extends Disposable {
 			return activeSession?.sessionType;
 		});
 
+		// Active session is archived
 		this.activeSessionIsArchivedObs = derived(reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
 			return activeSession?.isArchived.read(reader) === true;
@@ -194,7 +206,6 @@ export class ChangesViewModel extends Disposable {
 
 		// Version mode
 		this.versionModeObs = observableValue<ChangesVersionMode>(this, ChangesVersionMode.BranchChanges);
-
 		this._register(autorun(reader => {
 			const activeSessionResource = this.activeSessionResourceObs.read(reader);
 			if (!activeSessionResource) {
@@ -209,6 +220,25 @@ export class ChangesViewModel extends Disposable {
 
 			this.setVersionMode(versionMode);
 		}));
+
+		// Changeset
+		this.activeSessionChangesetsObs = derived(reader => {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			return activeSession?.changesets.read(reader);
+		});
+
+		this.activeSessionChangesetObs = derivedOpts<ISessionChangeset | undefined>({ equalsFn: (a, b) => a?.id === b?.id },
+			reader => {
+				const selectedChangesetId = this._selectedChangesetId.read(reader);
+				const activeSessionChangesets = this.activeSessionChangesetsObs.read(reader) ?? [];
+
+				const selectedChangeset = selectedChangesetId
+					? activeSessionChangesets.find(c => c.id === selectedChangesetId)
+					: undefined;
+
+				// Selected, or default changeset
+				return selectedChangeset ?? activeSessionChangesets.find(c => c.isDefault.read(reader));
+			});
 
 		// View mode
 		const storedMode = this.storageService.get('changesView.viewMode', StorageScope.WORKSPACE);

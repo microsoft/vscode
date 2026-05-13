@@ -190,10 +190,28 @@ export interface ISessionChangeset {
 	readonly label: string;
 	/** Optional description for the changeset. */
 	readonly description?: string;
+	/** Optional category for the changeset. */
+	readonly category?: string;
 	/** Whether the changeset is enabled. */
-	readonly enabled: IObservable<boolean>;
-	/** File changes associated with this changeset. */
+	readonly isEnabled: IObservable<boolean>;
+	/**
+	 * Whether this changeset should be selected by default when the UI
+	 * switches to its session. May change with session state (e.g. an
+	 * archived session may default to a snapshot changeset rather than a
+	 * live one). Producers should ensure at most one changeset in a
+	 * session reports `true` at any time.
+	 */
+	readonly isDefault: IObservable<boolean>;
+	/**
+	 * Whether this changeset is currently loading its file changes.
+	 */
+	readonly isLoadingChanges: IObservable<boolean>;
+	/** Observable for the file changes in this changeset. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Reference to the original checkpoint for this changeset. */
+	readonly originalCheckpointRef: IObservable<string | undefined>;
+	/** Reference to the modified checkpoint for this changeset. */
+	readonly modifiedCheckpointRef: IObservable<string | undefined>;
 }
 
 export interface IChatCheckpoints {
