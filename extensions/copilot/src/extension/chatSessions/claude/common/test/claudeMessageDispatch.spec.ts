@@ -506,60 +506,60 @@ describe('handleUserMessage', () => {
 		expect(mockSpan.end).toHaveBeenCalled();
 	});
 
-		it('emits languageModelToolInvoked telemetry for completed tool results', () => {
-			const toolUse: Anthropic.Beta.Messages.BetaToolUseBlock = {
-				type: 'tool_use', id: 'tool-telemetry', name: ClaudeToolNames.Read, input: { file_path: '/test.ts' },
-			};
-			state.unprocessedToolCalls.set('tool-telemetry', toolUse);
-			state.toolStartTimes.set('tool-telemetry', Date.now());
+	it('emits languageModelToolInvoked telemetry for completed tool results', () => {
+		const toolUse: Anthropic.Beta.Messages.BetaToolUseBlock = {
+			type: 'tool_use', id: 'tool-telemetry', name: ClaudeToolNames.Read, input: { file_path: '/test.ts' },
+		};
+		state.unprocessedToolCalls.set('tool-telemetry', toolUse);
+		state.toolStartTimes.set('tool-telemetry', Date.now());
 
-			handleUserMessage(
-				makeUserMessage([{ type: 'tool_result', tool_use_id: 'tool-telemetry', content: 'file contents here' }]),
-				accessor, TEST_SESSION_ID, request, state,
-			);
+		handleUserMessage(
+			makeUserMessage([{ type: 'tool_result', tool_use_id: 'tool-telemetry', content: 'file contents here' }]),
+			accessor, TEST_SESSION_ID, request, state,
+		);
 
-			expect(services.telemetryService.sendMSFTTelemetryEvent).toHaveBeenCalledWith('languageModelToolInvoked', {
-				result: 'success',
-				chatSessionId: 'claude-code:/test-session-id',
-				toolId: ClaudeToolNames.Read,
-				toolExtensionId: undefined,
-				toolSourceKind: 'claudeCode',
-			}, { invocationTimeMs: expect.any(Number) });
-		});
+		expect(services.telemetryService.sendMSFTTelemetryEvent).toHaveBeenCalledWith('languageModelToolInvoked', {
+			result: 'success',
+			chatSessionId: 'claude-code:/test-session-id',
+			toolId: ClaudeToolNames.Read,
+			toolExtensionId: undefined,
+			toolSourceKind: 'claudeCode',
+		}, { invocationTimeMs: expect.any(Number) });
+	});
 
-		it('maps Claude Code MCP, error, and denied tool telemetry', () => {
-			const mcpToolUse: Anthropic.Beta.Messages.BetaToolUseBlock = {
-				type: 'tool_use', id: 'tool-mcp', name: 'mcp__server__tool', input: {},
-			};
-			const deniedToolUse: Anthropic.Beta.Messages.BetaToolUseBlock = {
-				type: 'tool_use', id: 'tool-denied-telemetry', name: ClaudeToolNames.Bash, input: { command: 'rm -rf /' },
-			};
-			state.unprocessedToolCalls.set('tool-mcp', mcpToolUse);
-			state.unprocessedToolCalls.set('tool-denied-telemetry', deniedToolUse);
+	it('maps Claude Code MCP, error, and denied tool telemetry', () => {
+		const mcpToolUse: Anthropic.Beta.Messages.BetaToolUseBlock = {
+			type: 'tool_use', id: 'tool-mcp', name: 'mcp__server__tool', input: {},
+		};
+		const deniedToolUse: Anthropic.Beta.Messages.BetaToolUseBlock = {
+			type: 'tool_use', id: 'tool-denied-telemetry', name: ClaudeToolNames.Bash, input: { command: 'rm -rf /' },
+		};
+		state.unprocessedToolCalls.set('tool-mcp', mcpToolUse);
+		state.unprocessedToolCalls.set('tool-denied-telemetry', deniedToolUse);
 
-			handleUserMessage(
-				makeUserMessage([
-					{ type: 'tool_result', tool_use_id: 'tool-mcp', content: 'failed', is_error: true },
-					{ type: 'tool_result', tool_use_id: 'tool-denied-telemetry', content: DENY_TOOL_MESSAGE },
-				]),
-				accessor, TEST_SESSION_ID, request, state,
-			);
+		handleUserMessage(
+			makeUserMessage([
+				{ type: 'tool_result', tool_use_id: 'tool-mcp', content: 'failed', is_error: true },
+				{ type: 'tool_result', tool_use_id: 'tool-denied-telemetry', content: DENY_TOOL_MESSAGE },
+			]),
+			accessor, TEST_SESSION_ID, request, state,
+		);
 
-			const events = services.telemetryService.sendMSFTTelemetryEvent.mock.calls.map(call => ({
-				properties: call[1] as TelemetryEventProperties,
-				measurements: call[2] as TelemetryEventMeasurements | undefined,
-			}));
-			expect(events).toEqual([
-				{
-					properties: { result: 'error', chatSessionId: 'claude-code:/test-session-id', toolId: 'mcp__server__tool', toolExtensionId: undefined, toolSourceKind: 'mcp' },
-					measurements: undefined,
-				},
-				{
-					properties: { result: 'userCancelled', chatSessionId: 'claude-code:/test-session-id', toolId: ClaudeToolNames.Bash, toolExtensionId: undefined, toolSourceKind: 'claudeCode' },
-					measurements: undefined,
-				},
-			]);
-		});
+		const events = services.telemetryService.sendMSFTTelemetryEvent.mock.calls.map(call => ({
+			properties: call[1] as TelemetryEventProperties,
+			measurements: call[2] as TelemetryEventMeasurements | undefined,
+		}));
+		expect(events).toEqual([
+			{
+				properties: { result: 'error', chatSessionId: 'claude-code:/test-session-id', toolId: 'mcp__server__tool', toolExtensionId: undefined, toolSourceKind: 'mcp' },
+				measurements: undefined,
+			},
+			{
+				properties: { result: 'userCancelled', chatSessionId: 'claude-code:/test-session-id', toolId: ClaudeToolNames.Bash, toolExtensionId: undefined, toolSourceKind: 'claudeCode' },
+				measurements: undefined,
+			},
+		]);
+	});
 
 	it('skips tool_result blocks with no matching tool call', () => {
 		handleUserMessage(
