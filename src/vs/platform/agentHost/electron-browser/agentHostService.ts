@@ -132,7 +132,7 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 		// Serve filesystem reverse-RPCs from the local file service. The
 		// agent host registers an authority on its
 		// AgentHostClientFileSystemProvider that calls back through this channel.
-		client.registerChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, new AgentHostClientResourceChannel(this._fileService));
+		client.registerChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, new AgentHostClientResourceChannel(this._fileService, this._ahpLogger));
 		this._clientEventually.complete(client);
 
 		store.add(this._proxy.onDidAction(e => {
