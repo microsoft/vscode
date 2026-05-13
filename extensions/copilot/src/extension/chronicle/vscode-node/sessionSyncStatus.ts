@@ -50,7 +50,7 @@ export class SessionSyncStatus extends Disposable {
 
 	private _updateVisibility(): void {
 		const localEnabled = this._configService.getExperimentBasedConfig(ConfigKey.LocalIndexEnabled, this._expService);
-		if (!localEnabled) {
+		if (!localEnabled || vscode.workspace.isAgentSessionsWorkspace) {
 			this._statusItem.hide();
 		} else {
 			this._statusItem.show();
@@ -88,20 +88,25 @@ export class SessionSyncStatus extends Disposable {
 				break;
 
 			case 'on':
-			case 'up-to-date':
 				this._statusItem.description = `$(check) ${l10n.t('Enabled')}`;
 				this._statusItem.detail = `[${l10n.t('Show insights?')}](command:workbench.action.chat.open?%7B%22query%22%3A%22%2Fchronicle%3Atips%22%7D)`;
 				this._statusItem.tooltip = l10n.t('Your sessions are being synced and available across devices.');
 				break;
 
+			case 'up-to-date':
+				this._statusItem.description = `$(check) ${l10n.t('{0} sessions synced', state.syncedCount)}`;
+				this._statusItem.detail = `[${l10n.t('Show insights?')}](command:workbench.action.chat.open?%7B%22query%22%3A%22%2Fchronicle%3Atips%22%7D)`;
+				this._statusItem.tooltip = l10n.t('Your sessions are being synced and available across devices.');
+				break;
+
 			case 'syncing':
-				this._statusItem.description = `$(loading~spin) ${l10n.t('Syncing...')}`;
+				this._statusItem.description = `$(loading~spin) ${l10n.t('Syncing {0} session(s)\u2026', state.sessionCount)}`;
 				this._statusItem.detail = '';
 				this._statusItem.tooltip = l10n.t('Syncing {0} session(s)\u2026', state.sessionCount);
 				break;
 
 			case 'deleting':
-				this._statusItem.description = `$(loading~spin) ${l10n.t('Syncing...')}`;
+				this._statusItem.description = `$(loading~spin) ${l10n.t('Deleting {0} session(s)\u2026', state.sessionCount)}`;
 				this._statusItem.detail = '';
 				this._statusItem.tooltip = l10n.t('Deleting {0} session(s)\u2026', state.sessionCount);
 				break;

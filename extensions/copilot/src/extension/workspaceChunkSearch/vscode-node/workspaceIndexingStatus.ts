@@ -163,20 +163,40 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 				}
 
 				// Check if we have any authorization errors
+				const readyRepos = state.remoteIndexState.repos.filter(repo => repo.status === CodeSearchRepoStatus.Ready);
 				const notAuthorizedRepos = state.remoteIndexState.repos.filter(repo => repo.status === CodeSearchRepoStatus.NotAuthorized);
 				if (notAuthorizedRepos.length > 0) {
 					const inaccessibleRepo = notAuthorizedRepos[0].remoteInfo;
-					return this._writeStatusItem({
-						primary: {
-							message: t`Not authorized`,
-							icon: '$(lock)',
-						},
-						details: {
-							message: `[${t`Sign in?`}](${commandUri(reauthenticateCommandId, [inaccessibleRepo])} "${t('Try signing in again to use the codebase index')}")`,
-							busy: false,
-						},
-						tooltip: t`You don't have permission to access the index for this repository.`,
-					});
+					if (readyRepos.length > 0) {
+						// Some repos are ready, some need re-auth
+						return this._writeStatusItem({
+							primary: {
+								message: readyRepos.length === 1
+									? t`1 repo with index`
+									: t`${readyRepos.length} repos with indexes`,
+								icon: '$(warning)',
+							},
+							details: {
+								message: `[${t`Sign in?`}](${commandUri(reauthenticateCommandId, [inaccessibleRepo])} "${t('Try signing in again to use the codebase index')}")`,
+								busy: false,
+							},
+							tooltip: notAuthorizedRepos.length === 1
+								? t`1 additional repo needs re-authentication.`
+								: t`${notAuthorizedRepos.length} additional repos need re-authentication.`,
+						});
+					} else {
+						return this._writeStatusItem({
+							primary: {
+								message: t`Not authorized`,
+								icon: '$(lock)',
+							},
+							details: {
+								message: `[${t`Sign in?`}](${commandUri(reauthenticateCommandId, [inaccessibleRepo])} "${t('Try signing in again to use the codebase index')}")`,
+								busy: false,
+							},
+							tooltip: t`You don't have permission to access the index for this repository.`,
+						});
+					}
 				}
 
 				// Check if we have other errors
