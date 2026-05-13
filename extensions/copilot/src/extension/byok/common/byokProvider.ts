@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import type { Disposable, LanguageModelChatInformation, LanguageModelDataPart, LanguageModelTextPart, LanguageModelThinkingPart, LanguageModelToolCallPart, LanguageModelToolResultPart } from 'vscode';
 import { CopilotToken } from '../../../platform/authentication/common/copilotToken';
-import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { EndpointEditToolName, IChatModelInformation, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
-import { isScenarioAutomation } from '../../../platform/env/common/envService';
 import { TokenizerType } from '../../../util/common/tokenizer';
 
 export const enum BYOKAuthType {
@@ -169,14 +167,16 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 	};
 }
 
-export function isBYOKEnabled(copilotToken: Omit<CopilotToken, 'token'>, capiClientService: ICAPIClientService): boolean {
-	if (isScenarioAutomation) {
+/**
+ * Whether client-side BYOK is allowed for the given Copilot token. Signed-out users
+ * are allowed (no policy is known); signed-in users must be internal, individual, or
+ * on a managed plan that has explicitly enabled BYOK.
+ */
+export function isClientBYOKAllowed(copilotToken: Omit<CopilotToken, 'token'> | undefined): boolean {
+	if (!copilotToken) {
 		return true;
 	}
-
-	const isGHE = capiClientService.dotcomAPIURL !== 'https://api.github.com';
-	const byokAllowed = (copilotToken.isInternal || copilotToken.isIndividual || copilotToken.isClientBYOKEnabled()) && !isGHE;
-	return byokAllowed;
+	return copilotToken.isInternal || copilotToken.isIndividual || copilotToken.isClientBYOKEnabled();
 }
 
 /**

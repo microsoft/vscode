@@ -15,6 +15,7 @@ import { TelemetryData } from '../../../platform/telemetry/common/telemetryData'
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { autorun } from '../../../util/vs/base/common/observableInternal';
 import { GHPR_EXTENSION_ID } from '../../chatSessions/vscode/chatSessionsUriHandler';
+import { isClientBYOKAllowed } from '../../byok/common/byokProvider';
 import { EXTENSION_ID } from '../../common/constants';
 
 const welcomeViewContextKeys = {
@@ -212,9 +213,11 @@ export class ContextKeysContribution extends Disposable {
 	private async _updateClientByokEnabledContext() {
 		try {
 			const copilotToken = await this._authenticationService.getCopilotToken();
-			commands.executeCommand('setContext', clientByokEnabledContextKey, copilotToken.isClientBYOKEnabled());
+			commands.executeCommand('setContext', clientByokEnabledContextKey, isClientBYOKAllowed(copilotToken));
 		} catch (e) {
-			commands.executeCommand('setContext', clientByokEnabledContextKey, undefined);
+			// Signed-out: BYOK is available by default so users can configure local/3rd-party
+			// models without a GitHub sign-in.
+			commands.executeCommand('setContext', clientByokEnabledContextKey, isClientBYOKAllowed(undefined));
 		}
 	}
 

@@ -17,6 +17,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CONTEXT_MODELS_EDITOR, CONTEXT_MODELS_SEARCH_FOCUS, MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ModelsManagementEditor } from './chatManagementEditor.js';
@@ -37,7 +38,8 @@ const LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION = ContextKeyExpr.and(ChatContextK
 	ChatContextKeys.Entitlement.planMax,
 	ChatContextKeys.Entitlement.planBusiness,
 	ChatContextKeys.Entitlement.planEnterprise,
-	ChatContextKeys.Entitlement.internal
+	ChatContextKeys.Entitlement.internal,
+	ChatEntitlementContextKeys.clientByokEnabled
 ));
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
