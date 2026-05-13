@@ -68,6 +68,10 @@ export interface IFilterWidgetOptions {
 	readonly focusContextKey?: string;
 }
 
+export interface IFilterWidgetAcceptEvent {
+	readonly shiftKey: boolean;
+}
+
 export class FilterWidget extends Widget {
 
 	readonly element: HTMLElement;
@@ -80,7 +84,7 @@ export class FilterWidget extends Widget {
 	private readonly _onDidChangeFilterText = this._register(new Emitter<string>());
 	readonly onDidChangeFilterText = this._onDidChangeFilterText.event;
 
-	private readonly _onDidAcceptFilterText = this._register(new Emitter<void>());
+	private readonly _onDidAcceptFilterText = this._register(new Emitter<IFilterWidgetAcceptEvent>());
 	readonly onDidAcceptFilterText = this._onDidAcceptFilterText.event;
 
 	private moreFiltersActionViewItem: MoreFiltersActionViewItem | undefined;
@@ -288,7 +292,7 @@ export class FilterWidget extends Widget {
 			handled = true;
 		}
 		if (event.equals(KeyCode.Enter)) {
-			this._onDidAcceptFilterText.fire();
+			this._onDidAcceptFilterText.fire({ shiftKey: event.shiftKey });
 			handled = true;
 		}
 		if (handled) {

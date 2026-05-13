@@ -52,7 +52,7 @@ import { IChatContentInlineReference, IChatMarkdownContent, IChatService, IChatU
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
-import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
+import { allowedChatMarkdownHtmlTags, highlightChatFindMatches, IChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 import { IMarkdownDiffBlockData, MarkdownDiffBlockPart, parseUnifiedDiff } from './chatDiffBlockPart.js';
 import { ChatEditingActionContext } from '../../chatEditing/chatEditingActions.js';
 import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
@@ -371,6 +371,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			}
 
 			store.add(wrapTablesWithScrollable(this.domNode, layoutParticipants));
+
+			if (this.rendererOptions.searchText) {
+				const chatMarkdownOptions = markdownRenderOptions as IChatMarkdownRenderOptions | undefined;
+				highlightChatFindMatches(this.domNode, this.rendererOptions.searchText(), chatMarkdownOptions?.currentChatFindMatchIndex);
+			}
 		};
 
 		// Always render immediately

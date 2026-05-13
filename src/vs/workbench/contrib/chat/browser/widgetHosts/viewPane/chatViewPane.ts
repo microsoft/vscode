@@ -5,11 +5,13 @@
 
 import './media/chatViewPane.css';
 import { $, addDisposableListener, append, EventHelper, EventType, getWindow, setVisibility } from '../../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { MutableDisposable, toDisposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { autorun, IReader } from '../../../../../../base/common/observable.js';
@@ -35,6 +37,7 @@ import { defaultButtonStyles } from '../../../../../../platform/theme/browser/de
 import { editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { ChatViewTitleControl } from './chatViewTitleControl.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { FilterWidget } from '../../../../../browser/parts/views/viewFilter.js';
 import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/viewPane.js';
 import { Memento } from '../../../../../common/memento.js';
 import { SIDE_BAR_FOREGROUND } from '../../../../../common/theme.js';
@@ -57,7 +60,7 @@ import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
-import { ChatViewId } from '../../chat.js';
+import { ChatTreeItem, ChatViewId } from '../../chat.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
@@ -68,6 +71,7 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
+import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	/**
@@ -83,6 +87,90 @@ type ChatViewPaneOpenedClassification = {
 	owner: 'sbatten';
 	comment: 'Event fired when the chat view pane is opened';
 };
+
+export interface ICurrentChatSearchMatch {
+	readonly item: ChatTreeItem;
+	readonly matchIndex: number;
+}
+
+function getCurrentChatSearchText(item: ChatTreeItem): string {
+	if (isRequestVM(item)) {
+		return item.messageText;
+	}
+
+	if (isResponseVM(item)) {
+		return item.response.toString();
+	}
+
+	return '';
+}
+
+export function countCurrentChatSearchMatches(item: ChatTreeItem, searchText: string): number {
+	const needle = searchText.trim().toLocaleLowerCase();
+	if (!needle) {
+		return 0;
+	}
+
+	const haystack = getCurrentChatSearchText(item).toLocaleLowerCase();
+	let count = 0;
+	let matchIndex = haystack.indexOf(needle);
+	while (matchIndex !== -1) {
+		count++;
+		matchIndex = haystack.indexOf(needle, matchIndex + needle.length);
+	}
+
+	return count;
+}
+
+export function getCurrentChatSearchMatches(items: ChatTreeItem[], searchText: string): ICurrentChatSearchMatch[] {
+	const matches: ICurrentChatSearchMatch[] = [];
+	for (const item of items) {
+		const count = countCurrentChatSearchMatches(item, searchText);
+		for (let matchIndex = 0; matchIndex < count; matchIndex++) {
+			matches.push({ item, matchIndex });
+		}
+	}
+
+	return matches;
+}
+
+function isSameCurrentChatSearchMatch(match: ICurrentChatSearchMatch | undefined, other: ICurrentChatSearchMatch | undefined): boolean {
+	return Boolean(match && other && match.item === other.item && match.matchIndex === other.matchIndex);
+}
+
+export function matchesCurrentChatSearch(item: ChatTreeItem, searchText: string): boolean {
+	const needle = searchText.trim().toLocaleLowerCase();
+	if (!needle) {
+		return true;
+	}
+
+	if (isRequestVM(item)) {
+		return item.messageText.toLocaleLowerCase().includes(needle);
+	}
+
+	if (isResponseVM(item)) {
+		return item.response.toString().toLocaleLowerCase().includes(needle);
+	}
+
+	return false;
+}
+
+export function getNextCurrentChatSearchMatch(matches: ICurrentChatSearchMatch[], currentMatch: ICurrentChatSearchMatch | undefined, direction: 1 | -1): ICurrentChatSearchMatch | undefined {
+	if (!matches.length) {
+		return undefined;
+	}
+
+	if (!currentMatch) {
+		return direction === 1 ? matches[0] : matches[matches.length - 1];
+	}
+
+	const currentIndex = matches.findIndex(match => isSameCurrentChatSearchMatch(match, currentMatch));
+	if (currentIndex === -1) {
+		return direction === 1 ? matches[0] : matches[matches.length - 1];
+	}
+
+	return matches[(currentIndex + direction + matches.length) % matches.length];
+}
 
 export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
@@ -519,6 +607,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	get widget(): ChatWidget { return this._widget; }
 
 	private titleControl: ChatViewTitleControl | undefined;
+	private chatFindWidget: FilterWidget | undefined;
+	private chatFindContainer: HTMLElement | undefined;
+	private chatFindVisible = false;
+	private chatFindText = '';
+	private currentChatSearchMatch: ICurrentChatSearchMatch | undefined;
 
 	private createChatControl(parent: HTMLElement): ChatWidget {
 		const chatControlsContainer = append(parent, $('.chat-controls-container'));
@@ -533,6 +626,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.createChatTitleControl(chatControlsContainer);
 		}
 
+		this.createChatFindControl(chatControlsContainer);
+
 		// Chat Widget
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		this._widget = this._register(scopedInstantiationService.createInstance(
@@ -543,8 +638,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				autoScroll: mode => mode !== ChatModeKind.Ask,
 				renderFollowups: true,
 				supportsFileReferences: true,
+				filter: item => this.matchesCurrentChatSearch(item),
 				clear: () => this.clear(),
 				rendererOptions: {
+					searchText: () => this.chatFindText,
+					currentSearchItemId: () => this.currentChatSearchMatch?.item.id,
+					currentSearchItemMatchIndex: () => this.currentChatSearchMatch?.matchIndex,
 					renderTextEditsAsSummary: (uri) => {
 						return true;
 					},
@@ -570,11 +669,149 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}));
 		this._widget.render(chatControlsContainer);
 
-		const updateWidgetVisibility = (reader?: IReader) => this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader));
+		const updateWidgetVisibility = (reader?: IReader) => {
+			const visible = this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader);
+			this._widget.setVisible(visible);
+			if (this.chatFindContainer) {
+				setVisibility(visible && this.chatFindVisible, this.chatFindContainer);
+			}
+		};
 		this._register(this.onDidChangeBodyVisibility(() => updateWidgetVisibility()));
 		this._register(autorun(reader => updateWidgetVisibility(reader)));
 
 		return this._widget;
+	}
+
+	private createChatFindControl(parent: HTMLElement): void {
+		const chatFindContainer = this.chatFindContainer = append(parent, $('.chat-view-filter-container'));
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(chatFindContainer));
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+
+		this.chatFindWidget = this._register(scopedInstantiationService.createInstance(FilterWidget, {
+			placeholder: localize('chatView.find.placeholder', "Find in current chat"),
+			ariaLabel: localize('chatView.find.ariaLabel', "Find in current chat"),
+			focusContextKey: 'chatFindInputFocused',
+		}));
+		chatFindContainer.appendChild(this.chatFindWidget.element);
+		setVisibility(false, chatFindContainer);
+
+		this._register(this.chatFindWidget.onDidChangeFilterText(text => {
+			this.chatFindText = text.trim();
+			this._widget.refilterList();
+			this._widget.rerenderList();
+			this._widget.refreshRenderedSearchHighlights();
+			this.updateChatFindSelection();
+		}));
+
+		this._register(this.chatFindWidget.onDidAcceptFilterText(e => {
+			this.navigateCurrentChatSearchMatches(e.shiftKey ? -1 : 1);
+		}));
+
+		this._register(addDisposableListener(this.chatFindWidget.element, EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Escape)) {
+				EventHelper.stop(e, true);
+				this.closeFind();
+			}
+		}));
+	}
+
+	openFind(): void {
+		this.chatFindVisible = true;
+		if (this.chatFindContainer) {
+			setVisibility(true, this.chatFindContainer);
+		}
+		this.relayout();
+		this.chatFindWidget?.focus();
+	}
+
+	private closeFind(): void {
+		this.chatFindVisible = false;
+		this.chatFindText = '';
+		this.currentChatSearchMatch = undefined;
+		this.chatFindWidget?.setFilterText('');
+		this.chatFindWidget?.updateBadge(undefined);
+		this._widget.select(undefined);
+		this._widget.refilterList();
+		if (this.chatFindContainer) {
+			setVisibility(false, this.chatFindContainer);
+		}
+		this.relayout();
+		this._widget.focusInput();
+	}
+
+	private matchesCurrentChatSearch(item: ChatTreeItem): boolean {
+		return matchesCurrentChatSearch(item, this.chatFindText);
+	}
+
+	private navigateCurrentChatSearchMatches(direction: 1 | -1): void {
+		if (!this.chatFindText) {
+			return;
+		}
+
+		const visibleMatches = getCurrentChatSearchMatches(this._widget.getVisibleItems(), this.chatFindText);
+		const nextMatch = getNextCurrentChatSearchMatch(visibleMatches, this.currentChatSearchMatch, direction);
+		if (!nextMatch) {
+			this.currentChatSearchMatch = undefined;
+			this.chatFindWidget?.updateBadge(localize('chatView.find.results.none', "No results"));
+			this._widget.select(undefined);
+			this._widget.rerenderList();
+			this._widget.refreshRenderedSearchHighlights();
+			return;
+		}
+
+		this.currentChatSearchMatch = nextMatch;
+		this._widget.select(nextMatch.item);
+		this._widget.reveal(nextMatch.item, 0);
+		this._widget.rerenderList();
+		this._widget.refreshRenderedSearchHighlights();
+		this.updateChatFindBadge(visibleMatches, nextMatch);
+		this.chatFindWidget?.focus();
+	}
+
+	private updateChatFindSelection(): void {
+		if (!this.chatFindText) {
+			this.currentChatSearchMatch = undefined;
+			this.chatFindWidget?.updateBadge(undefined);
+			this._widget.select(undefined);
+			return;
+		}
+
+		const visibleMatches = getCurrentChatSearchMatches(this._widget.getVisibleItems(), this.chatFindText);
+		const selectedMatch = visibleMatches.find(match => isSameCurrentChatSearchMatch(match, this.currentChatSearchMatch));
+		if (!selectedMatch) {
+			this.currentChatSearchMatch = undefined;
+			this._widget.select(undefined);
+			this._widget.rerenderList();
+			this._widget.refreshRenderedSearchHighlights();
+		}
+
+		this.updateChatFindBadge(visibleMatches, selectedMatch);
+	}
+
+	private updateChatFindBadge(visibleMatches: ICurrentChatSearchMatch[], selectedMatch: ICurrentChatSearchMatch | undefined): void {
+		if (!this.chatFindText) {
+			this.chatFindWidget?.updateBadge(undefined);
+			return;
+		}
+
+		if (!visibleMatches.length) {
+			this.chatFindWidget?.updateBadge(localize('chatView.find.results.none', "No results"));
+			return;
+		}
+
+		if (!selectedMatch) {
+			this.chatFindWidget?.updateBadge(localize('chatView.find.results.count', "{0} results", visibleMatches.length));
+			return;
+		}
+
+		const selectedIndex = visibleMatches.findIndex(match => isSameCurrentChatSearchMatch(match, selectedMatch));
+		if (selectedIndex === -1) {
+			this.chatFindWidget?.updateBadge(localize('chatView.find.results.count', "{0} results", visibleMatches.length));
+			return;
+		}
+
+		this.chatFindWidget?.updateBadge(localize('chatView.find.results.index', "{0} of {1}", selectedIndex + 1, visibleMatches.length));
 	}
 
 	private createChatTitleControl(parent: HTMLElement): void {
