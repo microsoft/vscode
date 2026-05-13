@@ -2344,6 +2344,7 @@ suite('RunInTerminalTool', () => {
 			capabilities: {
 				get: (cap: TerminalCapability) => cap === TerminalCapability.CommandDetection ? { onCommandFinished: commandFinishedEmitter.event } : undefined,
 			},
+			shellLaunchConfig: { hideFromUser: false },
 			onDisposed: terminalDisposedEmitter.event,
 			onDidInputData: inputDataEmitter.event,
 		} as unknown as ITerminalInstance;
