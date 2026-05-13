@@ -1700,8 +1700,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					idleSilenceScheduler.schedule();
 					raceCandidates.push(idleSilenceDeferred.p);
 				}
-				const raceResult = await Promise.race(raceCandidates);
-				raceCleanup.dispose();
+				let raceResult: { type: 'completed'; result: ITerminalExecuteStrategyResult } | { type: 'background' } | { type: 'timeout' } | { type: 'inputNeeded' } | { type: 'idleSilence' };
+				try {
+					raceResult = await Promise.race(raceCandidates);
+				} finally {
+					raceCleanup.dispose();
+				}
 
 				if (raceResult.type === 'inputNeeded') {
 					// Output monitor detected the terminal is waiting for input.
