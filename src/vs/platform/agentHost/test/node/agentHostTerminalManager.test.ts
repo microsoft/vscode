@@ -15,7 +15,7 @@ import { ActionType, StateAction } from '../../common/state/protocol/actions.js'
 import { TerminalClaimKind, TerminalContentPart } from '../../common/state/protocol/state.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostTerminalManager, removeServerHandledTerminalQueries, type ITerminalQueryFilterState } from '../../node/agentHostTerminalManager.js';
+import { AgentHostTerminalManager, formatTerminalText, removeServerHandledTerminalQueries, type ITerminalQueryFilterState } from '../../node/agentHostTerminalManager.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from '../../node/osc633Parser.js';
 
 /**
@@ -252,6 +252,91 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('formats command input with terminal enter semantics', () => {
+		assert.strictEqual(formatTerminalText('echo first\necho second', { shouldExecute: true }), 'echo first\recho second\r');
+		assert.strictEqual(formatTerminalText('echo first\r\necho second', { shouldExecute: true }), 'echo first\recho second\r');
+		assert.strictEqual(formatTerminalText('echo first\r', { shouldExecute: true }), 'echo first\r');
+		assert.strictEqual(formatTerminalText('answer\n', { shouldExecute: false }), 'answer\r');
+		assert.strictEqual(formatTerminalText('/tmp/foo\npwd', { shouldExecute: true }), '/tmp/foo\rpwd\r');
+		assert.strictEqual(formatTerminalText('echo first\necho second', { shouldExecute: true, forceBracketedPasteMode: true }), '\x1b[200~echo first\recho second\x1b[201~\r');
+		assert.strictEqual(formatTerminalText('answer\n', { shouldExecute: false, forceBracketedPasteMode: true }), '\x1b[200~answer\r\x1b[201~');
+	});
+
+	test('writes formatted command input to the PTY', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+
+		const createTerminal = manager.createTerminal({
+			terminal: 'agenthost-terminal://test/command-input',
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData('prompt');
+		await createTerminal;
+
+		await manager.sendText('agenthost-terminal://test/command-input', 'echo first\necho second', { shouldExecute: true });
+
+		assert.deepStrictEqual(pty.writes, ['echo first\recho second\r']);
+	});
+
+	test('writes bracketed paste command input when enabled by the terminal', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+
+		const createTerminal = manager.createTerminal({
+			terminal: 'agenthost-terminal://test/bracketed-paste',
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData('\x1b[?2004h');
+		await createTerminal;
+
+		await manager.sendText('agenthost-terminal://test/bracketed-paste', 'echo first\necho second', { shouldExecute: true, bracketedPasteMode: true });
+
+		assert.deepStrictEqual(pty.writes, ['\x1b[200~echo first\recho second\x1b[201~\r']);
+	});
+
+	test('does not write bracketed paste command input when disabled by the terminal', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+
+		const createTerminal = manager.createTerminal({
+			terminal: 'agenthost-terminal://test/bracketed-paste-disabled',
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData('prompt');
+		await createTerminal;
+
+		await manager.sendText('agenthost-terminal://test/bracketed-paste-disabled', 'echo first\necho second', { shouldExecute: true, bracketedPasteMode: true });
+
+		assert.deepStrictEqual(pty.writes, ['echo first\recho second\r']);
+	});
+
 	test('writes headless DSR responses back to the PTY', async () => {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -274,6 +359,67 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		await waitForWrites(pty, 1);
 
 		assert.deepStrictEqual(pty.writes, ['\x1b[1;4R']);
+	});
+
+	test('resolves alt-buffer promise from headless terminal data', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+		const uri = 'agenthost-terminal://test/alt-buffer';
+
+		const createTerminal = manager.createTerminal({
+			terminal: uri,
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData('prompt');
+		await createTerminal;
+
+		const altBufferStore = disposables.add(new DisposableStore());
+		const altBufferPromise = manager.createAltBufferPromise(uri, altBufferStore);
+
+		pty.fireData('\x1b[?1049h');
+
+		await altBufferPromise;
+	});
+
+	test('disposed alt-buffer promise listener does not resolve', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+		const uri = 'agenthost-terminal://test/alt-buffer-disposed';
+
+		const createTerminal = manager.createTerminal({
+			terminal: uri,
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData('prompt');
+		await createTerminal;
+
+		const altBufferStore = new DisposableStore();
+		const altBufferPromise = manager.createAltBufferPromise(uri, altBufferStore);
+		let didEnterAltBuffer = false;
+		void altBufferPromise.then(() => didEnterAltBuffer = true);
+		altBufferStore.dispose();
+		pty.fireData('\x1b[?1049h');
+		await timeout(10);
+
+		assert.strictEqual(didEnterAltBuffer, false);
 	});
 
 	test('server-handled CPR queries are stripped from client-facing data', () => {

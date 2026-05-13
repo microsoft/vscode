@@ -86,10 +86,12 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 
 	async createTerminal(): Promise<void> { }
 	writeInput(): void { }
+	async sendText(): Promise<void> { }
 	onData(): IDisposable { return Disposable.None; }
 	onExit(): IDisposable { return Disposable.None; }
 	onClaimChanged(): IDisposable { return Disposable.None; }
 	onCommandFinished(): IDisposable { return Disposable.None; }
+	createAltBufferPromise(_uri: string, _store: DisposableStore): Promise<void> { return new Promise(() => { }); }
 	getContent(): string | undefined { return undefined; }
 	getClaim(): undefined { return undefined; }
 	hasTerminal(): boolean { return false; }

@@ -18,6 +18,8 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { IOutputService } from '../../../../../workbench/services/output/common/output.js';
@@ -58,13 +60,14 @@ function createMockProvider(id: string, opts?: {
 			label: uri.path.substring(1) || uri.path,
 			icon: Codicon.folder,
 			folders: [{
-				uri,
+				root: uri,
 				workingDirectory: uri,
 				name: uri.path.substring(1) || uri.path,
 				description: undefined,
 				gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 			}],
 			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
 		}),
 		onDidChangeSessions: Event.None,
 		getSessions: () => [],
@@ -166,6 +169,7 @@ function createTestPicker(
 		getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
 		onDidChangeRecentlyOpened: Event.None,
 	});
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
 
 	return disposables.add(instantiationService.createInstance(WorkspacePicker));
 }
@@ -404,7 +408,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		remoteStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 		assert.strictEqual(
-			picker.selectedProject?.workspace.folders[0]?.uri.path,
+			picker.selectedProject?.workspace.folders[0]?.root.path,
 			'/remote/project',
 		);
 	});
@@ -561,6 +565,7 @@ function createTestablePicker(disposables: DisposableStore, providersService: Mo
 		getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
 		onDidChangeRecentlyOpened: Event.None,
 	});
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	return disposables.add(instantiationService.createInstance(TestablePicker));
 }
 
@@ -631,13 +636,14 @@ suite('WorkspacePicker - Tab discovery', () => {
 				icon: Codicon.folder,
 				group: 'Cloud',
 				folders: [{
-					uri,
+					root: uri,
 					workingDirectory: uri,
 					name: uri.path,
 					description: undefined,
 					gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 				}],
 				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
 			}),
 		};
 		const storage = disposables.add(new TestStorageService());
@@ -664,6 +670,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
 			onDidChangeRecentlyOpened: Event.None,
 		});
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		const picker = disposables.add(instantiationService.createInstance(TestablePicker));
 		// Recent workspace group ('Cloud') is not added as a tab — only
 		// browse actions and the always-present Remote group contribute tabs.

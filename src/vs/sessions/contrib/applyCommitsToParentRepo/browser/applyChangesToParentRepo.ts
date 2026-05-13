@@ -93,7 +93,7 @@ class ApplyChangesToParentRepoAction extends Action2 {
 		}
 
 		const worktreeRoot = folder.gitRepository.workTreeUri;
-		const repoRoot = folder.uri;
+		const repoRoot = folder.root;
 
 		const openFolderAction = toAction({
 			id: 'applyChangesToParentRepo.openFolder',

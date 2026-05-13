@@ -19,7 +19,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { Task } from '../../../../../workbench/contrib/tasks/common/tasks.js';
 import { ITaskService } from '../../../../../workbench/contrib/tasks/common/taskService.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
@@ -29,12 +29,12 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		label: 'test',
 		icon: Codicon.folder,
 		folders: [{
-			uri: opts.repository,
+			root: opts.repository,
 			workingDirectory: opts.worktree ?? opts.repository,
 			name: 'test',
 			description: undefined,
 			gitRepository: { uri: opts.repository, workTreeUri: opts.worktree, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
-		}],
+		} satisfies ISessionFolder],
 		requiresWorkspaceTrust: false,
 	} : undefined;
 	const chat: IChat = {

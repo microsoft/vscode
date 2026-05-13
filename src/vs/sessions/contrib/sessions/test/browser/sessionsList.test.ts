@@ -32,6 +32,7 @@ function createSession(id: string, opts: {
 			icon: Codicon.folder,
 			folders: [],
 			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
 		} : undefined),
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, updatedAt),

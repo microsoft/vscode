@@ -30,7 +30,7 @@ import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IsActiveSessionBackgroundProviderContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ActiveSessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../browser/menus.js';
@@ -164,9 +164,9 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 			const tasks = this._sessionsConfigService.getSessionTasks(activeSession).read(reader);
 			const folder = activeSession.workspace.read(reader)?.folders[0];
-			const pinnedTaskLabel = this._sessionsConfigService.getPinnedTaskLabel(folder?.uri).read(reader);
-			const browserUrl = this._sessionsConfigService.getBrowserUrl(folder?.uri).read(reader);
-			const pinnedBrowser = this._sessionsConfigService.getPinnedBrowser(folder?.uri).read(reader);
+			const pinnedTaskLabel = this._sessionsConfigService.getPinnedTaskLabel(folder?.root).read(reader);
+			const browserUrl = this._sessionsConfigService.getBrowserUrl(folder?.root).read(reader);
+			const pinnedBrowser = this._sessionsConfigService.getPinnedBrowser(folder?.root).read(reader);
 			return { session: activeSession, tasks, pinnedTaskLabel, browserUrl, pinnedBrowser };
 		}).recomputeInitiallyAndOnChange(this._store);
 
@@ -282,7 +282,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						id: GENERATE_RUN_ACTION_ID,
 						title: localize2('generateRunAction', "Generate New Task..."),
 						category: SessionsCategories.Sessions,
-						precondition: IsActiveSessionBackgroundProviderContext,
+						precondition: ActiveSessionWorkspaceIsVirtualContext.toNegated(),
 						menu: [{
 							id: RunScriptDropdownMenuId,
 							group: tasks.length === 0 ? 'navigation' : '1_configure',
@@ -313,10 +313,10 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 	private async _configureBrowserUrl(session: ISession): Promise<void> {
 		const folder = session.workspace.get()?.folders[0];
-		if (!folder?.uri) {
+		if (!folder?.root) {
 			return;
 		}
-		const currentUrl = this._sessionsConfigService.getBrowserUrl(folder.uri).get();
+		const currentUrl = this._sessionsConfigService.getBrowserUrl(folder.root).get();
 		const url = await this._quickInputService.input({
 			title: localize('configureBrowserUrlTitle', "Configure Browser URL"),
 			prompt: localize('configureBrowserUrlPrompt', "Enter the URL to open in the integrated browser. Leave empty to clear."),
@@ -327,7 +327,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		if (url === undefined) {
 			return;
 		}
-		this._sessionsConfigService.setBrowserUrl(folder.uri, url);
+		this._sessionsConfigService.setBrowserUrl(folder.root, url);
 	}
 
 	private async _showConfigureQuickPick(session: ISession): Promise<ITaskEntry | undefined> {
@@ -438,7 +438,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 	private _showCustomCommandWidget(session: ISession, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add', allowBackNavigation = false): Promise<IRunScriptCustomTaskWidgetResult | 'back' | undefined> {
 		const folder = session.workspace.get()?.folders[0];
-		const workspaceTargetDisabledReason = !(folder?.workingDirectory ?? folder?.uri)
+		const workspaceTargetDisabledReason = !(folder?.workingDirectory ?? folder?.root)
 			? localize('workspaceStorageUnavailableTooltip', "Workspace storage is unavailable for this session")
 			: undefined;
 		const isConfigureMode = mode === 'configure';
@@ -683,10 +683,10 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					label: isPinned ? localize('unpinTask', "Unpin") : localize('pinTask', "Pin"),
 					tooltip: isPinned ? localize('unpinTaskTooltip', "Unpin") : localize('pinTaskTooltip', "Pin"),
 					class: ThemeIcon.asClassName(isPinned ? Codicon.pinned : Codicon.pin),
-					enabled: !!folder?.uri,
+					enabled: !!folder?.root,
 					run: async () => {
 						this._actionWidgetService.hide();
-						this._sessionsConfigService.setPinnedTaskLabel(folder?.uri, isPinned ? undefined : task.label);
+						this._sessionsConfigService.setPinnedTaskLabel(folder?.root, isPinned ? undefined : task.label);
 					}
 				},
 				{
@@ -732,7 +732,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		}
 
 		// "Add Task..." action
-		const canConfigure = !!(folder?.workingDirectory ?? folder?.uri);
+		const canConfigure = !!(folder?.workingDirectory ?? folder?.root);
 		actions.push({
 			id: 'runScript.addAction',
 			label: localize('configureDefaultRunAction', "Add Task..."),
@@ -777,7 +777,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		const browserCategory = { label: localize('browserActionsCategory', "Browser"), order: 3, showHeader: true };
 		const browserUrl = state.browserUrl;
 		const browserUrlDescription = formatBrowserUrlDescription(browserUrl, 20);
-		const canConfigureBrowser = !!folder?.uri;
+		const canConfigureBrowser = !!folder?.root;
 		const isBrowserPinned = state.pinnedBrowser;
 		actions.push({
 			id: 'runScript.openBrowser',
@@ -799,10 +799,10 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					label: isBrowserPinned ? localize('unpinBrowser', "Unpin") : localize('pinBrowser', "Pin"),
 					tooltip: isBrowserPinned ? localize('unpinBrowserTooltip', "Unpin") : localize('pinBrowserTooltip', "Pin"),
 					class: ThemeIcon.asClassName(isBrowserPinned ? Codicon.pinned : Codicon.pin),
-					enabled: !!folder?.uri,
+					enabled: !!folder?.root,
 					run: async () => {
 						this._actionWidgetService.hide();
-						this._sessionsConfigService.setPinnedBrowser(folder?.uri, !isBrowserPinned);
+						this._sessionsConfigService.setPinnedBrowser(folder?.root, !isBrowserPinned);
 					}
 				},
 				{
@@ -845,7 +845,7 @@ MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
 	icon: Codicon.play,
 	group: 'navigation',
 	order: 8,
-	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext)
+	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), ActiveSessionWorkspaceIsVirtualContext.toNegated())
 });
 
 // Disabled placeholder shown in the titlebar when the active session does not support running scripts
@@ -861,7 +861,7 @@ class RunScriptNotAvailableAction extends Action2 {
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
 				order: 8,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext.toNegated())
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), ActiveSessionWorkspaceIsVirtualContext)
 			}]
 		});
 	}

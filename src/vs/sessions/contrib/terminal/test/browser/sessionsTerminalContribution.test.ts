@@ -53,7 +53,7 @@ function makeAgentSession(opts: {
 	sessionId?: string;
 }): IActiveSession {
 	const folder = opts.repository || opts.worktree ? {
-		uri: opts.repository ?? opts.worktree!,
+		root: opts.repository ?? opts.worktree!,
 		workingDirectory: opts.worktree ?? opts.repository!,
 		name: 'test',
 		description: undefined,
@@ -82,7 +82,16 @@ function makeAgentSession(opts: {
 		sessionType: opts.providerType ?? AgentSessionProviders.Local,
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
-		workspace: observableValue('test.workspace', folder ? { uri: folder.uri, label: 'test', icon: Codicon.repo, folders: [folder], requiresWorkspaceTrust: false, } as ISessionWorkspace : undefined),
+		workspace: observableValue('test.workspace', folder
+			? {
+				uri: folder.root,
+				label: 'test',
+				icon: Codicon.repo,
+				folders: [folder],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false
+			} satisfies ISessionWorkspace
+			: undefined),
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
@@ -105,7 +114,7 @@ function makeAgentSession(opts: {
 
 function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerType?: string }): ISession {
 	const folder = opts.repository || opts.worktree ? {
-		uri: opts.repository ?? opts.worktree!,
+		root: opts.repository ?? opts.worktree!,
 		workingDirectory: opts.worktree ?? opts.repository!,
 		name: 'test',
 		description: undefined,
@@ -134,7 +143,14 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		sessionType: opts.providerType ?? AgentSessionProviders.Local,
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
-		workspace: observableValue('test.workspace', folder ? { uri: folder.uri, label: 'test', icon: Codicon.repo, folders: [folder], requiresWorkspaceTrust: false, } as ISessionWorkspace : undefined),
+		workspace: observableValue('test.workspace', folder
+			? {
+				uri: folder.root,
+				label: 'test',
+				icon: Codicon.repo,
+				folders: [folder],
+				requiresWorkspaceTrust: false,
+			} as ISessionWorkspace : undefined),
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
@@ -358,24 +374,24 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(createdTerminals[0].cwd.fsPath, repoUri.fsPath);
 	});
 
-	// --- Non-background providers: use home directory ---
+	// --- Workspace-backed sessions: use working directory ---
 
-	test('uses home directory for a cloud agent session', async () => {
+	test('uses worktree directory for a cloud agent session when workspace exists', async () => {
 		const session = makeAgentSession({ worktree: URI.file('/worktree'), repository: URI.file('/repo'), providerType: AgentSessionProviders.Cloud });
 		activeSessionObs.set(session, undefined);
 		await tick();
 
 		assert.strictEqual(createdTerminals.length, 1);
-		assert.strictEqual(createdTerminals[0].cwd.fsPath, HOME_DIR.fsPath);
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, URI.file('/worktree').fsPath);
 	});
 
-	test('uses home directory for a local agent session', async () => {
+	test('uses worktree directory for a local agent session when workspace exists', async () => {
 		const session = makeAgentSession({ worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Local });
 		activeSessionObs.set(session, undefined);
 		await tick();
 
 		assert.strictEqual(createdTerminals.length, 1);
-		assert.strictEqual(createdTerminals[0].cwd.fsPath, HOME_DIR.fsPath);
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, URI.file('/worktree').fsPath);
 	});
 
 	test('uses home directory for a non-agent session', async () => {

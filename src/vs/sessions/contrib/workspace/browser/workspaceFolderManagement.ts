@@ -74,7 +74,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 
 		return {
 			uri: folder.workingDirectory,
-			name: this.uriIdentityService.extUri.isEqual(folder.uri, folder.workingDirectory) ? workspace.label : `${this.uriIdentityService.extUri.basename(folder.uri)} (${folder.gitRepository?.branchName ?? this.uriIdentityService.extUri.basename(folder.workingDirectory)})`
+			name: this.uriIdentityService.extUri.isEqual(folder.root, folder.workingDirectory) ? workspace.label : `${this.uriIdentityService.extUri.basename(folder.root)} (${folder.gitRepository?.branchName ?? this.uriIdentityService.extUri.basename(folder.workingDirectory)})`
 		};
 	}
 

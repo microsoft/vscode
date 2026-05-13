@@ -123,12 +123,12 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	async commitFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
 		const session = this.sessionsService.activeSession.get();
 		const folder = session?.workspace.get()?.folders[0];
-		if (!folder?.uri) {
+		if (!folder?.root) {
 			return;
 		}
 
 		for (const fileUri of fileUris) {
-			await this.commitFileToRepos(fileUri, folder.uri, folder.workingDirectory);
+			await this.commitFileToRepos(fileUri, folder.root, folder.workingDirectory);
 		}
 	}
 
@@ -140,12 +140,12 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	async deleteFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
 		const session = this.sessionsService.activeSession.get();
 		const folder = session?.workspace.get()?.folders[0];
-		if (!folder?.uri) {
+		if (!folder?.root) {
 			return;
 		}
 
 		for (const fileUri of fileUris) {
-			await this.commitDeletionToRepos(fileUri, folder.uri, folder.workingDirectory);
+			await this.commitDeletionToRepos(fileUri, folder.root, folder.workingDirectory);
 		}
 	}
 

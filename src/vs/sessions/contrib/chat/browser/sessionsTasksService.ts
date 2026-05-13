@@ -296,7 +296,7 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 			], true);
 		}
 
-		const repoUri = this._getSessionRepo(session)?.uri;
+		const repoUri = this._getSessionRepo(session)?.root;
 		if (repoUri) {
 			const key = repoUri.toString();
 			if (this._pinnedTaskLabels.get(key) === originalTaskLabel) {
@@ -322,7 +322,7 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 			{ path: ['tasks'], value: tasks.filter((_, taskIndex) => taskIndex !== index) },
 		], true);
 
-		const repoUri = this._getSessionRepo(session)?.uri;
+		const repoUri = this._getSessionRepo(session)?.root;
 		if (repoUri) {
 			const key = repoUri.toString();
 			if (this._pinnedTaskLabels.get(key) === taskLabel) {
@@ -333,7 +333,7 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 
 	async runTask(task: ITaskEntry, session: ISession): Promise<void> {
 		const repo = this._getSessionRepo(session);
-		const cwd = repo?.workingDirectory ?? repo?.uri;
+		const cwd = repo?.workingDirectory ?? repo?.root;
 		if (!cwd) {
 			return;
 		}
@@ -446,7 +446,7 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 
 	private _getSessionFolder(session: ISession): URI | undefined {
 		const repo = this._getSessionRepo(session);
-		return repo?.workingDirectory ?? repo?.uri;
+		return repo?.workingDirectory ?? repo?.root;
 	}
 
 	private _getTasksJsonUri(session: ISession, target: TaskStorageTarget): URI | undefined {

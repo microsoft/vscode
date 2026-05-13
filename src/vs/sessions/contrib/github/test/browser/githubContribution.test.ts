@@ -185,13 +185,14 @@ class TestSession implements ISession {
 			label: id,
 			icon: Codicon.folder,
 			folders: [{
-				uri: workspaceUri,
+				root: workspaceUri,
 				workingDirectory: workspaceUri,
 				name: id,
 				description: undefined,
 				gitRepository: { uri: workspaceUri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: gitHubInfoObs },
 			}],
 			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
 		});
 		this.modelId = observableValue<string | undefined>(`test.modelId.${id}`, undefined);
 		this.mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(`test.mode.${id}`, undefined);
