@@ -453,3 +453,47 @@ pre {
 .vscode-dark td {
 	border-color: rgba(255, 255, 255, 0.18);
 }
+
+/* Front matter rendering */
+table.frontmatter {
+	margin-bottom: 16px;
+	border-collapse: collapse;
+}
+
+table.frontmatter th,
+table.frontmatter td {
+	padding: 6px 13px;
+	border: 1px solid var(--vscode-widget-border, rgba(127, 127, 127, 0.35));
+	text-align: left;
+	vertical-align: top;
+}
+
+table.frontmatter th {
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+table.frontmatter td > ul {
+	margin: 0;
+	padding-left: 1.2em;
+}
+
+pre.frontmatter {
+	margin-bottom: 16px;
+}
+
+.frontmatter-error {
+	margin-bottom: 16px;
+	padding: 8px 13px;
+	border-left: 4px solid var(--vscode-editorError-foreground, #f48771);
+	background: var(--vscode-inputValidation-errorBackground, rgba(244, 135, 113, 0.1));
+	color: var(--vscode-editorError-foreground, #f48771);
+}
+
+.frontmatter-error pre {
+	margin: 6px 0 0;
+	white-space: pre-wrap;
+	color: inherit;
+	background: transparent;
+	padding: 0;
+}

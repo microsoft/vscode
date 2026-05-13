@@ -7,7 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
@@ -24,6 +24,8 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 interface IModePickerItem {
 	readonly kind: 'mode';
@@ -48,6 +50,8 @@ export class ModePicker extends Disposable {
 
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _modeChangeListener = this._register(new MutableDisposable());
+	private readonly _chatModesDisposable = this._register(new MutableDisposable<IChatModes & IDisposable>());
 
 	private _selectedMode: IChatMode = ChatMode.Agent;
 
@@ -55,7 +59,7 @@ export class ModePicker extends Disposable {
 		return this._selectedMode;
 	}
 
-	private readonly _chatModes: IChatModes;
+	private _chatModes: IChatModes | undefined;
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
@@ -68,14 +72,34 @@ export class ModePicker extends Disposable {
 	) {
 		super();
 
-		this._chatModes = this.chatModeService.getModes(CopilotCLISessionType.id);
+		this._register(autorun(reader => {
+			const session = this.sessionsManagementService.activeSession.read(reader);
+			if (session) {
+				const provider = this.sessionsProvidersService.getProvider(session.providerId);
+				if (provider instanceof CopilotChatSessionsProvider) {
+					this._setSession(session.resource);
+				}
+			}
+		}));
+	}
 
-		this._register(this._chatModes.onDidChange(() => {
-			// Refresh the trigger label when available chat modes change
+	/**
+	 * Called when the active session switches to a Copilot session.
+	 * Updates the modes tracked for that session resource.
+	 */
+	private _setSession(sessionResource: URI): void {
+		const modes = this.chatModeService.createModes(sessionResource);
+		this._chatModesDisposable.value = modes;
+		this._chatModes = modes;
+		// Subscribe to mode changes to keep the trigger label fresh
+		this._modeChangeListener.value = modes.onDidChange(() => {
 			if (this._triggerElement) {
 				this._updateTriggerLabel();
 			}
-		}));
+		});
+		if (this._triggerElement) {
+			this._updateTriggerLabel();
+		}
 	}
 
 	/**
@@ -128,7 +152,7 @@ export class ModePicker extends Disposable {
 		const result: IChatMode[] = [ChatMode.Agent];
 
 		// Add custom modes matching the target and visible to users
-		for (const mode of this._chatModes.custom) {
+		for (const mode of (this._chatModes?.custom ?? [])) {
 			const target = mode.target.get();
 			if (target === effectiveTarget || target === Target.Undefined) {
 				const visibility = mode.visibility?.get();

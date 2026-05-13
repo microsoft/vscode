@@ -196,7 +196,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'copilot',
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Copilot', order: 1 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
@@ -217,7 +216,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'copilot',
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Copilot', order: 1 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
@@ -238,7 +236,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'openai',
 			maxInputTokens: 4096,
 			maxOutputTokens: 2048,
-			modelPickerCategory: { label: 'OpenAI', order: 2 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
@@ -259,7 +256,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'openai',
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'OpenAI', order: 2 },
 			isUserSelectable: false,
 			capabilities: {
 				toolCalling: false,
@@ -552,7 +548,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'copilot',
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Copilot', order: 1 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
@@ -574,7 +569,6 @@ suite('ChatModelsViewModel', () => {
 				vendor: 'copilot',
 				maxInputTokens: 8192,
 				maxOutputTokens: 4096,
-				modelPickerCategory: { label: 'Copilot', order: 1 },
 				isUserSelectable: true,
 				capabilities: {
 					toolCalling: true,
@@ -658,7 +652,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'anthropic',
 			maxInputTokens: 100000,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Anthropic', order: 3 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
@@ -687,7 +680,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'azure',
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Azure', order: 4 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
