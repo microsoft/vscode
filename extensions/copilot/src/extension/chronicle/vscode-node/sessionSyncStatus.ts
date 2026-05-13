@@ -82,16 +82,16 @@ export class SessionSyncStatus extends Disposable {
 				break;
 
 			case 'disabled-by-policy':
-				this._statusItem.description = `$(debug-pause) ${l10n.t('Paused')}`;
+				this._statusItem.description = `$(warning) ${l10n.t('Disabled by policy')}`;
 				this._statusItem.detail = l10n.t('Session sync is disabled by your organization\'s policy.');
-				this._statusItem.tooltip = l10n.t('Sync is paused. No data is being uploaded until resumed.');
+				this._statusItem.tooltip = l10n.t('Session sync is disabled by your organization\'s policy.');
 				break;
 
 			case 'on':
 			case 'up-to-date':
 				this._statusItem.description = `$(check) ${l10n.t('Enabled')}`;
-				this._statusItem.detail = '';
-				this._statusItem.tooltip = l10n.t('Your sessions are being synced and available across devices. Use /chronicle:tips for insights.');
+				this._statusItem.detail = `[${l10n.t('Show insights?')}](command:workbench.action.chat.open?%7B%22query%22%3A%22%2Fchronicle%3Atips%22%7D)`;
+				this._statusItem.tooltip = l10n.t('Your sessions are being synced and available across devices.');
 				break;
 
 			case 'syncing':
