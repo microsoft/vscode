@@ -9,11 +9,18 @@ import { beforeEach, describe, expect, suite, test } from 'vitest';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
-import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME } from '../../../networking/common/anthropic';
+import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME, isExtendedCacheTtlEnabled, modelSupportsExtendedCacheTtl } from '../../../networking/common/anthropic';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { createPlatformServices } from '../../../test/node/services';
-import { addLastTwoMessagesCacheControl, addToolsAndSystemCacheControl, buildToolInputSchema, createMessagesRequestBody, rawMessagesToMessagesAPI } from '../../node/messagesApi';
+import { addMessagesApiCacheControl, addToolsAndSystemCacheControl, buildToolInputSchema, clearAllCacheControl, createMessagesRequestBody, processNonStreamingResponseFromMessagesEndpoint, processResponseFromMessagesEndpoint, rawMessagesToMessagesAPI } from '../../node/messagesApi';
+import { HeadersImpl, Response } from '../../../networking/common/fetcherService';
+import { TelemetryData } from '../../../telemetry/common/telemetryData';
+import { TestLogService } from '../../../testing/common/testLogService';
+import { NullTelemetryService } from '../../../telemetry/common/nullTelemetryService';
+import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
+import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
+import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 
 function assertContentArray(content: MessageParam['content']): ContentBlockParam[] {
 	expect(Array.isArray(content)).toBe(true);
@@ -428,32 +435,6 @@ suite('addToolsAndSystemCacheControl', function () {
 		return msgs;
 	}
 
-	function countCacheControl(tools: AnthropicMessagesTool[], system: TextBlockParam[] | undefined, messages: MessageParam[]): number {
-		let count = 0;
-		for (const tool of tools) {
-			if (tool.cache_control) {
-				count++;
-			}
-		}
-		if (system) {
-			for (const block of system) {
-				if (block.cache_control) {
-					count++;
-				}
-			}
-		}
-		for (const msg of messages) {
-			if (Array.isArray(msg.content)) {
-				for (const block of msg.content) {
-					if (typeof block === 'object' && 'cache_control' in block && block.cache_control) {
-						count++;
-					}
-				}
-			}
-		}
-		return count;
-	}
-
 	test('adds cache_control to last non-deferred tool and last system block', function () {
 		const tools = [makeTool('read_file'), makeTool('edit_file')];
 		const system: TextBlockParam[] = [makeSystemBlock('You are a helpful assistant.')];
@@ -499,93 +480,6 @@ suite('addToolsAndSystemCacheControl', function () {
 		expect(tools).toHaveLength(0);
 	});
 
-	test('uses spare slot for tool when messages leave one slot available', function () {
-		const tools = [makeTool('read_file')];
-		const system: TextBlockParam[] = [makeSystemBlock('System prompt')];
-		const msg1Content: ContentBlockParam[] = [
-			{ type: 'text', text: 'msg1', cache_control: { type: 'ephemeral' } },
-		];
-		const msg2Content: ContentBlockParam[] = [
-			{ type: 'text', text: 'msg2', cache_control: { type: 'ephemeral' } },
-		];
-		const msg3Content: ContentBlockParam[] = [
-			{ type: 'text', text: 'msg3', cache_control: { type: 'ephemeral' } },
-		];
-		const messages = makeMessages(
-			{ role: 'user', content: msg1Content },
-			{ role: 'assistant', content: msg2Content },
-			{ role: 'user', content: msg3Content },
-		);
-		const messagesResult = { messages, system };
-
-		// 3 existing in messages, 1 spare slot → tool gets it, system does not
-		addToolsAndSystemCacheControl(tools, messagesResult);
-
-		expect(countCacheControl(tools, system, messages)).toBeLessThanOrEqual(4);
-		// Tool gets the spare slot
-		expect(tools[0].cache_control).toEqual({ type: 'ephemeral' });
-		// System does not — no spare slot left
-		expect(system[0].cache_control).toBeUndefined();
-		// Message breakpoints are preserved (no eviction)
-		expect(msg1Content[0]).toHaveProperty('cache_control');
-		expect(msg2Content[0]).toHaveProperty('cache_control');
-		expect(msg3Content[0]).toHaveProperty('cache_control');
-	});
-
-	test('skips adding breakpoints when all slots are occupied', function () {
-		// All 4 breakpoints on system blocks — no spare slots
-		const tools = [makeTool('read_file')];
-		const system: TextBlockParam[] = [
-			makeSystemBlock('block1', true),
-			makeSystemBlock('block2', true),
-			makeSystemBlock('block3', true),
-			makeSystemBlock('block4', true),
-		];
-		const messagesResult = { messages: makeMessages(), system };
-
-		addToolsAndSystemCacheControl(tools, messagesResult);
-
-		expect(tools[0].cache_control).toBeUndefined();
-		expect(countCacheControl(tools, system, messagesResult.messages)).toBeLessThanOrEqual(4);
-	});
-
-	test('skips adding breakpoints when all slots are occupied by messages', function () {
-		const tools = [makeTool('read_file')];
-		const system: TextBlockParam[] = [makeSystemBlock('System prompt')];
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'a', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'b', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'c', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'd', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages, system };
-
-		addToolsAndSystemCacheControl(tools, messagesResult);
-
-		// All 4 slots occupied by messages — tool and system should not get cache_control
-		expect(tools[0].cache_control).toBeUndefined();
-		expect(system[0].cache_control).toBeUndefined();
-		expect(countCacheControl(tools, system, messages)).toBe(4);
-	});
-
-	test('prioritizes tool breakpoint over system when only one spare slot', function () {
-		const tools = [makeTool('read_file')];
-		const system: TextBlockParam[] = [makeSystemBlock('System prompt')];
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'a', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'b', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'c', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages, system };
-
-		// 3 existing message breakpoints, 1 spare slot → tool gets it
-		addToolsAndSystemCacheControl(tools, messagesResult);
-
-		expect(countCacheControl(tools, system, messages)).toBeLessThanOrEqual(4);
-		expect(tools[0].cache_control).toEqual({ type: 'ephemeral' });
-		expect(system[0].cache_control).toBeUndefined();
-	});
-
 	test('handles only tools, no system blocks', function () {
 		const tools = [makeTool('read_file'), makeTool('edit_file')];
 		const messagesResult = { messages: makeMessages() };
@@ -604,6 +498,150 @@ suite('addToolsAndSystemCacheControl', function () {
 		addToolsAndSystemCacheControl(tools, messagesResult);
 
 		expect(system[0].cache_control).toEqual({ type: 'ephemeral' });
+	});
+
+	test('applies extended 1h ttl to tools and system when cacheTtl is "1h"', function () {
+		const tools = [makeTool('read_file'), makeTool('edit_file'), makeTool('deferred_a', true)];
+		const system: TextBlockParam[] = [makeSystemBlock('System A'), makeSystemBlock('System B')];
+		const messagesResult = { messages: makeMessages(), system };
+
+		addToolsAndSystemCacheControl(tools, messagesResult, '1h');
+
+		expect(tools[0].cache_control).toBeUndefined();
+		expect(tools[1].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+		expect(tools[2].cache_control).toBeUndefined();
+		expect(system[0].cache_control).toBeUndefined();
+		expect(system[1].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+	});
+
+	test('omits ttl when cacheTtl is undefined (default 5m)', function () {
+		const tools = [makeTool('read_file')];
+		const system: TextBlockParam[] = [makeSystemBlock('System')];
+		const messagesResult = { messages: makeMessages(), system };
+
+		addToolsAndSystemCacheControl(tools, messagesResult, undefined);
+
+		expect(tools[0].cache_control).toEqual({ type: 'ephemeral' });
+		expect(system[0].cache_control).toEqual({ type: 'ephemeral' });
+	});
+});
+
+suite('modelSupportsExtendedCacheTtl', function () {
+
+	test('matches 1M context Opus variants and rejects everything else', function () {
+		expect({
+			'claude-opus-4.6-1m': modelSupportsExtendedCacheTtl('claude-opus-4.6-1m'),
+			'claude-opus-4-6-1m': modelSupportsExtendedCacheTtl('claude-opus-4-6-1m'),
+			'claude-opus-4.7-1m-internal': modelSupportsExtendedCacheTtl('claude-opus-4.7-1m-internal'),
+			'claude-opus-4-7-1m-internal': modelSupportsExtendedCacheTtl('claude-opus-4-7-1m-internal'),
+			'CLAUDE-OPUS-4.6-1M': modelSupportsExtendedCacheTtl('CLAUDE-OPUS-4.6-1M'),
+			'claude-opus-4.6': modelSupportsExtendedCacheTtl('claude-opus-4.6'),
+			'claude-opus-4.7': modelSupportsExtendedCacheTtl('claude-opus-4.7'),
+			'claude-opus-4.5': modelSupportsExtendedCacheTtl('claude-opus-4.5'),
+			'claude-sonnet-4.5': modelSupportsExtendedCacheTtl('claude-sonnet-4.5'),
+			'claude-haiku-4-5': modelSupportsExtendedCacheTtl('claude-haiku-4-5'),
+			'gpt-5': modelSupportsExtendedCacheTtl('gpt-5'),
+		}).toEqual({
+			'claude-opus-4.6-1m': true,
+			'claude-opus-4-6-1m': true,
+			'claude-opus-4.7-1m-internal': true,
+			'claude-opus-4-7-1m-internal': true,
+			'CLAUDE-OPUS-4.6-1M': true,
+			'claude-opus-4.6': false,
+			'claude-opus-4.7': false,
+			'claude-opus-4.5': false,
+			'claude-sonnet-4.5': false,
+			'claude-haiku-4-5': false,
+			'gpt-5': false,
+		});
+	});
+});
+
+suite('isExtendedCacheTtlEnabled', function () {
+
+	const ELIGIBLE_MODEL = 'claude-opus-4-7-1m';
+
+	let disposables: DisposableStore;
+	let configurationService: InMemoryConfigurationService;
+	let experimentationService: IExperimentationService;
+
+	beforeEach(() => {
+		disposables = new DisposableStore();
+		const services = disposables.add(createPlatformServices(disposables));
+		const accessor = services.createTestingAccessor();
+		// All callers of `isExtendedCacheTtlEnabled` resolve `IConfigurationService` through DI to
+		// an `InMemoryConfigurationService` instance (see `createPlatformServices`). Re-narrowing it
+		// here lets the tests use `setConfig` to flip the experiment-based gate without going
+		// through experimentation infrastructure.
+		configurationService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
+		experimentationService = accessor.get(IExperimentationService);
+	});
+
+	function enableConfig(): void {
+		configurationService.setConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtl, true);
+	}
+
+	test('returns false when the config is disabled, even for eligible models', function () {
+		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, false)).toBe(false);
+	});
+
+	test('returns true for eligible model + config + Agent location + non-subagent', function () {
+		enableConfig();
+		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, false)).toBe(true);
+	});
+
+	test('returns false when location is undefined', function () {
+		// The gate requires an explicit `ChatLocation.Agent`. Callers that route through
+		// subclass overrides which drop the `location` argument (e.g. `super.getExtraHeaders()`
+		// without arguments — see `OpenRouterEndpoint`, `AzureOpenAIEndpoint`, etc.) are
+		// correctly excluded so the beta header is never sent for non-Agent paths.
+		enableConfig();
+		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, undefined, false)).toBe(false);
+	});
+
+	test('returns false when isSubagent is true', function () {
+		enableConfig();
+		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, true)).toBe(false);
+	});
+
+	test('returns false for non-1M Claude variants even when all other gates pass', function () {
+		enableConfig();
+		expect({
+			'claude-opus-4-6': isExtendedCacheTtlEnabled('claude-opus-4-6', configurationService, experimentationService, ChatLocation.Agent, false),
+			'claude-opus-4.7': isExtendedCacheTtlEnabled('claude-opus-4.7', configurationService, experimentationService, ChatLocation.Agent, false),
+			'claude-sonnet-4-5': isExtendedCacheTtlEnabled('claude-sonnet-4-5', configurationService, experimentationService, ChatLocation.Agent, false),
+			'gpt-5': isExtendedCacheTtlEnabled('gpt-5', configurationService, experimentationService, ChatLocation.Agent, false),
+		}).toEqual({
+			'claude-opus-4-6': false,
+			'claude-opus-4.7': false,
+			'claude-sonnet-4-5': false,
+			'gpt-5': false,
+		});
+	});
+
+	test('returns false for non-Agent chat locations', function () {
+		// Inline chat, terminal chat, notebook chat, and the Claude CLI proxy passthrough are all
+		// out of scope for extended cache TTL — only the main agent conversation qualifies.
+		enableConfig();
+		expect({
+			Panel: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Panel, false),
+			Editor: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Editor, false),
+			Terminal: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Terminal, false),
+			Notebook: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Notebook, false),
+			EditingSession: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.EditingSession, false),
+			Other: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Other, false),
+			MessagesProxy: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.MessagesProxy, false),
+			ResponsesProxy: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.ResponsesProxy, false),
+		}).toEqual({
+			Panel: false,
+			Editor: false,
+			Terminal: false,
+			Notebook: false,
+			EditingSession: false,
+			Other: false,
+			MessagesProxy: false,
+			ResponsesProxy: false,
+		});
 	});
 });
 
@@ -663,330 +701,177 @@ suite('buildToolInputSchema', function () {
 	});
 });
 
-suite('addLastTwoMessagesCacheControl', function () {
+suite('addMessagesApiCacheControl', function () {
 
-	function makeMessages(...msgs: MessageParam[]): MessageParam[] {
-		return msgs;
-	}
-
-	function makeTool(name: string, deferred = false): AnthropicMessagesTool {
-		return {
-			name,
-			description: `${name} tool`,
-			input_schema: { type: 'object', properties: {}, required: [] },
-			...(deferred ? { defer_loading: true } : {}),
-		};
-	}
-
-	function getCacheControl(block: ContentBlockParam): { type: string } | undefined {
-		return 'cache_control' in block ? (block as { cache_control?: { type: string } }).cache_control : undefined;
-	}
-
-	function countAllCacheControl(messages: MessageParam[], system?: TextBlockParam[]): number {
-		let count = 0;
-		if (system) {
-			for (const block of system) {
-				if (block.cache_control) {
-					count++;
-				}
-			}
-		}
-		for (const msg of messages) {
-			if (Array.isArray(msg.content)) {
-				for (const block of msg.content) {
-					if (typeof block === 'object' && 'cache_control' in block && block.cache_control) {
-						count++;
+	function ccPositions(args: { messages: MessageParam[]; system?: TextBlockParam[]; tools?: AnthropicMessagesTool[] }): string[] {
+		const out: string[] = [];
+		args.tools?.forEach((t, i) => { if (t.cache_control) { out.push(`tools[${i}]`); } });
+		args.system?.forEach((b, i) => { if (b.cache_control) { out.push(`system[${i}]`); } });
+		args.messages.forEach((m, i) => {
+			if (Array.isArray(m.content)) {
+				m.content.forEach((b, j) => {
+					if (typeof b === 'object' && 'cache_control' in b && b.cache_control) {
+						out.push(`messages[${i}].block[${j}]`);
 					}
-				}
+				});
 			}
-		}
-		return count;
+		});
+		return out;
 	}
 
-	test('marks last two messages in a normal agentic loop', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'edit my file' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'calling tool' }, { type: 'tool_use', id: 'toolu_1', name: 'read_file', input: {} }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: [{ type: 'text', text: 'file contents' }] }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		const assistantContent = messages[1].content as ContentBlockParam[];
-		expect(getCacheControl(assistantContent[assistantContent.length - 1])).toEqual({ type: 'ephemeral' });
-
-		const toolResult = (messages[2].content as ContentBlockParam[])[0] as ToolResultBlockParam;
-		expect(toolResult.cache_control).toEqual({ type: 'ephemeral' });
-
-		expect(getCacheControl((messages[0].content as ContentBlockParam[])[0])).toBeUndefined();
-		expect(countAllCacheControl(messages)).toBe(2);
-	});
-
-	test('marks last two messages in plain chat', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'hello' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'hi there' }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		expect(getCacheControl((messages[0].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(getCacheControl((messages[1].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(countAllCacheControl(messages)).toBe(2);
-	});
-
-	test('handles single message', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'hello' }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		expect(getCacheControl((messages[0].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(countAllCacheControl(messages)).toBe(1);
-	});
-
-	test('handles empty messages array', function () {
-		const messagesResult = { messages: [] as MessageParam[] };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		expect(messagesResult.messages).toHaveLength(0);
-	});
-
-	test('skips thinking and redacted_thinking blocks', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'hello' }] as ContentBlockParam[] },
-			{
-				role: 'assistant', content: [
-					{ type: 'thinking', thinking: 'hmm', signature: 'sig' },
-					{ type: 'text', text: 'response' },
-				] as ContentBlockParam[]
-			},
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		const assistantContent = messages[1].content as ContentBlockParam[];
-		expect(getCacheControl(assistantContent[0])).toBeUndefined();
-		expect(getCacheControl(assistantContent[1])).toEqual({ type: 'ephemeral' });
-		expect(countAllCacheControl(messages)).toBe(2);
-	});
-
-	test('respects max breakpoint count when some already exist', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'a', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'b', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'c', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'd' }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'e' }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		// 3 existing + 1 new = 4 total
-		expect(countAllCacheControl(messages)).toBe(4);
-		expect(getCacheControl((messages[4].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		// Second-to-last should NOT get one — would exceed 4
-		expect(getCacheControl((messages[3].content as ContentBlockParam[])[0])).toBeUndefined();
-	});
-
-	test('does nothing when all 4 slots are occupied', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'a', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'b', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'c', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'd', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'e' }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		expect(getCacheControl((messages[4].content as ContentBlockParam[])[0])).toBeUndefined();
-		expect(countAllCacheControl(messages)).toBe(4);
-	});
-
-	test('treats trailing message with existing cache_control as already marked', function () {
-		// Regression: prior code would walk past a pre-marked tail message and
-		// add two new markers to earlier messages, ending up with 3 distinct
-		// marked messages instead of 2.
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'a' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'b' }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'c' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'd', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages };
-
-		const added = addLastTwoMessagesCacheControl(messagesResult);
-
-		expect(added).toBe(1);
-		expect(getCacheControl((messages[3].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(getCacheControl((messages[2].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(getCacheControl((messages[1].content as ContentBlockParam[])[0])).toBeUndefined();
-		expect(getCacheControl((messages[0].content as ContentBlockParam[])[0])).toBeUndefined();
-		expect(countAllCacheControl(messages)).toBe(2);
-	});
-
-	test('does not add a second marker to a message that already has one on a non-last block', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'a' }] as ContentBlockParam[] },
-			{
-				role: 'assistant', content: [
-					{ type: 'text', text: 'first', cache_control: { type: 'ephemeral' } },
-					{ type: 'text', text: 'second' },
-				] as ContentBlockParam[]
-			},
-		);
-		const messagesResult = { messages };
-
-		const added = addLastTwoMessagesCacheControl(messagesResult);
-
-		// Last message already counts as marked; only the prior message gets a new marker.
-		expect(added).toBe(1);
-		const assistantContent = messages[1].content as ContentBlockParam[];
-		expect(getCacheControl(assistantContent[0])).toEqual({ type: 'ephemeral' });
-		expect(getCacheControl(assistantContent[1])).toBeUndefined();
-		expect(getCacheControl((messages[0].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(countAllCacheControl(messages)).toBe(2);
-	});
-
-	test('marks assistant-with-tool-calls as fork point', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'do stuff' }] as ContentBlockParam[] },
-			{
-				role: 'assistant', content: [
-					{ type: 'text', text: 'I will call tools' },
-					{ type: 'tool_use', id: 'toolu_a', name: 'tool_a', input: {} },
-					{ type: 'tool_use', id: 'toolu_b', name: 'tool_b', input: {} },
-				] as ContentBlockParam[]
-			},
-			{
-				role: 'user', content: [
-					{ type: 'tool_result', tool_use_id: 'toolu_a', content: [{ type: 'text', text: 'result a' }] },
-					{ type: 'tool_result', tool_use_id: 'toolu_b', content: [{ type: 'text', text: 'result b' }] },
-				] as ContentBlockParam[]
-			},
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		const assistantContent = messages[1].content as ContentBlockParam[];
-		expect(getCacheControl(assistantContent[2])).toEqual({ type: 'ephemeral' });
-
-		const userContent = messages[2].content as ContentBlockParam[];
-		expect(getCacheControl(userContent[1])).toEqual({ type: 'ephemeral' });
-
-		expect(countAllCacheControl(messages)).toBe(2);
-	});
-
-	test('counts system block breakpoints toward the limit', function () {
-		const system: TextBlockParam[] = [
-			{ type: 'text', text: 'system', cache_control: { type: 'ephemeral' } },
+	test('marks the last cacheable block of the two most recent cacheable messages', function () {
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'do stuff' }] },
+			{ role: 'assistant', content: [{ type: 'text', text: 'calling tools' }, { type: 'tool_use', id: 'a', name: 't', input: {} }, { type: 'tool_use', id: 'b', name: 't', input: {} }] },
+			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'a', content: 'ra' }, { type: 'tool_result', tool_use_id: 'b', content: 'rb' }] },
 		];
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'a' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'b' }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'c' }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages, system };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		// 1 system + 2 message breakpoints = 3 total
-		expect(countAllCacheControl(messages, system)).toBe(3);
-		expect(getCacheControl((messages[1].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(getCacheControl((messages[2].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
+		addMessagesApiCacheControl({ messages });
+		expect(ccPositions({ messages })).toEqual(['messages[1].block[2]', 'messages[2].block[1]']);
 	});
 
-	test('skips tail message with empty content and marks two prior', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'hello' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'response' }] as ContentBlockParam[] },
-			{ role: 'user', content: [] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		expect(getCacheControl((messages[0].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(getCacheControl((messages[1].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(countAllCacheControl(messages)).toBe(2);
+	test('skips thinking-only blocks within recent messages', function () {
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'hello' }] },
+			{ role: 'assistant', content: [{ type: 'thinking', thinking: 'hmm', signature: 'sig' }, { type: 'text', text: 'response' }] },
+		];
+		addMessagesApiCacheControl({ messages });
+		expect(ccPositions({ messages })).toEqual(['messages[0].block[0]', 'messages[1].block[1]']);
 	});
 
-	test('skips thinking-only tail message and marks two prior', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'hello' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'first response' }] as ContentBlockParam[] },
-			{
-				role: 'assistant', content: [
-					{ type: 'thinking', thinking: 'deep thought', signature: 'sig' },
-					{ type: 'redacted_thinking', data: 'redacted' },
-				] as ContentBlockParam[]
-			},
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		// Thinking-only message has no cacheable blocks — skip it
-		expect(getCacheControl((messages[0].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(getCacheControl((messages[1].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(countAllCacheControl(messages)).toBe(2);
+	test('walks past trailing messages with no cacheable blocks', function () {
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'hello' }] },
+			{ role: 'assistant', content: [{ type: 'text', text: 'response' }] },
+			{ role: 'assistant', content: [{ type: 'thinking', thinking: 'hmm', signature: 'sig' }] },
+			{ role: 'user', content: [] },
+		];
+		addMessagesApiCacheControl({ messages });
+		expect(ccPositions({ messages })).toEqual(['messages[0].block[0]', 'messages[1].block[0]']);
 	});
 
-	test('skips empty middle message and still finds two cacheable', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'hello' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'follow up' }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages };
+	test('handles single message and empty array', function () {
+		const single: MessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }];
+		addMessagesApiCacheControl({ messages: single });
+		expect(ccPositions({ messages: single })).toEqual(['messages[0].block[0]']);
 
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		// Last message + first message (middle is empty, skipped)
-		expect(getCacheControl((messages[2].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(getCacheControl((messages[0].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(countAllCacheControl(messages)).toBe(2);
+		const empty: MessageParam[] = [];
+		addMessagesApiCacheControl({ messages: empty });
+		expect(empty).toHaveLength(0);
 	});
 
-	test('round-trip with addToolsAndSystemCacheControl produces exactly 4 markers', function () {
-		const tools = [makeTool('read_file'), makeTool('edit_file')];
-		const system: TextBlockParam[] = [{ type: 'text', text: 'You are a helpful assistant.' }];
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'edit my file' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'calling tool' }, { type: 'tool_use', id: 'toolu_1', name: 'read_file', input: {} }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: [{ type: 'text', text: 'file contents' }] }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages, system };
+	test('combined with addToolsAndSystemCacheControl produces the 4-cc layout', function () {
+		const tools: AnthropicMessagesTool[] = [
+			{ name: 'read_file', description: '', input_schema: { type: 'object', properties: {}, required: [] } },
+			{ name: 'edit_file', description: '', input_schema: { type: 'object', properties: {}, required: [] } },
+		];
+		const system: TextBlockParam[] = [{ type: 'text', text: 'You are helpful.' }];
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'edit my file' }] },
+			{ role: 'assistant', content: [{ type: 'tool_use', id: '1', name: 'read_file', input: {} }] },
+			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: '1', content: 'contents' }] },
+		];
+		addMessagesApiCacheControl({ messages, system });
+		addToolsAndSystemCacheControl(tools, { messages, system });
+		expect(ccPositions({ messages, system, tools })).toEqual([
+			'tools[1]', 'system[0]', 'messages[1].block[0]', 'messages[2].block[0]',
+		]);
+	});
 
-		// Call both in the same order as createMessagesRequestBody
-		addLastTwoMessagesCacheControl(messagesResult);
-		addToolsAndSystemCacheControl(tools, messagesResult);
+	test('cc anchors shift forward each iteration of an agent loop', function () {
+		const query: ContentBlockParam = { type: 'text', text: 'do work' };
+		const r1Use: ContentBlockParam = { type: 'tool_use', id: 'a', name: 't', input: {} };
+		const r1Res: ContentBlockParam = { type: 'tool_result', tool_use_id: 'a', content: 'r1' };
+		const r2Use: ContentBlockParam = { type: 'tool_use', id: 'b', name: 't', input: {} };
+		const r2Res: ContentBlockParam = { type: 'tool_result', tool_use_id: 'b', content: 'r2' };
 
-		// 2 message breakpoints + 1 tool + 1 system = 4
-		let totalCount = countAllCacheControl(messages, system);
-		for (const tool of tools) {
-			if (tool.cache_control) {
-				totalCount++;
+		const iterA: MessageParam[] = [
+			{ role: 'user', content: [query] },
+			{ role: 'assistant', content: [r1Use] },
+			{ role: 'user', content: [r1Res] },
+		];
+		addMessagesApiCacheControl({ messages: iterA });
+		expect(ccPositions({ messages: iterA })).toEqual(['messages[1].block[0]', 'messages[2].block[0]']);
+		(r1Use as { cache_control?: unknown }).cache_control = undefined;
+		(r1Res as ToolResultBlockParam).cache_control = undefined;
+
+		const iterB: MessageParam[] = [
+			{ role: 'user', content: [query] },
+			{ role: 'assistant', content: [r1Use] },
+			{ role: 'user', content: [r1Res] },
+			{ role: 'assistant', content: [r2Use] },
+			{ role: 'user', content: [r2Res] },
+		];
+		addMessagesApiCacheControl({ messages: iterB });
+		expect(ccPositions({ messages: iterB })).toEqual(['messages[3].block[0]', 'messages[4].block[0]']);
+	});
+});
+
+suite('clearAllCacheControl', function () {
+
+	function ccPositions(args: { messages: MessageParam[]; system?: TextBlockParam[] }): string[] {
+		const out: string[] = [];
+		args.system?.forEach((b, i) => { if (b.cache_control) { out.push(`system[${i}]`); } });
+		args.messages.forEach((m, i) => {
+			if (Array.isArray(m.content)) {
+				m.content.forEach((b, j) => {
+					if (typeof b === 'object' && 'cache_control' in b && b.cache_control) {
+						out.push(`messages[${i}].block[${j}]`);
+					}
+				});
 			}
-		}
-		expect(totalCount).toBe(4);
+		});
+		return out;
+	}
 
-		// Verify positions
-		const assistantContent = messages[1].content as ContentBlockParam[];
-		expect(getCacheControl(assistantContent[assistantContent.length - 1])).toEqual({ type: 'ephemeral' });
-		expect(((messages[2].content as ContentBlockParam[])[0] as ToolResultBlockParam).cache_control).toEqual({ type: 'ephemeral' });
-		expect(tools[1].cache_control).toEqual({ type: 'ephemeral' });
-		expect(system[0].cache_control).toEqual({ type: 'ephemeral' });
+	test('strips cache_control from messages and system blocks', function () {
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'a', cache_control: { type: 'ephemeral' } }] },
+			{ role: 'assistant', content: [{ type: 'text', text: 'b', cache_control: { type: 'ephemeral' } }] },
+		];
+		const system: TextBlockParam[] = [{ type: 'text', text: 's', cache_control: { type: 'ephemeral' } }];
+
+		clearAllCacheControl({ messages, system });
+
+		expect(ccPositions({ messages, system })).toEqual([]);
+	});
+
+	test('caps total cc count at 4 even when upstream loaded markers', function () {
+		// Repro: a prompt-tsx prompt (e.g. inlineChatPrompt) emits multiple
+		// <cacheBreakpoint> parts that rawContentToAnthropicContent translates
+		// into cache_control fields. Without clearAllCacheControl we'd add
+		// our own on top → exceed Anthropic's 4-cc limit → 400.
+		const tools: AnthropicMessagesTool[] = [
+			{ name: 't', description: '', input_schema: { type: 'object', properties: {}, required: [] } },
+		];
+		const system: TextBlockParam[] = [{ type: 'text', text: 's', cache_control: { type: 'ephemeral' } }];
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'a', cache_control: { type: 'ephemeral' } }] },
+			{ role: 'assistant', content: [{ type: 'text', text: 'b', cache_control: { type: 'ephemeral' } }] },
+			{ role: 'user', content: [{ type: 'text', text: 'c', cache_control: { type: 'ephemeral' } }] },
+		];
+
+		clearAllCacheControl({ messages, system });
+		addMessagesApiCacheControl({ messages, system });
+		addToolsAndSystemCacheControl(tools, { messages, system });
+
+		// Exactly 4 ccs, all in the deterministic positions we own.
+		expect([
+			...tools.flatMap((t, i) => t.cache_control ? [`tools[${i}]`] : []),
+			...ccPositions({ messages, system }),
+		]).toEqual([
+			'tools[0]', 'system[0]', 'messages[1].block[0]', 'messages[2].block[0]',
+		]);
+	});
+
+	test('is a no-op when no cache_control is present', function () {
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'a' }] },
+		];
+		const system: TextBlockParam[] = [{ type: 'text', text: 's' }];
+
+		clearAllCacheControl({ messages, system });
+
+		expect(ccPositions({ messages, system })).toEqual([]);
 	});
 });
 
@@ -1248,5 +1133,322 @@ describe('createMessagesRequestBody tool search deferral', () => {
 
 		const tools = body.tools as AnthropicMessagesTool[];
 		expect(tools.every(t => !t.defer_loading)).toBe(true);
+	});
+});
+
+function createNonStreamingHeaders(contentType = 'application/json'): HeadersImpl {
+	return HeadersImpl.fromMap(new Map([
+		['content-type', contentType],
+		['x-request-id', 'test-req-id'],
+		['x-github-request-id', 'gh-req-id'],
+	]));
+}
+
+function createNonStreamingResponse(body: object, contentType = 'application/json'): Response {
+	return Response.fromText(200, 'OK', createNonStreamingHeaders(contentType), JSON.stringify(body), 'node-fetch');
+}
+
+suite('processNonStreamingResponseFromMessagesEndpoint', () => {
+	test('parses text content from non-streaming response', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_123',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'Hello world' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: { input_tokens: 100, output_tokens: 20 },
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results).toHaveLength(1);
+		expect(results[0].model).toBe('claude-sonnet-4-20250514');
+		expect(results[0].message.content).toHaveLength(1);
+		expect(results[0].message.content[0]).toEqual({ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello world' });
+		expect(results[0].usage?.prompt_tokens).toBe(100);
+		expect(results[0].usage?.completion_tokens).toBe(20);
+	});
+
+	test('parses tool_use content from non-streaming response', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_456',
+			type: 'message',
+			role: 'assistant',
+			content: [
+				{ type: 'text', text: 'Let me read that file.' },
+				{ type: 'tool_use', id: 'tc_1', name: 'read_file', input: { path: 'foo.ts' } },
+			],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'tool_use',
+			usage: { input_tokens: 50, output_tokens: 30 },
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results).toHaveLength(1);
+		const msg = results[0].message as Raw.AssistantChatMessage;
+		expect(msg.toolCalls).toHaveLength(1);
+		expect(msg.toolCalls![0].function.name).toBe('read_file');
+		expect(msg.toolCalls![0].function.arguments).toBe('{"path":"foo.ts"}');
+		expect(msg.toolCalls![0].id).toBe('tc_1');
+	});
+
+	test('handles error responses gracefully', async () => {
+		const response = createNonStreamingResponse({
+			type: 'error',
+			error: { type: 'invalid_request_error', message: 'Bad request' },
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		await expect(async () => {
+			for await (const _c of completions) { /* consume */ }
+		}).rejects.toThrow('Anthropic API error: Bad request');
+	});
+
+	test('maps stop_reason to correct finish reason', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_789',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'truncated' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'max_tokens',
+			usage: { input_tokens: 100, output_tokens: 4096 },
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results[0].finishReason).toBe('length');
+	});
+
+	test('includes cache token details in usage', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_cache',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'cached' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: {
+				input_tokens: 50,
+				output_tokens: 10,
+				cache_creation_input_tokens: 20,
+				cache_read_input_tokens: 30,
+			},
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		// prompt_tokens = input_tokens + cache_creation + cache_read = 50 + 20 + 30 = 100
+		expect(results[0].usage?.prompt_tokens).toBe(100);
+		expect(results[0].usage?.prompt_tokens_details?.cached_tokens).toBe(30);
+	});
+
+	test('rejects on malformed JSON', async () => {
+		const response = Response.fromText(200, 'OK', createNonStreamingHeaders(), 'not json at all', 'node-fetch');
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+		await expect(async () => {
+			for await (const _c of completions) { /* consume */ }
+		}).rejects.toThrow('Failed to parse non-streaming Anthropic response');
+	});
+
+	test('handles empty content array', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_empty',
+			type: 'message',
+			role: 'assistant',
+			content: [],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: { input_tokens: 10, output_tokens: 0 },
+		});
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+		expect(results).toHaveLength(1);
+		expect(results[0].message.content).toHaveLength(0);
+	});
+
+	test('maps refusal stop_reason to ClientDone', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_refusal',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'refused' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'refusal',
+			usage: { input_tokens: 10, output_tokens: 5 },
+		});
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+		expect(results[0].finishReason).toBe('DONE');
+	});
+
+	test('reports tool calls through finishCallback delta', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_tc',
+			type: 'message',
+			role: 'assistant',
+			content: [
+				{ type: 'text', text: '' },
+				{ type: 'tool_use', id: 'tc_1', name: 'read_file', input: { path: 'a.ts' } },
+			],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'tool_use',
+			usage: { input_tokens: 10, output_tokens: 20 },
+		});
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const deltas: { copilotToolCalls?: unknown[] }[] = [];
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async (_text, _idx, delta) => { deltas.push(delta); return undefined; },
+			telemetryData,
+		);
+		for await (const _c of completions) { /* consume */ }
+		expect(deltas).toHaveLength(1);
+		expect(deltas[0].copilotToolCalls).toHaveLength(1);
+	});
+
+	test('handles response with missing usage object', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_nousage',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'no usage' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+		});
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+		expect(results).toHaveLength(1);
+		// All token counts should default to 0
+		expect(results[0].usage?.prompt_tokens).toBe(0);
+		expect(results[0].usage?.completion_tokens).toBe(0);
+	});
+});
+
+suite('processResponseFromMessagesEndpoint routing', () => {
+	test('routes non-streaming content-type to non-streaming handler', async () => {
+		const body = {
+			id: 'msg_route',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'routed' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: { input_tokens: 10, output_tokens: 5 },
+		};
+		const response = Response.fromText(200, 'OK', createNonStreamingHeaders('application/json'), JSON.stringify(body), 'node-fetch');
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const services = createPlatformServices().createTestingAccessor();
+		const completions = await processResponseFromMessagesEndpoint(
+			services.get(IInstantiationService),
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+		expect(results).toHaveLength(1);
+		expect(results[0].message.content).toHaveLength(1);
 	});
 });

@@ -1483,6 +1483,7 @@ export interface IChatDebugModelTurnEventDto extends IChatDebugEventCommonDto {
 	readonly outputTokens?: number;
 	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
+	readonly copilotUsageNanoAiu?: number;
 	readonly durationInMillis?: number;
 }
 
@@ -1893,8 +1894,14 @@ export interface MainThreadChatOutputRendererShape extends IDisposable {
 	$unregisterChatOutputRenderer(viewType: string): void;
 }
 
+export interface IChatOutputRenderContextDto {
+	readonly codeBlockContext?: {
+		readonly languageIdentifier: string;
+	};
+}
+
 export interface ExtHostChatOutputRendererShape {
-	$renderChatOutput(viewType: string, mime: string, valueData: VSBuffer, webviewHandle: string, token: CancellationToken): Promise<void>;
+	$renderChatOutput(viewType: string, mime: string, valueData: VSBuffer, webviewHandle: string, context: IChatOutputRenderContextDto, token: CancellationToken): Promise<void>;
 }
 
 export interface MainThreadProfileContentHandlersShape {
@@ -3710,6 +3717,7 @@ export type ChatStatusItemDto = {
 	title: string | { label: string; link: string; helpText?: string };
 	description: string;
 	detail: string | undefined;
+	tooltip: string | undefined;
 };
 
 export interface MainThreadChatStatusShape {

@@ -5,14 +5,15 @@
 
 
 import { Emitter } from '../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ChatMode, IChatMode, IChatModes, IChatModeService } from '../../common/chatModes.js';
-import { localChatSessionType } from '../../common/chatSessionsService.js';
 
 export class MockChatModeService implements IChatModeService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChange = new Emitter<void>();
-	private readonly _modesView: IChatModes;
+	private readonly _modesView: IChatModes & IDisposable;
 
 	constructor(
 		private readonly _modes: { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } = { builtin: [ChatMode.Ask], custom: [] }
@@ -20,8 +21,8 @@ export class MockChatModeService implements IChatModeService {
 		const modes = this._modes;
 		const onDidChange = this._onDidChange.event;
 		this._modesView = {
-			sessionType: localChatSessionType,
 			onDidChange,
+			dispose() { },
 			get builtin() { return modes.builtin; },
 			get custom() { return modes.custom; },
 			findModeById(id: string): IChatMode | undefined {
@@ -36,11 +37,11 @@ export class MockChatModeService implements IChatModeService {
 		};
 	}
 
-	getModes(_sessionType: string): IChatModes {
+	createModes(_sessionResource: URI): IChatModes & IDisposable {
 		return this._modesView;
 	}
 
-	async awaitModes(_sessionType: string): Promise<IChatModes> {
+	async getLocalModes(): Promise<IChatModes> {
 		return this._modesView;
 	}
 

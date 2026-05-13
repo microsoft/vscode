@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, LocalSession, SendOptions, Session, SessionOptions } from '@github/copilot/sdk';
+import type { Attachment, LocalSession, SendOptions, Session, SessionOptions, ToolExecutionCompleteEvent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
 import type * as vscode from 'vscode';
 import type { ChatParticipantToolToken } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
+import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { PermissiveAuthRequiredError } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
@@ -17,6 +18,7 @@ import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GenAiProviderName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel, resolveWorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { PromptTokenCategory, PromptTokenLabel } from '../../../../platform/tokenizer/node/promptTokenDetails';
 import { IGitService } from '../../../../platform/git/common/gitService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
@@ -29,6 +31,7 @@ import { truncate } from '../../../../util/vs/base/common/strings';
 import { ThemeIcon } from '../../../../util/vs/base/common/themables';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseMarkdownPart, ChatResponseThinkingProgressPart, ChatSessionStatus, ChatToolInvocationPart, EventEmitter, MarkdownString, Uri } from '../../../../vscodeTypes';
+import { getQuotaMessageForPlan } from '../../../../platform/chat/common/commonTypes';
 import { IToolsService } from '../../../tools/common/toolsService';
 import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
@@ -55,6 +58,13 @@ export type CopilotCLICommand = 'compact' | 'plan' | 'fleet' | 'remote';
  * distinguish a slash-command from a regular prompt at runtime.
  */
 export const copilotCLICommands: readonly CopilotCLICommand[] = ['compact', 'plan', 'fleet', 'remote'] as const;
+
+export class CopilotCLIQuotaExceededError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'CopilotCLIQuotaExceededError';
+	}
+}
 
 /**
  * Shared Mission Control state keyed by SDK session ID.
@@ -805,6 +815,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		@IOTelService private readonly _otelService: IOTelService,
 		@IGitService private readonly _gitService: IGitService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this.sessionId = _sdkSession.sessionId;
@@ -945,7 +957,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 
 	private async _handleRequestImpl(
-		request: { id: string; toolInvocationToken: ChatParticipantToolToken },
+		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
 		model: { model: string; reasoningEffort?: string } | undefined,
@@ -1000,7 +1012,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	private async _handleRequestImplInner(
 		invokeAgentSpan: ISpanHandle,
-		request: { id: string; toolInvocationToken: ChatParticipantToolToken },
+		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
 		modelId: string | undefined,
@@ -1010,6 +1022,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const prompt = getPromptLabel(input);
 		this._pendingPrompt = prompt;
 		this._lastResponseModelId = undefined;
+		this._chatQuotaService.resetTurnCredits(request.id);
 		this.logService.info(`[CopilotCLISession] Invoking session ${this.sessionId}`);
 		const disposables = new DisposableStore();
 		const logStartTime = Date.now();
@@ -1051,8 +1064,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 		const editToolIds = new Set<string>();
 		const toolCalls = new Map<string, ToolCall>();
+		const toolStartTimes = new Map<string, number>();
 		const editTracker = new ExternalEditTracker();
 		let sdkRequestId: string | undefined;
+		let isQuotaError = false;
 		const toolIdEditMap = new Map<string, Promise<string | undefined>>();
 		const remoteMode = isMissionControlCommandSource(input.source) ? this._mcState?.mcMode : undefined;
 		const effectivePermissionLevel = remoteMode ? (remoteMode === 'autopilot' ? 'autopilot' : undefined) : this._permissionLevel;
@@ -1272,6 +1287,14 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				if (requestStream && typeof event.data.outputTokens === 'number' && typeof event.data.inputTokens === 'number') {
 					reportUsage(event.data.inputTokens, event.data.outputTokens);
 				}
+				// Accumulate per-turn credits from SDK copilotUsage data
+				const copilotUsage = (event.data as Record<string, unknown>).copilotUsage;
+				if (copilotUsage && typeof copilotUsage === 'object') {
+					const { totalNanoAiu } = copilotUsage as { totalNanoAiu?: number };
+					if (typeof totalNanoAiu === 'number') {
+						this._chatQuotaService.setLastCopilotUsage(totalNanoAiu, request.id);
+					}
+				}
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('session.usage_info', (event) => {
 				lastUsageInfo = {
@@ -1312,6 +1335,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('tool.execution_start', (event) => {
 				toolCalls.set(event.data.toolCallId, event.data as unknown as ToolCall);
+				toolStartTimes.set(event.data.toolCallId, Date.now());
 
 				if (isCopilotCliEditToolCall(event.data)) {
 					flushPendingInvocationMessages();
@@ -1339,7 +1363,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				}
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('tool.execution_complete', (event) => {
-				const toolName = toolCalls.get(event.data.toolCallId)?.toolName || '<unknown>';
+				const toolCall = toolCalls.get(event.data.toolCallId);
+				const toolName = toolCall?.toolName || '<unknown>';
 				if (toolName.endsWith('create_pull_request') && event.data.success) {
 					const pullRequestUrl = extractPullRequestUrlFromToolResult(event.data.result);
 					if (pullRequestUrl) {
@@ -1347,10 +1372,15 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						GenAiMetrics.incrementPullRequestCount(this._otelService);
 					}
 				}
+				// Emit `languageModelToolInvoked` to mirror the workbench LanguageModelToolsService event
+				// for the Copilot CLI agent. CLI tools execute inside the SDK and never reach
+				// LanguageModelToolsService, so the workbench-side emission does not fire for them.
+				this._sendToolInvokedTelemetry(event, toolCall, toolStartTimes, request.sessionResource);
+
 				// Log tool call to request logger
 				const eventError = event.data.error ? { ...event.data.error, code: event.data.error.code || '' } : undefined;
 				const eventData = { ...event.data, error: eventError };
-				this._logToolCall(event.data.toolCallId, toolName, toolCalls.get(event.data.toolCallId)?.arguments, eventData);
+				this._logToolCall(event.data.toolCallId, toolName, toolCall?.arguments, eventData);
 
 				// Mark the end of the edit if this was an edit tool.
 				toolIdEditMap.set(event.data.toolCallId, editTracker.completeEdit(event.data.toolCallId));
@@ -1372,9 +1402,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				// When a sql tool execution completes that modifies the todos table,
 				// query the session database and update the todo list widget.
 				if (toolName === 'sql' && event.data.success) {
-					const toolCallData = toolCalls.get(event.data.toolCallId);
 					try {
-						const query = (toolCallData?.arguments as { query?: string } | undefined)?.query ?? '';
+						const query = (toolCall?.arguments as { query?: string } | undefined)?.query ?? '';
 						if (isTodoRelatedSqlQuery(query)) {
 							const sessionDir = getCopilotCLISessionDir(this.sessionId);
 							this._todoSqlQuery.queryTodos(sessionDir).then(items => {
@@ -1395,7 +1424,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			disposables.add(toDisposable(this._sdkSession.on('session.error', (event) => {
 				flushPendingInvocationMessages();
 				this.logService.error(`[CopilotCLISession]CopilotCLI error: (${event.data.errorType}), ${event.data.message}`);
-				requestStream?.markdown(l10n.t('\n\nError: ({0}) {1}', event.data.errorType, event.data.message));
+
+				if (event.data.errorType === 'quota' || event.data.statusCode === 402) {
+					isQuotaError = true;
+				} else {
+					requestStream?.markdown(l10n.t('\n\nError: ({0}) {1}', event.data.errorType, event.data.message));
+				}
 
 				const errorMarkdown = [`# Error Details`, `Type: ${event.data.errorType}`, `Message: ${event.data.message}`, `## Stack`, event.data.stack || ''].join('\n');
 				this._requestLogger.addEntry({
@@ -1449,6 +1483,15 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			if (!token.isCancellationRequested) {
 				await this.sendRequestInternal(input, attachments, false, logStartTime);
 			}
+			if (isQuotaError) {
+				this._chatQuotaService.clearQuota();
+				let plan: string | undefined;
+				try {
+					const copilotToken = await this._authenticationService.getCopilotToken();
+					plan = copilotToken.copilotPlan;
+				} catch { /* token unavailable */ }
+				throw new CopilotCLIQuotaExceededError(getQuotaMessageForPlan(plan));
+			}
 			this.logService.trace(`[CopilotCLISession] Invoking session (completed) ${this.sessionId}`);
 			const resolvedToolIdEditMap: Record<string, string> = {};
 			await Promise.all(Array.from(toolIdEditMap.entries()).map(async ([toolId, editFilePromise]) => {
@@ -1476,18 +1519,32 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			// Log the completed conversation
 			this._logConversation(prompt, assistantMessageChunks.join(''), modelId || '', attachments, logStartTime, 'Completed');
 		} catch (error) {
+			if (error instanceof CopilotCLIQuotaExceededError) {
+				throw error;
+			}
+			if (isQuotaError) {
+				this._chatQuotaService.clearQuota();
+				let plan: string | undefined;
+				try {
+					const copilotToken = await this._authenticationService.getCopilotToken();
+					plan = copilotToken.copilotPlan;
+				} catch { /* token unavailable */ }
+				throw new CopilotCLIQuotaExceededError(getQuotaMessageForPlan(plan));
+			}
 			this._status = ChatSessionStatus.Failed;
 			this._statusChange.fire(this._status);
 			this.logService.error(`[CopilotCLISession] Invoking session (error) ${this.sessionId}`, error);
-			requestStream?.markdown(l10n.t('\n\nError: {0}', error instanceof Error ? error.message : String(error)));
 
-			invokeAgentSpan.setStatus(SpanStatusCode.ERROR, error instanceof Error ? error.message : String(error));
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			requestStream?.markdown(l10n.t('\n\nError: {0}', errorMessage));
+
+			invokeAgentSpan.setStatus(SpanStatusCode.ERROR, errorMessage);
 			if (error instanceof Error) {
 				invokeAgentSpan.recordException(error);
 			}
 
 			// Log the failed conversation
-			this._logConversation(prompt, assistantMessageChunks.join(''), modelId || '', attachments, logStartTime, 'Failed', error instanceof Error ? error.message : String(error));
+			this._logConversation(prompt, assistantMessageChunks.join(''), modelId || '', attachments, logStartTime, 'Failed', errorMessage);
 		} finally {
 			cancelCancellationAbort?.();
 			// End the invoke_agent wrapper span
@@ -2565,6 +2622,53 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			markdownContent,
 			isConversationRequest: true
 		});
+	}
+
+	private _sendToolInvokedTelemetry(
+		event: ToolExecutionCompleteEvent,
+		toolCall: ToolCall | undefined,
+		toolStartTimes: Map<string, number>,
+		sessionResource: vscode.Uri | undefined,
+	): void {
+		const { toolCallId, success, error } = event.data;
+		const eventToolName = 'toolName' in event.data && typeof event.data.toolName === 'string' ? event.data.toolName : undefined;
+		const toolName = toolCall?.toolName ?? eventToolName ?? '<unknown>';
+		const startTime = toolStartTimes.get(toolCallId);
+		toolStartTimes.delete(toolCallId);
+		const invocationTimeMs = startTime !== undefined ? Date.now() - startTime : undefined;
+
+		let result: 'success' | 'error' | 'userCancelled';
+		if (success) {
+			result = 'success';
+		} else if (error?.code === 'rejected' || error?.code === 'denied' || error?.code === 'cancelled') {
+			// `rejected`/`denied` come from the user denying a permission prompt; `cancelled` comes
+			// from request cancellation.
+			result = 'userCancelled';
+		} else {
+			result = 'error';
+		}
+
+		const toolSourceKind = toolCall?.mcpServerName ? 'mcp' : 'copilotCli';
+
+		/* __GDPR__
+			"languageModelToolInvoked" : {
+				"owner": "zhichli",
+				"comment": "Provides insight into the usage of language model tools (Copilot CLI agent).",
+				"result": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "success | error | userCancelled" },
+				"chatSessionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session resource id." },
+				"toolId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The CLI/SDK tool name (e.g. bash, str_replace_editor, apply_patch)." },
+				"toolExtensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Always undefined for CLI." },
+				"toolSourceKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "copilotCli | mcp" },
+				"invocationTimeMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time between tool.execution_start and tool.execution_complete (includes any permission wait)." }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('languageModelToolInvoked', {
+			result,
+			chatSessionId: sessionResource?.toString(),
+			toolId: toolName,
+			toolExtensionId: undefined,
+			toolSourceKind,
+		}, invocationTimeMs !== undefined ? { invocationTimeMs } : undefined);
 	}
 }
 
