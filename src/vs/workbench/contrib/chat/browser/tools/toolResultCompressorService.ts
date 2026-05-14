@@ -205,8 +205,12 @@ export class ToolResultCompressorService extends Disposable implements IToolResu
 	}
 
 	private _buildCacheHitResult(original: IToolResult, hit: { text: string; timestamp: number }): IToolResult {
-		const iso = new Date(hit.timestamp).toISOString();
-		const text = `Same output as last run (${iso}).`;
+		// Show a preview of the cached output so the model has context, plus
+		// "(unchanged)" — mirrors ztk's dedup approach. Avoids timestamps or
+		// settings references that waste tokens.
+		const MAX_PREVIEW = 200;
+		const preview = hit.text.length <= MAX_PREVIEW ? hit.text : hit.text.slice(0, MAX_PREVIEW);
+		const text = `${preview} (unchanged)`;
 		// Preserve the first text part's audience metadata so downstream
 		// model-routing logic still behaves the same way.
 		const firstText = original.content.find((p): p is IToolResultTextPart => p.kind === 'text');
