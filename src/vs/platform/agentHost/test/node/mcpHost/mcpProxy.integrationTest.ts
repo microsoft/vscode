@@ -23,14 +23,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogger } from '../../../../log/common/log.js';
 import {
 	McpAuthRequiredReason,
-	McpRpcMessageKind,
 	McpServerStatusKind,
-	type McpRpcMessage,
 	type McpServerStatus,
 	type McpServerStatusAuthRequired,
 } from '../../../common/state/protocol/state.js';
 import { McpAppsInitializeInjector } from '../../../node/mcpHost/mcpInitializeInjector.js';
 import { McpProxyFactory, type IMcpProxyOptions } from '../../../node/mcpHost/mcpProxy.js';
+import type { IUpstreamRequestOutcome } from '../../../node/mcpHost/mcpProxyRoute.js';
 import type { IMcpUpstream, IMcpUpstreamCapabilities } from '../../../node/mcpHost/mcpUpstream.js';
 
 class StubUpstream implements IMcpUpstream {
@@ -89,15 +88,22 @@ class StubUpstream implements IMcpUpstream {
 	}
 }
 
-interface IRecordedMessage {
-	mcp: McpRpcMessage;
-	messageId: string;
+interface IRecordedRequest {
+	readonly method: string;
+	readonly params: unknown;
+	readonly outcome: DeferredPromise<IUpstreamRequestOutcome>;
+}
+
+interface IRecordedNotification {
+	readonly method: string;
+	readonly params: unknown;
 }
 
 interface ITestHarness {
 	readonly factory: McpProxyFactory;
 	readonly upstream: StubUpstream;
-	readonly recorded: IRecordedMessage[];
+	readonly recordedRequests: IRecordedRequest[];
+	readonly recordedNotifications: IRecordedNotification[];
 	readonly authChallenges: McpServerStatusAuthRequired[];
 	readonly stateChanges: McpServerStatus[];
 	makeOptions(overrides?: Partial<IMcpProxyOptions>): IMcpProxyOptions;
@@ -106,14 +112,15 @@ interface ITestHarness {
 function createHarness(): ITestHarness {
 	const factory = new McpProxyFactory(new NullLogger());
 	const upstream = new StubUpstream();
-	const recorded: IRecordedMessage[] = [];
+	const recordedRequests: IRecordedRequest[] = [];
+	const recordedNotifications: IRecordedNotification[] = [];
 	const authChallenges: McpServerStatusAuthRequired[] = [];
 	const stateChanges: McpServerStatus[] = [];
-	let counter = 0;
 	return {
 		factory,
 		upstream,
-		recorded,
+		recordedRequests,
+		recordedNotifications,
 		authChallenges,
 		stateChanges,
 		makeOptions(overrides) {
@@ -121,10 +128,13 @@ function createHarness(): ITestHarness {
 				resource: URI.parse('mcp:/session-1/server-1'),
 				upstream,
 				logger: new NullLogger(),
-				onUpstreamMessage: msg => {
-					const messageId = `msg-${++counter}`;
-					recorded.push({ mcp: msg, messageId });
-					return messageId;
+				onUpstreamRequest: (method, params) => {
+					const outcome = new DeferredPromise<IUpstreamRequestOutcome>();
+					recordedRequests.push({ method, params, outcome });
+					return outcome.p;
+				},
+				onUpstreamNotification: (method, params) => {
+					recordedNotifications.push({ method, params });
 				},
 				onAuthRequired: status => {
 					authChallenges.push(status);
@@ -246,7 +256,7 @@ suite('McpProxy (integration)', () => {
 		}
 	});
 
-	test('upstream notification fires onUpstreamMessage with McpRpcNotification', async () => {
+	test('upstream notification fires onUpstreamNotification', async () => {
 		const harness = createHarness();
 		let proxy;
 		try {
@@ -255,9 +265,9 @@ suite('McpProxy (integration)', () => {
 
 			harness.upstream.emit({ jsonrpc: '2.0', method: 'notifications/tools/list_changed' });
 
-			assert.deepStrictEqual(harness.recorded, [{
-				mcp: { kind: McpRpcMessageKind.Notification, method: 'notifications/tools/list_changed', params: undefined },
-				messageId: 'msg-1',
+			assert.deepStrictEqual(harness.recordedNotifications, [{
+				method: 'notifications/tools/list_changed',
+				params: undefined,
 			}]);
 		} finally {
 			proxy?.dispose();
@@ -266,7 +276,7 @@ suite('McpProxy (integration)', () => {
 		}
 	});
 
-	test('upstream request is tapped and deliverClientResponse forwards reply with original id', async () => {
+	test('upstream request is tapped and the resolved outcome is written back with the original id', async () => {
 		const harness = createHarness();
 		let proxy;
 		try {
@@ -274,18 +284,21 @@ suite('McpProxy (integration)', () => {
 			await harness.upstream.start();
 
 			harness.upstream.emit({ jsonrpc: '2.0', id: 42, method: 'sampling/createMessage', params: { foo: 'bar' } });
-			proxy.deliverClientResponse('msg-1', { jsonrpc: '2.0', id: 1, result: { ok: true } });
 
+			// Wait for the request to be recorded, then resolve the outcome.
+			assert.strictEqual(harness.recordedRequests.length, 1);
 			assert.deepStrictEqual({
-				recorded: harness.recorded,
-				sent: harness.upstream.sent,
+				method: harness.recordedRequests[0].method,
+				params: harness.recordedRequests[0].params,
 			}, {
-				recorded: [{
-					mcp: { kind: McpRpcMessageKind.Call, method: 'sampling/createMessage', request: { foo: 'bar' }, response: undefined },
-					messageId: 'msg-1',
-				}],
-				sent: [{ jsonrpc: '2.0', id: 42, result: { ok: true } }],
+				method: 'sampling/createMessage',
+				params: { foo: 'bar' },
 			});
+
+			harness.recordedRequests[0].outcome.complete({ result: { ok: true } });
+			await new Promise(resolve => setImmediate(resolve));
+
+			assert.deepStrictEqual(harness.upstream.sent, [{ jsonrpc: '2.0', id: 42, result: { ok: true } }]);
 		} finally {
 			proxy?.dispose();
 			harness.factory.dispose();

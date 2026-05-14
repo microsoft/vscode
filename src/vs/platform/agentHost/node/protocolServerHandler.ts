@@ -11,11 +11,11 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { AgentSession, type IAgentService } from '../common/agentService.js';
-import { IMcpHostService } from '../common/mcpHost/mcpHostService.js';
+import { IMcpHostService, IMcpHostUpstreamDelegate, IUpstreamMcpNotification, IUpstreamMcpRequest, IUpstreamMcpResponse } from '../common/mcpHost/mcpHostService.js';
 import type { ClientCapabilities, ServerCapabilities } from '../common/state/protocol/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import type { UnsupportedProtocolVersionErrorData } from '../common/state/protocol/errors.js';
-import { ActionEnvelope, ActionType, INotification, isMcpAction, isSessionAction, isTerminalAction, type ClientMcpAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
+import { ActionEnvelope, ActionType, INotification, isSessionAction, isTerminalAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import {
 	AHP_AUTH_REQUIRED,
@@ -86,7 +86,7 @@ interface IConnectedClient {
 	readonly transport: IProtocolTransport;
 	readonly subscriptions: Set<string>;
 	readonly disposables: DisposableStore;
-	/** Capabilities the client advertised during initialize. Captured for use by `mcpMessage` (Phase 2c). */
+	/** Capabilities the client advertised during initialize. Currently empty in the spec but kept for future extension points. */
 	readonly capabilities: ClientCapabilities | undefined;
 }
 
@@ -146,6 +146,14 @@ export class ProtocolServerHandler extends Disposable {
 		this._register(this._stateManager.onDidEmitNotification(notification => {
 			this._broadcastNotification(notification);
 		}));
+
+		// Install the host-side delegate that forwards upstream MCP traffic to
+		// a connected AHP client via reverse `mcpMethodCall` / `mcpNotification`.
+		const delegate: IMcpHostUpstreamDelegate = {
+			handleUpstreamRequest: (request) => this._handleUpstreamMcpRequest(request),
+			handleUpstreamNotification: (notification) => this._handleUpstreamMcpNotification(notification),
+		};
+		this._register(this._mcpHostService.setUpstreamDelegate(delegate));
 	}
 
 	// ---- Connection handling -------------------------------------------------
@@ -205,9 +213,18 @@ export class ProtocolServerHandler extends Disposable {
 					case 'dispatchAction':
 						if (client) {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
-							const action = msg.params.action as SessionAction | TerminalAction | ClientMcpAction | IRootConfigChangedAction;
-							if (isSessionAction(action) || isTerminalAction(action) || isMcpAction(action) || action.type === ActionType.RootConfigChanged) {
+							const action = msg.params.action as SessionAction | TerminalAction | IRootConfigChangedAction;
+							if (isSessionAction(action) || isTerminalAction(action) || action.type === ActionType.RootConfigChanged) {
 								this._agentService.dispatchAction(action, client.clientId, msg.params.clientSeq);
+							}
+						}
+						break;
+					case 'mcpNotification':
+						if (client) {
+							try {
+								this._mcpHostService.notify(msg.params);
+							} catch (err) {
+								this._logService.warn(`[ProtocolServer] mcpNotification handler threw: ${err instanceof Error ? err.message : String(err)}`);
 							}
 						}
 						break;
@@ -304,9 +321,7 @@ export class ProtocolServerHandler extends Disposable {
 			}
 		}
 
-		const serverCapabilities: ServerCapabilities = {
-			mcp: this._mcpHostService.serverCapabilities,
-		};
+		const serverCapabilities: ServerCapabilities = {};
 
 		return {
 			client,
@@ -671,11 +686,8 @@ export class ProtocolServerHandler extends Disposable {
 			await this._agentService.disposeTerminal(URI.parse(params.terminal));
 			return null;
 		},
-		mcpMessage: async (client, params) => {
-			return this._mcpHostService.sendMessage(params, {
-				clientId: client.clientId,
-				capabilities: client.capabilities,
-			});
+		mcpMethodCall: async (_client, params) => {
+			return this._mcpHostService.callMethod(params);
 		},
 	};
 
@@ -776,6 +788,81 @@ export class ProtocolServerHandler extends Disposable {
 		}
 	}
 
+	// ---- Upstream MCP forwarding -------------------------------------------
+
+	/**
+	 * Pick a connected client to forward an upstream-originated MCP request
+	 * to. Today we pick the first client subscribed to the session that owns
+	 * the server (looked up via `mcp:/<sessionId>/<serverId>` segment); if
+	 * none are subscribed, we fall back to the first connected client. If
+	 * there are no clients at all, returns `undefined`.
+	 */
+	private _pickUpstreamMcpTarget(serverResource: URI): IConnectedClient | undefined {
+		const segments = serverResource.path.split('/').filter(s => s.length > 0);
+		if (segments.length >= 1) {
+			// Reconstruct the session URI. The convention is
+			// `mcp:/<sessionId>/<serverId>` where `<sessionId>` is the
+			// **path component** of the parent session URI. We don't know the
+			// session's scheme so we match by suffix.
+			const sessionPathTail = segments[0];
+			for (const client of this._clients.values()) {
+				for (const sub of client.subscriptions) {
+					try {
+						const parsed = URI.parse(sub);
+						if (parsed.scheme !== 'mcp' && parsed.path.endsWith('/' + sessionPathTail)) {
+							return client;
+						}
+					} catch {
+						// ignore
+					}
+				}
+			}
+		}
+		return this._clients.values().next().value;
+	}
+
+	private async _handleUpstreamMcpRequest(request: IUpstreamMcpRequest): Promise<IUpstreamMcpResponse> {
+		const client = this._pickUpstreamMcpTarget(request.server);
+		if (!client) {
+			return {
+				error: {
+					code: JsonRpcErrorCodes.MethodNotFound,
+					message: `No AHP client is connected to forward MCP request '${request.method}' to '${request.server.toString()}'`,
+				},
+			};
+		}
+		try {
+			const result = await this._sendReverseRequest<unknown>(client.clientId, 'mcpMethodCall', {
+				server: request.server.toString(),
+				method: request.method,
+				params: request.params,
+			});
+			return { result };
+		} catch (err) {
+			if (err instanceof ProtocolError) {
+				return { error: { code: err.code, message: err.message, data: err.data } };
+			}
+			const message = err instanceof Error ? err.message : String(err);
+			return { error: { code: JsonRpcErrorCodes.InternalError, message } };
+		}
+	}
+
+	private _handleUpstreamMcpNotification(notification: IUpstreamMcpNotification): void {
+		const msg = {
+			jsonrpc: '2.0' as const,
+			method: 'mcpNotification' as const,
+			params: {
+				server: notification.server.toString(),
+				method: notification.method,
+				params: notification.params,
+			},
+		};
+		const target = this._pickUpstreamMcpTarget(notification.server);
+		if (target) {
+			target.transport.send(msg);
+		}
+	}
+
 	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
 		const action = envelope.action;
 		if (action.type.startsWith('root/')) {
@@ -786,9 +873,6 @@ export class ProtocolServerHandler extends Disposable {
 		}
 		if (isTerminalAction(action)) {
 			return client.subscriptions.has(action.terminal);
-		}
-		if (isMcpAction(action)) {
-			return client.subscriptions.has(action.mcpServer);
 		}
 		return false;
 	}

@@ -10,6 +10,7 @@ import {
 	isJsonRpcResponse,
 	isJsonRpcSuccessResponse,
 	type IJsonRpcErrorResponse,
+	type IJsonRpcNotification,
 	type IJsonRpcRequest,
 	type IJsonRpcSuccessResponse,
 	type JsonRpcId,
@@ -18,14 +19,9 @@ import {
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import type { ILogger } from '../../../log/common/log.js';
-import type { McpRpcCallResponse, McpRpcMessage } from '../../common/state/protocol/state.js';
+import { MCP } from '../../../mcp/common/modelContextProtocol.js';
+import type { AhpMcpUiHostCapabilities } from '../../common/state/protocol/state.js';
 import type { IInitializeInjector } from './mcpInitializeInjector.js';
-import {
-	jsonRpcError,
-	jsonRpcNotificationToMcp,
-	jsonRpcRequestToMcpCall,
-	mcpCallResponseToJsonRpc,
-} from './mcpRpcEnvelope.js';
 import type { IMcpUpstream, IMcpUpstreamCapabilities } from './mcpUpstream.js';
 
 /** Default timeout (ms) for an SDK→upstream request awaiting a response. */
@@ -37,6 +33,84 @@ const RPC_PARSE_ERROR = -32700;
 /** JSON-RPC error code used when the upstream times out. */
 const RPC_INTERNAL_ERROR = -32603;
 
+/** Build a JSON-RPC error response. */
+function jsonRpcError(id: JsonRpcId, code: number, message: string, data?: unknown): IJsonRpcErrorResponse {
+	const error: IJsonRpcErrorResponse['error'] = { code, message };
+	if (data !== undefined) {
+		error.data = data;
+	}
+	return { jsonrpc: '2.0', id, error };
+}
+
+/** Build a JSON-RPC success response. */
+function jsonRpcSuccess(id: JsonRpcId, result: unknown): IJsonRpcSuccessResponse {
+	return { jsonrpc: '2.0', id, result };
+}
+
+/**
+ * Outcome of an upstream → AHP-client request: either a JSON-RPC `result`
+ * or a JSON-RPC `error`.
+ */
+export interface IUpstreamRequestOutcome {
+	readonly result?: unknown;
+	readonly error?: { code: number; message: string; data?: unknown };
+}
+
+/**
+ * The MCP Apps `_meta.ui` payload carried by a `Tool` definition.
+ *
+ * Mirrors the
+ * [MCP Apps spec](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx).
+ * The proxy captures these payloads from `tools/list` responses so the
+ * agent can decorate AHP `ToolCallBase._meta` with `ui` / `uiHostCapabilities`
+ * when the Copilot SDK invokes the matching tool.
+ */
+export interface IMcpUiToolMeta {
+	/** `ui://…` URI of the UI resource for rendering the tool result. */
+	readonly resourceUri?: string;
+	/**
+	 * Who can access this tool. Default `["model", "app"]`. `"model"` makes
+	 * the tool visible to the agent; `"app"` makes it callable by the UI
+	 * view from the same MCP server.
+	 */
+	readonly visibility?: readonly ('model' | 'app')[];
+}
+
+/**
+ * Project the upstream MCP server's `InitializeResult.capabilities` into
+ * the subset of MCP-Apps host capabilities the AHP proxy is willing to
+ * satisfy for a View backed by that server.
+ *
+ *  - `serverTools` / `serverResources` — advertised iff the upstream
+ *    advertised the matching `tools` / `resources` capability. The
+ *    `listChanged` flag mirrors what the upstream said; the proxy
+ *    forwards those notifications transparently when present.
+ *  - `logging` — advertised iff the upstream said it accepts log
+ *    notifications. The proxy forwards `notifications/message` from the
+ *    View and `logging/setLevel` from the View back to the server.
+ *  - `sampling` — never advertised today: even when the upstream
+ *    supports it, the AHP host has no LLM bridge to serve
+ *    `sampling/createMessage` from the View.
+ *
+ * Tolerates malformed upstream payloads — bad data simply produces an
+ * empty capability set rather than throwing.
+ */
+function deriveUiHostCapabilities(upstream: IMcpUpstreamCapabilities | undefined): AhpMcpUiHostCapabilities {
+	if (!upstream) {
+		return {};
+	}
+	try {
+		const caps = upstream as MCP.ServerCapabilities;
+		return {
+			...(caps.tools && { serverTools: { listChanged: caps.tools.listChanged === true } }),
+			...(caps.resources && { serverResources: { listChanged: caps.resources.listChanged === true } }),
+			...(caps.logging && { logging: {} }),
+		};
+	} catch {
+		return {};
+	}
+}
+
 export interface IMcpProxyRouteOptions {
 	readonly upstream: IMcpUpstream;
 	readonly logger: ILogger;
@@ -47,14 +121,16 @@ export interface IMcpProxyRouteOptions {
 	 */
 	readonly initializeInjector?: IInitializeInjector;
 	/**
-	 * Tap fired when the upstream emits a notification or request. The
-	 * implementation returns a stable messageId the route uses to pair
-	 * any later response (for upstream-originated requests). The host
-	 * service mints this id and remembers the (id ↔ JSON-RPC id)
-	 * mapping so it can write the reply back when the AHP client
-	 * dispatches `mcp/messageResponded`.
+	 * Tap fired when the upstream emits a JSON-RPC **request**. The route
+	 * awaits the returned promise and writes the JSON-RPC response back
+	 * to the upstream transport using the original request id.
 	 */
-	readonly onUpstreamMessage: (message: McpRpcMessage) => string;
+	readonly onUpstreamRequest: (method: string, params: unknown) => Promise<IUpstreamRequestOutcome>;
+	/**
+	 * Tap fired when the upstream emits a JSON-RPC **notification**.
+	 * Fire-and-forget; no response is expected.
+	 */
+	readonly onUpstreamNotification: (method: string, params: unknown) => void;
 	/** Override request timeout (ms). Defaults to 30s. */
 	readonly requestTimeoutMs?: number;
 }
@@ -66,21 +142,16 @@ export interface IMcpProxyRouteOptions {
  * Pass-through is blind in both directions, with three hooks.
  *  1. client→upstream `initialize` requests are rewritten via
  *     {@link IInitializeInjector} when one is configured.
- *  2. upstream-originated notifications are tapped and recorded in AHP
- *     state. They are NOT pushed to the SDK in v1 (HTTP request/response
- *     has no return channel; SSE is a Phase 6 follow-up).
- *  3. upstream-originated requests are tapped and recorded in AHP
- *     state. The AHP client answers them via
- *     {@link McpProxyRoute.deliverClientResponse}; same caveat as (2)
- *     applies — they are not pushed to the SDK in v1.
+ *  2. upstream-originated notifications are tapped and forwarded to the
+ *     AHP client via {@link IMcpProxyRouteOptions.onUpstreamNotification}
+ *     (which routes them out as `mcpNotification`).
+ *  3. upstream-originated requests are tapped and forwarded to the AHP
+ *     client via {@link IMcpProxyRouteOptions.onUpstreamRequest} (which
+ *     routes them out as `mcpMethodCall`). The route awaits the
+ *     returned outcome and writes the JSON-RPC response back to the
+ *     upstream transport using the original request id.
  */
 export class McpProxyRoute extends Disposable {
-
-	/**
-	 * Maps host-minted messageId → JSON-RPC id for upstream-originated
-	 * requests awaiting an AHP-client response.
-	 */
-	private readonly _pendingUpstreamRequests = new Map<string, JsonRpcId>();
 
 	/**
 	 * Maps SDK JSON-RPC id (as a string for safe Map keys) → entry. The
@@ -98,6 +169,23 @@ export class McpProxyRoute extends Disposable {
 	 * {@link IMcpUpstream.setUpstreamCapabilities}. Cleared on dispose.
 	 */
 	private readonly _pendingInitializeIds = new Set<string>();
+
+	/**
+	 * Set of SDK JSON-RPC ids (string-keyed) that the route has forwarded
+	 * to the upstream as `tools/list` requests. When a matching response
+	 * arrives the route parses `result.tools[]._meta.ui` and refreshes
+	 * {@link _toolUiMeta} so the agent can decorate MCP tool calls with
+	 * the MCP Apps payload.
+	 */
+	private readonly _pendingToolsListIds = new Set<string>();
+
+	/**
+	 * Latest `_meta.ui` payload captured per upstream tool name. Populated
+	 * lazily as `tools/list` responses flow through the proxy (from either
+	 * the SDK or AHP-client `mcpMethodCall` traffic) and exposed via
+	 * {@link getToolUiMeta} for the agent's tool-call decoration path.
+	 */
+	private readonly _toolUiMeta = new Map<string, IMcpUiToolMeta>();
 
 	private readonly _requestTimeoutMs: number;
 	private _disposed = false;
@@ -145,16 +233,23 @@ export class McpProxyRoute extends Disposable {
 	}
 
 	/**
-	 * Forward a client-initiated message (from `mcpMessage` command) to
-	 * the upstream. Notifications return immediately; requests await the
-	 * response. The caller is expected to mint the JSON-RPC id when the
-	 * message is a request (the proxy does not rewrite ids here).
+	 * Forward a client-initiated message (from `mcpMethodCall` /
+	 * `mcpNotification`) to the upstream. Notifications return
+	 * immediately; requests await the response. The caller is expected
+	 * to mint the JSON-RPC id when the message is a request (the proxy
+	 * does not rewrite ids here).
 	 */
 	public async sendClientMessage(message: JsonRpcMessage): Promise<JsonRpcMessage | undefined> {
 		if (isJsonRpcRequest(message)) {
 			// If the caller did not provide an id, mint one.
 			const id: JsonRpcId = message.id ?? generateUuid();
 			const patched: IJsonRpcRequest = { ...message, id };
+			// Both SDK→upstream and AHP-client→upstream `tools/list` traffic
+			// goes through `_dispatchSdkRequest`; tracking the id here keeps
+			// {@link _toolUiMeta} fresh regardless of which peer asked.
+			if (patched.method === 'tools/list') {
+				this._pendingToolsListIds.add(String(patched.id));
+			}
 			return this._dispatchSdkRequest(patched);
 		}
 		if (isJsonRpcNotification(message) || isJsonRpcResponse(message)) {
@@ -165,22 +260,6 @@ export class McpProxyRoute extends Disposable {
 		return undefined;
 	}
 
-	/**
-	 * Forward an AHP-client response to a previously-tapped upstream
-	 * request. Looks up `messageId` in the pending-upstream-requests map
-	 * to find the original JSON-RPC id; idempotent on unknown ids.
-	 */
-	public deliverClientResponse(messageId: string, response: McpRpcCallResponse): void {
-		const id = this._pendingUpstreamRequests.get(messageId);
-		if (id === undefined) {
-			this._options.logger.warn(`McpProxyRoute: deliverClientResponse for unknown messageId '${messageId}'`);
-			return;
-		}
-		this._pendingUpstreamRequests.delete(messageId);
-		const reply: IJsonRpcSuccessResponse | IJsonRpcErrorResponse = mcpCallResponseToJsonRpc(id, response);
-		void this._sendToUpstream(reply);
-	}
-
 	private async _handleSdkRequest(request: IJsonRpcRequest): Promise<string> {
 		let outbound = request;
 		if (request.method === 'initialize' && this._options.initializeInjector) {
@@ -188,6 +267,9 @@ export class McpProxyRoute extends Disposable {
 		}
 		if (request.method === 'initialize') {
 			this._pendingInitializeIds.add(String(outbound.id));
+		}
+		if (request.method === 'tools/list') {
+			this._pendingToolsListIds.add(String(outbound.id));
 		}
 		const reply = await this._dispatchSdkRequest(outbound);
 		return JSON.stringify(reply);
@@ -235,11 +317,67 @@ export class McpProxyRoute extends Disposable {
 		}
 	}
 
+	/**
+	 * Parse a `tools/list` response body and refresh {@link _toolUiMeta}
+	 * with whatever `_meta.ui` payloads the upstream advertised. Each
+	 * `tools/list` call replaces the entire map so stale entries don't
+	 * linger when the server removes a tool. Tolerates malformed payloads
+	 * — bad data simply yields an empty map rather than throwing.
+	 */
+	private _captureToolUiMeta(result: unknown): void {
+		try {
+			const { tools } = result as MCP.ListToolsResult;
+			this._toolUiMeta.clear();
+			for (const tool of tools) {
+				const ui = tool._meta?.ui as IMcpUiToolMeta | undefined;
+				if (ui && tool.name) {
+					this._toolUiMeta.set(tool.name, ui);
+				}
+			}
+		} catch (err) {
+			this._options.logger.warn(`McpProxyRoute: failed to capture tool _meta.ui: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+
+	/**
+	 * Look up the most recently captured MCP Apps `_meta.ui` payload for a
+	 * tool advertised by this upstream, or `undefined` if no
+	 * MCP-Apps-enabled tool with this name has been observed.
+	 */
+	public getToolUiMeta(toolName: string): IMcpUiToolMeta | undefined {
+		return this._toolUiMeta.get(toolName);
+	}
+
+	/**
+	 * The set of MCP App host capabilities the AHP proxy can satisfy for
+	 * a View backed by THIS upstream server, derived from the upstream's
+	 * `initialize` response.
+	 *
+	 * For each capability in {@link AhpMcpUiHostCapabilities} the proxy
+	 * advertises it only when both
+	 *  (a) the upstream advertised the corresponding server capability,
+	 *      and
+	 *  (b) the proxy actually forwards the matching MCP method/notification
+	 *      traffic.
+	 *
+	 * `(b)` always holds for `serverTools`, `serverResources`, and
+	 * `logging` — the proxy is a blind passthrough for those. `sampling`
+	 * is intentionally omitted today: even when the upstream supports it,
+	 * the AHP host has no LLM bridge to satisfy `sampling/createMessage`
+	 * calls from the View.
+	 *
+	 * Returns an empty object when no `initialize` has been observed yet
+	 * (the upstream hasn't told us what it supports, so we can't honestly
+	 * advertise anything).
+	 */
+	public getUiHostCapabilities(): AhpMcpUiHostCapabilities {
+		const upstream = this._options.upstream.upstreamCapabilities.get();
+		return deriveUiHostCapabilities(upstream);
+	}
+
 	private _onUpstreamMessage(message: JsonRpcMessage): void {
 		if (isJsonRpcRequest(message)) {
-			const mcp = jsonRpcRequestToMcpCall(message);
-			const messageId = this._options.onUpstreamMessage(mcp);
-			this._pendingUpstreamRequests.set(messageId, message.id);
+			this._handleUpstreamRequest(message);
 			return;
 		}
 		if (isJsonRpcResponse(message)) {
@@ -252,6 +390,9 @@ export class McpProxyRoute extends Disposable {
 			if (this._pendingInitializeIds.delete(key) && isJsonRpcSuccessResponse(message)) {
 				this._captureUpstreamCapabilities(message.result);
 			}
+			if (this._pendingToolsListIds.delete(key) && isJsonRpcSuccessResponse(message)) {
+				this._captureToolUiMeta(message.result);
+			}
 			const entry = this._pendingSdkRequests.get(key);
 			if (!entry) {
 				this._options.logger.warn(`McpProxyRoute: upstream response for unknown id '${key}'`);
@@ -262,15 +403,44 @@ export class McpProxyRoute extends Disposable {
 			return;
 		}
 		if (isJsonRpcNotification(message)) {
-			const mcp = jsonRpcNotificationToMcp(message);
-			if (!mcp) {
-				this._options.logger.warn('McpProxyRoute: upstream notification was malformed');
-				return;
-			}
-			this._options.onUpstreamMessage(mcp);
+			this._handleUpstreamNotification(message);
 			return;
 		}
 		this._options.logger.warn('McpProxyRoute: upstream emitted an unrecognized JSON-RPC message');
+	}
+
+	private _handleUpstreamRequest(request: IJsonRpcRequest): void {
+		const method = request.method;
+		const params = request.params;
+		this._options.onUpstreamRequest(method, params).then(outcome => {
+			if (this._disposed) {
+				return;
+			}
+			const reply: IJsonRpcSuccessResponse | IJsonRpcErrorResponse = outcome.error
+				? jsonRpcError(request.id, outcome.error.code, outcome.error.message, outcome.error.data)
+				: jsonRpcSuccess(request.id, outcome.result);
+			void this._sendToUpstream(reply);
+		}, err => {
+			if (this._disposed) {
+				return;
+			}
+			const message = err instanceof Error ? err.message : String(err);
+			this._options.logger.warn(`McpProxyRoute: upstream request handler threw for method '${method}': ${message}`);
+			void this._sendToUpstream(jsonRpcError(request.id, RPC_INTERNAL_ERROR, message));
+		});
+	}
+
+	private _handleUpstreamNotification(notification: IJsonRpcNotification): void {
+		if (typeof notification.method !== 'string' || notification.method.length === 0) {
+			this._options.logger.warn('McpProxyRoute: upstream notification was malformed');
+			return;
+		}
+		try {
+			this._options.onUpstreamNotification(notification.method, notification.params);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			this._options.logger.warn(`McpProxyRoute: upstream notification handler threw for method '${notification.method}': ${message}`);
+		}
 	}
 
 	public override dispose(): void {
@@ -282,8 +452,9 @@ export class McpProxyRoute extends Disposable {
 			deferred.complete(jsonRpcError(id, RPC_INTERNAL_ERROR, 'Proxy route disposed'));
 		}
 		this._pendingSdkRequests.clear();
-		this._pendingUpstreamRequests.clear();
 		this._pendingInitializeIds.clear();
+		this._pendingToolsListIds.clear();
+		this._toolUiMeta.clear();
 		super.dispose();
 	}
 }

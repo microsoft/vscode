@@ -325,13 +325,9 @@ suite('resolveMcpServerAuthenticationSilently', () => {
 				? [{ scopes: ['read'], accessToken: 'silent-token' }]
 				: []),
 		});
-		const memory = new FakeMcpAuthMemory();
-		memory.entries.set('local|' + protectedResource.resource, ['read']);
 		const requests: IAgentHostAuthenticateRequest[] = [];
 
 		const success = await resolveMcpServerAuthenticationSilently(mcpServer, protectedResource, undefined, {
-			mcpAuthMemory: memory,
-			mcpAuthHostKey: 'local',
 			authenticationService: authService,
 			logPrefix: '[Test]',
 			logService: log,
@@ -345,72 +341,6 @@ suite('resolveMcpServerAuthenticationSilently', () => {
 		assert.strictEqual(requests[0].server?.toString(), mcpServer.toString());
 	});
 
-	test('returns false when no memory is provided', async () => {
-		let getSessionsCalls = 0;
-		const authService = createMockAuthService({
-			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
-			getSessions: () => { getSessionsCalls++; return Promise.resolve([{ scopes: ['read'], accessToken: 'silent-token' }]); },
-		});
-		const requests: IAgentHostAuthenticateRequest[] = [];
-
-		const success = await resolveMcpServerAuthenticationSilently(mcpServer, protectedResource, undefined, {
-			authenticationService: authService,
-			logPrefix: '[Test]',
-			logService: log,
-			authenticate: async request => { requests.push(request); },
-		});
-
-		assert.strictEqual(success, false);
-		assert.strictEqual(requests.length, 0);
-		assert.strictEqual(getSessionsCalls, 0);
-	});
-
-	test('returns false when memory has no entry for the resource', async () => {
-		let getSessionsCalls = 0;
-		const authService = createMockAuthService({
-			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
-			getSessions: () => { getSessionsCalls++; return Promise.resolve([{ scopes: ['read'], accessToken: 'silent-token' }]); },
-		});
-		const memory = new FakeMcpAuthMemory();
-
-		const success = await resolveMcpServerAuthenticationSilently(mcpServer, protectedResource, ['read'], {
-			mcpAuthMemory: memory,
-			mcpAuthHostKey: 'local',
-			authenticationService: authService,
-			logPrefix: '[Test]',
-			logService: log,
-			authenticate: async () => { },
-		});
-
-		assert.strictEqual(success, false);
-		assert.strictEqual(getSessionsCalls, 0);
-	});
-
-	test('returns false when remembered scopes do not cover the requested scopes', async () => {
-		let getSessionsCalls = 0;
-		const authService = createMockAuthService({
-			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
-			getSessions: () => { getSessionsCalls++; return Promise.resolve([{ scopes: ['read', 'write'], accessToken: 'silent-token' }]); },
-		});
-		const memory = new FakeMcpAuthMemory();
-		// The user previously approved only 'read', but the current
-		// challenge requests an additional 'write' scope they have not
-		// consented to — silent must refuse.
-		memory.entries.set('local|' + protectedResource.resource, ['read']);
-
-		const success = await resolveMcpServerAuthenticationSilently(mcpServer, protectedResource, ['read', 'write'], {
-			mcpAuthMemory: memory,
-			mcpAuthHostKey: 'local',
-			authenticationService: authService,
-			logPrefix: '[Test]',
-			logService: log,
-			authenticate: async () => { },
-		});
-
-		assert.strictEqual(success, false);
-		assert.strictEqual(getSessionsCalls, 0);
-	});
-
 	test('returns false and does NOT prompt when no matching session exists', async () => {
 		let createSessionCalls = 0;
 		const authService = createMockAuthService({
@@ -418,13 +348,9 @@ suite('resolveMcpServerAuthenticationSilently', () => {
 			getSessions: () => Promise.resolve([]),
 			createSession: async () => { createSessionCalls++; return { accessToken: 'created' }; },
 		});
-		const memory = new FakeMcpAuthMemory();
-		memory.entries.set('local|' + protectedResource.resource, ['read']);
 		const requests: IAgentHostAuthenticateRequest[] = [];
 
 		const success = await resolveMcpServerAuthenticationSilently(mcpServer, protectedResource, undefined, {
-			mcpAuthMemory: memory,
-			mcpAuthHostKey: 'local',
 			authenticationService: authService,
 			logPrefix: '[Test]',
 			logService: log,
@@ -470,15 +396,19 @@ suite('resolveMcpServerAuthenticationSilently', () => {
 
 	test('host-scoped: tokens approved against another host are NOT reused', async () => {
 		// Memory has a record for `host-a` but the silent attempt is for `host-b`.
-		// Without a `host-b` entry the silent helper has no consent record,
-		// so it must refuse without consulting the auth service at all.
+		// The silent helper must not consult `host-a`'s entry, so it falls
+		// back to the challenge's scopes — and since no matching session
+		// exists, the call returns false.
 		const memory = new FakeMcpAuthMemory();
 		memory.entries.set('host-a|' + protectedResource.resource, ['read', 'write', 'admin']);
 
-		let getSessionsCalls = 0;
+		const askedScopes: (readonly string[] | undefined)[] = [];
 		const authService = createMockAuthService({
 			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
-			getSessions: () => { getSessionsCalls++; return Promise.resolve([]); },
+			getSessions: (_id, scopes) => {
+				askedScopes.push(scopes);
+				return Promise.resolve([]);
+			},
 		});
 
 		const success = await resolveMcpServerAuthenticationSilently(mcpServer, protectedResource, ['read'], {
@@ -491,10 +421,11 @@ suite('resolveMcpServerAuthenticationSilently', () => {
 		});
 
 		assert.strictEqual(success, false);
-		assert.strictEqual(getSessionsCalls, 0);
+		// Asked exactly once with the challenge scopes (no memory leakage).
+		assert.deepStrictEqual(askedScopes[0], ['read']);
 	});
 
-	test('refreshes the remembered entry on success', async () => {
+	test('records remembered scopes on success when host key is provided', async () => {
 		const authService = createMockAuthService({
 			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
 			getSessions: (_id, scopes) => Promise.resolve(scopes
@@ -502,7 +433,6 @@ suite('resolveMcpServerAuthenticationSilently', () => {
 				: []),
 		});
 		const memory = new FakeMcpAuthMemory();
-		memory.entries.set('host-a|' + protectedResource.resource, ['read']);
 
 		await resolveMcpServerAuthenticationSilently(mcpServer, protectedResource, ['read'], {
 			mcpAuthMemory: memory,
@@ -514,6 +444,26 @@ suite('resolveMcpServerAuthenticationSilently', () => {
 		});
 
 		assert.deepStrictEqual(memory.rememberCalls, [{ host: 'host-a', resource: protectedResource.resource, scopes: ['read'] }]);
+	});
+
+	test('does NOT record when memory is provided but host key is not', async () => {
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_id, scopes) => Promise.resolve(scopes
+				? [{ scopes: ['read'], accessToken: 'silent-token' }]
+				: []),
+		});
+		const memory = new FakeMcpAuthMemory();
+
+		await resolveMcpServerAuthenticationSilently(mcpServer, protectedResource, undefined, {
+			mcpAuthMemory: memory,
+			authenticationService: authService,
+			logPrefix: '[Test]',
+			logService: log,
+			authenticate: async () => { },
+		});
+
+		assert.strictEqual(memory.rememberCalls.length, 0);
 	});
 });
 

@@ -775,9 +775,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (config.activeClient.customizations !== undefined) {
 				await this._plugins.sync(config.activeClient.clientId, config.activeClient.customizations);
 			}
-
-			// Snapshot such that MCP servers eagerly get published, triggering auth
-			void ac.snapshot(config.workingDirectory);
+			await ac.snapshot(config.workingDirectory);
 		}
 
 		// Compute project metadata cheaply from the original working dir.
@@ -796,7 +794,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		this._logService.info(`[Copilot] Session created (provisional): ${sessionUri.toString()}`);
-		return { session: sessionUri, workingDirectory: config.workingDirectory, provisional: true, ...(project ? { project } : {}) };
+		return {
+			session: sessionUri,
+			workingDirectory: config.workingDirectory,
+			provisional: true,
+			...(project ? { project } : {}),
+		};
 	}
 
 	/**
@@ -838,9 +841,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const customizationDirectory = provisional.workingDirectory;
 		const activeClient = this._activeClients.get(sessionUri);
-		// `snapshot()` publishes the resolved MCP servers as a side effect
-		// so the proxies are bound by the time `_buildSessionConfig`
-		// resolves endpoints below.
 		const snapshot = activeClient ? await activeClient.snapshot(customizationDirectory) : undefined;
 		const workingDirectory = await this._resolveSessionWorkingDirectory(materializedConfig, sessionId, prompt);
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
@@ -2046,7 +2046,12 @@ export class ActiveClient extends Disposable {
 		this._lastDirectory = directory;
 		const plugins = await this._resolvePlugins(directory);
 		this._republishMcpServers(plugins);
-		return { clientId: this._clientId, tools: this._tools, plugins };
+		return {
+			clientId: this._clientId,
+			tools: this._tools,
+			plugins,
+			mcpReadiness: this._captureMcpReadiness(plugins),
+		};
 	}
 
 	/**
@@ -2077,6 +2082,21 @@ export class ActiveClient extends Disposable {
 				return true;
 			}
 		}
+		// Detect MCP server readiness flips: when a previously skipped
+		// server (AuthRequired / Error / Stopped) reaches Ready (typically
+		// after `authenticate`), the cached SDK session — built without
+		// that server's tools — is stale and must be rebuilt.
+		const currentReadiness = this._captureMcpReadiness(plugins);
+		for (const [resource, ready] of Object.entries(currentReadiness)) {
+			if (snap.mcpReadiness[resource] !== ready) {
+				return true;
+			}
+		}
+		for (const resource of Object.keys(snap.mcpReadiness)) {
+			if (!Object.prototype.hasOwnProperty.call(currentReadiness, resource)) {
+				return true;
+			}
+		}
 		return false;
 	}
 
@@ -2099,5 +2119,26 @@ export class ActiveClient extends Disposable {
 		}
 		this._publishedMcpServers = servers;
 		this._mcpHostService.setSessionServers(this._sessionUri, servers);
+	}
+
+	/**
+	 * Snapshot the current `Ready` flag for every MCP server in `plugins`,
+	 * keyed by the same `mcp:/...` resource URI the SDK config uses. Missing
+	 * handles or any non-`Ready` status (including `AuthRequired`) map to
+	 * `false`; only `Ready` counts as "advertised to the SDK".
+	 *
+	 * The snapshot is compared inside {@link isOutdated} to detect Ready
+	 * transitions that change what `_resolveMcpServersForSdk` would
+	 * advertise, so the agent can rebuild the cached SDK session and
+	 * re-advertise the freshly-authenticated tool set.
+	 */
+	private _captureMcpReadiness(plugins: readonly IParsedPlugin[]): Record<string, boolean> {
+		const readiness: Record<string, boolean> = {};
+		for (const def of plugins.flatMap(p => p.mcpServers)) {
+			const resource = buildMcpServerUri(this._sessionUri, def.name).toString();
+			const handle = this._mcpHostService.getServer(URI.parse(resource));
+			readiness[resource] = handle?.summary.get().status.kind === McpServerStatusKind.Ready;
+		}
+		return readiness;
 	}
 }

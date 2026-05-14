@@ -1456,6 +1456,7 @@ suite('CopilotAgentSession', () => {
 				inputSchema: { type: 'object', properties: {} },
 			}],
 			plugins: [],
+			mcpReadiness: {},
 		};
 
 		test('client tool handler waits for completion without emitting tool_ready', async () => {

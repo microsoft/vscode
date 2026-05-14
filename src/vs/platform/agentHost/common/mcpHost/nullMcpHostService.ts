@@ -3,24 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
-import { McpMessageParams, McpMessageResult, ServerMcpCapabilities } from '../state/protocol/commands.js';
-import { McpRpcCallResponse } from '../state/protocol/state.js';
+import { McpMethodCallParams, McpMethodCallResult, McpNotificationParams } from '../state/protocol/commands.js';
+import type { McpServerSummary } from '../state/protocol/state.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../state/sessionProtocol.js';
-import { IMcpClientContext, IMcpHostService, IMcpServerHandle } from './mcpHostService.js';
+import { IMcpHostService, IMcpHostUpstreamDelegate, IMcpServerHandle } from './mcpHostService.js';
 
 /**
- * No-op {@link IMcpHostService}. Returns no servers, advertises no MCP
- * capabilities, and refuses `mcpMessage` calls with `MethodNotFound`. Used by
- * surfaces that don't host MCP traffic (browser-side stubs and tests).
+ * No-op {@link IMcpHostService}. Returns no servers, refuses `mcpMethodCall`
+ * requests with `MethodNotFound`, and silently drops `mcpNotification`s.
+ * Used by surfaces that don't host MCP traffic (browser-side stubs and tests).
  */
 export class NullMcpHostService implements IMcpHostService {
 	declare readonly _serviceBrand: undefined;
 
-	readonly serverCapabilities: ServerMcpCapabilities = {};
-
 	setSessionServers(_session: URI, _servers: readonly IMcpServerDefinition[]): readonly IMcpServerHandle[] {
+		return [];
+	}
+
+	getServerSummaries(_session: URI): readonly McpServerSummary[] {
 		return [];
 	}
 
@@ -28,11 +31,17 @@ export class NullMcpHostService implements IMcpHostService {
 		return undefined;
 	}
 
-	async sendMessage(_params: McpMessageParams, _client: IMcpClientContext): Promise<McpMessageResult> {
-		throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'mcpMessage is not supported by this host');
+	async callMethod(_params: McpMethodCallParams): Promise<McpMethodCallResult> {
+		throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'mcpMethodCall is not supported by this host');
 	}
 
-	deliverResponse(_mcpServer: URI, _messageId: string, _response: McpRpcCallResponse): void {
+	notify(_params: McpNotificationParams): void {
 		// no-op
 	}
+
+	setUpstreamDelegate(_delegate: IMcpHostUpstreamDelegate): IDisposable {
+		return { dispose: () => { /* no-op */ } };
+	}
 }
+
+

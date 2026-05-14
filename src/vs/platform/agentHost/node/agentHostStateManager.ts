@@ -8,12 +8,11 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
-import { ActionType, NotificationType, ActionEnvelope, ActionOrigin, ClientMcpAction, INotification, IRootConfigChangedAction, McpAction, SessionAction, RootAction, StateAction, TerminalAction, isMcpAction, isRootAction, isSessionAction } from '../common/state/sessionActions.js';
+import { ActionType, NotificationType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, RootAction, StateAction, TerminalAction, isRootAction, isSessionAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer } from '../common/state/sessionReducers.js';
-import { mcpServerReducer } from '../common/state/protocol/reducers.js';
 import { createRootState, createSessionState, SessionLifecycle, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI } from '../common/state/sessionState.js';
-import type { McpRpcMessage, McpServerState, McpServerStatus, McpServerSummary } from '../common/state/protocol/state.js';
+import type { McpServerStatus, McpServerSummary } from '../common/state/protocol/state.js';
 import { IPermissionsValue, platformRootSchema } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 
@@ -30,9 +29,6 @@ export class AgentHostStateManager extends Disposable {
 
 	private _rootState: RootState;
 	private readonly _sessionStates = new Map<string, SessionState>();
-
-	/** Per-MCP-server slices, keyed by `McpServerSummary.resource`. */
-	private readonly _mcpServerStates = new Map<string, McpServerState>();
 
 	/** Tracks which session URI each active turn belongs to, keyed by turnId. */
 	private readonly _activeTurnToSession = new Map<string, string>();
@@ -123,18 +119,6 @@ export class AgentHostStateManager extends Disposable {
 			};
 		}
 
-		if (resource.startsWith('mcp:/')) {
-			const mcpState = this._mcpServerStates.get(resource);
-			if (!mcpState) {
-				return undefined;
-			}
-			return {
-				resource,
-				state: mcpState,
-				fromSeq: this._serverSeq,
-			};
-		}
-
 		const sessionState = this._sessionStates.get(resource);
 		if (!sessionState) {
 			return undefined;
@@ -162,7 +146,7 @@ export class AgentHostStateManager extends Disposable {
 	 * and writes its on-disk metadata). Call {@link markSessionPersisted}
 	 * afterwards to fire the deferred notification.
 	 */
-	createSession(summary: SessionSummary, options?: { readonly emitNotification?: boolean }): SessionState {
+	createSession(summary: SessionSummary, options?: { readonly emitNotification?: boolean; readonly mcpServers?: readonly McpServerSummary[] }): SessionState {
 		const key = summary.resource;
 		if (this._sessionStates.has(key)) {
 			this._logService.warn(`[AgentHostStateManager] Session already exists: ${key}`);
@@ -170,6 +154,9 @@ export class AgentHostStateManager extends Disposable {
 		}
 
 		const state = createSessionState(summary);
+		if (options?.mcpServers && options.mcpServers.length > 0) {
+			state.mcpServers = [...options.mcpServers];
+		}
 		this._sessionStates.set(key, state);
 
 		this._logService.trace(`[AgentHostStateManager] Created session: ${key}`);
@@ -339,7 +326,7 @@ export class AgentHostStateManager extends Disposable {
 		this.dispatchServerAction({ type: ActionType.McpServerAdded, session, server: summary });
 	}
 
-	/** Removes an MCP server from a session and disposes its per-server slice. */
+	/** Removes an MCP server from a session. */
 	removeMcpServer(session: URI, mcpServer: URI): void {
 		this._logService.trace(`[AgentHostStateManager] removeMcpServer: ${mcpServer} from ${session}`);
 		this.dispatchServerAction({ type: ActionType.McpServerRemoved, session, mcpServer });
@@ -349,23 +336,6 @@ export class AgentHostStateManager extends Disposable {
 	setMcpServerStatus(session: URI, mcpServer: URI, status: McpServerStatus): void {
 		this._logService.trace(`[AgentHostStateManager] setMcpServerStatus: ${mcpServer} -> ${status.kind}`);
 		this.dispatchServerAction({ type: ActionType.McpServerStatusChanged, session, mcpServer, status });
-	}
-
-	/** Records an inbound JSON-RPC message from an MCP server. */
-	mcpMessageReceived(mcpServer: URI, messageId: string, message: McpRpcMessage): void {
-		this._logService.trace(`[AgentHostStateManager] mcpMessageReceived: ${mcpServer} id=${messageId}`);
-		this.dispatchServerAction({ type: ActionType.McpMessageReceived, mcpServer, messageId, message });
-	}
-
-	/** Removes a previously-recorded MCP message (cancellation or completion). */
-	mcpMessageRemoved(mcpServer: URI, messageId: string): void {
-		this._logService.trace(`[AgentHostStateManager] mcpMessageRemoved: ${mcpServer} id=${messageId}`);
-		this.dispatchServerAction({ type: ActionType.McpMessageRemoved, mcpServer, messageId });
-	}
-
-	/** Returns the per-server state slice, or `undefined` if no such server is registered. */
-	getMcpServerState(mcpServer: URI): McpServerState | undefined {
-		return this._mcpServerStates.get(mcpServer);
 	}
 
 	// ---- Turn tracking ------------------------------------------------------
@@ -396,7 +366,7 @@ export class AgentHostStateManager extends Disposable {
 	 * The action is applied to state and emitted with the client's origin
 	 * so the originating client can reconcile.
 	 */
-	dispatchClientAction(action: SessionAction | TerminalAction | ClientMcpAction | IRootConfigChangedAction, origin: ActionOrigin): unknown {
+	dispatchClientAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, origin: ActionOrigin): unknown {
 		return this._applyAndEmit(action, origin);
 	}
 
@@ -459,39 +429,8 @@ export class AgentHostStateManager extends Disposable {
 			}
 		}
 
-		// MCP server lifecycle actions are session-scoped (handled above by
-		// sessionReducer) but ALSO need to keep the per-server slice in sync.
-		if (action.type === ActionType.McpServerAdded) {
-			this._mcpServerStates.set(action.server.resource, {
-				label: action.server.label,
-				status: action.server.status,
-				messages: {},
-			});
-		} else if (action.type === ActionType.McpServerRemoved) {
-			this._mcpServerStates.delete(action.mcpServer);
-		} else if (action.type === ActionType.McpServerStatusChanged) {
-			const existing = this._mcpServerStates.get(action.mcpServer);
-			if (existing) {
-				this._mcpServerStates.set(action.mcpServer, { ...existing, status: action.status });
-			} else {
-				this._log(`MCP server status change for unknown server: ${action.mcpServer}`);
-			}
-		}
-
-		// Per-server actions target the `mcp:/...` resource directly and only
-		// mutate the per-server slice via mcpServerReducer.
-		if (isMcpAction(action)) {
-			const mcpAction = action as McpAction;
-			const key = mcpAction.mcpServer;
-			const mcpState = this._mcpServerStates.get(key);
-			if (mcpState) {
-				const newState = mcpServerReducer(mcpState, mcpAction, this._log);
-				this._mcpServerStates.set(key, newState);
-				resultingState = newState;
-			} else {
-				this._log(`MCP action for unknown server: ${key}, type=${action.type}`);
-			}
-		}
+		// MCP server lifecycle actions are session-scoped and handled by the
+		// session reducer above; there is no longer a per-server state slice.
 
 		// Emit envelope
 		const envelope: ActionEnvelope = {

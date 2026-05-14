@@ -8,7 +8,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { observableValue, type IObservable } from '../../../../base/common/observable.js';
 import { joinPath } from '../../../../base/common/resources.js';
@@ -24,8 +24,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AgentSession } from '../../common/agentService.js';
 import { IMcpHostService, IMcpServerHandle } from '../../common/mcpHost/mcpHostService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
-import type { McpMessageResult, ServerMcpCapabilities } from '../../common/state/protocol/commands.js';
-import { McpRpcCallResponse, McpServerStatusKind, MessageResourceAttachment, type McpServerSummary } from '../../common/state/protocol/state.js';
+import { McpServerStatusKind, MessageResourceAttachment, type McpServerSummary } from '../../common/state/protocol/state.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, MessageAttachmentKind, ResponsePartKind, SessionActiveClient, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
 import { AgentService } from '../../node/agentService.js';
@@ -173,38 +172,6 @@ suite('AgentService (node dispatcher)', () => {
 			} finally {
 				rmSync(tempDir.fsPath, { recursive: true, force: true });
 			}
-		});
-
-		test('forwards McpMessageResponded to IMcpHostService.deliverResponse', () => {
-			const recordedDeliveries: { mcpServer: URI; messageId: string; response: McpRpcCallResponse }[] = [];
-			const mcpHostService: IMcpHostService = {
-				_serviceBrand: undefined,
-				serverCapabilities: {},
-				setSessionServers: () => [],
-				getServer: () => undefined,
-				sendMessage: async () => ({}),
-				deliverResponse: (mcpServer, messageId, response) => {
-					recordedDeliveries.push({ mcpServer, messageId, response });
-				},
-			};
-			const svc = disposables.add(new AgentService(
-				new NullLogService(), fileService, nullSessionDataService,
-				{ _serviceBrand: undefined } as IProductService,
-				createNoopGitService(), undefined, mcpHostService,
-			));
-
-			svc.dispatchAction({
-				type: ActionType.McpMessageResponded,
-				mcpServer: 'mcp:/sess1/srv1',
-				messageId: 'm1',
-				response: { jsonrpc: '2.0', id: 1, result: { ok: true } },
-			}, 'client-1', 0);
-
-			assert.deepStrictEqual(recordedDeliveries, [{
-				mcpServer: URI.parse('mcp:/sess1/srv1'),
-				messageId: 'm1',
-				response: { jsonrpc: '2.0', id: 1, result: { ok: true } },
-			}]);
 		});
 	});
 
@@ -744,6 +711,39 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				activeClient,
 				dispatchedActiveClientChanged: false,
+			});
+		});
+
+		test('seeds initial MCP servers from the MCP host summaries', async () => {
+			const session = AgentSession.uri('copilot', 'mcp-seeded');
+			const mcpServer: McpServerSummary = {
+				resource: `mcp:/${AgentSession.id(session)}/github`,
+				label: 'github',
+				status: { kind: McpServerStatusKind.Starting },
+			};
+			class McpAgent extends MockAgent {
+				override async createSession() {
+					return {
+						session,
+						project: { uri: URI.file('/test'), displayName: 'Test' },
+					};
+				}
+			}
+			const mcpHostService = new SpyMcpHostService();
+			mcpHostService.sessionSummaries.set(session.toString(), [mcpServer]);
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, mcpHostService));
+			const agent = new McpAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			localService.registerProvider(agent);
+
+			await localService.createSession({ provider: 'copilot' });
+
+			assert.deepStrictEqual({
+				mcpServers: localService.stateManager.getSessionState(session.toString())?.mcpServers,
+				mcpHostCalls: mcpHostService.setSessionServersCalls,
+			}, {
+				mcpServers: [mcpServer],
+				mcpHostCalls: [],
 			});
 		});
 
@@ -1712,9 +1712,9 @@ suite('AgentService (node dispatcher)', () => {
 
 	class SpyMcpHostService implements IMcpHostService {
 		declare readonly _serviceBrand: undefined;
-		readonly serverCapabilities: ServerMcpCapabilities = {};
 		readonly setSessionServersCalls: { session: URI; servers: readonly IMcpServerDefinition[] }[] = [];
 		readonly authenticateCalls: { resource: string; token: string; server: URI }[] = [];
+		readonly sessionSummaries = new Map<string, readonly McpServerSummary[]>();
 
 		private readonly _stubs = new Map<string, IMcpServerHandle>();
 
@@ -1722,11 +1722,15 @@ suite('AgentService (node dispatcher)', () => {
 			this.setSessionServersCalls.push({ session, servers });
 			return [];
 		}
+		getServerSummaries(session: URI): readonly McpServerSummary[] {
+			return this.sessionSummaries.get(session.toString()) ?? [];
+		}
 		getServer(resource: URI): IMcpServerHandle | undefined {
 			return this._stubs.get(resource.toString());
 		}
-		async sendMessage(): Promise<McpMessageResult> { throw new Error('not used in test'); }
-		deliverResponse(): void { /* no-op */ }
+		async callMethod(): Promise<{ result: unknown }> { throw new Error('not used in test'); }
+		notify(): void { /* no-op */ }
+		setUpstreamDelegate(): IDisposable { return { dispose: () => { /* no-op */ } }; }
 
 		/**
 		 * Register a stub {@link IMcpServerHandle} returned from
@@ -1756,8 +1760,10 @@ suite('AgentService (node dispatcher)', () => {
 					}
 					return accept;
 				},
-				sendMessage: async () => { throw new Error('not used in test'); },
-				deliverResponse: () => { /* no-op */ },
+				callMethod: async () => { throw new Error('not used in test'); },
+				notify: () => { /* no-op */ },
+				getToolUiMeta: () => undefined,
+				getUiHostCapabilities: () => ({}),
 				dispose: () => { /* no-op */ },
 			};
 			this._stubs.set(resource.toString(), handle);

@@ -8,11 +8,11 @@ import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, ClientMcpAction, IRootConfigChangedAction, SessionAction, StateAction, isMcpAction, isSessionAction } from './sessionActions.js';
+import { ActionEnvelope, IRootConfigChangedAction, SessionAction, StateAction, isSessionAction } from './sessionActions.js';
 import { rootReducer, sessionReducer } from './sessionReducers.js';
-import { mcpServerReducer, terminalReducer } from './protocol/reducers.js';
-import type { McpAction, RootAction, SessionAction as IProtocolSessionAction, TerminalAction } from './protocol/action-origin.generated.js';
-import type { McpServerState, RootState, SessionState, TerminalState } from './protocol/state.js';
+import { terminalReducer } from './protocol/reducers.js';
+import type { RootAction, SessionAction as IProtocolSessionAction, TerminalAction } from './protocol/action-origin.generated.js';
+import type { RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
 import { StateComponents } from './sessionState.js';
 
@@ -337,34 +337,6 @@ export class TerminalStateSubscription extends BaseAgentSubscription<TerminalSta
 	}
 }
 
-// --- MCP Server State Subscription -------------------------------------------
-
-/**
- * Subscription to a per-MCP-server resource at an `mcp:` URI.
- * Server-only mutations — no write-ahead. The protocol marks
- * `McpMessageResponded` as client-dispatchable, but the host echoes the
- * action back via the action stream and the existing reconciliation flow
- * applies it; clients almost never need to read back the optimistic
- * `response` before confirmation.
- */
-export class McpServerStateSubscription extends BaseAgentSubscription<McpServerState> {
-
-	private readonly _mcpServerUri: string;
-
-	constructor(mcpServerUri: string, clientId: string, log: (msg: string) => void) {
-		super(clientId, log);
-		this._mcpServerUri = mcpServerUri;
-	}
-
-	protected override _applyReducer(state: McpServerState, action: StateAction): McpServerState {
-		return mcpServerReducer(state, action as McpAction, this._log);
-	}
-
-	protected override _isRelevantAction(action: StateAction): boolean {
-		return isMcpAction(action) && (action as { mcpServer: string }).mcpServer === this._mcpServerUri;
-	}
-}
-
 // --- Subscription Manager ----------------------------------------------------
 
 /**
@@ -482,7 +454,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * Dispatch a client action. Applies optimistically to the relevant
 	 * subscription if applicable, then returns the clientSeq.
 	 */
-	dispatchOptimistic(action: SessionAction | TerminalAction | IRootConfigChangedAction | ClientMcpAction): number {
+	dispatchOptimistic(action: SessionAction | TerminalAction | IRootConfigChangedAction): number {
 		if (isSessionAction(action)) {
 			const entry = this._subscriptions.get(URI.parse(action.session));
 			if (entry && entry.sub instanceof SessionStateSubscription) {
@@ -499,8 +471,6 @@ export class AgentSubscriptionManager extends Disposable {
 				return new SessionStateSubscription(key, this._clientId, this._seqAllocator, this._log);
 			case StateComponents.Terminal:
 				return new TerminalStateSubscription(key, this._clientId, this._log);
-			case StateComponents.Mcp:
-				return new McpServerStateSubscription(key, this._clientId, this._log);
 			default:
 				return new TerminalStateSubscription(key, this._clientId, this._log);
 		}

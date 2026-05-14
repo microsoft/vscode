@@ -12,7 +12,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
 import { SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, parseSubagentSessionUri, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedNotification } from '../../common/state/protocol/notifications.js';
-import { McpRpcMessageKind, McpServerStatusKind, type McpRpcMessage, type McpServerSummary } from '../../common/state/protocol/state.js';
+import { McpServerStatusKind, type McpServerSummary } from '../../common/state/protocol/state.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
 suite('AgentHostStateManager', () => {
@@ -498,17 +498,13 @@ suite('AgentHostStateManager', () => {
 			assert.deepStrictEqual({
 				envelopeTypes: envelopes.map(e => e.action.type),
 				sessionMcpServers: manager.getSessionState(sessionUri)?.mcpServers,
-				perServerState: manager.getMcpServerState(mcpResource),
-				snapshot: manager.getSnapshot(mcpResource)?.state,
 			}, {
 				envelopeTypes: [ActionType.McpServerAdded],
 				sessionMcpServers: [summary],
-				perServerState: { label: 'Server 1', status: summary.status, messages: {} },
-				snapshot: { label: 'Server 1', status: summary.status, messages: {} },
 			});
 		});
 
-		test('setMcpServerStatus updates session summary and per-server slice', () => {
+		test('setMcpServerStatus updates session summary', () => {
 			manager.createSession(makeSessionSummary());
 			manager.createMcpServer(sessionUri, makeServerSummary());
 
@@ -521,43 +517,13 @@ suite('AgentHostStateManager', () => {
 			assert.deepStrictEqual({
 				envelopeTypes: envelopes.map(e => e.action.type),
 				sessionMcpServers: manager.getSessionState(sessionUri)?.mcpServers,
-				perServerState: manager.getMcpServerState(mcpResource),
 			}, {
 				envelopeTypes: [ActionType.McpServerStatusChanged],
 				sessionMcpServers: [{ resource: mcpResource, label: 'Server 1', status: newStatus }],
-				perServerState: { label: 'Server 1', status: newStatus, messages: {} },
 			});
 		});
 
-		test('mcpMessageReceived followed by mcpMessageRemoved updates messages map', () => {
-			manager.createSession(makeSessionSummary());
-			manager.createMcpServer(sessionUri, makeServerSummary());
-
-			const envelopes: ActionEnvelope[] = [];
-			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
-
-			const message: McpRpcMessage = {
-				kind: McpRpcMessageKind.Notification,
-				method: 'notifications/tools/list_changed',
-			};
-			manager.mcpMessageReceived(mcpResource, 'msg-1', message);
-
-			const afterReceive = manager.getMcpServerState(mcpResource);
-
-			manager.mcpMessageRemoved(mcpResource, 'msg-1');
-
-			assert.deepStrictEqual({
-				envelopeTypes: envelopes.map(e => e.action.type),
-				afterReceiveMessages: afterReceive?.messages,
-				afterRemoveMessages: manager.getMcpServerState(mcpResource)?.messages,
-			}, {
-				envelopeTypes: [ActionType.McpMessageReceived, ActionType.McpMessageRemoved],
-				afterReceiveMessages: { 'msg-1': message },
-				afterRemoveMessages: {},
-			});
-		});
-
-		test('removeMcpServer drops session summary entry and per-server slice', () => {
+		test('removeMcpServer drops session summary entry', () => {
 			manager.createSession(makeSessionSummary());
 			manager.createMcpServer(sessionUri, makeServerSummary());
 
@@ -569,13 +535,29 @@ suite('AgentHostStateManager', () => {
 			assert.deepStrictEqual({
 				envelopeTypes: envelopes.map(e => e.action.type),
 				sessionMcpServers: manager.getSessionState(sessionUri)?.mcpServers,
-				perServerState: manager.getMcpServerState(mcpResource),
 				snapshot: manager.getSnapshot(mcpResource),
 			}, {
 				envelopeTypes: [ActionType.McpServerRemoved],
 				sessionMcpServers: undefined,
-				perServerState: undefined,
 				snapshot: undefined,
+			});
+		});
+
+		test('createSession seeds initial MCP server summaries', () => {
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			const summary = makeServerSummary();
+			const state = manager.createSession(makeSessionSummary(), { mcpServers: [summary] });
+
+			assert.deepStrictEqual({
+				envelopeTypes: envelopes.map(e => e.action.type),
+				stateMcpServers: state.mcpServers,
+				snapshotMcpServers: (manager.getSnapshot(sessionUri)?.state as SessionState | undefined)?.mcpServers,
+			}, {
+				envelopeTypes: [],
+				stateMcpServers: [summary],
+				snapshotMcpServers: [summary],
 			});
 		});
 	});

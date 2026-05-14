@@ -72,15 +72,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IMcpServerDefinition } from '../../../../agentPlugins/common/pluginParsers.js';
 import { ILogger, NullLogService } from '../../../../log/common/log.js';
 import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
-import { ActionType, type ActionEnvelope } from '../../../common/state/sessionActions.js';
+import { type ActionEnvelope } from '../../../common/state/sessionActions.js';
 import {
-	McpRpcMessageKind,
 	McpServerStatusKind,
-	type McpRpcCallResponse,
 	type McpServerStatus,
 } from '../../../common/state/protocol/state.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
-import type { IMcpServerHandle } from '../../../common/mcpHost/mcpHostService.js';
+import type { IMcpServerHandle, IUpstreamMcpNotification, IUpstreamMcpRequest, IUpstreamMcpResponse } from '../../../common/mcpHost/mcpHostService.js';
 import { McpHostServiceImpl } from '../../../node/mcpHost/mcpHostServiceImpl.js';
 import { McpProxyFactory } from '../../../node/mcpHost/mcpProxy.js';
 import type { IMcpUpstream, IMcpUpstreamCapabilities } from '../../../node/mcpHost/mcpUpstream.js';
@@ -277,6 +275,21 @@ suite('MCP Apps round-trip (integration)', () => {
 		const envelopes: ActionEnvelope[] = [];
 		const envelopeSubscription = stateManager.onDidEmitEnvelope(e => envelopes.push(e));
 
+		// Install an upstream delegate that records every upstream-originated
+		// request/notification for later assertions.
+		const receivedNotifications: IUpstreamMcpNotification[] = [];
+		const receivedRequests: IUpstreamMcpRequest[] = [];
+		let nextRequestOutcome: IUpstreamMcpResponse = { result: { handled: true } };
+		const delegateRegistration = hostService.setUpstreamDelegate({
+			handleUpstreamRequest: async (request) => {
+				receivedRequests.push(request);
+				return nextRequestOutcome;
+			},
+			handleUpstreamNotification: (notification) => {
+				receivedNotifications.push(notification);
+			},
+		});
+
 		try {
 			// ---- 1. Register the MCP server. ----------------------------
 			const session = URI.parse('copilot:/00000000-0000-0000-0000-000000000001');
@@ -321,41 +334,25 @@ suite('MCP Apps round-trip (integration)', () => {
 			});
 
 			// ---- 3. Server→client notification. -------------------------
+			receivedNotifications.length = 0;
 			envelopes.length = 0;
 			fakeUpstream.pushNotification('ui/notifications/host-context-changed', { theme: 'dark' });
 			await flushMicrotasks();
 
-			const notificationEnvelopes = envelopes
-				.filter(e =>
-					e.action.type === ActionType.McpMessageReceived
-					&& e.action.message.kind === McpRpcMessageKind.Notification,
-				)
-				.map(e => {
-					const a = e.action;
-					if (a.type !== ActionType.McpMessageReceived || a.message.kind !== McpRpcMessageKind.Notification) {
-						return null;
-					}
-					return { method: a.message.method, params: a.message.params };
-				});
-
-			const phase3Summary = {
-				notifications: notificationEnvelopes,
+			assert.deepStrictEqual({
+				notifications: receivedNotifications.map(n => ({ method: n.method, params: n.params })),
 				envelopeKinds: envelopes.map(e => e.action.type),
-			};
-			assert.deepStrictEqual(phase3Summary, {
+			}, {
 				notifications: [{ method: 'ui/notifications/host-context-changed', params: { theme: 'dark' } }],
-				envelopeKinds: [ActionType.McpMessageReceived, ActionType.McpMessageRemoved],
+				envelopeKinds: [],
 			});
 
-			// ---- 4. Client→server `ui/*` call via mcpMessage. -----------
-			const clientResult = await hostService.sendMessage(
-				{
-					server: handle.resource.toString(),
-					method: 'ui/some-method',
-					params: { foo: 1 },
-				},
-				{ clientId: 'test-client', capabilities: { mcp: { apps: {} } } },
-			);
+			// ---- 4. Client→server `ui/*` call via mcpMethodCall. --------
+			const clientResult = await hostService.callMethod({
+				server: handle.resource.toString(),
+				method: 'ui/some-method',
+				params: { foo: 1 },
+			});
 
 			const sentUiRequest = fakeUpstream.lastReceivedRequest('ui/some-method');
 			assert.deepStrictEqual({
@@ -369,47 +366,20 @@ suite('MCP Apps round-trip (integration)', () => {
 			});
 
 			// ---- 5. Server→client request (`ui/open-link`). -------------
-			envelopes.length = 0;
+			receivedRequests.length = 0;
+			nextRequestOutcome = { result: { handled: true } };
 			const upstreamReqId = fakeUpstream.pushRequest('ui/open-link', { url: 'https://example.com' });
 			await flushMicrotasks();
 
-			const callEnvelope = envelopes.find(e =>
-				e.action.type === ActionType.McpMessageReceived
-				&& e.action.message.kind === McpRpcMessageKind.Call,
-			);
-			assert.ok(callEnvelope, 'expected an mcp/messageReceived envelope for the upstream-originated call');
-			const callAction = callEnvelope.action;
-			if (callAction.type !== ActionType.McpMessageReceived || callAction.message.kind !== McpRpcMessageKind.Call) {
-				throw new Error('callEnvelope shape unexpected');
-			}
-			const messageId = callAction.messageId;
-
 			assert.deepStrictEqual({
-				method: callAction.message.method,
-				request: callAction.message.request,
-				response: callAction.message.response,
-				envelopeKinds: envelopes.map(e => e.action.type),
-			}, {
-				method: 'ui/open-link',
-				request: { url: 'https://example.com' },
-				response: undefined,
-				envelopeKinds: [ActionType.McpMessageReceived],
-			});
-
-			// ---- 6. Client responds via deliverResponse. ----------------
-			envelopes.length = 0;
-			const response: McpRpcCallResponse = { jsonrpc: '2.0', id: 'unused', result: { handled: true } };
-			hostService.deliverResponse(handle.resource, messageId, response);
-			await flushMicrotasks();
-
-			assert.deepStrictEqual({
+				requests: receivedRequests.map(r => ({ method: r.method, params: r.params })),
 				upstreamResponse: fakeUpstream.lastResponseTo(upstreamReqId),
-				envelopeKinds: envelopes.map(e => e.action.type),
 			}, {
+				requests: [{ method: 'ui/open-link', params: { url: 'https://example.com' } }],
 				upstreamResponse: { jsonrpc: '2.0', id: upstreamReqId, result: { handled: true } },
-				envelopeKinds: [ActionType.McpMessageRemoved],
 			});
 		} finally {
+			delegateRegistration.dispose();
 			envelopeSubscription.dispose();
 			hostService.dispose();
 			proxyFactory.dispose();

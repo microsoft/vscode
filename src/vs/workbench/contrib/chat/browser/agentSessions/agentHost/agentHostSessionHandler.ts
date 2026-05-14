@@ -711,17 +711,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return true;
 			},
 		);
-		this._activeSessions.set(sessionResource, session);
-
-		// Wire up live MCP-server summaries from the session subscription
-		// into the chat session, and register the session with the global
-		// MCP-auth registry so the chat input UI can find it. Both bindings
-		// are torn down with the chat session.
-		this._wireMcpServerState(sessionResource, resolvedSession, session);
+		this._registerActiveSession(sessionResource, resolvedSession, session);
 
 		if (!isNewSession) {
-			this._ensurePendingMessageSubscription(sessionResource, resolvedSession);
-
 			// If there are historical turns with file edits, eagerly create
 			// the editing session once the ChatModel is available so that
 			// edit pills render with diff info on session restore.
@@ -738,10 +730,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (activeTurnId && initialProgress !== undefined) {
 				this._reconnectToActiveTurn(resolvedSession, activeTurnId, session, initialProgress);
 			}
-
-			// For existing sessions, start watching for server-initiated turns
-			// immediately. For new sessions, this is deferred to _createAndSubscribe.
-			this._watchForServerInitiatedTurns(resolvedSession, sessionResource);
 		}
 
 		return session;
@@ -800,16 +788,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// sessions provider involved, agent host not connected at
 			// folder-pick time, or this session was created via a legacy/
 			// test path). Fall back to the original create-then-subscribe
-			// flow.
+			// flow. `_createAndSubscribe` will call
+			// {@link _ensureSessionSubscription} after the backend session
+			// exists, which wires MCP-server state into the chat session
+			// via the auto-wiring path described on
+			// {@link _ensureSessionSubscription}.
 			await this._createAndSubscribe(request.sessionResource, this._createModelSelection(request.userSelectedModelId, request.modelConfiguration), undefined, request.agentHostSessionConfig);
 		} else {
 			// Eager-created session: take a refcounted subscription so the
 			// handler observes state changes for the duration of the chat
-			// session, then wire up the per-turn machinery that
-			// `_createAndSubscribe` would normally set up.
+			// session. The `_ensureSessionSubscription` call also auto-wires
+			// the per-session bindings (MCP-server state, pending-message
+			// sync, server-initiated turn detection) via
+			// {@link _wireActiveSession} on first creation.
 			this._ensureSessionSubscription(sessionKey);
-			this._ensurePendingMessageSubscription(request.sessionResource, resolvedSession);
-			this._watchForServerInitiatedTurns(resolvedSession, request.sessionResource);
 
 			// Push the user-selected session config (e.g. isolation = worktree)
 			// to the agent so its provisional record materializes with the
@@ -2416,7 +2408,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		this._logService.trace(`[AgentHost] Created session: ${session.toString()}`);
 
-		// Subscribe to the new session's state
+		// Subscribe to the new session's state. The first call here also
+		// auto-wires the per-session bindings (MCP-server state, pending-
+		// message sync, server-initiated turn detection) into the chat
+		// session via {@link _wireActiveSession} \u2014 see
+		// {@link _ensureSessionSubscription}.
 		const newSub = this._ensureSessionSubscription(session.toString());
 		if (!this._getSessionState(session.toString())) {
 			// Wait for the subscription to hydrate
@@ -2424,12 +2420,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const d = newSub.onDidChange(() => { d.dispose(); resolve(); });
 			});
 		}
-
-		// Start syncing the chat model's pending requests to the protocol
-		this._ensurePendingMessageSubscription(sessionResource, session);
-
-		// Start watching for server-initiated turns on this session
-		this._watchForServerInitiatedTurns(session, sessionResource);
 
 		return session;
 	}
@@ -2727,14 +2717,64 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/**
 	 * Get or create a session subscription. The first call for a given URI
 	 * triggers a server subscribe; subsequent calls increment the refcount.
+	 *
+	 * On first-create, if a chat session for this backend URI is already
+	 * registered in {@link _activeSessions}, the per-session bindings are
+	 * auto-wired into it via {@link _wireActiveSession}. The complementary
+	 * half of this pact lives in {@link _registerActiveSession}: when an
+	 * active chat session is registered after the handler has already
+	 * subscribed, that helper performs the wiring instead. Between the two,
+	 * each session's bindings are wired exactly once, regardless of which
+	 * event (subscribe vs. activate) happens first.
+	 *
+	 * Subagent child sessions and lazy seed-only subscriptions never appear
+	 * in {@link _activeSessions}, so the auto-wire is a safe no-op for them.
 	 */
 	private _ensureSessionSubscription(sessionUri: string): IAgentSubscription<SessionState> {
-		let ref = this._sessionSubscriptions.get(sessionUri);
-		if (!ref) {
-			ref = this._config.connection.getSubscription(StateComponents.Session, URI.parse(sessionUri));
-			this._sessionSubscriptions.set(sessionUri, ref);
+		const existing = this._sessionSubscriptions.get(sessionUri);
+		if (existing) {
+			return existing.object;
+		}
+		const ref = this._config.connection.getSubscription(StateComponents.Session, URI.parse(sessionUri));
+		this._sessionSubscriptions.set(sessionUri, ref);
+		for (const [chatResource, chatSession] of this._activeSessions) {
+			if (this._resolveSessionUri(chatResource).toString() === sessionUri) {
+				this._wireActiveSession(chatResource, URI.parse(sessionUri), chatSession);
+				break;
+			}
 		}
 		return ref.object;
+	}
+
+	/**
+	 * Register a freshly-constructed chat session as active and, when the
+	 * handler is already subscribed to its backend URI, wire its per-session
+	 * bindings immediately via {@link _wireActiveSession}. When no
+	 * subscription exists yet, wiring is deferred until the first
+	 * {@link _ensureSessionSubscription} call for the backend URI (see the
+	 * auto-wire path there). The dual trigger guarantees each session's
+	 * bindings are wired exactly once, no matter which event — subscribe or
+	 * activate — happens first.
+	 */
+	private _registerActiveSession(sessionResource: URI, backendSession: URI, session: AgentHostChatSession): void {
+		this._activeSessions.set(sessionResource, session);
+		if (this._sessionSubscriptions.has(backendSession.toString())) {
+			this._wireActiveSession(sessionResource, backendSession, session);
+		}
+	}
+
+	/**
+	 * Per-session bindings that all require both an active subscription on
+	 * the backend URI *and* the chat session being live: MCP-server state
+	 * routing, chat-model pending-request sync, and server-initiated turn
+	 * detection. Called once per chat session from whichever of
+	 * {@link _ensureSessionSubscription} or {@link _registerActiveSession}
+	 * observes the second of the two preconditions arriving.
+	 */
+	private _wireActiveSession(sessionResource: URI, backendSession: URI, session: AgentHostChatSession): void {
+		this._wireMcpServerState(sessionResource, backendSession, session);
+		this._ensurePendingMessageSubscription(sessionResource, backendSession);
+		this._watchForServerInitiatedTurns(backendSession, sessionResource);
 	}
 
 	/**
@@ -2766,6 +2806,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * and registers the session with the workbench-scoped MCP auth
 	 * registry so the chat input UI can look it up. Both bindings are
 	 * torn down with the chat session.
+	 *
+	 * Only reachable through {@link _wireActiveSession}, which guarantees
+	 * both the backend subscription and the active chat session are live
+	 * before invocation — subscribing prior to `createSession` races the
+	 * wire and fails with `AHP_SESSION_NOT_FOUND`, which silently buffers
+	 * per-session envelopes without firing `onDidChange`.
 	 */
 	private _wireMcpServerState(sessionResource: URI, backendSession: URI, session: AgentHostChatSession): void {
 		const sub = this._ensureSessionSubscription(backendSession.toString());

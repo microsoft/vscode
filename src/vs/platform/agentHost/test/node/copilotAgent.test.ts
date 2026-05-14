@@ -29,7 +29,6 @@ import { ActionType, type IDeltaAction } from '../../common/state/sessionActions
 import type { IMcpServerDefinition, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { McpAuthRequiredReason, McpServerStatusKind, type McpServerSummary } from '../../common/state/protocol/state.js';
-import type { McpMessageResult, ServerMcpCapabilities } from '../../common/state/protocol/commands.js';
 import { buildMcpServerUri } from '../../common/state/mcpServerUri.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -1199,11 +1198,7 @@ suite('CopilotAgent', () => {
 			);
 		});
 
-		test('createSession eagerly publishes MCP servers for the new provisional session', async () => {
-			// Regression: the auth flow for protected MCP servers must run
-			// before the user sends their first message; that requires
-			// `IMcpHostService.setSessionServers` to fire as soon as the
-			// provisional session is created, not on first `sendMessage`.
+		test('createSession publishes MCP servers and returns host summaries for initial state', async () => {
 			const spy = new SpyMcpHostService();
 			const agent = createTestAgent(disposables, {
 				copilotClient: new TestCopilotClient([]),
@@ -1213,6 +1208,13 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 
 				const session = AgentSession.uri('copilotcli', 'eager-1');
+				const serverSummary: McpServerSummary = {
+					resource: buildMcpServerUri(session, 'github').toString(),
+					label: 'github',
+					status: { kind: McpServerStatusKind.Starting },
+				};
+				spy.sessionSummaries.set(session.toString(), [serverSummary]);
+
 				await agent.createSession({
 					session,
 					workingDirectory: URI.file('/workspace'),
@@ -1223,19 +1225,11 @@ suite('CopilotAgent', () => {
 					},
 				});
 
-				// The eager publish runs in a void-chained microtask; wait
-				// for it to land via observable polling on the spy's call list.
-				const calls = spy.setSessionServersCalls;
-				const callsObs = observableValue<number>('callCount', calls.length);
-				const tick = setInterval(() => callsObs.set(calls.length, undefined), 1);
-				try {
-					await waitForState(callsObs, n => calls.some(c => c.session.toString() === session.toString()));
-				} finally {
-					clearInterval(tick);
-				}
-
-				const sessionCalls = calls.filter(c => c.session.toString() === session.toString());
-				assert.ok(sessionCalls.length >= 1, `expected at least one setSessionServers call for ${session.toString()}`);
+				assert.deepStrictEqual({
+					publishedSessions: spy.setSessionServersCalls.map(call => call.session.toString()),
+				}, {
+					publishedSessions: [session.toString()],
+				});
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -1250,9 +1244,9 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 
-				// Create a provisional session WITH an active client + tools so
-				// the eager publish on createSession gives us a non-empty
-				// `setSessionServers` call to observe being cleared on dispose.
+				// Create a provisional session WITH an active client so the
+				// active-client lifecycle publishes a server set that dispose
+				// can later clear.
 				const session = AgentSession.uri('copilotcli', 'dispose-1');
 				const result = await agent.createSession({
 					session,
@@ -1263,16 +1257,6 @@ suite('CopilotAgent', () => {
 						customizations: [],
 					},
 				});
-
-				// Wait for the eager publish to land before we measure.
-				const calls = spy.setSessionServersCalls;
-				const callsObs = observableValue<number>('callCount', calls.length);
-				const tick = setInterval(() => callsObs.set(calls.length, undefined), 1);
-				try {
-					await waitForState(callsObs, () => calls.some(c => c.session.toString() === result.session.toString()));
-				} finally {
-					clearInterval(tick);
-				}
 
 				const beforeDispose = spy.setSessionServersCalls.length;
 				await agent.disposeSession(result.session);
@@ -1359,8 +1343,8 @@ suite('CopilotAgent', () => {
 
 class SpyMcpHostService implements IMcpHostService {
 	declare readonly _serviceBrand: undefined;
-	readonly serverCapabilities: ServerMcpCapabilities = {};
 	readonly setSessionServersCalls: { session: URI; servers: readonly IMcpServerDefinition[] }[] = [];
+	readonly sessionSummaries = new Map<string, readonly McpServerSummary[]>();
 
 	private readonly _stubs = new Map<string, IMcpServerHandle>();
 
@@ -1371,8 +1355,12 @@ class SpyMcpHostService implements IMcpHostService {
 	getServer(resource: URI): IMcpServerHandle | undefined {
 		return this._stubs.get(resource.toString());
 	}
-	async sendMessage(): Promise<McpMessageResult> { throw new Error('not used in test'); }
-	deliverResponse(): void { /* no-op */ }
+	getServerSummaries(session: URI): readonly McpServerSummary[] {
+		return this.sessionSummaries.get(session.toString()) ?? [];
+	}
+	async callMethod(): Promise<{ result: unknown }> { throw new Error('not used in test'); }
+	notify(): void { /* no-op */ }
+	setUpstreamDelegate(): IDisposable { return { dispose: () => { /* no-op */ } }; }
 
 	registerStubServer(resource: URI, endpoint: IObservable<URI | undefined>, summary?: IObservable<McpServerSummary>): IMcpServerHandle {
 		const summaryObs = summary ?? observableValue<McpServerSummary>('summary', {
@@ -1385,8 +1373,10 @@ class SpyMcpHostService implements IMcpHostService {
 			summary: summaryObs,
 			endpoint,
 			authenticate: async () => true,
-			sendMessage: async () => { throw new Error('not used in test'); },
-			deliverResponse: () => { /* no-op */ },
+			callMethod: async () => { throw new Error('not used in test'); },
+			notify: () => { /* no-op */ },
+			getToolUiMeta: () => undefined,
+			getUiHostCapabilities: () => ({}),
 			dispose: () => { /* no-op */ },
 		};
 		this._stubs.set(resource.toString(), handle);

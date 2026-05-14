@@ -10,7 +10,7 @@ import {
 	isJsonRpcErrorResponse,
 	isJsonRpcSuccessResponse,
 } from '../../../../base/common/jsonRpcProtocol.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -20,17 +20,16 @@ import { IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers
 import { ILogService, ILogger } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import {
-	IMcpClientContext,
 	IMcpHostService,
+	IMcpHostUpstreamDelegate,
 	IMcpServerHandle,
+	IMcpUiToolMeta,
 } from '../../common/mcpHost/mcpHostService.js';
 import { buildMcpServerUri } from '../../common/state/mcpServerUri.js';
 import { JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
-import { McpMessageParams, McpMessageResult, ServerMcpCapabilities } from '../../common/state/protocol/commands.js';
+import { McpMethodCallParams, McpMethodCallResult, McpNotificationParams } from '../../common/state/protocol/commands.js';
 import {
-	McpRpcCallResponse,
-	McpRpcMessage,
-	McpRpcMessageKind,
+	AhpMcpUiHostCapabilities,
 	McpServerStatus,
 	McpServerStatusKind,
 	McpServerSummary,
@@ -41,6 +40,7 @@ import { McpHttpUpstream } from './mcpHttpUpstream.js';
 import { McpAppsInitializeInjector } from './mcpInitializeInjector.js';
 import { McpStdioUpstream } from './mcpStdioUpstream.js';
 import { IMcpProxy, IMcpProxyFactory, IMcpProxyOptions } from './mcpProxy.js';
+import type { IUpstreamRequestOutcome } from './mcpProxyRoute.js';
 import { IMcpUpstream } from './mcpUpstream.js';
 
 /** Internal state of an {@link Entry} — disposed entries refuse new mutations. */
@@ -63,13 +63,6 @@ class Entry extends Disposable implements IMcpServerHandle {
 
 	private _proxy: IMcpProxy | undefined;
 	private _lifecycle: EntryLifecycle = EntryLifecycle.Live;
-	/**
-	 * Host-minted messageIds for outstanding upstream→client requests.
-	 * Used as a sanity check before forwarding the client's response to
-	 * the proxy. The proxy maintains the authoritative
-	 * `messageId → JSON-RPC id` mapping.
-	 */
-	private readonly _pendingMessageIds = new Set<string>();
 
 	constructor(
 		public readonly session: URI,
@@ -116,18 +109,6 @@ class Entry extends Disposable implements IMcpServerHandle {
 		this._summary.set({ ...current, status }, undefined);
 	}
 
-	public addMessageId(id: string): void {
-		this._pendingMessageIds.add(id);
-	}
-
-	public hasMessageId(id: string): boolean {
-		return this._pendingMessageIds.has(id);
-	}
-
-	public removeMessageId(id: string): void {
-		this._pendingMessageIds.delete(id);
-	}
-
 	public async authenticate(resource: string, token: string): Promise<boolean> {
 		if (!this._proxy) {
 			return false;
@@ -135,19 +116,10 @@ class Entry extends Disposable implements IMcpServerHandle {
 		return this._proxy.authenticate(resource, token);
 	}
 
-	public async sendMessage(params: McpMessageParams, _client: IMcpClientContext): Promise<McpMessageResult> {
+	public async callMethod(params: McpMethodCallParams): Promise<McpMethodCallResult> {
 		const proxy = this._proxy;
 		if (!proxy) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, 'MCP server is not yet ready');
-		}
-		if (params.notification) {
-			const notification: IJsonRpcNotification = {
-				jsonrpc: '2.0',
-				method: params.method,
-				params: params.params,
-			};
-			await proxy.sendClientMessage(notification);
-			return {};
 		}
 		const request: IJsonRpcRequest = {
 			jsonrpc: '2.0',
@@ -168,8 +140,26 @@ class Entry extends Disposable implements IMcpServerHandle {
 		throw new ProtocolError(JsonRpcErrorCodes.InternalError, 'Upstream MCP server returned an invalid JSON-RPC message');
 	}
 
-	public deliverResponse(messageId: string, response: McpRpcCallResponse): void {
-		this._proxy?.deliverClientResponse(messageId, response);
+	public notify(params: McpNotificationParams): void {
+		const proxy = this._proxy;
+		if (!proxy) {
+			this._logService.warn(`[McpHostService] notify dropped for '${this.resource.toString()}': proxy not ready`);
+			return;
+		}
+		const notification: IJsonRpcNotification = {
+			jsonrpc: '2.0',
+			method: params.method,
+			params: params.params,
+		};
+		void proxy.sendClientMessage(notification);
+	}
+
+	public getToolUiMeta(toolName: string): IMcpUiToolMeta | undefined {
+		return this._proxy?.getToolUiMeta(toolName);
+	}
+
+	public getUiHostCapabilities(): AhpMcpUiHostCapabilities {
+		return this._proxy?.getUiHostCapabilities() ?? {};
 	}
 }
 
@@ -180,17 +170,14 @@ class Entry extends Disposable implements IMcpServerHandle {
  * Holds one {@link Entry} per registered `(session, server)` pair.
  * Entries are keyed by their `mcp:/...` resource URI in a
  * {@link ResourceMap}; that mapping is the ground truth for
- * {@link getServer}, {@link sendMessage}, {@link deliverResponse}, and
+ * {@link getServer}, {@link callMethod}, {@link notify}, and
  * {@link setSessionServers} diffing.
  */
 export class McpHostServiceImpl extends Disposable implements IMcpHostService {
 
 	public readonly _serviceBrand: undefined;
 
-	public readonly serverCapabilities: ServerMcpCapabilities = {
-		message: true,
-		perServerSubscriptions: true,
-	};
+	private _upstreamDelegate: IMcpHostUpstreamDelegate | undefined;
 
 	/** All live entries, keyed by resource URI. */
 	private readonly _entries = new ResourceMap<Entry>();
@@ -274,34 +261,52 @@ export class McpHostServiceImpl extends Disposable implements IMcpHostService {
 		return this._entries.get(resource);
 	}
 
-	public async sendMessage(params: McpMessageParams, client: IMcpClientContext): Promise<McpMessageResult> {
+	public getServerSummaries(session: URI): readonly McpServerSummary[] {
+		const resources = this._bySession.get(session);
+		if (!resources) {
+			return [];
+		}
+		const result: McpServerSummary[] = [];
+		for (const resourceString of resources) {
+			const entry = this._entries.get(URI.parse(resourceString));
+			if (entry) {
+				result.push(entry.summary.get());
+			}
+		}
+		return result;
+	}
+
+	public async callMethod(params: McpMethodCallParams): Promise<McpMethodCallResult> {
 		const resource = URI.parse(params.server);
 		const entry = this._entries.get(resource);
 		if (!entry) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unknown MCP server: ${params.server}`);
 		}
-		return entry.sendMessage(params, client);
+		return entry.callMethod(params);
 	}
 
-	public deliverResponse(mcpServer: URI, messageId: string, response: McpRpcCallResponse): void {
-		const entry = this._entries.get(mcpServer);
+	public notify(params: McpNotificationParams): void {
+		const resource = URI.parse(params.server);
+		const entry = this._entries.get(resource);
 		if (!entry) {
-			this._logService.warn(`[McpHostService] deliverResponse for unknown server '${mcpServer.toString()}' — dropping`);
+			this._logService.warn(`[McpHostService] notify dropped for unknown server '${params.server}'`);
 			return;
 		}
-		if (!entry.hasMessageId(messageId)) {
-			this._logService.warn(`[McpHostService] deliverResponse for unknown messageId '${messageId}' on server '${mcpServer.toString()}' — dropping`);
-			return;
+		entry.notify(params);
+	}
+
+	public setUpstreamDelegate(delegate: IMcpHostUpstreamDelegate): IDisposable {
+		if (this._upstreamDelegate) {
+			this._logService.warn('[McpHostService] setUpstreamDelegate replacing existing delegate');
 		}
-		try {
-			entry.deliverResponse(messageId, response);
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			this._logService.warn(`[McpHostService] deliverResponse: forwarding to proxy threw for messageId '${messageId}' on '${mcpServer.toString()}': ${message}`);
-			// Fall through — we still need to remove the message from state to avoid an orphan.
-		}
-		entry.removeMessageId(messageId);
-		this._stateManager.mcpMessageRemoved(entry.resource.toString(), messageId);
+		this._upstreamDelegate = delegate;
+		return {
+			dispose: () => {
+				if (this._upstreamDelegate === delegate) {
+					this._upstreamDelegate = undefined;
+				}
+			},
+		};
 	}
 
 	// ---- Internals ---------------------------------------------------------
@@ -312,14 +317,16 @@ export class McpHostServiceImpl extends Disposable implements IMcpHostService {
 		const entry = new Entry(session, def, resource, initialStatus, this._logService);
 		this._entries.set(resource, entry);
 
-		// Dispatch `mcp/serverAdded` synchronously BEFORE kicking off the
-		// async proxy creation so the AHP client sees the `Starting` server
-		// immediately.
-		this._stateManager.createMcpServer(session.toString(), {
-			resource: resource.toString(),
-			label: def.name,
-			status: initialStatus,
-		});
+		if (this._hasSessionState(session)) {
+			// Dispatch `mcp/serverAdded` synchronously BEFORE kicking off the
+			// async proxy creation so the AHP client sees the `Starting` server
+			// immediately.
+			this._stateManager.createMcpServer(session.toString(), {
+				resource: resource.toString(),
+				label: def.name,
+				status: initialStatus,
+			});
+		}
 
 		// Async proxy creation — don't await; the caller of
 		// setSessionServers should not block on transport startup.
@@ -335,7 +342,9 @@ export class McpHostServiceImpl extends Disposable implements IMcpHostService {
 			resources.delete(entry.resource.toString());
 		}
 		// Dispatch `mcp/serverRemoved` BEFORE disposing — entry.dispose() is silent.
-		this._stateManager.removeMcpServer(session.toString(), entry.resource.toString());
+		if (this._hasSessionState(session)) {
+			this._stateManager.removeMcpServer(session.toString(), entry.resource.toString());
+		}
 		entry.dispose();
 	}
 
@@ -358,11 +367,13 @@ export class McpHostServiceImpl extends Disposable implements IMcpHostService {
 			upstream,
 			// Always inject the MCP Apps capability when the SDK initializes
 			// the upstream. Servers that don't speak Apps simply ignore the
-			// extension entry. Runtime gating in `sendMessage` (above)
-			// prevents AHP clients without `mcp.apps` from invoking ui/*
-			// methods on those servers.
+			// extension entry. Per-tool-call gating now happens via
+			// `_meta.uiHostCapabilities` on tool call states; the AHP host
+			// remains a transparent forwarder for `mcpMethodCall` /
+			// `mcpNotification` traffic.
 			initializeInjector: new McpAppsInitializeInjector(),
-			onUpstreamMessage: msg => this._onUpstreamMessage(entry, msg),
+			onUpstreamRequest: (method, params) => this._onUpstreamRequest(entry, method, params),
+			onUpstreamNotification: (method, params) => this._onUpstreamNotification(entry, method, params),
 			onAuthRequired: status => this._onProxyStatusChange(entry, status),
 			onStateChange: status => this._onProxyStatusChange(entry, status),
 			logger: this._logService,
@@ -408,31 +419,44 @@ export class McpHostServiceImpl extends Disposable implements IMcpHostService {
 		return new McpHttpUpstream({ config, logger });
 	}
 
-	private _onUpstreamMessage(entry: Entry, msg: McpRpcMessage): string {
-		// NOTE: We mint a fresh UUID for every upstream-originated
-		// message. The proxy stores `messageId → JSON-RPC id` internally,
-		// so the host service does not need to know the original
-		// JSON-RPC id to route responses back.
-		const messageId = generateUuid();
-		this._stateManager.mcpMessageReceived(entry.resource.toString(), messageId, msg);
-
-		if (msg.kind === McpRpcMessageKind.Call) {
-			entry.addMessageId(messageId);
-		} else {
-			// Notifications have no response phase. Remove immediately so
-			// clients don't see sticky entries.
-			//
-			// TODO: Phase 5 may want sticky notifications for MCP Apps so
-			// late-subscribing clients see them. Revisit when wiring up
-			// MCP Apps.
-			this._stateManager.mcpMessageRemoved(entry.resource.toString(), messageId);
+	private async _onUpstreamRequest(entry: Entry, method: string, params: unknown): Promise<IUpstreamRequestOutcome> {
+		const delegate = this._upstreamDelegate;
+		if (!delegate) {
+			return {
+				error: {
+					code: JsonRpcErrorCodes.MethodNotFound,
+					message: `No AHP client is listening for upstream MCP requests on '${entry.resource.toString()}'`,
+				},
+			};
 		}
-		return messageId;
+		try {
+			const response = await delegate.handleUpstreamRequest({ server: entry.resource, method, params });
+			return response.error ? { error: response.error } : { result: response.result };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			this._logService.warn(`[McpHostService] upstream request handler threw for method '${method}' on '${entry.resource.toString()}': ${message}`);
+			return { error: { code: JsonRpcErrorCodes.InternalError, message } };
+		}
+	}
+
+	private _onUpstreamNotification(entry: Entry, method: string, params: unknown): void {
+		const delegate = this._upstreamDelegate;
+		if (!delegate) {
+			return;
+		}
+		try {
+			delegate.handleUpstreamNotification({ server: entry.resource, method, params });
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			this._logService.warn(`[McpHostService] upstream notification handler threw for method '${method}' on '${entry.resource.toString()}': ${message}`);
+		}
 	}
 
 	private _onProxyStatusChange(entry: Entry, status: McpServerStatus): void {
 		entry.setStatus(status);
-		this._stateManager.setMcpServerStatus(entry.session.toString(), entry.resource.toString(), status);
+		if (this._hasSessionState(entry.session)) {
+			this._stateManager.setMcpServerStatus(entry.session.toString(), entry.resource.toString(), status);
+		}
 	}
 
 	private _reportProxyCreateError(entry: Entry, err: unknown): void {
@@ -443,6 +467,12 @@ export class McpHostServiceImpl extends Disposable implements IMcpHostService {
 			error: { errorType: 'proxyCreateFailed', message },
 		};
 		entry.setStatus(status);
-		this._stateManager.setMcpServerStatus(entry.session.toString(), entry.resource.toString(), status);
+		if (this._hasSessionState(entry.session)) {
+			this._stateManager.setMcpServerStatus(entry.session.toString(), entry.resource.toString(), status);
+		}
+	}
+
+	private _hasSessionState(session: URI): boolean {
+		return this._stateManager.getSessionState(session.toString()) !== undefined;
 	}
 }

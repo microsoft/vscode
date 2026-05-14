@@ -14,65 +14,16 @@ export type { ConfigPropertySchema, ConfigSchema, SessionConfigPropertySchema, S
 // ─── initialize ──────────────────────────────────────────────────────────────
 
 /**
- * MCP Apps support — presence (even as an empty object) signals the client
- * can render MCP App webviews and proxy `ui/*` traffic for the
- * [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) extension
- * (`io.modelcontextprotocol/ui`). Future feature flags can be added as
- * optional fields without breaking the wire.
- *
- * @category Commands
- */
-export interface ClientMcpAppsCapability {
-}
-
-/**
- * Client-side MCP capabilities. Nested fields gate specific features.
- *
- * @category Commands
- */
-export interface ClientMcpCapabilities {
-	/**
-	 * Client speaks the MCP Apps extension. See
-	 * {@link ClientMcpAppsCapability}.
-	 */
-	apps?: ClientMcpAppsCapability;
-}
-
-/**
  * Capabilities advertised by the **client** during `initialize`. All fields
  * are optional and additive; the server treats absence the same as `false` /
  * "not supported".
  *
- * @category Commands
- */
-export interface ClientCapabilities {
-	/**
-	 * Client speaks MCP-related extensions of AHP. Presence of this object
-	 * (even empty) signals nothing on its own; nested fields gate specific
-	 * features.
-	 */
-	mcp?: ClientMcpCapabilities;
-}
-
-/**
- * Server-side MCP capabilities. Each field gates a specific surface that
- * the host may or may not expose.
+ * Currently empty — MCP App support is negotiated per tool call via
+ * `_meta.uiHostCapabilities` on the tool call state.
  *
  * @category Commands
  */
-export interface ServerMcpCapabilities {
-	/**
-	 * Host accepts the `mcpMessage` command (client → MCP-server JSON-RPC
-	 * forwarding). Hosts that do not implement it MUST return
-	 * `MethodNotFound`.
-	 */
-	message?: boolean;
-	/**
-	 * Host exposes per-server `mcp:/<sessionId>/<serverId>` subscribable
-	 * URIs in addition to the lightweight {@link McpServerSummary} on
-	 * each session.
-	 */
-	perServerSubscriptions?: boolean;
+export interface ClientCapabilities {
 }
 
 /**
@@ -80,13 +31,12 @@ export interface ServerMcpCapabilities {
  * fields are optional and additive; the client treats absence the same as
  * `false` / "not supported".
  *
+ * Currently empty — MCP App support is negotiated per tool call via
+ * `_meta.uiHostCapabilities` on the tool call state.
+ *
  * @category Commands
  */
 export interface ServerCapabilities {
-	/**
-	 * Host runs an MCP gateway and surfaces per-server state via AHP.
-	 */
-	mcp?: ServerMcpCapabilities;
 }
 
 /**
@@ -1051,78 +1001,118 @@ export interface SessionConfigCompletionsResult {
 	items: SessionConfigValueItem[];
 }
 
-// ─── mcpMessage ──────────────────────────────────────────────────────────────
+// ─── mcpMethodCall ──────────────────────────────────────────────────────────
 
 /**
- * Forwards a JSON-RPC message from the client to a specific MCP server
- * managed by the host. Used for client-initiated traffic that would
- * otherwise be sent directly over MCP — most importantly the view-side
- * half of the [MCP Apps](https://github.com/modelcontextprotocol/ext-apps)
- * extension (`ui/initialize`, `ui/open-link`, `ui/message`,
- * `ui/request-display-mode`, `ui/update-model-context`, etc.) and any
- * client-issued `tools/call` or `resources/read` an app is allowed to make.
+ * Forwards a JSON-RPC **method call** between an AHP peer and a specific
+ * MCP server managed by the host. Bidirectional: both the client and the
+ * server may issue `mcpMethodCall` requests.
  *
- * Hosts gate this command behind {@link ServerCapabilities.mcp.message}.
- * Hosts that do not implement it MUST return `MethodNotFound`.
+ * - Client → Server: the client invokes an MCP method exposed by the
+ *   underlying MCP server (for example `tools/list`, `resources/read`,
+ *   or `ui/*` traffic when the tool surfaces an MCP App).
+ * - Server → Client: the host invokes a method that the client is expected
+ *   to satisfy (for example `sampling/createMessage`, `ui/open-link`, or
+ *   `resources/read` against a client-owned resource).
  *
- * Hosts MUST refuse `ui/*` methods when the client did not advertise
- * {@link ClientCapabilities.mcp.apps}. Hosts SHOULD refuse other methods
- * the underlying gateway does not allow (for example,
- * `sampling/createMessage` when per-session sampling consent is off).
+ * Notifications travel separately via `mcpNotification` (see
+ * {@link McpNotificationParams}). No AHP-level correlation id is required:
+ * each `mcpMethodCall` is a normal JSON-RPC request whose response *is*
+ * the response.
  *
- * No AHP-level correlation id is required: each `mcpMessage` is a normal
- * JSON-RPC request whose response *is* the response. Notifications are
- * fire-and-forget and signalled via the `notification` flag.
+ * Peers MUST refuse method calls that fall outside the capabilities they
+ * have advertised \u2014 today, that means the per-tool-call
+ * `_meta.uiHostCapabilities` declared by the producer of an MCP App tool
+ * call. Refusal is signalled by returning a JSON-RPC error.
  *
  * @category Commands
- * @method mcpMessage
- * @direction Client → Server
+ * @method mcpMethodCall
+ * @direction Bidirectional
  * @messageType Request
  * @version 1
  * @example
  * ```jsonc
- * // Client → Server (a UI app asks the host to open a link)
- * { "jsonrpc": "2.0", "id": 30, "method": "mcpMessage",
+ * // Client \u2192 Server (a UI app asks the host to open a link)
+ * { "jsonrpc": "2.0", "id": 30, "method": "mcpMethodCall",
  *   "params": {
  *     "server": "mcp:/<sessionId>/github",
  *     "method": "ui/open-link",
  *     "params": { "url": "https://github.com/owner/repo" }
  *   } }
  *
- * // Server → Client
+ * // Server \u2192 Client
  * { "jsonrpc": "2.0", "id": 30, "result": { "result": {} } }
  * ```
  */
-export interface McpMessageParams {
+export interface McpMethodCallParams {
 	/**
-	 * Server URI (`mcp:/<sessionId>/<serverId>`). The host derives the
-	 * owning session from this URI; no separate `session` field is required.
-	 * Agent host implementations are free to make the server URI
-	 * self-identifying to a session in whatever scheme they choose.
+	 * Stable identifier (typically `mcp:/<sessionId>/<serverId>`) of the
+	 * MCP server this call is scoped to. AHP treats the value as opaque \u2014
+	 * the host defines the scheme. Matches the
+	 * {@link McpServerSummary.resource} value surfaced on the session.
 	 */
 	server: URI;
-	/**
-	 * If `true`, this is a JSON-RPC notification — `result` is unused and
-	 * the host responds with an empty {@link McpMessageResult} synchronously.
-	 * If `false` or omitted, this is a JSON-RPC request and the host's
-	 * reply carries the MCP method's result (or a JSON-RPC error).
-	 */
-	notification?: boolean;
-	/** JSON-RPC method (e.g. `ui/open-link`, `tools/call`). */
+	/** JSON-RPC method (e.g. `tools/list`, `ui/open-link`). */
 	method: string;
-	/** Method params; opaque to AHP — typed by the MCP method. */
+	/** Method params; opaque to AHP \u2014 typed by the MCP method. */
 	params?: unknown;
 }
 
 /**
- * Result of the `mcpMessage` command.
+ * Result of `mcpMethodCall`.
  */
-export interface McpMessageResult {
+export interface McpMethodCallResult {
 	/**
-	 * Empty when {@link McpMessageParams.notification} is `true`. Otherwise
-	 * the result returned by the underlying MCP method, opaque to AHP.
+	 * The result payload returned by the underlying MCP method, opaque to
+	 * AHP. Receivers that wish to surface MCP-level errors SHOULD instead
+	 * return a JSON-RPC error response.
 	 */
-	result?: unknown;
+	result: unknown;
+}
+
+// ─── mcpNotification ────────────────────────────────────────────────────────
+
+/**
+ * Forwards a JSON-RPC **notification** between an AHP peer and a specific
+ * MCP server managed by the host. Bidirectional and fire-and-forget; no
+ * response is expected.
+ *
+ * Examples:
+ *
+ * - Server \u2192 Client: `notifications/tools/list_changed`,
+ *   `notifications/resources/updated`, `ui/notifications/host-context-changed`.
+ * - Client \u2192 Server: `notifications/message` log entries emitted by the
+ *   client on behalf of an MCP App.
+ *
+ * Peers MUST only emit notifications consistent with the capabilities
+ * they have advertised for the relevant tool call (see
+ * {@link AhpMcpUiHostCapabilities}).
+ *
+ * @category Notifications
+ * @method mcpNotification
+ * @direction Bidirectional
+ * @messageType Notification
+ * @version 1
+ * @example
+ * ```jsonc
+ * // Server \u2192 Client (the MCP server reported a tool list change)
+ * { "jsonrpc": "2.0", "method": "mcpNotification",
+ *   "params": {
+ *     "server": "mcp:/<sessionId>/github",
+ *     "method": "notifications/tools/list_changed"
+ *   } }
+ * ```
+ */
+export interface McpNotificationParams {
+	/**
+	 * Stable identifier of the MCP server this notification is scoped to.
+	 * Matches {@link McpMethodCallParams.server}.
+	 */
+	server: URI;
+	/** JSON-RPC method name. */
+	method: string;
+	/** Method params; opaque to AHP \u2014 typed by the MCP method. */
+	params?: unknown;
 }
 
 // ─── completions ─────────────────────────────────────────────────────────────

@@ -18,11 +18,9 @@ import {
 	McpServerType,
 } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { ActionType, type ActionEnvelope } from '../../../common/state/sessionActions.js';
+import { SessionStatus } from '../../../common/state/sessionState.js';
 import {
-	McpRpcMessageKind,
 	McpServerStatusKind,
-	type McpRpcCall,
-	type McpRpcCallResponse,
 	type McpServerStatus,
 } from '../../../common/state/protocol/state.js';
 import { JsonRpcErrorCodes } from '../../../common/state/protocol/errors.js';
@@ -33,6 +31,7 @@ import { McpHostServiceImpl } from '../../../node/mcpHost/mcpHostServiceImpl.js'
 import { buildMcpServerUri } from '../../../common/state/mcpServerUri.js';
 import type { IMcpUpstream, IMcpUpstreamCapabilities } from '../../../node/mcpHost/mcpUpstream.js';
 import type { IMcpProxy, IMcpProxyFactory, IMcpProxyOptions } from '../../../node/mcpHost/mcpProxy.js';
+import type { IUpstreamRequestOutcome } from '../../../node/mcpHost/mcpProxyRoute.js';
 
 // ----- Mocks ---------------------------------------------------------------
 
@@ -62,7 +61,6 @@ class StubProxy implements IMcpProxy {
 	public readonly endpoint: URI;
 	public disposed = false;
 	public readonly sentMessages: JsonRpcMessage[] = [];
-	public readonly deliveredResponses: { messageId: string; response: McpRpcCallResponse }[] = [];
 
 	/**
 	 * Synchronous reply for the next `sendClientMessage` call. If unset,
@@ -93,8 +91,12 @@ class StubProxy implements IMcpProxy {
 		return Promise.resolve(undefined);
 	}
 
-	public deliverClientResponse(messageId: string, response: McpRpcCallResponse): void {
-		this.deliveredResponses.push({ messageId, response });
+	public getToolUiMeta(): undefined {
+		return undefined;
+	}
+
+	public getUiHostCapabilities() {
+		return {};
 	}
 
 	public dispose(): void { this.disposed = true; }
@@ -175,13 +177,22 @@ function setupHarness(disposables: DisposableStore): IHarness {
 	const factory = new StubProxyFactory();
 	const service = disposables.add(new TestMcpHostService(stateManager, factory, logService));
 	const envelopes: ActionEnvelope[] = [];
+	const session = URI.parse('copilot:/test-session');
+	stateManager.createSession({
+		resource: session.toString(),
+		provider: 'copilot',
+		title: 'Test',
+		status: SessionStatus.Idle,
+		createdAt: Date.now(),
+		modifiedAt: Date.now(),
+	});
 	disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 	return {
 		service,
 		factory,
 		stateManager,
 		envelopes,
-		session: URI.parse('copilot:/test-session'),
+		session,
 	};
 }
 
@@ -233,6 +244,32 @@ suite('McpHostServiceImpl', () => {
 				resource: expectedResource,
 				label: 'foo',
 				status: { kind: McpServerStatusKind.Starting },
+			}],
+		});
+	});
+
+	test('setSessionServers records summaries without emitting actions before session state exists', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const factory = new StubProxyFactory();
+		const service = disposables.add(new TestMcpHostService(stateManager, factory, logService));
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+		const session = URI.parse('copilot:/pre-state');
+
+		service.setSessionServers(session, [stdioDef('foo')]);
+		await waitForCreate(factory);
+		factory.created[0].options.onStateChange({ kind: McpServerStatusKind.Ready });
+
+		assert.deepStrictEqual({
+			envelopes: envelopes.map(e => e.action.type),
+			summaries: service.getServerSummaries(session),
+		}, {
+			envelopes: [],
+			summaries: [{
+				resource: buildMcpServerUri(session, 'foo').toString(),
+				label: 'foo',
+				status: { kind: McpServerStatusKind.Ready },
 			}],
 		});
 	});
@@ -330,28 +367,26 @@ suite('McpHostServiceImpl', () => {
 		assert.strictEqual(h.service.getServer(URI.parse('mcp:/no-such/server')), undefined);
 	});
 
-	test('sendMessage for unknown server throws ProtocolError(InvalidParams)', async () => {
+	test('callMethod for unknown server throws ProtocolError(InvalidParams)', async () => {
 		const h = setupHarness(disposables);
 		const unknown = buildMcpServerUri(h.session, 'missing');
 		await assert.rejects(
-			() => h.service.sendMessage(
+			() => h.service.callMethod(
 				{ server: unknown.toString(), method: 'tools/list' },
-				{ clientId: 'c1', capabilities: undefined },
 			),
 			(err: Error) => err instanceof ProtocolError && err.code === JsonRpcErrorCodes.InvalidParams,
 		);
 	});
 
-	test('sendMessage for known server forwards to proxy.sendClientMessage', async () => {
+	test('callMethod for known server forwards to proxy.sendClientMessage', async () => {
 		const h = setupHarness(disposables);
 		h.service.setSessionServers(h.session, [stdioDef('foo')]);
 		await waitForCreate(h.factory);
 
 		const proxy = h.factory.proxies[0];
 		proxy.nextResponse = { jsonrpc: '2.0', id: 'replaced', result: { ok: true } } as JsonRpcMessage;
-		const result = await h.service.sendMessage(
+		const result = await h.service.callMethod(
 			{ server: buildMcpServerUri(h.session, 'foo').toString(), method: 'tools/list' },
-			{ clientId: 'c1', capabilities: undefined },
 		);
 
 		assert.deepStrictEqual({
@@ -362,6 +397,26 @@ suite('McpHostServiceImpl', () => {
 			result: { result: { ok: true } },
 			sentCount: 1,
 			method: 'tools/list',
+		});
+	});
+
+	test('notify for known server sends a JSON-RPC notification through the proxy', async () => {
+		const h = setupHarness(disposables);
+		h.service.setSessionServers(h.session, [stdioDef('foo')]);
+		await waitForCreate(h.factory);
+
+		const proxy = h.factory.proxies[0];
+		h.service.notify({
+			server: buildMcpServerUri(h.session, 'foo').toString(),
+			method: 'notifications/message',
+			params: { level: 'info', data: 'hi' },
+		});
+
+		assert.strictEqual(proxy.sentMessages.length, 1);
+		assert.deepStrictEqual(proxy.sentMessages[0], {
+			jsonrpc: '2.0',
+			method: 'notifications/message',
+			params: { level: 'info', data: 'hi' },
 		});
 	});
 
@@ -376,87 +431,50 @@ suite('McpHostServiceImpl', () => {
 		);
 	});
 
-	test('deliverResponse for unknown messageId is a silent no-op', async () => {
+	test('upstream request is routed to the installed upstream delegate', async () => {
 		const h = setupHarness(disposables);
 		h.service.setSessionServers(h.session, [stdioDef('foo')]);
 		await waitForCreate(h.factory);
 
-		const proxy = h.factory.proxies[0];
-		const resource = buildMcpServerUri(h.session, 'foo');
-		const response: McpRpcCallResponse = { jsonrpc: '2.0', id: 'unused', result: {} };
-		h.service.deliverResponse(resource, 'no-such-message', response);
+		let receivedMethod: string | undefined;
+		h.service.setUpstreamDelegate({
+			handleUpstreamRequest: async (request) => {
+				receivedMethod = request.method;
+				return { result: { ok: true } };
+			},
+			handleUpstreamNotification: () => { /* unused */ },
+		});
 
-		assert.strictEqual(proxy.deliveredResponses.length, 0);
-	});
+		const outcome: IUpstreamRequestOutcome = await h.factory.created[0].options.onUpstreamRequest('sampling/createMessage', { messages: [] });
 
-	test('upstream-tapped request → mcp/messageReceived; deliverResponse → forward + mcp/messageRemoved', async () => {
-		const h = setupHarness(disposables);
-		h.service.setSessionServers(h.session, [stdioDef('foo')]);
-		await waitForCreate(h.factory);
-
-		const resource = buildMcpServerUri(h.session, 'foo');
-		const proxy = h.factory.proxies[0];
-
-		// Simulate the proxy tapping an upstream-originated request.
-		const call: McpRpcCall = { kind: McpRpcMessageKind.Call, method: 'sampling/createMessage', request: { messages: [] }, response: undefined };
-		const messageId = h.factory.created[0].options.onUpstreamMessage(call);
-
-		h.envelopes.length = 0;
-		const response: McpRpcCallResponse = { jsonrpc: '2.0', id: 'unused', result: { content: [] } };
-		h.service.deliverResponse(resource, messageId, response);
-
-		assert.deepStrictEqual({
-			delivered: proxy.deliveredResponses.map(d => ({ messageId: d.messageId, response: d.response })),
-			envelopeTypes: h.envelopes.map(e => e.action.type),
-		}, {
-			delivered: [{ messageId, response }],
-			envelopeTypes: [ActionType.McpMessageRemoved],
+		assert.deepStrictEqual({ method: receivedMethod, outcome }, {
+			method: 'sampling/createMessage',
+			outcome: { result: { ok: true } },
 		});
 	});
 
-	test('deliverResponse dispatches mcp/messageRemoved even when proxy delivery fails', async () => {
+	test('upstream request without an installed delegate yields MethodNotFound', async () => {
 		const h = setupHarness(disposables);
 		h.service.setSessionServers(h.session, [stdioDef('foo')]);
 		await waitForCreate(h.factory);
 
-		const resource = buildMcpServerUri(h.session, 'foo');
-		const proxy = h.factory.proxies[0];
-		// Make the proxy's deliverClientResponse throw (e.g. because it
-		// has been disposed, or because the upstream is gone).
-		proxy.deliverClientResponse = () => {
-			throw new Error('proxy disposed');
-		};
-
-		const call: McpRpcCall = { kind: McpRpcMessageKind.Call, method: 'sampling/createMessage', request: { messages: [] }, response: undefined };
-		const messageId = h.factory.created[0].options.onUpstreamMessage(call);
-
-		h.envelopes.length = 0;
-		const response: McpRpcCallResponse = { jsonrpc: '2.0', id: 'unused', result: { content: [] } };
-		// Should not re-throw — the failure is captured and logged.
-		assert.doesNotThrow(() => h.service.deliverResponse(resource, messageId, response));
-
-		assert.deepStrictEqual(
-			h.envelopes.map(e => e.action.type),
-			[ActionType.McpMessageRemoved],
-		);
+		const outcome = await h.factory.created[0].options.onUpstreamRequest('sampling/createMessage', { messages: [] });
+		assert.strictEqual(outcome.error?.code, JsonRpcErrorCodes.MethodNotFound);
 	});
 
-	test('upstream notification fires messageReceived then messageRemoved synchronously', async () => {
+	test('upstream notification is forwarded to the installed delegate', async () => {
 		const h = setupHarness(disposables);
 		h.service.setSessionServers(h.session, [stdioDef('foo')]);
 		await waitForCreate(h.factory);
 
-		h.envelopes.length = 0;
-		h.factory.created[0].options.onUpstreamMessage({
-			kind: McpRpcMessageKind.Notification,
-			method: 'notifications/tools/list_changed',
-			params: undefined,
+		let receivedMethod: string | undefined;
+		h.service.setUpstreamDelegate({
+			handleUpstreamRequest: async () => ({ result: {} }),
+			handleUpstreamNotification: (notification) => { receivedMethod = notification.method; },
 		});
 
-		assert.deepStrictEqual(
-			h.envelopes.map(e => e.action.type),
-			[ActionType.McpMessageReceived, ActionType.McpMessageRemoved],
-		);
+		h.factory.created[0].options.onUpstreamNotification('notifications/tools/list_changed', undefined);
+		assert.strictEqual(receivedMethod, 'notifications/tools/list_changed');
 	});
 
 	test('remote MCP definition routes through HTTP upstream', async () => {

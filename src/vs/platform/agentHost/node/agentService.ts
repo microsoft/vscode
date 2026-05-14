@@ -21,7 +21,7 @@ import { ServiceCollection } from '../../instantiation/common/serviceCollection.
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
-import { ActionType, ActionEnvelope, INotification, type ClientMcpAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
@@ -377,6 +377,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
 
 		const sessionConfig = await this._resolveCreatedSessionConfig(provider, config);
+		const mcpServers = this._mcpHostService.getServerSummaries(session);
 
 		// When forking, populate the new session's protocol state with
 		// the source session's turns so the client sees the forked history.
@@ -389,7 +390,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 
 			const summary = this._buildInitialSummary(provider, session, config, created, sourceState?.summary.title ?? 'Forked Session');
-			const state = this._stateManager.createSession(summary);
+			const state = this._stateManager.createSession(summary, { mcpServers });
 			state.config = sessionConfig;
 			state.turns = sourceTurns;
 			state.activeClient = config.activeClient;
@@ -401,7 +402,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// clients can subscribe and stream config / model changes that
 			// the agent will pick up at materialization time.
 			const summary = this._buildInitialSummary(provider, session, config, created, '');
-			const state = this._stateManager.createSession(summary, { emitNotification: !created.provisional });
+			const state = this._stateManager.createSession(summary, { emitNotification: !created.provisional, mcpServers });
 			state.config = sessionConfig;
 			state.activeClient = config?.activeClient;
 		}
@@ -822,7 +823,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _clientDispatchQueues = new Map<string, Promise<void>>();
 
-	dispatchAction(action: SessionAction | TerminalAction | ClientMcpAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
 
 		const pending = this._clientDispatchQueues.get(clientId);
@@ -831,7 +832,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const next = (pending ?? Promise.resolve()).then(async () => {
-			const rewritten: SessionAction | TerminalAction | ClientMcpAction | IRootConfigChangedAction = this._needsAsyncRewrite(action)
+			const rewritten: SessionAction | TerminalAction | IRootConfigChangedAction = this._needsAsyncRewrite(action)
 				? await this._rewriteUserMessageAttachments(action, clientId)
 				: action;
 			this._dispatchActionNow(rewritten, clientId, clientSeq);
@@ -846,19 +847,16 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 	}
 
-	private _dispatchActionNow(action: SessionAction | TerminalAction | ClientMcpAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	private _dispatchActionNow(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		const origin = { clientId, clientSeq };
 		this._stateManager.dispatchClientAction(action, origin);
 		if (action.type === ActionType.RootConfigChanged) {
 			this._configurationService.persistRootConfig();
 		}
-		if (action.type === ActionType.McpMessageResponded) {
-			this._mcpHostService.deliverResponse(URI.parse(action.mcpServer), action.messageId, action.response);
-		}
 		this._sideEffects.handleAction(action);
 	}
 
-	private _needsAsyncRewrite(action: SessionAction | TerminalAction | ClientMcpAction | IRootConfigChangedAction): action is SessionTurnStartedAction | SessionPendingMessageSetAction {
+	private _needsAsyncRewrite(action: SessionAction | TerminalAction | IRootConfigChangedAction): action is SessionTurnStartedAction | SessionPendingMessageSetAction {
 		if (action.type !== ActionType.SessionTurnStarted && action.type !== ActionType.SessionPendingMessageSet) {
 			return false;
 		}

@@ -12,8 +12,11 @@ import type { ActionEnvelope, SessionAddedNotification } from '../../../common/s
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import {
 	isJsonRpcNotification,
+	isJsonRpcRequest,
 	isJsonRpcResponse,
+	ProtocolError,
 	type AhpNotification,
+	type AhpRequest,
 	type JsonRpcErrorResponse,
 	type JsonRpcSuccessResponse,
 	type INotificationBroadcastParams,
@@ -27,12 +30,22 @@ interface IPendingCall {
 	reject: (err: Error) => void;
 }
 
+/**
+ * Handler for an incoming reverse-RPC request from the server.
+ * Throw a {@link ProtocolError} to send a structured JSON-RPC error
+ * response back to the server; any other error is sent as
+ * `JSON_RPC_INTERNAL_ERROR` (`-32603`).
+ */
+export type ReverseRequestHandler = (params: unknown) => Promise<unknown> | unknown;
+
 export class TestProtocolClient {
 	private readonly _ws: WebSocket;
 	private _nextId = 1;
 	private readonly _pendingCalls = new Map<number, IPendingCall>();
 	private readonly _notifications: AhpNotification[] = [];
 	private readonly _notifWaiters: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void }[] = [];
+	/** Reverse-RPC handlers — the server sends requests like `resourceRead`/`resourceList`. */
+	private readonly _requestHandlers = new Map<string, ReverseRequestHandler>();
 
 	constructor(port: number) {
 		this._ws = new WebSocket(`ws://127.0.0.1:${port}`);
@@ -64,6 +77,8 @@ export class TestProtocolClient {
 					pending.resolve((msg as JsonRpcSuccessResponse).result);
 				}
 			}
+		} else if (isJsonRpcRequest(msg)) {
+			this._handleIncomingRequest(msg);
 		} else if (isJsonRpcNotification(msg)) {
 			const notif = msg;
 			for (let i = this._notifWaiters.length - 1; i >= 0; i--) {
@@ -74,6 +89,42 @@ export class TestProtocolClient {
 			}
 			this._notifications.push(notif);
 		}
+	}
+
+	private _handleIncomingRequest(msg: AhpRequest): void {
+		const handler = this._requestHandlers.get(msg.method);
+		if (!handler) {
+			this._ws.send(JSON.stringify({
+				jsonrpc: '2.0',
+				id: msg.id,
+				error: { code: -32601, message: `Unknown reverse-RPC method: ${msg.method}` },
+			}));
+			return;
+		}
+		Promise.resolve()
+			.then(() => handler(msg.params))
+			.then(result => {
+				this._ws.send(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: result ?? null }));
+			}, err => {
+				const error = err instanceof ProtocolError
+					? { code: err.code, message: err.message, ...(err.data !== undefined ? { data: err.data } : {}) }
+					: { code: -32603, message: err instanceof Error ? err.message : String(err) };
+				this._ws.send(JSON.stringify({ jsonrpc: '2.0', id: msg.id, error }));
+			});
+	}
+
+	/**
+	 * Register a handler for an incoming reverse-RPC request method. Replaces
+	 * any prior handler for the same method. Returns a disposer that removes
+	 * the handler.
+	 */
+	setRequestHandler(method: string, handler: ReverseRequestHandler): () => void {
+		this._requestHandlers.set(method, handler);
+		return () => {
+			if (this._requestHandlers.get(method) === handler) {
+				this._requestHandlers.delete(method);
+			}
+		};
 	}
 
 	/** Send a JSON-RPC notification (fire-and-forget). */
@@ -225,12 +276,16 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the real Copilot SDK agent (no mock agent).
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(): Promise<IServerHandle> {
+export async function startRealServer(options?: { readonly userDataDir?: string; readonly env?: NodeJS.ProcessEnv }): Promise<IServerHandle> {
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
 		const args = ['--port', '0', '--without-connection-token'];
+		if (options?.userDataDir) {
+			args.push('--user-data-dir', options.userDataDir);
+		}
 		const child = fork(serverPath, args, {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+			env: options?.env ? { ...process.env, ...options.env } : process.env,
 		});
 
 		const timer = setTimeout(() => {
@@ -249,6 +304,9 @@ export async function startRealServer(): Promise<IServerHandle> {
 
 		child.stderr!.on('data', () => {
 			// Intentionally swallowed - the test runner fails if console.error is used.
+			// Set `AGENT_HOST_REAL_SDK_KEEP_TEMP=1` on the test to keep the
+			// agent host's user-data-dir; the structured `agenthost-server.log`
+			// inside it is much easier to read than raw stderr.
 		});
 
 		child.on('error', err => {

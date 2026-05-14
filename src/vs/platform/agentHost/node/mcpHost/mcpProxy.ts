@@ -11,22 +11,33 @@ import { createDecorator } from '../../../instantiation/common/instantiation.js'
 import type { ILogger } from '../../../log/common/log.js';
 import {
 	McpServerStatusKind,
-	type McpRpcCallResponse,
-	type McpRpcMessage,
+	type AhpMcpUiHostCapabilities,
 	type McpServerStatus,
 	type McpServerStatusAuthRequired,
 } from '../../common/state/protocol/state.js';
 import type { IInitializeInjector } from './mcpInitializeInjector.js';
 import { McpProxyHttpListener, type IRouteRegistration } from './mcpProxyHttpListener.js';
-import { McpProxyRoute } from './mcpProxyRoute.js';
+import { McpProxyRoute, type IMcpUiToolMeta, type IUpstreamRequestOutcome } from './mcpProxyRoute.js';
 import type { IMcpUpstream } from './mcpUpstream.js';
+
+export type { IMcpUiToolMeta } from './mcpProxyRoute.js';
 
 export interface IMcpProxyOptions {
 	/** mcp:/<sessionId>/<serverId> URI; matches the AHP McpServerSummary.resource. */
 	readonly resource: URI;
 	readonly upstream: IMcpUpstream;
 	readonly initializeInjector?: IInitializeInjector;
-	readonly onUpstreamMessage: (message: McpRpcMessage) => string;
+	/**
+	 * Tap fired when the upstream emits a JSON-RPC **request**. The
+	 * implementation forwards the call to the AHP client as a reverse
+	 * `mcpMethodCall` and resolves with the client's response.
+	 */
+	readonly onUpstreamRequest: (method: string, params: unknown) => Promise<IUpstreamRequestOutcome>;
+	/**
+	 * Tap fired when the upstream emits a JSON-RPC **notification**.
+	 * Fire-and-forget.
+	 */
+	readonly onUpstreamNotification: (method: string, params: unknown) => void;
 	readonly onAuthRequired: (status: McpServerStatusAuthRequired) => void;
 	readonly onStateChange: (status: McpServerStatus) => void;
 	readonly logger: ILogger;
@@ -45,10 +56,23 @@ export interface IMcpProxy extends IDisposable {
 	 * cross-checked against the proxy's last challenge.
 	 */
 	authenticate(resource: string, token: string): Promise<boolean>;
-	/** Forward a message from the AHP client (via `mcpMessage`) to the upstream. */
+	/** Forward a message from the AHP client to the upstream. */
 	sendClientMessage(message: JsonRpcMessage): Promise<JsonRpcMessage | undefined>;
-	/** Forward an AHP-client response to a previously-tapped upstream-originated request. */
-	deliverClientResponse(messageId: string, response: McpRpcCallResponse): void;
+	/**
+	 * Latest `_meta.ui` payload the upstream advertised for `toolName` via
+	 * `tools/list`, captured opportunistically as the proxy sniffs JSON-RPC
+	 * traffic. Returns `undefined` for tools that don't surface an MCP App
+	 * or for tool names that have never been listed.
+	 */
+	getToolUiMeta(toolName: string): IMcpUiToolMeta | undefined;
+
+	/**
+	 * The set of MCP App host capabilities the AHP proxy can satisfy for
+	 * a View backed by this upstream server, derived from the upstream's
+	 * `initialize` response. Empty until the SDK's `initialize`
+	 * handshake has completed through the proxy.
+	 */
+	getUiHostCapabilities(): AhpMcpUiHostCapabilities;
 }
 
 export const IMcpProxyFactory = createDecorator<IMcpProxyFactory>('mcpProxyFactory');
@@ -110,8 +134,12 @@ class McpProxy extends Disposable implements IMcpProxy {
 		return this._route.sendClientMessage(message);
 	}
 
-	public deliverClientResponse(messageId: string, response: McpRpcCallResponse): void {
-		this._route.deliverClientResponse(messageId, response);
+	public getToolUiMeta(toolName: string): IMcpUiToolMeta | undefined {
+		return this._route.getToolUiMeta(toolName);
+	}
+
+	public getUiHostCapabilities(): AhpMcpUiHostCapabilities {
+		return this._route.getUiHostCapabilities();
 	}
 }
 
@@ -136,7 +164,8 @@ export class McpProxyFactory extends Disposable implements IMcpProxyFactory {
 			upstream: options.upstream,
 			logger: options.logger,
 			initializeInjector: options.initializeInjector,
-			onUpstreamMessage: options.onUpstreamMessage,
+			onUpstreamRequest: options.onUpstreamRequest,
+			onUpstreamNotification: options.onUpstreamNotification,
 		});
 		let registration: IRouteRegistration;
 		try {

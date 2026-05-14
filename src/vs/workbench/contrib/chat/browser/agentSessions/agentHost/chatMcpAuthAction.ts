@@ -96,18 +96,16 @@ export class McpAuthActionViewItem extends MenuEntryActionViewItem {
 		if (!entry || !this.element) {
 			return;
 		}
-
 		showMcpAuthContextMenu(entry, this.element, this._contextMenuService);
 	}
 }
 
 /**
- * Builds and shows the MCP-auth context menu for `entry` anchored at
- * `anchor`. Lists every server in `AuthRequired` state plus an
- * "Authenticate All" entry when more than one is pending. No-op when
- * no servers need authentication. Reused by the chat-input toolbar
- * action and by the new-chat-input toolbar indicator so both surfaces
- * present an identical menu.
+ * Opens the MCP authentication context menu anchored to `anchor` for
+ * the given session entry. Used by both the chat-input toolbar's
+ * {@link McpAuthActionViewItem} and the sessions window's
+ * `NewChatMcpAuthIndicator` so the two surfaces present identical
+ * affordances.
  */
 export function showMcpAuthContextMenu(
 	entry: IAgentHostMcpAuthSessionEntry,
@@ -122,7 +120,7 @@ export function showMcpAuthContextMenu(
 
 	const actions: IAction[] = pending.map(summary => ({
 		id: `chatMcpAuth.server.${summary.resource}`,
-		label: localize('chat.openMcpAuth.server', "Sign in to {0} MCP", summary.label),
+		label: summary.label,
 		tooltip: describeAuthRequired(summary),
 		class: undefined,
 		enabled: true,

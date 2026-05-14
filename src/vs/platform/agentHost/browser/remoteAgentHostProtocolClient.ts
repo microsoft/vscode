@@ -22,7 +22,7 @@ import { AgentSubscriptionManager, type IAgentSubscription } from '../common/sta
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostPermissionMode, IAgentHostPermissionService } from '../common/agentHostPermissionService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
-import { ActionType, type ActionEnvelope, type ClientMcpAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, type CustomizationRef, type RootState } from '../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -206,7 +206,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * Dispatch a client action to the server. Returns the clientSeq used.
 	 */
-	dispatchAction(action: SessionAction | TerminalAction | ClientMcpAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
+	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
 		this._grantImplicitReadsForOutgoingAction(action);
 		this._sendNotification('dispatchAction', { clientSeq, action });
 	}
@@ -339,7 +339,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * `SessionActiveClientChanged`, which is the only client-dispatched
 	 * action that ships customization URIs to the host.
 	 */
-	private _grantImplicitReadsForOutgoingAction(action: SessionAction | TerminalAction | ClientMcpAction | IRootConfigChangedAction): void {
+	private _grantImplicitReadsForOutgoingAction(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
 		if (action.type === ActionType.SessionActiveClientChanged && action.activeClient?.customizations) {
 			this._grantImplicitReadsForCustomizations(action.activeClient.customizations);
 		}

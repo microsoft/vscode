@@ -56,9 +56,6 @@ export {
 	type McpServerAddedAction,
 	type McpServerRemovedAction,
 	type McpServerStatusChangedAction,
-	type McpMessageReceivedAction,
-	type McpMessageRespondedAction,
-	type McpMessageRemovedAction,
 	type StateAction,
 } from './protocol/actions.js';
 
@@ -103,7 +100,7 @@ import type {
 } from './protocol/actions.js';
 
 import type { ProtocolNotification } from './protocol/notifications.js';
-import type { RootAction as IRootAction_, SessionAction as ISessionAction_, ClientSessionAction as IClientSessionAction_, ServerSessionAction as IServerSessionAction_, TerminalAction as ITerminalAction_, ClientTerminalAction as IClientTerminalAction_, McpAction as IMcpAction_, ClientMcpAction as IClientMcpAction_, ServerMcpAction as IServerMcpAction_ } from './protocol/action-origin.generated.js';
+import type { RootAction as IRootAction_, SessionAction as ISessionAction_, ClientSessionAction as IClientSessionAction_, ServerSessionAction as IServerSessionAction_, TerminalAction as ITerminalAction_, ClientTerminalAction as IClientTerminalAction_ } from './protocol/action-origin.generated.js';
 
 export type RootAction = IRootAction_;
 export type SessionAction = ISessionAction_;
@@ -111,9 +108,6 @@ export type ClientSessionAction = IClientSessionAction_;
 export type ServerSessionAction = IServerSessionAction_;
 export type TerminalAction = ITerminalAction_;
 export type ClientTerminalAction = IClientTerminalAction_;
-export type McpAction = IMcpAction_;
-export type ClientMcpAction = IClientMcpAction_;
-export type ServerMcpAction = IServerMcpAction_;
 
 // Root actions
 export type IAgentsChangedAction = RootAgentsChangedAction;
@@ -162,8 +156,4 @@ export function isSessionAction(action: StateAction): action is SessionAction {
 
 export function isTerminalAction(action: StateAction): action is TerminalAction {
 	return action.type.startsWith('terminal/');
-}
-
-export function isMcpAction(action: StateAction): action is McpAction {
-	return action.type.startsWith('mcp/');
 }

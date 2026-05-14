@@ -38,6 +38,7 @@ import { IOutputService } from '../../../../../services/output/common/output.js'
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentHostContribution, AgentHostSessionListController, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { IAgentHostActiveClientRegistry } from '../../../browser/agentSessions/agentHost/agentHostActiveClientRegistry.js';
+import { IAgentHostMcpAuthRegistry } from '../../../browser/agentSessions/agentHost/agentHostMcpAuthRegistry.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
@@ -394,6 +395,13 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IAgentHostActiveClientRegistry, {
 		register: () => toDisposable(() => { }),
 		get: () => undefined,
+	});
+	instantiationService.stub(IAgentHostMcpAuthRegistry, {
+		registerSession: () => toDisposable(() => { }),
+		getEntry: () => undefined,
+		remember: () => { },
+		recall: () => undefined,
+		forget: () => { },
 	});
 	instantiationService.stub(IOutputService, { getChannel: () => undefined });
 	instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null });

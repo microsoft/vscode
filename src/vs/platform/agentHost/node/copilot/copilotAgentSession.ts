@@ -27,6 +27,8 @@ import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } fr
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type URI as ProtocolURI, type SessionInputAnswer, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
+import { IMcpHostService } from '../../common/mcpHost/mcpHostService.js';
+import { buildMcpServerUri } from '../../common/state/mcpServerUri.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeRequestParams, IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -127,6 +129,15 @@ export interface IActiveClientSnapshot {
 	readonly clientId: string;
 	readonly tools: readonly ToolDefinition[];
 	readonly plugins: readonly IParsedPlugin[];
+	/**
+	 * `Ready` state of each MCP server (keyed by `McpServerSummary.resource`)
+	 * at snapshot time. Captured because the SDK config is built from this
+	 * snapshot and only advertises MCP servers that were `Ready` when
+	 * `_resolveMcpServersForSdk` ran — if any server later transitions
+	 * to/from `Ready` (e.g. after `authenticate` succeeds), the cached SDK
+	 * session must be rebuilt so the new tool list is exposed to the model.
+	 */
+	readonly mcpReadiness: Readonly<Record<string, boolean>>;
 }
 
 /**
@@ -248,6 +259,7 @@ export class CopilotAgentSession extends Disposable {
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IMcpHostService private readonly _mcpHostService: IMcpHostService,
 	) {
 		super();
 		this.sessionId = options.rawSessionId;
@@ -258,7 +270,7 @@ export class CopilotAgentSession extends Disposable {
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
 
-		this._appliedSnapshot = options.clientSnapshot ?? { clientId: '', tools: [], plugins: [] };
+		this._appliedSnapshot = options.clientSnapshot ?? { clientId: '', tools: [], plugins: [], mcpReadiness: {} };
 		this._clientToolNames = new Set(this._appliedSnapshot.tools.map(t => t.name));
 
 		this._databaseRef = sessionDataService.openDatabase(options.sessionUri);
@@ -1219,6 +1231,22 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (e.data.mcpToolName) {
 				meta.mcpToolName = e.data.mcpToolName;
+			}
+			// MCP Apps: when the upstream MCP server advertised a UI
+			// resource for this tool via `tools/list`, attach the
+			// `_meta.ui` payload from the spec and the per-tool-call
+			// host-capability set derived from the upstream's
+			// `initialize` response. The proxy captures both
+			// opportunistically; non-app tools and pre-handshake races
+			// leave `meta` alone.
+			if (e.data.mcpServerName && e.data.mcpToolName) {
+				const serverUri = buildMcpServerUri(this.sessionUri, e.data.mcpServerName);
+				const handle = this._mcpHostService.getServer(serverUri);
+				const uiMeta = handle?.getToolUiMeta(e.data.mcpToolName);
+				if (uiMeta) {
+					meta.ui = uiMeta;
+					meta.uiHostCapabilities = handle!.getUiHostCapabilities();
+				}
 			}
 
 			const protocolSession = this._protocolSession();

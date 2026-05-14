@@ -17,11 +17,13 @@ SDK exchanges with an MCP server flows through code in this folder.
   pass-through with three taps:
     1. `IInitializeInjector` — adds extension capabilities to
        client-→upstream `initialize` requests (e.g. MCP Apps).
-    2. `onUpstreamMessage` — records every server-→client message
-       (notification or request) into AHP state.
-    3. `setUpstreamCapabilities` — captures the upstream's
-       `initialize` response capabilities so the host service can
-       gate `ui/*` calls.
+    2. `onUpstreamRequest(method, params)` — invoked for every
+       JSON-RPC **request** the upstream emits. Returns a
+       `Promise<IUpstreamRequestOutcome>` whose result or error is
+       written back to the upstream as a JSON-RPC response using the
+       original request id.
+    3. `onUpstreamNotification(method, params)` — invoked for every
+       JSON-RPC **notification** the upstream emits. Fire-and-forget.
 - **`mcpUpstream.ts`** — `IMcpUpstream` abstraction. Implementations:
     - `mcpStdioUpstream.ts` — spawns a child process on demand
       (lazy spawn — see plan §3.4).
@@ -34,13 +36,17 @@ SDK exchanges with an MCP server flows through code in this folder.
   parser; turns 401/403 + RFC 9728 metadata into an
   `McpServerStatusAuthRequired`.
 - **`mcpInitializeInjector.ts`** — `McpAppsInitializeInjector` adds
-  the MCP Apps extension capability to client `initialize` requests
-  while preserving everything else.
-- **`mcpRpcEnvelope.ts`** — JSON-RPC ↔ `McpRpcMessage` adapters.
+  the MCP Apps extension capability to the SDK→upstream `initialize`
+  request while preserving everything else. Independent of AHP
+  capability negotiation; the upstream MCP server decides whether
+  it speaks Apps based on this extension.
 - **`mcpHostServiceImpl.ts`** — node-side `IMcpHostService`. Owns
   the per-(session, server) registry, drives `IMcpProxy` lifetimes,
-  dispatches `mcp/*` actions through `AgentHostStateManager`, and
-  routes `mcpMessage` calls.
+  dispatches `session/mcpServer*` actions through
+  `AgentHostStateManager`, routes `mcpMethodCall` and
+  `mcpNotification` traffic, and forwards upstream-originated MCP
+  requests and notifications to whichever AHP client owns the
+  session via `IMcpHostUpstreamDelegate`.
 
 ## How it fits into AHP
 
@@ -50,17 +56,23 @@ SDK exchanges with an MCP server flows through code in this folder.
 2. `AgentService` watches the provider event and calls
    `IMcpHostService.setSessionServers(session, defs)`.
 3. The host service diffs against the live registry. For added
-   servers it dispatches `mcp/serverAdded` (status `Starting`)
+   servers it dispatches `session/mcpServerAdded` (status `Starting`)
    immediately and kicks off async proxy creation. For removed ones
-   it dispatches `mcp/serverRemoved` and disposes the proxy.
+   it dispatches `session/mcpServerRemoved` and disposes the proxy.
 4. Once the proxy is bound, the host service hands its endpoint URI
    to the SDK via `toSdkMcpServers(...)` (in
    [../copilot/copilotPluginConverters.ts](../copilot/copilotPluginConverters.ts)).
    The SDK now connects over loopback HTTP.
-5. Server-pushed messages flow `upstream → route → host service →
-   AgentHostStateManager → ActionEnvelope → AHP client`. Client
-   responses to upstream-originated requests come back via
-   `dispatchAction({type: McpMessageResponded})`.
+5. JSON-RPC traffic now flows directly through the bidirectional
+   `mcpMethodCall` / `mcpNotification` methods on the AHP wire — there
+   is no per-server state mailbox. Upstream-originated requests are
+   round-tripped via the host service's installed
+   `IMcpHostUpstreamDelegate` (typically `ProtocolServerHandler`),
+   which issues a reverse `mcpMethodCall` to the AHP client and
+   writes the client's result back as the upstream JSON-RPC response.
+   Upstream-originated notifications are likewise forwarded via the
+   delegate's `handleUpstreamNotification`, which sends an outbound
+   `mcpNotification` to the AHP client.
 
 ## Authentication
 
@@ -96,11 +108,13 @@ SDK exchanges with an MCP server flows through code in this folder.
 - **Sandboxing parity.** Stdio children spawn unsandboxed; matches
   the existing workbench gateway. See the TODO comment in
   [mcpStdioUpstream.ts](mcpStdioUpstream.ts) and plan §6.3.
-- **Method gating.** A method allowlist briefly existed in Phase 5a
-  but was removed because traffic from the local AHP client to the
-  host is trusted; gating is the SDK's responsibility upstream.
-  `ui/*` is still gated by both client `mcp.apps` capability AND
-  upstream advertising the `io.modelcontextprotocol/ui` extension.
+- **Per-tool MCP App capability negotiation.** MCP App support is
+  now negotiated per tool call via `_meta.uiHostCapabilities` on tool
+  call states (see `AhpMcpUiHostCapabilities` in the protocol).
+  CopilotAgent does not yet surface MCP App tool calls; when it
+  does, the producer must populate `_meta.ui` and
+  `_meta.uiHostCapabilities` with the subset of capabilities the
+  host actually proxies.
 
 ## Tests
 

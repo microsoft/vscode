@@ -5,7 +5,7 @@
 
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { IObservable, IReader, observableSignal } from '../../../../../../base/common/observable.js';
+import { IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type McpServerSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -100,10 +100,9 @@ export interface IAgentHostMcpAuthRegistry {
 	registerSession(sessionResource: URI, entry: IAgentHostMcpAuthSessionEntry): IDisposable;
 
 	/**
-	 * Look up the entry for a chat session resource. When called with a
-	 * `reader` (e.g. inside an `autorun` or `derived`), the lookup is
-	 * tracked: register/unregister events for any session re-fire the
-	 * caller. Without `reader`, this is a plain (non-observable) lookup.
+	 * Look up the entry for a chat session resource. When called within
+	 * an autorun/derived, pass the `reader` so the computation re-fires
+	 * when an entry is registered or unregistered for `sessionResource`.
 	 */
 	getEntry(sessionResource: URI, reader?: IReader): IAgentHostMcpAuthSessionEntry | undefined;
 
@@ -145,17 +144,13 @@ export class AgentHostMcpAuthRegistry extends Disposable implements IAgentHostMc
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _entries = new ResourceMap<IAgentHostMcpAuthSessionEntry>();
-
 	/**
-	 * Bumped whenever the entry map is mutated
-	 * ({@link registerSession} or its disposal). Allows observable
-	 * consumers of {@link getEntry} to re-evaluate when an entry for
-	 * their session resource appears or disappears — the registration
-	 * may race the consumer's first read (e.g. a workspace contribution
-	 * binds to the active session before the session handler has
-	 * registered its entry).
+	 * Version counter bumped on every register/unregister. Observers
+	 * passing a `reader` to {@link getEntry} subscribe to this so the
+	 * computation re-fires when an entry appears or disappears for the
+	 * resource they care about.
 	 */
-	private readonly _entriesChanged = observableSignal(this);
+	private readonly _entriesVersion = observableValue<number>(this, 0);
 
 	/**
 	 * In-memory mirror of the persisted scope memory. Lazily loaded
@@ -180,18 +175,22 @@ export class AgentHostMcpAuthRegistry extends Disposable implements IAgentHostMc
 	}
 
 	registerSession(sessionResource: URI, entry: IAgentHostMcpAuthSessionEntry): IDisposable {
-		this._entries.set(sessionResource, entry);
-		this._entriesChanged.trigger(undefined);
+		transaction(tx => {
+			this._entries.set(sessionResource, entry);
+			this._entriesVersion.set(this._entriesVersion.get() + 1, tx);
+		});
 		return toDisposable(() => {
 			if (this._entries.get(sessionResource) === entry) {
-				this._entries.delete(sessionResource);
-				this._entriesChanged.trigger(undefined);
+				transaction(tx => {
+					this._entries.delete(sessionResource);
+					this._entriesVersion.set(this._entriesVersion.get() + 1, tx);
+				});
 			}
 		});
 	}
 
 	getEntry(sessionResource: URI, reader?: IReader): IAgentHostMcpAuthSessionEntry | undefined {
-		this._entriesChanged.read(reader);
+		this._entriesVersion.read(reader);
 		return this._entries.get(sessionResource);
 	}
 
@@ -224,7 +223,7 @@ export class AgentHostMcpAuthRegistry extends Disposable implements IAgentHostMc
 			return this._memoryCache;
 		}
 		const raw = this._storageService.get(STORAGE_KEY, StorageScope.APPLICATION_SHARED);
-		if (!raw || Math.random() < 2) {
+		if (!raw) {
 			return this._memoryCache = {};
 		}
 		try {
