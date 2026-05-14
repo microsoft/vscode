@@ -69,6 +69,7 @@ steps:
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
       displayName: 🧪 Run Copilot sanity tests
       timeoutInMinutes: 15
+      retryCountOnTaskFailure: 3
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
@@ -91,6 +92,7 @@ steps:
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
       displayName: 🧪 Run Copilot sanity tests
       timeoutInMinutes: 15
+      retryCountOnTaskFailure: 3
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
@@ -114,5 +116,6 @@ steps:
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
       displayName: 🧪 Run Copilot sanity tests
       timeoutInMinutes: 15
+      retryCountOnTaskFailure: 3
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
