@@ -141,6 +141,13 @@ export class SlashCommandHandler extends Disposable {
 			executeImmediately: true,
 			execute: openSection(AICustomizationManagementSection.Hooks),
 		});
+		this._slashCommands.push({
+			command: 'pet',
+			detail: localize('slashCommand.pet', "Summon (or dismiss) the chat buddy"),
+			sortText: 'z9_pet',
+			executeImmediately: true,
+			execute: () => this.commandService.executeCommand('sessions.buddy.toggle'),
+		});
 	}
 
 	private _registerDecorations(): void {
