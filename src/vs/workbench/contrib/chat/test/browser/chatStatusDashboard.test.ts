@@ -360,7 +360,7 @@ suite('ChatStatusDashboard', () => {
 
 		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
 		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Included with your organization\'s plan.']);
-		assert.strictEqual(getCalloutText(dashboard.element), undefined);
+		assert.strictEqual(getCalloutText(dashboard.element), null);
 	});
 
 	test('Enterprise — TBB (multi-quota): shows only Credits, not Chat messages or Inline Suggestions', () => {
