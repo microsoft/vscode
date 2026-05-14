@@ -653,7 +653,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		value = sanitizeCwd(value);
 		this._createOrGetCwdDetection().updateCwd(value, isTrusted);
 		const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-		commandDetection?.setCwd(value, isTrusted);
+		commandDetection?.setCwd(value);
 	}
 
 	private _doHandleITermSequence(data: string): boolean {
@@ -759,7 +759,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		commandDetection.deserialize(serialized);
 		if (commandDetection.cwd) {
 			// Cwd gets set when the command is deserialized, so we need to update it here
-			this._updateCwd(commandDetection.cwd);
+			this._updateCwd(commandDetection.cwd, false);
 		}
 	}
 

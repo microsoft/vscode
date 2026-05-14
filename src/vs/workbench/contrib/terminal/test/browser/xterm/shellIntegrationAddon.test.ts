@@ -51,10 +51,11 @@ suite('ShellIntegrationAddon', () => {
 			strictEqual(capabilities.has(TerminalCapability.CwdDetection), true);
 		});
 
-		test('should pass cwd sequence to the capability', async () => {
+		test('should pass cwd sequence to the capability as trusted when nonce matches', async () => {
 			const mock = shellIntegrationAddon.getCwdDectionMock();
-			mock.expects('updateCwd').once().withExactArgs('/foo', false);
-			await writeP(xterm, '\x1b]633;P;Cwd=/foo\x07');
+			// The addon is constructed with nonce '' so a trailing ';' produces args[1]==='' which matches
+			mock.expects('updateCwd').once().withExactArgs('/foo', true);
+			await writeP(xterm, '\x1b]633;P;Cwd=/foo;\x07');
 			mock.verify();
 		});
 

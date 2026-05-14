@@ -230,7 +230,7 @@ export interface ICommandDetectionCapability {
 	readonly onSetRichCommandDetection: Event<boolean>;
 	setContinuationPrompt(value: string): void;
 	setPromptTerminator(value: string, lastPromptLine: string): void;
-	setCwd(value: string, isTrusted?: boolean): void;
+	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;
 	setIsCommandStorageDisabled(): void;
 	/**
