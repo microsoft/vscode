@@ -108,12 +108,12 @@ suite('localAhpJsonlLogging', () => {
 		}));
 
 		assert.deepStrictEqual(summary, [
-			{ dir: 's2c', id: 'local-reverse-1', method: 'resourceWrite', hasResult: false, hasError: false },
-			{ dir: 'c2s', id: 'local-reverse-1', method: undefined, hasResult: true, hasError: false },
-			{ dir: 's2c', id: 'local-reverse-2', method: 'resourceRead', hasResult: false, hasError: false },
-			{ dir: 'c2s', id: 'local-reverse-2', method: undefined, hasResult: true, hasError: false },
-			{ dir: 's2c', id: 'local-reverse-3', method: 'resourceRead', hasResult: false, hasError: false },
-			{ dir: 'c2s', id: 'local-reverse-3', method: undefined, hasResult: false, hasError: true },
+			{ dir: 's2c', id: undefined, method: 'resourceWrite', hasResult: false, hasError: false },
+			{ dir: 'c2s', id: undefined, method: 'resourceWrite', hasResult: true, hasError: false },
+			{ dir: 's2c', id: undefined, method: 'resourceRead', hasResult: false, hasError: false },
+			{ dir: 'c2s', id: undefined, method: 'resourceRead', hasResult: true, hasError: false },
+			{ dir: 's2c', id: undefined, method: 'resourceRead', hasResult: false, hasError: false },
+			{ dir: 'c2s', id: undefined, method: 'resourceRead', hasResult: false, hasError: true },
 		]);
 		assert.deepStrictEqual(entries[0].params, { uri, data: 'hello', encoding: ContentEncoding.Utf8, createOnly: true });
 		assert.deepStrictEqual(entries[1].result, {});

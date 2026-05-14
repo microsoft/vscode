@@ -33,8 +33,6 @@ export const AGENT_HOST_CLIENT_RESOURCE_CHANNEL = 'agentHostClientResource';
  */
 export class AgentHostClientResourceChannel implements IServerChannel {
 
-	private _nextReverseRequestId = 1;
-
 	constructor(
 		private readonly _fileService: IFileService,
 		private readonly _ahpLogger?: AhpJsonlLogger,
@@ -45,18 +43,17 @@ export class AgentHostClientResourceChannel implements IServerChannel {
 	}
 
 	async call<T>(ctx: unknown, command: string, arg?: unknown): Promise<T> {
-		const id = `local-reverse-${this._nextReverseRequestId++}`;
-		const requestFrame = { jsonrpc: '2.0' as const, id, method: command, params: arg };
+		const requestFrame = { jsonrpc: '2.0' as const, method: command, params: arg };
 		this._logReverseFrame(requestFrame, 's2c');
 		try {
 			const result = await this._call<T>(ctx, command, arg);
-			const responseFrame = { jsonrpc: '2.0' as const, id, result: result ?? null };
+			const responseFrame = { jsonrpc: '2.0' as const, method: command, result: result ?? null };
 			this._logReverseFrame(responseFrame, 'c2s');
 			return result;
 		} catch (err) {
 			const errorFrame = {
 				jsonrpc: '2.0' as const,
-				id,
+				method: command,
 				error: {
 					code: -32603,
 					message: err instanceof Error ? err.message : String(err),
