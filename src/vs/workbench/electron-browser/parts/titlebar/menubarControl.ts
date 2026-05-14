@@ -45,7 +45,7 @@ export class NativeMenubarControl extends MenubarControl {
 		@IMenubarService private readonly menubarService: IMenubarService,
 		@IHostService hostService: IHostService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@ICommandService commandService: ICommandService
+		@ICommandService commandService: ICommandService,
 	) {
 		super(menuService, workspacesService, contextKeyService, keybindingService, configurationService, labelService, updateService, storageService, notificationService, preferencesService, environmentService, accessibilityService, hostService, commandService);
 
