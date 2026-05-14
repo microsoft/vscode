@@ -38,7 +38,6 @@ function createModel(id: string, name: string, vendor = 'copilot'): ILanguageMod
 			maxInputTokens: 128000,
 			maxOutputTokens: 4096,
 			isDefaultForLocation: {},
-			modelPickerCategory: undefined,
 		} as ILanguageModelChatMetadata,
 	};
 }
@@ -69,13 +68,39 @@ const stubManageModelsAction: IActionWidgetDropdownAction = {
 	run: () => { }
 };
 
-const stubLanguageModelsService = { getModelConfigurationActions: () => [], getModelConfiguration: () => undefined, getVendors: () => [] } as unknown as ILanguageModelsService;
+const stubLanguageModelsService = { getModelConfigurationActions: () => [], getModelConfiguration: () => undefined, getVendors: () => [], getLanguageModelGroups: () => [] } as unknown as ILanguageModelsService;
+
+/**
+ * Builds a `ILanguageModelsService` stub that simulates BYOK provider
+ * groups: each `vendors` entry advertises one or more user-configured
+ * groups (mapping group name to model identifiers). Used to exercise the
+ * picker's `(vendor, groupName)` bucketing without spinning up the real
+ * service.
+ */
+function createLanguageModelsServiceStub(vendors: { vendor: string; displayName: string; groups: { name: string; modelIdentifiers: string[] }[] }[]): ILanguageModelsService {
+	return {
+		getModelConfigurationActions: () => [],
+		getModelConfiguration: () => undefined,
+		getVendors: () => vendors.map(v => ({ vendor: v.vendor, displayName: v.displayName })),
+		getLanguageModelGroups: (vendor: string) => {
+			const v = vendors.find(x => x.vendor === vendor);
+			if (!v) {
+				return [];
+			}
+			return v.groups.map(g => ({
+				group: { vendor: v.vendor, name: g.name },
+				modelIdentifiers: g.modelIdentifiers,
+			}));
+		},
+	} as unknown as ILanguageModelsService;
+}
 
 function callBuild(
 	models: ILanguageModelChatMetadataAndIdentifier[],
 	opts: {
 		selectedModelId?: string;
 		recentModelIds?: string[];
+		pinnedModelIds?: string[];
 		controlModels?: IStringDictionary<IModelControlEntry>;
 		entitlement?: ChatEntitlement;
 		currentVSCodeVersion?: string;
@@ -84,6 +109,8 @@ function callBuild(
 		anonymous?: boolean;
 		showUnavailableFeatured?: boolean;
 		showFeatured?: boolean;
+		isUBB?: boolean;
+		languageModelsService?: ILanguageModelsService;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const onSelect = () => { };
@@ -95,17 +122,21 @@ function callBuild(
 		models,
 		opts.selectedModelId,
 		opts.recentModelIds ?? [],
+		opts.pinnedModelIds ?? [],
 		opts.controlModels ?? {},
 		opts.currentVSCodeVersion ?? '1.100.0',
 		opts.updateStateType ?? StateType.Idle,
 		onSelect,
+		undefined,
 		opts.manageSettingsUrl,
 		true,
 		stubManageModelsAction,
 		entitlementService,
 		opts.showUnavailableFeatured ?? true,
 		opts.showFeatured ?? true,
-		stubLanguageModelsService,
+		opts.languageModelsService ?? stubLanguageModelsService,
+		undefined,
+		opts.isUBB,
 	);
 }
 
@@ -128,6 +159,16 @@ suite('buildModelPickerItems', () => {
 			badge: 'Copilot',
 			description: '15x',
 		} as IActionListItem<IActionWidgetDropdownAction>), 'Claude Opus 4.7, Copilot, 15x');
+	});
+
+	test('accessibility provider prefers ariaDescription over description', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		assert.strictEqual(provider.getAriaLabel({
+			kind: ActionListItemKind.Action,
+			label: 'Claude Sonnet 4.6',
+			description: 'Copilot',
+			ariaDescription: 'Medium cost',
+		} as IActionListItem<IActionWidgetDropdownAction>), 'Claude Sonnet 4.6, Medium cost');
 	});
 
 	test('auto model always appears first', () => {
@@ -313,7 +354,7 @@ suite('buildModelPickerItems', () => {
 		});
 		// With no selected, no recent, and no featured, both models should be in Other
 		const seps = items.filter(i => i.kind === ActionListItemKind.Separator);
-		// One separator before Other Models section (Manage Models is in the toolbar)
+		// One separator before Other Models section
 		assert.strictEqual(seps.length, 1);
 		const actions = getActionItems(items);
 		assert.strictEqual(actions[0].label, 'Auto');
@@ -491,6 +532,68 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(vendorSeparators.length, 0);
 	});
 
+	test('Other Models splits a single vendor into per-group sections (BYOK)', () => {
+		// Simulates a BYOK setup where one vendor (`customoai`) advertises
+		// two user-configured provider groups. The picker should mirror the
+		// model configuration view and render one section per group rather
+		// than collapsing them under the vendor display name.
+		const auto = createAutoModel();
+		const gpt41 = createModel('gpt-4.1', 'gpt-4.1', 'customoai');
+		const ossModel = createModel('openai.gpt-oss-120b', 'gpt-oss-120b', 'customoai');
+		const lmService = createLanguageModelsServiceStub([
+			{
+				vendor: 'customoai',
+				displayName: 'OpenAI Compatible',
+				groups: [
+					{ name: 'OpenAI Compatible', modelIdentifiers: [gpt41.identifier] },
+					{ name: 'AWS Bedrock', modelIdentifiers: [ossModel.identifier] },
+				],
+			},
+		]);
+		const items = callBuild([auto, gpt41, ossModel], { languageModelsService: lmService });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['AWS Bedrock', 'OpenAI Compatible']);
+	});
+
+	test('Other Models keeps a single section when a vendor has only one group (BYOK)', () => {
+		const auto = createAutoModel();
+		const gpt41 = createModel('gpt-4.1', 'gpt-4.1', 'customoai');
+		const lmService = createLanguageModelsServiceStub([
+			{
+				vendor: 'customoai',
+				displayName: 'OpenAI Compatible',
+				groups: [{ name: 'OpenAI Compatible', modelIdentifiers: [gpt41.identifier] }],
+			},
+		]);
+		const items = callBuild([auto, gpt41], { languageModelsService: lmService });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.strictEqual(labelledSeparators.length, 0);
+	});
+
+	test('promoted models show provider group name when groups disambiguate a single vendor (BYOK)', () => {
+		const auto = createAutoModel();
+		const gpt41 = createModel('gpt-4.1', 'gpt-4.1', 'customoai');
+		const ossModel = createModel('openai.gpt-oss-120b', 'gpt-oss-120b', 'customoai');
+		const lmService = createLanguageModelsServiceStub([
+			{
+				vendor: 'customoai',
+				displayName: 'OpenAI Compatible',
+				groups: [
+					{ name: 'OpenAI Compatible', modelIdentifiers: [gpt41.identifier] },
+					{ name: 'AWS Bedrock', modelIdentifiers: [ossModel.identifier] },
+				],
+			},
+		]);
+		const items = callBuild([auto, gpt41, ossModel], {
+			recentModelIds: [gpt41.identifier],
+			languageModelsService: lmService,
+		});
+		const promoted = getActionItems(items).find(a => a.label === 'gpt-4.1');
+		assert.ok(promoted);
+		// Badge should carry the user-configured group name, not the vendor displayName.
+		assert.strictEqual(promoted.badge, 'OpenAI Compatible');
+	});
+
 	test('onSelect callback is wired into action items', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
@@ -500,10 +603,12 @@ suite('buildModelPickerItems', () => {
 			[auto, modelA],
 			undefined,
 			[],
+			[],
 			{},
 			'1.100.0',
 			StateType.Idle,
 			onSelect,
+			undefined,
 			undefined,
 			true,
 			undefined,
@@ -586,10 +691,12 @@ suite('buildModelPickerItems', () => {
 			[auto],
 			undefined,
 			['missing-model'],
+			[],
 			{ 'missing-model': { label: 'Missing Model' } as IModelControlEntry },
 			'1.100.0',
 			StateType.Idle,
 			() => { },
+			undefined,
 			'https://aka.ms/github-copilot-settings',
 			true,
 			undefined,
@@ -672,10 +779,12 @@ suite('buildModelPickerItems', () => {
 			[auto, modelA],
 			undefined,
 			[],
+			[],
 			{},
 			'1.100.0',
 			StateType.Idle,
 			onSelect,
+			undefined,
 			undefined,
 			true,
 			undefined,
@@ -806,19 +915,18 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(gptItem.item?.description, undefined);
 	});
 
-	test('model with priceCategory shows MarkdownString description with circle indicators', () => {
+	test('model with priceCategory shows ariaDescription with price label', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
 		modelA.metadata = { ...modelA.metadata, priceCategory: 'medium' } as ILanguageModelChatMetadata;
-		const items = callBuild([auto, modelA]);
+		const items = callBuild([auto, modelA], { isUBB: true });
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem);
-		// When priceCategory is set, the action's plain description should be undefined
-		assert.strictEqual(gptItem.item?.description, undefined);
-		// The item's description should be a MarkdownString with circle icons
-		assert.ok(gptItem.description instanceof MarkdownString);
-		assert.ok(gptItem.description.value.includes('circle-filled'));
-		assert.ok(gptItem.description.value.includes('circle'));
+		// Price category is no longer shown as circle indicators in the description
+		assert.strictEqual(gptItem.description, undefined);
+		// ariaDescription should be a readable label for screen readers
+		assert.ok(typeof gptItem.ariaDescription === 'string');
+		assert.ok(!gptItem.ariaDescription.includes('circle'));
 	});
 
 	test('model with unknown priceCategory shows no circle indicators', () => {
@@ -880,6 +988,72 @@ suite('buildModelPickerItems', () => {
 		const claudeItem = actions.find(a => a.label === 'Claude');
 		assert.ok(claudeItem);
 		assert.strictEqual(claudeItem.item?.description, undefined);
+	});
+
+	test('pinned models appear in dedicated pinned section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const modelC = createModel('gemini', 'Gemini');
+		const items = callBuild([auto, modelA, modelB, modelC], {
+			pinnedModelIds: [modelB.identifier, modelA.identifier],
+		});
+		// Pinned section header exists
+		const pinnedSep = items.find(i => i.kind === ActionListItemKind.Separator && i.label === 'Pinned');
+		assert.ok(pinnedSep, 'Pinned separator header should exist');
+		// Pinned models appear in pin order (Claude first, then GPT-4o)
+		const pinnedSepIndex = items.indexOf(pinnedSep!);
+		const afterPinned = items.slice(pinnedSepIndex + 1);
+		const firstPinned = afterPinned.find(i => i.kind === ActionListItemKind.Action);
+		assert.strictEqual(firstPinned?.label, 'Claude');
+	});
+
+	test('pinned models do not appear in MRU/promoted section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const items = callBuild([auto, modelA, modelB], {
+			pinnedModelIds: [modelA.identifier],
+			recentModelIds: [modelA.identifier, modelB.identifier],
+		});
+		const actions = getActionItems(items);
+		// GPT-4o should only appear once (in pinned, not again in promoted)
+		const gptItems = actions.filter(a => a.label === 'GPT-4o');
+		assert.strictEqual(gptItems.length, 1, 'Pinned model should appear exactly once');
+	});
+
+	test('MRU is capped at 3 after filtering pinned models', () => {
+		const auto = createAutoModel();
+		const models = [
+			auto,
+			createModel('m1', 'Model 1'),
+			createModel('m2', 'Model 2'),
+			createModel('m3', 'Model 3'),
+			createModel('m4', 'Model 4'),
+			createModel('m5', 'Model 5'),
+		];
+		const items = callBuild(models, {
+			recentModelIds: [models[1].identifier, models[2].identifier, models[3].identifier, models[4].identifier, models[5].identifier],
+			pinnedModelIds: [models[1].identifier],
+		});
+		// Model 1 is pinned, MRU should be Model 2, 3, 4 (capped at 3), Model 5 goes to Other
+		const actions = getActionItems(items);
+		const promotedLabels = actions
+			.filter(a => !a.isSectionToggle && a.section !== 'other' && a.item?.id !== 'manageModels' && a.label !== 'Auto' && a.label !== 'Model 1')
+			.map(a => a.label);
+		assert.ok(promotedLabels.length <= 3, 'MRU should be capped at 3');
+		assert.ok(!promotedLabels.includes('Model 1'), 'Pinned model should not be in MRU');
+	});
+
+	test('no pinned section when pinnedModelIds is empty', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA], {
+			pinnedModelIds: [],
+			recentModelIds: [modelA.identifier],
+		});
+		const pinnedSep = items.find(i => i.kind === ActionListItemKind.Separator && i.label === 'Pinned');
+		assert.strictEqual(pinnedSep, undefined, 'No pinned separator when there are no pinned models');
 	});
 });
 

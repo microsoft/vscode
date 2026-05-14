@@ -25,6 +25,7 @@ import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { FinishedCallback, OpenAiFunctionTool, OptionalChatRequestParams } from '../../../platform/networking/common/fetch';
 import { IChatEndpoint, IEndpoint } from '../../../platform/networking/common/networking';
+import { APIUsage } from '../../../platform/networking/common/openai';
 import { IOTelService, type OTelModelOptions } from '../../../platform/otel/common/otelService';
 import { retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
@@ -264,9 +265,8 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			if (endpoint.degradationReason) {
 				modelTooltip = endpoint.degradationReason;
 			} else if (endpoint instanceof AutoChatEndpoint) {
-				modelTooltip = vscode.l10n.t('Auto selects the best model for your request based on capacity and performance.');
-				const plan = this._authenticationService.copilotToken?.copilotPlan;
-				const isOrgManaged = plan === 'business' || plan === 'enterprise';
+				modelTooltip = vscode.l10n.t('Auto selects the best model based on your request complexity and model performance. Model use through Auto is billed at a 10% discount.');
+				const isOrgManaged = !!this._authenticationService.copilotToken?.isManagedPlan;
 				const autoModeHint = this._expService.getTreatmentVariable<string>('copilotchat.autoModelHint');
 				const showExperimentalHint = !isOrgManaged && !!autoModeHint && experimentalAutoModelHintMarkers.some(marker => autoModeHint.includes(marker));
 				if (showExperimentalHint) {
@@ -274,17 +274,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				}
 			} else {
 				modelTooltip = getModelCapabilitiesDescription(endpoint);
-			}
-
-			let modelCategory: { label: string; order: number } | undefined;
-			if (endpoint instanceof AutoChatEndpoint) {
-				modelCategory = { label: '', order: Number.MIN_SAFE_INTEGER };
-			} else if (endpoint.isPremium === undefined || this._authenticationService.copilotToken?.isFreeUser) {
-				modelCategory = { label: vscode.l10n.t("Copilot Models"), order: 0 };
-			} else if (endpoint.isPremium) {
-				modelCategory = { label: vscode.l10n.t("Premium Models"), order: 1 };
-			} else {
-				modelCategory = { label: vscode.l10n.t("Standard Models"), order: 0 };
 			}
 
 			// Counting tokens requires instantiating the tokenizers, which makes this process use a lot of memory.
@@ -304,7 +293,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				const customModel = endpoint.customModel;
 				modelDetail = customModel.owner_name;
 				modelTooltip = vscode.l10n.t('{0} is contributed by {1} using {2}.', sanitizedModelName, customModel.owner_name, customModel.key_name);
-				modelCategory = { label: vscode.l10n.t("Custom Models"), order: 2 };
 			}
 
 			const session = this._authenticationService.anyGitHubSession;
@@ -322,7 +310,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				multiplierNumeric: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.multiplier,
 				priceCategory: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.priceCategory,
 				detail: modelDetail,
-				category: modelCategory,
 				statusIcon: endpoint.degradationReason ? new vscode.ThemeIcon('warning') : undefined,
 				version: endpoint.version,
 				maxInputTokens: endpoint.modelMaxPromptTokens - baseCount - BaseTokensPerCompletion,
@@ -502,7 +489,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		super();
 	}
 
-	private async _provideLanguageModelResponse(_endpoint: IChatEndpoint, _messages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>, _options: vscode.ProvideLanguageModelChatResponseOptions, extensionId: string | undefined, callback: FinishedCallback, token: vscode.CancellationToken): Promise<void> {
+	private async _provideLanguageModelResponse(_endpoint: IChatEndpoint, _messages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>, _options: vscode.ProvideLanguageModelChatResponseOptions, extensionId: string | undefined, callback: FinishedCallback, token: vscode.CancellationToken): Promise<APIUsage | undefined> {
 		if (extensionId === 'core') {
 			extensionId = undefined;
 		}
@@ -681,6 +668,8 @@ export class CopilotLanguageModelWrapper extends Disposable {
 				tokenLimit
 			}
 		);
+
+		return result.usage;
 	}
 
 	async provideLanguageModelResponse(endpoint: IChatEndpoint, messages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>, options: vscode.ProvideLanguageModelChatResponseOptions, extensionId: string | undefined, progress: vscode.Progress<LMResponsePart>, token: vscode.CancellationToken): Promise<void> {
@@ -721,7 +710,10 @@ export class CopilotLanguageModelWrapper extends Disposable {
 
 			return undefined;
 		};
-		return this._provideLanguageModelResponse(endpoint, messages, options, extensionId, finishCallback, token);
+		const usage = await this._provideLanguageModelResponse(endpoint, messages, options, extensionId, finishCallback, token);
+		if (usage) {
+			progress.report(new vscode.LanguageModelDataPart(new TextEncoder().encode(JSON.stringify(usage)), CustomDataPartMimeTypes.Usage));
+		}
 	}
 
 	async provideTokenCount(endpoint: IEndpoint, message: string | vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2): Promise<number> {

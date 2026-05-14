@@ -30,6 +30,7 @@ node_modules/@github/copilot/sharp/**
 !node_modules/@github/copilot/sdk/worker/*.js
 !node_modules/@github/copilot/sdk/sharp/**
 !node_modules/@github/copilot/sdk/definitions/*.yaml
+!node_modules/@github/copilot/sdk/definitions/sidekick/*.yaml
 !CHANGELOG.md
 !README.md
 !package.json

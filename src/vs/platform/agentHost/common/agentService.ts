@@ -29,6 +29,12 @@ export const enum AgentHostIpcChannels {
 	Logger = 'agentHostLogger',
 	/** Channel for WebSocket client connection count (server process management only) */
 	ConnectionTracker = 'agentHostConnectionTracker',
+	/**
+	 * Channel registered by the remote server that proxies AHP JSON-RPC
+	 * frames between a renderer and the agent host running on the server.
+	 * Pairs with `AgentHostIpcChannelTransport` on the renderer side.
+	 */
+	RemoteProxy = 'agentHostProxy',
 }
 
 /** Configuration key that controls whether the local agent host process is spawned. */
@@ -36,6 +42,12 @@ export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
 
 /** Configuration key that controls whether per-host IPC traffic output channels are created. */
 export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
+
+/** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
+export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
+
+/** Configuration key that controls whether Agent Host uses its terminal tool override for Copilot SDK sessions. */
+export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
 
 /**
  * Configuration key that holds the absolute path to a locally-installed
@@ -274,6 +286,7 @@ export type AgentSignal =
 	| IAgentActionSignal
 	| IAgentToolPendingConfirmationSignal
 	| IAgentSubagentStartedSignal
+	| IAgentSubagentCompletedSignal
 	| IAgentSteeringConsumedSignal;
 
 /**
@@ -341,6 +354,19 @@ export interface IAgentSubagentStartedSignal {
 	readonly agentName: string;
 	readonly agentDisplayName: string;
 	readonly agentDescription?: string;
+}
+
+/**
+ * A subagent has finished — either successfully or with an error. The host
+ * uses this to tear down the child session after all of its events have been
+ * routed. The parent tool call completing is not a reliable signal for this
+ * because background subagents (e.g. Copilot's `mode: background` task) keep
+ * emitting events after their parent tool call returns immediately.
+ */
+export interface IAgentSubagentCompletedSignal {
+	readonly kind: 'subagent_completed';
+	readonly session: URI;
+	readonly toolCallId: string;
 }
 
 /** A steering message was consumed (sent to the model). */
@@ -535,6 +561,8 @@ export interface IAgent {
 	 * Resolves the tool handler's deferred promise so the SDK can continue.
 	 *
 	 * @param session The session the tool call belongs to.
+	 * @param toolCallId The id of the tool call being completed.
+	 * @param result The result of the tool call.
 	 */
 	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void;
 

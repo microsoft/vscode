@@ -11,15 +11,21 @@ import { observableValue } from '../../../../../../../base/common/observable.js'
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { Range } from '../../../../../../../editor/common/core/range.js';
+import { SymbolKind, SymbolTag } from '../../../../../../../editor/common/languages.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatMarkdownContentPart } from '../../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { CodeBlockPart, ICodeBlockData } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
+import { IChatOutputRendererService, type RenderedOutputPart } from '../../../../browser/chatOutputItemRenderer.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
+import { IChatContentInlineReference } from '../../../../common/chatService/chatService.js';
+import { ChatConfiguration } from '../../../../common/constants.js';
 import { IAiEditTelemetryService } from '../../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { IViewDescriptorService } from '../../../../../../common/views.js';
 import { IDisposableReference } from '../../../../browser/widget/chatContentParts/chatCollections.js';
@@ -34,6 +40,7 @@ suite('ChatMarkdownContentPart', () => {
 
 	/** Data captured from each CodeBlockPart.render() call */
 	const renderedCodeBlocks: ICodeBlockData[] = [];
+	const renderedCodeBlockOutputs: { identifier: string; text: string }[] = [];
 
 	function createMockEditorPool(): EditorPool {
 		return {
@@ -107,13 +114,30 @@ suite('ChatMarkdownContentPart', () => {
 		));
 	}
 
+	function createMarkdownPartWithInlineReferences(markdownText: string, inlineReferences: Record<string, IChatContentInlineReference>, context?: IChatContentPartRenderContext, fillInIncompleteTokens = false): ChatMarkdownContentPart {
+		const ctx = context ?? createRenderContext();
+		return store.add(instantiationService.createInstance(
+			ChatMarkdownContentPart,
+			{ kind: 'markdownContent', content: new MarkdownString(markdownText), inlineReferences },
+			ctx,
+			editorPool,
+			fillInIncompleteTokens,
+			ctx.codeBlockStartIndex,
+			renderer,
+			undefined,
+			500,
+			{},
+		));
+	}
+
 	setup(() => {
 		disposables = store.add(new DisposableStore());
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		renderedCodeBlocks.length = 0;
+		renderedCodeBlockOutputs.length = 0;
 
 		// Seed configuration values needed by ChatEditorOptions
-		const configService = instantiationService.get(IConfigurationService) as import('../../../../../../../platform/configuration/test/common/testConfigurationService.js').TestConfigurationService;
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		configService.setUserConfiguration('chat', {
 			editor: {
 				fontSize: 13,
@@ -148,6 +172,25 @@ suite('ChatMarkdownContentPart', () => {
 			createSuggestionId: () => undefined!,
 			handleCodeAccepted: () => { },
 			handleCodeRejected: () => { },
+		});
+
+		instantiationService.stub(IChatOutputRendererService, {
+			_serviceBrand: undefined,
+			registerRenderer: () => ({ dispose: () => { } }),
+			hasCodeBlockRenderer: identifier => identifier.toLowerCase() === 'mermaid',
+			renderOutputPart: async () => { throw new Error('Unexpected output render'); },
+			renderCodeBlock: async (identifier, data) => {
+				renderedCodeBlockOutputs.push({ identifier, text: new TextDecoder().decode(data) });
+				return {
+					webview: {
+						focus: () => { },
+						onDidWheel: Event.None,
+					} as RenderedOutputPart['webview'],
+					onDidChangeHeight: Event.None,
+					reinitialize: () => { },
+					dispose: () => { },
+				};
+			},
 		});
 
 		// Stub view descriptor service
@@ -186,6 +229,48 @@ suite('ChatMarkdownContentPart', () => {
 		assert.strictEqual(renderedCodeBlocks.length, 1);
 		assert.strictEqual(renderedCodeBlocks[0].text, 'console.log("hello");');
 		assert.strictEqual(renderedCodeBlocks[0].languageId, 'javascript');
+	});
+
+	test('renders complete code block with contributed chat output renderer', () => {
+		const part = createMarkdownPart('```mermaid\ngraph TD\n```');
+
+		assert.strictEqual(part.codeblocks.length, 1);
+		assert.strictEqual(part.codeblocks[0].languageId, 'mermaid');
+		assert.strictEqual(renderedCodeBlocks.length, 0);
+		assert.deepStrictEqual(renderedCodeBlockOutputs, [{ identifier: 'mermaid', text: 'graph TD' }]);
+		assert.ok(part.domNode.querySelector('.chat-output-code-block'));
+	});
+
+	test('renders complete code block with contributed chat output renderer case-insensitively', () => {
+		const part = createMarkdownPart('```Mermaid\ngraph TD\n```');
+
+		assert.strictEqual(part.codeblocks.length, 1);
+		assert.strictEqual(part.codeblocks[0].languageId, 'Mermaid');
+		assert.strictEqual(renderedCodeBlocks.length, 0);
+		assert.deepStrictEqual(renderedCodeBlockOutputs, [{ identifier: 'Mermaid', text: 'graph TD' }]);
+		assert.ok(part.domNode.querySelector('.chat-output-code-block'));
+	});
+
+	test('does not render initial incomplete code fence', () => {
+		const ctx = createRenderContext(false);
+		const part = createMarkdownPart('```', ctx);
+
+		assert.strictEqual(part.codeblocks.length, 0);
+		assert.strictEqual(renderedCodeBlocks.length, 0);
+		assert.strictEqual(renderedCodeBlockOutputs.length, 0);
+		assert.strictEqual(part.domNode.querySelector('.interactive-result-code-block'), null);
+	});
+
+	test('shows pending chat output renderer for incomplete code block', () => {
+		const ctx = createRenderContext(false);
+		const part = createMarkdownPart('```mermaid\ngraph TD', ctx);
+
+		assert.strictEqual(renderedCodeBlockOutputs.length, 0);
+		assert.strictEqual(renderedCodeBlocks.length, 0);
+		assert.strictEqual(part.codeblocks.length, 1);
+		assert.strictEqual(part.codeblocks[0].languageId, 'mermaid');
+		assert.ok(part.domNode.querySelector('.chat-output-code-block'));
+		assert.ok(part.domNode.textContent?.includes('Rendering code block'));
 	});
 
 	test('renders multiple code blocks with correct indices', () => {
@@ -245,6 +330,174 @@ suite('ChatMarkdownContentPart', () => {
 	test('hasSameContent returns false for different markdown', () => {
 		const part = createMarkdownPart('Hello');
 		assert.ok(!part.hasSameContent({ kind: 'markdownContent', content: new MarkdownString('Goodbye') }));
+	});
+
+	test('hasSameContent compares inline reference metadata', () => {
+		const uri = URI.parse('file:///workspace/foo.ts');
+		const content = 'Foo';
+		const initialReference: IChatContentInlineReference = {
+			kind: 'inlineReference',
+			resolveId: 'resolve1',
+			inlineReference: { uri, range: new Range(1, 1, 1, 1) },
+			name: 'Foo',
+		};
+		const part = createMarkdownPartWithInlineReferences(content, { 0: initialReference });
+
+		assert.deepStrictEqual({
+			equivalentReference: part.hasSameContent({
+				kind: 'markdownContent',
+				content: new MarkdownString(content),
+				inlineReferences: {
+					0: {
+						kind: 'inlineReference',
+						resolveId: 'resolve1',
+						inlineReference: { uri, range: new Range(1, 1, 1, 1) },
+						name: 'Foo',
+					},
+				},
+			}),
+			resolvedReference: part.hasSameContent({
+				kind: 'markdownContent',
+				content: new MarkdownString(content),
+				inlineReferences: {
+					0: {
+						kind: 'inlineReference',
+						resolveId: 'resolve1',
+						inlineReference: {
+							name: 'Foo',
+							kind: SymbolKind.Class,
+							location: { uri, range: new Range(2, 7, 2, 10) },
+						},
+						name: 'Foo',
+					},
+				},
+			}),
+		}, {
+			equivalentReference: true,
+			resolvedReference: false,
+		});
+	});
+
+	test('hasSameContent compares workspace symbol metadata', () => {
+		const uri = URI.parse('file:///workspace/foo.ts');
+		const content = 'Foo';
+		const initialReference: IChatContentInlineReference = {
+			kind: 'inlineReference',
+			resolveId: 'resolve1',
+			inlineReference: {
+				name: 'Foo',
+				containerName: 'Bar',
+				kind: SymbolKind.Class,
+				tags: [SymbolTag.Deprecated],
+				location: { uri, range: new Range(2, 7, 2, 10) },
+			},
+			name: 'Foo',
+		};
+		const part = createMarkdownPartWithInlineReferences(content, { 0: initialReference });
+
+		assert.deepStrictEqual({
+			equivalentSymbol: part.hasSameContent({
+				kind: 'markdownContent',
+				content: new MarkdownString(content),
+				inlineReferences: {
+					0: {
+						kind: 'inlineReference',
+						resolveId: 'resolve1',
+						inlineReference: {
+							name: 'Foo',
+							containerName: 'Bar',
+							kind: SymbolKind.Class,
+							tags: [SymbolTag.Deprecated],
+							location: { uri, range: new Range(2, 7, 2, 10) },
+						},
+						name: 'Foo',
+					},
+				},
+			}),
+			differentContainer: part.hasSameContent({
+				kind: 'markdownContent',
+				content: new MarkdownString(content),
+				inlineReferences: {
+					0: {
+						kind: 'inlineReference',
+						resolveId: 'resolve1',
+						inlineReference: {
+							name: 'Foo',
+							containerName: 'Baz',
+							kind: SymbolKind.Class,
+							tags: [SymbolTag.Deprecated],
+							location: { uri, range: new Range(2, 7, 2, 10) },
+						},
+						name: 'Foo',
+					},
+				},
+			}),
+			differentTags: part.hasSameContent({
+				kind: 'markdownContent',
+				content: new MarkdownString(content),
+				inlineReferences: {
+					0: {
+						kind: 'inlineReference',
+						resolveId: 'resolve1',
+						inlineReference: {
+							name: 'Foo',
+							containerName: 'Bar',
+							kind: SymbolKind.Class,
+							tags: [],
+							location: { uri, range: new Range(2, 7, 2, 10) },
+						},
+						name: 'Foo',
+					},
+				},
+			}),
+		}, {
+			equivalentSymbol: true,
+			differentContainer: false,
+			differentTags: false,
+		});
+	});
+
+	test('tryIncrementalUpdate requires unchanged inline reference metadata', () => {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		configService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+
+		const uri = URI.parse('file:///workspace/foo.ts');
+		const content = 'Foo';
+		const initialReference: IChatContentInlineReference = {
+			kind: 'inlineReference',
+			resolveId: 'resolve1',
+			inlineReference: { uri, range: new Range(1, 1, 1, 1) },
+			name: 'Foo',
+		};
+		const context = createRenderContext(false);
+		const part = createMarkdownPartWithInlineReferences(content, { 0: initialReference }, context, true);
+
+		assert.deepStrictEqual({
+			unchangedReference: part.tryIncrementalUpdate({
+				kind: 'markdownContent',
+				content: new MarkdownString(content),
+				inlineReferences: { 0: initialReference },
+			}),
+			resolvedReference: part.tryIncrementalUpdate({
+				kind: 'markdownContent',
+				content: new MarkdownString(content),
+				inlineReferences: {
+					0: {
+						kind: 'inlineReference',
+						resolveId: 'resolve1',
+						inlineReference: {
+							name: 'Foo',
+							kind: SymbolKind.Class,
+							location: { uri, range: new Range(2, 7, 2, 10) },
+						},
+						name: 'Foo',
+					},
+				},
+			}),
+		}, {
+			unchangedReference: true,
+			resolvedReference: false,
+		});
 	});
 
 	test('php code blocks get php opening tag prepended', () => {

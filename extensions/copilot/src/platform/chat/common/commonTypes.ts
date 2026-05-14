@@ -323,6 +323,22 @@ function getRateLimitMessage(fetchResult: ChatFetchError, copilotPlan: string | 
 	});
 }
 
+export function getQuotaMessageForPlan(copilotPlan: string | undefined): string {
+	switch (copilotPlan) {
+		case 'free':
+			return l10n.t(`You've reached your monthly chat messages quota. Upgrade to Copilot Pro or wait for your allowance to renew.`);
+		case 'individual':
+			return l10n.t(`You've exhausted your premium model quota. Please enable additional paid premium requests, upgrade to Copilot Pro+, or wait for your allowance to renew.`);
+		case 'individual_pro':
+			return l10n.t(`You've exhausted your premium model quota. Please enable additional paid premium requests or wait for your allowance to renew.`);
+		case 'business':
+		case 'enterprise':
+			return l10n.t(`You've exhausted your credits. To continue working, please contact your organization's Copilot admin or wait for your allowance to renew.`);
+		default:
+			return l10n.t(`You've exhausted your premium model quota. To continue working, switch to Auto. For additional paid premium requests, please reach out to your organization's Copilot admin or wait for your allowance to renew.`);
+	}
+}
+
 function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | undefined): string {
 	if (fetchResult.type !== ChatFetchResponseType.QuotaExceeded) {
 		throw new Error('Expected QuotaExceeded error');
@@ -331,22 +347,15 @@ function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | u
 		fetchResult.capiError.code = 'quota_exceeded'; // Remap this to the generic quota code so we get per plan handling
 	}
 	if (fetchResult.capiError?.code === 'quota_exceeded') {
-		switch (copilotPlan) {
-			case 'free':
-				return l10n.t(`You've reached your monthly chat messages quota. Upgrade to Copilot Pro or wait for your allowance to renew.`);
-			case 'individual':
-				return l10n.t(`You've exhausted your premium model quota. Please enable additional paid premium requests, upgrade to Copilot Pro+, or wait for your allowance to renew.`);
-			case 'individual_pro':
-				return l10n.t(`You've exhausted your premium model quota. Please enable additional paid premium requests or wait for your allowance to renew.`);
-			default:
-				return l10n.t(`You've exhausted your premium model quota. To continue working, switch to Auto. For additional paid premium requests, please reach out to your organization's Copilot admin or wait for your allowance to renew.`);
-		}
+		return getQuotaMessageForPlan(copilotPlan);
 	} else if (fetchResult.capiError?.code === 'overage_limit_reached') {
 		return l10n.t({
 			message: 'You cannot accrue additional premium requests at this time. Please contact [GitHub Support]({0}) to continue using Copilot.',
 			args: ['https://support.github.com/contact'],
 			comment: [`{Locked=']({'}`]
 		});
+	} else if (fetchResult.capiError?.code === 'billing_not_configured' && fetchResult.capiError?.message) {
+		return fetchResult.capiError.message;
 	} else if (fetchResult.capiError?.code && fetchResult.capiError?.message) {
 		return l10n.t({
 			message: 'Quota Exceeded\n\nServer Error: {0}\nError Code: {1}',
