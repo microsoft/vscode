@@ -20,7 +20,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../workbench/common/contributions.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
-import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
+import { IModelPickerDelegate, ModelPickerActionItem, isRelevantUnavailableModelForSession } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ActiveSessionHasGitRepositoryContext, ActiveSessionProviderIdContext, ActiveSessionTypeContext, ChatSessionProviderIdContext, IsNewChatSessionContext } from '../../../../common/contextkeys.js';
@@ -345,11 +345,7 @@ export class SessionModelPicker extends Disposable {
 			showFeatured: () => true,
 			isRelevantUnavailableModel: (modelId: string) => {
 				const session = this._sessionsManagementService.activeSession.get();
-				// For Claude Code, only show Anthropic family models
-				if (session?.sessionType === SessionType.ClaudeCode) {
-					return modelId.toLowerCase().startsWith('claude');
-				}
-				return true;
+				return isRelevantUnavailableModelForSession(modelId, session?.sessionType);
 			},
 		};
 

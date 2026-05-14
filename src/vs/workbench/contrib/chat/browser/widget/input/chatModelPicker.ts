@@ -396,7 +396,6 @@ export function buildModelPickerItems(
 	languageModelsService?: ILanguageModelsService,
 	openerService?: IOpenerService,
 	isUBB?: boolean,
-	unavailableModelFilter?: (modelId: string) => boolean,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -420,6 +419,28 @@ export function buildModelPickerItems(
 			return 'update';
 		}
 		return 'admin';
+	};
+
+	/**
+	 * Collects unavailable featured model entries from the control manifest
+	 * that are not already placed and pass the optional filter.
+	 */
+	const collectUnavailableFeatured = (placedIds: Set<string>): { id: string; entry: IModelControlEntry; reason: 'upgrade' | 'update' | 'admin' }[] => {
+		const result: { id: string; entry: IModelControlEntry; reason: 'upgrade' | 'update' | 'admin' }[] = [];
+		for (const [entryId, entry] of Object.entries(controlModels)) {
+			if (!entry.featured || placedIds.has(entryId)) {
+				continue;
+			}
+			if (entry.exists) {
+				continue;
+			}
+			if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
+				result.push({ id: entryId, entry, reason: 'update' });
+			} else {
+				result.push({ id: entryId, entry, reason: getUnavailableReason(entry) });
+			}
+		}
+		return result;
 	};
 
 	if (useGroupedModelPicker) {
@@ -560,11 +581,14 @@ export function buildModelPickerItems(
 							markPlaced(model.identifier, model.metadata.id);
 							promotedItems.push({ kind: 'available', model });
 						}
-					} else if (!model && !entry.exists) {
-						if (showUnavailableFeatured && (!unavailableModelFilter || unavailableModelFilter(entryId))) {
-							markPlaced(entryId);
-							promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry) });
-						}
+					}
+				}
+
+				// Unavailable featured models (not registered, !exists)
+				if (showUnavailableFeatured) {
+					for (const unavailable of collectUnavailableFeatured(placed)) {
+						markPlaced(unavailable.id);
+						promotedItems.push({ kind: 'unavailable', ...unavailable });
 					}
 				}
 			}
@@ -725,27 +749,12 @@ export function buildModelPickerItems(
 		// Unavailable featured models from control manifest (upgrade / update / admin)
 		if (showFeatured && showUnavailableFeatured) {
 			const placedIds = new Set(models.map(m => m.metadata.id));
-			const unavailableItems: IActionListItem<IActionWidgetDropdownAction>[] = [];
-			for (const [entryId, entry] of Object.entries(controlModels)) {
-				if (!entry.featured || placedIds.has(entryId)) {
-					continue;
-				}
-				if (unavailableModelFilter && !unavailableModelFilter(entryId)) {
-					continue;
-				}
-				if (entry.exists) {
-					// Model is registered but not in this session's model list — skip
-					continue;
-				}
-				if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-					unavailableItems.push(createUnavailableModelItem(entryId, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService));
-				} else {
-					unavailableItems.push(createUnavailableModelItem(entryId, entry, getUnavailableReason(entry), manageSettingsUrl, updateStateType, chatEntitlementService));
-				}
-			}
-			if (unavailableItems.length > 0) {
+			const unavailableEntries = collectUnavailableFeatured(placedIds);
+			if (unavailableEntries.length > 0) {
 				items.push({ kind: ActionListItemKind.Separator });
-				items.push(...unavailableItems);
+				for (const { id, entry, reason } of unavailableEntries) {
+					items.push(createUnavailableModelItem(id, entry, reason, manageSettingsUrl, updateStateType, chatEntitlementService));
+				}
 			}
 		}
 	}
@@ -1027,7 +1036,17 @@ export class ModelPickerWidget extends Disposable {
 		const isPro = isProUser(this._entitlementService.entitlement);
 		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
 		const manifest = this._languageModelsService.getModelsControlManifest();
-		const controlModelsForTier = isPro ? manifest.paid : manifest.free;
+		const allControlModels = isPro ? manifest.paid : manifest.free;
+		// Pre-filter control models to exclude unavailable entries irrelevant
+		// to the current session type (e.g. non-Claude models for Claude Code).
+		const filter = this._delegate.isRelevantUnavailableModel;
+		const controlModelsForTier = filter
+			? Object.fromEntries(
+				Object.entries(allControlModels).filter(([id, entry]) =>
+					entry.exists || filter(id)
+				)
+			)
+			: allControlModels;
 		const canShowManageModelsAction = this._delegate.showManageModelsAction() && shouldShowManageModelsAction(this._entitlementService);
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
@@ -1064,7 +1083,6 @@ export class ModelPickerWidget extends Disposable {
 			this._languageModelsService,
 			this._openerService,
 			isUBB,
-			this._delegate.isRelevantUnavailableModel?.bind(this._delegate),
 		);
 
 		// Collect all hover disposables so they are properly cleaned up when the

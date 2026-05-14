@@ -18,6 +18,22 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ModelPickerWidget } from './chatModelPicker.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
+
+/**
+ * Returns whether an unavailable featured model from the control manifest
+ * is relevant for the given session type. For Claude Code sessions, only
+ * Anthropic (claude-*) models are relevant; all other session types show
+ * every unavailable featured model.
+ *
+ * TODO: we may want to handle this in a more generic way in the future, such as via API.
+ */
+export function isRelevantUnavailableModelForSession(modelId: string, sessionType: string | undefined): boolean {
+	if (sessionType === SessionType.ClaudeCode) {
+		return modelId.toLowerCase().startsWith('claude');
+	}
+	return true;
+}
 
 export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
@@ -28,12 +44,14 @@ export interface IModelPickerDelegate {
 	showUnavailableFeatured(): boolean;
 	showFeatured(): boolean;
 	/**
-	 * Optional filter to determine if an unavailable featured model should be
-	 * shown in the promoted section. Called for each featured model in the
-	 * control manifest that is not registered. Return `true` to show the model
-	 * with an "Upgrade" action, `false` to hide it. When not implemented, all
-	 * unavailable featured models are shown when {@link showUnavailableFeatured}
-	 * returns `true`.
+	 * Optional filter to determine if an unavailable featured model from
+	 * the control manifest should be shown. Called for each model entry
+	 * where {@link IModelControlEntry.exists} is `false`. Return `true`
+	 * to keep the model, `false` to exclude it. When not implemented,
+	 * all unavailable featured models are shown.
+	 *
+	 * The filter is applied by the caller before passing controlModels
+	 * to {@link buildModelPickerItems}.
 	 */
 	isRelevantUnavailableModel?(modelId: string): boolean;
 }

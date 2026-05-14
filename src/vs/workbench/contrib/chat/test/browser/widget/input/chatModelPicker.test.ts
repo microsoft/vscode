@@ -111,7 +111,6 @@ function callBuild(
 		showFeatured?: boolean;
 		isUBB?: boolean;
 		languageModelsService?: ILanguageModelsService;
-		unavailableModelFilter?: (modelId: string) => boolean;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const onSelect = () => { };
@@ -138,7 +137,6 @@ function callBuild(
 		opts.languageModelsService ?? stubLanguageModelsService,
 		undefined,
 		opts.isUBB,
-		opts.unavailableModelFilter,
 	);
 }
 
@@ -1058,25 +1056,31 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(pinnedSep, undefined, 'No pinned separator when there are no pinned models');
 	});
 
-	test('unavailableModelFilter excludes filtered models from promoted section', () => {
+	test('pre-filtered controlModels excludes irrelevant unavailable models from promoted section', () => {
 		const auto = createAutoModel();
+		// Simulate what show() does: pre-filter controlModels to only include
+		// models that exist or pass the session-type relevance check
+		const filter = (modelId: string) => modelId.toLowerCase().startsWith('claude');
+		const allControlModels: Record<string, { label: string; featured: boolean; exists: boolean }> = {
+			'claude-sonnet-4': { label: 'Claude Sonnet 4', featured: true, exists: false },
+			'gpt-4o': { label: 'GPT-4o', featured: true, exists: false },
+		};
+		const controlModels = Object.fromEntries(
+			Object.entries(allControlModels).filter(([id, entry]) => entry.exists || filter(id))
+		);
 		const items = callBuild([auto], {
-			controlModels: {
-				'claude-sonnet-4': { label: 'Claude Sonnet 4', featured: true, exists: false },
-				'gpt-4o': { label: 'GPT-4o', featured: true, exists: false },
-			},
+			controlModels,
 			entitlement: ChatEntitlement.Free,
 			showUnavailableFeatured: true,
-			unavailableModelFilter: (modelId: string) => modelId.toLowerCase().startsWith('claude'),
 		});
 		const actions = getActionItems(items);
 		const claudeItem = actions.find(a => a.label === 'Claude Sonnet 4');
 		const gptItem = actions.find(a => a.label === 'GPT-4o');
 		assert.ok(claudeItem, 'Claude model should appear as unavailable when filter allows it');
-		assert.strictEqual(gptItem, undefined, 'GPT model should be filtered out by unavailableModelFilter');
+		assert.strictEqual(gptItem, undefined, 'GPT model should be filtered out by pre-filtering controlModels');
 	});
 
-	test('unavailableModelFilter=undefined shows all unavailable featured models', () => {
+	test('unfiltered controlModels shows all unavailable featured models', () => {
 		const auto = createAutoModel();
 		const items = callBuild([auto], {
 			controlModels: {

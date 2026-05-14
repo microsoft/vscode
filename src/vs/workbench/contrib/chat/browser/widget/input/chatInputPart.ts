@@ -127,7 +127,7 @@ import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { DelegationSessionPickerActionItem } from './delegationSessionPickerActionItem.js';
-import { ModelPickerActionItem, IModelPickerDelegate } from './modelPickerActionItem.js';
+import { ModelPickerActionItem, IModelPickerDelegate, isRelevantUnavailableModelForSession } from './modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modePickerActionItem.js';
 import { IPermissionPickerDelegate, PermissionPickerActionItem } from './permissionPickerActionItem.js';
 import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
@@ -876,12 +876,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return true;
 			},
 			isRelevantUnavailableModel: (modelId: string) => {
-				const sessionType = this.getCurrentSessionType();
-				// For Claude Code, only show Anthropic family models
-				if (sessionType === 'claude-code') {
-					return modelId.toLowerCase().startsWith('claude');
-				}
-				return true;
+				return isRelevantUnavailableModelForSession(modelId, this.getCurrentSessionType());
 			},
 		};
 	}
