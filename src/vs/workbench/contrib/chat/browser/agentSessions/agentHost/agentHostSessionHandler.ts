@@ -18,6 +18,7 @@ import { isLocation, type Location } from '../../../../../../editor/common/langu
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -33,6 +34,7 @@ import { observableConfigValue } from '../../../../../../platform/observable/com
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IChatWidgetService } from '../../chat.js';
@@ -410,6 +412,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._config = config;
@@ -763,8 +766,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// sessions provider involved, agent host not connected at
 			// folder-pick time, or this session was created via a legacy/
 			// test path). Fall back to the original create-then-subscribe
-			// flow.
-			await this._createAndSubscribe(request.sessionResource, this._createModelSelection(request.userSelectedModelId, request.modelConfiguration), undefined, request.agentHostSessionConfig);
+			// flow. Merge workbench-side initial config (autoApprove derived
+			// from `chat.permissions.default`) so headless callers that go
+			// straight to `chat.open` without the provisional picker still
+			// honour the user's permission level. `request.agentHostSessionConfig`
+			// values win over the workbench defaults.
+			const initialConfig = this._getInitialConfig();
+			const mergedConfig = initialConfig
+				? { ...initialConfig, ...(request.agentHostSessionConfig ?? {}) }
+				: request.agentHostSessionConfig;
+			await this._createAndSubscribe(request.sessionResource, this._createModelSelection(request.userSelectedModelId, request.modelConfiguration), undefined, mergedConfig);
 		} else {
 			// Eager-created session: take a refcounted subscription so the
 			// handler observes state changes for the duration of the chat
@@ -802,6 +813,30 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const details = this._getTurnResponseDetails(request.sessionResource, resolvedSession, completedTurn);
 
 		return details ? { details } : {};
+	}
+
+	/**
+	 * Mirrors `AgentHostUntitledProvisionalSessionService._getInitialConfig`:
+	 * workbench-side defaults seeded at session create time so the agent's
+	 * own server-side defaults don't fill `state.config.values` for keys the
+	 * workbench wants to control. Used by the `!existingState` fallback in
+	 * `_invokeAgent` when the provisional picker path didn't run (e.g.
+	 * headless invocations via `chat.open` that create a fresh session
+	 * resource separate from the picker's). Skipped in the Agents window,
+	 * where the sessions provider supplies config via
+	 * `request.agentHostSessionConfig` instead.
+	 */
+	private _getInitialConfig(): Record<string, unknown> | undefined {
+		if (this._environmentService.isSessionsWindow) {
+			return undefined;
+		}
+		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
+		const configured = this._configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
+		if (typeof configured === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(configured)) {
+			const policyRestricted = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+			config[SessionConfigKey.AutoApprove] = policyRestricted ? 'default' : configured;
+		}
+		return config;
 	}
 
 	/**
