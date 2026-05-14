@@ -76,8 +76,6 @@ export interface ICopilotChatSession {
 	readonly updatedAt: IObservable<Date>;
 	/** Current session status. */
 	readonly status: IObservable<SessionStatus>;
-	/** File changesets produced by the session. */
-	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Currently selected model identifier. */
@@ -192,9 +190,6 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	private readonly _loading = observableValue(this, true);
 	readonly loading: IObservable<boolean> = this._loading;
 
-	private readonly _changesets: ReturnType<typeof observableValue<readonly ISessionChangeset[]>>;
-	readonly changesets: IObservable<readonly ISessionChangeset[]>;
-
 	private readonly _changes: ReturnType<typeof observableValue<readonly ISessionFileChange[]>>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 
@@ -282,8 +277,6 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		this._description = observableValue(this, undefined);
 		this.description = this._description;
 
-		this._changesets = observableValue<readonly ISessionChangeset[]>(this, []);
-		this.changesets = this._changesets;
 
 		this._changes = observableValueOpts<readonly ISessionFileChange[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
 		this.changes = this._changes;
@@ -441,12 +434,11 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	}
 
 	update(agentSession: IAgentSession): void {
-		const session = new AgentSessionAdapter(agentSession, this.providerId, this.gitService, this.gitHubService);
+		const session = new AgentSessionAdapter(agentSession, this.providerId, this.gitHubService);
 		this._workspaceData.set(session.workspace.get(), undefined);
 		this._title.set(session.title.get(), undefined);
 		this._status.set(session.status.get(), undefined);
 		this._updatedAt.set(session.updatedAt.get(), undefined);
-		this._changesets.set(session.changesets.get(), undefined);
 		this._changes.set(session.changes.get(), undefined);
 		this._checkpoints.set(session.checkpoints.get(), undefined);
 		this._description.set(session.description.get(), undefined);
@@ -495,7 +487,6 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 	private readonly _workspaceData = observableValue<ISessionWorkspace | undefined>(this, undefined);
 	readonly workspace: IObservable<ISessionWorkspace | undefined> = this._workspaceData;
 
-	readonly changesets: IObservable<readonly ISessionChangeset[]> = observableValue<readonly ISessionChangeset[]>(this, []);
 	readonly changes: IObservable<readonly ISessionFileChange[]> = observableValueOpts<readonly ISessionFileChange[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
 
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined> = constObservable(undefined);
@@ -741,8 +732,6 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 
 	private readonly _workspaceData = observableValue<ISessionWorkspace | undefined>(this, undefined);
 	readonly workspace: IObservable<ISessionWorkspace | undefined> = this._workspaceData;
-
-	readonly changesets: IObservable<readonly ISessionChangeset[]> = observableValue<readonly ISessionChangeset[]>(this, []);
 
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined> = constObservable(undefined);
 
@@ -1011,7 +1000,6 @@ class ClaudeCodeNewSession extends Disposable implements ICopilotChatSession {
 	private readonly _workspaceData = observableValue<ISessionWorkspace | undefined>(this, undefined);
 	readonly workspace: IObservable<ISessionWorkspace | undefined> = this._workspaceData;
 
-	readonly changesets: IObservable<readonly ISessionChangeset[]> = observableValue<readonly ISessionChangeset[]>(this, []);
 	readonly changes: IObservable<readonly ISessionFileChange[]> = observableValueOpts<readonly ISessionFileChange[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined> = constObservable(undefined);
 
@@ -1152,9 +1140,6 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	private readonly _status: ReturnType<typeof observableValue<SessionStatus>>;
 	readonly status: IObservable<SessionStatus>;
 
-	private readonly _changesets: ReturnType<typeof observableValue<readonly ISessionChangeset[]>>;
-	readonly changesets: IObservable<readonly ISessionChangeset[]>;
-
 	private readonly _changes: ReturnType<typeof observableValue<readonly ISessionFileChange[]>>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 
@@ -1189,7 +1174,6 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	constructor(
 		session: IAgentSession,
 		providerId: string,
-		private readonly _gitService: IGitService,
 		private readonly _gitHubService: IGitHubService,
 	) {
 		this.id = toSessionId(providerId, session.resource);
@@ -1225,9 +1209,6 @@ class AgentSessionAdapter implements ICopilotChatSession {
 
 		this._status = observableValue(this, toSessionStatus(session.status));
 		this.status = this._status;
-
-		this._changesets = observableValue<readonly ISessionChangeset[]>(this, this._extractChangesets(session));
-		this.changesets = this._changesets;
 
 		this._changes = observableValueOpts<readonly ISessionFileChange[]>({ owner: this, equalsFn: sessionFileChangesEqual }, this._extractChanges(session));
 		this.changes = this._changes;
@@ -1430,23 +1411,6 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		}
 
 		return undefined;
-	}
-
-	private _extractChangesets(session: IAgentSession): readonly ISessionChangeset[] {
-		const changesets: ISessionChangeset[] = [new BranchChangesChangeset(this)];
-
-		const changesetResolver = session.providerType === AgentSessionProviders.Cloud
-			? new GitHubRepositoryChangesetResolver(this, this._gitHubService)
-			: new GitRepositoryChangesetResolver(this, this._gitService);
-
-		if (session.providerType !== AgentSessionProviders.Cloud) {
-			changesets.push(new UncommittedChangesChangeset(this, changesetResolver));
-		}
-
-		changesets.push(new AllChangesChangeset(this, changesetResolver));
-		changesets.push(new LastTurnChangesChangeset(this, changesetResolver));
-
-		return changesets;
 	}
 
 	private _extractChanges(session: IAgentSession): readonly ISessionFileChange[] {
@@ -2863,7 +2827,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				existing.update(session);
 				changedData.push(existing);
 			} else {
-				const adapter = new AgentSessionAdapter(session, this.id, this.gitService, this.gitHubService);
+				const adapter = new AgentSessionAdapter(session, this.id, this.gitHubService);
 				this._sessionCache.set(key, adapter);
 				addedData.push(adapter);
 				cacheChanged = true;
@@ -3114,7 +3078,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			title: primaryChat.title,
 			updatedAt: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.updatedAt.read(reader))!),
 			status: chatsObs.map((chats, reader) => this._aggregateStatus(chats, reader)),
-			changesets: primaryChat.changesets,
+			changesets: this._buildChangesets(primaryChat.sessionType, primaryChat.workspace, chatsObs),
 			changes: primaryChat.changes,
 			modelId: primaryChat.modelId,
 			mode: primaryChat.mode,
@@ -3133,6 +3097,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private _chatToSingleChatSession(chat: ICopilotChatSession): ISession {
 		const mainChat = this._toChat(chat);
+		const chatsObs = constObservable<readonly IChat[]>([mainChat]);
+		const changesets = this._buildChangesets(chat.sessionType, chat.workspace, chatsObs);
+
 		return {
 			sessionId: chat.id,
 			resource: chat.resource,
@@ -3144,7 +3111,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			title: chat.title,
 			updatedAt: chat.updatedAt,
 			status: chat.status,
-			changesets: chat.changesets,
+			changesets,
 			changes: chat.changes,
 			modelId: chat.modelId,
 			mode: chat.mode,
@@ -3153,7 +3120,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			isRead: chat.isRead,
 			description: chat.description,
 			lastTurnEnd: chat.lastTurnEnd,
-			chats: constObservable([mainChat]),
+			chats: chatsObs,
 			mainChat,
 			capabilities: { supportsMultipleChats: false },
 		};
@@ -3166,7 +3133,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			title: chat.title,
 			updatedAt: chat.updatedAt,
 			status: chat.status,
-			changesets: chat.changesets,
 			changes: chat.changes,
 			checkpoints: chat.checkpoints,
 			modelId: chat.modelId,
@@ -3176,6 +3142,21 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			description: chat.description,
 			lastTurnEnd: chat.lastTurnEnd,
 		};
+	}
+
+	private _buildChangesets(sessionType: string, workspaceObs: IObservable<ISessionWorkspace | undefined>, chatsObs: IObservable<readonly IChat[]>): IObservable<readonly ISessionChangeset[]> {
+		const changesetResolver = sessionType === AgentSessionProviders.Cloud
+			? new GitHubRepositoryChangesetResolver(workspaceObs, this.gitHubService)
+			: new GitRepositoryChangesetResolver(workspaceObs, this.gitService);
+
+		const changesets: ISessionChangeset[] = [new BranchChangesChangeset(workspaceObs, chatsObs)];
+		if (sessionType !== AgentSessionProviders.Cloud) {
+			changesets.push(new UncommittedChangesChangeset(workspaceObs, chatsObs, changesetResolver));
+		}
+		changesets.push(new AllChangesChangeset(chatsObs, changesetResolver));
+		changesets.push(new LastTurnChangesChangeset(chatsObs, changesetResolver));
+
+		return constObservable(changesets);
 	}
 
 	private _latestDate(chats: readonly IChat[], getter: (chat: IChat) => Date | undefined): Date | undefined {

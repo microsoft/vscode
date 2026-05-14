@@ -18,7 +18,6 @@ const stubChat = {
 	title: constObservable('Chat'),
 	updatedAt: constObservable(new Date()),
 	status: constObservable(0),
-	changesets: constObservable([]),
 	changes: constObservable([]),
 	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),

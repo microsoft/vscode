@@ -209,7 +209,6 @@ class TestSession implements ISession {
 			title: this.title,
 			updatedAt: this.updatedAt,
 			status: this.status,
-			changesets: this.changesets,
 			changes: this.changes,
 			checkpoints,
 			modelId: this.modelId,

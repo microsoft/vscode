@@ -240,8 +240,6 @@ export interface IChat {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
-	/** Changesets produced by the chat. */
-	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
