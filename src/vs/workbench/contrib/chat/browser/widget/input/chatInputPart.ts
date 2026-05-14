@@ -2664,6 +2664,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						|| action.id === OpenAgentHostIsolationPickerAction.ID)
 					&& action instanceof MenuItemAction
 				) {
+					if (this.options.isSessionsWindow) {
+						return new HiddenActionViewItem(action);
+					}
 					const property = action.id === OpenAgentHostBranchPickerAction.ID
 						? SessionConfigKey.Branch
 						: action.id === OpenAgentHostIsolationPickerAction.ID
