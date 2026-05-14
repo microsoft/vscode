@@ -173,12 +173,6 @@ export class ActivitybarPart extends Part {
 		return this.compositeBar.value?.getPaneCompositeIds() ?? [];
 	}
 
-	// test-workbench_change start
-	setGlobalCompositeBarVisible(visible: boolean): void {
-		(this.compositeBar.value as ActivityBarCompositeBar | undefined)?.setGlobalCompositeBarVisible(visible);
-	}
-	// test-workbench_change end
-
 	focus(): void {
 		this.compositeBar.value?.focus();
 	}
@@ -451,12 +445,6 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 
 		return actions;
 	}
-
-	// test-workbench_change start
-	setGlobalCompositeBarVisible(visible: boolean): void {
-		this.globalCompositeBar?.setVisible(visible);
-	}
-	// test-workbench_change end
 
 }
 

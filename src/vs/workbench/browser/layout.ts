@@ -11,7 +11,6 @@ import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
 import { SidebarPart } from './parts/sidebar/sidebarPart.js';
 import { PanelPart } from './parts/panel/panelPart.js';
-import { ActivitybarPart } from './parts/activitybar/activitybarPart.js'; // test-workbench_change
 import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent } from '../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
@@ -146,11 +145,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private readonly _onDidChangeZenMode = this._register(new Emitter<boolean>());
 	readonly onDidChangeZenMode = this._onDidChangeZenMode.event;
-
-	// test-workbench_change start
-	private readonly _onDidChangeConciseMode = this._register(new Emitter<boolean>());
-	readonly onDidChangeConciseMode = this._onDidChangeConciseMode.event;
-	// test-workbench_change end
 
 	private readonly _onDidChangeMainEditorCenteredLayout = this._register(new Emitter<boolean>());
 	readonly onDidChangeMainEditorCenteredLayout = this._onDidChangeMainEditorCenteredLayout.event;
@@ -1164,15 +1158,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.toggleZenMode(false, true);
 		}
 
-		// test-workbench_change start: Restore Concise Mode
-		if (this.isConciseModeActiveInternal()) {
-			const activityBarPart = this.getPart(Parts.ACTIVITYBAR_PART) as ActivitybarPart;
-			this.setStatusBarHidden(true);
-			activityBarPart.setGlobalCompositeBarVisible(false);
-			this._onDidChangeConciseMode.fire(true);
-		}
-		// test-workbench_change end
-
 		// Restore Main Editor Center Mode
 		if (this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED)) {
 			this.centerMainEditorLayout(true, true);
@@ -1595,47 +1580,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Event
 		this._onDidChangeZenMode.fire(this.isZenModeActive());
 	}
-
-	// test-workbench_change start
-	private isConciseModeActiveInternal(): boolean {
-		return this.stateModel.getRuntimeValue(LayoutStateKeys.CONCISE_MODE_ACTIVE);
-	}
-
-	isConciseModeActive(): boolean {
-		return this.isConciseModeActiveInternal();
-	}
-
-	private setConciseModeActive(active: boolean) {
-		this.stateModel.setRuntimeValue(LayoutStateKeys.CONCISE_MODE_ACTIVE, active);
-	}
-
-	toggleConciseMode(): void {
-		this.setConciseModeActive(!this.isConciseModeActiveInternal());
-
-		// test-workbench_change start
-		const activityBarPart = this.getPart(Parts.ACTIVITYBAR_PART) as ActivitybarPart;
-
-		if (this.isConciseModeActive()) {
-			// --- Entering concise mode ---
-			const conciseModeExitInfo = this.stateModel.getRuntimeValue(LayoutStateKeys.CONCISE_MODE_EXIT_INFO);
-			conciseModeExitInfo.wasStatusBarVisible = this.isVisible(Parts.STATUSBAR_PART, mainWindow);
-			this.stateModel.setRuntimeValue(LayoutStateKeys.CONCISE_MODE_EXIT_INFO, conciseModeExitInfo);
-
-			this.setStatusBarHidden(true);
-			activityBarPart.setGlobalCompositeBarVisible(false);
-		} else {
-			// --- Leaving concise mode ---
-			const conciseModeExitInfo = this.stateModel.getRuntimeValue(LayoutStateKeys.CONCISE_MODE_EXIT_INFO);
-			if (conciseModeExitInfo.wasStatusBarVisible) {
-				this.setStatusBarHidden(false);
-			}
-			activityBarPart.setGlobalCompositeBarVisible(true);
-		}
-		// test-workbench_change end
-
-		this._onDidChangeConciseMode.fire(this.isConciseModeActive());
-	}
-	// test-workbench_change end
 
 	private setStatusBarHidden(hidden: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN, hidden);
@@ -2843,14 +2787,6 @@ const LayoutStateKeys = {
 			sideBar: false,
 		},
 	}),
-
-	// test-workbench_change start
-	// Concise Mode — default true (first launch starts in concise mode), persisted at PROFILE scope so user preference is remembered across workspaces
-	CONCISE_MODE_ACTIVE: new RuntimeStateKey<boolean>('conciseMode.active', StorageScope.PROFILE, StorageTarget.USER, true),
-	CONCISE_MODE_EXIT_INFO: new RuntimeStateKey('conciseMode.exitInfo', StorageScope.PROFILE, StorageTarget.USER, {
-		wasStatusBarVisible: true,
-	}),
-	// test-workbench_change end
 
 	// Part Sizing
 	SIDEBAR_SIZE: new InitializationStateKey<number>('sideBar.size', StorageScope.PROFILE, StorageTarget.MACHINE, 300),

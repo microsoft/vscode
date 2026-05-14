@@ -41,7 +41,7 @@ import { isICommandActionToggleInfo } from '../../../../platform/action/common/a
 import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { defaultMenuStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { ActivityBarPosition, IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js'; // test-workbench_change
+import { ActivityBarPosition } from '../../../services/layout/browser/layoutService.js';
 
 export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
 
@@ -429,8 +429,7 @@ export class CustomMenubarControl extends MenubarControl {
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHostService hostService: IHostService,
-		@ICommandService commandService: ICommandService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService // test-workbench_change
+		@ICommandService commandService: ICommandService
 	) {
 		super(menuService, workspacesService, contextKeyService, keybindingService, configurationService, labelService, updateService, storageService, notificationService, preferencesService, environmentService, accessibilityService, hostService, commandService);
 
@@ -445,11 +444,6 @@ export class CustomMenubarControl extends MenubarControl {
 		this.workspacesService.getRecentlyOpened().then((recentlyOpened) => {
 			this.recentlyOpened = recentlyOpened;
 		});
-
-		// test-workbench_change start
-		// Listen for concise mode changes to force a full menu bar rebuild
-		this._register(this.layoutService.onDidChangeConciseMode(() => this.setupCustomMenubar(true)));
-		// test-workbench_change end
 
 		this.registerListeners();
 	}
@@ -681,14 +675,6 @@ export class CustomMenubarControl extends MenubarControl {
 		};
 
 		for (const title of Object.keys(this.topLevelTitles)) {
-			// test-workbench_change start: In concise mode, only show File and Run menus
-			if (this.layoutService.isConciseModeActive() && title !== 'File' && title !== 'Run') {
-				if (!firstTime && this.menubar) {
-					this.menubar.removeMenu(mnemonicMenuLabel(this.topLevelTitles[title]));
-				}
-				continue;
-			}
-			// test-workbench_change end
 			const menu = this.menus[title];
 			if (firstTime && menu) {
 				const menuChangedDisposable = this.reinstallDisposables.add(new DisposableStore());

@@ -12,7 +12,6 @@ export interface ICommonMenubarService {
 export interface IMenubarData {
 	menus: { [id: string]: IMenubarMenu };
 	keybindings: { [id: string]: IMenubarKeybinding };
-	conciseMode?: boolean; // test-workbench_change
 }
 
 export interface IMenubarMenu {

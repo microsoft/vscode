@@ -23,7 +23,7 @@ import { IPaneCompositePartService } from '../../services/panecomposite/browser/
 import { ToggleAuxiliaryBarAction } from '../parts/auxiliarybar/auxiliaryBarActions.js';
 import { TogglePanelAction } from '../parts/panel/panelActions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, IsSessionsWindowContext, TitleBarStyleContext, IsAuxiliaryWindowContext, InConciseModeContext } from '../../common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, IsSessionsWindowContext, TitleBarStyleContext, IsAuxiliaryWindowContext } from '../../common/contextkeys.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -359,7 +359,6 @@ MenuRegistry.appendMenuItems([
 			},
 			when: ContextKeyExpr.and(
 				IsAuxiliaryWindowContext.negate(),
-				InConciseModeContext.negate(), // test-workbench_change
 				ContextKeyExpr.or(
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
@@ -379,7 +378,6 @@ MenuRegistry.appendMenuItems([
 			},
 			when: ContextKeyExpr.and(
 				IsAuxiliaryWindowContext.negate(),
-				InConciseModeContext.negate(), // test-workbench_change
 				ContextKeyExpr.or(
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
@@ -776,37 +774,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: InEditorZenModeContext,
 	primary: KeyChord(KeyCode.Escape, KeyCode.Escape)
 });
-
-// --- Toggle Concise Mode --- // test-workbench_change start
-
-registerAction2(class extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.toggleConciseMode',
-			title: {
-				...localize2('toggleConciseMode', "Toggle Concise Mode"),
-				mnemonicTitle: localize({ key: 'miToggleConciseMode', comment: ['&& denotes a mnemonic'] }, "Concise Mode"),
-			},
-			precondition: ContextKeyExpr.and(IsAuxiliaryWindowFocusedContext.toNegated(), IsSessionsWindowContext.negate()),
-			category: Categories.View,
-			f1: true,
-			toggled: InConciseModeContext,
-			menu: [{
-				id: MenuId.MenubarAppearanceMenu,
-				group: '1_toggle_view',
-				order: 2.5,
-				when: IsSessionsWindowContext.negate()
-			}]
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		return accessor.get(IWorkbenchLayoutService).toggleConciseMode();
-	}
-});
-
-// test-workbench_change end
 
 // --- Toggle Menu Bar
 
@@ -1472,7 +1439,6 @@ const MiscLayoutOptions: CustomizeLayoutItem[] = [
 	CreateOptionLayoutItem('workbench.action.toggleFullScreen', IsMainWindowFullscreenContext, localize('fullscreen', "Full Screen"), fullscreenIcon),
 	CreateOptionLayoutItem('workbench.action.toggleZenMode', InEditorZenModeContext, localize('zenMode', "Zen Mode"), zenModeIcon),
 	CreateOptionLayoutItem('workbench.action.toggleCenteredLayout', IsMainEditorCenteredLayoutContext, localize('centeredLayout', "Centered Layout"), centerLayoutIcon),
-	CreateOptionLayoutItem('workbench.action.toggleConciseMode', InConciseModeContext, localize('conciseMode', "Concise Mode"), zenModeIcon), // test-workbench_change
 ];
 
 const LayoutContextKeySet = new Set<string>();
