@@ -91,7 +91,7 @@ suite('markdown.engine', () => {
 			const engine = createNewMarkdownEngine();
 			assert.strictEqual(
 				(await engine.render(input)).html,
-				'<table class="frontmatter"><tbody><tr><th>title</th><td>Hello</td></tr></tbody></table>\n'
+				'<table class="frontmatter" title="Frontmatter" data-vscode-context=\'{&quot;webviewSection&quot;:&quot;frontMatter&quot;}\'><tbody><tr><th>title</th><td>Hello</td></tr></tbody></table>\n'
 				+ '<h1 data-line="4" class="code-line" dir="auto" id="world">World</h1>\n'
 			);
 		});

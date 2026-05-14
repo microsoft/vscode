@@ -7,9 +7,12 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
@@ -17,6 +20,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CONTEXT_MODELS_EDITOR, CONTEXT_MODELS_SEARCH_FOCUS, MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ModelsManagementEditor } from './chatManagementEditor.js';
@@ -26,6 +30,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 
 const languageModelsOpenSettingsIcon = registerIcon('language-models-open-settings', Codicon.goToFile, localize('languageModelsOpenSettings', 'Icon for open language models settings commands.'));
 
@@ -37,7 +43,8 @@ const LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION = ContextKeyExpr.and(ChatContextK
 	ChatContextKeys.Entitlement.planMax,
 	ChatContextKeys.Entitlement.planBusiness,
 	ChatContextKeys.Entitlement.planEnterprise,
-	ChatContextKeys.Entitlement.internal
+	ChatContextKeys.Entitlement.internal,
+	ChatEntitlementContextKeys.clientByokEnabled
 ));
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -68,6 +75,34 @@ class ModelsManagementEditorInputSerializer implements IEditorSerializer {
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ModelsManagementEditorInput.ID, ModelsManagementEditorInputSerializer);
 
+/**
+ * Enable + activate the Copilot Chat extension if installed but disabled.
+ */
+async function ensureChatExtensionEnabled(accessor: ServicesAccessor): Promise<void> {
+	const chatExtensionId = accessor.get(IProductService).defaultChatAgent?.chatExtensionId;
+	if (!chatExtensionId) {
+		return;
+	}
+
+	const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+	const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
+	const progressService = accessor.get(IProgressService);
+
+	const localExtensions = await extensionsWorkbenchService.queryLocal();
+	const chatExtension = localExtensions.find(e => ExtensionIdentifier.equals(e.identifier.id, chatExtensionId));
+	if (!chatExtension?.local || extensionEnablementService.isEnabled(chatExtension.local)) {
+		return;
+	}
+
+	await progressService.withProgress(
+		{ location: ProgressLocation.Window, title: localize('enableChatForByok', "Enabling AI features…") },
+		async () => {
+			await extensionsWorkbenchService.setEnablement([chatExtension], EnablementState.EnabledGlobally);
+			await extensionsWorkbenchService.updateRunningExtensions(localize('enableChatForByokReason', "Enabling AI features"));
+		}
+	);
+}
+
 class ChatManagementActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatManagementActions';
@@ -93,6 +128,7 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 			}
 			async run(accessor: ServicesAccessor) {
 				const editorService = accessor.get(IEditorService);
+				await ensureChatExtensionEnabled(accessor);
 				return editorService.openEditor(new ModelsManagementEditorInput(), { pinned: true });
 			}
 		}));

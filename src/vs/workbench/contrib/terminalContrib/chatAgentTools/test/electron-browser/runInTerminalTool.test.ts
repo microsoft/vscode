@@ -180,6 +180,7 @@ suite('RunInTerminalTool', () => {
 				createTerminalCallCount++;
 				return createdTerminalInstance;
 			},
+			foregroundInstances: [],
 			onDidDisposeInstance: terminalServiceDisposeEmitter.event,
 			onDidChangeInstances: Event.None,
 			revealTerminal: async () => { },
@@ -2016,6 +2017,7 @@ suite('RunInTerminalTool', () => {
 			instantiationService.stub(ITerminalService, {
 				onDidDisposeInstance: terminalServiceDisposeEmitter.event,
 				instances: [mockTerminal1, mockTerminal2],
+				foregroundInstances: [],
 				setNextCommandId: async () => { }
 			});
 
@@ -2358,6 +2360,9 @@ suite('RunInTerminalTool', () => {
 
 		const toolSpecificData = { kind: 'terminal', commandLine: { original: 'ssh host' }, language: 'bash' } as IChatTerminalToolInvocationData;
 
+		// This is a foreground terminal, so it should be in foregroundInstances
+		(instantiationService.get(ITerminalService).foregroundInstances as ITerminalInstance[]).push(terminalInstance);
+
 		// Set up fg terminal association and active execution
 		runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
 			instance: terminalInstance,
@@ -2365,8 +2370,9 @@ suite('RunInTerminalTool', () => {
 			isBackground: false,
 		});
 
-		(runInTerminalTool.constructor as unknown as { _activeExecutions: Map<string, { getOutput(): string }> })._activeExecutions.set(termId, {
+		(runInTerminalTool.constructor as unknown as { _activeExecutions: Map<string, { getOutput(): string; dispose(): void }> })._activeExecutions.set(termId, {
 			getOutput: () => 'Password:',
+			dispose: () => { },
 		});
 
 		// eslint-disable-next-line @typescript-eslint/naming-convention
@@ -2774,6 +2780,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		instantiationService.stub(ITerminalService, {
 			onDidDisposeInstance: terminalServiceDisposeEmitter.event,
 			onDidChangeInstances: terminalInstancesChangedEmitter.event,
+			foregroundInstances: [],
 			setNextCommandId: async () => { }
 		});
 		instantiationService.stub(ITerminalChatService, store.add(instantiationService.createInstance(TerminalChatService)));

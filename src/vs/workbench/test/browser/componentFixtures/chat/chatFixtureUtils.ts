@@ -32,7 +32,10 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ISCMService } from '../../../../contrib/scm/common/scm.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatAttachmentResolveService } from '../../../../contrib/chat/browser/attachments/chatAttachmentResolveService.js';
 import { IChatAttachmentWidgetRegistry } from '../../../../contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
@@ -195,6 +198,14 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getActiveNotification() { return undefined; }
 	}());
 	reg.defineInstance(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { override readonly model = new class extends mock<IAgentSessionsService['model']>() { override readonly onDidChangeSessions = Event.None; }(); }());
+	reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() { }());
+	reg.defineInstance(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+		override readonly onDidChange = Event.None;
+		override get() { return undefined; }
+	}());
+	reg.defineInstance(IAgentHostSessionWorkingDirectoryResolver, new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() {
+		override resolve() { return undefined; }
+	}());
 
 	const artifactGroups = options.artifactGroups ?? observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', []);
 	reg.defineInstance(IChatArtifactsService, new class extends mock<IChatArtifactsService>() {

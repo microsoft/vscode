@@ -70,6 +70,7 @@ import { CommandLineBackgroundDetachRewriter } from './commandLineRewriter/comma
 import { CommandLineSandboxRewriter } from './commandLineRewriter/commandLineSandboxRewriter.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
+import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
 import { isNumber, isString } from '../../../../../../base/common/types.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
@@ -503,6 +504,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 */
 	private readonly _backgroundNotifications = this._register(new DisposableMap<number>());
 
+	/**
+	 * Set when VS Code is shutting down. Suppresses "terminal exited"
+	 * notifications that would otherwise be generated when background
+	 * terminals are disposed during shutdown and then persist as
+	 * undeliverable steering messages after restart.
+	 */
+	private _isShuttingDown = false;
+
 	// Immutable window state
 	protected readonly _osBackend: Promise<OperatingSystem>;
 
@@ -619,8 +628,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
+
+		this._register(lifecycleService.onWillShutdown(() => {
+			this._isShuttingDown = true;
+		}));
 
 		this._osBackend = this._remoteAgentService.getEnvironment().then(remoteEnv => remoteEnv?.os ?? OS);
 
@@ -1738,6 +1752,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					didTimeout = true;
 					isBackgroundExecution = true;
 					toolTerminal.isBackground = true;
+					toolSpecificData.didContinueInBackground = true;
 					this._sessionTerminalAssociations.delete(chatSessionResource);
 					await this._associateProcessIdWithSession(toolTerminal.instance, chatSessionResource, termId, toolTerminal.shellIntegrationQuality, true);
 					const timeoutOutput = execution.getOutput();
@@ -1750,6 +1765,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					didIdleSilence = true;
 					isBackgroundExecution = true;
 					toolTerminal.isBackground = true;
+					toolSpecificData.didContinueInBackground = true;
 					this._sessionTerminalAssociations.delete(chatSessionResource);
 					await this._associateProcessIdWithSession(toolTerminal.instance, chatSessionResource, termId, toolTerminal.shellIntegrationQuality, true);
 					const idleSilenceOutput = execution.getOutput();
@@ -1821,6 +1837,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				error = 'timeout';
 				isBackgroundExecution = true;
 				toolTerminal.isBackground = true;
+				toolSpecificData.didContinueInBackground = true;
 				this._sessionTerminalAssociations.delete(chatSessionResource);
 				const timeoutOutput = getOutput(toolTerminal.instance, undefined);
 				outputLineCount = timeoutOutput ? count(timeoutOutput.trim(), '\n') + 1 : 0;
@@ -2643,10 +2660,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const exitCode = command.exitCode;
 			const exitCodeText = exitCode !== undefined ? ` with exit code ${exitCode}` : '';
 			const currentOutput = execution.getOutput();
-			const willDispose = terminalInstance.shellLaunchConfig.hideFromUser;
-			const message = willDispose
-				? `[Terminal ${termId} notification: command completed${exitCodeText}. The terminal has been cleaned up.]\nTerminal output:\n${currentOutput}`
-				: `[Terminal ${termId} notification: command completed${exitCodeText}. Use send_to_terminal to send another command or kill_terminal to stop it.]\nTerminal output:\n${currentOutput}`;
+			// Only dispose if the terminal is still hidden from the user. Once the
+			// user reveals it (via the "Show" link), it joins `foregroundInstances`
+			// and should persist so they can inspect/interact with it.
+			const isUserVisible = this._terminalService.foregroundInstances.includes(terminalInstance);
+			const message = isUserVisible
+				? `[Terminal ${termId} notification: command completed${exitCodeText}. Use send_to_terminal to send another command or kill_terminal to stop it.]\nTerminal output:\n${currentOutput}`
+				: `[Terminal ${termId} notification: command completed${exitCodeText}. The terminal has been cleaned up.]\nTerminal output:\n${currentOutput}`;
 
 			this._logService.debug(`RunInTerminalTool: Command completed in background terminal ${termId}, notifying chat session`);
 
@@ -2662,21 +2682,26 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			// Background terminals are not reused, so dispose them once their
 			// command completes to prevent terminal accumulation across turns.
-			// Only dispose if the user hasn't revealed the terminal — if they
-			// have, they may want to inspect its output or interact with it.
+			// Only dispose if the user hasn't revealed the terminal — once revealed
+			// it joins `foregroundInstances` and they may want to inspect its
+			// output or interact with it.
 			// Capture the output snapshot first so the progress part can still
 			// display output after the terminal instance is gone.
-			if (terminalInstance.shellLaunchConfig.hideFromUser) {
-				this._commandArtifactCollector.capture(toolSpecificData, terminalInstance, command.id).then(() => {
-					this._logService.debug(`RunInTerminalTool: Disposing finished background terminal ${termId}`);
-					// Mark as killed so the onDisposed handler below does not
-					// send a redundant "terminal exited" steering message.
-					RunInTerminalTool._killedByTool.add(termId);
-					execution.dispose();
-					RunInTerminalTool._activeExecutions.delete(termId);
-					terminalInstance.dispose();
-				});
-			}
+			// Re-check foregroundInstances inside the callback because the user
+			// may click the "Show" link while capture is in progress.
+			this._commandArtifactCollector.capture(toolSpecificData, terminalInstance, command.id).then(() => {
+				if (this._terminalService.foregroundInstances.includes(terminalInstance)) {
+					this._logService.debug(`RunInTerminalTool: Background terminal ${termId} was revealed by user, skipping disposal`);
+					return;
+				}
+				this._logService.debug(`RunInTerminalTool: Disposing finished background terminal ${termId}`);
+				// Mark as killed so the onDisposed handler below does not
+				// send a redundant "terminal exited" steering message.
+				RunInTerminalTool._killedByTool.add(termId);
+				execution.dispose();
+				RunInTerminalTool._activeExecutions.delete(termId);
+				terminalInstance.dispose();
+			});
 		}));
 
 		// Clean up all background resources when the terminal is disposed
@@ -2694,6 +2719,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// receive the output through the normal tool-result flow —
 			// skip the redundant steering message.
 			if (RunInTerminalTool._killedByTool.has(termId)) {
+				disposeNotification();
+				return;
+			}
+			// During VS Code shutdown, terminals are disposed as part of
+			// normal cleanup. Suppress notifications so they don't persist
+			// as undeliverable steering messages after restart (#314791).
+			if (this._isShuttingDown) {
 				disposeNotification();
 				return;
 			}

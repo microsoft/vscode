@@ -137,11 +137,13 @@ export class ChatStatusDashboard extends DomWidget {
 		const { chat, premiumChat, completions } = this.chatEntitlementService.quotas;
 		const hasQuotas = !!(chat || premiumChat);
 		const isAnonymousWithSentiment = this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.completed;
+		const isPooledQuotaDepleted = premiumChat?.unlimited && premiumChat.hasQuota === false;
 		const hasUsageSection = hasQuotas || isAnonymousWithSentiment;
 		const hasVisibleUsageContent = chat?.unlimited === false ||
 			premiumChat?.unlimited === false ||
 			(!this.options?.compactQuotaLayout && completions?.unlimited === false) ||
-			isAnonymousWithSentiment;
+			isAnonymousWithSentiment ||
+			isPooledQuotaDepleted;
 		const contributedEntries = [...this.chatStatusItemService.getEntries()];
 		const hasQuickSettingsContent =
 			!this.options?.disableInlineSuggestionsSettings ||
@@ -164,10 +166,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 			// Add Additional Spend / Upgrade buttons to the header
 			const canConfigureAdditionalSpend = this.chatEntitlementService.entitlement === ChatEntitlement.EDU || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus || this.chatEntitlementService.entitlement === ChatEntitlement.Max;
-			const showUpgrade = this.chatEntitlementService.entitlement !== ChatEntitlement.ProPlus &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Max &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Business &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Enterprise;
+			const showUpgrade = this.chatEntitlementService.quotas.canUpgradePlan ?? false;
 
 			const actionBarElement = header.lastElementChild;
 			const initialAdditionalUsageEnabled = this.chatEntitlementService.quotas.additionalUsageEnabled ?? false;
@@ -200,10 +199,7 @@ export class ChatStatusDashboard extends DomWidget {
 		if (hasUsageSection && this.options?.compactQuotaLayout && this.options.ctaButtonsContainer) {
 			const ctaContainer = this.options.ctaButtonsContainer;
 			const canConfigureAdditionalSpend = this.chatEntitlementService.entitlement === ChatEntitlement.EDU || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus || this.chatEntitlementService.entitlement === ChatEntitlement.Max;
-			const showUpgrade = this.chatEntitlementService.entitlement !== ChatEntitlement.ProPlus &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Max &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Business &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Enterprise;
+			const showUpgrade = this.chatEntitlementService.quotas.canUpgradePlan ?? false;
 			const initialAdditionalUsageEnabled = this.chatEntitlementService.quotas.additionalUsageEnabled ?? false;
 
 			if (canConfigureAdditionalSpend) {
@@ -246,10 +242,14 @@ export class ChatStatusDashboard extends DomWidget {
 				const planName = getChatPlanName(this.chatEntitlementService.entitlement);
 				includedContainer.classList.add('compact');
 				includedContainer.appendChild($('div.quota-title', undefined, planName));
-				includedContainer.appendChild($('div.description', undefined, localize('premiumIncludedCompact', "{0} included with your organization's plan.", includedTitle)));
+				includedContainer.appendChild($('div.description', undefined, isPooledQuotaDepleted
+					? localize('premiumLimitReachedCompact', "{0} limit reached.", includedTitle)
+					: localize('premiumIncludedCompact', "{0} included with your organization's plan.", includedTitle)));
 			} else {
 				includedContainer.appendChild($('div.quota-title', undefined, includedTitle));
-				includedContainer.appendChild($('div.description', undefined, localize('premiumIncluded', "Included with your organization's plan.")));
+				includedContainer.appendChild($('div.description', undefined, isPooledQuotaDepleted
+					? localize('premiumLimitReached', "Organization limit reached.")
+					: localize('premiumIncluded', "Included with your organization's plan.")));
 			}
 		}
 
@@ -444,7 +444,7 @@ export class ChatStatusDashboard extends DomWidget {
 						hoverContent.appendMarkdown(`[${localize('learnMore', "Learn More")}](${headerLink})`);
 					}
 					return { content: hoverContent };
-				}));
+				}, { reducedDelay: true }));
 			}
 
 			// Status text (right-aligned via margin-left: auto)
@@ -456,7 +456,7 @@ export class ChatStatusDashboard extends DomWidget {
 			if (currentTooltip) {
 				this._store.add(this.hoverService.setupDelayedHover(statusEl, () => ({
 					content: currentTooltip ?? '',
-				})));
+				}), { reducedDelay: true }));
 			}
 
 			// Detail (action link) rendered inline
@@ -794,8 +794,9 @@ export class ChatStatusDashboard extends DomWidget {
 			if (quotas.completions && !quotas.completions.unlimited) { allQuotas.push(quotas.completions); }
 
 			const maxUsedPercentage = allQuotas.length > 0 ? Math.max(...allQuotas.map(q => Math.max(0, 100 - q.percentRemaining))) : 0;
+			const isPooledQuotaExhausted = quotas.premiumChat?.unlimited && quotas.premiumChat.hasQuota === false;
 
-			if (maxUsedPercentage >= 100 && additionalUsageEnabled) {
+			if ((maxUsedPercentage >= 100 || isPooledQuotaExhausted) && additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
@@ -809,7 +810,7 @@ export class ChatStatusDashboard extends DomWidget {
 				calloutText.textContent = isUsageBasedBilling
 					? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional budget will be used.")
 					: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");
-			} else if (maxUsedPercentage >= 100 && !additionalUsageEnabled) {
+			} else if ((maxUsedPercentage >= 100 || isPooledQuotaExhausted) && !additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
