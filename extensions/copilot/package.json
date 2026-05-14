@@ -1860,7 +1860,8 @@
 			},
 			{
 				"vendor": "customoai",
-				"displayName": "OpenAI Compatible",
+				"when": "productQualityType != 'stable'",
+				"displayName": "OpenAI Compatible (Deprecated)",
 				"configuration": {
 					"type": "object",
 					"properties": {
@@ -1868,10 +1869,12 @@
 							"type": "string",
 							"secret": true,
 							"description": "API key for the models",
-							"title": "API Key"
+							"title": "API Key",
+							"markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, and the Messages API — selectable per model via the `apiType` property."
 						},
 						"models": {
 							"type": "array",
+							"markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, and the Messages API — selectable per model via the `apiType` property.",
 							"defaultSnippets": [
 								{
 									"label": "New Model",
@@ -1996,7 +1999,7 @@
 							"type": "string",
 							"secret": true,
 							"minLength": 1,
-							"markdownDescription": "API key for the models. Each model can use the OpenAI Chat Completions API (default), the OpenAI Responses API, or the Anthropic Messages API \u2014 set the `apiType` property on a model to choose, or leave it unset to infer from the URL path.",
+							"description": "API key for the models",
 							"title": "API Key"
 						},
 						"apiType": {
@@ -2007,9 +2010,9 @@
 								"messages"
 							],
 							"enumDescriptions": [
-								"OpenAI Chat Completions API.",
-								"OpenAI Responses API. Enables reasoning summaries and stored context.",
-								"Anthropic Messages API. Sends x-api-key and anthropic-version headers."
+								"Chat Completions API.",
+								"Responses API.",
+								"Messages API."
 							],
 							"default": "chat-completions",
 							"title": "API Type",
@@ -2058,7 +2061,7 @@
 											"responses",
 											"messages"
 										],
-										"markdownDescription": "Request/response format used to talk to this endpoint:\n- `chat-completions`: OpenAI Chat Completions API (default).\n- `responses`: OpenAI Responses API. Enables reasoning summaries and stored context.\n- `messages`: Anthropic Messages API. Sends `x-api-key` and `anthropic-version` headers and enables Anthropic features such as interleaved thinking and prompt caching.\n\nWhen omitted, falls back to the group-level `apiType`, then to the URL path."
+										"markdownDescription": "Request/response format used to talk to this endpoint:\n- `chat-completions`: Chat Completions API (default).\n- `responses`: Responses API.\n- `messages`: Messages API.\n\nWhen omitted, falls back to the group-level `apiType`, then to the URL path."
 									},
 									"toolCalling": {
 										"type": "boolean",
