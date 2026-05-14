@@ -1139,6 +1139,29 @@ describe('handleResultMessage', () => {
 			() => handleResultMessage(makeErroredSuccessResult('API Error: 500 {"type":"error"}'), createRequestContext()),
 		).toThrow(KnownClaudeError);
 	});
+
+	it('detects proxy quota code among multiple errors in error_during_execution', () => {
+		const errorResult = makeErrorResult('error_during_execution');
+		errorResult.errors = ['Some other error', `API Error: ${PROXY_QUOTA_EXCEEDED}`];
+		expect(
+			() => handleResultMessage(errorResult, createRequestContext()),
+		).toThrow(ClaudeQuotaExceededError);
+	});
+
+	it('throws KnownClaudeError for error_during_execution with empty errors array', () => {
+		const errorResult = makeErrorResult('error_during_execution');
+		errorResult.errors = [];
+		expect(
+			() => handleResultMessage(errorResult, createRequestContext()),
+		).toThrow(KnownClaudeError);
+	});
+
+	it('returns requestComplete for success with is_error false', () => {
+		const successResult = makeSuccessResult();
+		successResult.result = `contains ${PROXY_QUOTA_EXCEEDED} but is_error is false`;
+		const result = handleResultMessage(successResult, createRequestContext());
+		expect(result).toEqual({ requestComplete: true });
+	});
 });
 
 // #endregion
