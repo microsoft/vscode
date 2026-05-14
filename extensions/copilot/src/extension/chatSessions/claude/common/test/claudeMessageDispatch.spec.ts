@@ -15,9 +15,10 @@ import { ITelemetryService, type TelemetryEventMeasurements, type TelemetryEvent
 import type { ServicesAccessor } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { IToolsService } from '../../../../tools/common/toolsService';
+import { ChatFetchResponseType, type ChatFetchError } from '../../../../../platform/chat/common/commonTypes';
 import {
 	ALL_KNOWN_MESSAGE_KEYS,
-	ClaudeQuotaExceededError,
+	ClaudeProxyError,
 	DENY_TOOL_MESSAGE,
 	dispatchMessage,
 	handleAssistantMessage,
@@ -32,7 +33,7 @@ import {
 	MessageHandlerState,
 	messageKey,
 	parseHookJsonOutput,
-	PROXY_QUOTA_EXCEEDED,
+	PROXY_ERROR_PREFIX,
 	SYNTHETIC_MODEL_ID,
 } from '../claudeMessageDispatch';
 import { ClaudeToolNames } from '../claudeTools';
@@ -1101,6 +1102,24 @@ describe('parseHookJsonOutput', () => {
 
 // #region handleResultMessage
 
+const TEST_QUOTA_ERROR: ChatFetchError = {
+	type: ChatFetchResponseType.QuotaExceeded,
+	reason: 'Free tier quota exceeded',
+	requestId: 'req-1',
+	serverRequestId: undefined,
+	retryAfter: undefined,
+};
+
+const TEST_RATE_LIMIT_ERROR: ChatFetchError = {
+	type: ChatFetchResponseType.RateLimited,
+	reason: 'Rate limited',
+	requestId: 'req-2',
+	serverRequestId: undefined,
+	retryAfter: 60,
+	rateLimitKey: 'test',
+	isAuto: false,
+};
+
 describe('handleResultMessage', () => {
 	it('returns requestComplete for success', () => {
 		const result = handleResultMessage(makeSuccessResult(), createRequestContext());
@@ -1120,32 +1139,48 @@ describe('handleResultMessage', () => {
 		).toThrow(KnownClaudeError);
 	});
 
-	it('throws ClaudeQuotaExceededError when error_during_execution contains proxy quota code', () => {
+	it('throws ClaudeProxyError with parsed ChatFetchError for quota exceeded', () => {
 		const errorResult = makeErrorResult('error_during_execution');
-		errorResult.errors = [`API Error: ${PROXY_QUOTA_EXCEEDED}`];
+		errorResult.errors = [`API Error: ${PROXY_ERROR_PREFIX}${JSON.stringify(TEST_QUOTA_ERROR)}`];
 		expect(
 			() => handleResultMessage(errorResult, createRequestContext()),
-		).toThrow(ClaudeQuotaExceededError);
+		).toThrow(ClaudeProxyError);
+		try {
+			handleResultMessage(errorResult, createRequestContext());
+		} catch (e) {
+			expect((e as ClaudeProxyError).fetchError.type).toBe(ChatFetchResponseType.QuotaExceeded);
+		}
 	});
 
-	it('throws ClaudeQuotaExceededError when success result with is_error contains proxy quota code', () => {
+	it('throws ClaudeProxyError for rate limited in success result', () => {
 		expect(
-			() => handleResultMessage(makeErroredSuccessResult(`API Error: ${PROXY_QUOTA_EXCEEDED}`), createRequestContext()),
-		).toThrow(ClaudeQuotaExceededError);
+			() => handleResultMessage(
+				makeErroredSuccessResult(`API Error: ${PROXY_ERROR_PREFIX}${JSON.stringify(TEST_RATE_LIMIT_ERROR)}`),
+				createRequestContext(),
+			),
+		).toThrow(ClaudeProxyError);
+		try {
+			handleResultMessage(
+				makeErroredSuccessResult(`API Error: ${PROXY_ERROR_PREFIX}${JSON.stringify(TEST_RATE_LIMIT_ERROR)}`),
+				createRequestContext(),
+			);
+		} catch (e) {
+			expect((e as ClaudeProxyError).fetchError.type).toBe(ChatFetchResponseType.RateLimited);
+		}
 	});
 
-	it('throws KnownClaudeError for success result with is_error and non-quota error', () => {
+	it('throws KnownClaudeError for success result with is_error and non-proxy error', () => {
 		expect(
 			() => handleResultMessage(makeErroredSuccessResult('API Error: 500 {"type":"error"}'), createRequestContext()),
 		).toThrow(KnownClaudeError);
 	});
 
-	it('detects proxy quota code among multiple errors in error_during_execution', () => {
+	it('detects proxy error among multiple errors in error_during_execution', () => {
 		const errorResult = makeErrorResult('error_during_execution');
-		errorResult.errors = ['Some other error', `API Error: ${PROXY_QUOTA_EXCEEDED}`];
+		errorResult.errors = ['Some other error', `API Error: ${PROXY_ERROR_PREFIX}${JSON.stringify(TEST_QUOTA_ERROR)}`];
 		expect(
 			() => handleResultMessage(errorResult, createRequestContext()),
-		).toThrow(ClaudeQuotaExceededError);
+		).toThrow(ClaudeProxyError);
 	});
 
 	it('throws KnownClaudeError for error_during_execution with empty errors array', () => {
@@ -1156,9 +1191,17 @@ describe('handleResultMessage', () => {
 		).toThrow(KnownClaudeError);
 	});
 
-	it('returns requestComplete for success with is_error false', () => {
+	it('throws KnownClaudeError for malformed proxy error JSON', () => {
+		const errorResult = makeErrorResult('error_during_execution');
+		errorResult.errors = [`API Error: ${PROXY_ERROR_PREFIX}{invalid json`];
+		expect(
+			() => handleResultMessage(errorResult, createRequestContext()),
+		).toThrow(KnownClaudeError);
+	});
+
+	it('returns requestComplete for success with is_error false even if result contains proxy prefix', () => {
 		const successResult = makeSuccessResult();
-		successResult.result = `contains ${PROXY_QUOTA_EXCEEDED} but is_error is false`;
+		successResult.result = `contains ${PROXY_ERROR_PREFIX}${JSON.stringify(TEST_QUOTA_ERROR)} but is_error is false`;
 		const result = handleResultMessage(successResult, createRequestContext());
 		expect(result).toEqual({ requestComplete: true });
 	});

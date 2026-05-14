@@ -28,7 +28,7 @@ import { SSEParser } from '../../../../util/vs/base/common/sseParser';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IClaudeCodeModels } from './claudeCodeModels';
-import { PROXY_QUOTA_EXCEEDED } from '../common/claudeMessageDispatch';
+import { PROXY_ERROR_PREFIX } from '../common/claudeMessageDispatch';
 import { IClaudeSessionStateService } from '../common/claudeSessionStateService';
 
 /**
@@ -269,18 +269,22 @@ export class ClaudeLanguageModelServer extends Disposable {
 	 * that the SDK subprocess can interpret.
 	 */
 	private mapChatResponseToHttpError(chatResponse: ChatResponse): { status: number; errorType: AnthropicErrorResponse['error']['type']; message: string } {
+		// Serialize the full ChatFetchError as JSON after the proxy error prefix.
+		// This round-trips through the SDK and is parsed by handleResultMessage.
+		const proxyMessage = `${PROXY_ERROR_PREFIX}${JSON.stringify(chatResponse)}`;
+
 		switch (chatResponse.type) {
 			case ChatFetchResponseType.QuotaExceeded:
-				return { status: 402, errorType: 'invalid_request_error', message: PROXY_QUOTA_EXCEEDED };
+				return { status: 402, errorType: 'invalid_request_error', message: proxyMessage };
 			case ChatFetchResponseType.RateLimited:
-				return { status: 429, errorType: 'rate_limit_error', message: chatResponse.reason || 'Rate limited' };
+				return { status: 429, errorType: 'rate_limit_error', message: proxyMessage };
 			case ChatFetchResponseType.Canceled:
-				return { status: 499, errorType: 'api_error', message: 'Request canceled' };
+				return { status: 499, errorType: 'api_error', message: proxyMessage };
 			case ChatFetchResponseType.Filtered:
 			case ChatFetchResponseType.PromptFiltered:
-				return { status: 400, errorType: 'invalid_request_error', message: chatResponse.reason || 'Content filtered' };
+				return { status: 400, errorType: 'invalid_request_error', message: proxyMessage };
 			default:
-				return { status: 500, errorType: 'api_error', message: ('reason' in chatResponse ? chatResponse.reason : undefined) || 'Request failed' };
+				return { status: 500, errorType: 'api_error', message: proxyMessage };
 		}
 	}
 

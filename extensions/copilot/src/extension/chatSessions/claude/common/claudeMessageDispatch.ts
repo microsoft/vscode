@@ -8,6 +8,7 @@ import type { TodoWriteInput } from '@anthropic-ai/claude-agent-sdk/sdk-tools';
 import type Anthropic from '@anthropic-ai/sdk';
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
+import type { ChatFetchError } from '../../../../platform/chat/common/commonTypes';
 import { vBoolean, vLiteral, vObj, vString, type ValidatorType } from '../../../../platform/configuration/common/validator';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, SpanKind, SpanStatusCode, truncateForOTel, type ISpanHandle, type TraceContext } from '../../../../platform/otel/common/index';
@@ -125,14 +126,23 @@ export const DENY_TOOL_MESSAGE = 'The user declined to run the tool';
  * Prefix embedded by the proxy in HTTP error messages so the dispatch layer
  * can identify proxy-classified errors in SDK result text without depending
  * on the SDK's own error classification.
+ *
+ * Format: `VSCODE_PROXY_ERROR:<json>` where the JSON is a serialized ChatFetchError.
  */
-export const PROXY_ERROR_PREFIX = 'VSCODE_PROXY_ERROR';
-export const PROXY_QUOTA_EXCEEDED = `${PROXY_ERROR_PREFIX}:QUOTA_EXCEEDED`;
+export const PROXY_ERROR_PREFIX = 'VSCODE_PROXY_ERROR:';
 
 export class KnownClaudeError extends Error { }
 
-/** Thrown when the Claude session encounters a quota-exceeded / billing error. */
-export class ClaudeQuotaExceededError extends KnownClaudeError { }
+/**
+ * Thrown when the SDK result text contains a proxy-classified error.
+ * Carries the original ChatFetchError so callers can use
+ * `getErrorDetailsFromChatFetchError` for consistent error messages.
+ */
+export class ClaudeProxyError extends KnownClaudeError {
+	constructor(public readonly fetchError: ChatFetchError) {
+		super(fetchError.reason);
+	}
+}
 
 interface IManageTodoListToolInputParams {
 	readonly operation?: 'write' | 'read';
@@ -701,6 +711,26 @@ function getResultErrorText(message: SDKResultMessage): string | undefined {
 	return undefined;
 }
 
+/**
+ * Attempts to parse a proxy-classified error from the SDK result text.
+ * Returns the parsed ChatFetchError if the text contains the proxy error prefix,
+ * or undefined if no proxy error is embedded.
+ */
+function tryParseProxyError(errorText: string | undefined): ChatFetchError | undefined {
+	if (!errorText) {
+		return undefined;
+	}
+	const idx = errorText.indexOf(PROXY_ERROR_PREFIX);
+	if (idx === -1) {
+		return undefined;
+	}
+	try {
+		return JSON.parse(errorText.slice(idx + PROXY_ERROR_PREFIX.length)) as ChatFetchError;
+	} catch {
+		return undefined;
+	}
+}
+
 export function handleResultMessage(
 	message: SDKResultMessage,
 	request: MessageHandlerRequestContext,
@@ -712,12 +742,12 @@ export function handleResultMessage(
 	if (message.subtype === 'error_max_turns') {
 		request.stream.progress(l10n.t('Maximum turns reached ({0})', message.num_turns));
 	} else if (isExecutionError) {
-		// Check the result/error text for proxy-classified error codes.
-		// The proxy embeds deterministic prefixes in the HTTP error message,
+		// Check the result/error text for proxy-classified errors.
+		// The proxy embeds VSCODE_PROXY_ERROR:<json> in the HTTP error message,
 		// which the SDK forwards through to the result text.
-		const errorText = getResultErrorText(message);
-		if (errorText?.includes(PROXY_QUOTA_EXCEEDED)) {
-			throw new ClaudeQuotaExceededError(l10n.t('You\'ve exceeded your quota'));
+		const fetchError = tryParseProxyError(getResultErrorText(message));
+		if (fetchError) {
+			throw new ClaudeProxyError(fetchError);
 		}
 		throw new KnownClaudeError(l10n.t('Error during execution'));
 	}

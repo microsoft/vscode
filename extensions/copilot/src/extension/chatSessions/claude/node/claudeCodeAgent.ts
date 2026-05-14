@@ -21,12 +21,13 @@ import { Disposable, DisposableMap } from '../../../../util/vs/base/common/lifec
 import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { getQuotaMessageForPlan } from '../../../../platform/chat/common/commonTypes';
+import { getErrorDetailsFromChatFetchError } from '../../../../platform/chat/common/commonTypes';
+import { GitHubOutageStatus } from '../../../../platform/github/common/githubService';
 import { LanguageModelToolMCPSource } from '../../../../vscodeTypes';
 import { IClaudePluginService } from './claudeSkills';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { buildMcpServersFromRegistry } from '../common/claudeMcpServerRegistry';
-import { dispatchMessage, ClaudeQuotaExceededError, KnownClaudeError } from '../common/claudeMessageDispatch';
+import { dispatchMessage, ClaudeProxyError, KnownClaudeError } from '../common/claudeMessageDispatch';
 import { IClaudeRuntimeDataService } from '../common/claudeRuntimeDataService';
 import { ClaudeSessionUri } from '../common/claudeSessionUri';
 import { IClaudeToolPermissionService } from '../common/claudeToolPermissionService';
@@ -103,14 +104,21 @@ export class ClaudeAgentManager extends Disposable {
 				return {};
 			}
 
-			if (invokeError instanceof ClaudeQuotaExceededError) {
-				this.logService.info('[ClaudeAgentManager] Request failed due to quota exceeded');
-				let message = invokeError.message;
+			if (invokeError instanceof ClaudeProxyError) {
+				this.logService.info(`[ClaudeAgentManager] Request failed due to proxy error: ${invokeError.fetchError.type}`);
 				try {
 					const copilotToken = await this.authenticationService.getCopilotToken();
-					message = getQuotaMessageForPlan(copilotToken.copilotPlan, copilotToken.tokenBasedBilling, copilotToken.quotaInfo.quota_reset_date);
-				} catch { /* token unavailable, use default message */ }
-				return { errorDetails: { message, isQuotaExceeded: true } };
+					const errorDetails = getErrorDetailsFromChatFetchError(
+						invokeError.fetchError,
+						copilotToken.copilotPlan,
+						GitHubOutageStatus.None,
+						copilotToken.tokenBasedBilling,
+						copilotToken.quotaInfo.quota_reset_date,
+					);
+					return { errorDetails };
+				} catch {
+					return { errorDetails: { message: invokeError.message } };
+				}
 			}
 
 			this.logService.error(invokeError as Error);
@@ -658,7 +666,7 @@ export class ClaudeCodeSession extends Disposable {
 						token: currentRequest.token,
 					}, handlerState);
 				} catch (dispatchError) {
-					if (dispatchError instanceof ClaudeQuotaExceededError || dispatchError instanceof KnownClaudeError) {
+					if (dispatchError instanceof ClaudeProxyError || dispatchError instanceof KnownClaudeError) {
 						throw dispatchError;
 					}
 					this.logService.warn(`[ClaudeCodeSession] Failed to dispatch message (stream may be disposed after yield): ${dispatchError}`);
