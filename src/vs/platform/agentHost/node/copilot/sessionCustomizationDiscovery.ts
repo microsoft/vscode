@@ -84,6 +84,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 	private readonly _watchers = this._register(new DisposableStore());
 	private readonly _refreshDelayer = this._register(new Delayer<void>(REFRESH_DEBOUNCE_MS));
+	private readonly _rootUris: readonly URI[];
 
 	private _cached: Promise<readonly IDiscoveredFile[]> | undefined;
 
@@ -94,6 +95,16 @@ export class SessionCustomizationDiscovery extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		const { workspace, user } = getSearchRoots(this._workingDirectory, this._userHome);
+		this._rootUris = [
+			...workspace.map(root => joinPath(this._workingDirectory, ...root.path)),
+			...user.map(root => joinPath(this._userHome, ...root.path)),
+		];
+		this._register(this._fileService.onDidFilesChange(e => {
+			if (this._rootUris.some(rootUri => e.affects(rootUri))) {
+				this._scheduleRefresh();
+			}
+		}));
 	}
 
 	files(): Promise<readonly IDiscoveredFile[]> {
@@ -151,11 +162,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 		// files inside skill subdirectories.
 		try {
 			this._watchers.add(this._fileService.watch(rootUri, { recursive: true, excludes: [] }));
-			this._watchers.add(this._fileService.onDidFilesChange(e => {
-				if (e.affects(rootUri)) {
-					this._scheduleRefresh();
-				}
-			}));
 		} catch (err) {
 			this._logService.warn(`[SessionCustomizationDiscovery] Failed to watch '${rootUri.toString()}': ${err instanceof Error ? err.message : String(err)}`);
 		}
