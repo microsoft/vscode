@@ -105,7 +105,7 @@ export class PlanAgentProvider extends Disposable implements vscode.ChatCustomAg
 		return fileUri;
 	}
 
-	static buildAgentBody(exploreEnabled: boolean, searchSubagentEnabled: boolean): string {
+	static buildAgentBody(exploreEnabled: boolean, searchSubagentEnabled: boolean, memoryEnabled: boolean = true): string {
 		let discoverySection: string;
 		if (exploreEnabled) {
 			discoverySection = `## 1. Discovery
@@ -132,11 +132,11 @@ Update the plan with your findings.`;
 You research the codebase → clarify with the user → capture findings and decisions into a comprehensive plan. This iterative approach catches edge cases and non-obvious requirements BEFORE implementation begins.
 
 Your SOLE responsibility is planning. NEVER start implementation.
-
+${memoryEnabled ? `
 **Current plan**: \`/memories/session/plan.md\` - update using #tool:vscode/memory .
-
+` : ''}
 <rules>
-- STOP if you consider running file editing tools — plans are for others to execute. The only write tool you have is #tool:vscode/memory for persisting plans.
+- STOP if you consider running file editing tools — plans are for others to execute.${memoryEnabled ? ' The only write tool you have is #tool:vscode/memory for persisting plans.' : ''}
 - Use #tool:vscode/askQuestions freely to clarify requirements — don't make large assumptions
 - Present a well-researched plan with loose ends tied BEFORE implementation
 </rules>
@@ -168,12 +168,12 @@ The plan should reflect:
 - Reference decisions from the discussion
 - Leave no ambiguity
 
-Save the comprehensive plan document to \`/memories/session/plan.md\` via #tool:vscode/memory, then show the scannable plan to the user for review. You MUST show plan to the user, as the plan file is for persistence only, not a substitute for showing it to the user.
+${memoryEnabled ? `Save the comprehensive plan document to \`/memories/session/plan.md\` via #tool:vscode/memory, then show the scannable plan to the user for review. You MUST show plan to the user, as the plan file is for persistence only, not a substitute for showing it to the user.` : `Show the comprehensive plan to the user for review.`}
 
 ## 4. Refinement
 
 On user input after showing the plan:
-- Changes requested → revise and present updated plan. Update \`/memories/session/plan.md\` to keep the documented plan in sync
+- Changes requested → revise and present updated plan.${memoryEnabled ? ' Update `/memories/session/plan.md` to keep the documented plan in sync' : ''}
 - Questions asked → clarify, or use #tool:vscode/askQuestions for follow-ups
 - Alternatives wanted → loop back to **Discovery** with new subagent
 - Approval given → acknowledge, the user can now use handoff buttons
@@ -238,6 +238,8 @@ Rules:
 			send: true
 		};
 
+		const isMemoryEnabled = this.configurationService.getConfig(ConfigKey.Advanced.MemoryEnabled);
+
 		// Collect tools to add
 		const toolsToAdd: string[] = [...additionalTools];
 
@@ -261,7 +263,7 @@ Rules:
 			...(isExploreEnabled ? { agents: ['Explore'] } : {}),
 			tools,
 			handoffs: [startImplementationHandoff, openInEditorHandoff, ...(BASE_PLAN_AGENT_CONFIG.handoffs ?? [])],
-			body: PlanAgentProvider.buildAgentBody(isExploreEnabled, isSearchSubagentEnabled),
+			body: PlanAgentProvider.buildAgentBody(isExploreEnabled, isSearchSubagentEnabled, isMemoryEnabled),
 			...(modelOverride ? { model: modelOverride } : {}),
 		};
 	}

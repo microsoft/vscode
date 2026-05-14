@@ -733,6 +733,9 @@ export namespace ConfigKey {
 			migrateSetting(newKey, oldKey);
 			return defineSetting<xtabPromptOptions.ModelConfiguration | null>(newKey, ConfigType.Simple, null, xtabPromptOptions.MODEL_CONFIGURATION_VALIDATOR, { oldKey });
 		})();
+
+		// Memory is temporarily disabled. Remove this setting to re-enable memory.
+		export const MemoryEnabled = defineSetting<boolean>('chat.memory.enabled', ConfigType.Simple, false);
 	}
 
 	/**
@@ -1050,9 +1053,6 @@ export namespace ConfigKey {
 	export const ExploreAgentModel = defineSetting<string>('chat.exploreAgent.model', ConfigType.Simple, '');
 
 	export const ViewImageToolEnabled = defineSetting<boolean>('chat.tools.viewImage.enabled', ConfigType.ExperimentBased, true);
-
-	// Memory is temporarily disabled. Remove this setting to re-enable memory.
-	export const MemoryEnabled = defineSetting<boolean>('chat.memory.enabled', ConfigType.Simple, false);
 
 	/** Enable local session search index — tracks sessions locally and enables chronicle commands.*/
 	export const LocalIndexEnabled = defineSetting<boolean>('chat.localIndex.enabled', ConfigType.ExperimentBased, false);

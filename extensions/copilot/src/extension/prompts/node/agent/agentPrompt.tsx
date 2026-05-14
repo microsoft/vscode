@@ -115,6 +115,7 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		const SafetyRules = customizations.SafetyRulesClass;
 
 		const omitBaseAgentInstructions = this.configurationService.getConfig(ConfigKey.Advanced.OmitBaseAgentInstructions);
+		const memoryEnabled = this.configurationService.getConfig(ConfigKey.Advanced.MemoryEnabled);
 		const baseAgentInstructions = <>
 			<SystemMessage>
 				You are an expert AI programming assistant, working with a user in the VS Code editor.<br />
@@ -122,9 +123,9 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 				<SafetyRules />
 			</SystemMessage>
 			{instructions}
-			<SystemMessage>
+			{memoryEnabled && <SystemMessage>
 				<MemoryInstructionsPrompt />
-			</SystemMessage>
+			</SystemMessage>}
 		</>;
 		const isAutopilot = this.props.promptContext.request?.permissionLevel === 'autopilot';
 		const sessionResource = this.props.promptContext.request?.sessionResource;
@@ -278,7 +279,15 @@ interface GlobalAgentContextProps extends BasePromptElementProps {
  * hint for the agent but is not updated during the conversation.
  */
 class GlobalAgentContext extends PromptElement<GlobalAgentContextProps> {
+	constructor(
+		props: GlobalAgentContextProps,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super(props);
+	}
+
 	render() {
+		const memoryEnabled = this.configurationService.getConfig(ConfigKey.Advanced.MemoryEnabled);
 		return <UserMessage>
 			<Tag name='environment_info'>
 				<UserOSPrompt />
@@ -291,7 +300,7 @@ class GlobalAgentContext extends PromptElement<GlobalAgentContextProps> {
 				<AgentMultirootWorkspaceStructure maxSize={2000} excludeDotFiles={true} availableTools={this.props.availableTools} workingDir={this.props.workingDir} />
 			</Tag>
 			<UserPreferences flexGrow={7} priority={800} />
-			{this.props.isNewChat && <MemoryContextPrompt sessionResource={this.props.sessionResource} />}
+			{this.props.isNewChat && memoryEnabled && <MemoryContextPrompt sessionResource={this.props.sessionResource} />}
 			<DeferredToolListReminder availableTools={this.props.availableTools} />
 			{this.props.enableCacheBreakpoints && <cacheBreakpoint type={CacheType} />}
 		</UserMessage>;

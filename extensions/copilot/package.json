@@ -5953,7 +5953,7 @@
 				},
 				{
 					"command": "copilot.claude.memory",
-					"when": "chatCustomizationSessionType == claude-code && chatCustomizationSection == instructions",
+					"when": "config.github.copilot.chat.memory.enabled && chatCustomizationSessionType == claude-code && chatCustomizationSection == instructions",
 					"group": "navigation@1"
 				}
 			]

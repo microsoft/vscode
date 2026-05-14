@@ -5,6 +5,7 @@
 
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { createDirectoryIfNotExists, IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { FileType } from '../../../platform/filesystem/common/fileTypes';
@@ -154,8 +155,11 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		this.memoryCleanupService.start();
+		if (this.configurationService.getConfig(ConfigKey.Advanced.MemoryEnabled)) {
+			this.memoryCleanupService.start();
+		}
 	}
 
 	prepareInvocation(options: vscode.LanguageModelToolInvocationPrepareOptions<MemoryToolParams>, _token: CancellationToken): vscode.ProviderResult<vscode.PreparedToolInvocation> {
