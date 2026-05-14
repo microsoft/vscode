@@ -41,7 +41,7 @@ interface ISessionState {
 	isActive?: boolean;
 }
 
-class SessionsManagementService extends Disposable implements ISessionsManagementService {
+export class SessionsManagementService extends Disposable implements ISessionsManagementService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -235,6 +235,10 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this.logService.trace(`[SessionsManagement] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
 		this.isNewChatSessionContext.set(false);
 		this.setActiveSession(session);
+		if (!await this._waitForSessionToLoad(session, token)) {
+			this.logService.trace(`[SessionsManagement] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
+			return;
+		}
 
 		// Find the chat and update active chat
 		let chat: IChat | undefined;
@@ -284,6 +288,10 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this.isNewChatSessionContext.set(false);
 		this._isNewChatInSessionContext.set(false);
 		this.setActiveSession(sessionData);
+		if (!await this._waitForSessionToLoad(sessionData, token)) {
+			this.logService.trace(`[SessionsManagement] openSession cancelled while waiting for session to load uri=${sessionResource.toString()}`);
+			return;
+		}
 
 		// Open the active chat (which may have been restored to the last active chat)
 		const activeChat = this._activeSession.get()?.activeChat.get();
@@ -445,13 +453,6 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 
 		if (session) {
 			this.logService.info(`[ActiveSessionService] Active session changed: ${session.resource.toString()}`);
-
-			// Trigger lazy resolve for expensive session properties (e.g. changes,
-			// badge). This is fire-and-forget — the resolve result flows back through
-			// the model's onDidChangeSessions → _refreshSessionCache → adapter.update()
-			// chain, updating observables reactively. Safe for providers without a
-			// resolve handler (returns undefined).
-			this.agentSessionsService.model.observeSession(session.resource);
 		} else {
 			this.logService.trace('[ActiveSessionService] Active session cleared');
 		}
@@ -459,6 +460,20 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this._activeSessionDisposables.clear();
 
 		if (session) {
+			let observedSession = false;
+			this._activeSessionDisposables.add(autorun(reader => {
+				if (observedSession || session.loading.read(reader)) {
+					return;
+				}
+				observedSession = true;
+				// Trigger lazy resolve for expensive session properties (e.g. changes,
+				// badge). This is fire-and-forget — the resolve result flows back through
+				// the model's onDidChangeSessions → _refreshSessionCache → adapter.update()
+				// chain, updating observables reactively. Safe for providers without a
+				// resolve handler (returns undefined).
+				this.agentSessionsService.model.observeSession(session.resource);
+			}));
+
 			// Restore the last active chat for this session, or default to the first chat
 			const chats = session.chats.get();
 			const sessionState = this._sessionStates.get(session.resource);
@@ -532,6 +547,37 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 			this._activeChatObservable = undefined;
 			this._activeSession.set(undefined, undefined);
 		}
+	}
+
+	private async _waitForSessionToLoad(session: ISession, token: CancellationToken): Promise<boolean> {
+		if (!session.loading.get()) {
+			return true;
+		}
+		if (token.isCancellationRequested) {
+			return false;
+		}
+
+		await new Promise<void>(resolve => {
+			const disposables = new DisposableStore();
+			let resolved = false;
+			const finish = () => {
+				if (resolved) {
+					return;
+				}
+				resolved = true;
+				disposables.dispose();
+				resolve();
+			};
+
+			disposables.add(token.onCancellationRequested(finish));
+			disposables.add(autorun(reader => {
+				if (!session.loading.read(reader)) {
+					finish();
+				}
+			}));
+		});
+
+		return !token.isCancellationRequested;
 	}
 
 	private _loadSessionStates(): ResourceMap<ISessionState> {

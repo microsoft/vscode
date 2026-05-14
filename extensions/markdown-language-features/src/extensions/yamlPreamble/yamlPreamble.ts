@@ -13,6 +13,7 @@ export type FrontMatterRenderStyle = 'hide' | 'codeBlock' | 'table';
 
 const FRONT_MATTER_TOKEN = 'front_matter';
 const MARKER = '---';
+const FRONT_MATTER_CONTEXT = JSON.stringify({ webviewSection: 'frontMatter' });
 
 interface IFrontMatterMeta {
 	readonly content: string;
@@ -131,10 +132,10 @@ function renderAsCodeBlock(meta: IFrontMatterMeta, options: MarkdownIt.Options):
 		}
 	}
 	if (highlighted?.startsWith('<pre')) {
-		return highlighted + '\n';
+		return highlighted.replace(/^<pre\b/, `<pre ${frontMatterAttributes()}`) + '\n';
 	}
 	const body = highlighted ?? escapeHtml(meta.content);
-	return `<pre class="frontmatter hljs"><code class="language-yaml">${body}</code></pre>\n`;
+	return `<pre class="frontmatter hljs" ${frontMatterAttributes()}><code class="language-yaml">${body}</code></pre>\n`;
 }
 
 function renderAsTable(meta: IFrontMatterMeta): string {
@@ -148,12 +149,17 @@ function renderAsTable(meta: IFrontMatterMeta): string {
 	const rows = result.entries.map(([key, value]) =>
 		`<tr><th>${escapeHtml(key)}</th><td>${formatValueHtml(value)}</td></tr>`
 	).join('');
-	return `<table class="frontmatter"><tbody>${rows}</tbody></table>\n`;
+	return `<table class="frontmatter" ${frontMatterAttributes()}><tbody>${rows}</tbody></table>\n`;
 }
 
 function renderError(message: string): string {
 	const label = vscode.l10n.t('Failed to parse front matter');
-	return `<div class="frontmatter-error" role="alert"><strong>${escapeHtml(label)}</strong><pre>${escapeHtml(message)}</pre></div>\n`;
+	return `<div class="frontmatter-error" role="alert" ${frontMatterAttributes()}><strong>${escapeHtml(label)}</strong><pre>${escapeHtml(message)}</pre></div>\n`;
+}
+
+function frontMatterAttributes(): string {
+	const label = escapeHtml(vscode.l10n.t('Frontmatter'));
+	return `title="${label}" data-vscode-context='${escapeHtml(FRONT_MATTER_CONTEXT)}'`;
 }
 
 interface IParseResult {
