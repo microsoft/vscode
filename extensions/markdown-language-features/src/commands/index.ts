@@ -20,6 +20,7 @@ import { ShowPreviewSecuritySelectorCommand } from './showPreviewSecuritySelecto
 import { ShowSourceCommand } from './showSource';
 import { ToggleLockCommand } from './toggleLock';
 import { OpenImageCommand } from './openImage';
+import { OpenFrontMatterSettingsCommand } from './openFrontMatterSettings';
 
 export function registerMarkdownCommands(
 	commandManager: CommandManager,
@@ -32,6 +33,7 @@ export function registerMarkdownCommands(
 
 	commandManager.register(new OpenImageCommand(previewManager));
 	commandManager.register(new CopyImageCommand(previewManager));
+	commandManager.register(new OpenFrontMatterSettingsCommand());
 	commandManager.register(new ShowPreviewCommand(previewManager, telemetryReporter));
 	commandManager.register(new ShowPreviewToSideCommand(previewManager, telemetryReporter));
 	commandManager.register(new ShowLockedPreviewToSideCommand(previewManager, telemetryReporter));

@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, suite, test } from 'vitest';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
-import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME } from '../../../networking/common/anthropic';
+import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME, isExtendedCacheTtlEnabled, modelSupportsExtendedCacheTtl } from '../../../networking/common/anthropic';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { createPlatformServices } from '../../../test/node/services';
@@ -18,6 +18,9 @@ import { HeadersImpl, Response } from '../../../networking/common/fetcherService
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { TestLogService } from '../../../testing/common/testLogService';
 import { NullTelemetryService } from '../../../telemetry/common/nullTelemetryService';
+import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
+import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
+import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 
 function assertContentArray(content: MessageParam['content']): ContentBlockParam[] {
 	expect(Array.isArray(content)).toBe(true);
@@ -495,6 +498,150 @@ suite('addToolsAndSystemCacheControl', function () {
 		addToolsAndSystemCacheControl(tools, messagesResult);
 
 		expect(system[0].cache_control).toEqual({ type: 'ephemeral' });
+	});
+
+	test('applies extended 1h ttl to tools and system when cacheTtl is "1h"', function () {
+		const tools = [makeTool('read_file'), makeTool('edit_file'), makeTool('deferred_a', true)];
+		const system: TextBlockParam[] = [makeSystemBlock('System A'), makeSystemBlock('System B')];
+		const messagesResult = { messages: makeMessages(), system };
+
+		addToolsAndSystemCacheControl(tools, messagesResult, '1h');
+
+		expect(tools[0].cache_control).toBeUndefined();
+		expect(tools[1].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+		expect(tools[2].cache_control).toBeUndefined();
+		expect(system[0].cache_control).toBeUndefined();
+		expect(system[1].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+	});
+
+	test('omits ttl when cacheTtl is undefined (default 5m)', function () {
+		const tools = [makeTool('read_file')];
+		const system: TextBlockParam[] = [makeSystemBlock('System')];
+		const messagesResult = { messages: makeMessages(), system };
+
+		addToolsAndSystemCacheControl(tools, messagesResult, undefined);
+
+		expect(tools[0].cache_control).toEqual({ type: 'ephemeral' });
+		expect(system[0].cache_control).toEqual({ type: 'ephemeral' });
+	});
+});
+
+suite('modelSupportsExtendedCacheTtl', function () {
+
+	test('matches 1M context Opus variants and rejects everything else', function () {
+		expect({
+			'claude-opus-4.6-1m': modelSupportsExtendedCacheTtl('claude-opus-4.6-1m'),
+			'claude-opus-4-6-1m': modelSupportsExtendedCacheTtl('claude-opus-4-6-1m'),
+			'claude-opus-4.7-1m-internal': modelSupportsExtendedCacheTtl('claude-opus-4.7-1m-internal'),
+			'claude-opus-4-7-1m-internal': modelSupportsExtendedCacheTtl('claude-opus-4-7-1m-internal'),
+			'CLAUDE-OPUS-4.6-1M': modelSupportsExtendedCacheTtl('CLAUDE-OPUS-4.6-1M'),
+			'claude-opus-4.6': modelSupportsExtendedCacheTtl('claude-opus-4.6'),
+			'claude-opus-4.7': modelSupportsExtendedCacheTtl('claude-opus-4.7'),
+			'claude-opus-4.5': modelSupportsExtendedCacheTtl('claude-opus-4.5'),
+			'claude-sonnet-4.5': modelSupportsExtendedCacheTtl('claude-sonnet-4.5'),
+			'claude-haiku-4-5': modelSupportsExtendedCacheTtl('claude-haiku-4-5'),
+			'gpt-5': modelSupportsExtendedCacheTtl('gpt-5'),
+		}).toEqual({
+			'claude-opus-4.6-1m': true,
+			'claude-opus-4-6-1m': true,
+			'claude-opus-4.7-1m-internal': true,
+			'claude-opus-4-7-1m-internal': true,
+			'CLAUDE-OPUS-4.6-1M': true,
+			'claude-opus-4.6': false,
+			'claude-opus-4.7': false,
+			'claude-opus-4.5': false,
+			'claude-sonnet-4.5': false,
+			'claude-haiku-4-5': false,
+			'gpt-5': false,
+		});
+	});
+});
+
+suite('isExtendedCacheTtlEnabled', function () {
+
+	const ELIGIBLE_MODEL = 'claude-opus-4-7-1m';
+
+	let disposables: DisposableStore;
+	let configurationService: InMemoryConfigurationService;
+	let experimentationService: IExperimentationService;
+
+	beforeEach(() => {
+		disposables = new DisposableStore();
+		const services = disposables.add(createPlatformServices(disposables));
+		const accessor = services.createTestingAccessor();
+		// All callers of `isExtendedCacheTtlEnabled` resolve `IConfigurationService` through DI to
+		// an `InMemoryConfigurationService` instance (see `createPlatformServices`). Re-narrowing it
+		// here lets the tests use `setConfig` to flip the experiment-based gate without going
+		// through experimentation infrastructure.
+		configurationService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
+		experimentationService = accessor.get(IExperimentationService);
+	});
+
+	function enableConfig(): void {
+		configurationService.setConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtl, true);
+	}
+
+	test('returns false when the config is disabled, even for eligible models', function () {
+		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, false)).toBe(false);
+	});
+
+	test('returns true for eligible model + config + Agent location + non-subagent', function () {
+		enableConfig();
+		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, false)).toBe(true);
+	});
+
+	test('returns false when location is undefined', function () {
+		// The gate requires an explicit `ChatLocation.Agent`. Callers that route through
+		// subclass overrides which drop the `location` argument (e.g. `super.getExtraHeaders()`
+		// without arguments — see `OpenRouterEndpoint`, `AzureOpenAIEndpoint`, etc.) are
+		// correctly excluded so the beta header is never sent for non-Agent paths.
+		enableConfig();
+		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, undefined, false)).toBe(false);
+	});
+
+	test('returns false when isSubagent is true', function () {
+		enableConfig();
+		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, true)).toBe(false);
+	});
+
+	test('returns false for non-1M Claude variants even when all other gates pass', function () {
+		enableConfig();
+		expect({
+			'claude-opus-4-6': isExtendedCacheTtlEnabled('claude-opus-4-6', configurationService, experimentationService, ChatLocation.Agent, false),
+			'claude-opus-4.7': isExtendedCacheTtlEnabled('claude-opus-4.7', configurationService, experimentationService, ChatLocation.Agent, false),
+			'claude-sonnet-4-5': isExtendedCacheTtlEnabled('claude-sonnet-4-5', configurationService, experimentationService, ChatLocation.Agent, false),
+			'gpt-5': isExtendedCacheTtlEnabled('gpt-5', configurationService, experimentationService, ChatLocation.Agent, false),
+		}).toEqual({
+			'claude-opus-4-6': false,
+			'claude-opus-4.7': false,
+			'claude-sonnet-4-5': false,
+			'gpt-5': false,
+		});
+	});
+
+	test('returns false for non-Agent chat locations', function () {
+		// Inline chat, terminal chat, notebook chat, and the Claude CLI proxy passthrough are all
+		// out of scope for extended cache TTL — only the main agent conversation qualifies.
+		enableConfig();
+		expect({
+			Panel: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Panel, false),
+			Editor: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Editor, false),
+			Terminal: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Terminal, false),
+			Notebook: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Notebook, false),
+			EditingSession: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.EditingSession, false),
+			Other: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Other, false),
+			MessagesProxy: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.MessagesProxy, false),
+			ResponsesProxy: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.ResponsesProxy, false),
+		}).toEqual({
+			Panel: false,
+			Editor: false,
+			Terminal: false,
+			Notebook: false,
+			EditingSession: false,
+			Other: false,
+			MessagesProxy: false,
+			ResponsesProxy: false,
+		});
 	});
 });
 

@@ -76,6 +76,7 @@ function makeSession(resource: URI, opts?: {
 				gitRepository: undefined,
 			}],
 			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
 		}),
 		title: chat.title,
 		updatedAt: chat.updatedAt,
@@ -230,7 +231,7 @@ suite('LayoutController', () => {
 	test('does not open views when session has no workspace', () => {
 		createLayoutController();
 		const session = makeSession(URI.parse('session:1'), {
-			workspace: { uri: URI.file('/repo'), label: 'test', icon: Codicon.repo, folders: [], requiresWorkspaceTrust: false },
+			workspace: { uri: URI.file('/repo'), label: 'test', icon: Codicon.repo, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false },
 		});
 		activeSessionObs.set(session, undefined);
 

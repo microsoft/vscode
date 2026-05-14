@@ -30,7 +30,8 @@ import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IAgentHostFilterService } from '../../remoteAgentHost/common/agentHostFilter.js';
+// eslint-disable-next-line local/code-import-patterns -- TODO: move IAgentHostFilterService out of providers
+import { IAgentHostFilterService } from '../../providers/remoteAgentHost/common/agentHostFilter.js';
 
 // #region --- New Chat Widget ---
 
