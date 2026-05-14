@@ -1032,7 +1032,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// Only show welcome getting started until setup is completed
-		this.container.classList.toggle('chat-view-getting-started-disabled', this.chatEntitlementService.sentiment.completed);
+		this.container.classList.toggle(
+			'chat-view-getting-started-disabled',
+			this.chatEntitlementService.sentiment.completed || this.chatEntitlementService.hasByokModels);
 
 		this._onDidChangeEmptyState.fire();
 	}

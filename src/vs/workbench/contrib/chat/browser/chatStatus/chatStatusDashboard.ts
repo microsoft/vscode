@@ -502,10 +502,11 @@ export class ChatStatusDashboard extends DomWidget {
 	}
 
 	private renderSetupSection(): void {
-		const newUser = isNewUser(this.chatEntitlementService);
+		const hasByokModels = this.chatEntitlementService.hasByokModels;
+		const newUser = isNewUser(this.chatEntitlementService) && !hasByokModels;
 		const anonymousUser = this.chatEntitlementService.anonymous;
 		const disabled = this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted;
-		const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
+		const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown && !hasByokModels;
 		if (!(newUser || signedOut || disabled)) {
 			return;
 		}
