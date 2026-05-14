@@ -55,10 +55,14 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
 	const targetPlatformArch = `${nodePlatform}-${nodeArch}`;
 	const nonTargetPlatforms = copilotPlatforms.filter(p => p !== targetPlatformArch);
 
-	// Strip wrong-architecture @github/copilot-{platform} packages.
+	// Strip wrong-architecture @github/copilot-{platform} packages and SDK
+	// prebuilds so platform-specific native addons do not ship cross-platform.
 	// All copilot prebuilds are stripped by .moduleignore; the copilot CLI SDK
 	// resolves `node-pty` from VS Code's own node_modules via `hostRequire`.
-	const excludes = nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot-${p}/**`);
+	const excludes = nonTargetPlatforms.flatMap(p => [
+		`!**/node_modules/@github/copilot-${p}/**`,
+		`!**/node_modules/@github/copilot/sdk/prebuilds/${p}/**`,
+	]);
 
 	return ['**', ...excludes];
 }
