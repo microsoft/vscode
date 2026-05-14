@@ -20,6 +20,7 @@ import { IChatWidgetService } from '../chat.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { AUTOPILOT_DONT_SHOW_AGAIN_KEY, AUTO_APPROVE_DONT_SHOW_AGAIN_KEY } from '../../common/chatPermissionStorageKeys.js';
 import { resetShownWarnings } from '../../common/chatPermissionWarnings.js';
+import { ExportAgentHostDebugLogsAction } from './exportAgentHostDebugLogsAction.js';
 import { OpenCopilotCliStateFileAction } from './openCopilotCliStateFileAction.js';
 
 function uriReplacer(_key: string, value: unknown): unknown {
@@ -43,6 +44,7 @@ export function registerChatDeveloperActions() {
 	registerAction2(ClearRecentlyUsedLanguageModelsAction);
 	registerAction2(ResetChatPermissionWarningDialogsAction);
 	registerAction2(OpenCopilotCliStateFileAction);
+	registerAction2(ExportAgentHostDebugLogsAction);
 }
 
 function formatChatModelReferenceInspection(accessor: ServicesAccessor): string {

@@ -13,11 +13,13 @@ import { ILogService } from '../../../../platform/log/common/logService';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, SpanKind, SpanStatusCode, truncateForOTel, type ISpanHandle, type TraceContext } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { ServicesAccessor } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseThinkingProgressPart, LanguageModelTextPart, type ChatHookType } from '../../../../vscodeTypes';
 import { ExternalEditTracker } from '../../../chatSessions/common/externalEditTracker';
 import { ToolName } from '../../../tools/common/toolNames';
 import { IToolsService } from '../../../tools/common/toolsService';
+import { ClaudeSessionUri } from './claudeSessionUri';
 import { ClaudeToolNames, claudeEditTools, getAffectedUrisForEditTool } from './claudeTools';
 import { IClaudePlanFileTracker } from './claudePlanFileTracker';
 import { IClaudeSessionStateService } from './claudeSessionStateService';
@@ -36,6 +38,7 @@ export interface MessageHandlerRequestContext {
 /** Mutable state shared across handlers within a single _processMessages loop */
 export interface MessageHandlerState {
 	readonly unprocessedToolCalls: Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>;
+	readonly toolStartTimes: Map<string, number>;
 	readonly otelToolSpans: Map<string, ISpanHandle>;
 	readonly otelHookSpans: Map<string, ISpanHandle>;
 	readonly parentTraceContext?: TraceContext;
@@ -167,6 +170,7 @@ export function handleAssistantMessage(
 			stream.push(new ChatResponseThinkingProgressPart(item.thinking));
 		} else if (item.type === 'tool_use') {
 			unprocessedToolCalls.set(item.id, item);
+			state.toolStartTimes.set(item.id, Date.now());
 
 			const toolSpan = otelService.startSpan(`execute_tool ${item.name}`, {
 				kind: SpanKind.INTERNAL,
@@ -260,12 +264,17 @@ function logToolResult(
 	toolUseId: string,
 	toolUse: Anthropic.Beta.Messages.BetaToolUseBlock,
 	toolResult: Anthropic.Messages.ToolResultBlockParam,
+	sessionId: string,
 	logService: ILogService,
 	requestLogger: IRequestLogger,
+	telemetryService: ITelemetryService,
 	otelToolSpans: Map<string, ISpanHandle>,
+	toolStartTimes: Map<string, number>,
 	capturingToken: CapturingToken | undefined,
 	maxAttributeSizeChars: number,
 ): void {
+	sendToolInvokedTelemetry(toolUseId, toolUse, toolResult, sessionId, telemetryService, toolStartTimes);
+
 	// OTel span
 	const toolSpan = otelToolSpans.get(toolUseId);
 	if (toolSpan) {
@@ -316,9 +325,10 @@ function processToolResult(
 	const requestLogger = accessor.get(IRequestLogger);
 	const claudeSessionStateService = accessor.get(IClaudeSessionStateService);
 	const otelService = accessor.get(IOTelService);
+	const telemetryService = accessor.get(ITelemetryService);
 
 	const { stream } = request;
-	const { unprocessedToolCalls, otelToolSpans } = state;
+	const { unprocessedToolCalls, otelToolSpans, toolStartTimes } = state;
 
 	const toolUseId = toolResult.tool_use_id;
 	const toolUse = unprocessedToolCalls.get(toolUseId);
@@ -333,9 +343,12 @@ function processToolResult(
 		toolUseId,
 		toolUse,
 		toolResult,
+		sessionId,
 		logService,
 		requestLogger,
+		telemetryService,
 		otelToolSpans,
+		toolStartTimes,
 		claudeSessionStateService.getCapturingTokenForSession(sessionId),
 		otelService.config.maxAttributeSizeChars,
 	);
@@ -363,6 +376,45 @@ function processToolResult(
 		completeToolInvocation(toolUse, toolResult, invocation);
 		stream.push(invocation);
 	}
+}
+
+function sendToolInvokedTelemetry(
+	toolUseId: string,
+	toolUse: Anthropic.Beta.Messages.BetaToolUseBlock,
+	toolResult: Anthropic.Messages.ToolResultBlockParam,
+	sessionId: string,
+	telemetryService: ITelemetryService,
+	toolStartTimes: Map<string, number>,
+): void {
+	const startTime = toolStartTimes.get(toolUseId);
+	toolStartTimes.delete(toolUseId);
+	if (toolUse.name === ClaudeToolNames.TodoWrite) {
+		// Don't send telemetry for TodoWrite since it is passed into the workbench toolcall service and will be logged there.
+		return;
+	}
+	const invocationTimeMs = startTime !== undefined ? Date.now() - startTime : undefined;
+	const result = toolResult.content === DENY_TOOL_MESSAGE ? 'userCancelled' : toolResult.is_error ? 'error' : 'success';
+	const toolSourceKind = toolUse.name.startsWith('mcp__') ? 'mcp' : 'claudeCode';
+
+	/* __GDPR__
+		"languageModelToolInvoked" : {
+			"owner": "roblourens",
+			"comment": "Provides insight into the usage of language model tools (Claude Code agent).",
+			"result": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "success | error | userCancelled" },
+			"chatSessionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session resource id." },
+			"toolId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The Claude Code SDK tool name (e.g. Bash, Read, Edit, mcp__server__tool)." },
+			"toolExtensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Always undefined for Claude Code." },
+			"toolSourceKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "claudeCode | mcp" },
+			"invocationTimeMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time between tool_use and tool_result." }
+		}
+	*/
+	telemetryService.sendMSFTTelemetryEvent('languageModelToolInvoked', {
+		result,
+		chatSessionId: ClaudeSessionUri.forSessionId(sessionId).toString(),
+		toolId: toolUse.name,
+		toolExtensionId: undefined,
+		toolSourceKind,
+	}, invocationTimeMs !== undefined ? { invocationTimeMs } : undefined);
 }
 
 function processTodoWriteTool(

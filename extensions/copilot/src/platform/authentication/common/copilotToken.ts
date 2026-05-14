@@ -167,7 +167,7 @@ export class CopilotToken {
 		return this._info.codex_agent_enabled ?? false;
 	}
 
-	get copilotPlan(): 'free' | 'individual' | 'individual_pro' | 'business' | 'enterprise' {
+	get copilotPlan(): 'free' | 'individual' | 'individual_pro' | 'individual_max' | 'business' | 'enterprise' {
 		if (this.isFreeUser) {
 			return 'free';
 		}
@@ -175,6 +175,7 @@ export class CopilotToken {
 		switch (plan) {
 			case 'individual':
 			case 'individual_pro':
+			case 'individual_max':
 			case 'business':
 			case 'enterprise':
 				return plan;
@@ -198,6 +199,10 @@ export class CopilotToken {
 
 	get quotaInfo() {
 		return { quota_snapshots: this._info.quota_snapshots, quota_reset_date: this._info.quota_reset_date };
+	}
+
+	get tokenBasedBilling(): boolean | undefined {
+		return this._info.token_based_billing;
 	}
 
 	get username(): string {

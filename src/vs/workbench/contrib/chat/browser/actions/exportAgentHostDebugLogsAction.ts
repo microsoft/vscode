@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -15,17 +17,16 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
-import { IChatWidgetService } from '../../browser/chat.js';
+import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { COPILOT_CLI_LOCAL_AH_SCHEME, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../../browser/copilotCliEventsUri.js';
+import { COPILOT_CLI_LOCAL_AH_SCHEME, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../copilotCliEventsUri.js';
 
 /** Output channel ID for the agent host process logger (forwarded via RemoteLoggerChannelClient). */
 const AGENT_HOST_LOGGER_CHANNEL_ID = 'agenthost';
@@ -48,27 +49,49 @@ export interface IActiveAgentHostSessionForExport {
 	readonly isLocal: boolean;
 }
 
+export interface IAgentHostDebugLogsExport {
+	readonly files: { path: string; contents: string }[];
+	readonly exportName: string;
+}
+
+export const IAgentHostDebugLogsExportService = createDecorator<IAgentHostDebugLogsExportService>('agentHostDebugLogsExportService');
+
+export interface IAgentHostDebugLogsExportService {
+	readonly _serviceBrand: undefined;
+	save(exportName: string, files: readonly { path: string; contents: string }[]): Promise<void>;
+}
+
+export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLogsExportService {
+	declare readonly _serviceBrand: undefined;
+
+	constructor(
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IFileService private readonly fileService: IFileService,
+	) { }
+
+	async save(exportName: string, files: readonly { path: string; contents: string }[]): Promise<void> {
+		await exportFilesToLocalFolder(this.fileDialogService, this.fileService, exportName, files);
+	}
+}
+
 /**
  * Shared implementation of "Export Agent Host Debug Logs". Collects the
  * Copilot CLI session events file (if available), the window/shared/agent-host
- * output channel logs, and the AHP transport JSONL logs into a single zip file
- * chosen by the user via a save dialog.
+ * output channel logs, and the AHP transport JSONL logs.
  *
  * Both the workbench-side action (resolves the active session via
  * `IChatWidgetService`) and the sessions-app-side action (resolves it via
  * `ISessionsManagementService`) call into this helper.
  */
-export async function exportAgentHostDebugLogs(
+export async function collectAgentHostDebugLogs(
 	accessor: ServicesAccessor,
 	activeSession: IActiveAgentHostSessionForExport | undefined,
-): Promise<void> {
+): Promise<IAgentHostDebugLogsExport | undefined> {
 	const pathService = accessor.get(IPathService);
 	const agentHostService = accessor.get(IAgentHostService);
 	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 	const outputService = accessor.get(IOutputService);
 	const fileService = accessor.get(IFileService);
-	const fileDialogService = accessor.get(IFileDialogService);
-	const nativeHostService = accessor.get(INativeHostService);
 	const notificationService = accessor.get(INotificationService);
 	const textModelService = accessor.get(ITextModelService);
 	const productService = accessor.get(IProductService);
@@ -184,25 +207,27 @@ export async function exportAgentHostDebugLogs(
 				? localize('exportDebugLogs.noFiles.activeSession', "No log files were found for the active Agent Host session.")
 				: localize('exportDebugLogs.noFiles.currentWindow', "No Agent Host log files were found for the current window."),
 		});
-		return;
+		return undefined;
 	}
 
 	const titleSlug = activeSession?.title
 		? `-${activeSession.title.replace(/[/\\:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)}`
 		: '';
-	const defaultUri = joinPath(await fileDialogService.defaultFilePath(), `ah-logs${titleSlug}.zip`);
-	const saveUri = await fileDialogService.showSaveDialog({
-		title: localize('exportDebugLogs.saveDialogTitle', "Export Agent Host Debug Logs"),
-		defaultUri,
-		filters: [{ name: localize('exportDebugLogs.zipFilter', "Zip Archive"), extensions: ['zip'] }],
-	});
+	return { files, exportName: `ah-logs${titleSlug}` };
+}
 
-	if (!saveUri) {
+export async function exportAgentHostDebugLogs(
+	accessor: ServicesAccessor,
+	activeSession: IActiveAgentHostSessionForExport | undefined,
+): Promise<void> {
+	const exportService = accessor.get(IAgentHostDebugLogsExportService);
+	const notificationService = accessor.get(INotificationService);
+	const logs = await collectAgentHostDebugLogs(accessor, activeSession);
+	if (!logs) {
 		return;
 	}
-
 	try {
-		await nativeHostService.createZipFile(saveUri, files);
+		await exportService.save(logs.exportName, logs.files);
 	} catch (error) {
 		notificationService.notify({
 			severity: Severity.Error,
@@ -248,7 +273,7 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
  * session (i.e. local AH or remote AH; the EH CLI extension's own
  * `copilotcli:` sessions are excluded).
  */
-function toActiveAgentHostSession(resource: URI, title: string | undefined): IActiveAgentHostSessionForExport | undefined {
+export function toActiveAgentHostSession(resource: URI, title: string | undefined): IActiveAgentHostSessionForExport | undefined {
 	if (resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
 		return { resource, title, isLocal: true };
 	}
@@ -264,6 +289,52 @@ function getRemoteConnectionForSession(sessionResource: URI, connections: readon
 
 function sanitizeFilePart(value: string): string {
 	return value.replace(/[\\/:\*\?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '') || 'connection';
+}
+
+async function exportFilesToLocalFolder(
+	fileDialogService: IFileDialogService,
+	fileService: IFileService,
+	exportName: string,
+	files: readonly { path: string; contents: string }[],
+): Promise<void> {
+	const folders = await fileDialogService.showOpenDialog({
+		title: localize('exportDebugLogs.folderDialogTitle', "Select Folder for Agent Host Debug Logs"),
+		canSelectFiles: false,
+		canSelectFolders: true,
+		canSelectMany: false,
+		availableFileSystems: [Schemas.file],
+	});
+
+	const parentFolder = folders?.[0];
+	if (!parentFolder) {
+		return;
+	}
+
+	const exportFolder = joinPath(parentFolder, exportName);
+	await fileService.createFolder(exportFolder);
+	for (const file of files) {
+		const segments = toSafeRelativePathSegments(file.path);
+		if (segments.length === 0) {
+			continue;
+		}
+
+		let folder = exportFolder;
+		for (const segment of segments.slice(0, -1)) {
+			folder = joinPath(folder, segment);
+			await fileService.createFolder(folder);
+		}
+		await fileService.writeFile(joinPath(folder, segments[segments.length - 1]), VSBuffer.fromString(file.contents));
+	}
+}
+
+function toSafeRelativePathSegments(path: string): string[] {
+	return path
+		.replace(/\\/g, '/')
+		.split('/')
+		.filter(segment => {
+			return segment.length > 0 && segment !== '.' && segment !== '..';
+		})
+		.map(segment => segment.replace(/[/\\:*?"<>|]/g, '-'));
 }
 
 /**
