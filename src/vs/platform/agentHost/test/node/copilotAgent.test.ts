@@ -41,6 +41,8 @@ import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 class TestAgentPluginManager implements IAgentPluginManager {
 	declare readonly _serviceBrand: undefined;
 
+	readonly basePath = URI.from({ scheme: 'inmemory', path: '/agentPlugins' });
+
 	async syncCustomizations(_clientId: string, _customizations: CustomizationRef[], _progress?: (status: SessionCustomization[]) => void): Promise<ISyncedCustomization[]> {
 		return [];
 	}
