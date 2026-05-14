@@ -270,8 +270,9 @@ export class ClaudeLanguageModelServer extends Disposable {
 	private mapChatResponseToHttpError(chatResponse: ChatResponse): { status: number; errorType: AnthropicErrorResponse['error']['type']; message: string } {
 		switch (chatResponse.type) {
 			case ChatFetchResponseType.QuotaExceeded:
-				// The SDK checks for "Your credit balance is too low" to map to billing_error
-				return { status: 402, errorType: 'invalid_request_error', message: chatResponse.reason || 'Your credit balance is too low' };
+				// The SDK checks for "Your credit balance is too low" in the message to map to billing_error.
+				// Always include this exact phrase so the SDK classifies the error correctly.
+				return { status: 402, errorType: 'invalid_request_error', message: 'Your credit balance is too low' };
 			case ChatFetchResponseType.RateLimited:
 				return { status: 429, errorType: 'rate_limit_error', message: chatResponse.reason || 'Rate limited' };
 			case ChatFetchResponseType.Canceled:

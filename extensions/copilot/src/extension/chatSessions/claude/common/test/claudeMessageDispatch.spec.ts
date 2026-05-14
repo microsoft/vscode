@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { NonNullableUsage, SDKAssistantMessage, SDKCompactBoundaryMessage, SDKHookProgressMessage, SDKHookResponseMessage, SDKHookStartedMessage, SDKResultError, SDKResultSuccess, SDKStatusMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { NonNullableUsage, SDKAssistantMessage, SDKAssistantMessageError, SDKCompactBoundaryMessage, SDKHookProgressMessage, SDKHookResponseMessage, SDKHookStartedMessage, SDKResultError, SDKResultSuccess, SDKStatusMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type Anthropic from '@anthropic-ai/sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as vscode from 'vscode';
@@ -477,6 +477,29 @@ describe('handleAssistantMessage', () => {
 			accessor, TEST_SESSION_ID, request, state,
 		);
 		expect(services.planFileTracker.recordIfPlanFile).not.toHaveBeenCalled();
+	});
+
+	it('tracks lastApiError from assistant message error field', () => {
+		const msg = makeAssistantMessage([{ type: 'text', text: 'error', citations: null }]);
+		(msg as SDKAssistantMessage & { error: SDKAssistantMessageError }).error = 'billing_error';
+		handleAssistantMessage(msg, accessor, TEST_SESSION_ID, request, state);
+		expect(state.lastApiError).toBe('billing_error');
+	});
+
+	it('preserves lastApiError on synthetic messages with error', () => {
+		const msg = makeAssistantMessage([{ type: 'text', text: '', citations: null }], null, SYNTHETIC_MODEL_ID);
+		(msg as SDKAssistantMessage & { error: SDKAssistantMessageError }).error = 'billing_error';
+		handleAssistantMessage(msg, accessor, TEST_SESSION_ID, request, state);
+		// Error should still be tracked even though the message is synthetic
+		expect(state.lastApiError).toBe('billing_error');
+	});
+
+	it('does not set lastApiError when message has no error', () => {
+		handleAssistantMessage(
+			makeAssistantMessage([{ type: 'text', text: 'hello', citations: null }]),
+			accessor, TEST_SESSION_ID, request, state,
+		);
+		expect(state.lastApiError).toBeUndefined();
 	});
 });
 
@@ -1114,6 +1137,14 @@ describe('handleResultMessage', () => {
 		expect(
 			() => handleResultMessage(makeErroredSuccessResult('API Error: 500 {"type":"error"}'), createRequestContext(), createState()),
 		).toThrow(KnownClaudeError);
+	});
+
+	it('throws ClaudeQuotaExceededError for success result with is_error and billing_error', () => {
+		const state = createState();
+		state.lastApiError = 'billing_error';
+		expect(
+			() => handleResultMessage(makeErroredSuccessResult('API Error'), createRequestContext(), state),
+		).toThrow(ClaudeQuotaExceededError);
 	});
 });
 
