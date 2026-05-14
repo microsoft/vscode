@@ -550,6 +550,7 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 
 	function createResultForModel(modelId: string | undefined, creditsUsed: number | undefined) {
 		const modelDetails = getModelDetails(modelId);
+		logger.trace(`[buildChatHistoryFromEvents] createResultForModel: modelId=${modelId}, creditsUsed=${creditsUsed}, modelDetails=${modelDetails}`);
 		if (modelDetails && creditsUsed !== undefined) {
 			const modelName = modelDetails.split(' \u2022')[0];
 			return { details: formatModelDetailsWithCredits(modelName, creditsUsed) };

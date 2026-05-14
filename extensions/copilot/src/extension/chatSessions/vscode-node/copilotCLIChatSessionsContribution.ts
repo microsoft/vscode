@@ -1565,9 +1565,10 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			// result, which would drop our `details` field on the first request.
 			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
 			const creditsUsed = this._chatQuotaService.getCreditsForTurn(request.id);
+			this.logService.trace(`[CopilotCLIChatSessionsContribution] getCreditsForTurn(${request.id}) = ${creditsUsed}`);
 			const { result, responseModelId } = await getCopilotCLIModelDetails(session.object, model, this.copilotCLIModels, this.logService, modelDetailsEnabled, creditsUsed);
-
-			persistCopilotCLIResponseModelId(session.object.sessionId, request.id, responseModelId, this.chatSessionMetadataStore, this.logService, creditsUsed);
+			this.logService.trace(`[CopilotCLIChatSessionsContribution] persisting: sdkSessionId=${session.object.sessionId}, requestId=${request.id}, responseModelId=${responseModelId}, creditsUsed=${creditsUsed}, result.details=${result.details}`);
+			await persistCopilotCLIResponseModelId(session.object.sessionId, request.id, responseModelId, this.chatSessionMetadataStore, this.logService, creditsUsed);
 
 			if (isUntitled && request.command !== 'remote' && !token.isCancellationRequested) {
 				this.scheduleUntitledSessionSwap(id, request.id, request.prompt, session.object.sessionId, chatSessionContext.chatSessionItem);
