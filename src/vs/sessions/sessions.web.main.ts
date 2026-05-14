@@ -105,6 +105,7 @@ import { ISSHRemoteAgentHostService } from '../platform/agentHost/common/sshRemo
 import { NullSSHRemoteAgentHostService } from '../platform/agentHost/browser/nullSshRemoteAgentHostService.js';
 import { IAgentHostService } from '../platform/agentHost/common/agentService.js';
 import { NullAgentHostService } from '../platform/agentHost/browser/nullAgentHostService.js';
+import { BrowserAgentHostDebugLogsExportService, IAgentHostDebugLogsExportService } from '../workbench/contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
@@ -127,6 +128,7 @@ registerSingleton(IMcpGalleryManifestService, WorkbenchMcpGalleryManifestService
 registerSingleton(IRemoteAgentHostService, RemoteAgentHostService, InstantiationType.Delayed);
 registerSingleton(ISSHRemoteAgentHostService, NullSSHRemoteAgentHostService, InstantiationType.Delayed);
 registerSingleton(IAgentHostService, NullAgentHostService, InstantiationType.Delayed);
+registerSingleton(IAgentHostDebugLogsExportService, BrowserAgentHostDebugLogsExportService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -141,43 +143,43 @@ import '../workbench/contrib/debug/browser/extensionHostDebugService.js';
 import '../workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution.js';
 
 // Web tunnel agent host — discovers tunnels via Dev Tunnels REST API and connects via relay
-import './contrib/remoteAgentHost/browser/webTunnelAgentHostService.contribution.js';
+import './contrib/providers/remoteAgentHost/browser/webTunnelAgentHostService.contribution.js';
 
 // Tunnel agent host — reconciles discovered tunnels into session providers
-import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
+import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
 // Remote agent host terminal profiles — registers terminal profiles for connected agent hosts
-import './contrib/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
+import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
 
 // Remote agent host session provider — discovers agents and registers sessions
-import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
-import './contrib/remoteAgentHost/browser/remoteAgentHostActions.js';
-import './contrib/agentHost/browser/agentSessionSettings.contribution.js';
-import './contrib/agentHost/browser/agentHostSettings.contribution.js';
-import './contrib/agentHost/browser/agentHostSessionBranchActions.js';
-import './contrib/agentHost/browser/agentHostSkillButtons.js';
+import './contrib/providers/remoteAgentHost/browser/remoteAgentHost.contribution.js';
+import './contrib/providers/remoteAgentHost/browser/remoteAgentHostActions.js';
+import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';
+import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
+import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';
+import './contrib/providers/agentHost/browser/agentHostSkillButtons.js';
 
 // Host filter dropdown in the titlebar (scopes the sessions list to a host)
-import './contrib/remoteAgentHost/browser/hostFilter.contribution.js';
+import './contrib/providers/remoteAgentHost/browser/hostFilter.contribution.js';
 
 // Mobile chat-input config picker (combined mode + model bottom sheet
 // on phone). Web-only because phones never run on the Electron desktop
 // build. The desktop mode + model pickers are gated off on phone via
 // `when: IsPhoneLayoutContext.negate()`, so the two registrations are
 // mutually exclusive at the action-menu level.
-import './contrib/chat/browser/mobile/mobileChatInputConfigPicker.js';
+import './contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.js';
 
 // Phone-only presenter for the workbench `ChatInputPart`'s Mode + Model
 // pickers. Replaces the desktop popups with the same bottom-sheet
 // experience used by the empty new-chat input, applied to the
 // already-opened chat input. Web-only for the same reason as above.
-import './contrib/chat/browser/mobile/mobileChatPhoneInputPresenter.js';
+import './contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.js';
 
 // Mobile-aware Copilot permission picker. Replaces the desktop
 // permission picker registration (which the shared contribution
 // skips when `isWeb`), so we get the bottom-sheet sheet on phone
 // without duplicate-registration conflicts.
-import './contrib/copilotChatSessions/browser/mobilePermissionPicker.contribution.js';
+import './contrib/providers/copilotChatSessions/browser/mobilePermissionPicker.contribution.js';
 
 // TODO: support agent feedback in web
 import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';

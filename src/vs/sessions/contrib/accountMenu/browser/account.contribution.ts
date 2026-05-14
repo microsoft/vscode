@@ -617,7 +617,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			disableProviderOptions: true,
 			disableCompletionsSnooze: true,
 			disableQuickSettingsCollapsible: true,
-			disableContributedSectionsCollapsible: true,
 			...extraOptions,
 		});
 

@@ -37,6 +37,22 @@ interface ILayoutMetricsResult {
 	};
 }
 
+export interface IElementHandle {
+	addToChat(): Promise<void>;
+}
+
+/**
+ * Well-known ids understood by `__vscode_helpers.getElement(id)` in
+ * `preload-browserView.ts`. Any other string is treated as the id of a
+ * dynamically tracked element.
+ */
+export const enum BrowserViewInspectElementId {
+	/** The page's `document.activeElement`. */
+	Active = 'active',
+	/** The element targeted by the most recent `contextmenu` event. */
+	ContextMenuTarget = 'context-menu-target',
+}
+
 function useScopedDisposal() {
 	const store = new DisposableStore() as DisposableStore & { [Symbol.dispose](): void };
 	store[Symbol.dispose] = () => store.dispose();
@@ -170,31 +186,39 @@ export class BrowserViewElementInspector extends Disposable {
 	}
 
 	/**
-	 * Fire a selection event for the currently focused element.
-	 * Only effective when element selection is active.
+	 * Resolve a handle to the element identified by `id`.
+	 *
+	 * `id` is interpreted by `__vscode_helpers.getElement(id, clear)`
+	 * in the page preload (see {@link BrowserViewSelectedElementId} for
+	 * well-known values). Returns `undefined` if no element is found.
+	 *
+	 * @param clear When true (default) the preload also clears any underlying
+	 * tracking ref it held for this id, so subsequent calls won't return the
+	 * same element. Pass `false` for a non-consuming peek.
 	 */
-	async pickFocusedElement(): Promise<void> {
-		if (!this._elementSelectionActive) {
-			return;
-		}
-
+	async getElementHandle(id: string, clear: boolean = true): Promise<IElementHandle | undefined> {
 		const connection = await this._connectionPromise;
 
 		await connection.sendCommand('Runtime.enable');
 		const { result } = await connection.sendCommand('Runtime.evaluate', {
-			expression: 'document.activeElement',
+			expression: `window.__vscode_helpers?.getElement(${JSON.stringify(id)}, ${clear})`,
 			returnByValue: false,
 		}) as { result: { objectId?: string } };
 
 		if (!result?.objectId) {
-			return;
+			return undefined;
 		}
 
-		const nodeData = await extractNodeData(connection, { objectId: result.objectId });
-		this._onDidSelectElement.fire({
-			...nodeData,
-			url: this.browser.getURL()
-		});
+		const objectId = result.objectId;
+		return {
+			addToChat: async () => {
+				const nodeData = await extractNodeData(connection, { objectId });
+				this._onDidSelectElement.fire({
+					...nodeData,
+					url: this.browser.getURL()
+				});
+			}
+		};
 	}
 
 	async getVisualViewportScale(): Promise<number> {

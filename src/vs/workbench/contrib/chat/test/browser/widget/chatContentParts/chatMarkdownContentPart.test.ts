@@ -22,6 +22,7 @@ import { IChatContentPartRenderContext } from '../../../../browser/widget/chatCo
 import { ChatMarkdownContentPart } from '../../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { CodeBlockPart, ICodeBlockData } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
+import { IChatOutputRendererService, type RenderedOutputPart } from '../../../../browser/chatOutputItemRenderer.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatContentInlineReference } from '../../../../common/chatService/chatService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
@@ -39,6 +40,7 @@ suite('ChatMarkdownContentPart', () => {
 
 	/** Data captured from each CodeBlockPart.render() call */
 	const renderedCodeBlocks: ICodeBlockData[] = [];
+	const renderedCodeBlockOutputs: { identifier: string; text: string }[] = [];
 
 	function createMockEditorPool(): EditorPool {
 		return {
@@ -132,6 +134,7 @@ suite('ChatMarkdownContentPart', () => {
 		disposables = store.add(new DisposableStore());
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		renderedCodeBlocks.length = 0;
+		renderedCodeBlockOutputs.length = 0;
 
 		// Seed configuration values needed by ChatEditorOptions
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
@@ -171,6 +174,25 @@ suite('ChatMarkdownContentPart', () => {
 			handleCodeRejected: () => { },
 		});
 
+		instantiationService.stub(IChatOutputRendererService, {
+			_serviceBrand: undefined,
+			registerRenderer: () => ({ dispose: () => { } }),
+			hasCodeBlockRenderer: identifier => identifier.toLowerCase() === 'mermaid',
+			renderOutputPart: async () => { throw new Error('Unexpected output render'); },
+			renderCodeBlock: async (identifier, data) => {
+				renderedCodeBlockOutputs.push({ identifier, text: new TextDecoder().decode(data) });
+				return {
+					webview: {
+						focus: () => { },
+						onDidWheel: Event.None,
+					} as RenderedOutputPart['webview'],
+					onDidChangeHeight: Event.None,
+					reinitialize: () => { },
+					dispose: () => { },
+				};
+			},
+		});
+
 		// Stub view descriptor service
 		instantiationService.stub(IViewDescriptorService, {
 			onDidChangeLocation: Event.None,
@@ -207,6 +229,48 @@ suite('ChatMarkdownContentPart', () => {
 		assert.strictEqual(renderedCodeBlocks.length, 1);
 		assert.strictEqual(renderedCodeBlocks[0].text, 'console.log("hello");');
 		assert.strictEqual(renderedCodeBlocks[0].languageId, 'javascript');
+	});
+
+	test('renders complete code block with contributed chat output renderer', () => {
+		const part = createMarkdownPart('```mermaid\ngraph TD\n```');
+
+		assert.strictEqual(part.codeblocks.length, 1);
+		assert.strictEqual(part.codeblocks[0].languageId, 'mermaid');
+		assert.strictEqual(renderedCodeBlocks.length, 0);
+		assert.deepStrictEqual(renderedCodeBlockOutputs, [{ identifier: 'mermaid', text: 'graph TD' }]);
+		assert.ok(part.domNode.querySelector('.chat-output-code-block'));
+	});
+
+	test('renders complete code block with contributed chat output renderer case-insensitively', () => {
+		const part = createMarkdownPart('```Mermaid\ngraph TD\n```');
+
+		assert.strictEqual(part.codeblocks.length, 1);
+		assert.strictEqual(part.codeblocks[0].languageId, 'Mermaid');
+		assert.strictEqual(renderedCodeBlocks.length, 0);
+		assert.deepStrictEqual(renderedCodeBlockOutputs, [{ identifier: 'Mermaid', text: 'graph TD' }]);
+		assert.ok(part.domNode.querySelector('.chat-output-code-block'));
+	});
+
+	test('does not render initial incomplete code fence', () => {
+		const ctx = createRenderContext(false);
+		const part = createMarkdownPart('```', ctx);
+
+		assert.strictEqual(part.codeblocks.length, 0);
+		assert.strictEqual(renderedCodeBlocks.length, 0);
+		assert.strictEqual(renderedCodeBlockOutputs.length, 0);
+		assert.strictEqual(part.domNode.querySelector('.interactive-result-code-block'), null);
+	});
+
+	test('shows pending chat output renderer for incomplete code block', () => {
+		const ctx = createRenderContext(false);
+		const part = createMarkdownPart('```mermaid\ngraph TD', ctx);
+
+		assert.strictEqual(renderedCodeBlockOutputs.length, 0);
+		assert.strictEqual(renderedCodeBlocks.length, 0);
+		assert.strictEqual(part.codeblocks.length, 1);
+		assert.strictEqual(part.codeblocks[0].languageId, 'mermaid');
+		assert.ok(part.domNode.querySelector('.chat-output-code-block'));
+		assert.ok(part.domNode.textContent?.includes('Rendering code block'));
 	});
 
 	test('renders multiple code blocks with correct indices', () => {

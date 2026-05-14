@@ -21,7 +21,6 @@ import { language } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { stripIcons } from '../../../../../base/common/iconLabels.js';
 import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
@@ -76,8 +75,7 @@ export interface IChatStatusDashboardOptions {
 	disableCompletionsSnooze?: boolean;
 	/** When true, the Quick Settings region is rendered always-expanded without a collapsible header. */
 	disableQuickSettingsCollapsible?: boolean;
-	/** When true, contributed sections are rendered always-expanded without a collapsible header button. */
-	disableContributedSectionsCollapsible?: boolean;
+
 	/**
 	 * When provided, the title header (plan name + manage / CTA actions) is
 	 * rendered into this caller-owned container instead of inline at the top
@@ -102,7 +100,6 @@ export interface IChatStatusDashboardOptions {
 export class ChatStatusDashboard extends DomWidget {
 
 	private static readonly QUICK_SETTINGS_COLLAPSED_KEY = 'chatStatusDashboard.quickSettingsCollapsed';
-	private static readonly CONTRIBUTED_COLLAPSED_KEY_PREFIX = 'chatStatusDashboard.contributedCollapsed.';
 
 	readonly element = $('div.chat-status-bar-entry-tooltip');
 
@@ -140,11 +137,13 @@ export class ChatStatusDashboard extends DomWidget {
 		const { chat, premiumChat, completions } = this.chatEntitlementService.quotas;
 		const hasQuotas = !!(chat || premiumChat);
 		const isAnonymousWithSentiment = this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.completed;
+		const isPooledQuotaDepleted = premiumChat?.unlimited && premiumChat.hasQuota === false;
 		const hasUsageSection = hasQuotas || isAnonymousWithSentiment;
 		const hasVisibleUsageContent = chat?.unlimited === false ||
 			premiumChat?.unlimited === false ||
 			(!this.options?.compactQuotaLayout && completions?.unlimited === false) ||
-			isAnonymousWithSentiment;
+			isAnonymousWithSentiment ||
+			isPooledQuotaDepleted;
 		const contributedEntries = [...this.chatStatusItemService.getEntries()];
 		const hasQuickSettingsContent =
 			!this.options?.disableInlineSuggestionsSettings ||
@@ -167,10 +166,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 			// Add Additional Spend / Upgrade buttons to the header
 			const canConfigureAdditionalSpend = this.chatEntitlementService.entitlement === ChatEntitlement.EDU || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus || this.chatEntitlementService.entitlement === ChatEntitlement.Max;
-			const showUpgrade = this.chatEntitlementService.entitlement !== ChatEntitlement.ProPlus &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Max &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Business &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Enterprise;
+			const showUpgrade = this.chatEntitlementService.quotas.canUpgradePlan ?? false;
 
 			const actionBarElement = header.lastElementChild;
 			const initialAdditionalUsageEnabled = this.chatEntitlementService.quotas.additionalUsageEnabled ?? false;
@@ -203,10 +199,7 @@ export class ChatStatusDashboard extends DomWidget {
 		if (hasUsageSection && this.options?.compactQuotaLayout && this.options.ctaButtonsContainer) {
 			const ctaContainer = this.options.ctaButtonsContainer;
 			const canConfigureAdditionalSpend = this.chatEntitlementService.entitlement === ChatEntitlement.EDU || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus || this.chatEntitlementService.entitlement === ChatEntitlement.Max;
-			const showUpgrade = this.chatEntitlementService.entitlement !== ChatEntitlement.ProPlus &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Max &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Business &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Enterprise;
+			const showUpgrade = this.chatEntitlementService.quotas.canUpgradePlan ?? false;
 			const initialAdditionalUsageEnabled = this.chatEntitlementService.quotas.additionalUsageEnabled ?? false;
 
 			if (canConfigureAdditionalSpend) {
@@ -249,10 +242,14 @@ export class ChatStatusDashboard extends DomWidget {
 				const planName = getChatPlanName(this.chatEntitlementService.entitlement);
 				includedContainer.classList.add('compact');
 				includedContainer.appendChild($('div.quota-title', undefined, planName));
-				includedContainer.appendChild($('div.description', undefined, localize('premiumIncludedCompact', "{0} included with your organization's plan.", includedTitle)));
+				includedContainer.appendChild($('div.description', undefined, isPooledQuotaDepleted
+					? localize('premiumLimitReachedCompact', "{0} limit reached.", includedTitle)
+					: localize('premiumIncludedCompact', "{0} included with your organization's plan.", includedTitle)));
 			} else {
 				includedContainer.appendChild($('div.quota-title', undefined, includedTitle));
-				includedContainer.appendChild($('div.description', undefined, localize('premiumIncluded', "Included with your organization's plan.")));
+				includedContainer.appendChild($('div.description', undefined, isPooledQuotaDepleted
+					? localize('premiumLimitReached', "Organization limit reached.")
+					: localize('premiumIncluded', "Included with your organization's plan.")));
 			}
 		}
 
@@ -421,83 +418,69 @@ export class ChatStatusDashboard extends DomWidget {
 	}
 
 	private renderContributedSections(contributedEntries: ChatStatusEntry[]): void {
-		const nonCollapsible = !!this.options?.disableContributedSectionsCollapsible;
 		for (const item of contributedEntries) {
-			const storageKey = ChatStatusDashboard.CONTRIBUTED_COLLAPSED_KEY_PREFIX + item.id;
-			const collapsed = !nonCollapsible && this.storageService.getBoolean(storageKey, StorageScope.PROFILE, true);
-
 			const headerLabel = typeof item.label === 'string' ? item.label : item.label.label;
-			const headerLink = typeof item.label === 'string' ? undefined : item.label.link;
-			const linkDescription = typeof item.label === 'string' ? undefined : item.label.helpText;
+			let headerLink = typeof item.label === 'string' ? undefined : item.label.link;
+			let linkDescription = typeof item.label === 'string' ? undefined : item.label.helpText;
 
-			const disclosureHeader = this.element.appendChild(
-				nonCollapsible
-					? $('div.collapsible-header.non-collapsible')
-					: $('button.collapsible-header')
-			);
-			let chevron: HTMLElement | undefined;
-			disclosureHeader.appendChild($('span.collapsible-label', undefined, headerLabel));
+			// Single non-collapsible header row
+			const header = this.element.appendChild($('div.collapsible-header.non-collapsible'));
+			header.appendChild($('span.collapsible-label', undefined, headerLabel));
 
-			if (!nonCollapsible) {
-				disclosureHeader.setAttribute('aria-expanded', String(!collapsed));
-				chevron = disclosureHeader.appendChild($('span.collapsible-chevron'));
-				chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+			// Info icon (replaces chevron) — shows helpText in a nested hover
+			if (linkDescription || headerLink) {
+				const infoIcon = header.appendChild($('span.contributed-info-icon'));
+				infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
+
+				this._store.add(this.hoverService.setupDelayedHover(infoIcon, () => {
+					const hoverContent = new MarkdownString('', { isTrusted: true });
+					if (linkDescription) {
+						hoverContent.appendText(linkDescription);
+					}
+					if (headerLink) {
+						if (linkDescription) {
+							hoverContent.appendText(' ');
+						}
+						hoverContent.appendMarkdown(`[${localize('learnMore', "Learn More")}](${headerLink})`);
+					}
+					return { content: hoverContent };
+				}, { reducedDelay: true }));
 			}
 
-			// Use renderLabelWithIcons for header status (plain text + icons only, no links inside button)
-			const statusEl = disclosureHeader.appendChild($('span.collapsible-status'));
+			// Status text (right-aligned via margin-left: auto)
+			const statusEl = header.appendChild($('span.collapsible-status'));
 			statusEl.append(...renderLabelWithIcons(item.description));
-			statusEl.title = stripIcons(item.description).trim();
 
-			const collapsibleContent = this.element.appendChild($('div.collapsible-content'));
-			const collapsibleInner = collapsibleContent.appendChild($('div.collapsible-inner'));
-			if (collapsed) {
-				collapsibleContent.classList.add('collapsed');
-				collapsibleInner.inert = true;
+			// Show tooltip on hover of the status text
+			let currentTooltip = item.tooltip;
+			if (currentTooltip) {
+				this._store.add(this.hoverService.setupDelayedHover(statusEl, () => ({
+					content: currentTooltip ?? '',
+				}), { reducedDelay: true }));
 			}
 
-			if (!nonCollapsible) {
-				const toggle = () => {
-					const isCollapsed = collapsibleContent.classList.toggle('collapsed');
-					collapsibleInner.inert = isCollapsed;
-					disclosureHeader.setAttribute('aria-expanded', String(!isCollapsed));
-					chevron!.className = 'collapsible-chevron';
-					chevron!.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
-					this.storageService.store(storageKey, isCollapsed, StorageScope.PROFILE, StorageTarget.USER);
-				};
-
-				this._store.add(addDisposableListener(disclosureHeader, EventType.CLICK, () => toggle()));
-			}
-
-			// Use a single disposable store for all contributed section content
+			// Detail (action link) rendered inline
 			const sectionDisposables = this._store.add(new MutableDisposable());
 			const sectionStore = new DisposableStore();
 			sectionDisposables.value = sectionStore;
 
-			// Description with Learn More (use contributed data, not hardcoded text)
-			let descriptionEl: HTMLElement | undefined;
-			if (headerLink) {
-				descriptionEl = collapsibleInner.appendChild($('div.section-description'));
-				const descText = linkDescription
-					? `${linkDescription} [${localize('learnMore', "Learn More")}](${headerLink})`
-					: `[${localize('learnMore', "Learn More")}](${headerLink})`;
-				this.renderTextPlus(descriptionEl, descText, sectionStore);
-			}
-
-			// Detail content (action links like "Build index", etc.)
 			let detailEl: HTMLElement | undefined;
 			if (item.detail) {
-				detailEl = collapsibleInner.appendChild($('div.section-detail'));
+				detailEl = header.appendChild($('span.contributed-detail'));
 				this.renderTextPlus(detailEl, item.detail, sectionStore);
 			}
 
 			// Listen for updates to re-render status and detail
 			this._store.add(this.chatStatusItemService.onDidChange(e => {
 				if (e.entry.id === item.id) {
-					// Update status in header (plain text + icons only)
+					// Update status in header
 					statusEl.textContent = '';
 					statusEl.append(...renderLabelWithIcons(e.entry.description));
-					statusEl.title = stripIcons(e.entry.description).trim();
+					currentTooltip = e.entry.tooltip;
+
+					// Update mutable hover content references
+					headerLink = typeof e.entry.label === 'string' ? undefined : e.entry.label.link;
+					linkDescription = typeof e.entry.label === 'string' ? undefined : e.entry.label.helpText;
 
 					// Re-render detail content
 					const newStore = new DisposableStore();
@@ -512,30 +495,8 @@ export class ChatStatusDashboard extends DomWidget {
 							detailEl = undefined;
 						}
 					} else if (e.entry.detail) {
-						detailEl = collapsibleInner.appendChild($('div.section-detail'));
+						detailEl = header.appendChild($('span.contributed-detail'));
 						this.renderTextPlus(detailEl, e.entry.detail, newStore);
-					}
-
-					// Re-render Learn More link if needed
-					const updatedLink = typeof e.entry.label === 'string' ? undefined : e.entry.label.link;
-					const updatedLinkDesc = typeof e.entry.label === 'string' ? undefined : e.entry.label.helpText;
-					if (descriptionEl) {
-						if (updatedLink) {
-							descriptionEl.textContent = '';
-							const descText = updatedLinkDesc
-								? `${updatedLinkDesc} [${localize('learnMore', "Learn More")}](${updatedLink})`
-								: `[${localize('learnMore', "Learn More")}](${updatedLink})`;
-							this.renderTextPlus(descriptionEl, descText, newStore);
-						} else {
-							descriptionEl.remove();
-							descriptionEl = undefined;
-						}
-					} else if (updatedLink) {
-						descriptionEl = collapsibleInner.insertBefore($('div.section-description'), detailEl ?? null);
-						const descText = updatedLinkDesc
-							? `${updatedLinkDesc} [${localize('learnMore', "Learn More")}](${updatedLink})`
-							: `[${localize('learnMore', "Learn More")}](${updatedLink})`;
-						this.renderTextPlus(descriptionEl, descText, newStore);
 					}
 				}
 			}));
@@ -833,8 +794,9 @@ export class ChatStatusDashboard extends DomWidget {
 			if (quotas.completions && !quotas.completions.unlimited) { allQuotas.push(quotas.completions); }
 
 			const maxUsedPercentage = allQuotas.length > 0 ? Math.max(...allQuotas.map(q => Math.max(0, 100 - q.percentRemaining))) : 0;
+			const isPooledQuotaExhausted = quotas.premiumChat?.unlimited && quotas.premiumChat.hasQuota === false;
 
-			if (maxUsedPercentage >= 100 && additionalUsageEnabled) {
+			if ((maxUsedPercentage >= 100 || isPooledQuotaExhausted) && additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
@@ -848,7 +810,7 @@ export class ChatStatusDashboard extends DomWidget {
 				calloutText.textContent = isUsageBasedBilling
 					? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional budget will be used.")
 					: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");
-			} else if (maxUsedPercentage >= 100 && !additionalUsageEnabled) {
+			} else if ((maxUsedPercentage >= 100 || isPooledQuotaExhausted) && !additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
