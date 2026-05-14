@@ -49,6 +49,9 @@ import { IPromptsService } from '../../../../contrib/chat/common/promptSyntax/se
 import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IChatLayoutService } from '../../../../contrib/chat/common/widget/chatLayoutService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IWorkspaceContextService, IWorkspace } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
@@ -264,6 +267,14 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override readonly model = new class extends mock<IAgentSessionsService['model']>() {
 					override readonly onDidChangeSessions = Event.None;
 				}();
+			}());
+			reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() { }());
+			reg.defineInstance(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+				override readonly onDidChange = Event.None;
+				override get() { return undefined; }
+			}());
+			reg.defineInstance(IAgentHostSessionWorkingDirectoryResolver, new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() {
+				override resolve() { return undefined; }
 			}());
 			reg.defineInstance(IChatContextService, new class extends mock<IChatContextService>() { }());
 			reg.defineInstance(IChatAttachmentWidgetRegistry, new class extends mock<IChatAttachmentWidgetRegistry>() { }());

@@ -136,6 +136,7 @@ In the chat input area, you'll see the current permission mode (e.g., **"Edit au
 | `default` | **Ask before edits** | Claude asks for confirmation before each edit. The safest mode — you approve every change. |
 | `acceptEdits` | **Edit automatically** | Claude auto-approves file edits within your workspace. Shell commands and other actions still require confirmation. This is the **default** for Claude sessions. |
 | `plan` | **Plan mode** | Claude first creates a plan describing what it intends to do, then asks you to approve before executing. |
+| `auto` | **Auto (model classifier)** | Uses a model classifier to automatically approve or deny tool operations. Visible by default; controlled by `github.copilot.chat.claudeAgent.allowAutoPermissions`. |
 | `bypassPermissions` | **Bypass all permissions** | All tools run without confirmation. ⚠️ Only visible when `github.copilot.chat.claudeAgent.allowDangerouslySkipPermissions` is enabled. **Recommended only for sandboxed environments with no internet access.** |
 
 You can change the permission mode at any time during a session by clicking the permission mode button at the bottom of the chat input.
@@ -672,6 +673,7 @@ Hooks let you run custom scripts at key moments in Claude's execution. They're c
 |---------|------|---------|-------------|
 | `github.copilot.chat.claudeAgent.enabled` | boolean | `true` | Enable Claude Agent sessions in VS Code |
 | `github.copilot.chat.claudeAgent.allowDangerouslySkipPermissions` | boolean | `false` | Show "Bypass all permissions" option. ⚠️ Sandboxes only |
+| `github.copilot.chat.claudeAgent.allowAutoPermissions` | boolean | `true` | Show "Auto (model classifier)" permission mode option |
 
 ---
 
