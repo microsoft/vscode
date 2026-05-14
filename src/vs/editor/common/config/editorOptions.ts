@@ -5578,16 +5578,6 @@ class WrappingIndentOption extends BaseEditorOption<EditorOption.wrappingIndent,
 		}
 		return WrappingIndent.Same;
 	}
-
-	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: WrappingIndent): WrappingIndent {
-		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-		if (accessibilitySupport === AccessibilitySupport.Enabled) {
-			// if we know for a fact that a screen reader is attached, we use no indent wrapping to
-			// help that the editor's wrapping points match the textarea's wrapping points
-			return WrappingIndent.None;
-		}
-		return value;
-	}
 }
 
 //#endregion
