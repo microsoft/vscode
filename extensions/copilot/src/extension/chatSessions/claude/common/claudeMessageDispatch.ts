@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SDKAssistantMessage, SDKAssistantMessageError, SDKCompactBoundaryMessage, SDKHookProgressMessage, SDKHookResponseMessage, SDKHookStartedMessage, SDKMessage, SDKResultMessage, SDKUserMessage, SDKUserMessageReplay } from '@anthropic-ai/claude-agent-sdk';
+import type { SDKAssistantMessage, SDKCompactBoundaryMessage, SDKHookProgressMessage, SDKHookResponseMessage, SDKHookStartedMessage, SDKMessage, SDKResultMessage, SDKUserMessage, SDKUserMessageReplay } from '@anthropic-ai/claude-agent-sdk';
 import type { TodoWriteInput } from '@anthropic-ai/claude-agent-sdk/sdk-tools';
 import type Anthropic from '@anthropic-ai/sdk';
 import * as l10n from '@vscode/l10n';
@@ -45,8 +45,6 @@ export interface MessageHandlerState {
 	/** Trace contexts for subagent tool spans, keyed by tool_use_id. Used to parent
 	 *  child spans (chat, tool) from subagent messages under the Agent tool span. */
 	readonly subagentTraceContexts: Map<string, TraceContext>;
-	/** Tracks the last API-level error from an assistant message (e.g. 'billing_error', 'rate_limit'). */
-	lastApiError?: SDKAssistantMessageError;
 }
 
 export interface MessageHandlerResult {
@@ -123,6 +121,14 @@ export const ALL_KNOWN_MESSAGE_KEYS = new Set([
 
 export const DENY_TOOL_MESSAGE = 'The user declined to run the tool';
 
+/**
+ * Prefix embedded by the proxy in HTTP error messages so the dispatch layer
+ * can identify proxy-classified errors in SDK result text without depending
+ * on the SDK's own error classification.
+ */
+export const PROXY_ERROR_PREFIX = 'VSCODE_PROXY_ERROR';
+export const PROXY_QUOTA_EXCEEDED = `${PROXY_ERROR_PREFIX}:QUOTA_EXCEEDED`;
+
 export class KnownClaudeError extends Error { }
 
 /** Thrown when the Claude session encounters a quota-exceeded / billing error. */
@@ -152,14 +158,6 @@ export function handleAssistantMessage(
 	state: MessageHandlerState,
 ): void {
 	const logService = accessor.get(ILogService);
-
-	// Track API-level errors (billing_error, rate_limit, etc.) so the result handler
-	// can produce a specific error class for quota-exceeded and similar conditions.
-	// This must run before the synthetic-message check because the SDK emits
-	// billing_error on synthetic assistant messages (model === '<synthetic>').
-	if (message.error) {
-		state.lastApiError = message.error;
-	}
 
 	if (message.message.model === SYNTHETIC_MODEL_ID) {
 		logService.trace('[ClaudeMessageDispatch] Skipping synthetic message');
@@ -688,10 +686,24 @@ export function handleHookResponse(
 	}
 }
 
+/**
+ * Extracts the error text from an SDK result message, if any.
+ * - `success` with `is_error`: error text is in `result`
+ * - `error_during_execution`: error text is in `errors`
+ */
+function getResultErrorText(message: SDKResultMessage): string | undefined {
+	if (message.subtype === 'success' && message.is_error) {
+		return message.result;
+	}
+	if (message.subtype === 'error_during_execution') {
+		return message.errors?.join('\n');
+	}
+	return undefined;
+}
+
 export function handleResultMessage(
 	message: SDKResultMessage,
 	request: MessageHandlerRequestContext,
-	state: MessageHandlerState,
 ): MessageHandlerResult {
 	const isExecutionError =
 		message.subtype === 'error_during_execution'
@@ -700,7 +712,11 @@ export function handleResultMessage(
 	if (message.subtype === 'error_max_turns') {
 		request.stream.progress(l10n.t('Maximum turns reached ({0})', message.num_turns));
 	} else if (isExecutionError) {
-		if (state.lastApiError === 'billing_error') {
+		// Check the result/error text for proxy-classified error codes.
+		// The proxy embeds deterministic prefixes in the HTTP error message,
+		// which the SDK forwards through to the result text.
+		const errorText = getResultErrorText(message);
+		if (errorText?.includes(PROXY_QUOTA_EXCEEDED)) {
 			throw new ClaudeQuotaExceededError(l10n.t('You\'ve exceeded your quota'));
 		}
 		throw new KnownClaudeError(l10n.t('Error during execution'));
@@ -740,7 +756,7 @@ export function dispatchMessage(
 			handleUserMessage(message, accessor, sessionId, request, state);
 			return;
 		case 'result':
-			return handleResultMessage(message, request, state);
+			return handleResultMessage(message, request);
 		case 'system':
 			if (message.subtype === 'compact_boundary') {
 				handleCompactBoundary(message, request);

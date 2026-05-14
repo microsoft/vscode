@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { NonNullableUsage, SDKAssistantMessage, SDKAssistantMessageError, SDKCompactBoundaryMessage, SDKHookProgressMessage, SDKHookResponseMessage, SDKHookStartedMessage, SDKResultError, SDKResultSuccess, SDKStatusMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { NonNullableUsage, SDKAssistantMessage, SDKCompactBoundaryMessage, SDKHookProgressMessage, SDKHookResponseMessage, SDKHookStartedMessage, SDKResultError, SDKResultSuccess, SDKStatusMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type Anthropic from '@anthropic-ai/sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as vscode from 'vscode';
@@ -32,6 +32,7 @@ import {
 	MessageHandlerState,
 	messageKey,
 	parseHookJsonOutput,
+	PROXY_QUOTA_EXCEEDED,
 	SYNTHETIC_MODEL_ID,
 } from '../claudeMessageDispatch';
 import { ClaudeToolNames } from '../claudeTools';
@@ -481,25 +482,19 @@ describe('handleAssistantMessage', () => {
 
 	it('tracks lastApiError from assistant message error field', () => {
 		const msg = makeAssistantMessage([{ type: 'text', text: 'error', citations: null }]);
-		(msg as SDKAssistantMessage & { error: SDKAssistantMessageError }).error = 'billing_error';
+		(msg as SDKAssistantMessage & { error: string }).error = 'billing_error';
 		handleAssistantMessage(msg, accessor, TEST_SESSION_ID, request, state);
-		expect(state.lastApiError).toBe('billing_error');
+		// Assistant message error tracking is no longer used for quota detection;
+		// the proxy embeds error codes in the result text instead.
+		// Verify the handler doesn't crash on messages with error fields.
+		expect(request.stream.markdown).toHaveBeenCalledWith('error');
 	});
 
-	it('preserves lastApiError on synthetic messages with error', () => {
+	it('handles synthetic messages with error field without crashing', () => {
 		const msg = makeAssistantMessage([{ type: 'text', text: '', citations: null }], null, SYNTHETIC_MODEL_ID);
-		(msg as SDKAssistantMessage & { error: SDKAssistantMessageError }).error = 'billing_error';
+		(msg as SDKAssistantMessage & { error: string }).error = 'billing_error';
 		handleAssistantMessage(msg, accessor, TEST_SESSION_ID, request, state);
-		// Error should still be tracked even though the message is synthetic
-		expect(state.lastApiError).toBe('billing_error');
-	});
-
-	it('does not set lastApiError when message has no error', () => {
-		handleAssistantMessage(
-			makeAssistantMessage([{ type: 'text', text: 'hello', citations: null }]),
-			accessor, TEST_SESSION_ID, request, state,
-		);
-		expect(state.lastApiError).toBeUndefined();
+		expect(request.stream.markdown).not.toHaveBeenCalled();
 	});
 });
 
@@ -1108,43 +1103,41 @@ describe('parseHookJsonOutput', () => {
 
 describe('handleResultMessage', () => {
 	it('returns requestComplete for success', () => {
-		const result = handleResultMessage(makeSuccessResult(), createRequestContext(), createState());
+		const result = handleResultMessage(makeSuccessResult(), createRequestContext());
 		expect(result).toEqual({ requestComplete: true });
 	});
 
 	it('shows progress for error_max_turns', () => {
 		const request = createRequestContext();
-		const result = handleResultMessage(makeErrorResult('error_max_turns', 25), request, createState());
+		const result = handleResultMessage(makeErrorResult('error_max_turns', 25), request);
 		expect(result).toEqual({ requestComplete: true });
 		expect(request.stream.progress).toHaveBeenCalled();
 	});
 
 	it('throws KnownClaudeError for error_during_execution', () => {
 		expect(
-			() => handleResultMessage(makeErrorResult('error_during_execution'), createRequestContext(), createState()),
+			() => handleResultMessage(makeErrorResult('error_during_execution'), createRequestContext()),
 		).toThrow(KnownClaudeError);
 	});
 
-	it('throws ClaudeQuotaExceededError when lastApiError is billing_error', () => {
-		const state = createState();
-		state.lastApiError = 'billing_error';
+	it('throws ClaudeQuotaExceededError when error_during_execution contains proxy quota code', () => {
+		const errorResult = makeErrorResult('error_during_execution');
+		errorResult.errors = [`API Error: ${PROXY_QUOTA_EXCEEDED}`];
 		expect(
-			() => handleResultMessage(makeErrorResult('error_during_execution'), createRequestContext(), state),
+			() => handleResultMessage(errorResult, createRequestContext()),
 		).toThrow(ClaudeQuotaExceededError);
 	});
 
-	it('throws KnownClaudeError for success result with is_error and non-quota status', () => {
+	it('throws ClaudeQuotaExceededError when success result with is_error contains proxy quota code', () => {
 		expect(
-			() => handleResultMessage(makeErroredSuccessResult('API Error: 500 {"type":"error"}'), createRequestContext(), createState()),
+			() => handleResultMessage(makeErroredSuccessResult(`API Error: ${PROXY_QUOTA_EXCEEDED}`), createRequestContext()),
+		).toThrow(ClaudeQuotaExceededError);
+	});
+
+	it('throws KnownClaudeError for success result with is_error and non-quota error', () => {
+		expect(
+			() => handleResultMessage(makeErroredSuccessResult('API Error: 500 {"type":"error"}'), createRequestContext()),
 		).toThrow(KnownClaudeError);
-	});
-
-	it('throws ClaudeQuotaExceededError for success result with is_error and billing_error', () => {
-		const state = createState();
-		state.lastApiError = 'billing_error';
-		expect(
-			() => handleResultMessage(makeErroredSuccessResult('API Error'), createRequestContext(), state),
-		).toThrow(ClaudeQuotaExceededError);
 	});
 });
 

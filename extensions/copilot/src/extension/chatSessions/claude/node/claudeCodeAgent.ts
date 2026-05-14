@@ -26,7 +26,7 @@ import { LanguageModelToolMCPSource } from '../../../../vscodeTypes';
 import { IClaudePluginService } from './claudeSkills';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { buildMcpServersFromRegistry } from '../common/claudeMcpServerRegistry';
-import { dispatchMessage, ClaudeQuotaExceededError, KnownClaudeError, type MessageHandlerState } from '../common/claudeMessageDispatch';
+import { dispatchMessage, ClaudeQuotaExceededError, KnownClaudeError } from '../common/claudeMessageDispatch';
 import { IClaudeRuntimeDataService } from '../common/claudeRuntimeDataService';
 import { ClaudeSessionUri } from '../common/claudeSessionUri';
 import { IClaudeToolPermissionService } from '../common/claudeToolPermissionService';
@@ -615,13 +615,12 @@ export class ClaudeCodeSession extends Disposable {
 		try {
 			const unprocessedToolCalls = new Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>();
 			const toolStartTimes = new Map<string, number>();
-			const handlerState: MessageHandlerState = {
+			const handlerState = {
 				unprocessedToolCalls,
 				otelToolSpans,
 				otelHookSpans,
 				parentTraceContext: this._otelTracker.traceContext,
 				subagentTraceContexts,
-				lastApiError: undefined,
 				toolStartTimes
 			};
 			for await (const message of this._queryGenerator!) {
@@ -687,7 +686,6 @@ export class ClaudeCodeSession extends Disposable {
 						this._startGatewayIdleTimer();
 					}
 					subagentTraceContexts.clear();
-					handlerState.lastApiError = undefined;
 				}
 			}
 			// Generator ended normally - clean up so next invoke starts fresh

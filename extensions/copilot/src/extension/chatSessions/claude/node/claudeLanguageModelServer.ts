@@ -28,6 +28,7 @@ import { SSEParser } from '../../../../util/vs/base/common/sseParser';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IClaudeCodeModels } from './claudeCodeModels';
+import { PROXY_QUOTA_EXCEEDED } from '../common/claudeMessageDispatch';
 import { IClaudeSessionStateService } from '../common/claudeSessionStateService';
 
 /**
@@ -270,9 +271,7 @@ export class ClaudeLanguageModelServer extends Disposable {
 	private mapChatResponseToHttpError(chatResponse: ChatResponse): { status: number; errorType: AnthropicErrorResponse['error']['type']; message: string } {
 		switch (chatResponse.type) {
 			case ChatFetchResponseType.QuotaExceeded:
-				// The SDK checks for "Your credit balance is too low" in the message to map to billing_error.
-				// Always include this exact phrase so the SDK classifies the error correctly.
-				return { status: 402, errorType: 'invalid_request_error', message: 'Your credit balance is too low' };
+				return { status: 402, errorType: 'invalid_request_error', message: PROXY_QUOTA_EXCEEDED };
 			case ChatFetchResponseType.RateLimited:
 				return { status: 429, errorType: 'rate_limit_error', message: chatResponse.reason || 'Rate limited' };
 			case ChatFetchResponseType.Canceled:
