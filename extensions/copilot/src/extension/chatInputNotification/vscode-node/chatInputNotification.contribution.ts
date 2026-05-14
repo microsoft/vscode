@@ -48,6 +48,7 @@ export class ChatInputNotificationContribution extends Disposable {
 	private _prevQuotaPercentUsed: number | undefined;
 	private _prevSessionPercentUsed: number | undefined;
 	private _prevWeeklyPercentUsed: number | undefined;
+	private _prevAdditionalUsageEnabled: boolean | undefined;
 
 	private get _quotaUsedUp(): boolean {
 		const info = this._chatQuotaService.quotaInfo;
@@ -83,6 +84,7 @@ export class ChatInputNotificationContribution extends Disposable {
 			this._prevQuotaPercentUsed = undefined;
 			this._prevSessionPercentUsed = undefined;
 			this._prevWeeklyPercentUsed = undefined;
+			this._prevAdditionalUsageEnabled = undefined;
 			this._hideNotification();
 			this._showingExhausted = false;
 			return;
@@ -94,10 +96,14 @@ export class ChatInputNotificationContribution extends Disposable {
 
 		// Priority 1: Quota exhausted or fully used — sticky info notification
 		if (isQuotaNotificationEligible && this._quotaUsedUp) {
-			if (this._chatQuotaService.additionalUsageEnabled) {
-				// Only show the overage notification on a live transition,
-				// not on reload when already at 100%.
-				if (this._prevQuotaPercentUsed !== undefined) {
+			const additionalUsageEnabled = this._chatQuotaService.additionalUsageEnabled;
+			const wasAdditionalUsageEnabled = this._prevAdditionalUsageEnabled;
+			this._prevAdditionalUsageEnabled = additionalUsageEnabled;
+
+			if (additionalUsageEnabled) {
+				// Show overage notification on a live transition to 100%,
+				// or when overages are enabled while already at 100%.
+				if (this._prevQuotaPercentUsed !== undefined || wasAdditionalUsageEnabled === false) {
 					this._showOverageActivationNotification();
 				}
 			} else {

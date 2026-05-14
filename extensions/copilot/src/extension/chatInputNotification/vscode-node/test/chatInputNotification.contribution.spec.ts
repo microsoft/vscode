@@ -679,7 +679,27 @@ describe('ChatInputNotificationContribution', () => {
 
 			expect(mockNotification.show).toHaveBeenCalled();
 			expect(mockNotification.message).toBe('Credit Limit Reached');
-			expect(mockNotification.description).not.toBe('You have additional budget to keep going.');
+			expect(mockNotification.description).not.toBe('Additional budget is now covering extra usage.');
+		});
+
+		test('shows overage notification when overages are enabled while already at 100%', () => {
+			setup(
+				{},
+				{ quotaInfo: makeQuota(0), additionalUsageEnabled: false },
+			);
+
+			// First update: exhausted without overages
+			quotaEmitter.fire();
+			expect(mockNotification.show).toHaveBeenCalled();
+			expect(mockNotification.message).toBe('Credit Limit Reached');
+			mockNotification.show.mockClear();
+
+			// User enables overages in settings — next API response updates state
+			(quotaService as any).additionalUsageEnabled = true;
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).toHaveBeenCalled();
+			expect(mockNotification.description).toBe('Additional budget is now covering extra usage.');
 		});
 	});
 
