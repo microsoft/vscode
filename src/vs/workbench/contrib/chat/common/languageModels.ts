@@ -38,6 +38,12 @@ import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ChatAgentLocation } from './constants.js';
 import { ILanguageModelsProviderGroup, ILanguageModelsConfigurationService } from './languageModelsConfiguration.js';
 
+/**
+ * Vendor id used for the built-in GitHub Copilot language model provider. Treated as the default
+ * vendor across the chat stack (see `ILanguageModelProviderDescriptor.isDefault`).
+ */
+export const COPILOT_VENDOR_ID = 'copilot';
+
 export const enum ChatMessageRole {
 	System,
 	User,
@@ -237,7 +243,7 @@ export namespace ILanguageModelChatMetadata {
 	}
 
 	export function matchesQualifiedName(name: string, metadata: ILanguageModelChatMetadata): boolean {
-		if (metadata.vendor === 'copilot' && name === metadata.name) {
+		if (metadata.vendor === COPILOT_VENDOR_ID && name === metadata.name) {
 			return true;
 		}
 		return name === asQualifiedName(metadata);
@@ -720,7 +726,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				configuration: item.configuration,
 				managementCommand: item.managementCommand,
 				when: item.when,
-				isDefault: item.vendor === 'copilot'
+				isDefault: item.vendor === COPILOT_VENDOR_ID
 			};
 			this._vendors.set(item.vendor, vendor);
 			addedVendorIds.push(item.vendor);

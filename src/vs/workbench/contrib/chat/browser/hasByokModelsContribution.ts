@@ -9,6 +9,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatConfiguration } from '../common/constants.js';
+import { COPILOT_VENDOR_ID } from '../common/languageModels.js';
 import { ILanguageModelsConfigurationService } from '../common/languageModelsConfiguration.js';
 
 /**
@@ -25,6 +26,8 @@ import { ILanguageModelsConfigurationService } from '../common/languageModelsCon
 export class HasByokModelsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.hasByokModels';
+
+	private static readonly _CLIENT_BYOK_ENABLED_KEYS = new Set([ChatEntitlementContextKeys.clientByokEnabled.key]);
 
 	private readonly _hasByokModels: IContextKey<boolean>;
 
@@ -47,7 +50,7 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 		}));
 
 		this._register(this._contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set([ChatEntitlementContextKeys.clientByokEnabled.key]))) {
+			if (e.affectsSome(HasByokModelsContribution._CLIENT_BYOK_ENABLED_KEYS)) {
 				this._update();
 			}
 		}));
@@ -65,7 +68,7 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 		}
 
 		this._hasByokModels.set(
-			this._languageModelsConfigurationService.getLanguageModelsProviderGroups().some(group => group.vendor !== 'copilot')
+			this._languageModelsConfigurationService.getLanguageModelsProviderGroups().some(group => group.vendor !== COPILOT_VENDOR_ID)
 		);
 	}
 }
