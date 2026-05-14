@@ -1237,6 +1237,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private updateWorkingProgressForPendingConfirmations(templateData: IChatListItemTemplate): void {
+		// Defer mutation of `templateData.renderedParts` (via `removeWorkingProgressContentPart`)
+		// to a microtask. This method is invoked from tool autoruns, which fire synchronously inside
+		// `renderChatContentDiff` while the array is being iterated — splicing it mid-render would
+		// orphan subsequent parts and leave detached DOM nodes referenced from `renderedParts`.
+		queueMicrotask(() => this.doUpdateWorkingProgressForPendingConfirmations(templateData));
+	}
+
+	private doUpdateWorkingProgressForPendingConfirmations(templateData: IChatListItemTemplate): void {
 		const element = templateData.currentElement;
 		if (!isResponseVM(element)) {
 			return;
