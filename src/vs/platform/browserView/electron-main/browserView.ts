@@ -346,11 +346,6 @@ export class BrowserView extends Disposable {
 		});
 
 		const onCommandKeydown = (_event: unknown, keyEvent: IBrowserViewKeyDownEvent) => {
-			// Intercept Ctrl/Cmd+Enter during element selection to pick the focused element.
-			if (this.inspector.isElementSelectionActive && keyEvent.key === 'Enter' && (keyEvent.ctrlKey || keyEvent.metaKey)) {
-				void this.inspector.pickFocusedElement();
-				return;
-			}
 			this._onDidKeyCommand.fire(keyEvent);
 		};
 

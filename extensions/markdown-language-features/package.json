@@ -849,7 +849,10 @@
       "./media/highlight.css"
     ],
     "markdown.previewScripts": [
-      "./media/index.js"
+      {
+        "path": "./media/index.js",
+        "type": "module"
+      }
     ],
     "customEditors": [
       {
