@@ -1102,6 +1102,11 @@ describe('parseHookJsonOutput', () => {
 
 // #region handleResultMessage
 
+/** Encodes a ChatFetchError the same way the proxy does: prefix + base64(JSON). */
+function encodeProxyError(error: ChatFetchError): string {
+	return `${PROXY_ERROR_PREFIX}${Buffer.from(JSON.stringify(error)).toString('base64')}`;
+}
+
 const TEST_QUOTA_ERROR: ChatFetchError = {
 	type: ChatFetchResponseType.QuotaExceeded,
 	reason: 'Free tier quota exceeded',
@@ -1141,7 +1146,7 @@ describe('handleResultMessage', () => {
 
 	it('throws ClaudeProxyError with parsed ChatFetchError for quota exceeded', () => {
 		const errorResult = makeErrorResult('error_during_execution');
-		errorResult.errors = [`API Error: ${PROXY_ERROR_PREFIX}${JSON.stringify(TEST_QUOTA_ERROR)}`];
+		errorResult.errors = [`API Error: ${encodeProxyError(TEST_QUOTA_ERROR)}`];
 		expect(
 			() => handleResultMessage(errorResult, createRequestContext()),
 		).toThrow(ClaudeProxyError);
@@ -1155,13 +1160,13 @@ describe('handleResultMessage', () => {
 	it('throws ClaudeProxyError for rate limited in success result', () => {
 		expect(
 			() => handleResultMessage(
-				makeErroredSuccessResult(`API Error: ${PROXY_ERROR_PREFIX}${JSON.stringify(TEST_RATE_LIMIT_ERROR)}`),
+				makeErroredSuccessResult(`API Error: ${encodeProxyError(TEST_RATE_LIMIT_ERROR)}`),
 				createRequestContext(),
 			),
 		).toThrow(ClaudeProxyError);
 		try {
 			handleResultMessage(
-				makeErroredSuccessResult(`API Error: ${PROXY_ERROR_PREFIX}${JSON.stringify(TEST_RATE_LIMIT_ERROR)}`),
+				makeErroredSuccessResult(`API Error: ${encodeProxyError(TEST_RATE_LIMIT_ERROR)}`),
 				createRequestContext(),
 			);
 		} catch (e) {
@@ -1177,7 +1182,7 @@ describe('handleResultMessage', () => {
 
 	it('detects proxy error among multiple errors in error_during_execution', () => {
 		const errorResult = makeErrorResult('error_during_execution');
-		errorResult.errors = ['Some other error', `API Error: ${PROXY_ERROR_PREFIX}${JSON.stringify(TEST_QUOTA_ERROR)}`];
+		errorResult.errors = ['Some other error', `API Error: ${encodeProxyError(TEST_QUOTA_ERROR)}`];
 		expect(
 			() => handleResultMessage(errorResult, createRequestContext()),
 		).toThrow(ClaudeProxyError);
@@ -1191,9 +1196,9 @@ describe('handleResultMessage', () => {
 		).toThrow(KnownClaudeError);
 	});
 
-	it('throws KnownClaudeError for malformed proxy error JSON', () => {
+	it('throws KnownClaudeError for malformed proxy error payload', () => {
 		const errorResult = makeErrorResult('error_during_execution');
-		errorResult.errors = [`API Error: ${PROXY_ERROR_PREFIX}{invalid json`];
+		errorResult.errors = [`API Error: ${PROXY_ERROR_PREFIX}not-valid-base64!!!`];
 		expect(
 			() => handleResultMessage(errorResult, createRequestContext()),
 		).toThrow(KnownClaudeError);
@@ -1201,7 +1206,7 @@ describe('handleResultMessage', () => {
 
 	it('returns requestComplete for success with is_error false even if result contains proxy prefix', () => {
 		const successResult = makeSuccessResult();
-		successResult.result = `contains ${PROXY_ERROR_PREFIX}${JSON.stringify(TEST_QUOTA_ERROR)} but is_error is false`;
+		successResult.result = `contains ${encodeProxyError(TEST_QUOTA_ERROR)} but is_error is false`;
 		const result = handleResultMessage(successResult, createRequestContext());
 		expect(result).toEqual({ requestComplete: true });
 	});

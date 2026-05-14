@@ -269,9 +269,9 @@ export class ClaudeLanguageModelServer extends Disposable {
 	 * that the SDK subprocess can interpret.
 	 */
 	private mapChatResponseToHttpError(chatResponse: ChatResponse): { status: number; errorType: AnthropicErrorResponse['error']['type']; message: string } {
-		// Serialize the full ChatFetchError as JSON after the proxy error prefix.
-		// This round-trips through the SDK and is parsed by handleResultMessage.
-		const proxyMessage = `${PROXY_ERROR_PREFIX}${JSON.stringify(chatResponse)}`;
+		// Base64-encode the full ChatFetchError JSON after the proxy error prefix.
+		// Base64 survives the SDK's JSON re-encoding without double-escaping issues.
+		const proxyMessage = `${PROXY_ERROR_PREFIX}${Buffer.from(JSON.stringify(chatResponse)).toString('base64')}`;
 
 		switch (chatResponse.type) {
 			case ChatFetchResponseType.QuotaExceeded:

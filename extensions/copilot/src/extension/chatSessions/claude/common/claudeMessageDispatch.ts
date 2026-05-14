@@ -127,7 +127,9 @@ export const DENY_TOOL_MESSAGE = 'The user declined to run the tool';
  * can identify proxy-classified errors in SDK result text without depending
  * on the SDK's own error classification.
  *
- * Format: `VSCODE_PROXY_ERROR:<json>` where the JSON is a serialized ChatFetchError.
+ * Format: `VSCODE_PROXY_ERROR:<base64>` where the base64 payload decodes to
+ * a JSON-serialized ChatFetchError. Base64 avoids double-encoding issues
+ * when the SDK nests our message inside its own JSON error response.
  */
 export const PROXY_ERROR_PREFIX = 'VSCODE_PROXY_ERROR:';
 
@@ -723,8 +725,14 @@ function tryParseProxyError(errorText: string | undefined): ChatFetchError | und
 	if (idx === -1) {
 		return undefined;
 	}
+
+	// Extract the base64 payload after the prefix, stopping at whitespace or quotes.
+	const start = idx + PROXY_ERROR_PREFIX.length;
+	const end = errorText.slice(start).search(/[\s"']/);
+	const b64 = end === -1 ? errorText.slice(start) : errorText.slice(start, start + end);
+
 	try {
-		return JSON.parse(errorText.slice(idx + PROXY_ERROR_PREFIX.length)) as ChatFetchError;
+		return JSON.parse(Buffer.from(b64, 'base64').toString()) as ChatFetchError;
 	} catch {
 		return undefined;
 	}
@@ -744,7 +752,8 @@ export function handleResultMessage(
 		// Check the result/error text for proxy-classified errors.
 		// The proxy embeds VSCODE_PROXY_ERROR:<json> in the HTTP error message,
 		// which the SDK forwards through to the result text.
-		const fetchError = tryParseProxyError(getResultErrorText(message));
+		const errorText = getResultErrorText(message);
+		const fetchError = tryParseProxyError(errorText);
 		if (fetchError) {
 			throw new ClaudeProxyError(fetchError);
 		}
