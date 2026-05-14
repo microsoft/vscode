@@ -47,7 +47,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../github/common/types.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { AllChangesChangeset, BranchChangesChangeset, GitHubRepositoryChangesetResolver, GitRepositoryChangesetResolver, LastTurnChangesChangeset, UncommittedChangesChangeset } from './copilotChatSessionsChangesets.js';
+import { ChangesetFactory } from './copilotChatSessionsChangesets.js';
 
 const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
 const STORAGE_KEY_ISOLATION_MODE = 'sessions.isolationPicker.selectedMode';
@@ -1618,7 +1618,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
-		@IGitService private readonly gitService: IGitService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@ILabelService private readonly labelService: ILabelService,
 	) {
@@ -3078,7 +3077,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			title: primaryChat.title,
 			updatedAt: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.updatedAt.read(reader))!),
 			status: chatsObs.map((chats, reader) => this._aggregateStatus(chats, reader)),
-			changesets: this._buildChangesets(primaryChat.sessionType, primaryChat.workspace, chatsObs),
+			changesets: this._createChangesets(primaryChat.sessionType, primaryChat.workspace, chatsObs),
 			changes: primaryChat.changes,
 			modelId: primaryChat.modelId,
 			mode: primaryChat.mode,
@@ -3098,7 +3097,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	private _chatToSingleChatSession(chat: ICopilotChatSession): ISession {
 		const mainChat = this._toChat(chat);
 		const chatsObs = constObservable<readonly IChat[]>([mainChat]);
-		const changesets = this._buildChangesets(chat.sessionType, chat.workspace, chatsObs);
+		const changesets = this._createChangesets(chat.sessionType, chat.workspace, chatsObs);
 
 		return {
 			sessionId: chat.id,
@@ -3144,19 +3143,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		};
 	}
 
-	private _buildChangesets(sessionType: string, workspaceObs: IObservable<ISessionWorkspace | undefined>, chatsObs: IObservable<readonly IChat[]>): IObservable<readonly ISessionChangeset[]> {
-		const changesetResolver = sessionType === AgentSessionProviders.Cloud
-			? new GitHubRepositoryChangesetResolver(workspaceObs, this.gitHubService)
-			: new GitRepositoryChangesetResolver(workspaceObs, this.gitService);
-
-		const changesets: ISessionChangeset[] = [new BranchChangesChangeset(workspaceObs, chatsObs)];
-		if (sessionType !== AgentSessionProviders.Cloud) {
-			changesets.push(new UncommittedChangesChangeset(workspaceObs, chatsObs, changesetResolver));
-		}
-		changesets.push(new AllChangesChangeset(chatsObs, changesetResolver));
-		changesets.push(new LastTurnChangesChangeset(chatsObs, changesetResolver));
-
-		return constObservable(changesets);
+	private _createChangesets(sessionType: string, workspaceObs: IObservable<ISessionWorkspace | undefined>, chatsObs: IObservable<readonly IChat[]>): IObservable<readonly ISessionChangeset[]> {
+		return ChangesetFactory.create(sessionType, workspaceObs, chatsObs, this.instantiationService);
 	}
 
 	private _latestDate(chats: readonly IChat[], getter: (chat: IChat) => Date | undefined): Date | undefined {

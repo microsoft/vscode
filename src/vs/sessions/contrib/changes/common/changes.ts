@@ -29,7 +29,6 @@ export const enum IsolationMode {
 export const ChangesContextKeys = {
 	ChangeKind: new RawContextKey<'root' | 'folder' | 'file'>('sessions.changeKind', 'file'),
 	VersionMode: new RawContextKey<ChangesVersionMode>('sessions.changesVersionMode', ChangesVersionMode.BranchChanges),
-	ChangesetId: new RawContextKey<string>('sessions.changes.changesetId', ''),
 	ViewMode: new RawContextKey<ChangesViewMode>('sessions.changesViewMode', ChangesViewMode.List)
 };
 

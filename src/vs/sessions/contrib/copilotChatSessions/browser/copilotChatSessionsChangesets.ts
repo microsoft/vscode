@@ -8,6 +8,8 @@ import { constObservable, derived, derivedOpts, IObservable, ObservablePromise }
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { GitDiffChange, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { gitHubInfoEqual, IChat, IGitHubInfo, ISessionChangeset, ISessionFileChange, ISessionWorkspace, sessionFileChangesEqual } from '../../../services/sessions/common/session.js';
@@ -18,12 +20,12 @@ interface IChangesetResolver {
 	resolve(firstCheckpointRef: string, lastCheckpointRef: string | undefined): Promise<IChatSessionFileChange2[] | undefined>;
 }
 
-export class GitRepositoryChangesetResolver implements IChangesetResolver {
+class GitRepositoryChangesetResolver implements IChangesetResolver {
 	private readonly _repositoryUriObs: IObservable<URI | undefined>;
 
 	constructor(
 		workspace: IObservable<ISessionWorkspace | undefined>,
-		private readonly _gitService: IGitService
+		@IGitService private readonly _gitService: IGitService
 	) {
 		this._repositoryUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
 			const gitRepository = workspace.read(reader)?.folders[0].gitRepository;
@@ -48,12 +50,12 @@ export class GitRepositoryChangesetResolver implements IChangesetResolver {
 	}
 }
 
-export class GitHubRepositoryChangesetResolver implements IChangesetResolver {
+class GitHubRepositoryChangesetResolver implements IChangesetResolver {
 	private readonly _gitHubInfoObs: IObservable<IGitHubInfo | undefined>;
 
 	constructor(
 		workspace: IObservable<ISessionWorkspace | undefined>,
-		private readonly _gitHubService: IGitHubService
+		@IGitHubService private readonly _gitHubService: IGitHubService
 	) {
 		this._gitHubInfoObs = derivedOpts({ equalsFn: gitHubInfoEqual }, reader => {
 			const gitRepository = workspace.read(reader)?.folders[0].gitRepository;
@@ -104,6 +106,29 @@ export class GitHubRepositoryChangesetResolver implements IChangesetResolver {
 				deletions: change.deletions
 			} satisfies IChatSessionFileChange2;
 		});
+	}
+}
+
+export class ChangesetFactory {
+	static create(
+		sessionType: string,
+		workspaceObs: IObservable<ISessionWorkspace | undefined>,
+		chatsObs: IObservable<readonly IChat[]>,
+		instantiationService: IInstantiationService,
+	): IObservable<readonly ISessionChangeset[]> {
+		const changesetResolver = sessionType === AgentSessionProviders.Cloud
+			? instantiationService.createInstance(GitHubRepositoryChangesetResolver, workspaceObs)
+			: instantiationService.createInstance(GitRepositoryChangesetResolver, workspaceObs);
+
+		const changesets: ISessionChangeset[] = [new BranchChangesChangeset(workspaceObs, chatsObs)];
+		if (sessionType !== AgentSessionProviders.Cloud) {
+			changesets.push(new UncommittedChangesChangeset(workspaceObs, chatsObs, changesetResolver));
+		}
+
+		changesets.push(new AllChangesChangeset(chatsObs, changesetResolver));
+		changesets.push(new LastTurnChangesChangeset(chatsObs, changesetResolver));
+
+		return constObservable(changesets);
 	}
 }
 

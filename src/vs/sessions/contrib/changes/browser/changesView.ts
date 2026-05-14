@@ -68,7 +68,7 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/
 import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ChecksViewModel } from './checksViewModel.js';
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../agentHost/browser/agentHostSkillButtons.js';
-import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesVersionMode, ChangesViewMode, IsolationMode } from '../common/changes.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode } from '../common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, toIChangesFileItem } from './changesViewRenderer.js';
 import { ChangesViewModel } from './changesViewModel.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
@@ -353,7 +353,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Version mode
 		this._register(bindContextKey(ChangesContextKeys.VersionMode, this.scopedContextKeyService, reader => {
-			return this.viewModel.versionModeObs.read(reader);
+			return this.viewModel.activeSessionChangesetObs.read(reader)?.id ?? '';
 		}));
 
 		// View mode
@@ -873,19 +873,8 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	private getSessionDiscardRef(): string {
-		const versionMode = this.viewModel.versionModeObs.get();
-		const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.get();
-		const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.get();
-
-		if (versionMode === ChangesVersionMode.UncommittedChanges) {
-			return 'HEAD';
-		}
-
-		return versionMode === ChangesVersionMode.LastTurn
-			? lastCheckpointRef
-				? `${lastCheckpointRef}^`
-				: ''
-			: firstCheckpointRef ?? '';
+		const changeset = this.viewModel.activeSessionChangesetObs.get();
+		return changeset?.originalCheckpointRef.get() ?? '';
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -1358,9 +1347,9 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 					run: async () => {
 						viewModel.setChangesetId(changeset.id);
 						logChangesViewVersionModeChange(this.telemetryService, changeset.id);
-						if (this.element) {
-							this.renderLabel(this.element);
-						}
+						// if (this.element) {
+						// 	this.renderLabel(this.element);
+						// }
 					}
 				} satisfies IActionWidgetDropdownAction));
 			},
@@ -1369,7 +1358,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		super(action, { actionProvider, listOptions: { detailItemHeight: 44 } }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(autorun(reader => {
-			viewModel.versionModeObs.read(reader);
+			viewModel.activeSessionChangesetObs.read(reader);
 
 			if (this.element) {
 				this.renderLabel(this.element);
