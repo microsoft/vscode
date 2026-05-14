@@ -438,6 +438,16 @@
 	display: none;
 }
 
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .monaco-icon-label {
+	min-width: 0;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .monaco-icon-description-container {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .codicon {
 	vertical-align: text-bottom;
 }
