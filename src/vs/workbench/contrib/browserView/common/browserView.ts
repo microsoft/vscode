@@ -119,6 +119,9 @@ export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenc
 export interface IBrowserViewWorkbenchService {
 	readonly _serviceBrand: undefined;
 
+	/** Returns true if the remote proxy is enabled; i.e. we are in a remote workspace. */
+	willUseRemoteProxy(): boolean;
+
 	/**
 	 * Fires when the set of known browser views changes, or a model is created for an existing input.
 	 */
@@ -209,6 +212,8 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly certificateError: IBrowserViewCertificateError | undefined;
 	readonly storageScope: BrowserViewStorageScope;
 	readonly sharingState: BrowserViewSharingState;
+	readonly isRemoteSession: boolean;
+	readonly requestedHosts: string[];
 	readonly zoomFactor: number;
 	readonly canZoomIn: boolean;
 	readonly canZoomOut: boolean;
@@ -226,6 +231,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidFindInPage: Event<IBrowserViewFindInPageResult>;
 	readonly onDidChangeVisibility: Event<IBrowserViewVisibilityEvent>;
 	readonly onDidClose: Event<void>;
+	readonly onDidChangeRequestedHosts: Event<{ requestedHosts: string[] }>;
 	readonly onWillDispose: Event<void>;
 	readonly onDidSelectElement: Event<IElementData>;
 	readonly onDidChangeElementSelectionActive: Event<boolean>;
@@ -267,11 +273,13 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _error: IBrowserViewLoadError | undefined = undefined;
 	private _certificateError: IBrowserViewCertificateError | undefined = undefined;
 	private _storageScope: BrowserViewStorageScope = BrowserViewStorageScope.Ephemeral;
+	private _isRemoteSession: boolean = false;
 	private _isEphemeral: boolean = false;
 	private _zoomHost: string | undefined = undefined;
 	private _sharedWithAgent: boolean = false;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 	private _isElementSelectionActive: boolean = false;
+	private _requestedHosts: string[] = [];
 
 	private readonly _onDidChangeSharingState = this._register(new Emitter<BrowserViewSharingState>());
 	readonly onDidChangeSharingState: Event<BrowserViewSharingState> = this._onDidChangeSharingState.event;
@@ -312,6 +320,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._error = initialState.lastError;
 		this._certificateError = initialState.certificateError;
 		this._storageScope = initialState.storageScope;
+		this._isRemoteSession = initialState.isRemoteSession;
 		this._browserZoomIndex = initialState.browserZoomIndex;
 		this._isElementSelectionActive = initialState.isElementSelectionActive;
 		this._isEphemeral = this._storageScope === BrowserViewStorageScope.Ephemeral;
@@ -394,6 +403,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._isElementSelectionActive = active;
 		}));
 
+		this._register(this.onDidChangeRequestedHosts(({ requestedHosts }) => {
+			this._requestedHosts = requestedHosts;
+		}));
+
 		this._register(this.playwrightService.onDidChangeTrackedPages(ids => {
 			this._setSharedWithAgent(ids.includes(this.id));
 		}));
@@ -416,6 +429,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get error(): IBrowserViewLoadError | undefined { return this._error; }
 	get certificateError(): IBrowserViewCertificateError | undefined { return this._certificateError; }
 	get storageScope(): BrowserViewStorageScope { return this._storageScope; }
+	get isRemoteSession(): boolean { return this._isRemoteSession; }
+	get requestedHosts(): string[] { return this._requestedHosts; }
 	get sharingState(): BrowserViewSharingState {
 		if (!this.browserViewWorkbenchService.isSharingAvailable) {
 			return BrowserViewSharingState.Unavailable;
@@ -464,6 +479,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	get onDidClose(): Event<void> {
 		return this.browserViewService.onDynamicDidClose(this.id);
+	}
+
+	get onDidChangeRequestedHosts(): Event<{ requestedHosts: string[] }> {
+		return this.browserViewService.onDynamicDidChangeRequestedHosts(this.id);
 	}
 
 	async layout(bounds: IBrowserViewBounds): Promise<void> {

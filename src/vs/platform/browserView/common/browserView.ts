@@ -124,7 +124,7 @@ export interface IBrowserViewCreatedEvent {
 
 export interface IBrowserViewCreateOptions {
 	readonly owner: IBrowserViewOwner;
-	readonly scope: BrowserViewStorageScope;
+	readonly sessionOptions: IBrowserSessionOptions;
 	readonly initialState?: Partial<IBrowserViewState>;
 }
 
@@ -144,6 +144,9 @@ export interface IBrowserViewState {
 	storageScope: BrowserViewStorageScope;
 	browserZoomIndex: number;
 	isElementSelectionActive: boolean;
+	isRemoteSession: boolean;
+	/** Set of `host:port` strings requested by the current page. */
+	requestedHosts: string[];
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -228,6 +231,13 @@ export enum BrowserViewStorageScope {
 	Ephemeral = 'ephemeral'
 }
 
+export interface IBrowserSessionOptions {
+	/** Storage / data-isolation scope for the session. */
+	scope: BrowserViewStorageScope;
+	/** Proxy rules for `session.setProxy()` (e.g. `socks5://127.0.0.1:PORT`). */
+	proxyRules?: string;
+}
+
 export const ipcBrowserViewChannelName = 'browserView';
 
 /**
@@ -267,6 +277,7 @@ export interface IBrowserViewService {
 	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
 	onDynamicDidFindInPage(id: string): Event<IBrowserViewFindInPageResult>;
 	onDynamicDidClose(id: string): Event<void>;
+	onDynamicDidChangeRequestedHosts(id: string): Event<{ requestedHosts: string[] }>;
 	onDynamicDidSelectElement(id: string): Event<IElementData>;
 	onDynamicDidChangeElementSelectionActive(id: string): Event<boolean>;
 

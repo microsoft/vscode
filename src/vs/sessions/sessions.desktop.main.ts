@@ -75,6 +75,7 @@ import '../workbench/services/integrity/electron-browser/integrityService.js';
 import '../workbench/services/workingCopy/electron-browser/workingCopyBackupService.js';
 import '../workbench/services/checksum/electron-browser/checksumService.js';
 import '../platform/remote/electron-browser/sharedProcessTunnelService.js';
+import '../platform/tunnel/electron-browser/sharedProcessTunnelProxyService.js';
 import '../workbench/services/tunnel/electron-browser/tunnelService.js';
 import '../platform/diagnostics/electron-browser/diagnosticsService.js';
 import '../platform/profiling/electron-browser/profilingService.js';

@@ -75,7 +75,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 		const browserSession = BrowserSession.getOrCreate(
 			id,
-			options.scope,
+			options.sessionOptions,
 			this.environmentMainService.workspaceStorageHome,
 			ownerWindow.openedWorkspace?.id
 		);
@@ -175,6 +175,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	onDynamicDidClose(id: string) {
 		return this._getBrowserView(id).onDidClose;
+	}
+
+	onDynamicDidChangeRequestedHosts(id: string) {
+		return this._getBrowserView(id).onDidChangeRequestedHosts;
 	}
 
 	onDynamicDidSelectElement(id: string) {

@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -24,6 +24,10 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { ChatConfiguration } from '../../chat/common/constants.js';
 import { AgentHostEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { ISharedProcessTunnelProxyService, ITunnelProxyInfo } from '../../../../platform/tunnel/common/sharedProcessTunnelProxyService.js';
+import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
 
 /**
  * When enabled, integrated browser tools are exposed as client-provided tools
@@ -72,6 +76,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	get isSharingAvailable(): boolean {
 		return this._isSharingAvailable;
 	}
+	private _remoteProxyPromise: Promise<ITunnelProxyInfo | undefined> | undefined;
+	private _remoteAuthority: string | undefined;
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
@@ -84,14 +90,31 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ISharedProcessTunnelProxyService private readonly tunnelProxyService: ISharedProcessTunnelProxyService,
+		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@ITunnelService private readonly tunnelService: ITunnelService,
+
 	) {
 		super();
 		const channel = mainProcessService.getChannel(ipcBrowserViewChannelName);
 		this._browserViewService = ProxyChannel.toService<IBrowserViewService>(channel);
 		this._mainWindowId = mainWindow.vscodeWindowId;
+		this._remoteAuthority = this.environmentService.remoteAuthority;
 
 		this.sendKeybindings();
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.sendKeybindings()));
+		this._register(toDisposable(() => {
+			if (this._remoteProxyPromise && this._remoteAuthority) {
+				void this.tunnelProxyService.stop(this._remoteAuthority).catch(err => this.logService.error('[BrowserViewWorkbenchService] Failed to stop tunnel proxy:', err));
+			}
+		}));
+
+		// Watch for forwarded port changes and push allowlist updates
+		if (this._remoteAuthority) {
+			this._register(this.tunnelService.onTunnelOpened(() => this._syncAllowlist()));
+			this._register(this.tunnelService.onTunnelClosed(() => this._syncAllowlist()));
+		}
 
 		// Track sharing availability from context keys
 		this._isSharingAvailable = this.contextKeyService.contextMatchesRules(BrowserViewWorkbenchService._sharingAvailableContext);
@@ -127,6 +150,80 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		}));
 	}
 
+	willUseRemoteProxy(): boolean {
+		if (!this.environmentService.remoteAuthority) {
+			return false;
+		}
+		if (!this.configurationService.getValue<boolean>('workbench.browser.enableRemoteProxy')) {
+			return false;
+		}
+		return true;
+	}
+
+	private async _getRemoteProxy(): Promise<ITunnelProxyInfo | undefined> {
+		if (!this.willUseRemoteProxy()) {
+			return undefined;
+		}
+		if (!this._remoteProxyPromise) {
+			this._remoteProxyPromise = this._startRemoteProxy(this.environmentService.remoteAuthority!);
+		}
+		return this._remoteProxyPromise;
+	}
+
+	private async _startRemoteProxy(remoteAuthority: string): Promise<ITunnelProxyInfo | undefined> {
+		try {
+			const result = await this.tunnelProxyService.start(remoteAuthority);
+			this.logService.info(`[BrowserViewWorkbenchService] Tunnel proxy started for remote authority '${remoteAuthority}'`);
+
+			// Push the resolved address to the proxy
+			const connectionData = this.remoteAuthorityResolverService.getConnectionData(remoteAuthority);
+			if (connectionData) {
+				await this.tunnelProxyService.setAddress(remoteAuthority, {
+					connectTo: connectionData.connectTo,
+					connectionToken: connectionData.connectionToken
+				});
+			}
+
+			// Keep address up to date on reconnections
+			this._register(this.remoteAuthorityResolverService.onDidChangeConnectionData(() => {
+				const data = this.remoteAuthorityResolverService.getConnectionData(remoteAuthority);
+				if (data) {
+					void this.tunnelProxyService.setAddress(remoteAuthority, {
+						connectTo: data.connectTo,
+						connectionToken: data.connectionToken
+					}).catch(err => this.logService.error('[BrowserViewWorkbenchService] Failed to update tunnel proxy address:', err));
+				}
+			}));
+
+			// Push initial allowlist
+			await this._syncAllowlist();
+
+			return result;
+		} catch (err) {
+			this.logService.error('[BrowserViewWorkbenchService] Failed to start tunnel proxy:', err);
+			return undefined;
+		}
+	}
+
+	/**
+	 * Sync the set of currently forwarded ports to the proxy's allowlist.
+	 */
+	private async _syncAllowlist(): Promise<void> {
+		if (!this._remoteAuthority || !this._remoteProxyPromise) {
+			return;
+		}
+		try {
+			const tunnels = await this.tunnelService.tunnels;
+			const destinations = tunnels.map(t => ({
+				host: t.tunnelRemoteHost,
+				port: t.tunnelRemotePort,
+			}));
+			await this.tunnelProxyService.updateAllowlist(this._remoteAuthority, destinations);
+		} catch (err) {
+			this.logService.error('[BrowserViewWorkbenchService] Failed to sync allowlist:', err);
+		}
+	}
+
 	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
 		return this._known;
 	}
@@ -134,11 +231,15 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, model?: IBrowserViewModel): BrowserEditorInput {
 		if (!this._known.has(id)) {
 			const input = this.instantiationService.createInstance(BrowserEditorInput, { id, ...initialState }, async () => {
+				const proxyInfo = await this._getRemoteProxy();
 				const state = await this._browserViewService.getOrCreateBrowserView(
 					id,
 					{
 						owner: this._getDefaultOwner(),
-						scope: await this._resolveStorageScope(),
+						sessionOptions: {
+							scope: await this._resolveStorageScope(proxyInfo),
+							proxyRules: proxyInfo?.proxyRules
+						},
 						initialState: {
 							url: initialState?.url,
 							title: initialState?.title,
@@ -175,10 +276,10 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return { mainWindowId: this._mainWindowId };
 	}
 
-	private async _resolveStorageScope(): Promise<BrowserViewStorageScope> {
-		const dataStorageSetting = this.configurationService.getValue<BrowserViewStorageScope>(
+	private async _resolveStorageScope(proxyInfo: ITunnelProxyInfo | undefined): Promise<BrowserViewStorageScope> {
+		let dataStorage = this.configurationService.getValue<BrowserViewStorageScope | 'default'>(
 			'workbench.browser.dataStorage'
-		) ?? BrowserViewStorageScope.Global;
+		) ?? 'default';
 
 		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 
@@ -186,7 +287,18 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY &&
 			!this.workspaceTrustManagementService.isWorkspaceTrusted();
 
-		return isWorkspaceUntrusted ? BrowserViewStorageScope.Ephemeral : dataStorageSetting;
+		if (isWorkspaceUntrusted) {
+			// Always use ephemeral sessions for untrusted workspaces
+			dataStorage = BrowserViewStorageScope.Ephemeral;
+		} else if (dataStorage === 'default') {
+			// When proxying, default to workspace-scoped sessions
+			// to avoid polluting the global session with remote site data.
+			dataStorage = proxyInfo
+				? BrowserViewStorageScope.Workspace
+				: BrowserViewStorageScope.Global;
+		}
+
+		return dataStorage;
 	}
 
 	/**

@@ -57,7 +57,7 @@
 	.browser-url-container {
 		flex: 1;
 		display: flex;
-		align-items: center;
+		align-items: stretch;
 		min-width: 0;
 		background-color: var(--vscode-input-background);
 		border: 1px solid var(--vscode-input-border);
@@ -65,6 +65,37 @@
 
 		&:has(.browser-url-input:focus) {
 			border-color: var(--vscode-focusBorder);
+		}
+	}
+
+	.browser-pre-url-widgets {
+		display: flex;
+		flex-shrink: 0;
+	}
+
+	.browser-remote-indicator {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 5px;
+		font-size: 12px;
+		white-space: nowrap;
+		background-color: var(--vscode-editorWidget-background);
+		color: var(--vscode-disabledForeground);
+		border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
+
+		&.connected {
+			background-color: var(--vscode-statusBarItem-remoteBackground);
+			color: var(--vscode-statusBarItem-remoteForeground);
+		}
+
+		&.partial {
+			background-color: var(--vscode-statusBarItem-warningBackground);
+			color: var(--vscode-statusBarItem-warningForeground);
+		}
+
+		.codicon {
+			color: inherit;
 		}
 	}
 
