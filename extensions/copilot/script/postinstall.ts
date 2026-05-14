@@ -108,15 +108,13 @@ async function copyCopilotCliQueryFiles() {
 async function copyCopilotCliPrebuildFiles() {
 	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'prebuilds');
 	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'prebuilds');
-	const prebuildsFolder = path.join('prebuilds', `${process.platform}-${process.arch}`);
 	await fs.promises.rm(targetDir, { recursive: true, force: true });
 	await fs.promises.mkdir(targetDir, { recursive: true });
 	await fs.promises.cp(sourceDir, targetDir, {
 		recursive: true, force: true, filter: (src) => {
 			try {
 				if (fs.statSync(src).isFile()) {
-					const copy = src.includes(prebuildsFolder) && (src.endsWith('computer.node') || src.endsWith('native.node') || src.endsWith('runtime.node'));
-					return copy;
+					return src.endsWith('computer.node') || src.endsWith('native.node') || src.endsWith('runtime.node');
 				}
 				return true;
 			} catch {
