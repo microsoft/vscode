@@ -497,18 +497,25 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	 * Builds the model from scratch based on the current state of the editor service.
 	 */
 	private _createTabsModel(): void {
-		if (this._editorGroupsService.groups.length === 0) {
+		const groups = this._editorGroupsService.groups;
+		if (groups.length === 0) {
 			return; // skip this invalid state, it may happen when the entire editor area is transitioning to other state ("editor working sets")
 		}
 
 		this._tabGroupModel = [];
 		this._groupLookup.clear();
 		this._tabInfoLookup.clear();
+		const activeGroupId = this._editorGroupsService.activeGroup.id;
+		let hasActiveGroup = false;
 		let tabs: IEditorTabDto[] = [];
-		for (const group of this._editorGroupsService.groups) {
+		for (const group of groups) {
+			const isActive = group.id === activeGroupId;
+			if (isActive) {
+				hasActiveGroup = true;
+			}
 			const currentTabGroupModel: IEditorTabGroupDto = {
 				groupId: group.id,
-				isActive: group.id === this._editorGroupsService.activeGroup.id,
+				isActive,
 				viewColumn: editorGroupToColumn(this._editorGroupsService, group),
 				tabs: []
 			};
@@ -527,6 +534,15 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			this._groupLookup.set(group.id, currentTabGroupModel);
 			tabs = [];
 		}
+
+		// During multi-editor-part transitions (e.g. group removal, window closing),
+		// the activeGroup may temporarily resolve to a group not in the groups list.
+		// Ensure the model always has exactly one active group before sending to ext host.
+		if (!hasActiveGroup) {
+			this._logService.warn('Active group not found in groups list, falling back to first group');
+			this._tabGroupModel[0].isActive = true;
+		}
+
 		// notify the ext host of the new model
 		this._proxy.$acceptEditorTabModel(this._tabGroupModel);
 	}
