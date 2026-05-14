@@ -696,11 +696,15 @@ export class ExternalIngestIndex extends Disposable {
 		}
 
 		// New or changed file - set to Undetermined so it will be evaluated later
-		this._db.prepare(`
-			INSERT INTO Files (path, size, mtime, docSha, shouldIngest)
-			VALUES (?, ?, ?, ?, ?)
-			ON CONFLICT(path) DO UPDATE SET size = excluded.size, mtime = excluded.mtime, docSha = NULL, shouldIngest = excluded.shouldIngest
-		`).run(uri.toString(), stat.size, stat.mtime, null, ShouldIngestState.Undetermined);
+		try {
+			this._db.prepare(`
+				INSERT INTO Files (path, size, mtime, docSha, shouldIngest)
+				VALUES (?, ?, ?, ?, ?)
+				ON CONFLICT(path) DO UPDATE SET size = excluded.size, mtime = excluded.mtime, docSha = NULL, shouldIngest = excluded.shouldIngest
+			`).run(uri.toString(), stat.size, stat.mtime, null, ShouldIngestState.Undetermined);
+		} catch (err) {
+			this._logService.warn(`ExternalIngestIndex: Failed to add/update file in database: ${uri.toString()}. Error: ${toErrorMessage(err, true)}`);
+		}
 	}
 
 	/**
