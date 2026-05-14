@@ -26,6 +26,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { AgentHostEditingSession } from '../../../browser/agentSessions/agentHost/agentHostEditingSession.js';
 import { ChatEditingSessionState, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
@@ -158,12 +159,17 @@ function createSession(store: DisposableStore, contentMap: Map<string, string>, 
 
 function setupAiContributionFeature(store: DisposableStore, workspace: MutableObservableWorkspace): void {
 	const instantiationService = store.add(new TestInstantiationService(new ServiceCollection(), false, undefined, true));
+	instantiationService.stub(IEditorGroupsService, {
+		onDidAddGroup: Event.None,
+		onDidRemoveGroup: Event.None,
+		groups: [],
+	});
 	const annotatedDocuments = store.add(new AnnotatedDocuments(workspace, { includeHiddenDocuments: true }, instantiationService));
 	store.add(instantiationService.createInstance(AiContributionFeature, annotatedDocuments));
 }
 
 function hasAiContributions(uris: URI[], level: 'chatAndAgent' | 'all'): boolean {
-	return CommandsRegistry.getCommand('_aiEdits.hasAiContributions')!.handler(undefined!, uris, level) as boolean;
+	return CommandsRegistry.getCommand('_aiEdits.hasAiContributions')!.handler(undefined!, uris, level) as unknown as boolean;
 }
 
 // ---- Tests ------------------------------------------------------------------
@@ -243,6 +249,53 @@ suite('AgentHostEditingSession', () => {
 				{ uri: fileUri.toString(), done: true, isExternalEdit: true },
 			],
 			hasAiContributions: {
+				all: false,
+				chatAndAgent: false,
+			},
+		});
+	}));
+
+	test('addToolCallEdits should contribute agent-host resources and clear on undo', () => runWithFakedTimers({}, async () => {
+		const workspace = new MutableObservableWorkspace();
+		setupAiContributionFeature(store, workspace);
+
+		const fileUri = toAgentHostUri(URI.file('/workspace/file.ts'), 'local');
+		const beforeContentUri = toAgentHostUri(URI.parse('content://before-1'), 'local');
+		const contentMap = new Map<string, string>();
+		contentMap.set(beforeContentUri.toString(), 'before-content');
+		contentMap.set(fileUri.toString(), 'current-content');
+		const session = createSession(store, contentMap);
+		store.add(workspace.createDocument({ uri: fileUri, initialValue: 'current-content' }, undefined));
+		await timeout(1500);
+
+		session.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-1',
+			filePath: '/workspace/file.ts',
+			beforeURI: 'content://before-1',
+			afterURI: 'content://after-1',
+		}));
+
+		assert.deepStrictEqual({
+			afterAdd: {
+				all: hasAiContributions([fileUri], 'all'),
+				chatAndAgent: hasAiContributions([fileUri], 'chatAndAgent'),
+			},
+		}, {
+			afterAdd: {
+				all: true,
+				chatAndAgent: true,
+			},
+		});
+
+		await session.undoInteraction();
+
+		assert.deepStrictEqual({
+			afterUndo: {
+				all: hasAiContributions([fileUri], 'all'),
+				chatAndAgent: hasAiContributions([fileUri], 'chatAndAgent'),
+			},
+		}, {
+			afterUndo: {
 				all: false,
 				chatAndAgent: false,
 			},

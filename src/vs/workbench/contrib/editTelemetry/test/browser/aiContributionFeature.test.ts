@@ -49,6 +49,11 @@ suite('AiContributionFeature', () => {
 		correlationId: undefined,
 	});
 
+	type ExplicitAiContributionMark = {
+		resource: URI;
+		feature: 'chat' | 'inlineSuggest';
+	};
+
 	function setup(options?: { visibilityByUri?: Map<string, boolean> }): void {
 		disposables = new DisposableStore();
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(), false, undefined, true));
@@ -71,6 +76,12 @@ suite('AiContributionFeature', () => {
 
 	function clearAllAiContributions(): void {
 		CommandsRegistry.getCommand('_aiEdits.clearAllAiContributions')!.handler(undefined!);
+	}
+
+	function markAiContributions(marks: readonly ExplicitAiContributionMark[]): void {
+		const command = CommandsRegistry.getCommand('_aiEdits.markAiContributions');
+		assert.ok(command, '_aiEdits.markAiContributions command should be registered');
+		command.handler(undefined!, marks.map(mark => ({ resource: mark.resource, feature: mark.feature })));
 	}
 
 	test('no contributions initially', () => runWithFakedTimers({}, async () => {
@@ -144,6 +155,36 @@ suite('AiContributionFeature', () => {
 		disposables.dispose();
 	}));
 
+	test('explicit marks without live trackers use feature-shaped level semantics', () => runWithFakedTimers({}, async () => {
+		setup();
+
+		markAiContributions([
+			{ resource: fileA, feature: 'chat' },
+			{ resource: fileB, feature: 'inlineSuggest' },
+		]);
+
+		assert.deepStrictEqual({
+			chat: {
+				all: hasAiContributions([fileA], 'all'),
+				chatAndAgent: hasAiContributions([fileA], 'chatAndAgent'),
+			},
+			inlineSuggest: {
+				all: hasAiContributions([fileB], 'all'),
+				chatAndAgent: hasAiContributions([fileB], 'chatAndAgent'),
+			},
+		}, {
+			chat: {
+				all: true,
+				chatAndAgent: true,
+			},
+			inlineSuggest: {
+				all: true,
+				chatAndAgent: false,
+			},
+		});
+		disposables.dispose();
+	}));
+
 	test('does not detect user edits as AI', () => runWithFakedTimers({}, async () => {
 		setup();
 		const d = disposables.add(workspace.createDocument({ uri: fileA, initialValue: 'hello' }, undefined));
@@ -174,6 +215,45 @@ suite('AiContributionFeature', () => {
 
 		assert.strictEqual(hasAiContributions([dA.uri], 'all'), false);
 		assert.strictEqual(hasAiContributions([dB.uri], 'all'), true);
+		disposables.dispose();
+	}));
+
+	test('explicit marks coexist idempotently with live trackers and clear correctly', () => runWithFakedTimers({}, async () => {
+		setup();
+		const d = disposables.add(workspace.createDocument({ uri: fileA, initialValue: 'hello' }, undefined));
+		await timeout(1500);
+
+		d.applyEdit(StringEditWithReason.replace(d.findRange('hello'), 'world', chatEdit));
+		await timeout(1500);
+
+		markAiContributions([
+			{ resource: d.uri, feature: 'chat' },
+			{ resource: d.uri, feature: 'chat' },
+		]);
+
+		const beforeClear = {
+			all: hasAiContributions([d.uri], 'all'),
+			chatAndAgent: hasAiContributions([d.uri], 'chatAndAgent'),
+		};
+
+		clearAiContributions([d.uri]);
+
+		assert.deepStrictEqual({
+			beforeClear,
+			afterClear: {
+				all: hasAiContributions([d.uri], 'all'),
+				chatAndAgent: hasAiContributions([d.uri], 'chatAndAgent'),
+			},
+		}, {
+			beforeClear: {
+				all: true,
+				chatAndAgent: true,
+			},
+			afterClear: {
+				all: false,
+				chatAndAgent: false,
+			},
+		});
 		disposables.dispose();
 	}));
 
