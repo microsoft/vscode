@@ -846,6 +846,7 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 		if (!repoUri || !folder.gitRepository) {
 			return;
 		}
+		const gitRepository = folder.gitRepository;
 
 		try {
 			const repo = await this.gitService.openRepository(repoUri);
@@ -867,7 +868,7 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 					folders: [{
 						...folder,
 						gitRepository: {
-							...folder.gitRepository,
+							...gitRepository,
 							branchName,
 							upstreamBranchName,
 							uncommittedChanges,
