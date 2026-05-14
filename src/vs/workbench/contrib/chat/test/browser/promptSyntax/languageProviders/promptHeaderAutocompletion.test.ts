@@ -27,6 +27,7 @@ import { PromptFileParser } from '../../../../common/promptSyntax/promptFilePars
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
+import { MockChatModeService } from '../../../common/mockChatModeService.js';
 
 suite('PromptHeaderAutocompletion', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -53,10 +54,10 @@ suite('PromptHeaderAutocompletion', () => {
 		instaService.set(ILanguageModelToolsService, toolService);
 
 		const testModels: ILanguageModelChatMetadata[] = [
-			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
-			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
-			{ id: 'gpt-4', name: 'GPT 4', vendor: 'openai', version: '1.0', family: 'gpt', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: false, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
-			{ id: 'bg-agent-model', name: 'BG Agent Model', vendor: 'copilot', version: '1.0', family: 'bg', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true }, targetChatSessionType: 'background' } satisfies ILanguageModelChatMetadata,
+			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
+			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
+			{ id: 'gpt-4', name: 'GPT 4', vendor: 'openai', version: '1.0', family: 'gpt', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: false, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
+			{ id: 'bg-agent-model', name: 'BG Agent Model', vendor: 'copilot', version: '1.0', family: 'bg', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true }, targetChatSessionType: 'background' } satisfies ILanguageModelChatMetadata,
 		];
 
 		instaService.stub(ILanguageModelsService, {
@@ -91,11 +92,7 @@ suite('PromptHeaderAutocompletion', () => {
 			}
 		});
 
-		instaService.stub(IChatModeService, {
-			getModes() {
-				return { builtin: [], custom: [] };
-			}
-		});
+		instaService.stub(IChatModeService, new MockChatModeService());
 
 		completionProvider = instaService.createInstance(PromptHeaderAutocompletion);
 	});
@@ -797,7 +794,7 @@ suite('PromptHeaderAutocompletion', () => {
 
 			const actual = await getCompletions(content, PromptsType.prompt);
 			assert.deepStrictEqual(actual.sort(sortByLabel), [
-				{ label: 'agent', result: 'agent: $0' },
+				{ label: 'agent', result: 'agent: ${0:ask}' },
 				{ label: 'argument-hint', result: 'argument-hint: $0' },
 				{ label: 'model', result: 'model: ${0:MAE 4 (olama)}' },
 				{ label: 'name', result: 'name: $0' },

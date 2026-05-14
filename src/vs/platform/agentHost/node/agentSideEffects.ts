@@ -10,28 +10,28 @@ import { autorun, IObservable, IReader } from '../../../base/common/observable.j
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { ILogService } from '../../log/common/log.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { AgentSignal, IAgent, IAgentAttachment, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
+import { ILogService } from '../../log/common/log.js';
+import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentInfo } from '../common/state/protocol/state.js';
 import { ActionType, isSessionAction, StateAction, type SessionToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
+	buildSubagentSessionUri,
+	getToolFileEdits,
 	PendingMessageKind,
 	ResponsePartKind,
 	SessionStatus,
 	ToolCallStatus,
 	ToolResultContentType,
-	buildSubagentSessionUri,
-	getToolFileEdits,
-	type SessionState,
-	type ToolResultContent,
 	type ISessionFileDiff,
 	type URI as ProtocolURI,
+	type SessionState,
+	type ToolResultContent
 } from '../common/state/sessionState.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from './agentHostGitService.js';
+import { AgentHostStateManager } from './agentHostStateManager.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, type IIncrementalDiffOptions } from './sessionDiffAggregator.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
@@ -152,6 +152,7 @@ export class AgentSideEffects extends Disposable {
 					supportsVision: m.supportsVision,
 					policyState: m.policyState,
 					configSchema: m.configSchema,
+					_meta: m._meta,
 				})),
 				customizations: customizations?.length ? [...customizations] : undefined,
 				protectedResources: protectedResources.length > 0 ? protectedResources : undefined,
@@ -263,6 +264,11 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 
+		if (signal.kind === 'subagent_completed') {
+			this.completeSubagentSession(sessionKey, signal.toolCallId);
+			return;
+		}
+
 		if (signal.kind === 'steering_consumed') {
 			this._stateManager.dispatchServerAction({
 				type: ActionType.SessionPendingMessageRemoved,
@@ -274,7 +280,15 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		// Route signals with parentToolCallId to the subagent session.
-		const parentToolCallId = signal.kind === 'action' ? signal.parentToolCallId : undefined;
+		// Both action signals and pending_confirmation signals can carry
+		// a parentToolCallId — for client tools inside a subagent the
+		// permission flow fires `pending_confirmation` for an inner tool
+		// call, and that signal must be routed to the subagent session
+		// (otherwise the resulting SessionToolCallReady would land on the
+		// parent session, which has no matching SessionToolCallStart).
+		const parentToolCallId = signal.kind === 'action' || signal.kind === 'pending_confirmation'
+			? signal.parentToolCallId
+			: undefined;
 		if (parentToolCallId) {
 			const subagentKey = `${sessionKey}:${parentToolCallId}`;
 			const subagentSession = this._subagentSessions.get(subagentKey);
@@ -285,7 +299,7 @@ export class AgentSideEffects extends Disposable {
 				}
 				const subTurnId = this._stateManager.getActiveTurnId(subagentSession);
 				if (subTurnId) {
-					this._dispatchActionForSession(signal, subagentSession, subTurnId);
+					this._dispatchActionForSession(signal, subagentSession, subTurnId, agent);
 				}
 				return;
 			}
@@ -303,8 +317,9 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		// Route pending_confirmation signals for tools inside subagent sessions
-		// (the signal lacks parentToolCallId, but the tool was previously
-		// registered under its subagent session key in _toolCallAgents).
+		// (legacy path for signals without an explicit parentToolCallId — the
+		// tool was previously registered under its subagent session key in
+		// _toolCallAgents).
 		if (signal.kind === 'pending_confirmation') {
 			const subagentSession = this._findSubagentSessionForToolCall(sessionKey, signal.state.toolCallId);
 			if (subagentSession) {
@@ -385,7 +400,13 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction(action);
 
 		if (action.type === ActionType.SessionToolCallComplete) {
-			this.completeSubagentSession(sessionKey, action.toolCallId);
+			// Drop any events that were buffered for a subagent whose
+			// `subagent_started` never arrived (e.g. the parent tool failed
+			// before the subagent was created). The actual subagent session
+			// teardown is driven by the `subagent_completed` signal because
+			// background subagents (`mode: background`) continue running
+			// after the parent tool call returns.
+			this._pendingSubagentSignals.delete(`${sessionKey}:${action.toolCallId}`);
 			if (getToolFileEdits(action.result).length > 0) {
 				this._scheduleDebouncedDiffComputation(sessionKey, turnId);
 			}
@@ -551,8 +572,11 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
-	 * Completes all active subagent sessions for a given parent session.
-	 * Called when a parent tool call completes.
+	 * Completes the subagent session associated with a parent tool call.
+	 * Driven by the `subagent_completed` signal from the agent (which the
+	 * SDK fires on both `subagent.completed` and `subagent.failed`), not by
+	 * parent tool call completion — background subagents keep running after
+	 * their parent tool returns.
 	 */
 	completeSubagentSession(parentSession: ProtocolURI, toolCallId: string): void {
 		const key = `${parentSession}:${toolCallId}`;
@@ -687,11 +711,7 @@ export class AgentSideEffects extends Disposable {
 					});
 					return;
 				}
-				const attachments = action.userMessage.attachments?.map((a): IAgentAttachment => ({
-					type: a.type,
-					uri: URI.parse(a.uri),
-					displayName: a.displayName,
-				}));
+				const attachments = action.userMessage.attachments;
 				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments, action.turnId).catch(err => {
 					const errCode = (err as { code?: number })?.code;
 					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${action.session}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
@@ -922,11 +942,7 @@ export class AgentSideEffects extends Disposable {
 			});
 			return;
 		}
-		const attachments = msg.userMessage.attachments?.map((a): IAgentAttachment => ({
-			type: a.type,
-			uri: URI.parse(a.uri),
-			displayName: a.displayName,
-		}));
+		const attachments = msg.userMessage.attachments;
 		agent.sendMessage(URI.parse(session), msg.userMessage.text, attachments, turnId).catch(err => {
 			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
 			this._stateManager.dispatchServerAction({

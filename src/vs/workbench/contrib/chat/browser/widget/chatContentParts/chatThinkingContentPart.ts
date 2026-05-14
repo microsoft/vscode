@@ -183,9 +183,6 @@ const funWorkingMessages = [
 	localize('chat.working.fun.2', "Reticulating splines"),
 	localize('chat.working.fun.3', "Untangling the spaghetti"),
 
-	// Halo
-	localize('chat.working.fun.halo.1', "Activating Cortana"),
-
 	// Minecraft
 	localize('chat.working.fun.minecraft.1', "Mining diamonds"),
 
@@ -281,6 +278,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private titleDetailContainer: HTMLElement | undefined;
 	private readonly _externalResourceWidget: ChatThinkingExternalResourceWidget;
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly _pendingAppendRefresh = this._register(new MutableDisposable<IDisposable>());
 	private readonly diffStatsByPartId = new Map<string, IEditSessionDiffStats>();
 	private _aggregatedDiff: IEditSessionDiffStats = { added: 0, removed: 0 };
 
@@ -548,7 +546,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 			// Observe child elements for resizes (e.g. terminal output growing)
 			// so we can update scroll dimensions when the wrapper box is pinned at max-height.
-			this.childResizeObserver = this._register(new DisposableResizeObserver(() => {
+			this.childResizeObserver = this._register(new DisposableResizeObserver('ChatThinkingContentPart.child', () => {
 				if (this.streamingCompleted || !this.domNode.classList.contains('chat-used-context-collapsed')) {
 					return;
 				}
@@ -563,7 +561,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 
 			// Cache wrapper scrollHeight post-layout via ResizeObserver to avoid forced reflows.
-			const wrapperResizeObserver = this._register(new DisposableResizeObserver((entries) => {
+			const wrapperResizeObserver = this._register(new DisposableResizeObserver('ChatThinkingContentPart.wrapper', (entries) => {
 				if (entries[0]) {
 					this.lastKnownContentHeight = this.wrapper.scrollHeight;
 					if (!this.streamingCompleted && this.domNode.classList.contains('chat-used-context-collapsed')) {
@@ -852,8 +850,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		// don't allow feedback on fixed scrolling before reaching max height.
 		if (allowExpansion && this.fixedScrollingMode && !this.streamingCompleted && !this.element.isComplete && this.wrapper) {
-			const contentHeight = knownContentHeight ?? (this.lastKnownContentHeight || this.wrapper.scrollHeight);
-			if (contentHeight <= THINKING_SCROLL_MAX_HEIGHT) {
+			// Use only the cached height — never read scrollHeight here to avoid forced reflows.
+			// If the cache is empty, conservatively disallow expansion; the ResizeObserver
+			// will populate lastKnownContentHeight and trigger another call once layout settles.
+			const contentHeight = knownContentHeight ?? this.lastKnownContentHeight;
+			if (!contentHeight || contentHeight <= THINKING_SCROLL_MAX_HEIGHT) {
 				allowExpansion = false;
 			}
 		}
@@ -1161,7 +1162,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		const timeout = setTimeout(() => cts.cancel(), 5000);
 
 		try {
-			const models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
+			const models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
 			if (!models.length) {
 				this.setFallbackTitle();
 				return;
@@ -1902,11 +1903,14 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
 		const isMarkdownEdit = toolInvocationOrMarkdown?.kind === 'markdownContent';
 		const isTerminalTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'terminal';
+		const isSearchTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'search';
 		const toolInvocationIcon = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown.icon : undefined;
 
 		let icon: ThemeIcon;
 		if (isMarkdownEdit) {
 			icon = Codicon.pencil;
+		} else if (isSearchTool) {
+			icon = Codicon.search;
 		} else if (isTerminalTool) {
 			const terminalData = (toolInvocationOrMarkdown as IChatToolInvocation | IChatToolInvocationSerialized).toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number }; commandLine?: { isSandboxWrapped?: boolean } };
 			const exitCode = terminalData?.terminalCommandState?.exitCode;
@@ -1955,9 +1959,24 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 				}
 			}
 
+			// Coalesce reads of scrollHeight to avoid forced reflows when many items
+			// are appended in the same tick (e.g. when restoring a session).
+			this.scheduleAppendRefresh();
+		}
+	}
+
+	private scheduleAppendRefresh(): void {
+		if (this._pendingAppendRefresh.value) {
+			return;
+		}
+		this._pendingAppendRefresh.value = scheduleAtNextAnimationFrame(getWindow(this.wrapper), () => {
+			this._pendingAppendRefresh.clear();
+			if (this._store.isDisposed) {
+				return;
+			}
 			this.refreshContentHeight();
 			this.updateScrollDimensionsFromCache();
-		}
+		});
 	}
 
 	private materializeLazyItem(item: ILazyItem): void {

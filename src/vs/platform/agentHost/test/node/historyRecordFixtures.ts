@@ -5,11 +5,12 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { isString } from '../../../../base/common/types.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
-import { buildSessionDbUri } from '../../node/copilot/fileEditTracker.js';
+import { buildSessionDbUri } from '../../node/shared/fileEditTracker.js';
 import type { ISessionEvent, ISessionEventMessage, ISessionEventSkillInvoked, ISessionEventSubagentStarted, ISessionEventToolComplete, ISessionEventToolStart } from '../../node/copilot/mapSessionEvents.js';
 
 // =============================================================================
@@ -54,7 +55,7 @@ export interface IHistoryToolStartRecord extends IHistoryRecordBase {
 	readonly displayName: string;
 	readonly invocationMessage: StringOrMarkdown;
 	readonly toolInput?: string;
-	readonly toolKind?: 'terminal' | 'subagent';
+	readonly toolKind?: 'terminal' | 'subagent' | 'search';
 	readonly language?: string;
 	readonly toolArguments?: string;
 	readonly subagentAgentName?: string;
@@ -398,7 +399,8 @@ export async function mapSessionEventsToHistoryRecords(
 			}
 			const rewrittenArgs = stripRedundantCdPrefix(d.toolName, parameters, workingDirectory) ? tryStringify(parameters) : undefined;
 			toolInfoByCallId.set(d.toolCallId, { toolName: d.toolName, parameters, rewrittenArgs });
-			if (isEditTool(d.toolName)) {
+			const command = isString(parameters?.command) ? parameters.command : undefined;
+			if (isEditTool(d.toolName, command)) {
 				editToolCallIds.push(d.toolCallId);
 			}
 		}

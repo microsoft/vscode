@@ -4,31 +4,49 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { disposableTimeout } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { equals as objectEquals } from '../../../base/common/objects.js';
 import { observableValue } from '../../../base/common/observable.js';
+import { extname as resourcesExtname, isEqual, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
+import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
+import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, parseSubagentSessionUri, readSessionGitState, withSessionGitState, type SessionConfigState, type ISessionFileDiff, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
+import type { SessionPendingMessageSetAction, SessionTurnStartedAction } from '../common/state/protocol/actions.js';
+import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUriPrefix, parseSubagentSessionUri, readSessionGitState, withSessionGitState, type SessionConfigState, type ISessionFileDiff, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
-import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracker.js';
+import { ISessionDbUriFields, parseSessionDbUri } from './shared/fileEditTracker.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
+import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
+import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
+import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
+import { toAgentClientUri } from '../common/agentClientUri.js';
+
+/**
+ * Grace period before an empty, unsubscribed session is garbage-collected
+ * via {@link AgentService._runSessionGc}. Gives a disconnected client time
+ * to reconnect (or a workspace switch to settle) before we tear down the
+ * provider-side session, worktree, and on-disk state.
+ */
+const SESSION_GC_GRACE_MS = 30_000;
 
 /**
  * The agent service implementation that runs inside the agent-host utility
@@ -70,9 +88,36 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Manages PTY-backed terminals for the agent host protocol. */
 	private readonly _terminalManager: AgentHostTerminalManager;
 	private readonly _configurationService: IAgentConfigurationService;
+	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
+	private readonly _completions: IAgentHostCompletions;
+
+	/**
+	 * Authoritative server-side per-resource subscription refcount, keyed by
+	 * resource URI string and valued by the set of subscribed protocol
+	 * client IDs. Populated by {@link subscribe} (or {@link addSubscriber}
+	 * for handshake fast-paths) and drained by {@link unsubscribe}. When a
+	 * resource's set becomes empty, the resource is dropped from the map and
+	 * {@link _maybeEvictIdleSession} is invoked to release any cached state
+	 * for it.
+	 */
+	private readonly _resourceSubscribers = new ResourceMap<Set<string>>();
+
+	/**
+	 * Pending {@link _runSessionGc} timers, keyed by session URI. A timer is
+	 * armed when a session loses its last subscriber while still empty (no
+	 * turns, no active turn) — see {@link _maybeScheduleSessionGc}. Cleared
+	 * whenever any client subscribes again or the timer fires.
+	 */
+	private readonly _pendingSessionGc = this._register(new DisposableResourceMap<IDisposable>());
 
 	/** Exposes the terminal manager for use by agent providers. */
 	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
+
+	/**
+	 * Trigger characters announced to clients via `InitializeResult.completionTriggerCharacters`.
+	 * Aggregated from all registered {@link IAgentHostCompletionItemProvider}s.
+	 */
+	get completionTriggerCharacters(): readonly string[] { return this._completions.triggerCharacters; }
 
 	constructor(
 		private readonly _logService: ILogService,
@@ -95,10 +140,18 @@ export class AgentService extends Disposable implements IAgentService {
 		this._configurationService = configurationService;
 		const services = new ServiceCollection(
 			[ILogService, this._logService],
+			[IProductService, this._productService],
 			[IAgentConfigurationService, configurationService],
 			[IAgentHostGitService, this._gitService],
 		);
 		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
+
+		this._completions = this._register(instantiationService.createInstance(AgentHostCompletions));
+		// Built-in generic provider: completes files in the session's workspace folder.
+		const workspaceFiles = this._register(instantiationService.createInstance(AgentHostWorkspaceFiles));
+		this._register(this._completions.registerProvider(
+			new AgentHostFileCompletionProvider(this._stateManager, workspaceFiles),
+		));
 
 		this._sideEffects = this._register(instantiationService.createInstance(AgentSideEffects, this._stateManager, {
 			getAgent: session => this._findProviderForSession(session),
@@ -112,7 +165,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// Terminal management — the terminal manager listens to the state
 		// manager's action stream and dispatches PTY output back through it.
-		this._terminalManager = this._register(new AgentHostTerminalManager(this._stateManager, this._logService, this._productService));
+		this._terminalManager = this._register(instantiationService.createInstance(AgentHostTerminalManager, this._stateManager));
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -124,6 +177,9 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info(`Registering agent provider: ${provider.id}`);
 		this._providers.set(provider.id, provider);
 		this._providerSubscriptions.add(this._sideEffects.registerProgressListener(provider));
+		if (provider.onDidMaterializeSession) {
+			this._providerSubscriptions.add(provider.onDidMaterializeSession(e => this._onDidMaterializeSession(e)));
+		}
 		if (!this._defaultProvider) {
 			this._defaultProvider = provider.id;
 		}
@@ -136,16 +192,32 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		this._logService.trace(`[AgentService] authenticate called: resource=${params.resource}`);
-		for (const provider of this._providers.values()) {
-			const resources = provider.getProtectedResources();
-			if (resources.some(r => r.resource === params.resource)) {
-				const accepted = await provider.authenticate(params.resource, params.token);
-				if (accepted) {
-					return { authenticated: true };
-				}
+		// Multiple providers may share the same protected resource (e.g.
+		// both Copilot CLI and Claude consume the GitHub Copilot token).
+		// Fan out to every matching provider in parallel; the request is
+		// considered authenticated if at least one accepts. Provider
+		// failures are isolated — one provider rejecting (e.g. proxy
+		// server bind failure) MUST NOT prevent another provider from
+		// accepting the same token.
+		const matching = [...this._providers.values()].filter(
+			p => p.getProtectedResources().some(r => r.resource === params.resource),
+		);
+		const settled = await Promise.allSettled(
+			matching.map(p => p.authenticate(params.resource, params.token)),
+		);
+		let authenticated = false;
+		for (let i = 0; i < settled.length; i++) {
+			const result = settled[i];
+			if (result.status === 'fulfilled') {
+				authenticated ||= result.value;
+			} else {
+				this._logService.error(
+					result.reason,
+					`[AgentService] Provider '${matching[i].id}' authenticate threw for resource=${params.resource}`,
+				);
 			}
 		}
-		return { authenticated: false };
+		return { authenticated };
 	}
 
 	// ---- session management -------------------------------------------------
@@ -202,6 +274,7 @@ export class AgentService extends Disposable implements IAgentService {
 					...s,
 					summary: liveState.summary.title || s.summary,
 					status: liveState.summary.status,
+					activity: liveState.summary.activity,
 					model: liveState.summary.model ?? s.model,
 				};
 			}
@@ -220,11 +293,16 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		// When forking, build the old→new turn ID mapping before creating the
-		// session so the agent can use it to remap per-turn data.
+		// session so the agent can use it to remap per-turn data. If the
+		// source has no turns to copy (e.g. a still-provisional session), a
+		// "fork" is indistinguishable from a fresh session, so we drop the
+		// fork parameter and fall through to the regular create path.
 		if (config?.fork) {
 			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
-			if (sourceState) {
-				const sourceTurns = sourceState.turns.slice(0, config.fork.turnIndex + 1);
+			const sourceTurns = sourceState?.turns.slice(0, config.fork.turnIndex + 1) ?? [];
+			if (sourceTurns.length === 0) {
+				config = { ...config, fork: undefined };
+			} else {
 				const turnIdMapping = new Map<string, string>();
 				for (const t of sourceTurns) {
 					turnIdMapping.set(t.id, generateUuid());
@@ -248,6 +326,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const session = created.session;
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
 
+		// Cancel any pending GC armed for this URI. A client may be
+		// re-issuing `createSession` for an existing URI mid-grace (e.g.
+		// during a reconnect that returned `missing`); without this, the
+		// timer would still fire and dispose the just-revived session
+		// before the follow-up `subscribe` arrives.
+		this._cancelPendingSessionGc(session);
+
 		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model?.id ?? '(default)'}`);
 		this._sessionToProvider.set(session.toString(), provider.id);
 		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
@@ -264,35 +349,20 @@ export class AgentService extends Disposable implements IAgentService {
 					.map(t => ({ ...t, id: config!.fork!.turnIdMapping!.get(t.id) ?? generateUuid() }));
 			}
 
-			const summary: SessionSummary = {
-				resource: session.toString(),
-				provider: provider.id,
-				title: sourceState?.summary.title ?? 'Forked Session',
-				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
-				...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
-				model: config?.model,
-				workingDirectory: (created.workingDirectory ?? config.workingDirectory)?.toString(),
-			};
+			const summary = this._buildInitialSummary(provider, session, config, created, sourceState?.summary.title ?? 'Forked Session');
 			const state = this._stateManager.createSession(summary);
 			state.config = sessionConfig;
 			state.turns = sourceTurns;
 			state.activeClient = config.activeClient;
 		} else {
-			// Create empty state for new sessions
-			const summary: SessionSummary = {
-				resource: session.toString(),
-				provider: provider.id,
-				title: '',
-				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
-				...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
-				model: config?.model,
-				workingDirectory: (created.workingDirectory ?? config?.workingDirectory)?.toString(),
-			};
-			const state = this._stateManager.createSession(summary);
+			// Provisional sessions defer the `sessionAdded` notification and
+			// the `SessionReady` lifecycle transition until the agent fires
+			// {@link IAgent.onDidMaterializeSession} (typically on first
+			// `sendMessage`). Until then, the state exists in memory so
+			// clients can subscribe and stream config / model changes that
+			// the agent will pick up at materialization time.
+			const summary = this._buildInitialSummary(provider, session, config, created, '');
+			const state = this._stateManager.createSession(summary, { emitNotification: !created.provisional });
 			state.config = sessionConfig;
 			state.activeClient = config?.activeClient;
 		}
@@ -301,16 +371,81 @@ export class AgentService extends Disposable implements IAgentService {
 		// user's input) so clients can render them on restore without having
 		// to re-resolve. Mid-session changes are persisted by `AgentSideEffects`
 		// when handling `SessionConfigChanged`.
-		if (sessionConfig?.values && Object.keys(sessionConfig.values).length > 0) {
+		if (sessionConfig?.values && Object.keys(sessionConfig.values).length > 0 && !created.provisional) {
 			this._persistConfigValues(session, sessionConfig.values);
 		}
-		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
 
-		// Lazily compute git state for sessions with a working directory;
-		// attaches under `state._meta.git` once ready.
-		this._attachGitState(session, created.workingDirectory ?? config?.workingDirectory);
+		if (!created.provisional) {
+			// `SessionReady` transitions the session lifecycle from
+			// `Creating` to `Ready`. For provisional sessions we defer
+			// this to {@link _onDidMaterializeSession} so subscribers
+			// don't see `Ready` until the agent actually has an SDK
+			// session, working directory, etc.
+			this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
+
+			// Lazily compute git state for sessions with a working directory;
+			// attaches under `state._meta.git` once ready.
+			this._attachGitState(session, created.workingDirectory ?? config?.workingDirectory);
+		}
 
 		return session;
+	}
+
+	/**
+	 * Builds the {@link SessionSummary} we seed into the state manager when a
+	 * new session is created. The fork and non-fork paths only differ in
+	 * `title`; everything else is identical.
+	 */
+	private _buildInitialSummary(provider: IAgent, session: URI, config: IAgentCreateSessionConfig | undefined, created: { project?: { uri: URI; displayName: string }; workingDirectory?: URI }, title: string): SessionSummary {
+		const now = Date.now();
+		return {
+			resource: session.toString(),
+			provider: provider.id,
+			title,
+			status: SessionStatus.Idle,
+			createdAt: now,
+			modifiedAt: now,
+			...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
+			model: config?.model,
+			workingDirectory: (created.workingDirectory ?? config?.workingDirectory)?.toString(),
+		};
+	}
+
+	/**
+	 * Listen for an agent transitioning a provisional session into a fully
+	 * materialized SDK session. The agent has already created the worktree
+	 * (if any) and persisted on-disk metadata; we need to:
+	 * - Refresh the in-memory summary with the resolved working directory
+	 *   and project metadata.
+	 * - Persist any config values now that we have a real on-disk session.
+	 * - Emit the deferred `notify/sessionAdded` so other clients learn of
+	 *   the session.
+	 * - Dispatch `SessionReady` so subscribers see the lifecycle transition.
+	 * - Lazily attach git state for the (possibly new) working directory.
+	 */
+	private _onDidMaterializeSession(e: IAgentMaterializeSessionEvent): void {
+		const sessionKey = e.session.toString();
+		const state = this._stateManager.getSessionState(sessionKey);
+		if (!state) {
+			this._logService.warn(`[AgentService] onDidMaterializeSession for unknown session: ${sessionKey}`);
+			return;
+		}
+		const summary: SessionSummary = {
+			...state.summary,
+			...(e.project ? { project: { uri: e.project.uri.toString(), displayName: e.project.displayName } } : {}),
+			workingDirectory: e.workingDirectory?.toString() ?? state.summary.workingDirectory,
+			modifiedAt: Date.now(),
+		};
+		const configValues = state.config?.values;
+		if (configValues && Object.keys(configValues).length > 0) {
+			this._persistConfigValues(e.session, configValues);
+		}
+		// `markSessionPersisted` writes the summary into state and fires
+		// the deferred `SessionAdded` notification atomically so subscribers
+		// see consistent state through both paths.
+		this._stateManager.markSessionPersisted(sessionKey, summary);
+		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionKey });
+		this._attachGitState(e.session, e.workingDirectory);
 	}
 
 	/**
@@ -370,8 +505,8 @@ export class AgentService extends Disposable implements IAgentService {
 				config: config.config,
 			});
 			return { schema: resolved.schema, values: resolved.values };
-		} catch (error) {
-			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, error);
+		} catch (err) {
+			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, err);
 			return config.config ? { schema: { type: 'object', properties: {} }, values: config.config } : undefined;
 		}
 	}
@@ -392,6 +527,14 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
 		return provider.sessionConfigCompletions(params);
+	}
+
+	async completions(params: CompletionsParams): Promise<CompletionsResult> {
+		return this._completions.completions(params);
+	}
+
+	async getCompletionTriggerCharacters(): Promise<readonly string[]> {
+		return this._completions.triggerCharacters;
 	}
 
 	async disposeSession(session: URI): Promise<void> {
@@ -416,61 +559,389 @@ export class AgentService extends Disposable implements IAgentService {
 		this._terminalManager.disposeTerminal(terminal.toString());
 	}
 
-	async subscribe(resource: URI): Promise<IStateSnapshot> {
+	async subscribe(resource: URI, clientId: string): Promise<IStateSnapshot> {
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
 		const resourceStr = resource.toString();
-
-		// Check for terminal state
-		const terminalState = this._terminalManager.getTerminalState(resourceStr);
-		if (terminalState) {
-			return { resource: resourceStr, state: terminalState, fromSeq: this._stateManager.serverSeq };
-		}
-
-		let snapshot = this._stateManager.getSnapshot(resourceStr);
-		if (!snapshot) {
-			// Try subagent restore before regular session restore
-			const parsed = parseSubagentSessionUri(resourceStr);
-			if (parsed) {
-				await this._restoreSubagentSession(resourceStr, parsed.parentSession, parsed.toolCallId);
-			} else {
-				await this.restoreSession(resource);
+		// Register the subscriber up front so a concurrent unsubscribe cannot
+		// evict the session state while we are awaiting restore. On any failure
+		// path below we must roll the registration back, otherwise the leaked
+		// refcount would permanently pin (or block eviction of) the resource.
+		this.addSubscriber(resource, clientId);
+		try {
+			// Check for terminal state
+			const terminalState = this._terminalManager.getTerminalState(resourceStr);
+			if (terminalState) {
+				return { resource: resourceStr, state: terminalState, fromSeq: this._stateManager.serverSeq };
 			}
-			snapshot = this._stateManager.getSnapshot(resourceStr);
-		}
-		if (!snapshot) {
-			throw new Error(`Cannot subscribe to unknown resource: ${resourceStr}`);
-		}
 
-		// Ensure git state has been computed for this session. When the snapshot
-		// already existed (e.g. seeded by list query, or restored earlier), the
-		// restore path that normally calls `_attachGitState` is skipped — so
-		// trigger it lazily here for the first subscriber. `_attachGitState`
-		// is async and updates `_meta.git` once ready, which clients see via
-		// the normal state-update stream.
-		const sessionState = this._stateManager.getSessionState(resourceStr);
-		if (sessionState && readSessionGitState(sessionState._meta) === undefined) {
-			const wd = sessionState.summary?.workingDirectory;
-			this._attachGitState(resource, wd ? URI.parse(wd) : undefined);
-		}
+			let snapshot = this._stateManager.getSnapshot(resourceStr);
+			if (!snapshot) {
+				// Try subagent restore before regular session restore
+				const parsed = parseSubagentSessionUri(resource);
+				if (parsed) {
+					await this._restoreSubagentSession(resourceStr, parsed.parentSession);
+				} else {
+					await this.restoreSession(resource);
+				}
+				snapshot = this._stateManager.getSnapshot(resourceStr);
+			}
+			if (!snapshot) {
+				throw new Error(`Cannot subscribe to unknown resource: ${resourceStr}`);
+			}
 
-		return snapshot;
+			// Ensure git state has been computed for this session. When the snapshot
+			// already existed (e.g. seeded by list query, or restored earlier), the
+			// restore path that normally calls `_attachGitState` is skipped — so
+			// trigger it lazily here for the first subscriber. `_attachGitState`
+			// is async and updates `_meta.git` once ready, which clients see via
+			// the normal state-update stream.
+			const sessionState = this._stateManager.getSessionState(resourceStr);
+			if (sessionState && readSessionGitState(sessionState._meta) === undefined) {
+				const wd = sessionState.summary?.workingDirectory;
+				this._attachGitState(resource, wd ? URI.parse(wd) : undefined);
+			}
+
+			return snapshot;
+		} catch (err) {
+			this.unsubscribe(resource, clientId);
+			throw err;
+		}
 	}
 
-	unsubscribe(resource: URI): void {
-		this._logService.trace(`[AgentService] unsubscribe: ${resource.toString()}`);
-		// Server-side tracking of per-client subscriptions will be added
-		// in Phase 4 (multi-client). For now this is a no-op.
+	addSubscriber(resource: URI, clientId: string): void {
+		let set = this._resourceSubscribers.get(resource);
+		if (!set) {
+			set = new Set();
+			this._resourceSubscribers.set(resource, set);
+		}
+		set.add(clientId);
+		// A new subscriber means the session is being observed again; cancel
+		// any pending GC armed while it had no subscribers.
+		this._cancelPendingSessionGc(resource);
 	}
+
+	unsubscribe(resource: URI, clientId: string): void {
+		const set = this._resourceSubscribers.get(resource);
+		if (!set) {
+			return;
+		}
+		set.delete(clientId);
+		if (set.size > 0) {
+			return;
+		}
+		this._resourceSubscribers.delete(resource);
+		// An empty session whose last subscriber dropped is a candidate for
+		// full GC (provider session, worktree, on-disk state). Sessions with
+		// at least one turn fall through to {@link _maybeEvictIdleSession},
+		// which only drops the in-memory cache and lets the session be
+		// restored from disk later. Skipping eviction here for empty
+		// sessions ensures their state stays observable so a re-subscribe
+		// can re-arm GC.
+		if (this._maybeScheduleSessionGc(resource)) {
+			return;
+		}
+		this._maybeEvictIdleSession(resource);
+	}
+
+	/**
+	 * If `resource` names a session that no client is still subscribed to and
+	 * that has produced no turns (and has no active turn), schedule a delayed
+	 * {@link _runSessionGc} to fully tear it down — provider session, worktree,
+	 * persisted state and all. Sessions with at least one turn are left to the
+	 * existing {@link _maybeEvictIdleSession} path which only drops cached
+	 * state and lets the session be restored from disk later.
+	 *
+	 * The delay ({@link SESSION_GC_GRACE_MS}) gives a disconnected client time
+	 * to reconnect or a workspace switch to settle. Any subsequent subscribe
+	 * (or createSession on the same URI) cancels the timer via
+	 * {@link _cancelPendingSessionGc}.
+	 *
+	 * Returns `true` if a GC timer was armed (existing or newly scheduled),
+	 * so callers can skip alternative cleanup paths.
+	 */
+	private _maybeScheduleSessionGc(resource: URI): boolean {
+		// Subagent URIs are backed by the parent session; the parent's GC is
+		// scheduled when its own subscriber count reaches zero.
+		if (parseSubagentSessionUri(resource)) {
+			return false;
+		}
+		const key = resource.toString();
+		const state = this._stateManager.getSessionState(key);
+		if (!state) {
+			return false;
+		}
+		if (state.turns.length > 0 || state.activeTurn !== undefined) {
+			return false;
+		}
+		this._pendingSessionGc.set(resource, disposableTimeout(() => {
+			this._pendingSessionGc.deleteAndDispose(resource);
+			this._runSessionGc(resource).catch(err => {
+				this._logService.error(err, `[AgentService] GC failed for ${key}`);
+			});
+		}, SESSION_GC_GRACE_MS));
+		return true;
+	}
+
+	private _cancelPendingSessionGc(resource: URI): void {
+		this._pendingSessionGc.deleteAndDispose(resource);
+	}
+
+	/**
+	 * Fires {@link SESSION_GC_GRACE_MS} after a session lost its last
+	 * subscriber while empty. Re-checks both invariants (still no subscribers,
+	 * still empty) before tearing the session down via {@link disposeSession}.
+	 * The cached state may already have been evicted by
+	 * {@link _maybeEvictIdleSession}; in that case we still proceed because
+	 * "evicted + no resubscribe" implies no client is observing the session.
+	 */
+	private async _runSessionGc(resource: URI): Promise<void> {
+		const key = resource.toString();
+		if (this._resourceSubscribers.has(resource)) {
+			return;
+		}
+		const state = this._stateManager.getSessionState(key);
+		if (state && (state.turns.length > 0 || state.activeTurn !== undefined)) {
+			return;
+		}
+		this._logService.info(`[AgentService] GC: disposing empty unsubscribed session ${key}`);
+		await this.disposeSession(resource);
+	}
+
+	/**
+	 * If `resource` names an idle session and no client is still subscribed to
+	 * it (or, for a subagent URI, no sibling subagent under the same parent is
+	 * still subscribed), drop its cached state from the state manager. Subagent
+	 * URIs evict the parent session entry; the parent owns the materialized
+	 * turn tree that backs every subagent view. The next subscribe will
+	 * rehydrate the session via {@link restoreSession}.
+	 */
+	private _maybeEvictIdleSession(resource: URI): void {
+		const key = resource.toString();
+		if (this._resourceSubscribers.has(resource)) {
+			return;
+		}
+		// Walk up the subagent ancestry: the SDK session and its turn tree are
+		// owned by the root session, so eviction must target the root.
+		let evictionTarget = resource;
+		{
+			let parsed;
+			while ((parsed = parseSubagentSessionUri(evictionTarget))) {
+				evictionTarget = parsed.parentSession;
+			}
+		}
+		// Don't evict if the root or any of its subagent descendants still has subscribers.
+		if (this._resourceSubscribers.has(evictionTarget)) {
+			return;
+		}
+		for (const subscribedUri of this._resourceSubscribers.keys()) {
+			if (this._isSubagentDescendantOf(subscribedUri, evictionTarget)) {
+				return;
+			}
+		}
+		const evictionTargetKey = evictionTarget.toString();
+		const targetState = this._stateManager.getSessionState(evictionTargetKey);
+		if (!targetState || targetState.activeTurn !== undefined) {
+			return;
+		}
+		this._logService.trace(`[AgentService] Evicting idle session: ${evictionTargetKey} (triggered by unsubscribe of ${key})`);
+		// Also evict any sibling subagent entries cached under the parent: their
+		// authoritative state is the parent's turn tree, and dropping the parent
+		// would leave them orphaned.
+		const subagentPrefix = buildSubagentSessionUriPrefix(evictionTarget);
+		for (const cachedKey of this._stateManager.getSessionUrisWithPrefix(subagentPrefix)) {
+			this._stateManager.removeSession(cachedKey);
+		}
+		this._stateManager.removeSession(evictionTargetKey);
+	}
+
+	private _isSubagentDescendantOf(resource: URI, parent: URI): boolean {
+		let parsed = parseSubagentSessionUri(resource);
+		while (parsed) {
+			if (isEqual(parsed.parentSession, parent)) {
+				return true;
+			}
+			parsed = parseSubagentSessionUri(parsed.parentSession);
+		}
+		return false;
+	}
+
+	/**
+	 * Per-client sequencer that serialises action dispatches whose
+	 * processing requires an asynchronous prelude (e.g. snapshotting
+	 * user-message attachments into the session database before the
+	 * action is reduced into state). Actions that don't need any
+	 * asynchronous prelude bypass the queue entirely as long as no
+	 * earlier action from the same client is still pending.
+	 *
+	 * todo@connor4312: we can drop this when sending a message become a command
+	 */
+	private readonly _clientDispatchQueues = new Map<string, Promise<void>>();
 
 	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
 
+		const pending = this._clientDispatchQueues.get(clientId);
+		if (!pending && !this._needsAsyncRewrite(action)) {
+			this._dispatchActionNow(action, clientId, clientSeq);
+			return;
+		}
+		const next = (pending ?? Promise.resolve()).then(async () => {
+			const rewritten: SessionAction | TerminalAction | IRootConfigChangedAction = this._needsAsyncRewrite(action)
+				? await this._rewriteUserMessageAttachments(action, clientId)
+				: action;
+			this._dispatchActionNow(rewritten, clientId, clientSeq);
+		}).catch(err => {
+			this._logService.error(`[AgentService] async dispatchAction failed: ${toErrorMessage(err)}`);
+		});
+
+		this._clientDispatchQueues.set(clientId, next.finally(() => {
+			if (this._clientDispatchQueues.get(clientId) === next) {
+				this._clientDispatchQueues.delete(clientId);
+			}
+		}));
+	}
+
+	private _dispatchActionNow(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		const origin = { clientId, clientSeq };
 		this._stateManager.dispatchClientAction(action, origin);
 		if (action.type === ActionType.RootConfigChanged) {
 			this._configurationService.persistRootConfig();
 		}
 		this._sideEffects.handleAction(action);
+	}
+
+	private _needsAsyncRewrite(action: SessionAction | TerminalAction | IRootConfigChangedAction): action is SessionTurnStartedAction | SessionPendingMessageSetAction {
+		if (action.type !== ActionType.SessionTurnStarted && action.type !== ActionType.SessionPendingMessageSet) {
+			return false;
+		}
+		const attachmentsRootStr = this._attachmentsRoot(URI.parse(action.session)).toString();
+		return !!action.userMessage.attachments?.some(a => this._isRewritableAttachment(a, attachmentsRootStr));
+	}
+
+	private _isRewritableAttachment(attachment: MessageAttachment, attachmentsRootStr: string): boolean {
+		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
+			return true;
+		}
+		if (attachment.type === MessageAttachmentKind.Resource) {
+			// Don't try to fetch directories or already-rewritten attachments
+			// (whose URIs already point under our session attachments folder).
+			if (attachment.displayKind === 'directory') {
+				return false;
+			}
+			if (attachment.uri.startsWith(attachmentsRootStr)) {
+				return false;
+			}
+			return true;
+		}
+		return false;
+	}
+
+	private _attachmentsRoot(session: URI): URI {
+		return joinPath(this._sessionDataService.getSessionDataDir(session), SESSION_ATTACHMENTS_DIRNAME);
+	}
+
+	/**
+	 * Snapshot inline / client-resident attachment payloads onto disk
+	 * under the session's data directory and rewrite the action to
+	 * reference them via local `file:` URIs. Keeps potentially large
+	 * blobs (e.g. pasted images) out of the in-memory state tree while
+	 * letting the agent consume them via the standard {@link IFileService}
+	 * surface — no special URI scheme or blob round-tripping needed.
+	 *
+	 * Failures are isolated per-attachment: if a rewrite cannot be
+	 * performed (no client connection registered, `resourceRead` rejects,
+	 * etc.) the original attachment is preserved so the agent still has a
+	 * chance to make use of it.
+	 */
+	private async _rewriteUserMessageAttachments<T extends SessionTurnStartedAction | SessionPendingMessageSetAction>(action: T, clientId: string): Promise<T> {
+		const attachments = action.userMessage.attachments;
+		if (!attachments?.length) {
+			return action;
+		}
+		const attachmentsRoot = this._attachmentsRoot(URI.parse(action.session));
+		const attachmentsRootStr = attachmentsRoot.toString();
+		const rewritten = await Promise.all(attachments.map(a => this._rewriteSingleAttachment(a, attachmentsRoot, attachmentsRootStr, clientId)));
+		return {
+			...action,
+			userMessage: { ...action.userMessage, attachments: rewritten },
+		};
+	}
+
+	private async _rewriteSingleAttachment(attachment: MessageAttachment, attachmentsRoot: URI, attachmentsRootStr: string, clientId: string): Promise<MessageAttachment> {
+		try {
+			if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
+				const bytes = decodeBase64(attachment.data).buffer;
+				const basename = this._attachmentBasename(attachment.label, attachment.contentType);
+				return this._writeAndRewrite(attachment, bytes, basename, attachmentsRoot);
+			}
+			if (attachment.type === MessageAttachmentKind.Resource && this._isRewritableAttachment(attachment, attachmentsRootStr)) {
+				const originalUri = URI.parse(attachment.uri);
+				const bytes = await this._readClientResource(originalUri, clientId);
+				const basename = this._attachmentBasename(attachment.label, getMediaMime(originalUri.path));
+				return this._writeAndRewrite(attachment, bytes, basename, attachmentsRoot);
+			}
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to rewrite attachment '${attachment.label}': ${toErrorMessage(err)}`);
+		}
+		return attachment;
+	}
+
+	/**
+	 * Reads `originalUri` through the `vscode-agent-client` filesystem
+	 * provider so it is fetched from the originating client. Falls back to
+	 * a direct read against `originalUri` when no client filesystem
+	 * authority is registered for `clientId` (e.g. unit tests, in-process
+	 * agent host with a local URI).
+	 */
+	private async _readClientResource(originalUri: URI, clientId: string): Promise<Uint8Array> {
+		const proxiedUri = clientId ? toAgentClientUri(originalUri, clientId) : originalUri;
+		try {
+			const contents = await this._fileService.readFile(proxiedUri);
+			return contents.value.buffer;
+		} catch (err) {
+			if (proxiedUri !== originalUri) {
+				const contents = await this._fileService.readFile(originalUri);
+				return contents.value.buffer;
+			}
+			throw err;
+		}
+	}
+
+	private async _writeAndRewrite(
+		original: MessageAttachment,
+		bytes: Uint8Array,
+		basename: string,
+		attachmentsRoot: URI,
+	): Promise<MessageResourceAttachment> {
+		const id = generateUuid();
+		const target = joinPath(attachmentsRoot, id, basename);
+		await this._fileService.writeFile(target, VSBuffer.wrap(bytes));
+		const rewritten: MessageResourceAttachment = {
+			type: MessageAttachmentKind.Resource,
+			uri: target.toString(),
+			label: original.label,
+			displayKind: original.displayKind,
+			range: original.range,
+			_meta: original._meta,
+		};
+		if (original.type === MessageAttachmentKind.Resource && original.selection) {
+			rewritten.selection = original.selection;
+		}
+		return rewritten;
+	}
+
+	/**
+	 * Pick a sensible on-disk basename for the snapshotted attachment,
+	 * preserving a usable extension where possible so the SDK and other
+	 * downstream consumers can detect the right type from the path alone.
+	 */
+	private _attachmentBasename(label: string, contentType: string | undefined): string {
+		const safeLabel = (label || 'attachment').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_');
+		if (resourcesExtname(URI.file(safeLabel))) {
+			return safeLabel;
+		}
+		const ext = contentType ? getExtensionForMimeType(contentType) : undefined;
+		return ext ? `${safeLabel}${ext}` : safeLabel;
 	}
 
 	async resourceList(uri: URI): Promise<ResourceListResult> {
@@ -505,19 +976,7 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `No agent for session: ${sessionStr}`);
 		}
 
-		// Verify the session actually exists on the backend to avoid
-		// creating phantom sessions for made-up URIs.
-		let allSessions;
-		try {
-			allSessions = await agent.listSessions();
-		} catch (err) {
-			if (err instanceof ProtocolError) {
-				throw err;
-			}
-			const message = err instanceof Error ? err.message : String(err);
-			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to list sessions for ${sessionStr}: ${message}`);
-		}
-		const meta = allSessions.find(s => s.session.toString() === sessionStr);
+		const meta = await this._getSessionMetadataForRestore(agent, session);
 		if (!meta) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`);
 		}
@@ -627,6 +1086,48 @@ export class AgentService extends Disposable implements IAgentService {
 		// Lazily compute git state for sessions with a working directory;
 		// attaches under `state._meta.git` once ready.
 		this._attachGitState(session, meta.workingDirectory);
+	}
+
+	private async _getSessionMetadataForRestore(agent: IAgent, session: URI): Promise<IAgentSessionMetadata | undefined> {
+		const sessionStr = session.toString();
+		if (agent.getSessionMetadata) {
+			try {
+				return await agent.getSessionMetadata(session);
+			} catch (err) {
+				if (err instanceof ProtocolError) {
+					throw err;
+				}
+				try {
+					return await this._getSessionMetadataFromCatalog(agent, session);
+				} catch (fallbackErr) {
+					if (fallbackErr instanceof ProtocolError) {
+						const message = err instanceof Error ? err.message : String(err);
+						throw new ProtocolError(fallbackErr.code, `Failed to get session metadata for ${sessionStr}: ${message}; ${fallbackErr.message}`, fallbackErr.data);
+					}
+					throw fallbackErr;
+				}
+			}
+		}
+
+		// Older providers only expose catalog enumeration. Keep the fallback so
+		// restore remains compatible, but providers with a direct lookup avoid
+		// blocking session open on a full catalog refresh.
+		return this._getSessionMetadataFromCatalog(agent, session);
+	}
+
+	private async _getSessionMetadataFromCatalog(agent: IAgent, session: URI): Promise<IAgentSessionMetadata | undefined> {
+		const sessionStr = session.toString();
+		let allSessions;
+		try {
+			allSessions = await agent.listSessions();
+		} catch (err) {
+			if (err instanceof ProtocolError) {
+				throw err;
+			}
+			const message = err instanceof Error ? err.message : String(err);
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to list sessions for ${sessionStr}: ${message}`);
+		}
+		return allSessions.find(s => s.session.toString() === sessionStr);
 	}
 
 	async resourceRead(uri: URI): Promise<ResourceReadResult> {
@@ -794,19 +1295,19 @@ export class AgentService extends Disposable implements IAgentService {
 	 * the subagent (by `parentToolCallId`), and builds the child session's
 	 * turns from those events.
 	 */
-	private async _restoreSubagentSession(subagentUri: string, parentSession: string, toolCallId: string): Promise<void> {
+	private async _restoreSubagentSession(subagentUri: string, parentSession: URI): Promise<void> {
 		// Ensure the parent session is loaded first
-		const parentUri = URI.parse(parentSession);
-		if (!this._stateManager.getSessionState(parentSession)) {
+		const parentSessionKey = parentSession.toString();
+		if (!this._stateManager.getSessionState(parentSessionKey)) {
 			try {
-				await this.restoreSession(parentUri);
+				await this.restoreSession(parentSession);
 			} catch {
-				this._logService.warn(`[AgentService] Cannot restore parent session for subagent: ${parentSession}`);
+				this._logService.warn(`[AgentService] Cannot restore parent session for subagent: ${parentSessionKey}`);
 				return;
 			}
 		}
 
-		const parentState = this._stateManager.getSessionState(parentSession);
+		const parentState = this._stateManager.getSessionState(parentSessionKey);
 		if (!parentState) {
 			return;
 		}
@@ -845,7 +1346,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// Load the subagent's turns from the agent (which knows how to
 		// extract them from the parent session's event log).
 		let childTurns: readonly Turn[] = [];
-		const agent = this._findProviderForSession(parentUri);
+		const agent = this._findProviderForSession(parentSession);
 		if (agent) {
 			try {
 				childTurns = await agent.getSessionMessages(URI.parse(subagentUri));

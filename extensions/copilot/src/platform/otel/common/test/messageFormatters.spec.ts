@@ -159,6 +159,79 @@ describe('normalizeProviderMessages', () => {
 			parts: [{ type: 'reasoning', content: 'Let me consider...' }],
 		}]);
 	});
+
+	it('converts OpenAI Responses API tool_search_output items', () => {
+		const result = normalizeProviderMessages([{
+			type: 'tool_search_output',
+			call_id: 'call_123',
+			status: 'completed',
+			tools: [{ type: 'function', name: 'read_file' }],
+		}]);
+		expect(result).toEqual([{
+			role: 'tool_search',
+			parts: [{
+				type: 'tool_search_output',
+				id: 'call_123',
+				status: 'completed',
+				tools: [{ type: 'function', name: 'read_file' }],
+			}],
+		}]);
+	});
+
+	it('preserves the absent-vs-empty tools distinction on tool_search_output', () => {
+		// Absent `tools` field is meaningfully different from `tools: []` for
+		// cache-key purposes; the normalizer must not coerce the two together.
+		const absent = normalizeProviderMessages([{ type: 'tool_search_output', call_id: 'a' }]);
+		const empty = normalizeProviderMessages([{ type: 'tool_search_output', call_id: 'a', tools: [] }]);
+		expect(absent[0].parts[0]).not.toHaveProperty('tools');
+		expect(empty[0].parts[0]).toHaveProperty('tools', []);
+	});
+
+	it('converts OpenAI Responses API function_call items into synthetic assistant tool_call', () => {
+		const result = normalizeProviderMessages([{
+			type: 'function_call',
+			call_id: 'call_abc',
+			name: 'apply_patch',
+			arguments: '{"path":"foo.ts"}',
+		}]);
+		expect(result).toEqual([{
+			role: 'assistant',
+			parts: [{
+				type: 'tool_call',
+				id: 'call_abc',
+				name: 'apply_patch',
+				arguments: { path: 'foo.ts' },
+			}],
+		}]);
+	});
+
+	it('falls back to id when function_call has no call_id and keeps raw arguments on parse failure', () => {
+		const result = normalizeProviderMessages([{
+			type: 'function_call',
+			id: 'fc_1',
+			name: 'run',
+			arguments: 'not-json',
+		}]);
+		expect(result).toEqual([{
+			role: 'assistant',
+			parts: [{ type: 'tool_call', id: 'fc_1', name: 'run', arguments: 'not-json' }],
+		}]);
+	});
+
+	it('converts OpenAI Responses API function_call_output (string and array output)', () => {
+		const result = normalizeProviderMessages([
+			{ type: 'function_call_output', call_id: 'call_1', output: 'plain result' },
+			{
+				type: 'function_call_output',
+				call_id: 'call_2',
+				output: [{ type: 'output_text', text: 'a' }, { type: 'output_text', text: 'b' }],
+			},
+		]);
+		expect(result).toEqual([
+			{ role: 'tool', parts: [{ type: 'tool_call_response', id: 'call_1', response: 'plain result' }] },
+			{ role: 'tool', parts: [{ type: 'tool_call_response', id: 'call_2', response: 'ab' }] },
+		]);
+	});
 });
 
 describe('toOutputMessages', () => {
@@ -322,15 +395,25 @@ describe('truncateForOTel', () => {
 		expect(result).toContain('...[truncated, original 200 chars]');
 	});
 
-	it('uses default 64000 limit', () => {
-		const s = 'x'.repeat(64_001);
-		const result = truncateForOTel(s);
-		expect(result.length).toBeLessThanOrEqual(64_000);
-		expect(result).toContain('...[truncated');
+	it('default (no maxLength) is unlimited', () => {
+		const s = 'x'.repeat(200_000);
+		expect(truncateForOTel(s)).toBe(s);
 	});
 
-	it('does not truncate at exactly 64000', () => {
-		const s = 'x'.repeat(64_000);
-		expect(truncateForOTel(s)).toBe(s);
+	it('returns string unchanged when maxLength is 0 (unlimited)', () => {
+		const s = 'a'.repeat(200_000);
+		expect(truncateForOTel(s, 0)).toBe(s);
+	});
+
+	it('returns string unchanged when maxLength is negative (unlimited)', () => {
+		const s = 'a'.repeat(200_000);
+		expect(truncateForOTel(s, -1)).toBe(s);
+	});
+
+	it('falls back to a hard cut when maxLength is too small to fit the suffix', () => {
+		const s = 'a'.repeat(200);
+		const result = truncateForOTel(s, 5);
+		expect(result.length).toBeLessThanOrEqual(5);
+		expect(result).toBe('aaaaa');
 	});
 });

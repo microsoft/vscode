@@ -15,7 +15,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
+import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asText, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -67,6 +67,8 @@ export namespace ChatEntitlementContextKeys {
 	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
 
 	export const chatAnonymous = new RawContextKey<boolean>('chatAnonymous', false, true);
+
+	export const clientByokEnabled = new RawContextKey<boolean>('github.copilot.clientByokEnabled', true, true);
 }
 
 export const IChatEntitlementService = createDecorator<IChatEntitlementService>('chatEntitlementService');
@@ -172,6 +174,7 @@ export interface IChatEntitlementService {
 
 	readonly onDidChangeQuotaExceeded: Event<void>;
 	readonly onDidChangeQuotaRemaining: Event<void>;
+	readonly onDidChangeUsageBasedBilling: Event<void>;
 
 	readonly quotas: IQuotas;
 
@@ -188,6 +191,11 @@ export interface IChatEntitlementService {
 	readonly anonymousObs: IObservable<boolean>;
 
 	markAnonymousRateLimited(): void;
+
+	/**
+	 * Mark the chat setup flow as completed.
+	 */
+	markSetupCompleted(): void;
 
 	/**
 	 * Force the hidden state on or off, overriding the normal entitlement logic.
@@ -299,9 +307,33 @@ function logChatEntitlements(state: IChatEntitlementContextState, configurationS
 	});
 }
 
+type ChatAdditionalSpendConfigurationClassification = {
+	owner: 'pwang347';
+	comment: 'Tracks when a user enables or disables additional spend.';
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether additional spend is now enabled or disabled.' };
+	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current chat entitlement of the user.' };
+};
+type ChatAdditionalSpendConfigurationEvent = {
+	enabled: boolean;
+	entitlement: ChatEntitlement;
+};
+
+type ChatAdditionalSpendActiveClassification = {
+	owner: 'pwang347';
+	comment: 'Tracks when a user enters additional spend (included quota exhausted while additional spend is enabled).';
+	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current chat entitlement of the user.' };
+	additionalUsageCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of additional spend interactions used so far.' };
+};
+type ChatAdditionalSpendActiveEvent = {
+	entitlement: ChatEntitlement;
+	additionalUsageCount: number;
+};
+
 export class ChatEntitlementService extends Disposable implements IChatEntitlementService {
 
 	declare _serviceBrand: undefined;
+
+	private static readonly CACHED_UBB_STORAGE_KEY = 'chat.usageBasedBilling';
 
 	readonly context: Lazy<ChatEntitlementContext> | undefined;
 	readonly requests: Lazy<ChatEntitlementRequests> | undefined;
@@ -313,14 +345,25 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
+
+		const cachedUBB = this.storageService.getBoolean(ChatEntitlementService.CACHED_UBB_STORAGE_KEY, StorageScope.PROFILE);
+		this._quotas = cachedUBB !== undefined ? { usageBasedBilling: cachedUBB } : {};
 
 		this.chatQuotaExceededContextKey = ChatEntitlementContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
 		this.completionsQuotaExceededContextKey = ChatEntitlementContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
 
 		this.anonymousContextKey = ChatEntitlementContextKeys.chatAnonymous.bindTo(this.contextKeyService);
 		this.anonymousContextKey.set(this.anonymous);
+
+		// Only apply the workbench-side default if no other source (e.g. the Copilot extension)
+		// has already set this key; binding would otherwise reset it to the declared default.
+		if (this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.clientByokEnabled.key) === undefined) {
+			ChatEntitlementContextKeys.clientByokEnabled.bindTo(this.contextKeyService);
+		}
 
 		this.onDidChangeEntitlement = Event.map(
 			Event.filter(
@@ -438,7 +481,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	private readonly _onDidChangeQuotaRemaining = this._register(new Emitter<void>());
 	readonly onDidChangeQuotaRemaining = this._onDidChangeQuotaRemaining.event;
 
-	private _quotas: IQuotas = {};
+	private readonly _onDidChangeUsageBasedBilling = this._register(new Emitter<void>());
+	readonly onDidChangeUsageBasedBilling = this._onDidChangeUsageBasedBilling.event;
+
+	private _quotas: IQuotas;
 	get quotas() { return this._quotas; }
 
 	private readonly chatQuotaExceededContextKey: IContextKey<boolean>;
@@ -494,6 +540,18 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this._quotas = quotas;
 		this.updateContextKeys();
 
+		if (oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
+			if (quotas.usageBasedBilling !== undefined) {
+				this.storageService.store(ChatEntitlementService.CACHED_UBB_STORAGE_KEY, quotas.usageBasedBilling, StorageScope.PROFILE, StorageTarget.MACHINE);
+			} else {
+				this.storageService.remove(ChatEntitlementService.CACHED_UBB_STORAGE_KEY, StorageScope.PROFILE);
+			}
+		}
+
+		if (this.logService.getLevel() === LogLevel.Trace) {
+			this.logService.trace(`[chat entitlement]: acceptQuotas: ${JSON.stringify(quotas)}`);
+		}
+
 		const { changed: chatChanged } = this.compareQuotas(oldQuota.chat, quotas.chat);
 		const { changed: completionsChanged } = this.compareQuotas(oldQuota.completions, quotas.completions);
 		const { changed: premiumChatChanged } = this.compareQuotas(oldQuota.premiumChat, quotas.premiumChat);
@@ -502,8 +560,29 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			this._onDidChangeQuotaExceeded.fire();
 		}
 
-		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining) {
+		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining || oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
 			this._onDidChangeQuotaRemaining.fire();
+		}
+
+		if (oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
+			this._onDidChangeUsageBasedBilling.fire();
+		}
+
+		// Track additional spend configuration changes (only when both values come from server snapshots)
+		if (oldQuota.additionalUsageEnabled !== undefined && quotas.additionalUsageEnabled !== undefined && oldQuota.additionalUsageEnabled !== quotas.additionalUsageEnabled) {
+			this.telemetryService.publicLog2<ChatAdditionalSpendConfigurationEvent, ChatAdditionalSpendConfigurationClassification>('chatAdditionalSpendConfiguration', {
+				enabled: quotas.additionalUsageEnabled ?? false,
+				entitlement: this.entitlement,
+			});
+		}
+
+		// Track entering additional spend: included quota just exhausted while additional spend is enabled
+		if (quotas.additionalUsageEnabled && quotas.premiumChat?.percentRemaining === 0
+			&& oldQuota.premiumChat?.percentRemaining !== undefined && oldQuota.premiumChat.percentRemaining > 0) {
+			this.telemetryService.publicLog2<ChatAdditionalSpendActiveEvent, ChatAdditionalSpendActiveClassification>('chatAdditionalSpendActive', {
+				entitlement: this.entitlement,
+				additionalUsageCount: quotas.additionalUsageCount ?? 0,
+			});
 		}
 	}
 
@@ -512,6 +591,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			changed: {
 				exceeded: (oldQuota?.percentRemaining === 0) !== (newQuota?.percentRemaining === 0),
 				remaining: oldQuota?.percentRemaining !== newQuota?.percentRemaining
+					|| oldQuota?.usageBasedBilling !== newQuota?.usageBasedBilling
 			}
 		};
 	}
@@ -521,7 +601,13 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	}
 
 	private updateContextKeys(): void {
-		this.chatQuotaExceededContextKey.set(this._quotas.chat?.percentRemaining === 0);
+		const chatExhausted = this._quotas.chat?.percentRemaining === 0;
+		const premiumChatExhausted = this._quotas.premiumChat?.unlimited
+			? this._quotas.premiumChat.hasQuota === false
+			: this._quotas.premiumChat?.percentRemaining === 0;
+		const additionalUsageEnabled = this._quotas.additionalUsageEnabled ?? false;
+
+		this.chatQuotaExceededContextKey.set(chatExhausted || (premiumChatExhausted && !additionalUsageEnabled));
 		this.completionsQuotaExceededContextKey.set(this._quotas.completions?.percentRemaining === 0);
 	}
 
@@ -571,6 +657,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this._onDidChangeQuotaExceeded.fire();
 	}
 
+	markSetupCompleted(): void {
+		this.context?.value.update({ completed: true });
+	}
+
 	setForceHidden(hidden: boolean): void {
 		if (this.context) {
 			this.context.value.setForceHidden(hidden);
@@ -598,6 +688,9 @@ type EntitlementClassification = {
 	quotaPremiumChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of premium chat requests available to the user' };
 	quotaCompletions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of inline suggestions available to the user' };
 	quotaResetDate: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The date the quota will reset' };
+	usageBasedBilling: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is on usage-based billing' };
+	additionalUsageEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether overage / additional spend is enabled' };
+	additionalUsageCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of overage interactions used' };
 	owner: 'bpasero';
 	comment: 'Reporting chat entitlements';
 };
@@ -610,6 +703,9 @@ type EntitlementEvent = {
 	quotaPremiumChat: number | undefined;
 	quotaCompletions: number | undefined;
 	quotaResetDate: string | undefined;
+	usageBasedBilling: boolean | undefined;
+	additionalUsageEnabled: boolean | undefined;
+	additionalUsageCount: number | undefined;
 };
 
 interface IEntitlements {
@@ -623,19 +719,93 @@ interface IEntitlements {
 export interface IQuotaSnapshot {
 	readonly percentRemaining: number;
 	readonly unlimited: boolean;
+	readonly hasQuota?: boolean;
 	readonly resetAt?: number;
 	readonly usageBasedBilling?: boolean;
+	readonly entitlement?: number;
 }
 
 interface IQuotas {
 	readonly resetDate?: string;
 	readonly resetDateHasTime?: boolean;
 
+	readonly usageBasedBilling?: boolean;
+	readonly canUpgradePlan?: boolean;
+
 	readonly chat?: IQuotaSnapshot;
 	readonly completions?: IQuotaSnapshot;
 	readonly premiumChat?: IQuotaSnapshot;
 	readonly additionalUsageEnabled?: boolean;
 	readonly additionalUsageCount?: number;
+}
+
+export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
+	const quotas: Mutable<IQuotas> = {
+		resetDate: entitlementsData.quota_reset_date_utc ?? entitlementsData.quota_reset_date ?? entitlementsData.limited_user_reset_date,
+		resetDateHasTime: typeof entitlementsData.quota_reset_date_utc === 'string',
+		usageBasedBilling: entitlementsData.token_based_billing,
+		canUpgradePlan: entitlementsData.can_upgrade_plan,
+	};
+
+	// Legacy Free SKU Quota
+	if (entitlementsData.monthly_quotas?.chat && typeof entitlementsData.limited_user_quotas?.chat === 'number') {
+		quotas.chat = {
+			percentRemaining: Math.min(100, Math.max(0, (entitlementsData.limited_user_quotas.chat / entitlementsData.monthly_quotas.chat) * 100)),
+			unlimited: false
+		};
+	}
+
+	if (entitlementsData.monthly_quotas?.completions && typeof entitlementsData.limited_user_quotas?.completions === 'number') {
+		quotas.completions = {
+			percentRemaining: Math.min(100, Math.max(0, (entitlementsData.limited_user_quotas.completions / entitlementsData.monthly_quotas.completions) * 100)),
+			unlimited: false
+		};
+	}
+
+	// New Quota Snapshot
+	if (entitlementsData.quota_snapshots) {
+		for (const quotaType of ['chat', 'completions', 'premium_interactions'] as const) {
+			const rawQuotaSnapshot = entitlementsData.quota_snapshots[quotaType];
+			if (!rawQuotaSnapshot) {
+				continue;
+			}
+			const parsedEntitlement = rawQuotaSnapshot.entitlement !== undefined ? Number(rawQuotaSnapshot.entitlement) : undefined;
+
+			// Skip snapshots where the user has no allocated entitlement for this
+			// category (e.g. free tier premium_interactions with 0 credits). Under
+			// TBB, has_quota is always false at the per-snapshot level so we cannot
+			// rely on it; instead check the actual entitlement value.
+			if (!rawQuotaSnapshot.unlimited && parsedEntitlement === 0) {
+				continue;
+			}
+
+			const quotaSnapshot: IQuotaSnapshot = {
+				percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
+				unlimited: rawQuotaSnapshot.unlimited,
+				hasQuota: rawQuotaSnapshot.has_quota,
+				usageBasedBilling: entitlementsData.token_based_billing,
+				resetAt: rawQuotaSnapshot.quota_reset_at || undefined,
+				entitlement: parsedEntitlement !== undefined && Number.isSafeInteger(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
+			};
+
+			switch (quotaType) {
+				case 'chat':
+					quotas.chat = quotaSnapshot;
+					break;
+				case 'completions':
+					quotas.completions = quotaSnapshot;
+					break;
+				case 'premium_interactions':
+					quotas.premiumChat = quotaSnapshot;
+					break;
+			}
+		}
+
+		const overageSource = entitlementsData.quota_snapshots['premium_interactions'];
+		quotas.additionalUsageEnabled = overageSource?.overage_permitted ?? false;
+		quotas.additionalUsageCount = overageSource?.overage_count ?? 0;
+	}
+	return quotas;
 }
 
 export class ChatEntitlementRequests extends Disposable {
@@ -764,65 +934,17 @@ export class ChatEntitlementRequests extends Disposable {
 			quotaChat: entitlements.quotas?.chat?.percentRemaining,
 			quotaPremiumChat: entitlements.quotas?.premiumChat?.percentRemaining,
 			quotaCompletions: entitlements.quotas?.completions?.percentRemaining,
-			quotaResetDate: entitlements.quotas?.resetDate
+			quotaResetDate: entitlements.quotas?.resetDate,
+			usageBasedBilling: entitlements.quotas?.usageBasedBilling,
+			additionalUsageEnabled: entitlements.quotas?.additionalUsageEnabled,
+			additionalUsageCount: entitlements.quotas?.additionalUsageCount
 		});
 
 		return entitlements;
 	}
 
 	private toQuotas(entitlementsData: IEntitlementsData): IQuotas {
-		const quotas: Mutable<IQuotas> = {
-			resetDate: entitlementsData.quota_reset_date_utc ?? entitlementsData.quota_reset_date ?? entitlementsData.limited_user_reset_date,
-			resetDateHasTime: typeof entitlementsData.quota_reset_date_utc === 'string',
-		};
-
-		// Legacy Free SKU Quota
-		if (entitlementsData.monthly_quotas?.chat && typeof entitlementsData.limited_user_quotas?.chat === 'number') {
-			quotas.chat = {
-				percentRemaining: Math.min(100, Math.max(0, (entitlementsData.limited_user_quotas.chat / entitlementsData.monthly_quotas.chat) * 100)),
-				unlimited: false
-			};
-		}
-
-		if (entitlementsData.monthly_quotas?.completions && typeof entitlementsData.limited_user_quotas?.completions === 'number') {
-			quotas.completions = {
-				percentRemaining: Math.min(100, Math.max(0, (entitlementsData.limited_user_quotas.completions / entitlementsData.monthly_quotas.completions) * 100)),
-				unlimited: false
-			};
-		}
-
-		// New Quota Snapshot
-		if (entitlementsData.quota_snapshots) {
-			for (const quotaType of ['chat', 'completions', 'premium_interactions'] as const) {
-				const rawQuotaSnapshot = entitlementsData.quota_snapshots[quotaType];
-				if (!rawQuotaSnapshot) {
-					continue;
-				}
-				const quotaSnapshot: IQuotaSnapshot = {
-					percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
-					unlimited: rawQuotaSnapshot.unlimited,
-					usageBasedBilling: rawQuotaSnapshot.token_based_billing,
-					resetAt: rawQuotaSnapshot.quota_reset_at || undefined,
-				};
-
-				switch (quotaType) {
-					case 'chat':
-						quotas.chat = quotaSnapshot;
-						break;
-					case 'completions':
-						quotas.completions = quotaSnapshot;
-						break;
-					case 'premium_interactions':
-						quotas.premiumChat = quotaSnapshot;
-						break;
-				}
-			}
-
-			const overageSource = entitlementsData.quota_snapshots['premium_interactions'];
-			quotas.additionalUsageEnabled = overageSource?.overage_permitted ?? false;
-			quotas.additionalUsageCount = overageSource?.overage_count ?? 0;
-		}
-		return quotas;
+		return parseQuotas(entitlementsData);
 	}
 
 	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string): Promise<IRequestContext | undefined>;

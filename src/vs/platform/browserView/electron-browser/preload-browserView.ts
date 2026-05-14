@@ -112,7 +112,7 @@
 		});
 	});
 
-	const globals = {
+	const isolatedHelpers = {
 		/**
 		 * Get the currently selected text in the page.
 		 */
@@ -128,11 +128,43 @@
 		}
 	};
 
+	let contextMenuTargetRef: WeakRef<Element> | undefined;
+	window.addEventListener('contextmenu', (event) => {
+		const target = event.target;
+		if (target instanceof Element) {
+			contextMenuTargetRef = new WeakRef(target);
+		} else {
+			contextMenuTargetRef = undefined;
+		}
+	}, { capture: true });
+
+	const mainWorldHelpers = {
+		getElement(id: string, clear: boolean = true): Element | null {
+			switch (id) {
+				case 'active':
+					// eslint-disable-next-line no-restricted-syntax
+					return document.activeElement;
+				case 'context-menu-target': {
+					const element = contextMenuTargetRef?.deref() ?? null;
+					if (clear) {
+						contextMenuTargetRef = undefined;
+					}
+					return element;
+				}
+				default:
+					return null;
+			}
+		}
+	};
+
 	try {
 		// Use `contextBridge` APIs to expose globals to the same isolated world where this preload script runs (worldId 999).
-		// The globals object will be recursively frozen (and for functions also proxied) by Electron to prevent
+		// The isolatedHelpers object will be recursively frozen (and for functions also proxied) by Electron to prevent
 		// modification within the given context.
-		contextBridge.exposeInIsolatedWorld(999, 'browserViewAPI', globals);
+		contextBridge.exposeInIsolatedWorld(999, 'browserViewAPI', isolatedHelpers);
+		// Expose helpers on `window.__vscode_helpers` in the page's main world
+		// for CDP `Runtime.evaluate` (which runs against the main world) to use.
+		contextBridge.exposeInMainWorld('__vscode_helpers', mainWorldHelpers);
 	} catch (error) {
 		console.error(error);
 	}

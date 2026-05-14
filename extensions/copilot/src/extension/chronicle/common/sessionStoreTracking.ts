@@ -14,13 +14,13 @@ import type { ICompletedSpanData } from '../../../platform/otel/common/otelServi
 // ── Truncation limits (shared by sessionStoreTracker and sessionReindexer) ──
 
 /** Maximum characters stored for user_message. */
-export const MAX_USER_MESSAGE_LENGTH = 100;
+export const MAX_USER_MESSAGE_LENGTH = 1000;
 
 /** Maximum characters stored for assistant_response. */
-export const MAX_ASSISTANT_RESPONSE_LENGTH = 1000;
+export const MAX_ASSISTANT_RESPONSE_LENGTH = 5000;
 
 /** Maximum characters stored for session summary. */
-export const MAX_SUMMARY_LENGTH = 100;
+export const MAX_SUMMARY_LENGTH = 1000;
 
 /**
  * Truncate a string to at most `maxLength` stored characters, appending '...' if truncated.
@@ -243,6 +243,57 @@ export function isGitHubMcpTool(toolName: string): boolean {
 
 /** Truncation suffix appended by truncateForOTel. */
 const OTEL_TRUNCATION_MARKER = '...[truncated';
+
+/**
+ * Extracts the agent name from an invoke_agent span.
+ * Tries the explicit attribute first, then parses it from the span name,
+ * finally falls back to 'unknown'.
+ */
+export function extractAgentName(span: { name: string; attributes: Record<string, unknown> }): string {
+	// 1. Prefer explicit attribute
+	const attr = span.attributes[GenAiAttr.AGENT_NAME] as string | undefined;
+	if (attr?.trim()) {
+		return attr.trim();
+	}
+	// 2. Parse span name: "invoke_agent copilot" → "copilot"
+	const match = span.name.match(/^invoke_agent\s+(.+)/);
+	if (match?.[1]?.trim()) {
+		return match[1].trim();
+	}
+	// 3. Fallback
+	return 'unknown';
+}
+
+/**
+ * Extracts human-readable plain text from potentially JSON-encoded content.
+ * Returns undefined for unrecognized JSON (tool results, etc.) to skip the summary write.
+ * Returns the original string unchanged if it is not JSON.
+ */
+export function extractPlainTextFromContent(content: string): string | undefined {
+	const trimmed = content.trim();
+	if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) {
+		return trimmed || undefined;
+	}
+	try {
+		const parsed = JSON.parse(trimmed);
+		// Handle [{type:"text", text:"..."}] multi-modal parts array
+		if (Array.isArray(parsed)) {
+			const textPart = parsed.find((p: unknown) => typeof p === 'object' && p !== null && (p as Record<string, unknown>).type === 'text' && typeof (p as Record<string, unknown>).text === 'string');
+			if (textPart) {
+				return ((textPart as Record<string, unknown>).text as string).trim() || undefined;
+			}
+			return undefined; // Array with no text parts (tool results, images, etc.)
+		}
+		// Handle {role:"...", content:"..."} chat messages with string content
+		// Note: content may be an array (multi-modal) — only handle string case
+		if (typeof (parsed as Record<string, unknown>).content === 'string') {
+			return ((parsed as Record<string, unknown>).content as string).trim() || undefined;
+		}
+		return undefined; // Unrecognized JSON structure
+	} catch {
+		return undefined; // JSON-looking input that failed to parse — skip to avoid storing raw/truncated JSON
+	}
+}
 
 /**
  * Extract assistant response text from the gen_ai.output.messages span attribute.

@@ -22,6 +22,7 @@ export interface CopilotUserQuotaInfo {
 			overage_count: number;
 			overage_permitted: boolean;
 			percent_remaining: number;
+			has_quota?: boolean;
 		};
 		completions: {
 			quota_id: string;
@@ -31,6 +32,7 @@ export interface CopilotUserQuotaInfo {
 			overage_count: number;
 			overage_permitted: boolean;
 			percent_remaining: number;
+			has_quota?: boolean;
 		};
 		premium_interactions: {
 			quota_id: string;
@@ -40,6 +42,7 @@ export interface CopilotUserQuotaInfo {
 			overage_count: number;
 			overage_permitted: boolean;
 			percent_remaining: number;
+			has_quota?: boolean;
 		};
 	};
 }
@@ -48,6 +51,7 @@ export interface IChatQuota {
 	quota: number;
 	percentRemaining: number;
 	unlimited: boolean;
+	hasQuota: boolean;
 	additionalUsageUsed: number;
 	additionalUsageEnabled: boolean;
 	resetDate: Date;
@@ -62,6 +66,8 @@ export interface QuotaSnapshot {
 	readonly overage_permitted: boolean;
 	/** Number of additional usage units consumed, rounded up to 1 decimal. */
 	readonly overage_count: number;
+	/** Whether the user has active quota for this category. */
+	readonly has_quota?: boolean;
 	/** ISO 8601 date when the quota resets, if applicable. */
 	readonly reset_date?: string;
 }
@@ -75,9 +81,20 @@ export interface IChatQuotaService {
 	readonly rateLimitInfo: { readonly session: IChatQuota | undefined; readonly weekly: IChatQuota | undefined };
 	quotaExhausted: boolean;
 	additionalUsageEnabled: boolean;
+	/** AIC credits accumulated for the given turn, from copilot_usage.total_nano_aiu. */
+	getCreditsForTurn(turnId: string): number | undefined;
 	processQuotaHeaders(headers: IHeaders): void;
 	processQuotaSnapshots(snapshots: QuotaSnapshots): void;
+	/** Accumulate per-request cost from copilot_usage.total_nano_aiu (in nano-AIUs), scoped to a turn. */
+	setLastCopilotUsage(totalNanoAiu: number, turnId: string): void;
+	/** Reset accumulated credits for the given turn. */
+	resetTurnCredits(turnId: string): void;
 	clearQuota(): void;
+	/**
+	 * Fetches up-to-date quota data from the `copilot_internal/user` endpoint.
+	 * Errors are caught and logged.
+	 */
+	refreshQuota(): Promise<void>;
 }
 
 export const IChatQuotaService = createServiceIdentifier<IChatQuotaService>('IChatQuotaService');

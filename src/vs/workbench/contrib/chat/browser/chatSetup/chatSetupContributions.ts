@@ -33,6 +33,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import product from '../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -41,15 +42,15 @@ import { ExtensionUrlHandlerOverrideRegistry, IExtensionUrlHandlerOverride } fro
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatModeService } from '../../common/chatModes.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../actions/chatActions.js';
-import { ChatViewContainerId, IChatWidgetService } from '../chat.js';
+import { ChatViewContainerId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
 import { ChatSetupAnonymous, ChatSetupStrategy } from './chatSetup.js';
 import { ChatSetupController } from './chatSetupController.js';
@@ -239,7 +240,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; inputValue?: string; dialogIcon?: ThemeIcon; dialogTitle?: string; setupStrategy?: ChatSetupStrategy }): Promise<boolean> {
+			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; inputValue?: string; dialogIcon?: ThemeIcon; dialogTitle?: string; setupStrategy?: ChatSetupStrategy; disableCloseButton?: boolean; onSignInStarted?: () => void }): Promise<boolean> {
 				const widgetService = accessor.get(IChatWidgetService);
 				const instantiationService = accessor.get(IInstantiationService);
 				const dialogService = accessor.get(IDialogService);
@@ -252,7 +253,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				if (mode) {
 					const chatWidget = await widgetService.revealWidget();
-					chatWidget?.input.setChatMode(mode);
+					if (chatWidget) {
+						const resolvedMode = this.resolveAgentId(mode, chatWidget);
+						if (resolvedMode) {
+							chatWidget.input.setChatMode(resolvedMode);
+						}
+					}
 				}
 
 				if (options?.inputValue) {
@@ -276,6 +282,18 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				}
 
 				return Boolean(success);
+			}
+
+			private resolveAgentId(agentParam: string, chatWidget: IChatWidget): string | undefined {
+				const modes = chatWidget.input.currentChatModesObs.get();
+				const foundAgent = modes.findModeById(agentParam);
+				if (foundAgent) {
+					return foundAgent.id;
+				}
+				const allAgents = [...modes.builtin, ...modes.custom];
+				const nameLower = agentParam.toLowerCase();
+				const agentByName = allAgents.find(agent => agent.name.get().toLowerCase() === nameLower);
+				return agentByName?.id;
 			}
 		}
 
@@ -383,11 +401,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						order: 0, // same position as the update button
 						when: ContextKeyExpr.and(
 							IsWebContext.negate(),
-
 							ChatContextKeys.Entitlement.signedOut,
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
-							ContextKeyExpr.has('updateTitleBar').negate()
+							ContextKeyExpr.equals(`config.${ChatConfiguration.TitleBarSignInEnabled}`, true),
+							ContextKeyExpr.has('updateTitleBar').negate(),
+							InEditorZenModeContext.negate(),
 						),
 					}]
 				});
@@ -400,6 +419,23 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'titlebar' });
 
 				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+			}
+		}
+
+		class ToggleSignInTitleBarAction extends ToggleTitleBarConfigAction {
+			constructor() {
+				super(
+					ChatConfiguration.TitleBarSignInEnabled,
+					localize('toggle.chatSignIn', 'Copilot Sign In'),
+					localize('toggle.chatSignInDescription', "Toggle visibility of the Copilot Sign In button in title bar"),
+					3,
+					ContextKeyExpr.and(
+						IsWebContext.negate(),
+						ChatContextKeys.Entitlement.signedOut,
+						ChatContextKeys.Setup.hidden.negate(),
+						ChatContextKeys.Setup.disabledInWorkspace.negate(),
+					)
+				);
 			}
 		}
 
@@ -438,7 +474,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const openerService = accessor.get(IOpenerService);
 				const hostService = accessor.get(IHostService);
 				const commandService = accessor.get(ICommandService);
+				const telemetryService = accessor.get(ITelemetryService);
 
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.upgradePlan', from: 'command' });
 				openerService.open(URI.parse(defaultChat.upgradePlanUrl));
 
 				const entitlement = context.state.entitlement;
@@ -465,7 +503,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			constructor() {
 				super({
 					id: 'workbench.action.chat.manageAdditionalSpend',
-					title: localize2('manageAdditionalSpend', "Manage GitHub Copilot Additional Spend"),
+					title: localize2('manageAdditionalSpend', "Manage GitHub Copilot Budget"),
 					category: localize2('chat.category', 'Chat'),
 					f1: true,
 					precondition: ContextKeyExpr.and(
@@ -500,6 +538,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			override async run(accessor: ServicesAccessor): Promise<void> {
 				const openerService = accessor.get(IOpenerService);
+				const telemetryService = accessor.get(ITelemetryService);
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.manageAdditionalSpend', from: 'command' });
 				openerService.open(URI.parse(defaultChat.manageOverageUrl));
 			}
 		}
@@ -508,6 +548,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupTriggerForceSignInDialogAction);
 		registerAction2(ChatSetupFromAccountsAction);
 		registerAction2(ChatSetupSignInTitleBarAction);
+		registerAction2(ToggleSignInTitleBarAction);
 		registerAction2(ChatSetupTriggerAnonymousWithoutDialogAction);
 		registerAction2(ChatSetupTriggerSupportAnonymousAction);
 		registerAction2(UpgradePlanAction);
@@ -666,7 +707,6 @@ class ChatSetupExtensionUrlHandler implements IExtensionUrlHandlerOverride {
 		@IProductService private readonly productService: IProductService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IChatModeService private readonly chatModeService: IChatModeService,
 	) { }
 
 	canHandleURL(url: URI): boolean {
@@ -683,24 +723,10 @@ class ChatSetupExtensionUrlHandler implements IExtensionUrlHandlerOverride {
 			return false;
 		}
 
-		const agentId = agentParam ? this.resolveAgentId(agentParam) : undefined;
-		await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, agentId, inputParam ? { inputValue: inputParam } : undefined);
+		await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, agentParam, inputParam ? { inputValue: inputParam } : undefined);
 		return true;
 	}
 
-	private resolveAgentId(agentParam: string): string | undefined {
-		const agents = this.chatModeService.getModes();
-		const allAgents = [...agents.builtin, ...agents.custom];
-
-		const foundAgent = allAgents.find(agent => agent.id === agentParam);
-		if (foundAgent) {
-			return foundAgent.id;
-		}
-
-		const nameLower = agentParam.toLowerCase();
-		const agentByName = allAgents.find(agent => agent.name.get().toLowerCase() === nameLower);
-		return agentByName?.id;
-	}
 }
 
 export class ChatTeardownContribution extends Disposable implements IWorkbenchContribution {

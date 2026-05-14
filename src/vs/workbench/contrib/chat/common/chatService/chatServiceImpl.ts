@@ -12,7 +12,6 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
@@ -34,7 +33,7 @@ import { IChatDebugService } from '../chatDebugService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from '../chat.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../chatPerf.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
 import { chatEditingSessionIsReady } from '../editing/chatEditingService.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestModeInfo, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState } from '../model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
@@ -270,10 +269,19 @@ export class ChatService extends Disposable implements IChatService {
 		const liveLocalChats = Array.from(this._sessionModels.values())
 			.filter(session => this.shouldStoreSession(session));
 
-		this._chatSessionStore.storeSessions(liveLocalChats);
-
 		const liveNonLocalChats = Array.from(this._sessionModels.values())
 			.filter(session => !LocalChatSessionUri.parseLocalSessionId(session.sessionResource));
+
+		// Synchronously update the index for all live sessions and flush it to
+		// storage. This is critical because `onWillSaveState` is synchronous —
+		// after this handler returns the storage service flushes its databases.
+		// The async file-write work kicked off below may complete after the
+		// flush, but the index must be up-to-date before the flush happens so
+		// that sessions are discoverable after a reload.
+		this._chatSessionStore.updateAndFlushIndexSync(liveLocalChats, liveNonLocalChats);
+
+		// Kick off async file writes for session data.
+		this._chatSessionStore.storeSessions(liveLocalChats);
 		this._chatSessionStore.storeSessionsMetadataOnly(liveNonLocalChats);
 	}
 
@@ -402,10 +410,12 @@ export class ChatService extends Disposable implements IChatService {
 			.filter(entry => !this._sessionModels.has(LocalChatSessionUri.forSession(entry.sessionId)) && entry.initialLocation === ChatAgentLocation.Chat && !entry.isEmpty)
 			.map((entry): IChatDetail => {
 				const sessionResource = LocalChatSessionUri.forSession(entry.sessionId);
+				const { workingDirectory: workingDirectoryStr, ...rest } = entry;
 				return ({
-					...entry,
+					...rest,
 					sessionResource,
 					isActive: this._sessionModels.has(sessionResource),
+					workingDirectory: workingDirectoryStr ? URI.parse(workingDirectoryStr) : undefined,
 				});
 			});
 	}
@@ -414,10 +424,12 @@ export class ChatService extends Disposable implements IChatService {
 		const index = await this._chatSessionStore.getIndex();
 		const metadata: IChatSessionEntryMetadata | undefined = index[sessionResource.toString()];
 		if (metadata) {
+			const { workingDirectory: workingDirectoryStr, ...rest } = metadata;
 			return {
-				...metadata,
+				...rest,
 				sessionResource,
 				isActive: this._sessionModels.has(sessionResource),
+				workingDirectory: workingDirectoryStr ? URI.parse(workingDirectoryStr) : undefined,
 			};
 		}
 
@@ -562,7 +574,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined> {
-		if (sessionResource.scheme === Schemas.vscodeLocalChatSession) {
+		if (LocalChatSessionUri.isLocalSession(sessionResource)) {
 			return this.acquireOrRestoreLocalSession(sessionResource, debugOwner);
 		} else {
 			return this.loadRemoteSession(sessionResource, location, token, debugOwner);
@@ -579,7 +591,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 
-		if (!await this.chatSessionService.canResolveChatSession(sessionResource.scheme)) {
+		if (!await this.chatSessionService.canResolveChatSession(getChatSessionType(sessionResource))) {
 			return undefined;
 		}
 
@@ -664,13 +676,13 @@ export class ChatService extends Disposable implements IChatService {
 		const parseAgentHostHistoryPrompt = (text: string, agent: IChatAgentData | undefined): IParsedChatRequest => {
 			if (requestParser) {
 				try {
-					const sessionCapabilities = this.chatSessionService.getCapabilitiesForSessionType(chatSessionType);
+					const attachmentCapabilities = this.getAttachmentCapabilitiesForParser(chatSessionType, agent);
 					const parsed = requestParser.parseChatRequestWithReferences(
 						EMPTY_REFERENCES,
 						EMPTY_TOOL_ENABLEMENT_MAP,
 						text,
 						location,
-						{ sessionType: chatSessionType, forcedAgent: agent, attachmentCapabilities: sessionCapabilities ?? agent?.capabilities },
+						{ sessionType: chatSessionType, forcedAgent: agent, attachmentCapabilities },
 					);
 					if (parsed.parts.length > 0) {
 						return parsed;
@@ -773,7 +785,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			if (providedSession.onDidStartServerRequest) {
-				disposables.add(providedSession.onDidStartServerRequest(({ prompt }) => {
+				disposables.add(providedSession.onDidStartServerRequest(({ prompt, variableData }) => {
 					// Complete any in-flight request
 					if (lastRequest?.response && !lastRequest.response.isComplete) {
 						lastRequest.response.complete();
@@ -782,7 +794,7 @@ export class ChatService extends Disposable implements IChatService {
 					// Create a new request in the model
 					const agent = this.chatAgentService.getAgent(chatSessionType);
 					const parsedRequest = parseAgentHostHistoryPrompt(prompt, agent);
-					lastRequest = model.addRequest(parsedRequest, { variables: [] }, 0, undefined, agent);
+					lastRequest = model.addRequest(parsedRequest, variableData ?? { variables: [] }, 0, undefined, agent);
 
 					// Reset progress tracking for the new turn
 					lastProgressLength = 0;
@@ -917,7 +929,7 @@ export class ChatService extends Disposable implements IChatService {
 				// since the alias registration below may change the lookup.
 				const initialSessionOptions = this.chatSessionService.getSessionOptions(sessionResource);
 
-				const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions }, CancellationToken.None);
+				const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions, untitledResource: sessionResource }, CancellationToken.None);
 				if (newItem) {
 					// Register alias so session-option lookups work with the new resource
 					this.chatSessionService.registerSessionResourceAlias(sessionResource, newItem.resource);
@@ -991,23 +1003,35 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
+	private getAttachmentCapabilitiesForParser(chatSessionType: string, agent: IChatAgentData | undefined): IChatAgentAttachmentCapabilities | undefined {
+		return this.chatSessionService.getCapabilitiesForSessionType(chatSessionType) ?? agent?.capabilities;
+	}
+
 	private parseChatRequest(sessionResource: URI, request: string, location: ChatAgentLocation, options: IChatSendRequestOptions | undefined): IParsedChatRequest {
 		let parserContext = options?.parserContext;
+		let contextAgent = parserContext?.forcedAgent ?? parserContext?.selectedAgent;
 		if (options?.agentId) {
 			const agent = this.chatAgentService.getAgent(options.agentId);
 			if (!agent) {
 				throw new Error(`Unknown agent: ${options.agentId}`);
 			}
-			parserContext = { selectedAgent: agent, mode: options.modeInfo?.kind };
+			contextAgent = agent;
+			parserContext = { ...parserContext, selectedAgent: agent, mode: options.modeInfo?.kind };
 			const commandPart = options.slashCommand ? ` ${chatSubcommandLeader}${options.slashCommand}` : '';
 			request = `${chatAgentLeader}${agent.name}${commandPart} ${request}`;
 		} else if (options?.agentIdSilent && !parserContext?.forcedAgent) {
-			// Resolve slash commandsin the context of locked participant so its subcommands take precedence over global
+			// Resolve slash commands in the context of locked participant so its subcommands take precedence over global
 			// slash commands with the same name.
 			const silentAgent = this.chatAgentService.getAgent(options.agentIdSilent);
 			if (silentAgent) {
+				contextAgent = silentAgent;
 				parserContext = { ...parserContext, forcedAgent: silentAgent };
 			}
+		}
+
+		const attachmentCapabilities = parserContext?.attachmentCapabilities ?? this.getAttachmentCapabilitiesForParser(getChatSessionType(sessionResource), contextAgent);
+		if (attachmentCapabilities) {
+			parserContext = { ...parserContext, attachmentCapabilities };
 		}
 
 		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionResource, request, location, parserContext);
@@ -1268,6 +1292,7 @@ export class ChatService extends Disposable implements IChatService {
 							hooks: collectedHooks,
 							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
 							isSystemInitiated: options?.isSystemInitiated,
+							workingDirectory: model.workingDirectory,
 						};
 
 						let isInitialTools = true;
@@ -1494,7 +1519,7 @@ export class ChatService extends Disposable implements IChatService {
 	 * controls queued-message dequeuing on the server side.
 	 */
 	private _isServerManagedQueue(sessionResource: URI): boolean {
-		return sessionResource.scheme.startsWith('agent-host-');
+		return getChatSessionType(sessionResource).startsWith('agent-host-');
 	}
 
 	/**
@@ -1911,5 +1936,6 @@ export async function chatModelToChatDetail(model: IChatModel): Promise<IChatDet
 		isActive: true,
 		stats: await awaitStatsForSession(model),
 		lastResponseState: model.lastRequest?.response?.state ?? ResponseModelState.Pending,
+		workingDirectory: model.workingDirectory,
 	};
 }

@@ -13,12 +13,15 @@ import { ILogService } from '../../../../platform/log/common/logService';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, SpanKind, SpanStatusCode, truncateForOTel, type ISpanHandle, type TraceContext } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { ServicesAccessor } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseThinkingProgressPart, LanguageModelTextPart, type ChatHookType } from '../../../../vscodeTypes';
 import { ExternalEditTracker } from '../../../chatSessions/common/externalEditTracker';
 import { ToolName } from '../../../tools/common/toolNames';
 import { IToolsService } from '../../../tools/common/toolsService';
+import { ClaudeSessionUri } from './claudeSessionUri';
 import { ClaudeToolNames, claudeEditTools, getAffectedUrisForEditTool } from './claudeTools';
+import { IClaudePlanFileTracker } from './claudePlanFileTracker';
 import { IClaudeSessionStateService } from './claudeSessionStateService';
 import { completeToolInvocation, createFormattedToolInvocation } from './toolInvocationFormatter';
 
@@ -35,6 +38,7 @@ export interface MessageHandlerRequestContext {
 /** Mutable state shared across handlers within a single _processMessages loop */
 export interface MessageHandlerState {
 	readonly unprocessedToolCalls: Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>;
+	readonly toolStartTimes: Map<string, number>;
 	readonly otelToolSpans: Map<string, ISpanHandle>;
 	readonly otelHookSpans: Map<string, ISpanHandle>;
 	readonly parentTraceContext?: TraceContext;
@@ -166,6 +170,7 @@ export function handleAssistantMessage(
 			stream.push(new ChatResponseThinkingProgressPart(item.thinking));
 		} else if (item.type === 'tool_use') {
 			unprocessedToolCalls.set(item.id, item);
+			state.toolStartTimes.set(item.id, Date.now());
 
 			const toolSpan = otelService.startSpan(`execute_tool ${item.name}`, {
 				kind: SpanKind.INTERNAL,
@@ -197,12 +202,32 @@ export function handleAssistantMessage(
 				}
 			}
 
-			if (request.editTracker && claudeEditTools.includes(item.name)) {
+			if (claudeEditTools.includes(item.name)) {
+				let uris: vscode.Uri[] = [];
 				try {
-					const uris = getAffectedUrisForEditTool(item.name, item.input);
-					void request.editTracker.trackEdit(item.id, uris, stream, request.token);
+					uris = getAffectedUrisForEditTool(item.name, item.input);
 				} catch (e) {
-					logService.warn(`[ClaudeMessageDispatch] Failed to track edit for ${item.name}: ${e}`);
+					logService.warn(`[ClaudeMessageDispatch] Failed to resolve affected URIs for ${item.name}: ${e}`);
+				}
+				if (request.editTracker) {
+					try {
+						void request.editTracker.trackEdit(item.id, uris, stream, request.token);
+					} catch (e) {
+						logService.warn(`[ClaudeMessageDispatch] Failed to track edit for ${item.name}: ${e}`);
+					}
+				}
+
+				// Record any plan-directory writes/edits so the
+				// ExitPlanMode permission handler can surface the plan
+				// file in the review widget. Hooked at the dispatch
+				// level (rather than inside the EditToolHandler) so we
+				// observe the call regardless of permission mode —
+				// `bypassPermissions` short-circuits `canUseTool`, and
+				// the SDK may write the plan file via internal paths
+				// that skip `canUseTool` entirely.
+				const planFileTracker = accessor.get(IClaudePlanFileTracker);
+				for (const uri of uris) {
+					planFileTracker.recordIfPlanFile(sessionId, uri.fsPath);
 				}
 			}
 
@@ -239,24 +264,30 @@ function logToolResult(
 	toolUseId: string,
 	toolUse: Anthropic.Beta.Messages.BetaToolUseBlock,
 	toolResult: Anthropic.Messages.ToolResultBlockParam,
+	sessionId: string,
 	logService: ILogService,
 	requestLogger: IRequestLogger,
+	telemetryService: ITelemetryService,
 	otelToolSpans: Map<string, ISpanHandle>,
+	toolStartTimes: Map<string, number>,
 	capturingToken: CapturingToken | undefined,
+	maxAttributeSizeChars: number,
 ): void {
+	sendToolInvokedTelemetry(toolUseId, toolUse, toolResult, sessionId, telemetryService, toolStartTimes);
+
 	// OTel span
 	const toolSpan = otelToolSpans.get(toolUseId);
 	if (toolSpan) {
 		if (toolResult.is_error) {
 			const errContent = typeof toolResult.content === 'string' ? toolResult.content : 'tool error';
 			toolSpan.setStatus(SpanStatusCode.ERROR, errContent);
-			toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(`ERROR: ${errContent}`));
+			toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(`ERROR: ${errContent}`, maxAttributeSizeChars));
 		} else {
 			toolSpan.setStatus(SpanStatusCode.OK);
 			if (toolResult.content !== undefined) {
 				try {
 					const result = typeof toolResult.content === 'string' ? toolResult.content : JSON.stringify(toolResult.content);
-					toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(result));
+					toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(result, maxAttributeSizeChars));
 				} catch (e) {
 					logService.warn(`[ClaudeMessageDispatch] Failed to serialize tool result: ${e}`);
 				}
@@ -293,9 +324,11 @@ function processToolResult(
 	const logService = accessor.get(ILogService);
 	const requestLogger = accessor.get(IRequestLogger);
 	const claudeSessionStateService = accessor.get(IClaudeSessionStateService);
+	const otelService = accessor.get(IOTelService);
+	const telemetryService = accessor.get(ITelemetryService);
 
 	const { stream } = request;
-	const { unprocessedToolCalls, otelToolSpans } = state;
+	const { unprocessedToolCalls, otelToolSpans, toolStartTimes } = state;
 
 	const toolUseId = toolResult.tool_use_id;
 	const toolUse = unprocessedToolCalls.get(toolUseId);
@@ -310,10 +343,14 @@ function processToolResult(
 		toolUseId,
 		toolUse,
 		toolResult,
+		sessionId,
 		logService,
 		requestLogger,
+		telemetryService,
 		otelToolSpans,
-		claudeSessionStateService.getCapturingTokenForSession(sessionId)
+		toolStartTimes,
+		claudeSessionStateService.getCapturingTokenForSession(sessionId),
+		otelService.config.maxAttributeSizeChars,
 	);
 
 	// Tool-specific handling
@@ -339,6 +376,45 @@ function processToolResult(
 		completeToolInvocation(toolUse, toolResult, invocation);
 		stream.push(invocation);
 	}
+}
+
+function sendToolInvokedTelemetry(
+	toolUseId: string,
+	toolUse: Anthropic.Beta.Messages.BetaToolUseBlock,
+	toolResult: Anthropic.Messages.ToolResultBlockParam,
+	sessionId: string,
+	telemetryService: ITelemetryService,
+	toolStartTimes: Map<string, number>,
+): void {
+	const startTime = toolStartTimes.get(toolUseId);
+	toolStartTimes.delete(toolUseId);
+	if (toolUse.name === ClaudeToolNames.TodoWrite) {
+		// Don't send telemetry for TodoWrite since it is passed into the workbench toolcall service and will be logged there.
+		return;
+	}
+	const invocationTimeMs = startTime !== undefined ? Date.now() - startTime : undefined;
+	const result = toolResult.content === DENY_TOOL_MESSAGE ? 'userCancelled' : toolResult.is_error ? 'error' : 'success';
+	const toolSourceKind = toolUse.name.startsWith('mcp__') ? 'mcp' : 'claudeCode';
+
+	/* __GDPR__
+		"languageModelToolInvoked" : {
+			"owner": "roblourens",
+			"comment": "Provides insight into the usage of language model tools (Claude Code agent).",
+			"result": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "success | error | userCancelled" },
+			"chatSessionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session resource id." },
+			"toolId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The Claude Code SDK tool name (e.g. Bash, Read, Edit, mcp__server__tool)." },
+			"toolExtensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Always undefined for Claude Code." },
+			"toolSourceKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "claudeCode | mcp" },
+			"invocationTimeMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time between tool_use and tool_result." }
+		}
+	*/
+	telemetryService.sendMSFTTelemetryEvent('languageModelToolInvoked', {
+		result,
+		chatSessionId: ClaudeSessionUri.forSessionId(sessionId).toString(),
+		toolId: toolUse.name,
+		toolExtensionId: undefined,
+		toolSourceKind,
+	}, invocationTimeMs !== undefined ? { invocationTimeMs } : undefined);
 }
 
 function processTodoWriteTool(
@@ -511,6 +587,7 @@ export function handleHookResponse(
 	state: MessageHandlerState,
 ): void {
 	const logService = accessor.get(ILogService);
+	const otelService = accessor.get(IOTelService);
 	// TODO: can we map these types better
 	const hookType = message.hook_event as ChatHookType;
 
@@ -528,7 +605,7 @@ export function handleHookResponse(
 			span.setAttribute('copilot_chat.hook_exit_code', message.exit_code);
 		}
 		if (message.output) {
-			span.setAttribute('copilot_chat.hook_output', truncateForOTel(message.output));
+			span.setAttribute('copilot_chat.hook_output', truncateForOTel(message.output, otelService.config.maxAttributeSizeChars));
 		}
 		span.end();
 		state.otelHookSpans.delete(message.hook_id);
