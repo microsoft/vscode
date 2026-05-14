@@ -1139,7 +1139,6 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): M
 
 		// Relative cost label above the per-token breakdown
 		const ratio = getRelativeCost(model.metadata.name);
-		const barWidth = Math.max(Math.round(ratio * 100), 8);
 		let costLabel: string;
 		if (ratio <= 0.15) {
 			costLabel = localize('chat.modelPicker.relativeCostLowest', "Lower than most models");
