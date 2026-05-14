@@ -32,7 +32,7 @@ export class CwdDetectionCapability extends Disposable implements ICwdDetectionC
 	}
 
 	updateCwd(cwd: string, isTrusted: boolean = true): void {
-		const didChange = this._cwd !== cwd;
+		const didChange = this._cwd !== cwd || this._isTrusted !== isTrusted;
 		this._cwd = cwd;
 		this._isTrusted = isTrusted;
 		const count = this._cwds.get(this._cwd) || 0;
