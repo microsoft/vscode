@@ -225,7 +225,7 @@ suite('ShellIntegrationAddon', () => {
 		});
 		test('should pass cwd sequence to the capability if it\'s initialized', async () => {
 			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
-			mock.expects('setCwd').once().withExactArgs('/foo', false);
+			mock.expects('setCwd').once().withExactArgs('/foo');
 			await writeP(xterm, '\x1b]633;P;Cwd=/foo\x07');
 			mock.verify();
 		});
