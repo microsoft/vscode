@@ -93,6 +93,7 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 	if (!fs.existsSync(copilotSdkBase)) {
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Copilot SDK directory not found at ${copilotSdkBase}`);
 	}
+	pruneNonTargetCopilotSdkPrebuilds(platformArch, copilotSdkBase);
 
 	const ripgrepSource = path.join(appNodeModulesDir, '@vscode', 'ripgrep', 'bin');
 	if (!fs.existsSync(ripgrepSource)) {
@@ -110,5 +111,19 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 		console.log(`[prepareBuiltInCopilotRipgrepShim] Materialized ripgrep shim for ${platformArch} in ${builtInCopilotExtensionDir}`);
 	} catch (err) {
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Failed to materialize ripgrep shim for ${platformArch}: ${err}`);
+	}
+}
+
+function pruneNonTargetCopilotSdkPrebuilds(targetPlatformArch: string, copilotSdkBase: string): void {
+	const prebuildsDir = path.join(copilotSdkBase, 'prebuilds');
+	if (!fs.existsSync(prebuildsDir)) {
+		return;
+	}
+
+	for (const platformArch of copilotPlatforms) {
+		if (platformArch === targetPlatformArch) {
+			continue;
+		}
+		fs.rmSync(path.join(prebuildsDir, platformArch), { recursive: true, force: true });
 	}
 }
