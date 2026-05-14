@@ -625,7 +625,7 @@ const TOKENS_PER_MILLION = 1_000_000;
  * normalized AICs per million tokens, matching the normalization in
  * chatEndpoint.ts for non-CLI models.
  */
-function normalizeTokenPricing(tokenPrices: { input_price?: number; output_price?: number; cache_price?: number; batch_size?: number } | undefined): { inputPrice: number; outputPrice: number; cachePrice: number } | undefined {
+function normalizeTokenPricing(tokenPrices: { input_price?: number; output_price?: number; cache_price?: number; batch_size?: number } | undefined): { inputPrice: number; outputPrice: number; cachePrice: number | undefined } | undefined {
 	if (!tokenPrices || tokenPrices.input_price === undefined || tokenPrices.output_price === undefined) {
 		return undefined;
 	}
@@ -634,7 +634,7 @@ function normalizeTokenPricing(tokenPrices: { input_price?: number; output_price
 	return {
 		inputPrice: (tokenPrices.input_price / AIC_DIVISOR) * scale,
 		outputPrice: (tokenPrices.output_price / AIC_DIVISOR) * scale,
-		cachePrice: ((tokenPrices.cache_price ?? 0) / AIC_DIVISOR) * scale,
+		cachePrice: tokenPrices.cache_price !== undefined ? (tokenPrices.cache_price / AIC_DIVISOR) * scale : undefined,
 	};
 }
 
