@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises as fs } from 'fs';
+import { promises as fs, statSync } from 'fs';
 import { isBinaryFile } from 'isbinaryfile';
 import * as path from 'path';
 import { beforeAll, describe, it } from 'vitest';
@@ -232,7 +232,27 @@ async function copyBinaries(extensionPath: string) {
 	const copilotSDKPath = path.join(extensionPath, 'node_modules', '@github', 'copilot');
 	const vscodeRipgrepPath = path.join(copilotSDKPath, 'ripgrep', 'bin', process.platform + '-' + process.arch);
 	await copyRipgrepShim(extensionPath, vscodeRipgrepPath, new TestLogService());
+	await copyCopilotCliPrebuildFiles(extensionPath);
 }
+async function copyCopilotCliPrebuildFiles(extensionPath: string) {
+	const sourceDir = path.join(extensionPath, 'node_modules', '@github', 'copilot', 'prebuilds');
+	const targetDir = path.join(extensionPath, 'node_modules', '@github', 'copilot', 'sdk', 'prebuilds');
+	await fs.rm(targetDir, { recursive: true, force: true });
+	await fs.mkdir(targetDir, { recursive: true });
+	await fs.cp(sourceDir, targetDir, {
+		recursive: true, force: true, filter: (src) => {
+			try {
+				if (statSync(src).isFile()) {
+					return src.endsWith('computer.node') || src.endsWith('native.node') || src.endsWith('runtime.node');
+				}
+				return true;
+			} catch {
+				return true;
+			}
+		}
+	});
+}
+
 async function findAllBinaries(dir: string): Promise<string[]> {
 	const binaryFiles: string[] = [];
 	const filesToIgnore = ['.DS_Store'];
