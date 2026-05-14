@@ -339,6 +339,7 @@ export function getQuotaMessageForPlan(copilotPlan: string | undefined, isUsageB
 					? l10n.t(`You've reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro+, or wait until your credits reset on {0}.`, resetDateString)
 					: l10n.t(`You've reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro+, or wait for your credits to reset.`);
 			case 'individual_pro':
+			case 'individual_max':
 				return resetDateString
 					? l10n.t(`You've reached your monthly credit limit. Please enable additional paid credits or wait until your credits reset on {0}.`, resetDateString)
 					: l10n.t(`You've reached your monthly credit limit. Please enable additional paid credits or wait for your credits to reset.`);
@@ -360,6 +361,7 @@ export function getQuotaMessageForPlan(copilotPlan: string | undefined, isUsageB
 		case 'individual':
 			return l10n.t(`You've exhausted your premium model quota. Please enable additional paid premium requests, upgrade to Copilot Pro+, or wait for your allowance to renew.`);
 		case 'individual_pro':
+		case 'individual_max':
 			return l10n.t(`You've exhausted your premium model quota. Please enable additional paid premium requests or wait for your allowance to renew.`);
 		case 'business':
 		case 'enterprise':
