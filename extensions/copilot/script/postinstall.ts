@@ -116,7 +116,7 @@ async function copyCopilotCliPrebuildFiles() {
 			try {
 				// Only copy computer.node files
 				if (fs.statSync(src).isFile()) {
-					return src.endsWith('computer.node');
+					return src.endsWith('computer.node') || src.endsWith('native.node') || src.endsWith('runtime.node');
 				}
 				return true;
 			} catch {

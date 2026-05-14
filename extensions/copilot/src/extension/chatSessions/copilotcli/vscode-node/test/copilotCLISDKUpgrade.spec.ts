@@ -26,16 +26,6 @@ describe('CopilotCLI SDK Upgrade', function () {
 		// Such changes may require us to update our extension packaging or other handling.
 		const existingBinaries = new Set(await findAllBinaries(copilotSDKPath));
 		const knownBinaries = new Set([
-			path.join('native', 'runtime', 'runtime.darwin-arm64.node'),
-			path.join('native', 'runtime', 'runtime.linux-arm64-musl.node'),
-			path.join('native', 'runtime', 'runtime.darwin-x64.node'),
-			path.join('native', 'runtime', 'runtime.linux-x64-gnu.node'),
-			path.join('native', 'runtime', 'runtime.linux-x64-musl.node'),
-			path.join('native', 'runtime', 'runtime.linux-arm64-gnu.node'),
-			path.join('native', 'runtime', 'runtime.win32-arm64-msvc.node'),
-			path.join('native', 'runtime', 'runtime.win32-x64-msvc.node'),
-			path.join('native', 'win32', 'win32-native.win32-arm64-msvc.node'),
-			path.join('native', 'win32', 'win32-native.win32-x64-msvc.node'),
 			// node-pty related files (already accounted for in SDK, using VS Code node-pty).
 			path.join('prebuilds', 'darwin-arm64', 'pty.node'),
 			path.join('prebuilds', 'darwin-x64', 'pty.node'),
