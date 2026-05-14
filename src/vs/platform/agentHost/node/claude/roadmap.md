@@ -90,6 +90,46 @@ Each phase ships behind the previous one; each is small enough to land as one
 PR and ends at a verifiable boundary (tests, a CLI smoke, or an end-to-end
 manual run).
 
+### Execution order (non-numeric)
+
+Phase numbers are stable identifiers — code comments, plan files
+(`phaseN-plan.md`), and `TODO: Phase N` throws all reference them — so we
+do **not** renumber. The actual landing order diverges from numeric order
+to unblock self-hosting sooner:
+
+**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 11 → 12 → 6.5 → 14 → 15**
+
+Phase 13 (session restoration) is pulled forward immediately after Phase 9
+because it unlocks two high-leverage capabilities:
+
+- **Restoring old chats** — clients can reload an existing transcript and
+  continue it. Today `getSessionMessages` is a stub, so any Claude session
+  is effectively single-process-lifetime.
+- **Self-hosting** — the team can dogfood Claude sessions across agent-host
+  restarts without losing turn history.
+
+Phase 13's dependencies are already met: the SDK exposes
+`getSessionMessages` out-of-process (no live `Query` required, CONTEXT M7),
+the `IClaudeSessionTranscriptStore` seam landed in Phase 5, and Phase 6's
+live mapper exists and can be factored to share with the replay path.
+
+**Deferrals to land Phase 13 early:**
+- **Subagent transcripts** — Phase 13's mapper handles parent-session
+  transcripts only. Subagent URI dispatch (`<parent>/subagent/<toolCallId>`
+  → `getSubagentMessages`) ships when Phase 12 lands. Parent transcripts
+  show subagent `tool_use`/`tool_result` block pairs as completed
+  `ToolCall`s with `_meta.toolKind = 'subagent'`; the workbench renders
+  them as opaque markers until Phase 12 wires the second SDK call.
+- **Tool-call replay fidelity** — without Phase 7, live tool calls don't
+  emit signals, but replayed `tool_use`/`tool_result` pairs still flatten
+  to terminal `ToolCall` states per CONTEXT M7. Replay works; live tool
+  UX still waits for Phase 7.
+- **Fork (Phase 6.5)** — Phase 6.5, if/when it lands, reconstructs the
+  `turnId → SessionMessage.uuid` mapping itself by walking the SDK
+  transcript. Phase 13 deliberately surfaces no by-product map: fork is
+  rare, the mapping is reconstructible, and a wider mapper return type
+  would tax every caller forever to optimize a cold path.
+
 ### Phase 1 — `ICopilotApiService` ✅ **DONE**
 
 Foundational gateway to the Copilot CAPI: token mint + cache + invalidation,
@@ -612,37 +652,43 @@ solution backed by Phase 13's mapper.
 
 **Chosen approach (when this phase lands):**
 
-- **Persist `protocolTurnId → lastSdkMessageUuid`** on result-message ingest
-  inside the same handler Phase 13 builds for transcript reconstruction.
-  That mapper sees every SDK message in order and observes `type:'result'`
-  (the only contract-level turn-end signal); it is the right place to
-  capture the mapping without inference.
-- Store the mapping in the session-data DB alongside the existing
-  per-session metadata. Fork becomes O(1) DB lookup, no JSONL walk.
+- **Walk JSONL on demand.** Phase 6.5 calls
+  `sdk.getSessionMessages(srcId, { includeSystemMessages: true })`
+  itself, scans the returned `SessionMessage[]` for the assistant
+  envelope `uuid` corresponding to the desired `turnId` (Phase 13's
+  mapper already documents that `Turn.id === SessionMessage.uuid` for
+  the user-text envelope that starts each turn; the matching assistant
+  envelope is the last `type: 'assistant'` message before the next
+  user-text turn). One JSONL read per fork. Originally planned as a
+  persisted O(1) DB lookup with live ingest on every turn, then as a
+  by-product map returned from Phase 13's mapper — both reverted
+  because fork is the only consumer and is rare. Neither the per-turn
+  write tax nor the wider mapper return type was worth a speedup
+  nobody asked for.
 - `createSession({ fork })` then calls
-  `sdk.forkSession(srcId, { upToMessageId: <looked-up-uuid> })` and routes
-  the new session id through `Options.resume` so the SDK loads the forked
-  transcript.
+  `sdk.forkSession(srcId, { upToMessageId: <looked-up-uuid> })` and
+  routes the new session id through `Options.resume` so the SDK loads
+  the forked transcript.
 - Persist the customization-directory metadata via `setMetadata` on the
   forked session (mirrors
   [`copilotAgent.ts`](../copilot/copilotAgent.ts)).
-- Pre-existing on-disk sessions need a one-time backfill (best-effort, the
-  reverted heuristic is acceptable here since it's a one-shot operation
-  on archived data).
+- **If a second consumer for the mapping ever appears** (e.g.
+  server-side in-place message edit, telemetry uuid joins), add
+  `backfillTurnMapping` on `ClaudeSessionMetadataStore` and populate it
+  from a one-shot mapper pass at `getSessionMessages` time (~30 lines).
 
 **Dependencies:**
 
-- **Hard:** Phase 13 (transcript reconstruction + result-message mapper).
-  Cannot land until the mapper has a stable hook for
-  `turnId → lastSdkMessageUuid` capture on every result-message ingest,
-  including replay during session restoration so pre-existing on-disk
-  sessions get the mapping backfilled.
-- **Soft:** Phase 13's `IClaudeSessionTranscriptStore` (the Phase-5 seam) is
-  the natural place to surface the mapping to `ClaudeAgent`.
+- **Hard:** Phase 13 (transcript reconstruction). Phase 6.5 reuses the
+  same `IClaudeAgentSdkService.getSessionMessages` binding Phase 13
+  added, and consumes `SessionMessage.uuid` directly.
+- **Soft:** Phase 13's `IClaudeSessionTranscriptStore` (the Phase-5 seam)
+  remains unimplemented; revisit only if a caching layer becomes worth
+  the abstraction cost.
 
 **Architectural model:** Copilot's `getNextTurnEventId(turnId)`. Phase 6.5
-is the Claude-side polyfill of that primitive — persisted by us because the
-Claude SDK doesn't provide it.
+is the Claude-side equivalent — except Claude derives the lookup on demand
+from the JSONL transcript, rather than persisting it.
 
 **Materialisation note.** Unlike non-fork `createSession` (Phase 5/6's
 provisional path), `forkSession` writes the forked SDK transcript file
@@ -956,13 +1002,56 @@ verify `getSessionMessages` returns the subagent transcript.
 
 Exit criteria: subagent sessions are first-class for clients.
 
-### Phase 13 — Session restoration (no in-place truncate)
+### Phase 13 — Session restoration (no in-place truncate) ✅ **DONE**
+
+> **Execution order:** lands immediately after Phase 9 to unblock chat
+> restoration and self-hosting. See "Execution order (non-numeric)" above.
 
 - **`getSessionMessages(session)`** reconstructs the full turn history from
   the SDK's transcript via `IClaudeSessionTranscriptStore` (Phase 5 seam).
-  Maps `SessionMessage[]` (Anthropic events) → agent host `Turn[]`. The
-  mapper is the same logic used by the live event stream — factor it out in
-  Phase 6 and reuse here. Includes subagent transcripts (Phase 12).
+  Out-of-process: calls SDK `getSessionMessages(sessionId, { dir,
+  includeSystemMessages: true })` — no live `Query` required (CONTEXT M7).
+  Maps `SessionMessage[]` (Anthropic events) → agent host `Turn[]` per the
+  CONTEXT M7 grouping rules:
+  - `('user', text)` → start new `Turn` with `Turn.id = sessionMessage.uuid`.
+  - `('user', tool_result)` → attach to the open `ToolCall`, do NOT start
+    a new `Turn`.
+  - `('user', empty / hook-injected / shouldQuery: false)` → drop.
+  - `('assistant', ...blocks)` → push `Markdown` / `Thinking` /
+    `ToolCall` (terminal `Completed` / `Cancelled` only — no live
+    lifecycle states) parts onto the active `Turn`.
+  - `('system', compact_boundary | allowlisted subtype)` → push
+    `SystemNotificationResponsePart` on the active `Turn`; `compact_boundary`
+    is **not** a Turn boundary (CONTEXT M7).
+  - Tail-Turn `state`: `'completed'` if no orphan `tool_use` blocks remain;
+    otherwise mark incomplete (heuristic — see CONTEXT "Open mapping
+    questions").
+  - Per-Turn `usage` is `undefined` on replay (live-only metadata; CONTEXT
+    M8 asymmetry).
+- **Mapper factor-out from Phase 6.** Phase 6 ships a live mapper for the
+  event stream; Phase 13 lifts that into a shared module so the same code
+  drives both live and replay. Critically, **both drivers must hydrate the
+  same `Map<tool_use_id, turnId>`** (CONTEXT glossary) so `tool_result`
+  events delivered after a session restore resolve back to the announcing
+  `tool_use`'s `turnId`. The mapper is the single seam.
+- **Subagent markers without subagent transcripts.** Parent-transcript
+  `Agent` / `Task` `tool_use` + `tool_result` pairs flatten to a terminal
+  `ToolCall` with `_meta.toolKind = 'subagent'` and the result content
+  inlined per CONTEXT M7. Until Phase 12 lands the
+  `<parent>/subagent/<toolCallId>` URI dispatch and the
+  `getSubagentMessages` second SDK call, opening a subagent marker in the
+  workbench is a no-op (the host throws `TODO: Phase 12` if the URI shape
+  matches).
+- **`turnId → lastSdkMessageUuid` is reconstructed on demand, not exposed.**
+  Phase 13's `mapSessionMessagesToTurns` returns `readonly Turn[]` and
+  nothing else. Phase 6.5 fork (the only consumer of a turn→uuid
+  mapping) walks `SessionMessage[]` itself when it lands. Originally
+  planned as live ingest + replay backfill into per-session DB rows,
+  then as a `{ turns, turnIdToLastAssistantUuid }` mapper return-value
+  by-product; both reverted because fork is rare and neither the
+  per-turn write tax nor the wider mapper return type was worth it.
+  If a second consumer ever appears, `backfillTurnMapping` is a
+  ~30-line add on `ClaudeSessionMetadataStore`.
 - **Do NOT implement `IAgent.truncateSession`**. The SDK's `forkSession`
   always produces a *new* session ID, which conflicts with the protocol's
   expectation that `truncateSession` mutates the existing session URI in
@@ -975,22 +1064,18 @@ Exit criteria: subagent sessions are first-class for clients.
   - The workbench should follow the new URI, just like for any other fork.
   - Adding in-place truncate later would require a URI→sessionId mapping
     layer; we'd revisit when there's user demand.
-- **`turnId → lastSdkMessageUuid` ingest** lands here as the prerequisite
-  for Phase 6.5. The result-message mapper persists a
-  `(turnId, lastAssistantMessageUuid)` pair in session metadata on every
-  completed turn; replay during session restoration backfills pre-existing
-  on-disk sessions. This is the contract-level primitive that Phase 6.5
-  consumes for fork — see "Phase 6.5 — Fork (deferred)" above.
 
 Tests: persist a session, restart the agent host, reload the session,
 verify turns are intact and a new turn appends correctly. Verify
-`turnId → lastSdkMessageUuid` rows are persisted for each completed turn
-on live ingest, and that session restoration replays the mapper to
-backfill them.
+replayed `tool_use` / `tool_result` pairs flatten to terminal
+`ToolCall` states with content inlined. Verify a subagent marker
+appears with `_meta.toolKind = 'subagent'` but its URI is not yet
+dispatchable.
 
-Exit criteria: agent-host restart is invisible; the turn-mapping ingest
-is validated; truncate is documented as fork-by-another-name. Fork
-end-to-end ships in Phase 6.5 (deferred to land alongside this phase).
+Exit criteria: agent-host restart is invisible for parent transcripts;
+self-hosting across restarts works; truncate is documented as
+fork-by-another-name. Subagent transcript fetch ships in Phase 12;
+fork end-to-end ships in Phase 6.5.
 
 ### Phase 14 — Hardening + telemetry
 
@@ -1007,36 +1092,65 @@ end-to-end ships in Phase 6.5 (deferred to land alongside this phase).
 
 Exit criteria: ready to enable for external preview.
 
-### Phase 15 — SDK upgrade (> 0.2.112)
+### Phase 15 — SDK distribution via marketplace extension
 
-The initial implementation pins `@anthropic-ai/claude-agent-sdk` at
-**`0.2.112`** — the same version the Copilot extension currently ships
-(`extensions/copilot/package.json`). Versions above 0.2.112 introduce a
-**native binary dependency** (prebuilt platform-specific addons), which
-requires additional build infrastructure and cross-platform packaging work
-beyond the scope of the initial rollout.
+**Status as of 2026-05-13:** the agent host already runs against the latest
+`@anthropic-ai/claude-agent-sdk` rather than `0.2.112`, but the SDK is loaded
+from a path the user supplies (`chat.agentHost.claudeAgent.path` setting →
+`AgentHostClaudeSdkPathEnvVar`, see [`claudeAgentSdkService.ts:148`](./claudeAgentSdkService.ts#L148)).
+That mechanism unblocked development but is **not shippable**: it requires
+every user to install the SDK locally and configure a path.
 
-This phase upgrades to a version > 0.2.112 once that infrastructure is
-in place.
+**Direction:** distribute the SDK as a versioned VS Code extension so users
+get it through the normal install flow.
 
-**Checklist:**
-- Identify the minimum version that provides the desired new SDK capabilities
-  (check changelog / GitHub releases for `@anthropic-ai/claude-agent-sdk`).
-- Audit the native dependency: determine the addon's platform matrix, verify
-  the agent-host build pipeline can package and code-sign it for all
-  supported targets (win32-x64, darwin-x64, darwin-arm64, linux-x64).
-- Validate the upgraded SDK against the full Phase 6–13 integration test
-  matrix (`Query.*` API surface, `enableFileCheckpointing`,
-  `Query.rewindFiles`, `Query.interrupt`).
-- Update `agentHost/package.json` (or the shared platform `package.json`)
-  to the new version and update any API callsites that changed between
-  0.2.112 and the target version.
-- Run the full Phase 6–13 integration test suite against the new SDK version.
-- Coordinate with the Copilot extension team to keep both consumers in sync
-  (or document the divergence intentionally).
+1. **Agent Host gains marketplace-install capability.** Today the agent
+   host is a closed utility process; it cannot fetch or install
+   extensions. Add the IPC + extension-management surface needed for the
+   agent host to install / update / load extensions from the VS Code
+   marketplace (or a registry it trusts).
+2. **Publish a Claude SDK packaging extension to the marketplace.** A
+   thin extension whose only job is to ship a vetted version of
+   `@anthropic-ai/claude-agent-sdk` (and any native deps) and expose its
+   load path to the agent host. Versioned on the marketplace so SDK
+   upgrades become extension updates, not VS Code releases.
+3. **Agent host loads the SDK from the installed extension** instead of
+   from `AgentHostClaudeSdkPathEnvVar`. The env-var path stays as a dev
+   override. The setting `chat.agentHost.claudeAgent.path` is repurposed
+   (or removed) for end users.
 
-Exit criteria: agent host runs on the upgraded SDK with no regressions;
-native dependency is packaged in all production builds.
+**Why this shape:**
+- SDK upgrades ship out-of-band from VS Code (no need to bundle a
+  specific SDK version into every VS Code release).
+- The native-dependency packaging burden moves to the extension's
+  publishing pipeline, which is already a solved problem for VS Code
+  extensions across `win32-x64`, `darwin-x64`, `darwin-arm64`,
+  `linux-x64`.
+- Multiple SDK-packaging extensions could coexist (e.g. an `@stable`
+  extension and a `@preview` extension), letting the user opt into
+  newer SDKs without a VS Code update.
+- Other agent SDKs (future Anthropic / OpenAI / etc. providers) follow
+  the same model.
+
+**Open design points** (to be detailed in a phase plan when scheduled):
+- IPC surface for agent-host-driven extension install (mirror or
+  delegate to the workbench's extension service?).
+- Discovery contract: how does the agent host know which installed
+  extension provides the Claude SDK? (e.g. an extension `contributes`
+  field, a well-known activation event, a manifest-declared capability).
+- Trust model: is the marketplace publisher the source of truth, or
+  does the agent host pin a specific publisher / extension id?
+- Dev override: keep `AgentHostClaudeSdkPathEnvVar` as the
+  non-marketplace fallback for SDK development.
+
+This phase replaces the previous "upgrade the bundled SDK to a newer
+0.2.x" plan, which assumed the SDK would always be a normal `npm`
+dependency. That assumption no longer holds now that the SDK ships
+native binaries.
+
+Exit criteria: a fresh VS Code install can use the Claude agent without
+manually installing the SDK or setting any path. SDK upgrades arrive as
+marketplace extension updates.
 
 ---
 

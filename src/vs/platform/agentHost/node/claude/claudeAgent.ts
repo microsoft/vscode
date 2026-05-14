@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CCAModel } from '@vscode/copilot-api';
-import type { Options, PermissionMode, SDKSessionInfo, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { Options, PermissionMode, SDKSessionInfo, SDKUserMessage, SessionMessage } from '@anthropic-ai/claude-agent-sdk';
 import { SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -23,8 +23,9 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { mapSessionMessagesToTurns } from './claudeReplayMapper.js';
 import { PolicyState, ProtectedResourceMetadata, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { CustomizationRef, SessionInputResponseKind, type MessageAttachment, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { CustomizationRef, isSubagentSession, SessionInputResponseKind, type MessageAttachment, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitService } from '../agentHostGitService.js';
 import { projectFromCopilotContext } from '../copilot/copilotGitProject.js';
@@ -598,17 +599,34 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Full transcript reconstruction from the SDK event log lands in
-	 * Phase 13; the bare method shape is required by {@link IAgent}.
+	 * Phase 13 — reconstruct the full turn history from the SDK's on-disk
+	 * JSONL transcript. Out-of-process: no live `Query` required. Subagent
+	 * URIs (`<parent>/subagent/<toolCallId>`) throw `TODO: Phase 12` until
+	 * Phase 12 wires `getSubagentMessages`. Provisional sessions return `[]`.
+	 * Resilient: any failure (transcript fetch, mapping, backfill) warn-logs
+	 * and returns `[]` rather than propagating — mirrors `listSessions`.
 	 */
-	getSessionMessages(_session: URI): Promise<readonly Turn[]> {
-		// Phase 5 has nothing to reconstruct: there is no SDK Query
-		// running yet and no event log on disk has been read. The agent
-		// service surfaces in-memory provisional turns until Phase 13
-		// implements transcript reconstruction from the SDK event log.
-		// A fresh array per call avoids leaking mutations across
-		// subscribers.
-		return Promise.resolve([]);
+	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+		if (isSubagentSession(session)) {
+			throw new Error('TODO: Phase 12: subagent transcript fetch not yet implemented');
+		}
+		const sessionId = AgentSession.id(session);
+		if (this._provisionalSessions.has(sessionId)) {
+			return [];
+		}
+		let transcript: readonly SessionMessage[];
+		try {
+			transcript = await this._sdkService.getSessionMessages(sessionId, { includeSystemMessages: true });
+		} catch (err) {
+			this._logService.warn(`[Claude] getSessionMessages SDK fetch failed for ${sessionId}`, err);
+			return [];
+		}
+		try {
+			return mapSessionMessagesToTurns(transcript, session, this._logService);
+		} catch (err) {
+			this._logService.warn(`[Claude] replay mapper threw for ${sessionId}`, err);
+			return [];
+		}
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { Options, PermissionMode, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, Settings, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { GetSessionMessagesOptions, Options, PermissionMode, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, SessionMessage, Settings, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 
 import assert from 'assert';
@@ -172,6 +172,25 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 			return this.getSessionInfoOverride(sessionId);
 		}
 		return this.sessionList.find(s => s.sessionId === sessionId);
+	}
+
+	/**
+	 * Phase 13: programmable transcript fetch. Tests stage canned
+	 * `SessionMessage[]` per session id; absence resolves to `[]` to match
+	 * the SDK's own "session not found" semantics. `getSessionMessagesRejection`
+	 * lets tests simulate SDK throw paths (corrupt JSONL, dynamic-import fault).
+	 */
+	sessionMessagesById = new Map<string, readonly SessionMessage[]>();
+	getSessionMessagesCalls: { sessionId: string; options: GetSessionMessagesOptions | undefined }[] = [];
+	getSessionMessagesRejection: Error | undefined;
+
+	async getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]> {
+		this.getSessionMessagesCalls.push({ sessionId, options });
+		if (this.getSessionMessagesRejection) {
+			const err = this.getSessionMessagesRejection;
+			throw err;
+		}
+		return this.sessionMessagesById.get(sessionId) ?? [];
 	}
 
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
@@ -2483,6 +2502,7 @@ suite('ClaudeAgent', () => {
 			listSessions: async () => [{ sessionId: 's', summary: 's', lastModified: 1 }],
 			getSessionInfo: async () => undefined,
 			startup: async () => { throw new Error('TestableClaudeAgentSdkService: startup not modeled'); },
+			getSessionMessages: async () => [],
 		};
 		const result1 = await svc.listSessions();
 		const importInvocationsAfterFirstSuccess = importInvocations;
@@ -3723,6 +3743,91 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 });
 
 // #endregion
+
+// #region Phase 13 — Session restoration
+
+suite('ClaudeAgent (Phase 13 — getSessionMessages)', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function makeUserSessionMessage(uuid: string, text: string): SessionMessage {
+		return {
+			type: 'user',
+			uuid,
+			session_id: 'sess-1',
+			parent_tool_use_id: null,
+			message: { role: 'user', content: [{ type: 'text', text }] },
+		};
+	}
+
+	function makeAssistantSessionMessage(uuid: string, text: string): SessionMessage {
+		return {
+			type: 'assistant',
+			uuid,
+			session_id: 'sess-1',
+			parent_tool_use_id: null,
+			message: { id: `msg_${uuid}`, role: 'assistant', content: [{ type: 'text', text }] },
+		};
+	}
+
+	test('getSessionMessages returns mapped Turn[] from SDK transcript', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		const sessionId = 'phase13-1';
+		sdk.sessionMessagesById.set(sessionId, [
+			makeUserSessionMessage('u1', 'hi'),
+			makeAssistantSessionMessage('a1', 'hello'),
+		]);
+
+		const turns = await agent.getSessionMessages(AgentSession.uri(agent.id, sessionId));
+
+		assert.strictEqual(turns.length, 1);
+		assert.strictEqual(turns[0].id, 'u1');
+		assert.strictEqual(turns[0].userMessage.text, 'hi');
+		assert.strictEqual(sdk.getSessionMessagesCalls.length, 1);
+		assert.deepStrictEqual(sdk.getSessionMessagesCalls[0], {
+			sessionId,
+			options: { includeSystemMessages: true },
+		});
+	});
+
+	test('getSessionMessages on subagent URI throws TODO: Phase 12 with no SDK call', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		const parentUri = AgentSession.uri(agent.id, 'parent');
+		const subagentUri = URI.parse(`${parentUri.toString()}/subagent/tool-call-1`);
+
+		await assert.rejects(
+			() => agent.getSessionMessages(subagentUri),
+			/TODO: Phase 12/,
+		);
+		assert.strictEqual(sdk.getSessionMessagesCalls.length, 0, 'subagent URI must not hit SDK');
+	});
+
+	test('getSessionMessages on provisional session returns [] with no SDK call', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/workspace') });
+
+		const turns = await agent.getSessionMessages(created.session);
+
+		assert.deepStrictEqual(turns, []);
+		assert.strictEqual(sdk.getSessionMessagesCalls.length, 0, 'provisional session must not hit SDK');
+	});
+
+	test('getSessionMessages returns [] on SDK fetch failure (warn-logged)', async () => {
+		const log = new CapturingLogService();
+		const { agent, sdk } = createTestContext(disposables, { logService: log });
+		sdk.getSessionMessagesRejection = new Error('simulated SDK failure');
+
+		const turns = await agent.getSessionMessages(AgentSession.uri(agent.id, 'fail-id'));
+
+		assert.deepStrictEqual(turns, []);
+		assert.ok(log.warns.some(w => w.includes('getSessionMessages SDK fetch failed')),
+			`expected warn-log; got: ${log.warns.join(' | ')}`);
+	});
+});
+
+// #endregion
+
 
 
 
