@@ -207,6 +207,8 @@ class TestPty implements IPty {
 }
 
 class TestAgentHostTerminalManager extends AgentHostTerminalManager {
+	spawnOptions: IPtyForkOptions | IWindowsPtyForkOptions | undefined;
+
 	constructor(
 		stateManager: AgentHostStateManager,
 		logService: NullLogService,
@@ -218,6 +220,7 @@ class TestAgentHostTerminalManager extends AgentHostTerminalManager {
 	}
 
 	protected override async _spawnPty(_file: string, _args: string[], options: IPtyForkOptions | IWindowsPtyForkOptions): Promise<IPty> {
+		this.spawnOptions = options;
 		this._pty.cols = options.cols ?? this._pty.cols;
 		this._pty.rows = options.rows ?? this._pty.rows;
 		return this._pty;
@@ -335,6 +338,45 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		await manager.sendText('agenthost-terminal://test/bracketed-paste-disabled', 'echo first\necho second', { shouldExecute: true, bracketedPasteMode: true });
 
 		assert.deepStrictEqual(pty.writes, ['echo first\recho second\r']);
+	});
+
+	test('sets zsh agent fixups only for zsh terminals', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+
+		const zshPty = new TestPty();
+		const zshManager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, zshPty));
+		const createZshTerminal = zshManager.createTerminal({
+			terminal: 'agenthost-terminal://test/zsh-fixups',
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/zsh' });
+		await zshPty.dataListenerRegistered.p;
+		zshPty.fireData('prompt');
+		await createZshTerminal;
+
+		assert.strictEqual(zshManager.spawnOptions?.env?.VSCODE_AGENT_ZSH_FIXUPS, '1');
+		assert.strictEqual(zshManager.spawnOptions?.env?.VSCODE_PREVENT_SHELL_HISTORY, undefined);
+
+		const bashPty = new TestPty();
+		const bashManager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, bashPty));
+		const createBashTerminal = bashManager.createTerminal({
+			terminal: 'agenthost-terminal://test/bash-history',
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash', preventShellHistory: true });
+		await bashPty.dataListenerRegistered.p;
+		bashPty.fireData('prompt');
+		await createBashTerminal;
+
+		assert.strictEqual(bashManager.spawnOptions?.env?.VSCODE_AGENT_ZSH_FIXUPS, undefined);
+		assert.strictEqual(bashManager.spawnOptions?.env?.VSCODE_PREVENT_SHELL_HISTORY, '1');
 	});
 
 	test('writes headless DSR responses back to the PTY', async () => {
