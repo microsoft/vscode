@@ -551,7 +551,14 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 		}
 
 		const patchEnd = fetchResult.value.indexOf(PATCH_SUFFIX, patchStart);
-		return patchEnd === -1 ? fetchResult.value.slice(patchStart) : fetchResult.value.slice(patchStart, patchEnd + PATCH_SUFFIX.length);
+		const healed = patchEnd === -1 ? fetchResult.value.slice(patchStart) : fetchResult.value.slice(patchStart, patchEnd + PATCH_SUFFIX.length);
+
+		// Reject the healed patch if it doesn't affect exactly the same set of files as the original.
+		if (!healedPatchAffectsSameFiles(patch, healed)) {
+			return undefined;
+		}
+
+		return healed;
 	}
 
 	private async buildCommitWithHealing(model: vscode.LanguageModelChat | undefined, patch: string, docText: DocText, explanation: string, token: CancellationToken): Promise<{ commit: Commit; healed?: string }> {
@@ -672,7 +679,9 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 			uris,
 			this._promptContext?.allowedEditUris,
 			(urisNeedingConfirmation) => this.generatePatchConfirmationDetails(options, urisNeedingConfirmation, token),
-			options.forceConfirmationReason
+			options.forceConfirmationReason,
+			undefined,
+			options.workingDirectory,
 		);
 	}
 
@@ -746,6 +755,25 @@ class HealedError extends Error {
 	) {
 		super(`Healed error: ${errorWithHealing}, original error: ${originalError}`);
 	}
+}
+
+/**
+ * Returns true if the healed patch affects exactly the same set of files as
+ * the original patch. Used to reject heals that hallucinated additional files
+ * or dropped files that the model was originally trying to edit.
+ */
+export function healedPatchAffectsSameFiles(original: string, healed: string): boolean {
+	const originalFiles = new Set(identify_files_affected(original));
+	const healedFiles = new Set(identify_files_affected(healed));
+	if (originalFiles.size !== healedFiles.size) {
+		return false;
+	}
+	for (const f of originalFiles) {
+		if (!healedFiles.has(f)) {
+			return false;
+		}
+	}
+	return true;
 }
 
 ToolRegistry.registerTool(ApplyPatchTool);

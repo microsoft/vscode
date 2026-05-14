@@ -9,12 +9,12 @@ import { observableValue } from '../../../../base/common/observable.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type AgentSignal, type IAgent, type IAgentActionSignal, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentSession, type AgentProvider, type AgentSignal, type IAgent, type IAgentActionSignal, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
-import { ProtectedResourceMetadata, type ModelSelection } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, type MessageAttachment, type ModelSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationStatus, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, parseSubagentSessionUri, type CustomizationRef, type PendingMessage, type SessionCustomization, type StringOrMarkdown, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { CustomizationStatus, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, parseSubagentSessionUri, type CustomizationRef, type PendingMessage, type SessionCustomization, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
@@ -48,7 +48,7 @@ export class MockAgent implements IAgent {
 	private readonly _activeTurnIds = new Map<string, string>();
 
 
-	readonly sendMessageCalls: { session: URI; prompt: string; attachments?: readonly IAgentAttachment[] }[] = [];
+	readonly sendMessageCalls: { session: URI; prompt: string; attachments?: readonly MessageAttachment[] }[] = [];
 	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[] }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
@@ -120,7 +120,7 @@ export class MockAgent implements IAgent {
 		return { items: [] };
 	}
 
-	async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[], turnId?: string): Promise<void> {
+	async sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
 		this.sendMessageCalls.push({ session, prompt, attachments });
 		if (turnId) {
 			this._activeTurnIds.set(uriKey(session), turnId);
@@ -355,7 +355,7 @@ export class ScriptedMockAgent implements IAgent {
 		return { items: branches.map(branch => ({ value: branch, label: branch })) };
 	}
 
-	async sendMessage(session: URI, prompt: string, _attachments?: IAgentAttachment[], turnId?: string): Promise<void> {
+	async sendMessage(session: URI, prompt: string, _attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
 		if (turnId) {
 			this._activeTurnIds.set(uriKey(session), turnId);
 		}
@@ -487,7 +487,7 @@ export class ScriptedMockAgent implements IAgent {
 			case 'with-usage':
 				this._fireSequence([
 					_markdown(session, sessionStr, tid, 'Usage response.'),
-					_usage(session, sessionStr, tid, { inputTokens: 100, outputTokens: 50, model: 'mock-model' }),
+					_usage(session, sessionStr, tid, { inputTokens: 100, outputTokens: 50, model: 'mock-model', _meta: { cost: 0.5 } }),
 					_idle(session, sessionStr, tid),
 				]);
 				break;
@@ -603,6 +603,7 @@ export class ScriptedMockAgent implements IAgent {
 					{ kind: 'subagent_started', session, toolCallId: 'tc-task-1', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Exploration helper' },
 					..._toolStart(session, sessionStr, tid, 'tc-inner-1', 'echo_tool', 'Echo Tool', 'Inner tool running...', { parentToolCallId: 'tc-task-1' }),
 					_toolComplete(session, sessionStr, tid, 'tc-inner-1', { pastTenseMessage: 'Ran inner tool', content: [{ type: ToolResultContentType.Text, text: 'inner-ok' }], success: true }, 'tc-task-1'),
+					{ kind: 'subagent_completed', session, toolCallId: 'tc-task-1' },
 					_toolComplete(session, sessionStr, tid, 'tc-task-1', { pastTenseMessage: 'Subagent done', content: [{ type: ToolResultContentType.Text, text: 'task-ok' }], success: true }),
 					_markdown(session, sessionStr, tid, 'Subagent finished.'),
 					_idle(session, sessionStr, tid),
@@ -806,7 +807,7 @@ function _titleChanged(session: URI, sessionStr: string, title: string): IAgentA
 }
 
 /** Creates a {@link ActionType.SessionUsage} signal. */
-function _usage(session: URI, sessionStr: string, turnId: string, usage: { inputTokens?: number; outputTokens?: number; model?: string; cacheReadTokens?: number }): IAgentActionSignal {
+function _usage(session: URI, sessionStr: string, turnId: string, usage: UsageInfo): IAgentActionSignal {
 	return _action(session, { type: ActionType.SessionUsage, session: sessionStr, turnId, usage });
 }
 

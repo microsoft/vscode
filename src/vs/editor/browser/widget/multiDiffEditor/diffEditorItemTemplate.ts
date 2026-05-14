@@ -129,7 +129,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._lastScrollTop = -1;
 		this._isSettingScrollTop = false;
 
-		const btn = new Button(this._elements.collapseButton, {});
+		const btn = this._register(new Button(this._elements.collapseButton, {}));
 
 		this._register(autorun(reader => {
 			btn.element.className = '';
