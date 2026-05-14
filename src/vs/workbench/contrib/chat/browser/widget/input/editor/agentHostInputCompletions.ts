@@ -129,7 +129,7 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 					filterText: item.insertText,
 					range: replaceRange,
 					kind: CompletionItemKind.Text,
-					documentation: attachment.description,
+					detail: attachment.description,
 				};
 			}
 			case 'skill': {
