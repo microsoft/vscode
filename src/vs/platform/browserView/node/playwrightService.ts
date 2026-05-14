@@ -333,6 +333,7 @@ class PlaywrightSession extends Disposable {
 	private readonly _deferredResults = this._register(new DisposableMap<string, {
 		pageId: string;
 		promise: Promise<unknown>;
+		pageMethodsCalled?: Map<string, number>;
 	} & IDisposable>());
 
 	constructor(
@@ -385,20 +386,28 @@ class PlaywrightSession extends Disposable {
 	async invokeFunction(pageId: string, fnDef: string, args: unknown[] = [], timeoutMs?: number): Promise<IInvokeFunctionResult> {
 		this.logService.info(`[PlaywrightSession] Invoking function on view ${pageId}`);
 
+		const fn = await this._compileFunction(fnDef);
+		const pageMethodsCalled = new Map<string, number>();
+		const wrappedCallback = async (page: Page) => fn(createPageApiProxy(page, pageMethodsCalled), args ?? []);
+
 		if (timeoutMs !== undefined) {
-			const fn = await this._compileFunction(fnDef);
-			return this._runWithDeferral(pageId, async (page) => fn(page, args ?? []), timeoutMs);
+			return this._runWithDeferral(pageId, wrappedCallback, timeoutMs, undefined, pageMethodsCalled);
 		}
 
 		let result, error;
 		try {
-			result = await this.invokeFunctionRaw(pageId, fnDef, ...args);
+			result = await this._runAgainstPage(pageId, wrappedCallback);
 		} catch (err: unknown) {
 			error = err instanceof Error ? err.message : String(err);
 		}
 
 		const summary = await this._getSummary(pageId);
-		return { result, error, summary };
+		return {
+			result,
+			error,
+			summary,
+			pageMethodsCalled: Object.fromEntries(pageMethodsCalled),
+		};
 	}
 
 	async waitForDeferredResult(deferredResultId: string, timeoutMs: number): Promise<IInvokeFunctionResult> {
@@ -407,9 +416,9 @@ class PlaywrightSession extends Disposable {
 			throw new Error(`No deferred result found with ID "${deferredResultId}". It may have been cleaned up or already consumed.`);
 		}
 
-		const { pageId, promise } = entry;
+		const { pageId, promise, pageMethodsCalled } = entry;
 		this._deferredResults.deleteAndDispose(deferredResultId);
-		return this._runWithDeferral(pageId, () => promise, timeoutMs, deferredResultId);
+		return this._runWithDeferral(pageId, () => promise, timeoutMs, deferredResultId, pageMethodsCalled);
 	}
 
 	async replyToFileChooser(pageId: string, files: string[]): Promise<{ summary: string }> {
@@ -454,7 +463,7 @@ class PlaywrightSession extends Disposable {
 		return tab.safeRunAgainstPage(async () => callback(page));
 	}
 
-	private async _runWithDeferral(pageId: string, callback: (page: Page) => Promise<unknown>, timeoutMs: number, existingDeferredId?: string): Promise<IInvokeFunctionResult> {
+	private async _runWithDeferral(pageId: string, callback: (page: Page) => Promise<unknown>, timeoutMs: number, existingDeferredId?: string, pageMethodsCalled?: Map<string, number>): Promise<IInvokeFunctionResult> {
 		const deferred = new DeferredPromise();
 		const wrappedPromise = this._runAgainstPage(pageId, async (page) => {
 			const promise = callback(page);
@@ -479,12 +488,18 @@ class PlaywrightSession extends Disposable {
 		if (interrupted) {
 			deferredResultId = existingDeferredId ?? generateUuid();
 			const cleanup = disposableTimeout(() => this._deferredResults.deleteAndDispose(deferredResultId!), DEFERRED_RESULT_CLEANUP_MS);
-			this._deferredResults.set(deferredResultId, { pageId, promise: deferred.p, dispose: () => cleanup.dispose() });
+			this._deferredResults.set(deferredResultId, { pageId, promise: deferred.p, pageMethodsCalled, dispose: () => cleanup.dispose() });
 			this.logService.info(`[PlaywrightSession] Execution interrupted, deferred as ${deferredResultId}`);
 		}
 
 		const summary = await this._getSummary(pageId);
-		return { result, error, summary, deferredResultId };
+		return {
+			result,
+			error,
+			summary,
+			deferredResultId,
+			pageMethodsCalled: pageMethodsCalled ? Object.fromEntries(pageMethodsCalled) : undefined,
+		};
 	}
 
 	private async _compileFunction(fnDef: string): Promise<(page: Page, args: unknown[]) => unknown> {
@@ -647,4 +662,66 @@ class PlaywrightSession extends Disposable {
 		this._pageQueue = [];
 		super.dispose();
 	}
+}
+
+/**
+ * Property names that are skipped by {@link createPageApiProxy} so that JS
+ * runtime/idiomatic accesses don't show up as fake API usage. Includes
+ * `then`/`catch`/`finally` (so awaiting the proxy never records noise),
+ * conversion hooks, and `constructor`.
+ */
+const PAGE_PROXY_IGNORED_PROPS = new Set<string>([
+	'then',
+	'catch',
+	'finally',
+	'toJSON',
+	'toString',
+	'valueOf',
+	'constructor',
+]);
+
+/**
+ * Maximum nesting depth for the recursive page proxy. The Playwright `page`
+ * surface only nests one level deep in practice (e.g. `page.keyboard.press`),
+ * so 3 is generously above any real workload while preventing pathological
+ * cases on cyclic structures.
+ */
+const PAGE_PROXY_MAX_DEPTH = 3;
+
+/**
+ * Wrap a Playwright `page` so that every function call routed through the
+ * proxy increments a counter in {@link methodCalls}, keyed by the dotted path
+ * from `page` (e.g. `click`, `evaluate`, `keyboard.press`, `mouse.move`).
+ *
+ * Non-function object properties are themselves proxied recursively so that
+ * downstream calls on namespaces such as `keyboard`, `mouse`, `request`,
+ * `coverage`, and `accessibility` are visible. Recursion is capped at
+ * {@link PAGE_PROXY_MAX_DEPTH} levels.
+ *
+ * Symbol keys, `_`-prefixed internals, and a small denylist of JS protocol
+ * properties are ignored to avoid recording noise.
+ */
+function createPageApiProxy<T extends object>(target: T, methodCalls: Map<string, number>, prefix: string = '', depth: number = 0): T {
+	if (depth >= PAGE_PROXY_MAX_DEPTH) {
+		return target;
+	}
+	return new Proxy(target, {
+		get(t, prop, receiver) {
+			const value = Reflect.get(t, prop, receiver);
+			if (typeof prop !== 'string' || prop.startsWith('_') || PAGE_PROXY_IGNORED_PROPS.has(prop)) {
+				return value;
+			}
+			if (typeof value === 'function') {
+				const name = prefix + prop;
+				return function (this: unknown, ...args: unknown[]) {
+					methodCalls.set(name, (methodCalls.get(name) ?? 0) + 1);
+					return Reflect.apply(value as Function, t, args);
+				};
+			}
+			if (value !== null && typeof value === 'object') {
+				return createPageApiProxy(value as object, methodCalls, `${prefix}${prop}.`, depth + 1);
+			}
+			return value;
+		},
+	});
 }

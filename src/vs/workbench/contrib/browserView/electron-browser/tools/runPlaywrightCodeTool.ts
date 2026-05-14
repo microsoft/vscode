@@ -8,6 +8,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
+import { logRunPlaywrightCode } from '../../../../../platform/browserView/common/browserViewTelemetry.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { errorResult, getSessionId, invokeFunctionResultToToolResult } from './browserToolHelpers.js';
 import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
@@ -56,6 +58,7 @@ interface IRunPlaywrightCodeToolParams {
 export class RunPlaywrightCodeTool implements IToolImpl {
 	constructor(
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) { }
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -89,12 +92,19 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 			return errorResult(`No page ID provided. Use '${OpenPageToolId}' first.`);
 		}
 
-		// Resume waiting for a deferred execution
-		if (params.deferredResultId) {
+		const wasDeferred = !!params.deferredResultId;
+		const codeLength = params.code?.length ?? 0;
+		const codeLineCount = params.code ? params.code.split('\n').length : 0;
+		const startedAt = Date.now();
+
+		// Resume waiting for a deferred execution.
+		if (wasDeferred) {
 			try {
-				const result = await this.playwrightService.waitForDeferredResult(sessionId, params.deferredResultId, params.timeoutMs ?? 5_000);
+				const result = await this.playwrightService.waitForDeferredResult(sessionId, params.deferredResultId!, params.timeoutMs ?? 5_000);
+				this._logTelemetry(result, { wasDeferred, codeLength, codeLineCount, durationMs: Date.now() - startedAt });
 				return invokeFunctionResultToToolResult(result);
 			} catch (e) {
+				this._logInvocationFailureTelemetry({ wasDeferred, codeLength, codeLineCount, durationMs: Date.now() - startedAt });
 				return errorResult(e instanceof Error ? e.message : String(e));
 			}
 		}
@@ -107,10 +117,44 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 		try {
 			result = await this.playwrightService.invokeFunction(sessionId, params.pageId, `async (page) => { ${params.code} }`, undefined, params.timeoutMs ?? 5_000);
 		} catch (e) {
+			this._logInvocationFailureTelemetry({ wasDeferred, codeLength, codeLineCount, durationMs: Date.now() - startedAt });
 			const message = e instanceof Error ? e.message : String(e);
 			return errorResult(`Code execution failed: ${message}`);
 		}
 
+		this._logTelemetry(result, { wasDeferred, codeLength, codeLineCount, durationMs: Date.now() - startedAt });
 		return invokeFunctionResultToToolResult(result, params.code.trim());
+	}
+
+	private _logTelemetry(
+		result: { error?: string; deferredResultId?: string; pageMethodsCalled?: Readonly<Record<string, number>> },
+		ctx: { wasDeferred: boolean; codeLength: number; codeLineCount: number; durationMs: number }
+	): void {
+		// Skip in-progress deferred runs so each user-visible invocation produces
+		// at most one event (we'll log when the resumed call eventually settles).
+		if (result.deferredResultId) {
+			return;
+		}
+		logRunPlaywrightCode(this.telemetryService, {
+			pageMethodsCalled: result.pageMethodsCalled ?? {},
+			success: !result.error,
+			wasDeferred: ctx.wasDeferred,
+			durationMs: ctx.durationMs,
+			codeLength: ctx.codeLength,
+			codeLineCount: ctx.codeLineCount,
+		});
+	}
+
+	private _logInvocationFailureTelemetry(ctx: { wasDeferred: boolean; codeLength: number; codeLineCount: number; durationMs: number }): void {
+		// Infrastructure failure (IPC threw, no result available). API-usage
+		// data lives in the shared process and is lost in this case.
+		logRunPlaywrightCode(this.telemetryService, {
+			pageMethodsCalled: {},
+			success: false,
+			wasDeferred: ctx.wasDeferred,
+			durationMs: ctx.durationMs,
+			codeLength: ctx.codeLength,
+			codeLineCount: ctx.codeLineCount,
+		});
 	}
 }
