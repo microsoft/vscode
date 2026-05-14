@@ -1752,6 +1752,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					didTimeout = true;
 					isBackgroundExecution = true;
 					toolTerminal.isBackground = true;
+					toolSpecificData.didContinueInBackground = true;
 					this._sessionTerminalAssociations.delete(chatSessionResource);
 					await this._associateProcessIdWithSession(toolTerminal.instance, chatSessionResource, termId, toolTerminal.shellIntegrationQuality, true);
 					const timeoutOutput = execution.getOutput();
@@ -1764,6 +1765,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					didIdleSilence = true;
 					isBackgroundExecution = true;
 					toolTerminal.isBackground = true;
+					toolSpecificData.didContinueInBackground = true;
 					this._sessionTerminalAssociations.delete(chatSessionResource);
 					await this._associateProcessIdWithSession(toolTerminal.instance, chatSessionResource, termId, toolTerminal.shellIntegrationQuality, true);
 					const idleSilenceOutput = execution.getOutput();
@@ -1835,6 +1837,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				error = 'timeout';
 				isBackgroundExecution = true;
 				toolTerminal.isBackground = true;
+				toolSpecificData.didContinueInBackground = true;
 				this._sessionTerminalAssociations.delete(chatSessionResource);
 				const timeoutOutput = getOutput(toolTerminal.instance, undefined);
 				outputLineCount = timeoutOutput ? count(timeoutOutput.trim(), '\n') + 1 : 0;

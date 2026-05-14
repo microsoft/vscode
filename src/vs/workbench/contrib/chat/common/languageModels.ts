@@ -29,7 +29,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
-import { IQuickInputService, QuickInputHideReason } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, QuickInputHideReason } from '../../../../platform/quickinput/common/quickInput.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -1441,6 +1441,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return selectedItems;
 		}
 
+		if (propertySchema.type === 'string' && Array.isArray(propertySchema.enum) && propertySchema.enum.length > 0) {
+			return this.promptForEnum(groupName, property, propertySchema, existing);
+		}
+
 		const value = await this.promptForInput(groupName, property, propertySchema, required, existing);
 		if (value === undefined) {
 			return undefined;
@@ -1465,6 +1469,23 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return false;
 	}
 
+	private getDescriptionPlaintext(propertySchema: IJSONSchema): string | undefined {
+		if (propertySchema.description) {
+			return propertySchema.description;
+		}
+		const md = propertySchema.markdownDescription;
+		if (!md) {
+			return undefined;
+		}
+		// Quick input renders plain text only. Strip the inline markdown features used by
+		// our schemas (inline code, bold/italic, links) so users see readable help.
+		return md
+			.replace(/`([^`]+)`/g, '$1')
+			.replace(/\*\*([^*]+)\*\*/g, '$1')
+			.replace(/\*([^*]+)\*/g, '$1')
+			.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+	}
+
 	private async promptForArray(groupName: string, property: string, propertySchema: IJSONSchema): Promise<string[] | undefined> {
 		if (!propertySchema.items || Array.isArray(propertySchema.items) || !propertySchema.items.enum) {
 			return undefined;
@@ -1476,7 +1497,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				const quickPick = disposables.add(this._quickInputService.createQuickPick());
 				quickPick.title = `${groupName}: ${propertySchema.title ?? property}`;
 				quickPick.items = items.map(item => ({ label: item }));
-				quickPick.placeholder = propertySchema.description ?? localize('selectValue', "Select value for {0}", property);
+				quickPick.placeholder = this.getDescriptionPlaintext(propertySchema) ?? localize('selectValue', "Select value for {0}", property);
 				quickPick.canSelectMany = true;
 				quickPick.ignoreFocusOut = true;
 
@@ -1494,9 +1515,58 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 	}
 
+	private async promptForEnum(groupName: string, property: string, propertySchema: IJSONSchema, existing: IStringDictionary<unknown> | undefined): Promise<string | undefined> {
+		const values = propertySchema.enum;
+		if (!Array.isArray(values) || values.length === 0) {
+			return undefined;
+		}
+		const enumDescriptions = propertySchema.enumDescriptions;
+		const initial = existing?.[property] !== undefined ? String(existing[property]) : (propertySchema.default !== undefined ? String(propertySchema.default) : undefined);
+		const items: IQuickPickItem[] = values.map((value, index) => ({
+			label: String(value),
+			description: enumDescriptions?.[index],
+			id: String(value)
+		}));
+		const disposables = new DisposableStore();
+		try {
+			return await new Promise<string | undefined>(resolve => {
+				const quickPick = disposables.add(this._quickInputService.createQuickPick<IQuickPickItem>());
+				quickPick.title = `${groupName}: ${propertySchema.title ?? property}`;
+				quickPick.items = items;
+				quickPick.placeholder = this.getDescriptionPlaintext(propertySchema) ?? localize('selectValue', "Select value for {0}", property);
+				quickPick.ignoreFocusOut = true;
+				if (initial !== undefined) {
+					const match = items.find(item => item.id === initial);
+					if (match) {
+						quickPick.activeItems = [match];
+					}
+				}
+
+				disposables.add(quickPick.onDidAccept(() => {
+					const selected = quickPick.selectedItems[0];
+					resolve(selected?.id);
+					quickPick.hide();
+				}));
+				disposables.add(quickPick.onDidHide(() => {
+					resolve(undefined);
+				}));
+				quickPick.show();
+			});
+		} finally {
+			disposables.dispose();
+		}
+	}
+
 	private async promptForInput(groupName: string, property: string, propertySchema: IJSONSchema, required: boolean, existing: IStringDictionary<unknown> | undefined): Promise<string | number | boolean | undefined> {
 		const disposables = new DisposableStore();
 		try {
+			const validate = (value: string): string | undefined => {
+				if (!value && required) {
+					return localize('valueRequired', "Value is required");
+				}
+				return undefined;
+			};
+
 			const value = await new Promise<string | undefined>((resolve, reject) => {
 				const inputBox = disposables.add(this._quickInputService.createInputBox());
 				inputBox.title = `${groupName}: ${propertySchema.title ?? property}`;
@@ -1508,37 +1578,26 @@ export class LanguageModelsService implements ILanguageModelsService {
 				} else if (propertySchema.default) {
 					inputBox.value = String(propertySchema.default);
 				}
-				if (propertySchema.description) {
-					inputBox.prompt = propertySchema.description;
+				const promptText = this.getDescriptionPlaintext(propertySchema);
+				if (promptText) {
+					inputBox.prompt = promptText;
 				}
 
 				disposables.add(inputBox.onDidChangeValue(value => {
-					if (!value && required) {
-						inputBox.validationMessage = localize('valueRequired', "Value is required");
+					const message = validate(value);
+					if (message) {
+						inputBox.validationMessage = message;
 						inputBox.severity = Severity.Error;
-						return;
+					} else {
+						inputBox.validationMessage = undefined;
+						inputBox.severity = Severity.Ignore;
 					}
-					if (propertySchema.type === 'number' || propertySchema.type === 'integer') {
-						if (isNaN(Number(value))) {
-							inputBox.validationMessage = localize('numberRequired', "Please enter a number");
-							inputBox.severity = Severity.Error;
-							return;
-						}
-					}
-					if (propertySchema.type === 'boolean') {
-						if (value !== 'true' && value !== 'false') {
-							inputBox.validationMessage = localize('booleanRequired', "Please enter true or false");
-							inputBox.severity = Severity.Error;
-							return;
-						}
-					}
-					inputBox.validationMessage = undefined;
-					inputBox.severity = Severity.Ignore;
 				}));
 
 				disposables.add(inputBox.onDidAccept(() => {
-					if (!inputBox.value && required) {
-						inputBox.validationMessage = localize('valueRequired', "Value is required");
+					const message = validate(inputBox.value);
+					if (message) {
+						inputBox.validationMessage = message;
 						inputBox.severity = Severity.Error;
 						return;
 					}

@@ -12,6 +12,7 @@ import { Disposable, DisposableStore, type IReference, toDisposable } from '../.
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../log/common/log.js';
 import { TerminalClaimKind, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
+import { isZsh } from '../agentHostShellUtils.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 
 /**
@@ -618,7 +619,9 @@ export async function createShellTools(
 
 	const primaryTool: Tool<IShellToolArgs> = {
 		name: shellType,
-		description: shellType === 'bash' ? createBashModelDescription(false) : createPowerShellModelDescription(shellType, executable, false),
+		description: shellType === 'bash'
+			? (isZsh(executable) ? createZshModelDescription(false) : createBashModelDescription(false))
+			: createPowerShellModelDescription(shellType, executable, false),
 		parameters: {
 			type: 'object',
 			properties: {
@@ -931,5 +934,21 @@ function createBashModelDescription(isSandboxEnabled: boolean, networkDomains?: 
 		'- Use [[ ]] for conditional tests instead of [ ]',
 		'- Prefer $() over backticks for command substitution',
 		'- Use set -e at start of complex commands to exit on errors'
+	].join('\n');
+}
+
+function createZshModelDescription(isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
+	return [
+		'This tool allows you to execute shell commands in a persistent zsh terminal session, preserving environment variables, working directory, and other context across multiple commands.',
+		createGenericDescription('bash', isSandboxEnabled, networkDomains),
+		'- Use type to check command type (builtin, function, alias)',
+		'- Use jobs, fg, bg for job control',
+		'- Use [[ ]] for conditional tests instead of [ ]',
+		'- Prefer $() over backticks for command substitution',
+		'- Take advantage of zsh globbing features (**, extended globs). Note: unmatched globs fail by default (zsh: no matches found) - use a glob qualifier like *(N) or quote the glob if it should be literal',
+		'',
+		'zsh pitfalls - these WILL cause errors or hangs:',
+		'- NEVER use bare == or === as separators (e.g. echo === triggers zsh equals expansion). Quote them: echo \'===\'',
+		'- NEVER use status as a variable name (it is read-only in zsh). Use exit_code or ret instead',
 	].join('\n');
 }

@@ -1333,7 +1333,7 @@ export class ChatModelsWidget extends Disposable {
 		const entitlement = this.chatEntitlementService.entitlement;
 		const isManagedEntitlement = entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
 		const supportsAddingModels = this.chatEntitlementService.isInternal
-			|| (isManagedEntitlement && this.chatEntitlementService.clientByokEnabled)
+			|| this.chatEntitlementService.clientByokEnabled
 			|| (entitlement !== ChatEntitlement.Unknown
 				&& entitlement !== ChatEntitlement.Available
 				&& !isManagedEntitlement);

@@ -136,6 +136,11 @@
         "category": "Markdown"
       },
       {
+        "command": "_markdown.openFrontMatterSettings",
+        "title": "%markdown.openFrontMatterSettings.title%",
+        "category": "Markdown"
+      },
+      {
         "command": "markdown.showPreview",
         "title": "%markdown.preview.title%",
         "category": "Markdown",
@@ -221,6 +226,10 @@
         {
           "command": "_markdown.openImage",
           "when": "(webviewId == 'markdown.preview' || webviewId == 'vscode.markdown.preview.editor') && webviewSection == 'localImage'"
+        },
+        {
+          "command": "_markdown.openFrontMatterSettings",
+          "when": "(webviewId == 'markdown.preview' || webviewId == 'vscode.markdown.preview.editor') && webviewSection == 'frontMatter'"
         }
       ],
       "editor/title": [
@@ -840,7 +849,10 @@
       "./media/highlight.css"
     ],
     "markdown.previewScripts": [
-      "./media/index.js"
+      {
+        "path": "./media/index.js",
+        "type": "module"
+      }
     ],
     "customEditors": [
       {

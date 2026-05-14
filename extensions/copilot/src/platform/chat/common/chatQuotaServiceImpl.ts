@@ -46,7 +46,14 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 		if (!this._quotaInfo) {
 			return false;
 		}
-		return this._quotaInfo.percentRemaining <= 0 && !this._quotaInfo.additionalUsageEnabled && !this._quotaInfo.unlimited;
+		if (this._quotaInfo.additionalUsageEnabled) {
+			return false;
+		}
+		// For pooled entitlements (unlimited per-user), has_quota being false signals exhaustion
+		if (this._quotaInfo.unlimited) {
+			return !this._quotaInfo.hasQuota;
+		}
+		return this._quotaInfo.percentRemaining <= 0;
 	}
 
 	get additionalUsageEnabled(): boolean {
@@ -109,6 +116,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			this._quotaInfo = {
 				quota: entitlement,
 				unlimited: entitlement === -1,
+				hasQuota: snapshot.has_quota ?? true,
 				percentRemaining: snapshot.percent_remaining,
 				additionalUsageUsed: snapshot.overage_count,
 				additionalUsageEnabled: snapshot.overage_permitted,
@@ -169,6 +177,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			return {
 				quota: entitlement,
 				unlimited: entitlement === -1,
+				hasQuota: true,
 				percentRemaining,
 				additionalUsageUsed,
 				additionalUsageEnabled,
@@ -189,6 +198,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			: quotaInfo.quota_snapshots.premium_interactions;
 		this._quotaInfo = {
 			unlimited: snapshot.unlimited,
+			hasQuota: snapshot.has_quota ?? true,
 			additionalUsageEnabled: snapshot.overage_permitted,
 			additionalUsageUsed: snapshot.overage_count,
 			quota: snapshot.entitlement,

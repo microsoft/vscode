@@ -67,6 +67,8 @@ export namespace ChatEntitlementContextKeys {
 	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
 
 	export const chatAnonymous = new RawContextKey<boolean>('chatAnonymous', false, true);
+
+	export const clientByokEnabled = new RawContextKey<boolean>('github.copilot.clientByokEnabled', true, true);
 }
 
 export const IChatEntitlementService = createDecorator<IChatEntitlementService>('chatEntitlementService');
@@ -357,6 +359,12 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this.anonymousContextKey = ChatEntitlementContextKeys.chatAnonymous.bindTo(this.contextKeyService);
 		this.anonymousContextKey.set(this.anonymous);
 
+		// Only apply the workbench-side default if no other source (e.g. the Copilot extension)
+		// has already set this key; binding would otherwise reset it to the declared default.
+		if (this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.clientByokEnabled.key) === undefined) {
+			ChatEntitlementContextKeys.clientByokEnabled.bindTo(this.contextKeyService);
+		}
+
 		this.onDidChangeEntitlement = Event.map(
 			Event.filter(
 				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
@@ -593,7 +601,13 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	}
 
 	private updateContextKeys(): void {
-		this.chatQuotaExceededContextKey.set(this._quotas.chat?.percentRemaining === 0);
+		const chatExhausted = this._quotas.chat?.percentRemaining === 0;
+		const premiumChatExhausted = this._quotas.premiumChat?.unlimited
+			? this._quotas.premiumChat.hasQuota === false
+			: this._quotas.premiumChat?.percentRemaining === 0;
+		const additionalUsageEnabled = this._quotas.additionalUsageEnabled ?? false;
+
+		this.chatQuotaExceededContextKey.set(chatExhausted || (premiumChatExhausted && !additionalUsageEnabled));
 		this.completionsQuotaExceededContextKey.set(this._quotas.completions?.percentRemaining === 0);
 	}
 
@@ -705,6 +719,7 @@ interface IEntitlements {
 export interface IQuotaSnapshot {
 	readonly percentRemaining: number;
 	readonly unlimited: boolean;
+	readonly hasQuota?: boolean;
 	readonly resetAt?: number;
 	readonly usageBasedBilling?: boolean;
 	readonly entitlement?: number;
@@ -715,6 +730,7 @@ interface IQuotas {
 	readonly resetDateHasTime?: boolean;
 
 	readonly usageBasedBilling?: boolean;
+	readonly canUpgradePlan?: boolean;
 
 	readonly chat?: IQuotaSnapshot;
 	readonly completions?: IQuotaSnapshot;
@@ -728,6 +744,7 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 		resetDate: entitlementsData.quota_reset_date_utc ?? entitlementsData.quota_reset_date ?? entitlementsData.limited_user_reset_date,
 		resetDateHasTime: typeof entitlementsData.quota_reset_date_utc === 'string',
 		usageBasedBilling: entitlementsData.token_based_billing,
+		canUpgradePlan: entitlementsData.can_upgrade_plan,
 	};
 
 	// Legacy Free SKU Quota
@@ -765,6 +782,7 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 			const quotaSnapshot: IQuotaSnapshot = {
 				percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
 				unlimited: rawQuotaSnapshot.unlimited,
+				hasQuota: rawQuotaSnapshot.has_quota,
 				usageBasedBilling: entitlementsData.token_based_billing,
 				resetAt: rawQuotaSnapshot.quota_reset_at || undefined,
 				entitlement: parsedEntitlement !== undefined && Number.isSafeInteger(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,

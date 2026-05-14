@@ -797,10 +797,6 @@ interface ITunnelPickItem extends IQuickPickItem {
 	readonly tunnel: ITunnelInfo;
 }
 
-interface IAuthProviderPickItem extends IQuickPickItem {
-	readonly provider: 'github' | 'microsoft';
-}
-
 async function promptToConnectViaTunnel(
 	accessor: ServicesAccessor,
 	options: { showBackButton?: boolean } = {},
@@ -813,42 +809,19 @@ async function promptToConnectViaTunnel(
 	const productService = accessor.get(IProductService);
 
 	// Step 1: Determine auth provider — try cached sessions first, then prompt
-	let authProvider = await tunnelService.getAuthProvider({ silent: true });
+	// This used to call tunnelService.getAuthProvider, but for now we're Github-
+	// only for the remote AH connection.
+	const authProvider = 'github';
 
-	if (!authProvider) {
-		// No cached session — prompt user to choose auth provider
-		const authPicks: IAuthProviderPickItem[] = [
-			{
-				provider: 'github',
-				label: localize('tunnelAuthGitHub', "GitHub"),
-				description: localize('tunnelAuthGitHubDesc', "Sign in with your GitHub account"),
-			},
-			{
-				provider: 'microsoft',
-				label: localize('tunnelAuthMicrosoft', "Microsoft Account"),
-				description: localize('tunnelAuthMicrosoftDesc', "Sign in with your Microsoft account"),
-			},
-		];
-
-		const authPicked = await quickInputService.pick(authPicks, {
-			title: localize('tunnelAuthTitle', "Sign In for Dev Tunnels"),
-			placeHolder: localize('tunnelAuthPlaceholder', "Choose an authentication provider"),
-		});
-		if (!authPicked) {
-			return;
+	// Trigger interactive auth for the chosen provider
+	const scopes = productService.tunnelApplicationConfig?.authenticationProviders?.[authProvider]?.scopes ?? [];
+	try {
+		if (!(await authenticationService.getSessions(authProvider, scopes)).length) {
+			await authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
 		}
-		authProvider = authPicked.provider;
-
-		// Trigger interactive auth for the chosen provider
-		const scopes = productService.tunnelApplicationConfig?.authenticationProviders?.[authProvider]?.scopes ?? [];
-		try {
-			if (!(await authenticationService.getSessions(authProvider, scopes)).length) {
-				await authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
-			}
-		} catch {
-			notificationService.error(localize('tunnelAuthFailed', "Authentication failed. Please try again."));
-			return;
-		}
+	} catch {
+		notificationService.error(localize('tunnelAuthFailed', "Authentication failed. Please try again."));
+		return;
 	}
 
 	// Step 2: Show tunnel picker immediately in busy state while enumerating

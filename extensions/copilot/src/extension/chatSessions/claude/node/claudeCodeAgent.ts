@@ -606,6 +606,7 @@ export class ClaudeCodeSession extends Disposable {
 		const subagentTraceContexts = new Map<string, TraceContext>();
 		try {
 			const unprocessedToolCalls = new Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>();
+			const toolStartTimes = new Map<string, number>();
 			const handlerState: MessageHandlerState = {
 				unprocessedToolCalls,
 				otelToolSpans,
@@ -613,6 +614,7 @@ export class ClaudeCodeSession extends Disposable {
 				parentTraceContext: this._otelTracker.traceContext,
 				subagentTraceContexts,
 				lastApiError: undefined,
+				toolStartTimes
 			};
 			for await (const message of this._queryGenerator!) {
 				// Mark session as resumed after first SDK message confirms session exists on disk.

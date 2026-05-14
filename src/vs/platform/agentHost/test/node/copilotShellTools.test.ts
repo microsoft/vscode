@@ -186,6 +186,25 @@ suite('CopilotShellTools', () => {
 		assert.ok(unknownDefault === 'bash' || unknownDefault === 'powershell');
 	});
 
+	test('zsh executable keeps bash tool name but uses zsh-specific guidance', async () => {
+		const { instantiationService, terminalManager } = createServices();
+		terminalManager.defaultShell = '/bin/zsh';
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
+		const bashTool = tools.find(tool => tool.name === 'bash');
+
+		assert.ok(bashTool);
+		assert.strictEqual(bashTool.name, 'bash');
+		assert.ok(bashTool.description);
+		const description = bashTool.description;
+		assert.match(description, /persistent zsh terminal session/);
+		assert.match(description, /zsh globbing features/);
+		assert.match(description, /bare == or ===/);
+		assert.match(description, /status as a variable name/);
+		assert.doesNotMatch(description, /bang history/);
+		assert.doesNotMatch(description, /# comments/);
+	});
+
 	test('getOrCreateShell reuses an idle shell after the reference is disposed', async () => {
 		const terminalManager = new TestAgentHostTerminalManager();
 		// Pretend created terminals exist and are still running.
