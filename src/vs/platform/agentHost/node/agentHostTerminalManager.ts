@@ -272,9 +272,9 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			// prevents agent-executed commands from polluting the user's shell history.
 			env['VSCODE_PREVENT_SHELL_HISTORY'] = '1';
 		}
-		// Zsh-specific fixups for agent terminals: disable bang history
+		// Zsh-specific fixups for agent tool terminals: disable bang history
 		// expansion and enable inline # comments.
-		if (isZsh(shell)) {
+		if (params.claim?.kind === TerminalClaimKind.Session && isZsh(shell)) {
 			env['VSCODE_AGENT_ZSH_FIXUPS'] = '1';
 		}
 		if (options?.nonInteractive) {
