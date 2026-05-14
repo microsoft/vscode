@@ -151,18 +151,21 @@ export function handleAssistantMessage(
 	request: MessageHandlerRequestContext,
 	state: MessageHandlerState,
 ): void {
-	if (message.message.model === SYNTHETIC_MODEL_ID) {
-		accessor.get(ILogService).trace('[ClaudeMessageDispatch] Skipping synthetic message');
-		return;
-	}
+	const logService = accessor.get(ILogService);
 
 	// Track API-level errors (billing_error, rate_limit, etc.) so the result handler
 	// can produce a specific error class for quota-exceeded and similar conditions.
+	// This must run before the synthetic-message check because the SDK emits
+	// billing_error on synthetic assistant messages (model === '<synthetic>').
 	if (message.error) {
 		state.lastApiError = message.error;
 	}
 
-	const logService = accessor.get(ILogService);
+	if (message.message.model === SYNTHETIC_MODEL_ID) {
+		logService.trace('[ClaudeMessageDispatch] Skipping synthetic message');
+		return;
+	}
+
 	const otelService = accessor.get(IOTelService);
 	const { stream } = request;
 	const { otelToolSpans, unprocessedToolCalls } = state;
@@ -690,10 +693,18 @@ export function handleResultMessage(
 	request: MessageHandlerRequestContext,
 	state: MessageHandlerState,
 ): MessageHandlerResult {
+	const isExecutionError =
+		message.subtype === 'error_during_execution'
+		|| (message.subtype === 'success' && message.is_error === true);
+	const isErroredSuccessQuota =
+		message.subtype === 'success'
+		&& message.is_error === true
+		&& /API Error:\s*402\b/.test(message.result);
+
 	if (message.subtype === 'error_max_turns') {
 		request.stream.progress(l10n.t('Maximum turns reached ({0})', message.num_turns));
-	} else if (message.subtype === 'error_during_execution') {
-		if (state.lastApiError === 'billing_error') {
+	} else if (isExecutionError) {
+		if (state.lastApiError === 'billing_error' || isErroredSuccessQuota) {
 			throw new ClaudeQuotaExceededError(l10n.t('You\'ve exceeded your quota'));
 		}
 		throw new KnownClaudeError(l10n.t('Error during execution'));

@@ -10,6 +10,7 @@ import type * as vscode from 'vscode';
 import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/chatDebugFileLoggerService';
 import { INativeEnvService } from '../../../../platform/env/common/envService';
 import { ILogService } from '../../../../platform/log/common/logService';
+import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { IMcpService } from '../../../../platform/mcp/common/mcpService';
 import { IOTelService, type ISpanHandle, SpanStatusCode, type TraceContext } from '../../../../platform/otel/common/index';
 import { deriveClaudeOTelEnv } from '../../../../platform/otel/common/agentOTelEnv';
@@ -20,6 +21,7 @@ import { Disposable, DisposableMap } from '../../../../util/vs/base/common/lifec
 import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { getQuotaMessageForPlan } from '../../../../platform/chat/common/commonTypes';
 import { LanguageModelToolMCPSource } from '../../../../vscodeTypes';
 import { IClaudePluginService } from './claudeSkills';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
@@ -54,6 +56,7 @@ export class ClaudeAgentManager extends Disposable {
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 	) {
 		super();
 	}
@@ -102,7 +105,12 @@ export class ClaudeAgentManager extends Disposable {
 
 			if (invokeError instanceof ClaudeQuotaExceededError) {
 				this.logService.info('[ClaudeAgentManager] Request failed due to quota exceeded');
-				return { errorDetails: { message: invokeError.message, isQuotaExceeded: true } };
+				let message = invokeError.message;
+				try {
+					const copilotToken = await this.authenticationService.getCopilotToken();
+					message = getQuotaMessageForPlan(copilotToken.copilotPlan, copilotToken.tokenBasedBilling, copilotToken.quotaInfo.quota_reset_date);
+				} catch { /* token unavailable, use default message */ }
+				return { errorDetails: { message, isQuotaExceeded: true } };
 			}
 
 			this.logService.error(invokeError as Error);
@@ -651,6 +659,9 @@ export class ClaudeCodeSession extends Disposable {
 						token: currentRequest.token,
 					}, handlerState);
 				} catch (dispatchError) {
+					if (dispatchError instanceof ClaudeQuotaExceededError || dispatchError instanceof KnownClaudeError) {
+						throw dispatchError;
+					}
 					this.logService.warn(`[ClaudeCodeSession] Failed to dispatch message (stream may be disposed after yield): ${dispatchError}`);
 				}
 

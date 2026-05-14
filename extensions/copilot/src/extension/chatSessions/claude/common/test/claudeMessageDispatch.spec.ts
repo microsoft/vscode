@@ -211,6 +211,14 @@ function makeSuccessResult(numTurns = 5): SDKResultSuccess {
 	};
 }
 
+function makeErroredSuccessResult(resultText = 'API Error'): SDKResultSuccess {
+	return {
+		...makeSuccessResult(),
+		is_error: true,
+		result: resultText,
+	};
+}
+
 function makeErrorResult(subtype: SDKResultError['subtype'], numTurns = 5): SDKResultError {
 	return {
 		type: 'result',
@@ -1100,6 +1108,18 @@ describe('handleResultMessage', () => {
 		expect(
 			() => handleResultMessage(makeErrorResult('error_during_execution'), createRequestContext(), state),
 		).toThrow(ClaudeQuotaExceededError);
+	});
+
+	it('throws ClaudeQuotaExceededError for success result with is_error and api_error_status=402', () => {
+		expect(
+			() => handleResultMessage(makeErroredSuccessResult('API Error: 402 {"type":"error"}'), createRequestContext(), createState()),
+		).toThrow(ClaudeQuotaExceededError);
+	});
+
+	it('throws KnownClaudeError for success result with is_error and non-quota status', () => {
+		expect(
+			() => handleResultMessage(makeErroredSuccessResult('API Error: 500 {"type":"error"}'), createRequestContext(), createState()),
+		).toThrow(KnownClaudeError);
 	});
 });
 
