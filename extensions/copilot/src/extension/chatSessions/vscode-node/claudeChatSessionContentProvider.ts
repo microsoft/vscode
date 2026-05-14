@@ -6,11 +6,13 @@
 import * as vscode from 'vscode';
 import { ChatExtendedRequestHandler } from 'vscode';
 import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { INativeEnvService } from '../../../platform/env/common/envService';
 import { getGitHubRepoInfoFromContext, IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
@@ -280,6 +282,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 
 	/** Whether the "bypass permissions" config is enabled — controls permission mode items. */
 	private readonly _bypassPermissionsEnabled: IObservable<boolean>;
+	private readonly _autoPermissionsEnabled: IObservable<boolean>;
 
 	/** Current workspace folders — controls folder group items and visibility. */
 	private readonly _workspaceFolders: IObservable<URI[]>;
@@ -298,15 +301,28 @@ export class ClaudeChatSessionItemController extends Disposable {
 		@IClaudeCodeSdkService private readonly _sdkService: IClaudeCodeSdkService,
 		@ILogService private readonly _logService: ILogService,
 		@IClaudeWorkspaceFolderService private readonly _claudeWorkspaceFolderService: IClaudeWorkspaceFolderService,
+		@IAuthenticationService _authenticationService: IAuthenticationService,
+		@IExperimentationService experimentationService: IExperimentationService,
 	) {
 		super();
-		this._optionBuilder = new ClaudeSessionOptionBuilder(_configurationService, folderMruService, _workspaceService);
+		this._optionBuilder = new ClaudeSessionOptionBuilder(_configurationService, folderMruService, _workspaceService, experimentationService);
 
 		this._bypassPermissionsEnabled = observableFromEvent(
 			this,
 			Event.filter(_configurationService.onDidChangeConfiguration,
 				e => e.affectsConfiguration(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions.fullyQualifiedId)),
 			() => _configurationService.getConfig(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions) as boolean,
+		);
+
+		this._autoPermissionsEnabled = observableFromEvent(
+			this,
+			Event.any(
+				Event.filter(_configurationService.onDidChangeConfiguration,
+					e => e.affectsConfiguration(ConfigKey.ClaudeAgentAllowAutoPermissions.fullyQualifiedId)),
+				_authenticationService.onDidAuthenticationChange,
+			),
+			() => _configurationService.getExperimentBasedConfig(ConfigKey.ClaudeAgentAllowAutoPermissions, experimentationService)
+				&& (_authenticationService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? false),
 		);
 
 		// Bridge vscode.Event → internal Event for workspace folder changes
@@ -468,8 +484,9 @@ export class ClaudeChatSessionItemController extends Disposable {
 		const permissionModeGroup = derived(reader => {
 			/** @description permissionModeGroup */
 			const bypassEnabled = this._bypassPermissionsEnabled.read(reader);
+			const autoEnabled = this._autoPermissionsEnabled.read(reader);
 			const selectedMode = permissionMode.read(reader);
-			const group = buildPermissionModeItems(bypassEnabled);
+			const group = buildPermissionModeItems(bypassEnabled, autoEnabled);
 			const selectedItem = group.items.find(i => i.id === selectedMode) ?? group.items[0];
 			return { ...group, selected: selectedItem };
 		});

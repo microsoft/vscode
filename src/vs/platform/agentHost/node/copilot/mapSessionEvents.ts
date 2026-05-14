@@ -5,6 +5,7 @@
 
 import { MessageOptions } from '@github/copilot-sdk';
 import { basename } from '../../../../base/common/path.js';
+import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
@@ -251,7 +252,8 @@ export async function mapSessionEvents(
 				continue;
 			}
 			toolInfoByCallId.set(d.toolCallId, info);
-			if (isEditTool(d.toolName)) {
+			const command = isString(info.parameters?.command) ? info.parameters.command : undefined;
+			if (isEditTool(d.toolName, command)) {
 				editToolCallIds.push(d.toolCallId);
 			}
 		}

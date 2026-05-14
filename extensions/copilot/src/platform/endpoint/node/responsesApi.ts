@@ -844,6 +844,11 @@ export async function processResponseFromChatEndpoint(instantiationService: IIns
 		const parser = new SSEParser((ev) => {
 			try {
 				logService.trace(`SSE: ${ev.data}`);
+				if (ev.data === '[DONE]') {
+					// Some OpenAI-compatible gateways (e.g. LiteLLM) emit the chat-completions
+					// `[DONE]` sentinel at the end of a Responses stream. Ignore it.
+					return;
+				}
 				const parsedData = JSON.parse(ev.data);
 				const responseStreamEvent: OpenAI.Responses.ResponseStreamEvent = { type: ev.type, ...parsedData };
 				dumper.logEvent(responseStreamEvent);
@@ -1250,10 +1255,10 @@ export class OpenAIResponsesProcessor {
 						completion_tokens: chunk.response.usage?.output_tokens ?? 0,
 						total_tokens: chunk.response.usage?.total_tokens ?? 0,
 						prompt_tokens_details: {
-							cached_tokens: chunk.response.usage?.input_tokens_details.cached_tokens ?? 0,
+							cached_tokens: chunk.response.usage?.input_tokens_details?.cached_tokens ?? 0,
 						},
 						completion_tokens_details: {
-							reasoning_tokens: chunk.response.usage?.output_tokens_details.reasoning_tokens ?? 0,
+							reasoning_tokens: chunk.response.usage?.output_tokens_details?.reasoning_tokens ?? 0,
 							accepted_prediction_tokens: 0,
 							rejected_prediction_tokens: 0,
 						},

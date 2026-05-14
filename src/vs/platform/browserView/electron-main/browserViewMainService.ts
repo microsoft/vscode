@@ -20,6 +20,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { localize } from '../../../nls.js';
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import { htmlAttributeEncodeValue } from '../../../base/common/strings.js';
+import { BrowserViewInspectElementId } from './browserViewElementInspector.js';
 
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
@@ -371,7 +372,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return view;
 	}
 
-	private showContextMenu(view: BrowserView, params: Electron.ContextMenuParams): void {
+	private async showContextMenu(view: BrowserView, params: Electron.ContextMenuParams): Promise<void> {
 		const win = view.getElectronWindow();
 		if (!win) {
 			return;
@@ -380,6 +381,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		if (webContents.isDestroyed()) {
 			return;
 		}
+
+		const inspectTarget = await view.inspector.getElementHandle(BrowserViewInspectElementId.ContextMenuTarget);
 		const menu = new Menu();
 
 		if (params.linkURL) {
@@ -469,6 +472,12 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 
 		menu.append(new MenuItem({ type: 'separator' }));
+		if (inspectTarget) {
+			menu.append(new MenuItem({
+				label: localize('browser.contextMenu.addElementToChat', 'Add Element to Chat'),
+				click: () => inspectTarget.addToChat()
+			}));
+		}
 		menu.append(new MenuItem({
 			label: localize('browser.contextMenu.inspect', 'Inspect'),
 			click: () => webContents.inspectElement(params.x, params.y)

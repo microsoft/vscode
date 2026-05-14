@@ -9,7 +9,7 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { EditorPartModalContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { EditorMaximizedContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -40,6 +40,7 @@ class MaximizeMainEditorPartAction extends Action2 {
 				order: 99,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
+					IsAuxiliaryWindowContext.toNegated(),
 					IsTopRightEditorGroupContext,
 					EditorMaximizedContext.negate())
 			}
@@ -83,6 +84,7 @@ class RestoreMainEditorPartAction extends Action2 {
 				order: 99,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
+					IsAuxiliaryWindowContext.toNegated(),
 					IsTopRightEditorGroupContext,
 					EditorMaximizedContext)
 			}
@@ -120,6 +122,7 @@ class CloseMainEditorPartAction extends Action2 {
 				order: 100,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
+					IsAuxiliaryWindowContext.toNegated(),
 					IsTopRightEditorGroupContext)
 			}
 		});
@@ -147,7 +150,8 @@ class OpenEditorInModalEditorAction extends Action2 {
 				group: 'navigation',
 				order: 1,
 				when: ContextKeyExpr.and(
-					IsSessionsWindowContext
+					IsSessionsWindowContext,
+					IsAuxiliaryWindowContext.toNegated()
 				)
 			}
 		});

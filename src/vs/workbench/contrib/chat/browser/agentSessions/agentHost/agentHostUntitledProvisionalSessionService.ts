@@ -54,10 +54,14 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 
 export const IAgentHostUntitledProvisionalSessionService =
@@ -142,6 +146,8 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@ILogService private readonly _logService: ILogService,
 		@IChatService chatService: IChatService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -198,6 +204,7 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 					provider,
 					session: backendSession,
 					workingDirectory,
+					config: this._getInitialConfig(),
 				});
 				this._entries.set(sessionResource, { backendSession: created });
 				this._onDidChange.fire(sessionResource);
@@ -315,6 +322,33 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 			return undefined;
 		}
 		return state.config?.values;
+	}
+
+	/**
+	 * Workbench-side initial config seed sent at `createSession` time so the
+	 * agent's own server-side defaults don't fill `state.config.values` for
+	 * keys the workbench wants to control. Without this, the merge filter in
+	 * `agentHostSessionHandler` sees those agent defaults as "user-set" and
+	 * drops the workbench defaults.
+	 *
+	 * - `isolation`: workbench has no isolation picker, so always `'folder'`.
+	 * - `autoApprove`: seeded from `chat.permissions.default`, clamped to
+	 *   `'default'` when the `chat.tools.global.autoApprove` policy is off.
+	 *
+	 * Skipped entirely in the Agents window, where the sessions provider
+	 * supplies config via `request.agentHostSessionConfig` instead.
+	 */
+	private _getInitialConfig(): Record<string, unknown> | undefined {
+		if (this._environmentService.isSessionsWindow) {
+			return undefined;
+		}
+		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
+		const configured = this._configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
+		if (typeof configured === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(configured)) {
+			const policyRestricted = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+			config[SessionConfigKey.AutoApprove] = policyRestricted ? 'default' : configured;
+		}
+		return config;
 	}
 }
 

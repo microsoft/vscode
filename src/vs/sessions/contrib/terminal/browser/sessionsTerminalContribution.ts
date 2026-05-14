@@ -120,6 +120,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// This is a little hacky but I don't see any better approach.
 		this._register(autorun(reader => {
 			const session = this._sessionsManagementService.activeSession.read(reader);
+			if (session?.loading.read(reader)) {
+				this._agentHostTerminalService.setDefaultCwd(undefined);
+				return;
+			}
 			const info = getSessionTerminalInfo(session, reader);
 			this._agentHostTerminalService.setDefaultCwd(info?.cwd);
 		}));
@@ -137,6 +141,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// React to active session changes — use worktree/repo for background sessions, home dir otherwise
 		this._register(autorun(reader => {
 			const session = this._sessionsManagementService.activeSession.read(reader);
+			if (session?.loading.read(reader)) {
+				this._activeKey = undefined;
+				return;
+			}
 			this._onActiveSessionChanged(session);
 		}));
 

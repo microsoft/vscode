@@ -157,6 +157,21 @@
           "type": "number",
           "default": 0
         },
+        "testresolver.agentHostPort": {
+          "description": "If set, the resolver will spawn an agent host inside the test server on this port (`--agent-host-port`). Use this for testing the spawn-and-bridge flow.",
+          "type": "number",
+          "default": 0
+        },
+        "testresolver.agentHostBridgePort": {
+          "description": "If set, the resolver will bridge the renderer to an externally-running agent host on this port (`--agent-host-bridge-port`). Use this when the agent host is already running outside the test server.",
+          "type": "number",
+          "default": 0
+        },
+        "testresolver.agentHostBridgeConnectionToken": {
+          "description": "Connection token required by the externally-running agent host when using `testresolver.agentHostBridgePort`.",
+          "type": "string",
+          "default": ""
+        },
         "testresolver.startupError": {
           "description": "If set, the resolver will fail. Use ths setting for testing the failure of a resolver.",
           "type": "boolean",

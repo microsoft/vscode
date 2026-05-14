@@ -8,6 +8,19 @@
 	align-items: center;
 }
 
+/*
+ * When the host is also a toolbar `.action-item`, the action-bar's
+ * `.monaco-action-bar .action-item { display: block }` rule wins on
+ * specificity and turns the host into a block. That leaves the
+ * inline-flex slot sitting in an anonymous line box whose height is
+ * driven by the inherited line-height (not the chip's 22px content),
+ * producing ~23.2px outer height. Re-assert inline-flex with matching
+ * specificity so the host sizes to its flex content.
+ */
+.monaco-action-bar .action-item.agent-host-chat-input-picker-host {
+	display: inline-flex;
+}
+
 .agent-host-chat-input-picker-host:empty {
 	display: none;
 }
@@ -23,12 +36,87 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	padding: 0 4px;
+	height: 16px;
+	padding: 3px 0 3px 6px;
+	color: var(--vscode-icon-foreground);
+}
+
+.agent-host-chat-input-picker-slot .action-label .codicon-chevron-down {
+	font-size: 10px;
+	margin-left: 4px;
+	opacity: 0.75;
 }
 
 .agent-host-chat-input-picker-slot.disabled span.action-label {
 	opacity: 0.6;
 	cursor: default;
+}
+
+/*
+ * Generic-fallback chip lane: container for direct-rendered chips
+ * (`AgentHostGenericConfigChips`) that handle agent-host config properties
+ * not claimed by a dedicated picker. Lays out the chip slots horizontally
+ * with the same gap the secondary toolbar uses between its own children.
+ *
+ * The generic chip is rendered directly (not via MenuWorkbenchToolBar), so
+ * it is not inside `.monaco-action-bar > .action-item` and misses the
+ * cursor/font-size/hover styles those ancestors provide. Restore them here
+ * to match the dedicated chip styling.
+ */
+.chat-secondary-generic-chips {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+
+	&:empty {
+		display: none;
+	}
+
+	> .agent-host-generic-chip-slot {
+		cursor: pointer;
+
+		.action-label {
+			font-size: 11px;
+
+			&:hover {
+				background-color: var(--vscode-toolbar-hoverBackground);
+			}
+		}
+
+		.codicon {
+			font-size: 12px;
+		}
+	}
+}
+
+/*
+ * Elevated auto-approve levels get themed colors on the chip trigger:
+ *   .warning → Autopilot (red/orange)
+ *   .info    → Bypass / autoApprove (blue)
+ * Toggled in `AgentHostChatInputPicker._renderTrigger`.
+ */
+.agent-host-chat-input-picker-slot .action-label.warning {
+	color: var(--vscode-problemsWarningIcon-foreground);
+}
+
+.agent-host-chat-input-picker-slot .action-label.warning .codicon {
+	color: var(--vscode-problemsWarningIcon-foreground) !important;
+}
+
+.agent-host-chat-input-picker-slot .action-label.warning:hover {
+	color: var(--vscode-problemsWarningIcon-foreground);
+}
+
+.agent-host-chat-input-picker-slot .action-label.info {
+	color: var(--vscode-problemsInfoIcon-foreground);
+}
+
+.agent-host-chat-input-picker-slot .action-label.info .codicon {
+	color: var(--vscode-problemsInfoIcon-foreground) !important;
+}
+
+.agent-host-chat-input-picker-slot .action-label.info:hover {
+	color: var(--vscode-problemsInfoIcon-foreground);
 }
 
 .agent-host-chat-input-picker-label {

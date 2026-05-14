@@ -14,6 +14,10 @@ export class MainEditorPart extends MainEditorPartBase {
 	static readonly MARGIN_LEFT = 5;
 	static readonly MARGIN_RIGHT = 5;
 
+	override get minimumWidth() {
+		return Math.max(300, super.minimumWidth);
+	}
+
 	override priority = LayoutPriority.High;
 
 	override layout(width: number, height: number, top: number, left: number): void {

@@ -26,6 +26,7 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 	onDidChangeLanguageModels = Event.None;
 	onDidChangeLanguageModelVendors = Event.None;
 	onDidChangeModelsControlManifest = Event.None;
+	onDidChangePinnedModels = Event.None;
 
 	getVendors(): ILanguageModelProviderDescriptor[] {
 		return [];
@@ -108,6 +109,11 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 
 	addToRecentlyUsedList(): void { }
 	clearRecentlyUsedList(): void { }
+
+	getPinnedModelIds(): string[] { return []; }
+	pinModel(_modelIdentifier: string): void { }
+	unpinModel(_modelIdentifier: string): void { }
+	isModelPinned(_modelIdentifier: string): boolean { return false; }
 
 	getModelsControlManifest(): IModelsControlManifest {
 		return { free: {}, paid: {} };

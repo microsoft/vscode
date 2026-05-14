@@ -57,18 +57,18 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		}]);
 	});
 
-	test('combines core storage entries with built-in skills', async () => {
+	test('combines extension storage entries with built-in skills', async () => {
 		const userAgent = URI.file('/user/agents/foo.agent.md');
 		const builtinSkill = URI.file('/builtin/merge/SKILL.md');
 		const promptsService = makePromptsService(new Map([
-			[`${PromptsType.agent}/${PromptsStorage.user}`, [makePromptPath(userAgent, PromptsType.agent, PromptsStorage.user)]],
+			[`${PromptsType.agent}/${PromptsStorage.extension}`, [makePromptPath(userAgent, PromptsType.agent, PromptsStorage.extension)]],
 			[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [makePromptPath(builtinSkill, PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage)]],
 		]));
 
 		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None);
 
 		assert.deepStrictEqual(result.map((e: { uri: URI; type: PromptsType; storage: unknown; disabled: boolean }) => ({ uri: e.uri.toString(), type: e.type, storage: e.storage, disabled: e.disabled })), [
-			{ uri: userAgent.toString(), type: PromptsType.agent, storage: PromptsStorage.user, disabled: false },
+			{ uri: userAgent.toString(), type: PromptsType.agent, storage: PromptsStorage.extension, disabled: false },
 			{ uri: builtinSkill.toString(), type: PromptsType.skill, storage: BUILTIN_STORAGE, disabled: false },
 		]);
 	});

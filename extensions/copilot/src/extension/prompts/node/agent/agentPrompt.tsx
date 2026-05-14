@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BasePromptElementProps, Chunk, Document, PromptElement, PromptPiece, PromptPieceChild, PromptSizing, Raw, SystemMessage, TokenLimit, UserMessage } from '@vscode/prompt-tsx';
-import type { ChatRequestEditedFileEvent, LanguageModelToolInformation, NotebookEditor, TaskDefinition, TextEditor } from 'vscode';
+import type { ChatLanguageModelToolReference, ChatRequestEditedFileEvent, LanguageModelToolInformation, NotebookEditor, TaskDefinition, TextEditor } from 'vscode';
 import { sessionResourceToId } from '../../../../platform/chat/common/chatDebugFileLoggerService';
 import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
@@ -27,7 +27,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ChatRequestEditedFileEventKind, Position, Range } from '../../../../vscodeTypes';
 import { GenericBasePromptElementProps } from '../../../context/node/resolvers/genericPanelIntentInvocation';
 import { ChatVariablesCollection, extractDebugTargetSessionIds, isCustomizationsIndex } from '../../../prompt/common/chatVariablesCollection';
-import { getGlobalContextCacheKey, GlobalContextMessageMetadata, RenderedUserMessageMetadata, Turn } from '../../../prompt/common/conversation';
+import { CustomizationsIndexMetadata, getGlobalContextCacheKey, GlobalContextMessageMetadata, RenderedUserMessageMetadata, Turn } from '../../../prompt/common/conversation';
 import { InternalToolReference } from '../../../prompt/common/intents';
 import { IPromptVariablesService } from '../../../prompt/node/promptVariablesService';
 import { ToolName } from '../../../tools/common/toolNames';
@@ -131,9 +131,10 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		const sessionId = sessionResource ? sessionResourceToId(sessionResource) : undefined;
 		const debugTargetSessionIds = extractDebugTargetSessionIds([...this.props.promptContext.chatVariables].map(v => v.reference));
 		const templateVariablesContext = this.promptVariablesService.buildTemplateVariablesContext(sessionId, debugTargetSessionIds);
+		const customizationsSnapshot = this.getOrFreezeCustomizationsIndex();
 		const baseInstructions = <>
 			{!omitBaseAgentInstructions && baseAgentInstructions}
-			{await this.getAgentCustomInstructions()}
+			{await this.getAgentCustomInstructions(customizationsSnapshot?.frozen)}
 			{isAutopilot && <SystemMessage priority={80}>
 				When you have fully completed the task, call the task_complete tool to signal that you are done.<br />
 				IMPORTANT: Before calling task_complete, you MUST provide a brief text summary of what was accomplished in your message. The task is not complete until both the summary and the task_complete call are present.
@@ -166,13 +167,14 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 					userQueryTagName={userQueryTagName}
 					ReminderInstructionsClass={ReminderInstructionsClass}
 					ToolReferencesHintClass={ToolReferencesHintClass}
+					customizationsIndexUpdate={customizationsSnapshot?.drift}
 				/>
 			</>;
 		} else {
 			return <>
 				{baseInstructions}
 				<AgentConversationHistory flexGrow={1} priority={700} promptContext={this.props.promptContext} userQueryTagName={userQueryTagName} />
-				<AgentUserMessage flexGrow={2} priority={900} {...getUserMessagePropsFromAgentProps(this.props, { userQueryTagName, ReminderInstructionsClass, ToolReferencesHintClass })} />
+				<AgentUserMessage flexGrow={2} priority={900} {...getUserMessagePropsFromAgentProps(this.props, { userQueryTagName, ReminderInstructionsClass, ToolReferencesHintClass })} customizationsIndexUpdate={customizationsSnapshot?.drift} />
 				<ChatToolCalls priority={899} flexGrow={2} promptContext={this.props.promptContext} toolCallRounds={this.props.promptContext.toolCallRounds} toolCallResults={this.props.promptContext.toolCallResults} truncateAt={maxToolResultLength} enableCacheBreakpoints={false} />
 			</>;
 		}
@@ -197,13 +199,15 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		/>;
 	}
 
-	private async getAgentCustomInstructions() {
+	private async getAgentCustomInstructions(frozenCustomizationsIndex?: { value: string; toolReferences: readonly ChatLanguageModelToolReference[] | undefined }) {
 		const putCustomInstructionsInSystemMessage = this.configurationService.getConfig(ConfigKey.CustomInstructionsInSystemMessage);
 		const customInstructionsBodyParts: PromptPiece[] = [];
 		customInstructionsBodyParts.push(
 			<CustomInstructions
 				languageId={undefined}
 				chatVariables={this.props.promptContext.chatVariables}
+				customizationsIndexOverride={frozenCustomizationsIndex?.value}
+				customizationsIndexToolReferencesOverride={frozenCustomizationsIndex?.toolReferences}
 				includeSystemMessageConflictWarning={!putCustomInstructionsInSystemMessage}
 				customIntroduction={putCustomInstructionsInSystemMessage ? '' : undefined} // If in system message, skip the "follow these user-provided coding instructions" intro
 			/>
@@ -223,6 +227,67 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		return putCustomInstructionsInSystemMessage ?
 			<SystemMessage>{customInstructionsBodyParts}</SystemMessage> :
 			<UserMessage>{customInstructionsBodyParts}</UserMessage>;
+	}
+
+	/**
+	 * When the experimental `FreezeCustomizationsIndex` setting is enabled,
+	 * snapshot the customizations-index variable on the first turn of the
+	 * conversation and reuse it for every subsequent turn. Stops per-turn
+	 * churn in the bundled `<instructions>`/`<skills>`/`<agents>` text (e.g.
+	 * the active mode swapping which subagent entry is listed in `<agents>`)
+	 * from invalidating the system prompt cache.
+	 *
+	 * Returns:
+	 * - `frozen`: the value (and matching tool-reference offsets) to substitute
+	 *   in the system prompt. Always present when the setting is enabled and a
+	 *   variable is available.
+	 * - `drift`: the live current-turn value (and offsets) when it differs from
+	 *   `frozen`. Rendered in the latest user message so the model sees the
+	 *   up-to-date listing without busting the system prompt cache. Also
+	 *   emitted as an empty value when the live variable disappears, so the
+	 *   model gets a signal that previously listed entries are no longer
+	 *   available.
+	 *
+	 * Returns `undefined` overall if no override should apply (setting off,
+	 * no first turn available, or no snapshot yet and the variable is absent
+	 * on this turn).
+	 */
+	private getOrFreezeCustomizationsIndex(): {
+		frozen: { value: string; toolReferences: readonly ChatLanguageModelToolReference[] | undefined };
+		drift?: { value: string; toolReferences: readonly ChatLanguageModelToolReference[] | undefined };
+	} | undefined {
+		const enabled = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.FreezeCustomizationsIndex, this.experimentationService);
+		if (!enabled) {
+			return undefined;
+		}
+		const firstTurn = this.props.promptContext.conversation?.turns.at(0);
+		if (!firstTurn) {
+			return undefined;
+		}
+		const variable = this.props.promptContext.chatVariables.find(isCustomizationsIndex);
+		const currentValue = variable && typeof variable.value === 'string' ? variable.value : undefined;
+		const currentToolReferences = variable?.reference.toolReferences;
+
+		const currentCacheKey = this.instantiationService.invokeFunction(getGlobalContextCacheKey);
+		const existing = firstTurn.getMetadata(CustomizationsIndexMetadata);
+		if (existing && existing.cacheKey === currentCacheKey) {
+			const frozen = { value: existing.value, toolReferences: existing.toolReferences };
+			// Surface drift in either direction: a different live value, or the
+			// live variable disappearing entirely (treated as an empty listing).
+			// Without the second case the model is left looking at the stale
+			// frozen `<instructions>`/`<skills>`/`<agents>` block with no signal
+			// that entries have been removed.
+			const effectiveCurrent = currentValue ?? '';
+			if (effectiveCurrent !== existing.value) {
+				return { frozen, drift: { value: effectiveCurrent, toolReferences: currentToolReferences } };
+			}
+			return { frozen };
+		}
+		if (currentValue === undefined) {
+			return undefined;
+		}
+		firstTurn.setMetadata(new CustomizationsIndexMetadata(currentValue, currentToolReferences, currentCacheKey));
+		return { frozen: { value: currentValue, toolReferences: currentToolReferences } };
 	}
 
 	private async getOrCreateGlobalAgentContext(endpoint: IChatEndpoint): Promise<PromptPieceChild[]> {
@@ -325,6 +390,25 @@ export interface AgentUserMessageProps extends BasePromptElementProps, AgentUser
 	readonly additionalHookContext?: string;
 	/** When true, this request was system-initiated (e.g. terminal completion notification) and should skip context/wrapping. */
 	readonly isSystemInitiated?: boolean;
+	/**
+	 * Live customizations-index text rendered into the latest user message
+	 * when it has drifted from the frozen snapshot in the system prompt.
+	 * Lets the model see mid-conversation updates (new skill, mode swap, etc.)
+	 * without invalidating the system prompt cache.
+	 *
+	 * Rendered inside this message's `<Tag name='context'>` (rather than as a
+	 * sibling `UserMessage`) so it becomes part of the captured
+	 * `RenderedUserMessageMetadata`. Emitting it as a separate UserMessage
+	 * would cause `result.messages.at(-1)` in `agentIntent.runOne` to point
+	 * at the drift block instead of the user query — the metadata would then
+	 * store just the drift block and historical replays on later turns would
+	 * lose the actual user query, busting cross-turn cache continuity.
+	 *
+	 * Only set when the experimental `FreezeCustomizationsIndex` setting is
+	 * enabled and the current value differs from the snapshot captured on
+	 * the first turn.
+	 */
+	readonly customizationsIndexUpdate?: { value: string; toolReferences: readonly ChatLanguageModelToolReference[] | undefined };
 }
 
 export function getUserMessagePropsFromTurn(turn: Turn, endpoint: IChatEndpoint, customizations?: AgentUserMessageCustomizations): AgentUserMessageProps {
@@ -441,6 +525,7 @@ export class AgentUserMessage extends PromptElement<AgentUserMessageProps> {
 						{hasTerminalTool && <TerminalStatePromptElement sessionId={this.props.sessionId} />}
 						{hasTodoTool && <TodoListContextPrompt sessionResource={this.props.sessionResource} />}
 						{this.props.additionalHookContext && <AdditionalHookContextPrompt context={this.props.additionalHookContext} />}
+						{this.props.customizationsIndexUpdate && <CustomizationsIndexUpdate update={this.props.customizationsIndexUpdate} />}
 					</Tag>
 					<CurrentEditorContext endpoint={this.props.endpoint} />
 					<Tag name='reminderInstructions'>
@@ -533,6 +618,47 @@ interface AdditionalHookContextPromptProps extends BasePromptElementProps {
 class AdditionalHookContextPrompt extends PromptElement<AdditionalHookContextPromptProps> {
 	async render(state: void, sizing: PromptSizing) {
 		return <>Additional instructions from hooks: {this.props.context}</>;
+	}
+}
+
+interface CustomizationsIndexUpdateProps extends BasePromptElementProps {
+	readonly update: { value: string; toolReferences: readonly ChatLanguageModelToolReference[] | undefined };
+}
+
+/**
+ * Surfaces drift between the frozen customizations-index snapshot (in the
+ * system prompt) and the current turn's listing. Rendered inside
+ * `AgentUserMessage`'s `<Tag name='context'>` alongside `EditedFileEvents`,
+ * `TerminalStatePromptElement`, etc., so it becomes part of the same
+ * `UserMessage` and is captured into `RenderedUserMessageMetadata` together
+ * with the user query. Replays verbatim on subsequent turns as the
+ * historical user message, preserving cross-turn cache continuity. Emitting
+ * it as a sibling `UserMessage` would make `result.messages.at(-1)` point at
+ * the drift block in `agentIntent.runOne`, so the metadata would store just
+ * the drift block and historical replays on later turns would lose the
+ * actual user query.
+ *
+ * Used only when `FreezeCustomizationsIndex` is on and the live index
+ * differs from the snapshot captured on the first turn.
+ */
+class CustomizationsIndexUpdate extends PromptElement<CustomizationsIndexUpdateProps> {
+	constructor(
+		props: CustomizationsIndexUpdateProps,
+		@IPromptVariablesService private readonly promptVariablesService: IPromptVariablesService,
+	) {
+		super(props);
+	}
+
+	async render() {
+		let value = this.props.update.value;
+		const toolReferences = this.props.update.toolReferences;
+		if (toolReferences?.length) {
+			value = await this.promptVariablesService.resolveToolReferencesInPrompt(value, toolReferences);
+		}
+		return <Tag name='customizationsUpdate'>
+			The available instructions, skills, and agents have changed since this conversation started. The listings below supersede the ones in the system prompt.<br />
+			{value}
+		</Tag>;
 	}
 }
 

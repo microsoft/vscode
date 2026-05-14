@@ -339,7 +339,12 @@ async function startWebSocketServer(
 	));
 	disposables.add(protocolHandler.onDidChangeConnectionCount(onConnectionCountChanged));
 
-	const listenTarget = socketPath ?? `${host}:${port}`;
+	// Wait for the listener to actually bind before reporting readiness.
+	// When the caller requested `port: 0` (let the OS pick), the bound
+	// port is only known after this point — emitting the requested port
+	// would print `localhost:0` and break the CLI's readiness parser.
+	await wsServer.whenListening;
+	const listenTarget = socketPath ?? `${host}:${wsServer.boundPort ?? port}`;
 	logService.info(`[AgentHost] WebSocket server listening on ${listenTarget}`);
 	// Do not change this line. The CLI looks for this in the output.
 	console.log(`Agent host server listening on ${listenTarget}`);

@@ -28,6 +28,30 @@ export const CLAUDE_THINKING_LEVEL_KEY = 'thinkingLevel';
 export type ClaudeEffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 /**
+ * Subset of {@link ClaudeEffortLevel} accepted by the SDK runtime hot-swap
+ * setter `Query.applyFlagSettings({ effortLevel })` (sdk.d.ts:4914) — the
+ * runtime union deliberately excludes `'max'` because Copilot CAPI does
+ * not yet route a `'max'` reasoning tier (no upstream model exposes it).
+ * {@link clampEffortForRuntime} is the single seam that maps the wider
+ * startup union onto this narrower runtime union.
+ */
+export type ClaudeRuntimeEffortLevel = 'low' | 'medium' | 'high' | 'xhigh';
+
+/**
+ * Clamp an effort level for the runtime SDK setter. `Options.effort`
+ * (startup) accepts `'max'`; `Query.applyFlagSettings({ effortLevel })`
+ * does not — Copilot CAPI does not currently expose a `'max'` reasoning
+ * tier, so mid-session `'max'` selections degrade to `'xhigh'` here. If
+ * CAPI later adds a `'max'` model, the SDK runtime union widens and this
+ * clamp becomes a passthrough (CONTEXT.md M11 effort-clamp; Phase 9 D7).
+ */
+export function clampEffortForRuntime(effort: ClaudeEffortLevel | undefined): ClaudeRuntimeEffortLevel | undefined {
+	if (effort === undefined) { return undefined; }
+	if (effort === 'max') { return 'xhigh'; }
+	return effort;
+}
+
+/**
  * Pull `thinkingLevel` out of `ModelSelection.config` and narrow it to
  * {@link ClaudeEffortLevel}. Returns `undefined` when the model selection
  * is absent or carries an unrecognized value (the SDK then falls through

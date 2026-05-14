@@ -34,7 +34,7 @@
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { Options, PermissionResult, Query, SDKMessage, SDKResultSuccess, SDKSessionInfo, SDKSystemMessage, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { GetSessionMessagesOptions, Options, PermissionResult, Query, SDKMessage, SDKResultSuccess, SDKSessionInfo, SDKSystemMessage, SDKUserMessage, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import type * as http from 'http';
@@ -326,6 +326,10 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 
 	async getSessionInfo(_sessionId: string): Promise<SDKSessionInfo | undefined> {
 		return undefined;
+	}
+
+	async getSessionMessages(_sessionId: string, _options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]> {
+		return [];
 	}
 
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {

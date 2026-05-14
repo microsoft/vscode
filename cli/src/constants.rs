@@ -92,6 +92,16 @@ pub const DEFAULT_DATA_PARENT_DIR: &str = match option_env!("VSCODE_CLI_DATA_FOL
 	None => ".vscode-oss",
 };
 
+/// Canonical, machine-wide parent directory used to coordinate the agent
+/// host across CLI invocations. Mirrors the `serverDataFolderName` in
+/// `product.json` so the lockfile/log written by `code agent host` lines
+/// up with the directory the SSH `command-shell` entry point already uses
+/// (otherwise local + remote would race on different lockfiles).
+pub const SERVER_DATA_PARENT_DIR: &str = match option_env!("VSCODE_CLI_SERVER_DATA_FOLDER_NAME") {
+	Some(n) => n,
+	None => ".vscode-server-oss",
+};
+
 pub fn get_default_user_agent() -> String {
 	format!(
 		"vscode-server-launcher/{}",

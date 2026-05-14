@@ -9,7 +9,6 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { localize } from '../../../../../../nls.js';
 import { IMarkerData, MarkerSeverity, MarkerTag } from '../../../../../../platform/markers/common/markers.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
-import { localChatSessionType } from '../../chatSessionsService.js';
 import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
@@ -228,7 +227,7 @@ export class PromptValidator {
 		this.validateArgumentHint(attributes, report);
 		switch (promptType) {
 			case PromptsType.prompt: {
-				const agent = this.validateAgent(attributes, report);
+				const agent = await this.validateAgent(attributes, report);
 				this.validateTools(attributes, agent?.kind ?? ChatModeKind.Agent, target, report);
 				this.validateModel(attributes, agent?.kind ?? ChatModeKind.Agent, report);
 				break;
@@ -442,7 +441,7 @@ export class PromptValidator {
 		return undefined;
 	}
 
-	private validateAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): IChatMode | undefined {
+	private async validateAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): Promise<IChatMode | undefined> {
 		const agentAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.agent);
 		const modeAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.mode);
 		if (modeAttribute) {
@@ -466,11 +465,11 @@ export class PromptValidator {
 			report(toMarker(localize('promptValidator.attributeMustBeNonEmpty', "The '{0}' attribute must be a non-empty string.", attribute.key), attribute.value.range, MarkerSeverity.Error));
 			return undefined;
 		}
-		return this.validateAgentValue(attribute.value, report);
+		return await this.validateAgentValue(attribute.value, report);
 	}
 
-	private validateAgentValue(value: IScalarValue, report: (markers: IMarkerData) => void): IChatMode | undefined {
-		const agents = this.chatModeService.getModes(localChatSessionType);
+	private async validateAgentValue(value: IScalarValue, report: (markers: IMarkerData) => void): Promise<IChatMode | undefined> {
+		const agents = await this.chatModeService.getLocalModes();
 		const availableAgents = [];
 
 		// Check if agent exists in builtin or custom agents

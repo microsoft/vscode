@@ -4,13 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { Event } from '../../../../../base/common/event.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { IChat, ISession } from '../../common/session.js';
-import { deduplicateSessions } from '../../browser/sessionsManagementService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IAgentSession, IAgentSessionsModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditor.js';
+import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../common/session.js';
+import { ISendRequestOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
+import { deduplicateSessions, SessionsManagementService } from '../../browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -53,6 +71,111 @@ function stubSession(overrides: Partial<ISession> & Pick<ISession, 'sessionId' |
 		capabilities: { supportsMultipleChats: false },
 		...overrides,
 	};
+}
+
+class TestChatWidgetService extends mock<IChatWidgetService>() {
+	readonly opened: URI[] = [];
+
+	override async openSession(sessionResource: URI, _target?: typeof ChatViewPaneTarget | PreferredGroup, _options?: IChatEditorOptions): Promise<IChatWidget | undefined> {
+		this.opened.push(sessionResource);
+		return undefined;
+	}
+}
+
+class TestAgentSessionsService extends mock<IAgentSessionsService>() {
+	readonly observed: URI[] = [];
+
+	override readonly onDidChangeSessionArchivedState = Event.None;
+	override readonly model: IAgentSessionsModel = {
+		onWillResolve: Event.None,
+		onDidResolve: Event.None,
+		onDidChangeSessions: Event.None,
+		onDidChangeSessionArchivedState: Event.None,
+		resolved: true,
+		sessions: [],
+		getSession: () => undefined,
+		observeSession: resource => {
+			this.observed.push(resource);
+			return constObservable<IAgentSession | undefined>(undefined);
+		},
+		resolve: async () => { },
+	};
+
+	override getSession(): IAgentSession | undefined {
+		return undefined;
+	}
+}
+
+class TestProgressService extends mock<IProgressService>() {
+	override async withProgress<R>(_options: Parameters<IProgressService['withProgress']>[0], task: (progress: IProgress<IProgressStep>) => Promise<R>): Promise<R> {
+		return task({ report() { } });
+	}
+}
+
+class TestSessionsProvidersService extends mock<ISessionsProvidersService>() {
+	override readonly onDidChangeProviders = Event.None;
+
+	constructor(private readonly _providers: readonly ISessionsProvider[]) {
+		super();
+	}
+
+	override registerProvider(): never {
+		throw new Error('not implemented');
+	}
+
+	override getProviders(): ISessionsProvider[] {
+		return [...this._providers];
+	}
+
+	override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+		return this._providers.find(provider => provider.id === providerId) as T | undefined;
+	}
+}
+
+class TestSessionsProvider extends mock<ISessionsProvider>() {
+	override readonly id = 'test';
+	override readonly label = 'Test';
+	override readonly icon = Codicon.vm;
+	override readonly sessionTypes: readonly ISessionType[] = [{ id: 'test', label: 'Test', icon: Codicon.vm }];
+	override readonly onDidChangeSessionTypes = Event.None;
+	override readonly onDidChangeSessions = Event.None;
+	override readonly browseActions = [];
+
+	constructor(private readonly _session: ISession) {
+		super();
+	}
+
+	override getSessions(): ISession[] { return [this._session]; }
+	override resolveWorkspace(): ISessionWorkspace | undefined { return undefined; }
+	override createNewSession(): ISession { return this._session; }
+	override getSessionTypes(): ISessionType[] { return [...this.sessionTypes]; }
+	override async renameChat(): Promise<void> { }
+	override setModel(): void { }
+	override async archiveSession(): Promise<void> { }
+	override async unarchiveSession(): Promise<void> { }
+	override async deleteSession(): Promise<void> { }
+	override async deleteChat(): Promise<void> { }
+	override async sendAndCreateChat(): Promise<ISession> { return this._session; }
+	override addChat(): IChat { return this._session.mainChat; }
+	override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return this._session; }
+}
+
+function createSessionsManagementService(session: ISession, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): { service: ISessionsManagementService; chatWidgetService: TestChatWidgetService; agentSessionsService: TestAgentSessionsService } {
+	const instantiationService = disposables.add(new TestInstantiationService());
+	const chatWidgetService = new TestChatWidgetService();
+	const agentSessionsService = new TestAgentSessionsService();
+
+	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+	instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([new TestSessionsProvider(session)]));
+	instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+	instantiationService.stub(IChatWidgetService, chatWidgetService);
+	instantiationService.stub(IAgentSessionsService, agentSessionsService);
+	instantiationService.stub(IProgressService, new TestProgressService());
+
+	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+	return { service, chatWidgetService, agentSessionsService };
 }
 
 suite('deduplicateSessions', () => {
@@ -103,5 +226,26 @@ suite('deduplicateSessions', () => {
 		const noKey = stubSession({ sessionId: 'nk', providerId: 'copilot-chat' });
 		const result = deduplicateSessions([keyed2, noKey, keyed1]);
 		assert.deepStrictEqual(result, [noKey, keyed1]);
+	});
+});
+
+suite('SessionsManagementService', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('openSession waits for a loading session before opening chat content', async () => {
+		const loading = observableValue('loading', true);
+		const session = stubSession({ sessionId: 'loading', providerId: 'test', loading });
+		const { service, chatWidgetService, agentSessionsService } = createSessionsManagementService(session, disposables);
+
+		const openPromise = service.openSession(session.resource);
+		await Promise.resolve();
+
+		assert.deepStrictEqual({ opened: chatWidgetService.opened.map(uri => uri.toString()), observed: agentSessionsService.observed.map(uri => uri.toString()) }, { opened: [], observed: [] });
+
+		loading.set(false, undefined);
+		await openPromise;
+
+		assert.deepStrictEqual({ opened: chatWidgetService.opened.map(uri => uri.toString()), observed: agentSessionsService.observed.map(uri => uri.toString()) }, { opened: [session.resource.toString()], observed: [session.resource.toString()] });
 	});
 });

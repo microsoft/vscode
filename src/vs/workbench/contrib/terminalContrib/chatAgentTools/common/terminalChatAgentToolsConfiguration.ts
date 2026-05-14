@@ -25,8 +25,10 @@ export const enum TerminalChatAgentToolsSettingId {
 	AgentSandboxAdvancedRuntime = 'chat.agent.sandbox.advanced.runtime',
 	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
 	EnforceTimeoutFromModel = 'chat.tools.terminal.enforceTimeoutFromModel',
+	IdleSilenceTimeoutMs = 'chat.tools.terminal.idleSilenceTimeoutMs',
 	DetachBackgroundProcesses = 'chat.tools.terminal.detachBackgroundProcesses',
 	BackgroundNotifications = 'chat.tools.terminal.backgroundNotifications',
+	OutputDeltas = 'chat.tools.terminal.outputDeltas',
 	IdlePollInterval = 'chat.tools.terminal.idlePollInterval',
 
 	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
@@ -720,6 +722,17 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		},
 		markdownDescription: localize('enforceTimeoutFromModel.description', "Whether to enforce the timeout value provided by the model in the run in terminal tool. When enabled, if the model provides a timeout parameter, the tool will stop tracking the command after that duration and return the output collected so far."),
 	},
+	[TerminalChatAgentToolsSettingId.IdleSilenceTimeoutMs]: {
+		restricted: true,
+		type: 'number',
+		default: 60000,
+		minimum: 0,
+		tags: ['experimental'],
+		experiment: {
+			mode: 'auto'
+		},
+		markdownDescription: localize('idleSilenceTimeoutMs.description', "Number of milliseconds the run in terminal tool will wait for new output from a synchronous command before moving it to a background terminal and returning what was collected so far. The process is not killed — the tool returns the terminal ID so the model can poll, send input, or kill it. Set to {0} to disable.", '`0`'),
+	},
 	[TerminalChatAgentToolsSettingId.DetachBackgroundProcesses]: {
 		included: false,
 		restricted: true,
@@ -736,6 +749,16 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		deprecated: true,
 		markdownDeprecationMessage: localize('backgroundNotifications.deprecated', "This setting is deprecated. Terminal completion and input-needed notifications are now always enabled."),
 		markdownDescription: localize('backgroundNotifications.description', "This setting is deprecated and no longer has any effect. Terminal completion and input-needed notifications are now always enabled for any command that continues running after the tool returns."),
+	},
+	[TerminalChatAgentToolsSettingId.OutputDeltas]: {
+		restricted: true,
+		type: 'boolean',
+		default: false,
+		tags: ['experimental'],
+		experiment: {
+			mode: 'auto'
+		},
+		markdownDescription: localize('outputDeltas.description', "When enabled, repeated get terminal output tool calls return only output added since the previous poll for the same terminal execution, or a short unchanged-output message when there is no new output."),
 	}
 };
 

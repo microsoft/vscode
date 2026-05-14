@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isUriComponents, URI } from '../../../../base/common/uri.js';
 import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
@@ -18,6 +18,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatAgentService } from './participants/chatAgents.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
+import { getChatSessionType, LocalChatSessionUri } from './model/chatUri.js';
 import { ChatConfiguration, ChatModeKind } from './constants.js';
 import { IHandOff } from './promptSyntax/promptFileParser.js';
 import { IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, matchesSessionType, PromptsStorage } from './promptSyntax/service/promptsService.js';
@@ -34,19 +35,16 @@ export interface IChatModeService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Returns the chat modes available for the given session type. Custom modes
-	 * are filtered by their declared {@link ICustomAgent.sessionTypes}.
+	 * Returns the chat modes available for the given session resource.
 	 *
-	 * Instances are cached by session type and live for the lifetime of the service.
+	 * Instances need to be disposed by the caller when no longer needed
 	 */
-	getModes(sessionType: string): IChatModes;
+	createModes(sessionResource: URI): IChatModes & IDisposable;
 
 	/**
-	 * Like {@link getModes}, but awaits the in-flight refresh of custom prompt
-	 * modes so callers see an up-to-date snapshot. Use this when synchronous
-	 * results are not required and stale data would be surprising.
+	 * Returns the local chat modes after awaiting any in-flight refresh.
 	 */
-	awaitModes(sessionType: string): Promise<IChatModes>;
+	getLocalModes(): Promise<IChatModes>;
 }
 
 /**
@@ -54,7 +52,6 @@ export interface IChatModeService {
  * into builtin and custom modes, with helpers for lookup by id or name.
  */
 export interface IChatModes {
-	readonly sessionType: string;
 	readonly onDidChange: Event<void>;
 	readonly builtin: readonly IChatMode[];
 	readonly custom: readonly IChatMode[];
@@ -84,7 +81,7 @@ class ChatModes extends Disposable implements IChatModes {
 	private _pendingRefresh: Promise<void> = Promise.resolve();
 
 	constructor(
-		readonly sessionType: string,
+		private readonly sessionResource: URI,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -94,6 +91,8 @@ class ChatModes extends Disposable implements IChatModes {
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 	) {
 		super();
+
+		const sessionType = getChatSessionType(sessionResource);
 
 		this._storageKey = ChatModes.CUSTOM_MODES_STORAGE_KEY_PREFIX + sessionType;
 		this.hasCustomModes = ChatContextKeys.Modes.hasCustomChatModes.bindTo(contextKeyService);
@@ -107,7 +106,7 @@ class ChatModes extends Disposable implements IChatModes {
 		}));
 		// When the harness service is the source, also react to its change events for our session type.
 		this._register(this.customizationHarnessService.onDidChangeCustomAgents(e => {
-			if (e.sessionType === this.sessionType && this.useChatSessionCustomizationsForCustomAgents()) {
+			if (e.sessionType === sessionType && this.useChatSessionCustomizationsForCustomAgents()) {
 				this._pendingRefresh = this.refreshCustomPromptModes(true);
 			}
 		}));
@@ -217,13 +216,18 @@ class ChatModes extends Disposable implements IChatModes {
 		return this.configurationService.getValue<boolean>(ChatConfiguration.UseChatSessionCustomizationsForCustomAgents) === true;
 	}
 
+	private async computeCustomAgents(): Promise<readonly ICustomAgent[]> {
+		const useHarness = this.useChatSessionCustomizationsForCustomAgents();
+		if (useHarness) {
+			return await this.customizationHarnessService.getCustomAgents(getChatSessionType(this.sessionResource), CancellationToken.None);
+		}
+		const sessionType = getChatSessionType(this.sessionResource);
+		return (await this.promptsService.getCustomAgents(CancellationToken.None)).filter(mode => matchesSessionType(mode.sessionTypes, sessionType));
+	}
+
 	private async refreshCustomPromptModes(fireChangeEvent?: boolean): Promise<void> {
 		try {
-			const useHarness = this.useChatSessionCustomizationsForCustomAgents();
-
-			const customModes = useHarness
-				? await this.customizationHarnessService.getCustomAgents(this.sessionType, CancellationToken.None)
-				: (await this.promptsService.getCustomAgents(CancellationToken.None)).filter(mode => matchesSessionType(mode.sessionTypes, this.sessionType));
+			const customModes = await this.computeCustomAgents();
 
 			// Create a new set of mode instances, reusing existing ones where possible
 			const seenUris = new Set<string>();
@@ -295,9 +299,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly agentModeDisabledByPolicy: IContextKey<boolean>;
-
-	/** Cached per-sessionType {@link ChatModes} instances. */
-	private readonly _modesBySessionType = this._register(new DisposableMap<string, ChatModes>());
+	private localMode: Promise<IChatModes> | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -319,19 +321,19 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		}));
 	}
 
-	getModes(sessionType: string): IChatModes {
-		let modes = this._modesBySessionType.get(sessionType);
-		if (!modes) {
-			modes = this.instantiationService.createInstance(ChatModes, sessionType);
-			this._modesBySessionType.set(sessionType, modes);
-		}
-		return modes;
+	createModes(sessionResource: URI): IChatModes & IDisposable {
+		return this.instantiationService.createInstance(ChatModes, sessionResource);
 	}
 
-	async awaitModes(sessionType: string): Promise<IChatModes> {
-		const modes = this.getModes(sessionType);
-		await modes.waitForRefresh();
-		return modes;
+	async getLocalModes(): Promise<IChatModes> {
+		if (!this.localMode) {
+			this.localMode = (async () => {
+				const modes = this._register(this.createModes(LocalChatSessionUri.getNewSessionUri())); // we make up a new session. Local mdes fall back to the promptService and are not actually tied to the session, so it doesn't matter which one we use here.
+				await modes.waitForRefresh();
+				return modes;
+			})();
+		}
+		return this.localMode;
 	}
 
 	private updateAgentModePolicyContextKey(): void {

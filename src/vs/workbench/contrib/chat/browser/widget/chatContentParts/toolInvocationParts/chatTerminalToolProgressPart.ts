@@ -34,6 +34,8 @@ import { autorun } from '../../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { DecorationSelector, getTerminalCommandDecorationState, getTerminalCommandDecorationTooltip } from '../../../../../terminal/browser/xterm/decorationStyles.js';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
 import { DomScrollableElement } from '../../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../../../base/common/scrollable.js';
 import { localize } from '../../../../../../../nls.js';
@@ -532,7 +534,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			? commandText.substring(0, MAX_COMMAND_TITLE_LENGTH) + '...'
 			: commandText;
 
-		const isComplete = IChatToolInvocation.isComplete(toolInvocation);
+		// A background terminal may have its tool invocation marked complete (the
+		// tool returned) while the terminal command is still running. Detect this
+		// so the wrapper shows "Running … in background" instead of "Ran …".
+		const toolInvocationComplete = IChatToolInvocation.isComplete(toolInvocation);
+		const commandHasNotFinished = this._terminalData.terminalCommandState?.exitCode === undefined;
+		const isRunningInBackground = toolInvocationComplete && commandHasNotFinished
+			&& (this._terminalData.isBackground === true || this._terminalData.didContinueInBackground === true);
+		const isComplete = toolInvocationComplete && !isRunningInBackground;
 		const isSkipped = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation)?.type === ToolConfirmKind.Skipped;
 		const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
 		const hasError = autoExpandFailures && this._terminalData.terminalCommandState?.exitCode !== undefined && this._terminalData.terminalCommandState.exitCode !== 0;
@@ -546,7 +555,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			context,
 			initialExpanded,
 			isComplete,
-			isSkipped
+			isSkipped,
+			isRunningInBackground,
+			() => this.focusTerminal(),
 		));
 		this._thinkingCollapsibleWrapper = wrapper;
 
@@ -1019,7 +1030,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	public async focusTerminal(): Promise<void> {
-		const instance = this._terminalInstance;
+		const instance = await this._ensureTerminalInstance();
 
 		type FocusChatInstanceTelemetryEvent = {
 			target: 'instance' | 'commandUri' | 'none';
@@ -1620,6 +1631,10 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 	private readonly _isSandboxWrapped: boolean;
 	private _isComplete: boolean;
 	private readonly _isSkipped: boolean;
+	private _isRunningInBackground: boolean;
+	private readonly _onFocusTerminal: (() => void) | undefined;
+	private readonly _showLinkDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private _showLinkElement: HTMLElement | undefined;
 
 	constructor(
 		commandText: string,
@@ -1629,14 +1644,18 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		initialExpanded: boolean,
 		isComplete: boolean,
 		isSkipped: boolean,
+		isRunningInBackground: boolean,
+		onFocusTerminal: (() => void) | undefined,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		const title = isSkipped
 			? localize('chat.terminal.skipped.plain', "Skipped {0}", commandText)
-			: isComplete
-				? localize('chat.terminal.ran.plain', "Ran {0}", commandText)
-				: localize('chat.terminal.running.plain', "Running {0}", commandText);
+			: isRunningInBackground
+				? localize('chat.terminal.runningInBackground.plain', "Running {0} in background", commandText)
+				: isComplete
+					? localize('chat.terminal.ran.plain', "Ran {0}", commandText)
+					: localize('chat.terminal.running.plain', "Running {0}", commandText);
 		super(title, context, undefined, hoverService, configurationService);
 
 		this._terminalContentElement = contentElement;
@@ -1644,6 +1663,8 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		this._isSandboxWrapped = isSandboxWrapped;
 		this._isComplete = isComplete;
 		this._isSkipped = isSkipped;
+		this._isRunningInBackground = isRunningInBackground;
+		this._onFocusTerminal = onFocusTerminal;
 
 		this.domNode.classList.add('chat-terminal-thinking-collapsible');
 
@@ -1652,6 +1673,7 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		}
 
 		this._setCodeFormattedTitle();
+		this._updateShowLink();
 		this.setExpanded(initialExpanded);
 	}
 
@@ -1669,7 +1691,9 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 				: this._isComplete
 					? localize('chat.terminal.ranInSandbox.prefix', "Ran ")
 					: localize('chat.terminal.runningInSandbox.prefix', "Running ");
-			const suffixText = localize('chat.terminal.sandbox.suffix', " in sandbox");
+			const suffixText = this._isRunningInBackground
+				? localize('chat.terminal.sandbox.backgroundSuffix', " in sandbox (background)")
+				: localize('chat.terminal.sandbox.suffix', " in sandbox");
 			labelElement.appendChild(document.createTextNode(prefixText));
 			const codeElement = document.createElement('code');
 			codeElement.textContent = this._commandText;
@@ -1689,6 +1713,41 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 
 		labelElement.appendChild(ranText);
 		labelElement.appendChild(codeElement);
+		if (this._isRunningInBackground) {
+			labelElement.appendChild(document.createTextNode(localize('chat.terminal.backgroundSuffix', " in background")));
+		}
+	}
+
+	private _updateShowLink(): void {
+		this._showLinkElement?.remove();
+		this._showLinkElement = undefined;
+		this._showLinkDisposables.value = undefined;
+		if (!this._isRunningInBackground || !this._onFocusTerminal || !this._collapseButton) {
+			return;
+		}
+		const labelElement = this._collapseButton.labelElement;
+		const store = new DisposableStore();
+		this._showLinkDisposables.value = store;
+		const container = dom.$('span.chat-terminal-show-link-container');
+		container.appendChild(document.createTextNode(' \u2014 '));
+		const showLink = dom.$('span.chat-terminal-show-link');
+		showLink.textContent = localize('chat.terminal.showTerminal', "Show");
+		showLink.role = 'button';
+		showLink.tabIndex = 0;
+		store.add(dom.addDisposableListener(showLink, dom.EventType.CLICK, (e) => {
+			dom.EventHelper.stop(e, true);
+			this._onFocusTerminal?.();
+		}));
+		store.add(dom.addDisposableListener(showLink, dom.EventType.KEY_DOWN, (e) => {
+			const keyboardEvent = new StandardKeyboardEvent(e);
+			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
+				dom.EventHelper.stop(e, true);
+				this._onFocusTerminal?.();
+			}
+		}));
+		container.appendChild(showLink);
+		labelElement.appendChild(container);
+		this._showLinkElement = container;
 	}
 
 	public markComplete(): void {
@@ -1696,8 +1755,10 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 			return;
 		}
 		this._isComplete = true;
+		this._isRunningInBackground = false;
 		this.icon = Codicon.check;
 		this._setCodeFormattedTitle();
+		this._updateShowLink();
 	}
 
 	protected override initContent(): HTMLElement {

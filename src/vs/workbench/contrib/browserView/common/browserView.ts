@@ -86,6 +86,13 @@ type IntegratedBrowserShareWithAgentClassification = {
 	comment: 'Tracks user choices around sharing browser content with agents';
 };
 
+type IntegratedBrowserAddElementToChatStartEvent = {};
+
+type IntegratedBrowserAddElementToChatStartClassification = {
+	owner: 'jruales';
+	comment: 'The user initiated an Add Element to Chat action in Integrated Browser.';
+};
+
 /**
  * View state stored in editor options when opening a browser view.
  */
@@ -381,6 +388,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}));
 
 		this._register(this.onDidChangeElementSelectionActive(active => {
+			if (active) {
+				this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatStartEvent, IntegratedBrowserAddElementToChatStartClassification>('integratedBrowser.addElementToChat.start', {});
+			}
 			this._isElementSelectionActive = active;
 		}));
 

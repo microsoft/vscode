@@ -814,7 +814,7 @@ system messages as `SystemNotificationResponsePart`:
 | `SDKSystemMessage` subtype | Render? | Rationale |
 |---|---|---|
 | `compact_boundary` | Yes | "Conversation compacted" — context-loss event |
-| `notification` (priority ≥ medium) | Yes | Loop-side text notifications |
+| `notification` (all priorities) | Yes | Loop-side text notifications. Earlier draft gated on `priority ≥ medium`; relaxed to all priorities pending real-world data on what `priority: 'low'` notifications actually contain. Revisit and re-introduce the gate if `low` notifications turn out to be noise (transcript-only TODO). |
 | `api_retry`, `plugin_install`, `auth_status`, `status` | No | Live UI signals; not transcript content |
 | `hook_started`, `hook_progress`, `hook_response` | No | Decorate the associated `ToolCall`, don't stand alone |
 | anything else | Drop by default | Conservative; opt in subtypes as needs emerge |

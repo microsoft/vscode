@@ -278,6 +278,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private titleDetailContainer: HTMLElement | undefined;
 	private readonly _externalResourceWidget: ChatThinkingExternalResourceWidget;
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly _pendingAppendRefresh = this._register(new MutableDisposable<IDisposable>());
 	private readonly diffStatsByPartId = new Map<string, IEditSessionDiffStats>();
 	private _aggregatedDiff: IEditSessionDiffStats = { added: 0, removed: 0 };
 
@@ -849,8 +850,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		// don't allow feedback on fixed scrolling before reaching max height.
 		if (allowExpansion && this.fixedScrollingMode && !this.streamingCompleted && !this.element.isComplete && this.wrapper) {
-			const contentHeight = knownContentHeight ?? (this.lastKnownContentHeight || this.wrapper.scrollHeight);
-			if (contentHeight <= THINKING_SCROLL_MAX_HEIGHT) {
+			// Use only the cached height — never read scrollHeight here to avoid forced reflows.
+			// If the cache is empty, conservatively disallow expansion; the ResizeObserver
+			// will populate lastKnownContentHeight and trigger another call once layout settles.
+			const contentHeight = knownContentHeight ?? this.lastKnownContentHeight;
+			if (!contentHeight || contentHeight <= THINKING_SCROLL_MAX_HEIGHT) {
 				allowExpansion = false;
 			}
 		}
@@ -1955,9 +1959,24 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 				}
 			}
 
+			// Coalesce reads of scrollHeight to avoid forced reflows when many items
+			// are appended in the same tick (e.g. when restoring a session).
+			this.scheduleAppendRefresh();
+		}
+	}
+
+	private scheduleAppendRefresh(): void {
+		if (this._pendingAppendRefresh.value) {
+			return;
+		}
+		this._pendingAppendRefresh.value = scheduleAtNextAnimationFrame(getWindow(this.wrapper), () => {
+			this._pendingAppendRefresh.clear();
+			if (this._store.isDisposed) {
+				return;
+			}
 			this.refreshContentHeight();
 			this.updateScrollDimensionsFromCache();
-		}
+		});
 	}
 
 	private materializeLazyItem(item: ILazyItem): void {

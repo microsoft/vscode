@@ -1630,7 +1630,8 @@ export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 
 		const indexInPagedModel = index - this.preferredExtensions.length + this.resolvedGalleryExtensionsFromQuery.length;
 		const pageIndex = Math.floor(indexInPagedModel / this.pager.pageSize);
-		const page = this.pages[pageIndex];
+		// pages array excludes page 0 (pre-resolved via firstPage), so adjust index
+		const page = this.pages[pageIndex - 1];
 
 		if (!page.promise) {
 			page.cts = new CancellationTokenSource();

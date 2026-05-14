@@ -8,7 +8,7 @@ import { IChatSessionsService } from './chatSessionsService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
-import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
@@ -210,6 +210,7 @@ export const OPEN_AGENTS_WINDOW_PRECONDITION = ContextKeyExpr.and(
 	ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(),
 	IsSessionsWindowContext.negate(),
 	ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
+	IsAuxiliaryWindowContext.negate()
 );
 
 export const ChatEditorTitleMaxLength = 30;

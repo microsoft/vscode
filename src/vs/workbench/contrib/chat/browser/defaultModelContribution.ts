@@ -9,7 +9,6 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '.
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
-import { DEFAULT_MODEL_PICKER_CATEGORY } from '../common/widget/input/modelPickerWidget.js';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -100,16 +99,7 @@ export abstract class DefaultModelContribution extends Disposable {
 				return true;
 			});
 
-			supportedModels.sort((a, b) => {
-				const aCategory = a.metadata.modelPickerCategory ?? DEFAULT_MODEL_PICKER_CATEGORY;
-				const bCategory = b.metadata.modelPickerCategory ?? DEFAULT_MODEL_PICKER_CATEGORY;
-
-				if (aCategory.order !== bCategory.order) {
-					return aCategory.order - bCategory.order;
-				}
-
-				return a.metadata.name.localeCompare(b.metadata.name);
-			});
+			supportedModels.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 
 			for (const model of supportedModels) {
 				try {

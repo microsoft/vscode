@@ -276,17 +276,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				modelTooltip = getModelCapabilitiesDescription(endpoint);
 			}
 
-			let modelCategory: { label: string; order: number } | undefined;
-			if (endpoint instanceof AutoChatEndpoint) {
-				modelCategory = { label: '', order: Number.MIN_SAFE_INTEGER };
-			} else if (endpoint.isPremium === undefined || this._authenticationService.copilotToken?.isFreeUser) {
-				modelCategory = { label: vscode.l10n.t("Copilot Models"), order: 0 };
-			} else if (endpoint.isPremium) {
-				modelCategory = { label: vscode.l10n.t("Premium Models"), order: 1 };
-			} else {
-				modelCategory = { label: vscode.l10n.t("Standard Models"), order: 0 };
-			}
-
 			// Counting tokens requires instantiating the tokenizers, which makes this process use a lot of memory.
 			// Let's cache the results across extension activations
 			const baseCount = await this._promptBaseCountCache.getBaseCount(endpoint);
@@ -304,7 +293,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				const customModel = endpoint.customModel;
 				modelDetail = customModel.owner_name;
 				modelTooltip = vscode.l10n.t('{0} is contributed by {1} using {2}.', sanitizedModelName, customModel.owner_name, customModel.key_name);
-				modelCategory = { label: vscode.l10n.t("Custom Models"), order: 2 };
 			}
 
 			const session = this._authenticationService.anyGitHubSession;
@@ -322,7 +310,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				multiplierNumeric: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.multiplier,
 				priceCategory: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.priceCategory,
 				detail: modelDetail,
-				category: modelCategory,
 				statusIcon: endpoint.degradationReason ? new vscode.ThemeIcon('warning') : undefined,
 				version: endpoint.version,
 				maxInputTokens: endpoint.modelMaxPromptTokens - baseCount - BaseTokensPerCompletion,

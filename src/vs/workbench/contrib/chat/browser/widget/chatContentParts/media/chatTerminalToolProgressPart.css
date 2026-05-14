@@ -239,3 +239,19 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-chat-font-size-body-xs);
 }
+
+.chat-used-context-label .chat-terminal-show-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.chat-used-context-label .chat-terminal-show-link:hover {
+	text-decoration: underline;
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.chat-terminal-show-link-container {
+	display: inline;
+	white-space: nowrap;
+}

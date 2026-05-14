@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Options } from '@anthropic-ai/claude-agent-sdk';
+import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import { rgPath } from '@vscode/ripgrep';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { delimiter, dirname } from '../../../../base/common/path.js';
@@ -75,12 +75,12 @@ export class ClaudeMaterializer {
 			throw new Error(`Cannot materialize Claude session ${provisional.sessionId}: workingDirectory is required`);
 		}
 
-		const options = this._buildOptions(provisional, proxyHandle, permissionMode, canUseTool);
+		const options = this._buildOptions(provisional, proxyHandle, permissionMode, canUseTool, false);
 
 		// Trace what the SDK gets so live debugging doesn't have to infer
 		// from the absence of a `fileEdit` block whether the edit-tracking
 		// plumbing was wired this session.
-		this._logService.info(`[Claude] session ${provisional.sessionId}: enableFileCheckpointing=${options.enableFileCheckpointing}`);
+		this._logService.info(`[Claude] session ${provisional.sessionId}: enableFileCheckpointing=${options.enableFileCheckpointing} startMode=fresh`);
 
 		const warm = await this._sdkService.startup({ options });
 
@@ -117,11 +117,44 @@ export class ClaudeMaterializer {
 		}
 	}
 
+	/**
+	 * Phase 9 — build a fresh {@link WarmQuery} + {@link AbortController}
+	 * for an *existing* session (resume mode). The caller (typically
+	 * {@link ClaudeAgentSession._rebindQuery}) owns the returned warm and
+	 * controller; `materializeResume` does NOT construct a
+	 * {@link ClaudeAgentSession} or open a DB ref — those resources are
+	 * already live on the recovering session.
+	 *
+	 * The new controller is fresh so a previous abort doesn't propagate
+	 * into the rebuilt subprocess. Caller is responsible for wiring the
+	 * controller into the session's existing dispose chain (the session's
+	 * `_register(toDisposable(() => this._abortController.abort()))` reads
+	 * the field via `this`, so swapping `_abortController` post-rebind is
+	 * sufficient).
+	 */
+	async materializeResume(
+		provisional: IClaudeMaterializeProvisional,
+		proxyHandle: IClaudeProxyHandle,
+		permissionMode: ClaudePermissionMode,
+		canUseTool: NonNullable<Options['canUseTool']>,
+	): Promise<{ readonly warm: WarmQuery; readonly abortController: AbortController }> {
+		if (!provisional.workingDirectory) {
+			throw new Error(`Cannot materialize Claude session ${provisional.sessionId}: workingDirectory is required`);
+		}
+		const abortController = new AbortController();
+		const resumedProvisional: IClaudeMaterializeProvisional = { ...provisional, abortController };
+		const options = this._buildOptions(resumedProvisional, proxyHandle, permissionMode, canUseTool, true);
+		this._logService.info(`[Claude] session ${provisional.sessionId}: resume rebuild`);
+		const warm = await this._sdkService.startup({ options });
+		return { warm, abortController };
+	}
+
 	private _buildOptions(
 		provisional: IClaudeMaterializeProvisional,
 		proxyHandle: IClaudeProxyHandle,
 		permissionMode: ClaudePermissionMode,
 		canUseTool: NonNullable<Options['canUseTool']>,
+		isResume: boolean,
 	): Options {
 		const subprocessEnv = buildSubprocessEnv();
 		// Settings env: forwarded to the Claude subprocess via the SDK's
@@ -179,7 +212,13 @@ export class ClaudeMaterializer {
 			model: provisional.model?.id,
 			effort: resolveClaudeEffort(provisional.model),
 			permissionMode,
-			sessionId: provisional.sessionId,
+			// Phase 9 — fresh sessions use `sessionId` so the SDK mints a new
+			// transcript file; resume sessions use `resume` so the SDK reloads
+			// the existing transcript. Setting both is invalid per the SDK's
+			// `Options` discriminated union.
+			...(isResume
+				? { resume: provisional.sessionId }
+				: { sessionId: provisional.sessionId }),
 			settingSources: ['user', 'project', 'local'],
 			settings: { env: settingsEnv },
 			systemPrompt: { type: 'preset', preset: 'claude_code' },

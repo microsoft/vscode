@@ -12,7 +12,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
-import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/widget/input/modelPickerWidget.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -70,7 +69,6 @@ suite('LanguageModels', function () {
 						vendor: 'test-vendor',
 						family: 'test-family',
 						version: 'test-version',
-						modelPickerCategory: undefined,
 						id: 'test-id-1',
 						maxInputTokens: 100,
 						maxOutputTokens: 100,
@@ -82,7 +80,6 @@ suite('LanguageModels', function () {
 						vendor: 'test-vendor',
 						family: 'test2-family',
 						version: 'test2-version',
-						modelPickerCategory: undefined,
 						id: 'test-id-12',
 						maxInputTokens: 100,
 						maxOutputTokens: 100,
@@ -149,7 +146,6 @@ suite('LanguageModels', function () {
 						id: 'actual-lm',
 						maxInputTokens: 100,
 						maxOutputTokens: 100,
-						modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
 						isDefaultForLocation: {}
 					} satisfies ILanguageModelChatMetadata
 				];
@@ -358,7 +354,6 @@ suite('LanguageModels - Model Change Events', function () {
 						id: 'model1',
 						maxInputTokens: 100,
 						maxOutputTokens: 100,
-						modelPickerCategory: undefined,
 						isDefaultForLocation: {}
 					} satisfies ILanguageModelChatMetadata,
 					identifier: 'test-vendor/model1'
@@ -386,7 +381,6 @@ suite('LanguageModels - Model Change Events', function () {
 				id: 'model1',
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
-				modelPickerCategory: undefined,
 				isDefaultForLocation: {}
 			} satisfies ILanguageModelChatMetadata,
 			identifier: 'test-vendor/model1'
@@ -430,7 +424,6 @@ suite('LanguageModels - Model Change Events', function () {
 				id: 'model1',
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
-				modelPickerCategory: undefined,
 				isDefaultForLocation: {}
 			} satisfies ILanguageModelChatMetadata,
 			identifier: 'test-vendor/model1'
@@ -484,7 +477,6 @@ suite('LanguageModels - Model Change Events', function () {
 				id: 'model1',
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
-				modelPickerCategory: undefined,
 				isDefaultForLocation: {}
 			} satisfies ILanguageModelChatMetadata,
 			identifier: 'test-vendor/model1'
@@ -531,7 +523,6 @@ suite('LanguageModels - Model Change Events', function () {
 				id: 'model1',
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
-				modelPickerCategory: undefined,
 				isDefaultForLocation: {}
 			} satisfies ILanguageModelChatMetadata,
 			identifier: 'test-vendor/model1'
@@ -571,7 +562,6 @@ suite('LanguageModels - Model Change Events', function () {
 					id: 'model2',
 					maxInputTokens: 100,
 					maxOutputTokens: 100,
-					modelPickerCategory: undefined,
 					isDefaultForLocation: {}
 				} satisfies ILanguageModelChatMetadata,
 				identifier: 'test-vendor/model2'
@@ -602,7 +592,6 @@ suite('LanguageModels - Model Change Events', function () {
 							id: 'model1',
 							maxInputTokens: 100,
 							maxOutputTokens: 100,
-							modelPickerCategory: undefined,
 							isDefaultForLocation: {}
 						} satisfies ILanguageModelChatMetadata,
 						identifier: 'test-vendor/model1'
@@ -619,7 +608,6 @@ suite('LanguageModels - Model Change Events', function () {
 							id: 'model2',
 							maxInputTokens: 200,
 							maxOutputTokens: 200,
-							modelPickerCategory: undefined,
 							isDefaultForLocation: {}
 						} satisfies ILanguageModelChatMetadata,
 						identifier: 'test-vendor/model2'
@@ -813,7 +801,6 @@ suite('LanguageModels - Per-Model Configuration', function () {
 							id: 'model-a',
 							maxInputTokens: 100,
 							maxOutputTokens: 100,
-							modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
 							isDefaultForLocation: {},
 							configurationSchema: {
 								type: 'object',
@@ -835,7 +822,6 @@ suite('LanguageModels - Per-Model Configuration', function () {
 							id: 'model-b',
 							maxInputTokens: 100,
 							maxOutputTokens: 100,
-							modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
 							isDefaultForLocation: {}
 						} satisfies ILanguageModelChatMetadata,
 						identifier: 'config-vendor/default/model-b'
@@ -971,7 +957,6 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 						id: 'shared-model',
 						maxInputTokens: 100,
 						maxOutputTokens: 100,
-						modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
 						isDefaultForLocation: {}
 					} satisfies ILanguageModelChatMetadata,
 					identifier: `multi-vendor/${options.group}/shared-model`
@@ -1036,7 +1021,6 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 						id: 'solo-model',
 						maxInputTokens: 100,
 						maxOutputTokens: 100,
-						modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
 						isDefaultForLocation: {}
 					} satisfies ILanguageModelChatMetadata,
 					identifier: `single-vendor/${options.group}/solo-model`
@@ -1103,7 +1087,6 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 						detail: `Detailed (${options.group})`,
 						maxInputTokens: 100,
 						maxOutputTokens: 100,
-						modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
 						isDefaultForLocation: {}
 					} satisfies ILanguageModelChatMetadata,
 					identifier: `detail-vendor/${options.group}/detailed-model`

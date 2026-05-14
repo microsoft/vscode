@@ -23,6 +23,7 @@ import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, Termin
 import { isTerminalAction } from '../common/state/sessionActions.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostHeadlessTerminal } from './agentHostHeadlessTerminal.js';
+import { isZsh } from './agentHostShellUtils.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from './osc633Parser.js';
 
@@ -113,6 +114,7 @@ export interface IAgentHostTerminalManager {
 	onExit(uri: string, cb: (exitCode: number) => void): IDisposable;
 	onClaimChanged(uri: string, cb: (claim: TerminalClaim) => void): IDisposable;
 	onCommandFinished(uri: string, cb: (event: ICommandFinishedEvent) => void): IDisposable;
+	createAltBufferPromise(uri: string, store: DisposableStore): Promise<void>;
 	getContent(uri: string): string | undefined;
 	getClaim(uri: string): TerminalClaim | undefined;
 	hasTerminal(uri: string): boolean;
@@ -269,6 +271,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			// Combined with the leading-space prefix applied at command-write time, this
 			// prevents agent-executed commands from polluting the user's shell history.
 			env['VSCODE_PREVENT_SHELL_HISTORY'] = '1';
+		}
+		// Zsh-specific fixups for agent tool terminals: disable bang history
+		// expansion and enable inline # comments.
+		if (params.claim?.kind === TerminalClaimKind.Session && isZsh(shell)) {
+			env['VSCODE_AGENT_ZSH_FIXUPS'] = '1';
 		}
 		if (options?.nonInteractive) {
 			// Suppress paging and interactive prompts so that tool-spawned
@@ -501,6 +508,14 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			return toDisposable(() => { });
 		}
 		return terminal.onCommandFinishedEmitter.event(cb);
+	}
+
+	createAltBufferPromise(uri: string, store: DisposableStore): Promise<void> {
+		const terminal = this._terminals.get(uri);
+		if (!terminal?.headlessTerminal) {
+			return new Promise(() => { });
+		}
+		return terminal.headlessTerminal.createAltBufferPromise(store);
 	}
 
 	/** Get accumulated scrollback content for a terminal as raw text. */

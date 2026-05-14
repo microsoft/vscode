@@ -7,6 +7,7 @@ import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
 import * as l10n from '@vscode/l10n';
 import * as vscode from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { basename } from '../../../util/vs/base/common/resources';
@@ -14,7 +15,7 @@ import { URI } from '../../../util/vs/base/common/uri';
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
 import { folderMRUToChatProviderOptions, getSelectedOption, toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
 
-const permissionModes: ReadonlySet<PermissionMode> = new Set<PermissionMode>(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk']);
+const permissionModes: ReadonlySet<PermissionMode> = new Set<PermissionMode>(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk', 'auto']);
 
 export function isPermissionMode(value: string): value is PermissionMode {
 	return permissionModes.has(value as PermissionMode);
@@ -40,6 +41,7 @@ export class ClaudeSessionOptionBuilder {
 		private readonly _configurationService: IConfigurationService,
 		private readonly _folderMruService: IChatFolderMruService,
 		private readonly _workspaceService: IWorkspaceService,
+		private readonly _experimentationService: IExperimentationService,
 	) { }
 
 	async buildNewSessionGroups(): Promise<vscode.ChatSessionProviderOptionGroup[]> {
@@ -79,7 +81,8 @@ export class ClaudeSessionOptionBuilder {
 
 	buildPermissionModeGroup(): vscode.ChatSessionProviderOptionGroup {
 		const bypassEnabled = this._configurationService.getConfig(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions);
-		return buildPermissionModeItems(bypassEnabled);
+		const autoEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.ClaudeAgentAllowAutoPermissions, this._experimentationService);
+		return buildPermissionModeItems(bypassEnabled, autoEnabled);
 	}
 
 	async buildNewFolderGroup(): Promise<vscode.ChatSessionProviderOptionGroup | undefined> {
@@ -164,12 +167,16 @@ export class ClaudeSessionOptionBuilder {
  * Build the permission mode option group from explicit inputs.
  * Pure and synchronous — suitable for use in `derived` computations.
  */
-export function buildPermissionModeItems(bypassEnabled: boolean): vscode.ChatSessionProviderOptionGroup {
+export function buildPermissionModeItems(bypassEnabled: boolean, autoEnabled: boolean = false): vscode.ChatSessionProviderOptionGroup {
 	const items: vscode.ChatSessionProviderOptionItem[] = [
 		{ id: 'default', name: l10n.t('Ask before edits'), slashCommand: 'ask' },
 		{ id: 'acceptEdits', name: l10n.t('Edit automatically'), slashCommand: 'edit' },
 		{ id: 'plan', name: l10n.t('Plan mode'), slashCommand: 'plan' },
 	];
+
+	if (autoEnabled) {
+		items.push({ id: 'auto', name: l10n.t('Auto (model classifier)'), slashCommand: 'auto' });
+	}
 
 	if (bypassEnabled) {
 		items.push({ id: 'bypassPermissions', name: l10n.t('Bypass all permissions'), slashCommand: 'yolo' });

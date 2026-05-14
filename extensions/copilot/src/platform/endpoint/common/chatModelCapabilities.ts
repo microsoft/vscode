@@ -73,6 +73,10 @@ const HIDDEN_FAMILY_H_HASHES: string[] = [
 	'70fcded3f255d368e868cc807d8838a62108bfa5c86ce7d37966f58cda229e33',
 ];
 
+const HIDDEN_FAMILY_M_HASHES: string[] = [
+	'0902565c0c0fe145633a1f246ae551acc0f621249ef050428eba357fbd4655ee',
+];
+
 function getModelId(model: LanguageModelChat | IChatEndpoint): string {
 	return 'id' in model ? model.id : model.model;
 }
@@ -162,6 +166,10 @@ export function isGpt54LargePromptExp(
 	return isGpt54(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt54LargePromptExp, experimentationService);
 }
 
+export function isHiddenModelM(model: LanguageModelChat | IChatEndpoint | string) {
+	const family_hash = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
+	return HIDDEN_FAMILY_M_HASHES.includes(family_hash);
+}
 
 export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) {
 	const family = typeof model === 'string' ? model : model.family;
@@ -241,7 +249,8 @@ export function modelSupportsApplyPatch(model: LanguageModelChat | IChatEndpoint
 		|| isVSCModelB(model)
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
-		|| isHiddenModelB(model);
+		|| isHiddenModelB(model)
+		|| isHiddenModelM(model);
 }
 
 /**
@@ -254,7 +263,8 @@ export function modelPrefersJsonNotebookRepresentation(model: LanguageModelChat 
 		|| isGpt53Codex(model.family)
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
-		|| isHiddenModelB(model);
+		|| isHiddenModelB(model)
+		|| isHiddenModelM(model);
 }
 
 /**
@@ -432,7 +442,7 @@ export function modelSupportsToolSearch(modelId: string): boolean {
 		normalized.startsWith('claude-opus-4-5') ||
 		normalized.startsWith('claude-opus-4-6') ||
 		normalized.startsWith('claude-opus-4-7') ||
-		isHiddenModelG(modelId);
+		isHiddenModelG(modelId) || isHiddenModelM(modelId);
 }
 
 /**

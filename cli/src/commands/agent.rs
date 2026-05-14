@@ -20,8 +20,8 @@ use crate::tunnels::dev_tunnels::DevTunnels;
 use crate::util::errors::{wrap, AnyError, CodeError};
 use crate::util::machine::process_exists;
 
-use super::agent_host::AgentHostLockData;
 use super::CommandContext;
+use crate::tunnels::agent_host_metadata::AgentHostMetadata;
 
 /// Connects to an agent host, initializes the AHP session, and returns
 /// the ready-to-use client. If an explicit `address` is given it is used
@@ -262,20 +262,20 @@ fn resolve_address_from_lockfile(ctx: &CommandContext) -> Result<String, AnyErro
 		)
 	})?;
 
-	let lock: AgentHostLockData = serde_json::from_str(&data).map_err(|e| {
+	let metadata: AgentHostMetadata = serde_json::from_str(&data).map_err(|e| {
 		wrap(
 			e,
 			format!("Corrupt agent host lockfile at {}", lockfile_path.display()),
 		)
 	})?;
 
-	if !process_exists(lock.pid) {
+	if !process_exists(metadata.pid) {
 		let _ = fs::remove_file(&lockfile_path);
 		return Err(CodeError::NoRunningAgentHost.into());
 	}
 
-	let mut url = lock.address;
-	if let Some(token) = &lock.connection_token {
+	let mut url = format!("ws://127.0.0.1:{}/", metadata.port);
+	if let Some(token) = &metadata.connection_token {
 		url.push_str(&format!("?tkn={token}"));
 	}
 	Ok(url)

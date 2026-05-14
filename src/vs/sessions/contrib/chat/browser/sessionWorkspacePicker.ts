@@ -33,15 +33,14 @@ import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GRO
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
-import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions } from '../../remoteAgentHost/browser/remoteHostOptions.js';
+// eslint-disable-next-line local/code-import-patterns -- TODO: move remote host options out of providers
+import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions } from '../../providers/remoteAgentHost/browser/remoteHostOptions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { COPILOT_PROVIDER_ID } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import { IWorkspacesService, isRecentFolder } from '../../../../platform/workspaces/common/workspaces.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
 
-const LEGACY_STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 const FILTER_THRESHOLD = 10;
 const MAX_RECENT_WORKSPACES = 10;
@@ -181,9 +180,6 @@ export class WorkspacePicker extends Disposable {
 		this._register(this._tabbedWidget.onDidHide(() => {
 			this._pickerGroupContext.reset();
 		}));
-
-		// Migrate legacy storage to new key
-		this._migrateLegacyStorage();
 
 		// Restore selected workspace from storage
 		this._selectedWorkspace = this._restoreSelectedWorkspace();
@@ -946,36 +942,6 @@ export class WorkspacePicker extends Disposable {
 				fallback();
 			}
 		}, RESTORE_CONNECT_GRACE_MS, store);
-	}
-
-	/**
-	 * Migrate legacy `sessions.recentlyPickedProjects` storage to the new
-	 * `sessions.recentlyPickedWorkspaces` key, adding `providerId` (defaulting
-	 * to Copilot) and ensuring at least one entry is checked.
-	 */
-	private _migrateLegacyStorage(): void {
-		// Already migrated
-		if (this.storageService.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE)) {
-			return;
-		}
-
-		const raw = this.storageService.get(LEGACY_STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
-		if (!raw) {
-			return;
-		}
-
-		try {
-			const parsed = JSON.parse(raw) as { uri: UriComponents; checked?: boolean }[];
-			const hasAnyChecked = parsed.some(e => e.checked);
-			const migrated: IStoredRecentWorkspace[] = parsed.map((entry, index) => ({
-				uri: entry.uri,
-				providerId: COPILOT_PROVIDER_ID,
-				checked: hasAnyChecked ? !!entry.checked : index === 0,
-			}));
-			this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(migrated), StorageScope.PROFILE, StorageTarget.MACHINE);
-		} catch { /* ignore */ }
-
-		this.storageService.remove(LEGACY_STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
 	}
 
 	// -- Recent workspaces storage --

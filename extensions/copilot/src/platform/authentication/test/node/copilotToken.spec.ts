@@ -261,7 +261,6 @@ describe('Token envelope validators', function () {
 			code_review_enabled: false,
 			codesearch: false,
 			copilotignore_enabled: false,
-			vsc_electron_fetcher_v2: false,
 			public_suggestions: 'enabled',
 			telemetry: 'enabled',
 		};
@@ -281,7 +280,6 @@ describe('Token envelope validators', function () {
 			code_review_enabled: false,
 			codesearch: false,
 			copilotignore_enabled: false,
-			vsc_electron_fetcher_v2: false,
 			public_suggestions: 'enabled',
 			telemetry: 'enabled',
 			limited_user_quotas: null,
@@ -347,7 +345,6 @@ describe('Token envelope validators', function () {
 				code_review_enabled: false,
 				codesearch: false,
 				copilotignore_enabled: false,
-				vsc_electron_fetcher_v2: false,
 				public_suggestions: 'enabled',
 				telemetry: 'enabled',
 			};

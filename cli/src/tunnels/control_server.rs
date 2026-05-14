@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use crate::async_pipe::get_socket_rw_stream;
+use crate::commands::agent_host::ensure_supervisor_running;
 use crate::constants::{AGENT_HOST_PORT, CONTROL_PORT, PRODUCT_NAME_LONG};
 use crate::log;
 use crate::msgpack_rpc::{new_msgpack_rpc, start_msgpack_rpc, MsgPackCodec, MsgPackSerializer};
@@ -41,9 +42,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, DuplexStream};
 use tokio::sync::{mpsc, Mutex};
 
-use super::agent_host::{
-	handle_request as handle_agent_host_request, AgentHostConfig, AgentHostManager,
-};
+use super::agent_host::forward_tunnel_connection_to_existing_ah;
 use super::challenge::{create_challenge, sign_challenge, verify_challenge};
 use super::code_server::{
 	download_cli_into_cache, AnyCodeServer, CodeServerArgs, ServerBuilder, ServerParamsRaw,
@@ -187,40 +186,27 @@ pub async fn serve(
 	let (tx, mut rx) = mpsc::channel::<ServerSignal>(4);
 	let (exit_barrier, signal_exit) = new_barrier();
 
-	// Set up the agent host manager for on-demand server start on AGENT_HOST_PORT
-	let agent_host_manager = AgentHostManager::new(
-		log.clone(),
-		platform,
-		launcher_paths.server_cache.clone(),
-		Arc::new(ReqwestSimpleHttp::new()),
-		AgentHostConfig {
-			server_data_dir: code_server_args.server_data_dir.clone(),
-			without_connection_token: true,
-			connection_token: None,
-			connection_token_file: None,
-		},
-	);
+	// Make sure an agent host supervisor is running on this machine before
+	// we start advertising the `agent-host` port over the tunnel. The
+	// supervisor is the only process that binds the user-facing TCP
+	// listener and owns the canonical lockfile; we never spawn an
+	// in-process sidecar here. If one is already live we reuse it; if
+	// not, we daemonize a fresh supervisor and consume the resulting
+	// lockfile.
+	let active_agent_host = ensure_supervisor_running(launcher_paths, log).await?;
 
-	// Eagerly resolve the latest version and start background updates
-	if option_env!("VSCODE_CLI_OVERRIDE_SERVER_PATH").is_none() {
-		let mgr = agent_host_manager.clone();
-		let log_for_init = log.clone();
-		tokio::spawn(async move {
-			match mgr.get_latest_release().await {
-				Ok(release) => {
-					if let Err(e) = mgr.ensure_downloaded(&release).await {
-						warning!(log_for_init, "Error downloading latest server: {}", e);
-					}
-				}
-				Err(e) => warning!(log_for_init, "Error resolving latest version: {}", e),
-			}
-		});
-
-		let mgr = agent_host_manager.clone();
-		tokio::spawn(async move {
-			mgr.run_update_loop().await;
-		});
-	}
+	// Thread the active agent-host endpoint into the args used when spawning
+	// VS Code servers for renderer clients. The server uses these to register
+	// its `agentHostProxy` IPC channel so the renderer can reach the agent
+	// host over the existing renderer↔server connection. Note: this does NOT
+	// ask the spawned server to start its own agent host (that path uses
+	// `--agent-host-port` / `--agent-host-path` instead), it only points the
+	// bridge at the active agent host.
+	let code_server_args = {
+		let mut csa = code_server_args.clone();
+		active_agent_host.apply_to_bridge(&mut csa);
+		csa
+	};
 
 	if !code_server_args.install_extensions.is_empty() {
 		info!(
@@ -246,7 +232,6 @@ pub async fn serve(
 		tokio::select! {
 			Ok(reason) = shutdown_rx.wait() => {
 				info!(log, "Shutting down: {}", reason);
-				agent_host_manager.kill_running_server().await;
 				drop(signal_exit);
 				return Ok(ServerTermination {
 					next: match reason {
@@ -258,7 +243,6 @@ pub async fn serve(
 			},
 			c = rx.recv() => {
 				if let Some(ServerSignal::Respawn) = c {
-					agent_host_manager.kill_running_server().await;
 					drop(signal_exit);
 					return Ok(ServerTermination {
 						next: Next::Respawn,
@@ -270,22 +254,19 @@ pub async fn serve(
 				forwarding.process(w, &mut tunnel).await;
 			},
 			Some(socket) = agent_host_port.recv() => {
-				let mgr = agent_host_manager.clone();
-				let ah_log = log.clone();
+				let host = active_agent_host.dial_host().to_string();
+				let port = active_agent_host.port;
+				let token = active_agent_host.token.clone();
+				let log = log.clone();
 				tokio::spawn(async move {
-					debug!(ah_log, "Serving new agent host connection");
-					let rw = socket.into_rw();
-					let svc = hyper::service::service_fn(move |req| {
-						let mgr = mgr.clone();
-						async move { handle_agent_host_request(mgr, req).await }
-					});
-					if let Err(e) = hyper::server::conn::http1::Builder::new()
-						.serve_connection(hyper_util::rt::TokioIo::new(rw), svc)
-						.with_upgrades()
-						.await
-					{
-						debug!(ah_log, "Agent host connection ended: {:?}", e);
-					}
+					forward_tunnel_connection_to_existing_ah(
+						log,
+						socket.into_rw(),
+						host,
+						port,
+						token,
+					)
+					.await;
 				});
 			},
 			l = port.recv() => {

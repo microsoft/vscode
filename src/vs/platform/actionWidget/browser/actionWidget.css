@@ -89,6 +89,7 @@
 	-webkit-user-select: none;
 	user-select: none;
 	border-radius: 0;
+	pointer-events: none;
 }
 
 .action-widget .monaco-scrollable-element .monaco-list-rows .monaco-list-row.separator:hover,

@@ -265,8 +265,8 @@
 			},
 			"args": [
 				"--agents",
-				"--user-data-dir=${userHome}/.vscode-oss-sessions-dev",
-				"--extensions-dir=${userHome}/.vscode-oss-sessions-dev/extensions"
+				"--user-data-dir=${userHome}/.vscode-oss-dev",
+				"--extensions-dir=${userHome}/.vscode-oss-dev/extensions"
 			],
 			"problemMatcher": []
 		},
