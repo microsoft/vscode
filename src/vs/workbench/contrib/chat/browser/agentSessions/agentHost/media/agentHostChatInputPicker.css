@@ -8,6 +8,19 @@
 	align-items: center;
 }
 
+/*
+ * When the host is also a toolbar `.action-item`, the action-bar's
+ * `.monaco-action-bar .action-item { display: block }` rule wins on
+ * specificity and turns the host into a block. That leaves the
+ * inline-flex slot sitting in an anonymous line box whose height is
+ * driven by the inherited line-height (not the chip's 22px content),
+ * producing ~23.2px outer height. Re-assert inline-flex with matching
+ * specificity so the host sizes to its flex content.
+ */
+.monaco-action-bar .action-item.agent-host-chat-input-picker-host {
+	display: inline-flex;
+}
+
 .agent-host-chat-input-picker-host:empty {
 	display: none;
 }
