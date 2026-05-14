@@ -115,18 +115,11 @@ function parseAssistantMessage(msg: SessionMessage): ParsedSessionMessage | unde
 }
 
 function parseSystemMessage(msg: SessionMessage): ParsedSessionMessage | undefined {
-	// On-disk JSONL system entries carry `subtype` and the human-readable
-	// payload (`content` for `compact_boundary`, `text` for `notification`)
-	// at the envelope level alongside `type` — not nested under `message`.
-	// `SessionMessage.message` is typed `unknown` and the envelope's actual
-	// fields beyond `{ type, uuid, session_id, message, parent_tool_use_id }`
-	// aren't in the SDK type, so cast through `unknown` to read them.
-	const envelope = msg as unknown as { subtype?: unknown; text?: unknown; content?: unknown };
-	const subtype = typeof envelope.subtype === 'string' ? envelope.subtype : undefined;
+	const subtype = readSystemSubtype(msg.message);
 	if (subtype === undefined || !ALLOWED_SYSTEM_SUBTYPES.has(subtype)) {
 		return undefined;
 	}
-	const text = readSystemEnvelopeText(envelope) ?? `[${subtype}]`;
+	const text = readSystemText(msg.message) ?? `[${subtype}]`;
 	return { kind: 'system-notification', uuid: msg.uuid, subtype, text };
 }
 
@@ -436,12 +429,24 @@ function readAssistantBlocks(raw: unknown): readonly AssistantBlock[] | undefine
 	return out;
 }
 
-function readSystemEnvelopeText(envelope: { text?: unknown; content?: unknown }): string | undefined {
-	if (typeof envelope.text === 'string') {
-		return envelope.text;
+function readSystemSubtype(raw: unknown): string | undefined {
+	if (raw === null || typeof raw !== 'object') {
+		return undefined;
 	}
-	if (typeof envelope.content === 'string') {
-		return envelope.content;
+	const subtype = (raw as { subtype?: unknown }).subtype;
+	return typeof subtype === 'string' ? subtype : undefined;
+}
+
+function readSystemText(raw: unknown): string | undefined {
+	if (raw === null || typeof raw !== 'object') {
+		return undefined;
+	}
+	const r = raw as { text?: unknown; message?: unknown };
+	if (typeof r.text === 'string') {
+		return r.text;
+	}
+	if (typeof r.message === 'string') {
+		return r.message;
 	}
 	return undefined;
 }
