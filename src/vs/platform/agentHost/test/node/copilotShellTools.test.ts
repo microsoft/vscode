@@ -195,12 +195,14 @@ suite('CopilotShellTools', () => {
 
 		assert.ok(bashTool);
 		assert.strictEqual(bashTool.name, 'bash');
-		assert.match(bashTool.description, /persistent zsh terminal session/);
-		assert.match(bashTool.description, /zsh globbing features/);
-		assert.match(bashTool.description, /bare == or ===/);
-		assert.match(bashTool.description, /status as a variable name/);
-		assert.doesNotMatch(bashTool.description, /bang history/);
-		assert.doesNotMatch(bashTool.description, /# comments/);
+		assert.ok(bashTool.description);
+		const description = bashTool.description;
+		assert.match(description, /persistent zsh terminal session/);
+		assert.match(description, /zsh globbing features/);
+		assert.match(description, /bare == or ===/);
+		assert.match(description, /status as a variable name/);
+		assert.doesNotMatch(description, /bang history/);
+		assert.doesNotMatch(description, /# comments/);
 	});
 
 	test('getOrCreateShell reuses an idle shell after the reference is disposed', async () => {
