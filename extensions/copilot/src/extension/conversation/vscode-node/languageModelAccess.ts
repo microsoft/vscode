@@ -12,9 +12,8 @@ import { IBlockedExtensionService } from '../../../platform/chat/common/blockedE
 import { ChatFetchResponseType, ChatLocation, getErrorDetailsFromChatFetchError } from '../../../platform/chat/common/commonTypes';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { EmbeddingType, getWellKnownEmbeddingTypeInfo, IEmbeddingsComputer } from '../../../platform/embeddings/common/embeddingsComputer';
-import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
-import { ModelAliasRegistry } from '../../../platform/endpoint/common/modelAliasRegistry';
 import { encodeStatefulMarker } from '../../../platform/endpoint/common/statefulMarkerContainer';
 import { isAnthropicFamily, isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoint';
@@ -168,6 +167,13 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	private _currentModels: vscode.LanguageModelChatInformation[] = []; // Store current models for reference
 	private _chatEndpoints: IChatEndpoint[] = [];
+	/**
+	 * Maps utility family aliases (e.g. `copilot-utility-small`,
+	 * `copilot-utility`) to the resolved endpoint they were last published
+	 * under. Lets {@link _getEndpointForModel} route alias lookups to the
+	 * underlying endpoint without re-resolving the user setting.
+	 */
+	private _utilityAliasEndpoints: Map<string, IChatEndpoint> = new Map();
 	private _lmWrapper: CopilotLanguageModelWrapper;
 	private _promptBaseCountCache: LanguageModelAccessPromptBaseCountCache;
 
@@ -330,22 +336,45 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			};
 
 			models.push(model);
-
-			// Register aliases for this model
-			const aliases = ModelAliasRegistry.getAliases(model.id);
-			for (const alias of aliases) {
-				models.push({
-					...model,
-					id: alias,
-					family: alias,
-					isUserSelectable: false,
-				});
-			}
 		}
 
 		this._currentModels = models;
 		this._chatEndpoints = chatEndpoints;
+
+		await this._registerUtilityAliasModels(models);
 		return models;
+	}
+
+	private async _registerUtilityAliasModels(models: vscode.LanguageModelChatInformation[]): Promise<void> {
+		this._utilityAliasEndpoints.clear();
+		const aliasFamilies: ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility'];
+		for (const family of aliasFamilies) {
+			let endpoint: IChatEndpoint | undefined;
+			try {
+				endpoint = await this._endpointProvider.getChatEndpoint(family);
+			} catch (err) {
+				this._logService.warn(`[LanguageModelAccess] Failed to resolve utility alias '${family}': ${err}`);
+				continue;
+			}
+			if (!endpoint) {
+				continue;
+			}
+			// Only republish endpoints that are surfaced by this provider
+			// (vendor `copilot`). BYOK selectors are already published by
+			// their own provider under a different vendor.
+			const base = models.find(m => m.id === endpoint.model);
+			if (!base) {
+				continue;
+			}
+			this._utilityAliasEndpoints.set(family, endpoint);
+			models.push({
+				...base,
+				id: family,
+				family,
+				isUserSelectable: false,
+				isDefault: false,
+			});
+		}
 	}
 
 	private async _getEndpointForModel(model: vscode.LanguageModelChatInformation) {
@@ -353,7 +382,11 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
 			return await this._automodeService.resolveAutoModeEndpoint(undefined, allEndpoints);
 		}
-		return this._chatEndpoints.find(e => e.model === ModelAliasRegistry.resolveAlias(model.id));
+		const aliasEndpoint = this._utilityAliasEndpoints.get(model.id);
+		if (aliasEndpoint) {
+			return aliasEndpoint;
+		}
+		return this._chatEndpoints.find(e => e.model === model.id);
 	}
 
 	private async _provideLanguageModelChatResponse(

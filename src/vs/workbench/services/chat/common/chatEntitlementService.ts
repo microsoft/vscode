@@ -231,7 +231,7 @@ export function isProUser(chatEntitlement: ChatEntitlement): boolean {
 export function getChatPlanName(chatEntitlement: ChatEntitlement): string {
 	switch (chatEntitlement) {
 		case ChatEntitlement.EDU:
-			return localize('plan.eduName', 'Copilot EDU');
+			return localize('plan.eduName', 'Copilot Student');
 		case ChatEntitlement.Pro:
 			return localize('plan.proName', 'Copilot Pro');
 		case ChatEntitlement.ProPlus:
@@ -900,6 +900,8 @@ export class ChatEntitlementRequests extends Disposable {
 		let entitlement: ChatEntitlement;
 		if (entitlementsData.access_type_sku === 'free_limited_copilot') {
 			entitlement = ChatEntitlement.Free;
+		} else if (entitlementsData.access_type_sku === 'free_educational_quota') {
+			entitlement = ChatEntitlement.EDU;
 		} else if (entitlementsData.can_signup_for_limited) {
 			entitlement = ChatEntitlement.Available;
 		} else if (entitlementsData.copilot_plan === 'individual_edu') {
