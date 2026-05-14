@@ -209,7 +209,7 @@ export class ToolResultCompressorService extends Disposable implements IToolResu
 		// "(unchanged)" — mirrors ztk's dedup approach. Avoids timestamps or
 		// settings references that waste tokens.
 		const MAX_PREVIEW = 200;
-		const preview = hit.text.length <= MAX_PREVIEW ? hit.text : hit.text.slice(0, MAX_PREVIEW);
+		const preview = hit.text.length <= MAX_PREVIEW ? hit.text : hit.text.slice(0, MAX_PREVIEW) + '…';
 		const text = `${preview} (unchanged)`;
 		// Preserve the first text part's audience metadata so downstream
 		// model-routing logic still behaves the same way.
