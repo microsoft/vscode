@@ -6,7 +6,7 @@
 import { posix as pathPosix, win32 as pathWin32 } from '../../../base/common/path.js';
 import * as platform from '../../../base/common/platform.js';
 
-export function isZshExecutable(shell: string): boolean {
+export function isZsh(shell: string): boolean {
 	if (platform.OS === platform.OperatingSystem.Windows) {
 		return /^zsh(?:\.exe)?$/i.test(pathWin32.basename(shell));
 	}

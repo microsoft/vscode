@@ -12,7 +12,7 @@ import { Disposable, DisposableStore, type IReference, toDisposable } from '../.
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../log/common/log.js';
 import { TerminalClaimKind, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
-import { isZshExecutable } from '../agentHostShellUtils.js';
+import { isZsh } from '../agentHostShellUtils.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 
 /**
@@ -620,7 +620,7 @@ export async function createShellTools(
 	const primaryTool: Tool<IShellToolArgs> = {
 		name: shellType,
 		description: shellType === 'bash'
-			? (isZshExecutable(executable) ? createZshModelDescription(false) : createBashModelDescription(false))
+			? (isZsh(executable) ? createZshModelDescription(false) : createBashModelDescription(false))
 			: createPowerShellModelDescription(shellType, executable, false),
 		parameters: {
 			type: 'object',

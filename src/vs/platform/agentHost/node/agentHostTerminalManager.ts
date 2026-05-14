@@ -23,7 +23,7 @@ import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, Termin
 import { isTerminalAction } from '../common/state/sessionActions.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostHeadlessTerminal } from './agentHostHeadlessTerminal.js';
-import { isZshExecutable } from './agentHostShellUtils.js';
+import { isZsh } from './agentHostShellUtils.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from './osc633Parser.js';
 
@@ -274,7 +274,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		}
 		// Zsh-specific fixups for agent terminals: disable bang history
 		// expansion and enable inline # comments.
-		if (isZshExecutable(shell)) {
+		if (isZsh(shell)) {
 			env['VSCODE_AGENT_ZSH_FIXUPS'] = '1';
 		}
 		if (options?.nonInteractive) {
