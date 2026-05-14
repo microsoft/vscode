@@ -19,7 +19,7 @@ export type CopilotSlashCommandName = 'plan' | 'compact';
 const COMMANDS: readonly CopilotSlashCommandName[] = ['plan', 'compact'];
 function getCommandDescription(command: CopilotSlashCommandName): string {
 	switch (command) {
-		case 'plan': return localize('copilotSlashCommand.plan.description', 'Create an implementation plan before coding');
+		case 'plan': return localize('copilotSlashCommand.plan.description', "Create an implementation plan before coding");
 		case 'compact': return localize('copilotSlashCommand.compact.description', "Free up context by compacting the conversation history");
 	}
 }
