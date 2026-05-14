@@ -8,8 +8,8 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IChatToolInvocationSerialized, type IChatMarkdownContent } from '../../../common/chatService/chatService.js';
-import { ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent } from '../../../common/chatService/chatService.js';
+import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
@@ -91,6 +91,10 @@ function updateRunningToolSpecificData(existing: Parameters<typeof rawUpdateRunn
 	return rawUpdateRunningToolSpecificData(existing, tc, undefined);
 }
 
+function assertInputOutputDetails(details: unknown): asserts details is IToolResultInputOutputDetails {
+	assert.ok(isToolResultInputOutputDetails(details));
+}
+
 // ---- Tests ------------------------------------------------------------------
 
 suite('stateToProgressAdapter', () => {
@@ -128,6 +132,81 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(serialized.toolCallId, 'tc-1');
 			assert.strictEqual(serialized.toolId, 'test_tool');
 			assert.strictEqual(serialized.isComplete, true);
+		});
+
+		test('generic completed tool call in history includes input/output details', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						toolInput: '{"query":"terminal activation"}',
+						content: [{ type: ToolResultContentType.Text, text: 'Use shell integration.' }],
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const details = serialized.resultDetails;
+
+			assertInputOutputDetails(details);
+			assert.strictEqual(details.input, '{"query":"terminal activation"}');
+			assert.strictEqual(details.inputLanguage, 'json');
+			assert.deepStrictEqual(details.output, [{ type: 'embed', value: 'Use shell integration.', isText: true, mimeType: 'text/plain' }]);
+			assert.strictEqual(details.isError, false);
+		});
+
+		test('generic failed tool call in history uses error text as output', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						toolInput: '{"url":"https://example.com"}',
+						success: false,
+						error: { message: 'request timed out' },
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const details = serialized.resultDetails;
+
+			assertInputOutputDetails(details);
+			assert.strictEqual(details.isError, true);
+			assert.deepStrictEqual(details.output, [{ type: 'embed', value: 'request timed out', isText: true, mimeType: 'text/plain' }]);
+		});
+
+		test('generic completed tool call maps embedded resources and resource refs', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						toolInput: '{"image":"diagram"}',
+						content: [
+							{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' },
+							{ type: ToolResultContentType.Resource, uri: 'agenthost-content:///session/result.txt', contentType: 'text/plain' },
+						],
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const details = serialized.resultDetails;
+
+			assertInputOutputDetails(details);
+			assert.strictEqual(details.output.length, 2);
+			assert.deepStrictEqual(details.output[0], { type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' });
+			assert.strictEqual(details.output[1].type, 'ref');
+			assert.strictEqual(details.output[1].uri.toString(), 'agenthost-content:/session/result.txt');
+			assert.strictEqual(details.output[1].mimeType, 'text/plain');
 		});
 
 		test('per-turn model id and display name flow from usage.model', () => {
@@ -214,6 +293,7 @@ suite('stateToProgressAdapter', () => {
 
 			assert.ok(serialized.toolSpecificData);
 			assert.strictEqual(serialized.toolSpecificData.kind, 'terminal');
+			assert.strictEqual(serialized.resultDetails, undefined);
 			const termData = serialized.toolSpecificData as { kind: 'terminal'; commandLine: { original: string }; terminalCommandOutput: { text: string }; terminalCommandState: { exitCode: number } };
 			assert.strictEqual(termData.commandLine.original, 'echo hello');
 			assert.strictEqual(termData.terminalCommandOutput.text, 'hello');
@@ -242,6 +322,7 @@ suite('stateToProgressAdapter', () => {
 
 			assert.ok(serialized.toolSpecificData);
 			assert.strictEqual(serialized.toolSpecificData.kind, 'subagent');
+			assert.strictEqual(serialized.resultDetails, undefined);
 			if (serialized.toolSpecificData.kind === 'subagent') {
 				assert.strictEqual(serialized.toolSpecificData.agentName, 'explore');
 				// description is the TASK description from _meta, not the agent description
@@ -273,6 +354,7 @@ suite('stateToProgressAdapter', () => {
 
 			assert.ok(serialized.toolSpecificData);
 			assert.strictEqual(serialized.toolSpecificData.kind, 'subagent');
+			assert.strictEqual(serialized.resultDetails, undefined);
 			if (serialized.toolSpecificData.kind === 'subagent') {
 				assert.strictEqual(serialized.toolSpecificData.description, 'Task');
 				assert.strictEqual(serialized.toolSpecificData.result, 'Result text');
@@ -435,6 +517,27 @@ suite('stateToProgressAdapter', () => {
 			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandState: { exitCode: number } };
 			assert.strictEqual(termData.terminalCommandState.exitCode, 1);
 		});
+
+		test('search tool in history keeps search rendering without generic details', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						_meta: { toolKind: 'search' },
+						toolInput: '{"query":"activation"}',
+						content: [{ type: ToolResultContentType.Text, text: 'found results' }],
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+
+			assert.strictEqual(serialized.toolSpecificData?.kind, 'search');
+			assert.strictEqual(serialized.resultDetails, undefined);
+		});
 	});
 
 	suite('toolCallStateToInvocation', () => {
@@ -552,11 +655,13 @@ suite('stateToProgressAdapter', () => {
 			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput: { text: string }; terminalCommandState: { exitCode: number } };
 			assert.strictEqual(termData.terminalCommandOutput.text, 'output text');
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
+			assert.strictEqual(IChatToolInvocation.resultDetails(invocation), undefined);
 		});
 
-		test('finalizes failed tool with error message', () => {
+		test('finalizes generic tool with input/output details', () => {
 			const tc = createToolCallState({
 				status: ToolCallStatus.Running,
+				toolInput: '{"path":"README.md"}',
 			});
 			const invocation = toolCallStateToInvocation(tc);
 
@@ -566,13 +671,44 @@ suite('stateToProgressAdapter', () => {
 				toolName: 'test_tool',
 				displayName: 'Test Tool',
 				invocationMessage: 'Running test tool...',
+				toolInput: '{"path":"README.md"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Read README',
+				content: [{ type: ToolResultContentType.Text, text: '# VS Code' }],
+			});
+
+			const details = IChatToolInvocation.resultDetails(invocation);
+			assertInputOutputDetails(details);
+			assert.strictEqual(details.input, '{"path":"README.md"}');
+			assert.deepStrictEqual(details.output, [{ type: 'embed', value: '# VS Code', isText: true, mimeType: 'text/plain' }]);
+			assert.strictEqual(details.isError, false);
+		});
+
+		test('finalizes failed tool with error message', () => {
+			const tc = createToolCallState({
+				status: ToolCallStatus.Running,
+				toolInput: '{"operation":"slow"}',
+			});
+			const invocation = toolCallStateToInvocation(tc);
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				invocationMessage: 'Running test tool...',
+				toolInput: '{"operation":"slow"}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				success: false,
 				pastTenseMessage: 'Failed',
 				error: { message: 'timeout' },
 			});
 
-			// Should not throw
+			const details = IChatToolInvocation.resultDetails(invocation);
+			assertInputOutputDetails(details);
+			assert.strictEqual(details.isError, true);
+			assert.deepStrictEqual(details.output, [{ type: 'embed', value: 'timeout', isText: true, mimeType: 'text/plain' }]);
 		});
 
 		test('returns file edits from completed tool call with FileEdit content', () => {
@@ -608,6 +744,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(fileEdits[0].afterContentUri?.toString(), URI.parse('agenthost-content:///session/snap/after').toString());
 			assert.ok(fileEdits[0].undoStopId);
 			assert.strictEqual(invocation.presentation, ToolInvocationPresentation.Hidden);
+			assert.strictEqual(IChatToolInvocation.resultDetails(invocation), undefined);
 		});
 
 		test('does not hide presentation when tool with file edits fails', () => {
@@ -651,6 +788,32 @@ suite('stateToProgressAdapter', () => {
 			});
 
 			assert.strictEqual(fileEdits.length, 0);
+		});
+
+		test('finalized search tool keeps search rendering without generic details', () => {
+			const tc = createToolCallState({
+				status: ToolCallStatus.Running,
+				_meta: { toolKind: 'search' },
+				toolInput: '{"query":"terminal"}',
+			});
+			const invocation = toolCallStateToInvocation(tc);
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'search',
+				displayName: 'Search',
+				invocationMessage: 'Searching...',
+				_meta: { toolKind: 'search' },
+				toolInput: '{"query":"terminal"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Searched',
+				content: [{ type: ToolResultContentType.Text, text: 'result' }],
+			});
+
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'search');
+			assert.strictEqual(IChatToolInvocation.resultDetails(invocation), undefined);
 		});
 
 		test('returns empty file edits when tool has no FileEdit content', () => {
