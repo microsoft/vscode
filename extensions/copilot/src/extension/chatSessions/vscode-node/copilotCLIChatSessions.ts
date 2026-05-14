@@ -877,9 +877,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 
 			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
 			const creditsUsed = this._chatQuotaService.getCreditsForTurn(request.id);
-			this.logService.trace(`[CopilotCLIChatSessions] getCreditsForTurn(${request.id}) = ${creditsUsed}`);
 			const { result, responseModelId } = await getCopilotCLIModelDetails(session.object, model, this.copilotCLIModels, this.logService, modelDetailsEnabled, creditsUsed);
-			this.logService.trace(`[CopilotCLIChatSessions] persisting: sdkSessionId=${sdkSessionId}, requestId=${request.id}, responseModelId=${responseModelId}, creditsUsed=${creditsUsed}, result.details=${result.details}`);
 			await persistCopilotCLIResponseModelId(sdkSessionId, request.id, responseModelId, this.chatSessionMetadataStore, this.logService, creditsUsed);
 
 			return result;

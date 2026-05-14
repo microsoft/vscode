@@ -1289,12 +1289,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				}
 				// Accumulate per-turn credits from SDK copilotUsage data
 				const copilotUsage = (event.data as Record<string, unknown>).copilotUsage;
-				this.logService.trace(`[CopilotCLISession] assistant.usage event for request ${request.id}: copilotUsage=${JSON.stringify(copilotUsage)}`);
 				if (copilotUsage && typeof copilotUsage === 'object') {
 					const { totalNanoAiu } = copilotUsage as { totalNanoAiu?: number };
 					if (typeof totalNanoAiu === 'number') {
 						this._chatQuotaService.setLastCopilotUsage(totalNanoAiu, request.id);
-						this.logService.trace(`[CopilotCLISession] setLastCopilotUsage: totalNanoAiu=${totalNanoAiu}, requestId=${request.id}`);
 					}
 				}
 			})));

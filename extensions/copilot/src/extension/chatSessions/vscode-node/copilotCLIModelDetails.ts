@@ -54,10 +54,8 @@ export async function getCopilotCLIModelDetails(session: ICopilotCLISession, req
  */
 export async function persistCopilotCLIResponseModelId(sessionId: string, requestId: string, responseModelId: string | undefined, chatSessionMetadataStore: IChatSessionMetadataStore, logService: ILogService, creditsUsed?: number): Promise<void> {
 	if (!responseModelId && creditsUsed === undefined) {
-		logService.trace(`[persistCopilotCLIResponseModelId] skipped: no responseModelId and no creditsUsed for session=${sessionId}, request=${requestId}`);
 		return;
 	}
-	logService.trace(`[persistCopilotCLIResponseModelId] writing: session=${sessionId}, request=${requestId}, responseModelId=${responseModelId}, creditsUsed=${creditsUsed}`);
 	try {
 		await chatSessionMetadataStore.updateRequestDetails(sessionId, [{ vscodeRequestId: requestId, responseModelId, creditsUsed }]);
 	} catch (ex) {
