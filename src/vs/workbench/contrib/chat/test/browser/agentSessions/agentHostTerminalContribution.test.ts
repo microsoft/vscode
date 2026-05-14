@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { AgentHostDisableCustomTerminalToolSettingId, AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -166,7 +166,7 @@ function setup(disposables: DisposableStore, agentHostEnabled: boolean = true): 
 	disposables.add({ dispose: () => profileService.dispose() });
 	const configurationService = new TestConfigurationService({
 		[AgentHostEnabledSettingId]: agentHostEnabled,
-		[AgentHostDisableCustomTerminalToolSettingId]: false,
+		[AgentHostCustomTerminalToolEnabledSettingId]: true,
 	});
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -333,9 +333,9 @@ suite('AgentHostTerminalContribution', () => {
 		assert.strictEqual(resolver.lastOptions?.remoteAuthority, undefined);
 	});
 
-	test('dispatches disableCustomTerminalTool from the VS Code setting', async () => {
+	test('dispatches inverted disableCustomTerminalTool from the VS Code setting', async () => {
 		const { agentHostService, configurationService } = setup(disposables);
-		configurationService.setUserConfiguration(AgentHostDisableCustomTerminalToolSettingId, true);
+		configurationService.setUserConfiguration(AgentHostCustomTerminalToolEnabledSettingId, false);
 
 		agentHostService.setRootState(rootStateWithDisableCustomTerminalToolKey());
 		await flush();
@@ -346,7 +346,19 @@ suite('AgentHostTerminalContribution', () => {
 		});
 	});
 
-	test('re-dispatches disableCustomTerminalTool when the setting changes', async () => {
+	test('dispatches disableCustomTerminalTool false by default', async () => {
+		const { agentHostService } = setup(disposables);
+
+		agentHostService.setRootState(rootStateWithDisableCustomTerminalToolKey());
+		await flush();
+
+		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+		assert.deepStrictEqual((agentHostService.dispatchedActions[0] as IRootConfigChangedAction).config, {
+			[AgentHostConfigKey.DisableCustomTerminalTool]: false,
+		});
+	});
+
+	test('re-dispatches disableCustomTerminalTool when the enabled setting changes', async () => {
 		const { agentHostService, configurationService } = setup(disposables);
 		const rootState = rootStateWithDisableCustomTerminalToolKey();
 		rootState.config!.values[AgentHostConfigKey.DisableCustomTerminalTool] = false;
@@ -354,12 +366,12 @@ suite('AgentHostTerminalContribution', () => {
 		await flush();
 		assert.deepStrictEqual(agentHostService.dispatchedActions, []);
 
-		configurationService.setUserConfiguration(AgentHostDisableCustomTerminalToolSettingId, true);
+		configurationService.setUserConfiguration(AgentHostCustomTerminalToolEnabledSettingId, false);
 		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectedKeys: new Set([AgentHostDisableCustomTerminalToolSettingId]),
-			affectsConfiguration: (key: string) => key === AgentHostDisableCustomTerminalToolSettingId,
+			affectedKeys: new Set([AgentHostCustomTerminalToolEnabledSettingId]),
+			affectsConfiguration: (key: string) => key === AgentHostCustomTerminalToolEnabledSettingId,
 			source: 1, // ConfigurationTarget.USER
-			change: { keys: [AgentHostDisableCustomTerminalToolSettingId], overrides: [] },
+			change: { keys: [AgentHostCustomTerminalToolEnabledSettingId], overrides: [] },
 		});
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);

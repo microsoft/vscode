@@ -6,7 +6,7 @@
 import { OS } from '../../../../../../base/common/platform.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostDisableCustomTerminalToolSettingId, AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -70,8 +70,8 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 					if (AGENT_HOST_SHELL_DEPENDENT_SETTINGS.some(s => e.affectsConfiguration(s))) {
 						this._pushDefaultShell();
 					}
-					if (e.affectsConfiguration(AgentHostDisableCustomTerminalToolSettingId)) {
-						this._pushDisableCustomTerminalTool();
+					if (e.affectsConfiguration(AgentHostCustomTerminalToolEnabledSettingId)) {
+						this._pushCustomTerminalToolEnabled();
 					}
 				}));
 				store.add(this._terminalProfileService.onDidChangeAvailableProfiles(() => this._pushDefaultShell()));
@@ -81,7 +81,7 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 				// in `_pushDefaultShell` returned early.
 				store.add(this._agentHostService.rootState.onDidChange(() => {
 					this._pushDefaultShell();
-					this._pushDisableCustomTerminalTool();
+					this._pushCustomTerminalToolEnabled();
 				}));
 				this._conditionalListeners.value = store;
 				this._reconcile();
@@ -106,7 +106,7 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 			});
 		}
 		this._pushDefaultShell();
-		this._pushDisableCustomTerminalTool();
+		this._pushCustomTerminalToolEnabled();
 	}
 
 	/**
@@ -166,7 +166,7 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 		});
 	}
 
-	private _pushDisableCustomTerminalTool(): void {
+	private _pushCustomTerminalToolEnabled(): void {
 		const rootState = this._agentHostService.rootState.value;
 		if (!rootState || rootState instanceof Error) {
 			return;
@@ -175,7 +175,7 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		const disableCustomTerminalTool = this._configurationService.getValue<boolean>(AgentHostDisableCustomTerminalToolSettingId);
+		const disableCustomTerminalTool = !this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId);
 		if (rootState.config.values[AgentHostConfigKey.DisableCustomTerminalTool] === disableCustomTerminalTool) {
 			return;
 		}

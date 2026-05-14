@@ -10,7 +10,7 @@ import { autorun, observableFromEvent } from '../../../../base/common/observable
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
 import { CopilotSessionSearchPolicy } from '../../../../base/common/defaultAccount.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentSdkPathSettingId, AgentHostDisableCustomTerminalToolSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentSdkPathSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
@@ -1005,10 +1005,10 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
-		[AgentHostDisableCustomTerminalToolSettingId]: {
+		[AgentHostCustomTerminalToolEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.disableCustomTerminalTool', "When enabled, Copilot SDK sessions use the SDK's default terminal behavior instead of the Agent Host terminal tool override."),
-			default: false,
+			description: nls.localize('chat.agentHost.customTerminalTool.enabled', "When enabled, Copilot SDK sessions use the Agent Host terminal tool override instead of the SDK's default terminal behavior."),
+			default: true,
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
