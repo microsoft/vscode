@@ -22,7 +22,7 @@ import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { getErrorDetailsFromChatFetchError } from '../../../../platform/chat/common/commonTypes';
-import { GitHubOutageStatus } from '../../../../platform/github/common/githubService';
+import { IOctoKitService } from '../../../../platform/github/common/githubService';
 import { LanguageModelToolMCPSource } from '../../../../vscodeTypes';
 import { IClaudePluginService } from './claudeSkills';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
@@ -58,6 +58,7 @@ export class ClaudeAgentManager extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IOctoKitService private readonly octoKitService: IOctoKitService,
 	) {
 		super();
 	}
@@ -108,10 +109,11 @@ export class ClaudeAgentManager extends Disposable {
 				this.logService.info(`[ClaudeAgentManager] Request failed due to proxy error: ${invokeError.fetchError.type}`);
 				try {
 					const copilotToken = await this.authenticationService.getCopilotToken();
+					const outageStatus = await this.octoKitService.getGitHubOutageStatus();
 					const errorDetails = getErrorDetailsFromChatFetchError(
 						invokeError.fetchError,
 						copilotToken.copilotPlan,
-						GitHubOutageStatus.None,
+						outageStatus,
 						copilotToken.tokenBasedBilling,
 						copilotToken.quotaInfo.quota_reset_date,
 					);
@@ -623,14 +625,6 @@ export class ClaudeCodeSession extends Disposable {
 		try {
 			const unprocessedToolCalls = new Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>();
 			const toolStartTimes = new Map<string, number>();
-			const handlerState = {
-				unprocessedToolCalls,
-				otelToolSpans,
-				otelHookSpans,
-				parentTraceContext: this._otelTracker.traceContext,
-				subagentTraceContexts,
-				toolStartTimes
-			};
 			for await (const message of this._queryGenerator!) {
 				// Mark session as resumed after first SDK message confirms session exists on disk.
 				// This ensures future restarts (yield, settings change) use `resume` instead of `sessionId`.
@@ -658,13 +652,19 @@ export class ClaudeCodeSession extends Disposable {
 
 				let result;
 				try {
-					handlerState.parentTraceContext = this._otelTracker.traceContext;
 					result = this.instantiationService.invokeFunction(dispatchMessage, message, this.sessionId, {
 						stream: currentRequest.stream,
 						toolInvocationToken: currentRequest.request.toolInvocationToken,
 						editTracker: this._editTracker,
 						token: currentRequest.token,
-					}, handlerState);
+					}, {
+						unprocessedToolCalls,
+						toolStartTimes,
+						otelToolSpans,
+						otelHookSpans,
+						parentTraceContext: this._otelTracker.traceContext,
+						subagentTraceContexts,
+					});
 				} catch (dispatchError) {
 					if (dispatchError instanceof ClaudeProxyError || dispatchError instanceof KnownClaudeError) {
 						throw dispatchError;
