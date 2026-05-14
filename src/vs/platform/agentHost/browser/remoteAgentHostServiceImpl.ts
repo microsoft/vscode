@@ -410,7 +410,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				? { logsHome: this._environmentService.logsHome, connectionId: address, transport: 'websocket' }
 				: undefined,
 		));
-		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport));
+		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined));
 		const entry: IConnectionEntry = { store, client, connected: false, status: RemoteAgentHostConnectionStatus.connecting };
 		this._entries.set(address, entry);
 

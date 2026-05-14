@@ -15,6 +15,7 @@ import { Schemas } from '../../../base/common/network.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
@@ -34,32 +35,26 @@ import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffe
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
 /**
- * How often the connection liveness watchdog runs.
- *
- * Mirrors {@link ProtocolConstants.KeepAliveSendTime} from the regular
- * remote extension host stack. Cheap because the check is just a couple
- * of timestamp comparisons.
+ * How often we send a ping to the remote and check liveness. Mirrors
+ * {@link ProtocolConstants.KeepAliveSendTime} from the regular remote
+ * extension host stack.
  */
-const WATCHDOG_CHECK_INTERVAL_MS = 5_000;
+const PING_INTERVAL_MS = 5_000;
 
 /**
- * If a request has been outstanding for this long AND no message of any
- * kind has been received in the same window, declare the transport dead
- * and force-close it so the renderer's reconnect logic kicks in.
+ * If no inbound message of any kind has been received in this window,
+ * declare the transport dead and force-close it so the renderer's
+ * reconnect logic kicks in. Mirrors {@link ProtocolConstants.TimeoutTime}.
  *
- * Matches {@link ProtocolConstants.TimeoutTime} from the regular remote
- * extension host stack.
- *
- * Idle connections are not probed — no ping traffic is sent. The first
- * user-driven request after the transport goes silent will surface the
- * timeout within {@link WATCHDOG_TIMEOUT_MS}ms.
+ * Pings are sent every {@link PING_INTERVAL_MS}ms, so a healthy connection
+ * naturally has inbound traffic well within this window.
  */
-const WATCHDOG_TIMEOUT_MS = 20_000;
+const CONNECTION_TIMEOUT_MS = 20_000;
 
-function connectionTimeoutError(address: string, sinceLastReadMs: number, oldestRequestAgeMs: number): ProtocolError {
+function connectionTimeoutError(address: string, sinceLastReadMs: number): ProtocolError {
 	return new ProtocolError(
 		AHP_CLIENT_CONNECTION_CLOSED,
-		`Connection appears dead: ${address}; no message received for ${sinceLastReadMs}ms, oldest pending request is ${oldestRequestAgeMs}ms old.`,
+		`Connection appears dead: ${address}; no message received for ${sinceLastReadMs}ms.`,
 	);
 }
 
@@ -107,26 +102,32 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	readonly onDidClose = this._onDidClose.event;
 
 	/** Pending JSON-RPC requests keyed by request id. */
-	private readonly _pendingRequests = new Map<number, { deferred: DeferredPromise<unknown>; sentAt: number }>();
+	private readonly _pendingRequests = new Map<number, DeferredPromise<unknown>>();
 	private _nextRequestId = 1;
 	private _isClosed = false;
 	private _closeError: ProtocolError | undefined;
 
 	/**
 	 * Timestamp of the most recent message of any kind received from the
-	 * server. Updated in {@link _handleMessage}. Used by the watchdog to
-	 * decide if the transport has gone silent.
+	 * server. Updated in {@link _handleMessage}. Used by the liveness check
+	 * to decide if the transport has gone silent.
 	 */
 	private _lastReadTime = Date.now();
 
 	/**
-	 * Periodic check that fires {@link _handleClose} when there are
-	 * outstanding requests *and* nothing has been received for
-	 * {@link WATCHDOG_TIMEOUT_MS}ms. Detects silently-dead transports
-	 * (e.g. SSH/tunnel after laptop sleep + network change) that don't
-	 * produce a socket close event of their own. See {@link _watchdogTick}.
+	 * Sends a ping every {@link PING_INTERVAL_MS} and checks for transport
+	 * silence. Detects silently-dead transports (e.g. SSH/tunnel after
+	 * laptop sleep + network change) and hung remote processes (which won't
+	 * answer the ping even if the OS-level socket is still alive). See
+	 * {@link _pingTick}.
 	 */
-	private readonly _watchdog = this._register(new IntervalTimer());
+	private readonly _pingTimer = this._register(new IntervalTimer());
+
+	/**
+	 * Used to suppress timeouts when our own JS event loop has been pegged
+	 * — in that case the silence is on our side, not the remote's.
+	 */
+	private readonly _loadEstimator: ILoadEstimator;
 
 	/**
 	 * Comparison keys of customization URIs we have already granted implicit
@@ -150,6 +151,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	constructor(
 		address: string,
 		transport: IProtocolTransport,
+		loadEstimator: ILoadEstimator | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostPermissionService private readonly _permissionService: IAgentHostPermissionService,
@@ -158,6 +160,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._address = address;
 		this._connectionAuthority = agentHostAuthority(address);
 		this._transport = transport;
+		this._loadEstimator = loadEstimator ?? LoadEstimator.getInstance();
 		this._register(this._transport);
 		this._register(this._transport.onMessage(msg => this._handleMessage(msg)));
 		this._register(this._transport.onClose(() => this._handleClose(connectionClosedError(this._address))));
@@ -175,8 +178,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			this._subscriptionManager.receiveEnvelope(envelope);
 		}));
 
-		// Detect silently-dead transports — see {@link _watchdogTick}.
-		this._watchdog.cancelAndSet(() => this._watchdogTick(), WATCHDOG_CHECK_INTERVAL_MS);
+		// Active ping-based liveness — see {@link _pingTick}.
+		this._pingTimer.cancelAndSet(() => this._pingTick(), PING_INTERVAL_MS);
 	}
 
 	override dispose(): void {
@@ -303,6 +306,18 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	async completions(params: CompletionsParams): Promise<CompletionsResult> {
 		return this._sendRequest('completions', params);
+	}
+
+	/**
+	 * Send an application-level ping and wait for the server's response.
+	 * Used to measure end-to-end AHP responsiveness uniformly across
+	 * WebSocket, SSH relay, and tunnel relay transports.
+	 *
+	 * The returned promise rejects with a {@link ProtocolError} if the
+	 * connection closes before a response arrives.
+	 */
+	async ping(): Promise<void> {
+		await this._sendRequest('ping', {});
 	}
 
 	/**
@@ -455,8 +470,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}
 
 		// Any inbound traffic — including this message — is evidence the
-		// transport is still alive. Update before dispatch so the watchdog
-		// is consistent even if a handler synchronously schedules work.
+		// transport is still alive. Update before dispatch so the liveness
+		// check is consistent even if a handler synchronously schedules work.
 		this._lastReadTime = Date.now();
 
 		if (isJsonRpcRequest(msg)) {
@@ -467,9 +482,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				this._pendingRequests.delete(msg.id);
 				if (hasKey(msg, { error: true })) {
 					this._logService.warn(`[RemoteAgentHostProtocol] Request ${msg.id} failed:`, msg.error);
-					pending.deferred.error(this._toProtocolError(msg.error));
+					pending.error(this._toProtocolError(msg.error));
 				} else {
-					pending.deferred.complete(msg.result);
+					pending.complete(msg.result);
 				}
 			} else {
 				this._logService.warn(`[RemoteAgentHostProtocol] Received response for unknown request id ${msg.id}`);
@@ -505,9 +520,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 		this._isClosed = true;
 		this._closeError = error;
-		// Stop the watchdog so it doesn't keep ticking on a dead connection
+		// Stop the ping timer so it doesn't keep ticking on a dead connection
 		// (the client may outlive the close, waiting to be replaced).
-		this._watchdog.cancel();
+		this._pingTimer.cancel();
 		this._rejectPendingRequests(error);
 		this._permissionService.connectionClosed(this._address);
 		this._grantedCustomizationUris.clear();
@@ -690,7 +705,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 		const id = this._nextRequestId++;
 		const deferred = new DeferredPromise<unknown>();
-		this._pendingRequests.set(id, { deferred, sentAt: Date.now() });
+		this._pendingRequests.set(id, deferred);
 		// Generic M can't satisfy the distributive AhpRequest union directly
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		this._transport.send({ jsonrpc: '2.0' as const, id, method, params } as ProtocolMessage);
@@ -705,7 +720,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 		const id = this._nextRequestId++;
 		const deferred = new DeferredPromise<unknown>();
-		this._pendingRequests.set(id, { deferred, sentAt: Date.now() });
+		this._pendingRequests.set(id, deferred);
 		const request: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
 		this._transport.send(request);
 		return deferred.p as Promise<IRemoteAgentHostExtensionCommandMap[M]['result']>;
@@ -717,52 +732,56 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	private _rejectPendingRequests(error: ProtocolError): void {
 		for (const pending of this._pendingRequests.values()) {
-			pending.deferred.error(error);
+			pending.error(error);
 		}
 		this._pendingRequests.clear();
 	}
 
 	/**
-	 * Fired on a {@link WATCHDOG_CHECK_INTERVAL_MS} interval. If the
-	 * transport has at least one outstanding request that's been waiting
-	 * for more than {@link WATCHDOG_TIMEOUT_MS} and no inbound message has
-	 * arrived in the same window, declare the transport dead and trigger
-	 * the renderer's reconnect path.
+	 * Fired on a {@link PING_INTERVAL_MS} interval. Sends a ping to actively
+	 * probe the remote, and force-closes the connection if no inbound
+	 * message has been received within {@link CONNECTION_TIMEOUT_MS}.
 	 *
-	 * After laptop sleep + wake the JS event loop is paused, so the
-	 * interval fires only once after wake. The lookback comparison still
-	 * works — we're comparing wall-clock {@link Date.now()} values, not
-	 * counting ticks.
+	 * The ping doubles as both an OS-level keepalive and an application-
+	 * level liveness check: a hung remote process won't run its JSON-RPC
+	 * dispatch loop to answer it, so a healthy TCP socket with a frozen
+	 * peer will still trip the timeout. We cannot distinguish that from a
+	 * silently-dead transport — the answer is the same either way: drop
+	 * and reconnect.
+	 *
+	 * The {@link ILoadEstimator} guards against the *local* side of that
+	 * confusion: if our own JS event loop has been pegged we suppress the
+	 * close — the silence is on our end, not the remote's. After laptop
+	 * sleep + wake the JS event loop is paused, so the interval fires only
+	 * once after wake. The lookback comparison still works — we're
+	 * comparing wall-clock {@link Date.now()} values, not counting ticks.
 	 */
-	private _watchdogTick(): void {
-		if (this._isClosed || this._pendingRequests.size === 0) {
+	private _pingTick(): void {
+		if (this._isClosed) {
 			return;
 		}
-		const now = Date.now();
-		const sinceLastRead = now - this._lastReadTime;
-		if (sinceLastRead < WATCHDOG_TIMEOUT_MS) {
+
+		// Cheap, fire-and-forget. The response (success OR error, including
+		// `MethodNotFound` from a server that doesn't implement `ping`)
+		// will update _lastReadTime like any other inbound message —
+		// satisfying the liveness check either way. We tolerate
+		// no-ping-support without ceremony so that older servers don't
+		// trip the connection-dead path. Rejection on close is handled by
+		// _rejectPendingRequests.
+		void this.ping().catch(() => undefined);
+
+		const sinceLastRead = Date.now() - this._lastReadTime;
+		if (sinceLastRead < CONNECTION_TIMEOUT_MS) {
 			return;
 		}
-		// Find the oldest outstanding request; treat it as a proxy for
-		// "how long have we been waiting for *any* response from the
-		// remote". Iterating is cheap — _pendingRequests is at most a
-		// few dozen entries in practice.
-		let oldestSentAt = now;
-		for (const pending of this._pendingRequests.values()) {
-			if (pending.sentAt < oldestSentAt) {
-				oldestSentAt = pending.sentAt;
-			}
-		}
-		const oldestAge = now - oldestSentAt;
-		if (oldestAge < WATCHDOG_TIMEOUT_MS) {
+		if (this._loadEstimator.hasHighLoad()) {
 			return;
 		}
 		this._logService.info(
-			`[RemoteAgentHostProtocol] Watchdog: connection to ${this._address} appears dead — `
-			+ `${this._pendingRequests.size} request(s) outstanding, no message received for ${sinceLastRead}ms, `
-			+ `oldest request ${oldestAge}ms old. Forcing close to trigger reconnect.`,
+			`[RemoteAgentHostProtocol] Connection to ${this._address} appears dead — `
+			+ `no message received for ${sinceLastRead}ms. Forcing close to trigger reconnect.`,
 		);
-		this._handleClose(connectionTimeoutError(this._address, sinceLastRead, oldestAge));
+		this._handleClose(connectionTimeoutError(this._address, sinceLastRead));
 	}
 
 	/**
