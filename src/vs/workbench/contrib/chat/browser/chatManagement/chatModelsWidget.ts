@@ -406,10 +406,12 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 	}
 
 	override renderVendorElement(entry: ILanguageModelProviderEntry, index: number, templateData: IModelNameColumnTemplateData): void {
+		templateData.statusIcon.style.display = entry.collapsed ? 'none' : '';
 		templateData.nameLabel.set(entry.vendorEntry.group.name, undefined);
 	}
 
 	override renderGroupElement(entry: ILanguageModelGroupEntry, index: number, templateData: IModelNameColumnTemplateData): void {
+		templateData.statusIcon.style.display = entry.collapsed ? 'none' : '';
 		templateData.nameLabel.set(entry.label, undefined);
 	}
 
