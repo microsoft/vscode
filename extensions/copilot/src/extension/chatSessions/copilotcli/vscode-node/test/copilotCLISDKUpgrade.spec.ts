@@ -77,8 +77,6 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('sdk', 'prebuilds', 'linux-x64', 'computer.node'),
 			path.join('sdk', 'prebuilds', 'win32-arm64', 'computer.node'),
 			path.join('sdk', 'prebuilds', 'win32-x64', 'computer.node'),
-			path.join('sdk', 'prebuilds', 'darwin-arm64', 'spawn-helper'),
-			path.join('sdk', 'prebuilds', 'darwin-arm64', 'pty.node'),
 			path.join('ripgrep', 'bin', 'darwin-arm64', 'rg'),
 			path.join('ripgrep', 'bin', 'darwin-x64', 'rg'),
 			path.join('ripgrep', 'bin', 'linux-x64', 'rg'),
@@ -143,6 +141,10 @@ describe('CopilotCLI SDK Upgrade', function () {
 
 		// Exclude ripgrep files that we copy over in src/extension/chatSessions/copilotcli/node/ripgrepShim.ts (until we get better API/solution from SDK)
 		const ripgrepFilesWeCopy = path.join(copilotSDKPath, 'sdk', 'ripgrep', 'bin');
+		// Exclude node-pty files under sdk/prebuilds/ — these are platform-specific postinstall artifacts
+		// that vary per OS (pty.node/spawn-helper on macOS/Linux, conpty files on Windows).
+		const sdkPrebuildsPath = path.join(copilotSDKPath, 'sdk', 'prebuilds');
+		const nodePtyBinaryNames = new Set(['pty.node', 'spawn-helper', 'conpty.node', 'conpty.pdb', 'conpty_console_list.node', 'conpty_console_list.pdb', 'OpenConsole.exe', 'conpty.dll']);
 
 		const errors: string[] = [];
 		// Look for new binaries
@@ -152,6 +154,9 @@ describe('CopilotCLI SDK Upgrade', function () {
 			}
 			const binaryName = path.basename(binary);
 			if (binaryName.startsWith('keytar') || binaryName.startsWith('clipboard')) {
+				continue;
+			}
+			if (binary.startsWith(sdkPrebuildsPath) && nodePtyBinaryNames.has(binaryName)) {
 				continue;
 			}
 			if (!knownBinaries.has(binary)) {
