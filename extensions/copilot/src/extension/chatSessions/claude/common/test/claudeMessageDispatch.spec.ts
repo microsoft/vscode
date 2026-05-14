@@ -1110,12 +1110,6 @@ describe('handleResultMessage', () => {
 		).toThrow(ClaudeQuotaExceededError);
 	});
 
-	it('throws ClaudeQuotaExceededError for success result with is_error and api_error_status=402', () => {
-		expect(
-			() => handleResultMessage(makeErroredSuccessResult('API Error: 402 {"type":"error"}'), createRequestContext(), createState()),
-		).toThrow(ClaudeQuotaExceededError);
-	});
-
 	it('throws KnownClaudeError for success result with is_error and non-quota status', () => {
 		expect(
 			() => handleResultMessage(makeErroredSuccessResult('API Error: 500 {"type":"error"}'), createRequestContext(), createState()),

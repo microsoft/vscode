@@ -696,15 +696,11 @@ export function handleResultMessage(
 	const isExecutionError =
 		message.subtype === 'error_during_execution'
 		|| (message.subtype === 'success' && message.is_error === true);
-	const isErroredSuccessQuota =
-		message.subtype === 'success'
-		&& message.is_error === true
-		&& /API Error:\s*402\b/.test(message.result);
 
 	if (message.subtype === 'error_max_turns') {
 		request.stream.progress(l10n.t('Maximum turns reached ({0})', message.num_turns));
 	} else if (isExecutionError) {
-		if (state.lastApiError === 'billing_error' || isErroredSuccessQuota) {
+		if (state.lastApiError === 'billing_error') {
 			throw new ClaudeQuotaExceededError(l10n.t('You\'ve exceeded your quota'));
 		}
 		throw new KnownClaudeError(l10n.t('Error during execution'));
