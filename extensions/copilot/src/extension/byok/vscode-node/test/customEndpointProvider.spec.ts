@@ -12,9 +12,9 @@ import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomOAIUrl } from '../customOAIProvider';
+import { CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
 
-describe('CustomOAIBYOKModelProvider', () => {
+describe('CustomEndpointBYOKModelProvider', () => {
 	const disposables = new DisposableStore();
 	let accessor: ITestingServicesAccessor;
 	let instaService: IInstantiationService;
@@ -30,44 +30,44 @@ describe('CustomOAIBYOKModelProvider', () => {
 		disposables.clear();
 	});
 
-	describe('resolveCustomOAIUrl', () => {
+	describe('resolveCustomEndpointUrl', () => {
 		it('appends /v1/chat/completions to bare base URL by default', () => {
-			expect(resolveCustomOAIUrl('m', 'https://api.example.com')).toBe('https://api.example.com/v1/chat/completions');
+			expect(resolveCustomEndpointUrl('m', 'https://api.example.com')).toBe('https://api.example.com/v1/chat/completions');
 		});
 
 		it('appends /chat/completions when URL already ends with /v1', () => {
-			expect(resolveCustomOAIUrl('m', 'https://api.example.com/v1')).toBe('https://api.example.com/v1/chat/completions');
+			expect(resolveCustomEndpointUrl('m', 'https://api.example.com/v1')).toBe('https://api.example.com/v1/chat/completions');
 		});
 
 		it('strips trailing slash before appending default path', () => {
-			expect(resolveCustomOAIUrl('m', 'https://api.example.com/')).toBe('https://api.example.com/v1/chat/completions');
+			expect(resolveCustomEndpointUrl('m', 'https://api.example.com/')).toBe('https://api.example.com/v1/chat/completions');
 		});
 
 		it('preserves explicit /chat/completions path', () => {
 			const url = 'https://api.example.com/v1/chat/completions';
-			expect(resolveCustomOAIUrl('m', url)).toBe(url);
+			expect(resolveCustomEndpointUrl('m', url)).toBe(url);
 		});
 
 		it('preserves explicit /responses path', () => {
 			const url = 'https://api.example.com/v1/responses';
-			expect(resolveCustomOAIUrl('m', url)).toBe(url);
+			expect(resolveCustomEndpointUrl('m', url)).toBe(url);
 		});
 
 		it('preserves explicit /v1/messages path', () => {
 			const url = 'https://api.example.com/v1/messages';
-			expect(resolveCustomOAIUrl('m', url)).toBe(url);
+			expect(resolveCustomEndpointUrl('m', url)).toBe(url);
 		});
 
 		it('honors apiType=responses for bare URL', () => {
-			expect(resolveCustomOAIUrl('m', 'https://api.example.com', 'responses')).toBe('https://api.example.com/v1/responses');
+			expect(resolveCustomEndpointUrl('m', 'https://api.example.com', 'responses')).toBe('https://api.example.com/v1/responses');
 		});
 
 		it('honors apiType=messages for bare URL', () => {
-			expect(resolveCustomOAIUrl('m', 'https://api.example.com', 'messages')).toBe('https://api.example.com/v1/messages');
+			expect(resolveCustomEndpointUrl('m', 'https://api.example.com', 'messages')).toBe('https://api.example.com/v1/messages');
 		});
 
 		it('honors apiType=responses for URL ending in /v1', () => {
-			expect(resolveCustomOAIUrl('m', 'https://api.example.com/v1', 'responses')).toBe('https://api.example.com/v1/responses');
+			expect(resolveCustomEndpointUrl('m', 'https://api.example.com/v1', 'responses')).toBe('https://api.example.com/v1/responses');
 		});
 	});
 
@@ -94,7 +94,7 @@ describe('CustomOAIBYOKModelProvider', () => {
 			return {
 				id: 'custom-model',
 				name: 'Custom Model',
-				vendor: 'CustomOAI',
+				vendor: 'CustomEndpoint',
 				version: '1.0',
 				model_picker_enabled: true,
 				is_chat_default: false,

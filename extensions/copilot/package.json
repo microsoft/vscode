@@ -1860,6 +1860,133 @@
 			},
 			{
 				"vendor": "customoai",
+				"displayName": "OpenAI Compatible",
+				"configuration": {
+					"type": "object",
+					"properties": {
+						"apiKey": {
+							"type": "string",
+							"secret": true,
+							"description": "API key for the models",
+							"title": "API Key"
+						},
+						"models": {
+							"type": "array",
+							"defaultSnippets": [
+								{
+									"label": "New Model",
+									"description": "Add a new custom model configuration",
+									"body": [
+										{
+											"id": "$1",
+											"name": "$2",
+											"url": "$3",
+											"toolCalling": "^${4|true,false|}",
+											"vision": "^${5|true,false|}",
+											"maxInputTokens": "^${6:128000}",
+											"maxOutputTokens": "^${7:16000}"
+										}
+									]
+								}
+							],
+							"items": {
+								"type": "object",
+								"properties": {
+									"id": {
+										"type": "string",
+										"description": "Unique identifier for the model"
+									},
+									"name": {
+										"type": "string",
+										"description": "Display name of the custom OpenAI model"
+									},
+									"url": {
+										"type": "string",
+										"markdownDescription": "URL endpoint for the custom OpenAI-compatible model.\n\n**Important:** Base URLs default to Chat Completions API. Explicit API paths including `/responses` or `/chat/completions` are respected."
+									},
+									"toolCalling": {
+										"type": "boolean",
+										"description": "Whether the model supports tool calling"
+									},
+									"vision": {
+										"type": "boolean",
+										"description": "Whether the model supports vision capabilities"
+									},
+									"maxInputTokens": {
+										"type": "number",
+										"description": "Maximum number of input tokens supported by the model"
+									},
+									"maxOutputTokens": {
+										"type": "number",
+										"description": "Maximum number of output tokens supported by the model"
+									},
+									"editTools": {
+										"type": "array",
+										"description": "List of edit tools supported by the model. If this is not configured, the editor will try multiple edit tools and pick the best one.\n\n- 'find-replace': Find and replace text in a document.\n- 'multi-find-replace': Find and replace text in a document.\n- 'apply-patch': A file-oriented diff format used by some OpenAI models\n- 'code-rewrite': A general but slower editing tool that allows the model to rewrite and code snippet and provide only the replacement to the editor.",
+										"items": {
+											"type": "string",
+											"enum": [
+												"find-replace",
+												"multi-find-replace",
+												"apply-patch",
+												"code-rewrite"
+											]
+										}
+									},
+									"thinking": {
+										"type": "boolean",
+										"default": false,
+										"description": "Whether the model supports thinking capabilities"
+									},
+									"streaming": {
+										"type": "boolean",
+										"default": true,
+										"description": "Whether the model supports streaming responses. Defaults to true."
+									},
+									"zeroDataRetentionEnabled": {
+										"type": "boolean",
+										"default": false,
+										"markdownDescription": "Whether Zero Data Retention (ZDR) is enabled for this endpoint. When `true`, `previous_response_id` will not be sent in requests via Responses API."
+									},
+									"supportsReasoningEffort": {
+										"type": "array",
+										"markdownDescription": "Reasoning effort levels the model accepts (e.g. `[\"low\", \"medium\", \"high\"]`). When set, a `Thinking Effort` picker is shown in the model picker and the chosen value is forwarded to the model. Levels supported by mainstream OpenAI-compatible servers are `minimal`, `low`, `medium`, `high`.",
+										"items": {
+											"type": "string"
+										}
+									},
+									"reasoningEffortFormat": {
+										"type": "string",
+										"enum": [
+											"chat-completions",
+											"responses"
+										],
+										"markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` \u2192 nested, otherwise top-level."
+									},
+									"requestHeaders": {
+										"type": "object",
+										"description": "Additional HTTP headers to include with requests to this model. These reserved headers are not allowed and ignored if present: forbidden request headers (https://developer.mozilla.org/en-US/docs/Glossary/Forbidden_request_header), forwarding headers ('forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto'), and others ('api-key', 'authorization', 'content-type', 'openai-intent', 'x-github-api-version', 'x-initiator', 'x-interaction-id', 'x-interaction-type', 'x-onbehalf-extension-id', 'x-request-id', 'x-vscode-user-agent-library-version'). Pattern-based forbidden headers ('proxy-*', 'sec-*', 'x-http-method*' with forbidden methods) are also blocked.",
+										"additionalProperties": {
+											"type": "string"
+										}
+									}
+								},
+								"required": [
+									"id",
+									"name",
+									"url",
+									"toolCalling",
+									"vision",
+									"maxInputTokens",
+									"maxOutputTokens"
+								]
+							}
+						}
+					}
+				}
+			},
+			{
+				"vendor": "customendpoint",
 				"when": "productQualityType != 'stable'",
 				"displayName": "Custom Endpoint",
 				"configuration": {
@@ -2023,7 +2150,6 @@
 						"apiKey": {
 							"type": "string",
 							"secret": true,
-							"minLength": 1,
 							"description": "API key for the models. If not set then Entra ID (Azure AD) authentication with your Microsoft account credentials will be used.",
 							"title": "API Key"
 						},
@@ -2038,11 +2164,10 @@
 											"id": "$1",
 											"name": "$2",
 											"url": "$3",
-											"apiType": "${4|chat-completions,responses|}",
-											"toolCalling": "^${5|true,false|}",
-											"vision": "^${6|true,false|}",
-											"maxInputTokens": "^${7:128000}",
-											"maxOutputTokens": "^${8:16000}"
+											"toolCalling": "^${4|true,false|}",
+											"vision": "^${5|true,false|}",
+											"maxInputTokens": "^${6:128000}",
+											"maxOutputTokens": "^${7:16000}"
 										}
 									]
 								}
@@ -2060,17 +2185,7 @@
 									},
 									"url": {
 										"type": "string",
-										"pattern": "^https?://.+",
-										"patternErrorMessage": "URL must start with http:// or https://",
 										"markdownDescription": "URL endpoint for the custom OpenAI-compatible model.\n\n**Important:** Base URLs default to Chat Completions API. Explicit API paths including `/responses` or `/chat/completions` are respected."
-									},
-									"apiType": {
-										"type": "string",
-										"enum": [
-											"chat-completions",
-											"responses"
-										],
-										"markdownDescription": "Request/response format used to talk to this endpoint:\n- `chat-completions`: OpenAI Chat Completions API (default).\n- `responses`: OpenAI Responses API. Enables reasoning summaries and stored context.\n\nWhen omitted, the API type is inferred from the URL path."
 									},
 									"toolCalling": {
 										"type": "boolean",
