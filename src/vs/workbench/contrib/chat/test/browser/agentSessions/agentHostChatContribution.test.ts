@@ -4496,9 +4496,9 @@ suite('AgentHostChatContribution', () => {
 			);
 
 			assert.strictEqual(result?.items.length, 1);
-			assert.strictEqual(result?.items[0].attachment.kind, 'resource');
-			assert.strictEqual(result?.items[0].attachment.isDirectory, true);
-			assert.strictEqual(result?.items[0].attachment.uri.toString(), 'file:///workspace/dir');
+			assert.strictEqual(result?.items[0].attachment?.kind, 'resource');
+			assert.strictEqual(result?.items[0].attachment?.isDirectory, true);
+			assert.strictEqual(result?.items[0].attachment?.uri.toString(), 'file:///workspace/dir');
 		});
 
 		test('returns undefined when the request is cancelled', async () => {
