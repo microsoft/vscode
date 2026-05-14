@@ -66,13 +66,20 @@ suite('claudeReplayMapper', () => {
 	}
 
 	function makeSystem(uuid: string, subtype: string, text?: string): SessionMessage {
+		// On-disk JSONL system entries put `subtype` and the human-readable
+		// payload at the envelope level alongside `type`, NOT inside `message`.
+		// `compact_boundary` uses `content`; `notification` uses `text`.
+		// Mirror both shapes here so fixtures match what the SDK writes.
+		const envelopeText = subtype === 'compact_boundary' ? { content: text } : { text };
 		return {
 			type: 'system',
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
-			message: { subtype, ...(text !== undefined ? { text } : {}) },
-		};
+			message: undefined,
+			...(subtype !== undefined ? { subtype } : {}),
+			...(text !== undefined ? envelopeText : {}),
+		} as unknown as SessionMessage;
 	}
 
 	test('Fixture 1: single text turn', () => {
@@ -150,6 +157,7 @@ suite('claudeReplayMapper', () => {
 		assert.strictEqual(turns.length, 1, 'compact_boundary is NOT a turn boundary');
 		const sysParts = turns[0].responseParts.filter(p => p.kind === ResponsePartKind.SystemNotification);
 		assert.strictEqual(sysParts.length, 1);
+		assert.strictEqual(sysParts[0].content, 'context compacted', 'compact_boundary `content` field surfaces as the SystemNotification text');
 	});
 
 	test('Fixture 5: Task / Agent tool_use produces subagent marker', () => {
