@@ -20,22 +20,22 @@ async function setupSecretClient(vaultUri: string) {
 	}
 
 	// Always add the Azure CLI as an option
-	credentialOptions.push(new AzureCliCredential({ tenantId: "72f988bf-86f1-41af-91ab-2d7cd011db47" }));
+	credentialOptions.push(new AzureCliCredential({ tenantId: '72f988bf-86f1-41af-91ab-2d7cd011db47' }));
 
 	// Check if terminal is interactive, non-interactive environments can't use
 	// InteractiveBrowserCredential and don't necessarily have access to a keychain
 	// For SSH sessions into Azure VMs, keychain is not available, requires managed identity
 	if (process.stdin.isTTY && !process.env.AZURE_CLIENT_ID && !process.env.CODESPACES) {
-		credentialOptions.push(new InteractiveBrowserCredential({ tenantId: "72f988bf-86f1-41af-91ab-2d7cd011db47" }));
+		credentialOptions.push(new InteractiveBrowserCredential({ tenantId: '72f988bf-86f1-41af-91ab-2d7cd011db47' }));
 	}
 
 	// Use DeviceCodeCredential in Codespaces
 	if (process.env.CODESPACES) {
 		const deviceCodeCredential = new DeviceCodeCredential({
-			tenantId: "72f988bf-86f1-41af-91ab-2d7cd011db47",
+			tenantId: '72f988bf-86f1-41af-91ab-2d7cd011db47',
 			userPromptCallback: (info) => {
-				console.log("To authenticate, visit:", info.verificationUri);
-				console.log("Enter the code:", info.userCode);
+				console.log('To authenticate, visit:', info.verificationUri);
+				console.log('Enter the code:', info.userCode);
 			}
 		});
 		credentialOptions.push(deviceCodeCredential);
@@ -51,20 +51,20 @@ async function fetchSecret(secretClient: SecretClient, secretName: string): Prom
 }
 
 async function fetchSecrets(): Promise<{ [key: string]: string | undefined }> {
-	const keyVaultClient = await setupSecretClient("https://copilot-automation.vault.azure.net/");
+	const keyVaultClient = await setupSecretClient('https://copilot-automation.vault.azure.net/');
 
 	const secrets: { [key: string]: string | undefined } = {};
-	secrets["HMAC_SECRET"] = await fetchSecret(keyVaultClient, "hmac-secret");
+	secrets['HMAC_SECRET'] = await fetchSecret(keyVaultClient, 'hmac-secret');
 
 	if (!process.stdin.isTTY) { // only in automation
-		secrets["GITHUB_OAUTH_TOKEN"] = await fetchSecret(keyVaultClient, "capi-oauth");
-		secrets["VSCODE_COPILOT_CHAT_TOKEN"] = await fetchSecret(keyVaultClient, "copilot-token");
-		secrets["BLACKBIRD_EMBEDDINGS_KEY"] = await fetchSecret(keyVaultClient, "vsc-aoai-key");
-		secrets["BLACKBIRD_REDIS_CACHE_KEY"] = await fetchSecret(keyVaultClient, "blackbird-redis-cache-key");
+		secrets['GITHUB_OAUTH_TOKEN'] = await fetchSecret(keyVaultClient, 'capi-oauth');
+		secrets['VSCODE_COPILOT_CHAT_TOKEN'] = await fetchSecret(keyVaultClient, 'copilot-token');
+		secrets['BLACKBIRD_EMBEDDINGS_KEY'] = await fetchSecret(keyVaultClient, 'vsc-aoai-key');
+		secrets['BLACKBIRD_REDIS_CACHE_KEY'] = await fetchSecret(keyVaultClient, 'blackbird-redis-cache-key');
 
 		try {
-			secrets["ANTHROPIC_API_KEY"] = await fetchSecret(keyVaultClient, "anthropic-key");
-			secrets["DEEPSEEK_API_KEY"] = await fetchSecret(keyVaultClient, "deepseek-key");
+			secrets['ANTHROPIC_API_KEY'] = await fetchSecret(keyVaultClient, 'anthropic-key');
+			secrets['DEEPSEEK_API_KEY'] = await fetchSecret(keyVaultClient, 'deepseek-key');
 		} catch (error) {
 			console.log(red(`Failed to fetch optional evaluation tokens. Skipping...`));
 		}

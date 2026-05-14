@@ -1051,6 +1051,87 @@ suite('ChatThinkingContentPart', () => {
 			const iconElement = part.domNode.querySelector('.codicon-check');
 			assert.ok(iconElement, 'Should have check icon after finalization');
 		});
+
+		test('finalizeTitleIfDefault should retain initial thinking title', () => {
+			const content = createThinkingPart('**Reviewed renderer state**\nChecked completed response rendering');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			part.finalizeTitleIfDefault();
+
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			assert.deepStrictEqual({
+				generatedTitle: content.generatedTitle,
+				label: button.textContent,
+				ariaLabel: button.ariaLabel,
+			}, {
+				generatedTitle: 'Reviewed renderer state',
+				label: 'Reviewed renderer state',
+				ariaLabel: 'Reviewed renderer state',
+			});
+		});
+
+		test('finalizeTitleIfDefault should retain restored terminal title', () => {
+			const content = createThinkingPart('');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const terminalTool: IChatToolInvocationSerialized = {
+				kind: 'toolInvocationSerialized',
+				toolId: 'run_in_terminal',
+				toolCallId: 'terminal-call-1',
+				invocationMessage: 'Running npm test',
+				originMessage: undefined,
+				pastTenseMessage: undefined,
+				presentation: undefined,
+				isConfirmed: { type: 0 },
+				isComplete: true,
+				source: ToolDataSource.Internal,
+				generatedTitle: 'Ran npm test',
+				isAttachedToThinking: false,
+				toolSpecificData: {
+					kind: 'terminal',
+					commandLine: { original: 'npm test' },
+					language: 'shellscript',
+				}
+			};
+
+			part.appendItem(() => ({ domNode: $('div.test-terminal-tool') }), terminalTool.toolId, terminalTool);
+			part.finalizeTitleIfDefault();
+
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			assert.deepStrictEqual({
+				contentGeneratedTitle: content.generatedTitle,
+				toolGeneratedTitle: terminalTool.generatedTitle,
+				label: button.textContent,
+				ariaLabel: button.ariaLabel,
+			}, {
+				contentGeneratedTitle: 'Ran npm test',
+				toolGeneratedTitle: 'Ran npm test',
+				label: 'Ran npm test',
+				ariaLabel: 'Ran npm test',
+			});
+		});
 	});
 
 	suite('hasSameContent', () => {
@@ -1604,6 +1685,56 @@ suite('ChatThinkingContentPart', () => {
 
 			const diffContainer = part.domNode.querySelector('.chat-thinking-title-diff');
 			assert.strictEqual(diffContainer, null, 'Should not render diff container when no diffs exist');
+		});
+
+		test('removeEditPillByPartId cleans up lazy item and diff stats', () => {
+			const content = createThinkingPart('**Editing files**');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const diffEmitter1 = store.add(new Emitter<IEditSessionDiffStats>());
+			const diffEmitter2 = store.add(new Emitter<IEditSessionDiffStats>());
+
+			// Append two edit pills
+			part.appendItem(
+				() => ({ domNode: $('div.test-edit-pill-1') }),
+				'edit-part-1',
+				undefined,
+				undefined,
+				diffEmitter1.event
+			);
+			part.appendItem(
+				() => ({ domNode: $('div.test-edit-pill-2') }),
+				'edit-part-2',
+				undefined,
+				undefined,
+				diffEmitter2.event
+			);
+
+			part.finalizeTitleIfDefault();
+
+			// Fire diff events for both
+			diffEmitter1.fire({ added: 5, removed: 2 });
+			diffEmitter2.fire({ added: 8, removed: 1 });
+
+			// Remove the first edit pill
+			part.removeEditPillByPartId('edit-part-1');
+
+			// Aggregated diff should only reflect the second pill now
+			const addedEl = part.domNode.querySelector('.label-added');
+			const removedEl = part.domNode.querySelector('.label-removed');
+			assert.strictEqual(addedEl?.textContent, '+8');
+			assert.strictEqual(removedEl?.textContent, '-1');
 		});
 	});
 

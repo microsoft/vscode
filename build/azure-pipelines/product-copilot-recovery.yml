@@ -70,4 +70,6 @@ extends:
     generateNotice: true
 
     publishExtension: ${{ parameters.publishExtension }}
-    ghReleasePublishVSIX: true
+    ghCreateTag: ${{ parameters.publishExtension }}
+    ghTagPrefix: 'copilot/'
+    ghCreateRelease: false

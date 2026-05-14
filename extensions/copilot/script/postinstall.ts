@@ -61,6 +61,11 @@ const treeSitterGrammars: ITreeSitterGrammar[] = [
 
 const REPO_ROOT = path.join(__dirname, '..');
 
+async function removeCopilotCLIShim() {
+	const shimsPath = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'shims.txt');
+	await fs.promises.rm(shimsPath, { force: true }).catch(() => { /* ignore */ });
+}
+
 /**
  * @github/copilot/sdk/index.js depends on @github/copilot/worker/*.js files.
  * We need to copy these files into the sdk directory to ensure they are available at runtime.
@@ -109,9 +114,9 @@ async function copyCopilotCliPrebuildFiles() {
 	await fs.promises.cp(sourceDir, targetDir, {
 		recursive: true, force: true, filter: (src) => {
 			try {
-				// Only copy computer.node and win_error_mode.node files
+				// Only copy computer.node and win32.node files
 				if (fs.statSync(src).isFile()) {
-					return src.endsWith('computer.node') || src.endsWith('win_error_mode.node');
+					return src.endsWith('computer.node') || src.endsWith('win32.node');
 				}
 				return true;
 			} catch {
@@ -173,6 +178,7 @@ async function main() {
 		'node_modules/@github/blackbird-external-ingest-utils/pkg/nodejs/external_ingest_utils_bg.wasm',
 	], 'dist');
 
+	await removeCopilotCLIShim();
 	await copyCopilotCliWorkerFiles();
 	await copyCopilotCliSharpFiles();
 	await copyCopilotCliDefinitionFiles();

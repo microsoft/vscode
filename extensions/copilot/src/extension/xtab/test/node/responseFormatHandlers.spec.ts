@@ -11,6 +11,7 @@ import { ILogger } from '../../../../platform/log/common/logService';
 import { AsyncIterUtils } from '../../../../util/common/asyncIterableUtils';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
+import { FetchStreamError } from '../../common/fetchStreamError';
 import { EditIntentParseMode } from '../../node/editIntent';
 import {
 	handleCodeBlock,
@@ -39,10 +40,6 @@ function createMockLogger(): ILogger {
 	} as unknown as ILogger;
 }
 
-function noFailure(): NoNextEditReason | undefined {
-	return undefined;
-}
-
 function makeInsertContext(overrides?: Partial<UnifiedXmlInsertContext>): UnifiedXmlInsertContext {
 	return {
 		editWindowLines: ['line0', 'cursor_line', 'line2'],
@@ -63,6 +60,16 @@ function makeDocBeforeEdits(): StringText {
 
 async function collectLines(iter: AsyncIterable<string>): Promise<string[]> {
 	return AsyncIterUtils.toArray(iter);
+}
+
+/**
+ * Creates an async iterable that yields `items` and then throws `error`.
+ */
+async function* asyncIterableWithError(items: string[], error: Error): AsyncGenerator<string> {
+	for (const item of items) {
+		yield item;
+	}
+	throw error;
 }
 
 async function consumeDirectEdits(
@@ -135,7 +142,6 @@ describe('handleEditWindowWithEditIntent', () => {
 			AsyncIterUtils.fromArray(input),
 			createMockLogger(),
 			EditIntentParseMode.Tags,
-			noFailure,
 		);
 
 		expect(result).toBeInstanceOf(ResponseParseResult.EditWindowLines);
@@ -151,7 +157,6 @@ describe('handleEditWindowWithEditIntent', () => {
 			AsyncIterUtils.fromArray(input),
 			createMockLogger(),
 			EditIntentParseMode.ShortName,
-			noFailure,
 		);
 
 		expect(result).toBeInstanceOf(ResponseParseResult.EditWindowLines);
@@ -159,17 +164,20 @@ describe('handleEditWindowWithEditIntent', () => {
 		expect(ewl.editIntentMetadata?.intent).toBe(EditIntent.Low);
 	});
 
-	it('returns Done when getFetchFailure fires', async () => {
+	it('propagates FetchStreamError through the remaining line stream', async () => {
 		const failureReason = new NoNextEditReason.GotCancelled('test');
 		const result = await handleEditWindowWithEditIntent(
-			AsyncIterUtils.fromArray(['<|edit_intent|>high<|/edit_intent|>', 'line1']),
+			asyncIterableWithError(
+				['<|edit_intent|>high<|/edit_intent|>', 'line1'],
+				new FetchStreamError(failureReason),
+			),
 			createMockLogger(),
 			EditIntentParseMode.Tags,
-			() => failureReason,
 		);
 
-		expect(result).toBeInstanceOf(ResponseParseResult.Done);
-		expect((result as ResponseParseResult.Done).reason).toBe(failureReason);
+		expect(result).toBeInstanceOf(ResponseParseResult.EditWindowLines);
+		const ewl = result as ResponseParseResult.EditWindowLines;
+		await expect(collectLines(ewl.lines)).rejects.toThrow(FetchStreamError);
 	});
 
 	it('returns EditWindowLines with parseError on malformed intent', async () => {
@@ -178,7 +186,6 @@ describe('handleEditWindowWithEditIntent', () => {
 			AsyncIterUtils.fromArray(input),
 			createMockLogger(),
 			EditIntentParseMode.Tags,
-			noFailure,
 		);
 
 		expect(result).toBeInstanceOf(ResponseParseResult.EditWindowLines);
@@ -201,7 +208,6 @@ describe('handleUnifiedWithXml', () => {
 			makeInsertContext(),
 			makeDocBeforeEdits(),
 			createMockLogger(),
-			noFailure,
 		);
 
 		expect(result).toBeInstanceOf(ResponseParseResult.Done);
@@ -214,7 +220,6 @@ describe('handleUnifiedWithXml', () => {
 			makeInsertContext(),
 			makeDocBeforeEdits(),
 			createMockLogger(),
-			noFailure,
 		);
 
 		expect(result).toBeInstanceOf(ResponseParseResult.Done);
@@ -227,25 +232,20 @@ describe('handleUnifiedWithXml', () => {
 			makeInsertContext(),
 			makeDocBeforeEdits(),
 			createMockLogger(),
-			noFailure,
 		);
 
 		expect(result).toBeInstanceOf(ResponseParseResult.Done);
 		expect((result as ResponseParseResult.Done).reason).toBeInstanceOf(NoNextEditReason.Unexpected);
 	});
 
-	it('fetch failure after first line returns Done', async () => {
+	it('FetchStreamError on first line read rejects handleUnifiedWithXml', async () => {
 		const failureReason = new NoNextEditReason.GotCancelled('test');
-		const result = await handleUnifiedWithXml(
-			AsyncIterUtils.fromArray(['<EDIT>', 'line1', '</EDIT>']),
+		await expect(handleUnifiedWithXml(
+			asyncIterableWithError([], new FetchStreamError(failureReason)),
 			makeInsertContext(),
 			makeDocBeforeEdits(),
 			createMockLogger(),
-			() => failureReason,
-		);
-
-		expect(result).toBeInstanceOf(ResponseParseResult.Done);
-		expect((result as ResponseParseResult.Done).reason).toBe(failureReason);
+		)).rejects.toThrow(FetchStreamError);
 	});
 
 	describe('<EDIT>', () => {
@@ -255,7 +255,6 @@ describe('handleUnifiedWithXml', () => {
 				makeInsertContext(),
 				makeDocBeforeEdits(),
 				createMockLogger(),
-				noFailure,
 			);
 
 			expect(result).toBeInstanceOf(ResponseParseResult.EditWindowLines);
@@ -269,7 +268,6 @@ describe('handleUnifiedWithXml', () => {
 				makeInsertContext(),
 				makeDocBeforeEdits(),
 				createMockLogger(),
-				noFailure,
 			);
 
 			expect(result).toBeInstanceOf(ResponseParseResult.EditWindowLines);
@@ -277,27 +275,22 @@ describe('handleUnifiedWithXml', () => {
 			expect(await collectLines(ewl.lines)).toEqual(['line1', 'line2']);
 		});
 
-		it('terminates early when getFetchFailure fires mid-stream', async () => {
-			let callCount = 0;
+		it('stream error terminates edit lines mid-stream', async () => {
 			const failureReason = new NoNextEditReason.GotCancelled('test');
 
 			const result = await handleUnifiedWithXml(
-				AsyncIterUtils.fromArray(['<EDIT>', 'line1', 'line2', 'line3', '</EDIT>']),
+				asyncIterableWithError(
+					['<EDIT>', 'line1'],
+					new FetchStreamError(failureReason),
+				),
 				makeInsertContext(),
 				makeDocBeforeEdits(),
 				createMockLogger(),
-				() => {
-					callCount++;
-					// First call is from handleUnifiedWithXml (after first line read).
-					// Second call is inside generateEditLines before yielding line1 → passes.
-					// Third call is before yielding line2 → fails.
-					return callCount > 2 ? failureReason : undefined;
-				},
 			);
 
 			expect(result).toBeInstanceOf(ResponseParseResult.EditWindowLines);
 			const ewl = result as ResponseParseResult.EditWindowLines;
-			expect(await collectLines(ewl.lines)).toEqual(['line1']);
+			await expect(collectLines(ewl.lines)).rejects.toThrow(FetchStreamError);
 		});
 	});
 
@@ -309,7 +302,6 @@ describe('handleUnifiedWithXml', () => {
 				ctx,
 				makeDocBeforeEdits(),
 				createMockLogger(),
-				noFailure,
 			);
 
 			expect(result).toBeInstanceOf(ResponseParseResult.DirectEdits);
@@ -333,7 +325,6 @@ describe('handleUnifiedWithXml', () => {
 				ctx,
 				makeDocBeforeEdits(),
 				createMockLogger(),
-				noFailure,
 			);
 
 			expect(result).toBeInstanceOf(ResponseParseResult.DirectEdits);
@@ -352,7 +343,6 @@ describe('handleUnifiedWithXml', () => {
 				makeInsertContext(),
 				makeDocBeforeEdits(),
 				createMockLogger(),
-				noFailure,
 			);
 
 			expect(result).toBeInstanceOf(ResponseParseResult.DirectEdits);
@@ -361,24 +351,22 @@ describe('handleUnifiedWithXml', () => {
 			expect(returnValue).toBeInstanceOf(NoNextEditReason.NoSuggestions);
 		});
 
-		it('returns fetch failure when it fires mid-INSERT', async () => {
+		it('stream error propagates through direct edits', async () => {
 			const failureReason = new NoNextEditReason.GotCancelled('test');
-			let callCount = 0;
 
 			const result = await handleUnifiedWithXml(
-				AsyncIterUtils.fromArray(['<INSERT>', 'inserted_text', 'more_text', '</INSERT>']),
+				asyncIterableWithError(
+					['<INSERT>', 'inserted_text'],
+					new FetchStreamError(failureReason),
+				),
 				makeInsertContext(),
 				makeDocBeforeEdits(),
 				createMockLogger(),
-				() => {
-					callCount++;
-					return callCount > 1 ? failureReason : undefined;
-				},
 			);
 
 			expect(result).toBeInstanceOf(ResponseParseResult.DirectEdits);
-			const { returnValue } = await consumeDirectEdits((result as ResponseParseResult.DirectEdits).stream);
-			expect(returnValue).toBe(failureReason);
+			// The stream should throw FetchStreamError when trying to read after the second item
+			await expect(consumeDirectEdits((result as ResponseParseResult.DirectEdits).stream)).rejects.toThrow(FetchStreamError);
 		});
 	});
 });

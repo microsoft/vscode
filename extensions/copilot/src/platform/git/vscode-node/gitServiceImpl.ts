@@ -23,7 +23,7 @@ import { ILogService } from '../../log/common/logService';
 import { IGitExtensionService } from '../common/gitExtensionService';
 import { IGitService, RepoContext } from '../common/gitService';
 import { parseGitRemotes } from '../common/utils';
-import { API, APIState, Branch, Change, Commit, CommitOptions, CommitShortStat, DiffChange, LogOptions, Ref, RefQuery, Repository, RepositoryAccessDetails } from '../vscode/git';
+import { API, APIState, Branch, Change, CommitOptions, CommitShortStat, DiffChange, Ref, RefQuery, Repository, RepositoryAccessDetails } from '../vscode/git';
 
 const execFileAsync = promisify(execFile);
 
@@ -67,6 +67,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 
 				// Extension is disabled / git is not available so we say all repositories are discovered
 				this._onDidFinishInitialRepositoryDiscovery.fire();
+				this._isInitialized.set(true, undefined);
 			}));
 		}
 	}
@@ -250,24 +251,6 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		await repository?.restore(paths, options);
 	}
 
-	async log(uri: vscode.Uri, options?: LogOptions): Promise<Commit[] | undefined> {
-		const gitAPI = this.gitExtensionService.getExtensionApi();
-		if (!gitAPI) {
-			return undefined;
-		}
-		const repository = gitAPI.getRepository(uri);
-		if (!repository) {
-			return undefined;
-		}
-		return repository.log(options);
-	}
-
-	async diffBetween(uri: vscode.Uri, ref1: string, ref2: string): Promise<Change[] | undefined> {
-		const gitAPI = this.gitExtensionService.getExtensionApi();
-		const repository = gitAPI?.getRepository(uri);
-		return repository?.diffBetween(ref1, ref2);
-	}
-
 	async diffBetweenPatch(uri: vscode.Uri, ref1: string, ref2: string, path?: string): Promise<string | undefined> {
 		const gitAPI = this.gitExtensionService.getExtensionApi();
 		const repository = gitAPI?.getRepository(uri);
@@ -278,12 +261,6 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		const gitAPI = this.gitExtensionService.getExtensionApi();
 		const repository = gitAPI?.getRepository(uri);
 		return await repository?.diffBetweenWithStats(ref1, ref2, path);
-	}
-
-	async diffBetweenWithStats2(uri: vscode.Uri, ref: string, path?: string): Promise<DiffChange[] | undefined> {
-		const gitAPI = this.gitExtensionService.getExtensionApi();
-		const repository = gitAPI?.getRepository(uri);
-		return await repository?.diffBetweenWithStats2(ref, path);
 	}
 
 	async diffWith(uri: vscode.Uri, ref: string): Promise<Change[] | undefined> {
@@ -299,12 +276,6 @@ export class GitServiceImpl extends Disposable implements IGitService {
 			return undefined;
 		}
 		return await repository?.diffIndexWithHEADShortStats(uri.fsPath);
-	}
-
-	async fetch(uri: vscode.Uri, remote?: string, ref?: string, depth?: number): Promise<void> {
-		const gitAPI = this.gitExtensionService.getExtensionApi();
-		const repository = gitAPI?.getRepository(uri);
-		return repository?.fetch(remote, ref, depth);
 	}
 
 	async getMergeBase(uri: URI, ref1: string, ref2: string): Promise<string | undefined> {
@@ -327,24 +298,6 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		const gitAPI = this.gitExtensionService.getExtensionApi();
 		const repository = gitAPI?.getRepository(uri);
 		return await repository?.apply(patch, false);
-	}
-
-	async checkout(uri: URI, treeish: string): Promise<void> {
-		const gitAPI = this.gitExtensionService.getExtensionApi();
-		const repository = gitAPI?.getRepository(uri);
-		await repository?.checkout(treeish);
-	}
-
-	async merge(uri: URI, ref: string): Promise<void> {
-		const gitAPI = this.gitExtensionService.getExtensionApi();
-		const repository = gitAPI?.getRepository(uri);
-		await repository?.merge(ref);
-	}
-
-	async push(uri: URI): Promise<void> {
-		const gitAPI = this.gitExtensionService.getExtensionApi();
-		const repository = gitAPI?.getRepository(uri);
-		await repository?.push();
 	}
 
 	async rebase(uri: URI, branch: string): Promise<void> {
@@ -495,6 +448,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 			onDidChangeStateSignal.read(reader);
 			const selected = selectedObs.read(reader);
 
+			// eslint-disable-next-line local/code-no-observable-get-in-reactive-context
 			const activeRepository = this.activeRepository.get();
 			if (activeRepository && !selected && !isEqual(activeRepository.rootUri, repository.rootUri)) {
 				return;
@@ -531,7 +485,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 	}
 
 	private static repoToRepoContext(repo: Repository): RepoContext;
-	private static repoToRepoContext(repo: Repository | undefined | null): RepoContext | undefined
+	private static repoToRepoContext(repo: Repository | undefined | null): RepoContext | undefined;
 	private static repoToRepoContext(repo: Repository | undefined | null): RepoContext | undefined {
 		if (!repo) {
 			return undefined;
@@ -555,6 +509,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 export class RepoContextImpl implements RepoContext {
 	public readonly rootUri = this._repo.rootUri;
 	public readonly kind = this._repo.kind;
+	public readonly isUsingVirtualFileSystem = this._repo.isUsingVirtualFileSystem;
 	public readonly headBranchName = this._repo.state.HEAD?.name;
 	public readonly headCommitHash = this._repo.state.HEAD?.commit;
 	public readonly headIncomingChanges = this._repo.state.HEAD?.behind;

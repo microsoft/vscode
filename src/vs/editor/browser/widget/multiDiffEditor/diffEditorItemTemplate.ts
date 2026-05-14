@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { h } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, h } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -129,7 +129,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._lastScrollTop = -1;
 		this._isSettingScrollTop = false;
 
-		const btn = new Button(this._elements.collapseButton, {});
+		const btn = this._register(new Button(this._elements.collapseButton, {}));
 
 		this._register(autorun(reader => {
 			btn.element.className = '';
@@ -139,8 +139,41 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			this._viewModel.get()?.collapsed.set(!this._collapsed.get(), undefined);
 		}));
 
+		if (this._workbenchUIElementFactory.headerClickToCollapse) {
+			// Make the header clickable to toggle collapse/expand
+			this._elements.header.tabIndex = 0;
+			this._elements.header.setAttribute('role', 'button');
+
+			this._register(addDisposableListener(this._elements.header, EventType.CLICK, (e) => {
+				// Don't toggle if clicking on actions or the collapse button itself (already handled)
+				const target = e.target;
+				if (!(target instanceof Element)) {
+					return;
+				}
+				if (target.closest('.actions') || target.closest('.collapse-button')) {
+					return;
+				}
+				this._viewModel.get()?.collapsed.set(!this._collapsed.get(), undefined);
+			}));
+
+			this._register(addDisposableListener(this._elements.header, EventType.KEY_DOWN, (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					const target = e.target;
+					if (target instanceof Element && (target.closest('.actions') || target.closest('.collapse-button'))) {
+						return;
+					}
+					e.preventDefault();
+					this._viewModel.get()?.collapsed.set(!this._collapsed.get(), undefined);
+				}
+			}));
+		}
+
 		this._register(autorun(reader => {
-			this._elements.editor.style.display = this._collapsed.read(reader) ? 'none' : 'block';
+			const collapsed = this._collapsed.read(reader);
+			this._elements.editor.style.display = collapsed ? 'none' : 'block';
+			if (this._workbenchUIElementFactory.headerClickToCollapse) {
+				this._elements.header.setAttribute('aria-expanded', String(!collapsed));
+			}
 		}));
 
 		this._register(this.editor.getModifiedEditor().onDidLayoutChange(e => {

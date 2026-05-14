@@ -570,6 +570,13 @@ body.issue-reporter-body  {
 	align-self: flex-end;
 }
 
+.issue-reporter-body .public-elements .monaco-text-button .codicon-loading {
+	margin-right: 4px;
+	vertical-align: text-bottom;
+	line-height: inherit;
+	font-size: inherit;
+}
+
 .issue-reporter-body .public-elements #show-repo-name {
 	align-self: flex-end;
 	font-size: 12px;

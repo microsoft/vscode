@@ -24,3 +24,7 @@ export function toPRContentUri(fileName: string, params: IPullRequestContentUriP
 		query: JSON.stringify({ ...params, fileName })
 	});
 }
+
+export function getPullRequestKey(owner: string, repo: string, prNumber: number): string {
+	return `${owner}/${repo}/${prNumber}`;
+}

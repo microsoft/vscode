@@ -113,6 +113,7 @@
 	.chat-attachments-container > .chat-input-toolbar {
 		margin-left: auto;
 		margin-right: 16px;
+		width: 100%;
 	}
 
 	/* TODO@jrieken this isn't the nicest selector... */
@@ -122,6 +123,11 @@
 
 	.chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
 		background-color: var(--vscode-inlineChat-background);
+	}
+
+	/* Counteract the -4px margin from .interactive-session .chat-editing-session */
+	.interactive-input-part > .chat-input-notification-container {
+		margin-bottom: 12px;
 	}
 }
 
@@ -322,6 +328,11 @@
 	padding: 2px 0px;
 }
 
+.monaco-workbench .inline-chat .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::before,
+.monaco-workbench .inline-chat .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::after {
+	display: none;
+}
+
 /* Termination card (zone widget) — aligned with overlay widget */
 
 .monaco-workbench .inline-chat-terminated-card {
@@ -383,4 +394,23 @@
 	padding: 2px 8px;
 	font-size: 12px;
 	white-space: nowrap;
+}
+
+/* Status Placeholder */
+.monaco-workbench .zone-widget.inline-chat-widget .status-placeholder {
+	margin-left: auto;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.1s ease-in-out;
+}
+
+.monaco-workbench .zone-widget.inline-chat-widget .status-placeholder .action-label {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	cursor: default;
+}
+
+.monaco-workbench .zone-widget.inline-chat-widget:hover .status-placeholder,
+.monaco-workbench .zone-widget.inline-chat-widget:focus-within .status-placeholder {
+	opacity: 1;
 }

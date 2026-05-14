@@ -62,26 +62,6 @@ export class PlaywrightTab {
 			.on('dialog', dialog => this._handleDialog(dialog))
 			.on('download', download => this._handleDownload(download));
 
-		// Block outgoing network requests according to agent network policy.
-		page.route('**/*', (route) => {
-			const requestUrl = route.request().url();
-			try {
-				const uri = URI.parse(requestUrl);
-				if (!this.agentNetworkFilterService.isUriAllowed(uri)) {
-					this._logs.push({
-						type: 'requestBlocked',
-						time: Date.now(),
-						description: this.agentNetworkFilterService.formatError(uri)
-					});
-					route.abort('blockedbyclient').catch(() => { });
-					return;
-				}
-			} catch {
-				// If we can't parse the URL, let it through
-			}
-			route.continue().catch(() => { });
-		}).catch(() => { });
-
 		this._initialized = this._initialize();
 	}
 

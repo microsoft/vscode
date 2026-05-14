@@ -375,6 +375,10 @@
 		display: none;
 	}
 
+	&.chat-thinking-persistent-streaming {
+		margin-bottom: 3px;
+	}
+
 	> .monaco-scrollable-element > .shadow {
 		display: none;
 	}

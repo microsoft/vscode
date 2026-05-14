@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
-import { modelSupportsContextEditing, modelSupportsToolSearch } from '../../endpoint/common/chatModelCapabilities';
+import { modelSupportsContextEditing } from '../../endpoint/common/chatModelCapabilities';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
+import { ChatLocation } from '../../chat/common/commonTypes';
 import { IChatEndpoint } from './networking';
 
 /**
@@ -26,52 +27,8 @@ export interface AnthropicMessagesTool {
 		required?: string[];
 	};
 	defer_loading?: boolean;
-	cache_control?: { type: 'ephemeral' };
+	cache_control?: { type: 'ephemeral'; ttl?: '5m' | '1h' };
 }
-
-export interface ToolReference {
-	type: 'tool_reference';
-	tool_name: string;
-}
-
-export interface ToolSearchToolSearchResult {
-	type: 'tool_search_tool_search_result';
-	tool_references: ToolReference[];
-}
-
-export interface ToolSearchToolResultError {
-	type: 'tool_search_tool_result_error';
-	error_code: 'too_many_requests' | 'invalid_pattern' | 'pattern_too_long' | 'unavailable';
-}
-
-export interface ServerToolUse {
-	type: 'server_tool_use';
-	id: string;
-	name: string;
-	input: {
-		query: string;
-	};
-}
-
-export interface ToolSearchToolResult {
-	type: 'tool_search_tool_result';
-	tool_use_id: string;
-	content: ToolSearchToolSearchResult | ToolSearchToolResultError;
-}
-
-export interface ToolSearchUsage {
-	tool_search_requests: number;
-}
-
-/**
- * Tools that should not use deferred loading when tool search is enabled.
- * These are frequently used tools that benefit from being immediately available.
- *
- * TODO: @bhavyaus Replace these hardcoded strings with constants from ToolName enum
- */
-
-export const TOOL_SEARCH_TOOL_NAME = 'tool_search_tool_regex';
-export const TOOL_SEARCH_TOOL_TYPE = 'tool_search_tool_regex_20251119';
 
 /** Name for the custom client-side embeddings-based tool search tool. Must not use copilot_/vscode_ prefix — those are reserved for static package.json declarations and will be rejected by vscode.lm.registerToolDefinition. */
 export const CUSTOM_TOOL_SEARCH_NAME = 'tool_search';
@@ -168,36 +125,6 @@ export function modelSupportsMemory(modelId: string): boolean {
 		normalized.startsWith('claude-opus-4');
 }
 
-export function isAnthropicToolSearchEnabled(
-	endpoint: IChatEndpoint | string,
-	configurationService: IConfigurationService
-): boolean {
-	const supportsIt = typeof endpoint === 'string'
-		? modelSupportsToolSearch(endpoint)
-		: endpoint.supportsToolSearch ?? modelSupportsToolSearch(endpoint.model);
-	if (!supportsIt) {
-		return false;
-	}
-
-	return configurationService.getConfig(ConfigKey.AnthropicToolSearchEnabled);
-}
-
-/**
- * Returns true when custom client-side embeddings-based tool search should be used
- * instead of the server-side regex tool search.
- */
-export function isAnthropicCustomToolSearchEnabled(
-	endpoint: IChatEndpoint | string,
-	configurationService: IConfigurationService,
-	experimentationService: IExperimentationService,
-): boolean {
-	if (!isAnthropicToolSearchEnabled(endpoint, configurationService)) {
-		return false;
-	}
-
-	return configurationService.getExperimentBasedConfig(ConfigKey.AnthropicToolSearchMode, experimentationService) === 'client';
-}
-
 export function isAnthropicContextEditingEnabled(
 	endpoint: IChatEndpoint | string,
 	configurationService: IConfigurationService,
@@ -213,16 +140,59 @@ export function isAnthropicContextEditingEnabled(
 	return mode !== 'off';
 }
 
-export function isAnthropicMemoryToolEnabled(
+/**
+ * The extended (1 hour) prompt cache TTL is only meaningful for the 1M context
+ * Claude variants. Other models keep the default 5 minute TTL even when the
+ * experimental setting is enabled.
+ *
+ * Currently:
+ * - Claude Opus 4.6 1M (`claude-opus-4.6-1m`)
+ * - Claude Opus 4.7 1M (`claude-opus-4.7-1m-internal` and similar variants)
+ */
+export function modelSupportsExtendedCacheTtl(modelId: string): boolean {
+	const normalized = modelId.toLowerCase().replace(/\./g, '-');
+	return normalized.startsWith('claude-opus-4-6-1m') ||
+		normalized.startsWith('claude-opus-4-7-1m');
+}
+
+/**
+ * Returns true when the Anthropic Messages API request should use the extended
+ * (1 hour) prompt cache TTL on its tools and system breakpoints. Gated on the
+ * model (only the 1M context variants), the experiment-based setting, the chat
+ * location (must be exactly {@link ChatLocation.Agent}), and the subagent flag.
+ *
+ * {@link ChatLocation.MessagesProxy} is intentionally out of scope — extended
+ * TTL is only meant for the main agent conversation, not for the Claude CLI
+ * passthrough.
+ *
+ * @param location Must be {@link ChatLocation.Agent}; any other value (including
+ * `undefined`) fails the gate. Callers that route through subclass overrides
+ * which drop the `location` argument (e.g. `super.getExtraHeaders()`) are
+ * correctly excluded by this strict check.
+ * @param isSubagent Subagent requests are short-lived and would not benefit
+ * from the 1h TTL.
+ */
+export function isExtendedCacheTtlEnabled(
 	endpoint: IChatEndpoint | string,
 	configurationService: IConfigurationService,
 	experimentationService: IExperimentationService,
+	location: ChatLocation | undefined,
+	isSubagent: boolean | undefined,
 ): boolean {
-	const effectiveModelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
-	if (!modelSupportsMemory(effectiveModelId)) {
+	const modelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
+	if (!modelSupportsExtendedCacheTtl(modelId)) {
 		return false;
 	}
-	return configurationService.getExperimentBasedConfig(ConfigKey.MemoryToolEnabled, experimentationService);
+	if (!configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtl, experimentationService)) {
+		return false;
+	}
+	if (location !== ChatLocation.Agent) {
+		return false;
+	}
+	if (isSubagent) {
+		return false;
+	}
+	return true;
 }
 
 export type ContextEditingMode = 'off' | 'clear-thinking' | 'clear-tooluse' | 'clear-both';

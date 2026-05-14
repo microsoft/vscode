@@ -1,0 +1,351 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Mobile Host Picker bottom sheet ----
+ * Slides up from the bottom of the viewport over a translucent backdrop.
+ * Replaces the desktop context menu / anchored dropdown for the host
+ * picker on phone-sized layouts. */
+
+.host-picker-sheet-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 2000;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	pointer-events: none;
+}
+
+.host-picker-sheet-overlay > * {
+	pointer-events: auto;
+}
+
+.host-picker-sheet-backdrop {
+	position: absolute;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.4);
+	animation: host-picker-sheet-fade-in 180ms ease-out;
+}
+
+.host-picker-sheet-backdrop.closing {
+	animation: host-picker-sheet-fade-out 180ms ease-in forwards;
+}
+
+.host-picker-sheet {
+	position: relative;
+	width: 100%;
+	max-height: 80vh;
+	display: flex;
+	flex-direction: column;
+	background: var(--vscode-menu-background, var(--vscode-editor-background));
+	color: var(--vscode-menu-foreground, var(--vscode-foreground));
+	border-top-left-radius: 16px;
+	border-top-right-radius: 16px;
+	padding-bottom: env(safe-area-inset-bottom);
+	box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.25);
+	animation: host-picker-sheet-slide-up 220ms cubic-bezier(0.2, 0.9, 0.3, 1);
+	overflow: hidden;
+}
+
+.host-picker-sheet.closing {
+	animation: host-picker-sheet-slide-down 180ms ease-in forwards;
+}
+
+/* iOS-style drag-handle hint. Decorative — drag-to-dismiss is not wired up. */
+.host-picker-sheet-handle {
+	width: 36px;
+	height: 4px;
+	margin: 8px auto 4px;
+	border-radius: 2px;
+	background: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
+	flex-shrink: 0;
+}
+
+.host-picker-sheet-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 16px 4px;
+	flex-shrink: 0;
+}
+
+.host-picker-sheet-title {
+	flex: 1;
+	min-width: 0;
+	font-size: 16px;
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.host-picker-sheet-close {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	border: none;
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	border-radius: 50%;
+	flex-shrink: 0;
+	font-size: 16px;
+	padding: 0;
+	touch-action: manipulation;
+}
+
+.host-picker-sheet-close:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.host-picker-sheet-subtitle {
+	padding: 0 16px 12px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 13px;
+	line-height: 1.4;
+	flex-shrink: 0;
+}
+
+.host-picker-sheet-body {
+	flex: 1 1 auto;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+.host-picker-sheet-section-title {
+	padding: 12px 16px 4px;
+	font-size: 11px;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--vscode-descriptionForeground);
+}
+
+.host-picker-sheet-divider {
+	height: 1px;
+	margin: 8px 16px;
+	background: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+}
+
+/* --- Host row -------------------------------------------------------- */
+
+.host-picker-sheet-item {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	min-height: 56px;
+	padding: 8px 16px;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font-size: 15px;
+	text-align: left;
+	cursor: pointer;
+	touch-action: manipulation;
+	font-family: inherit;
+}
+
+.host-picker-sheet-item:focus {
+	outline: none;
+}
+
+.host-picker-sheet-item:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: -2px;
+}
+
+.host-picker-sheet-item:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.host-picker-sheet-item.checked .host-picker-sheet-item-name {
+	font-weight: 600;
+	color: var(--vscode-menu-selectionForeground, var(--vscode-foreground));
+}
+
+.host-picker-sheet-item-icon {
+	position: relative;
+	width: 28px;
+	height: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-foreground);
+	flex-shrink: 0;
+}
+
+.host-picker-sheet-item-icon .codicon {
+	font-size: 18px;
+}
+
+/* Small status dot in the bottom-right of the host icon. */
+.host-picker-sheet-item-status {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--vscode-descriptionForeground);
+	border: 2px solid var(--vscode-menu-background, var(--vscode-editor-background));
+	box-sizing: content-box;
+}
+
+.host-picker-sheet-item-status.connected {
+	background: var(--vscode-testing-iconPassed, var(--vscode-debugIcon-startForeground, #388a34));
+}
+
+.host-picker-sheet-item-status.connecting {
+	background: var(--vscode-debugIcon-startForeground, #388a34);
+	animation: host-picker-sheet-blink 1.2s ease-in-out infinite;
+}
+
+.host-picker-sheet-item-text {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.host-picker-sheet-item-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.host-picker-sheet-item-sub {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.host-picker-sheet-item-check {
+	width: 20px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-textLink-foreground, var(--vscode-button-background));
+	font-size: 14px;
+	flex-shrink: 0;
+}
+
+/* --- Empty state ----------------------------------------------------- */
+
+.host-picker-sheet-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 4px;
+	padding: 16px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 13px;
+	text-align: center;
+}
+
+/* --- Footer (always-visible re-discover action) ---------------------- */
+
+.host-picker-sheet-footer {
+	flex-shrink: 0;
+	border-top: 1px solid color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+}
+
+.host-picker-sheet-action {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	min-height: 48px;
+	padding: 0 16px;
+	border: none;
+	background: transparent;
+	color: var(--vscode-textLink-foreground, var(--vscode-button-background));
+	font-size: 14px;
+	font-weight: 500;
+	text-align: left;
+	cursor: pointer;
+	touch-action: manipulation;
+	font-family: inherit;
+}
+
+.host-picker-sheet-action:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.host-picker-sheet-action[aria-disabled='true'] {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.host-picker-sheet-action-icon {
+	width: 20px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 14px;
+}
+
+.host-picker-sheet-action.discovering .host-picker-sheet-action-icon .codicon {
+	animation: host-picker-sheet-spin 1.2s linear infinite;
+}
+
+@keyframes host-picker-sheet-slide-up {
+	from {
+		transform: translateY(100%);
+	}
+	to {
+		transform: translateY(0);
+	}
+}
+
+@keyframes host-picker-sheet-slide-down {
+	from {
+		transform: translateY(0);
+	}
+	to {
+		transform: translateY(100%);
+	}
+}
+
+@keyframes host-picker-sheet-fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes host-picker-sheet-fade-out {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+
+@keyframes host-picker-sheet-blink {
+	0%, 100% {
+		opacity: 0.5;
+	}
+	50% {
+		opacity: 1;
+	}
+}
+
+@keyframes host-picker-sheet-spin {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}

@@ -11,9 +11,8 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_BORDER, PANEL_DRAG_AND_DROP_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_FOREGROUND } from '../../../workbench/common/theme.js';
-import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
-import { sessionsChatBarBackground } from '../../common/theme.js';
+import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_DRAG_AND_DROP_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER } from '../../../workbench/common/theme.js';
+import { agentsPanelBackground, agentsPanelBorder, agentsPanelForeground, agentsBadgeBackground, agentsBadgeForeground } from '../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../workbench/common/views.js';
 import { IExtensionService } from '../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -29,7 +28,7 @@ import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { Menus } from '../menus.js';
 import { ActiveChatBarContext, ChatBarFocusContext } from '../../common/contextkeys.js';
-import { SessionCompositeBar } from './sessionCompositeBar.js';
+import { ChatCompositeBar } from './chatCompositeBar.js';
 import { prepend } from '../../../base/browser/dom.js';
 
 export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not be a AbstractPaneCompositePart but instead a custom Part with a CompositeBar
@@ -43,12 +42,13 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	override readonly minimumHeight: number = 0;
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	override get snap(): boolean { return false; }
 
 	/** Visual margin values for the card-like appearance */
-	static readonly MARGIN_TOP = 10;
+	static readonly MARGIN_TOP = 0;
 	static readonly MARGIN_LEFT = 10;
-	static readonly MARGIN_RIGHT = 10;
-	static readonly MARGIN_BOTTOM = 0;
+	static readonly MARGIN_RIGHT = 5;
+	static readonly MARGIN_BOTTOM = 5;
 
 	/** Border width on the card (1px each side) */
 	static readonly BORDER_WIDTH = 1;
@@ -56,15 +56,15 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 	/** Height of the session composite bar when visible */
 	private static readonly SESSION_BAR_HEIGHT = 35;
 
-	private _sessionCompositeBar: SessionCompositeBar | undefined;
+	private _sessionCompositeBar: ChatCompositeBar | undefined;
 
-	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+	protected _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
 	get preferredHeight(): number | undefined {
 		return this.layoutService.mainContainerDimension.height * 0.4;
 	}
 
-	readonly priority = LayoutPriority.High;
+	readonly priority = LayoutPriority.Normal;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -97,7 +97,6 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 			ViewContainerLocation.ChatBar,
 			Extensions.ChatBar,
 			Menus.ChatBarTitle,
-			undefined,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -117,7 +116,7 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 		super.create(parent);
 
 		// Create the session composite bar and prepend it before the content area
-		this._sessionCompositeBar = this._register(this.instantiationService.createInstance(SessionCompositeBar));
+		this._sessionCompositeBar = this._register(this.instantiationService.createInstance(ChatCompositeBar));
 		prepend(parent, this._sessionCompositeBar.element);
 
 		// Relayout when session bar visibility changes
@@ -134,10 +133,10 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 		const container = assertReturnsDefined(this.getContainer());
 
 		// Store background and border as CSS variables for the card styling on .part
-		container.style.setProperty('--part-background', this.getColor(sessionsChatBarBackground) || '');
-		container.style.setProperty('--part-border-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || 'transparent');
-		container.style.backgroundColor = this.getColor(sessionsChatBarBackground) || '';
-		container.style.color = this.getColor(SIDE_BAR_FOREGROUND) || '';
+		container.style.setProperty('--part-background', this.getColor(agentsPanelBackground) || '');
+		container.style.setProperty('--part-border-color', this.getColor(agentsPanelBorder) || 'transparent');
+		container.style.setProperty('--part-foreground', this.getColor(agentsPanelForeground) || '');
+		container.style.backgroundColor = this.getColor(agentsPanelBackground) || '';
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
@@ -150,12 +149,18 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 		// Account for the session composite bar height when visible
 		const sessionBarHeight = this._sessionCompositeBar?.visible ? ChatBarPart.SESSION_BAR_HEIGHT : 0;
 
-		// Layout content with reduced dimensions to account for visual margins and border
+		// Layout content with reduced dimensions to account for visual margins and border.
+		// MARGIN_BOTTOM applies only when the panel is visible (paired with the panel's
+		// 5px top margin to center the sash). When the panel is hidden the card fills its
+		// cell; the workbench grid's 10px bottom gutter provides the visible gap.
 		const borderTotal = ChatBarPart.BORDER_WIDTH * 2;
 		const marginLeft = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 0 : ChatBarPart.MARGIN_LEFT;
+		const marginBottom = this.layoutService.isVisible(Parts.PANEL_PART) ? ChatBarPart.MARGIN_BOTTOM : 0;
+		const marginRight = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) ? ChatBarPart.MARGIN_RIGHT : 0;
+
 		super.layout(
-			width - marginLeft - ChatBarPart.MARGIN_RIGHT - borderTotal,
-			height - ChatBarPart.MARGIN_TOP - ChatBarPart.MARGIN_BOTTOM - borderTotal - sessionBarHeight,
+			width - marginLeft - marginRight - borderTotal,
+			height - ChatBarPart.MARGIN_TOP - marginBottom - borderTotal - sessionBarHeight,
 			top, left
 		);
 
@@ -180,13 +185,13 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 			iconSize: 16,
 			overflowActionSize: 30,
 			colors: theme => ({
-				activeBackgroundColor: theme.getColor(sessionsChatBarBackground),
-				inactiveBackgroundColor: theme.getColor(sessionsChatBarBackground),
+				activeBackgroundColor: theme.getColor(agentsPanelBackground),
+				inactiveBackgroundColor: theme.getColor(agentsPanelBackground),
 				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
 				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
 				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
-				badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
-				badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
+				badgeBackground: theme.getColor(agentsBadgeBackground),
+				badgeForeground: theme.getColor(agentsBadgeForeground),
 				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
 			}),
 			compact: true
