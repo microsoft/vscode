@@ -40,6 +40,9 @@ export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
+/** Configuration key that controls whether Copilot SDK terminal tools should use the SDK defaults instead of Agent Host's terminal override. */
+export const AgentHostDisableCustomTerminalToolSettingId = 'chat.agentHost.disableCustomTerminalTool';
+
 /**
  * Configuration key that holds the absolute path to a locally-installed
  * `@anthropic-ai/claude-agent-sdk` package. When non-empty, the Claude agent
