@@ -900,6 +900,8 @@ export class ChatEntitlementRequests extends Disposable {
 		let entitlement: ChatEntitlement;
 		if (entitlementsData.access_type_sku === 'free_limited_copilot') {
 			entitlement = ChatEntitlement.Free;
+		} else if (entitlementsData.access_type_sku === 'free_educational_quota') {
+			entitlement = ChatEntitlement.EDU;
 		} else if (entitlementsData.can_signup_for_limited) {
 			entitlement = ChatEntitlement.Available;
 		} else if (entitlementsData.copilot_plan === 'individual_edu') {
