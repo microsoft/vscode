@@ -177,13 +177,19 @@ export class ToolResultCompressorService extends Disposable implements IToolResu
 
 			totalAfter += current.length;
 			if (current !== original) {
-				anyCompressed = true;
 				// Prepend a banner so the model knows the output was filtered, by
 				// which filters, and how to disable compression. We only annotate
 				// the parts we actually changed — non-compressed parts pass through
 				// untouched.
 				const banner = formatCompressionBanner(partFilterIds, original.length, current.length);
 				const annotated = `${banner}\n${current}`;
+				// Only apply compression if the savings exceed the banner overhead.
+				// Otherwise the "compressed" result is actually larger.
+				if (annotated.length >= original.length) {
+					totalAfter = totalAfter - current.length + original.length;
+					return part;
+				}
+				anyCompressed = true;
 				const rewritten: IToolResultTextPart = {
 					kind: 'text',
 					value: annotated,
@@ -200,7 +206,16 @@ export class ToolResultCompressorService extends Disposable implements IToolResu
 			return undefined;
 		}
 
-		this._sendTelemetry(toolId, [...usedFilterIds], totalBefore, totalAfter, false);
+		// Guard: don't return a "compressed" result if banner overhead makes it
+		// larger than the original. This is the primary cause of increased token
+		// usage — short savings get wiped out by per-part banners.
+		const actualAfter = newContent.reduce((acc, p) => acc + (p.kind === 'text' ? p.value.length : 0), 0);
+		if (actualAfter >= totalBefore) {
+			this._recordInCaches(toolId, input, result, caches);
+			return undefined;
+		}
+
+		this._sendTelemetry(toolId, [...usedFilterIds], totalBefore, actualAfter, false);
 
 		const finalResult: IToolResult = {
 			...result,
