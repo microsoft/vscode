@@ -9,6 +9,7 @@ import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDom
 import { GlobalPointerMoveMonitor } from '../../../../base/browser/globalPointerMoveMonitor.js';
 import { CharCode } from '../../../../base/common/charCode.js';
 import { IDisposable, Disposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import * as platform from '../../../../base/common/platform.js';
 import * as strings from '../../../../base/common/strings.js';
 import { ILine, RenderedLinesCollection } from '../../view/viewLayer.js';
@@ -825,6 +826,18 @@ export class Minimap extends ViewPart implements IMinimapModel {
 
 	private _actual: InnerMinimap;
 
+	private readonly _onDidShowMinimapHover = this._register(new Emitter<{ startLineNumber: number; endLineNumber: number; centerLine: number }>());
+	/**
+	 * Event fired when the minimap hover preview is shown.
+	 */
+	public readonly onDidShowMinimapHover: Event<{ startLineNumber: number; endLineNumber: number; centerLine: number }> = this._onDidShowMinimapHover.event;
+
+	private readonly _onDidHideMinimapHover = this._register(new Emitter<void>());
+	/**
+	 * Event fired when the minimap hover preview is hidden.
+	 */
+	public readonly onDidHideMinimapHover: Event<void> = this._onDidHideMinimapHover.event;
+
 	constructor(context: ViewContext) {
 		super(context);
 
@@ -839,6 +852,8 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		this._shouldCheckSampling = false;
 
 		this._actual = new InnerMinimap(context.theme, this);
+		this._actual.onDidShowMinimapHover((e) => this._onDidShowMinimapHover.fire(e));
+		this._actual.onDidHideMinimapHover(() => this._onDidHideMinimapHover.fire());
 	}
 
 	public override dispose(): void {
@@ -1149,6 +1164,187 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	//#endregion
 }
 
+/**
+ * Maximum number of characters to display per line in the hover preview before truncating.
+ */
+const MAX_HOVER_PREVIEW_LINE_LENGTH = 200;
+
+/**
+ * Shows a multi-line code preview when the user hovers over the minimap canvas.
+ * Debounces show/hide to avoid excessive DOM updates.
+ *
+ * The number of lines shown is determined by `hoverPreviewMaxLines` (default 5),
+ * centered on the hovered line, and clamped to the file boundaries.
+ */
+class MinimapHoverPreview {
+
+	private readonly _domNode: FastDomNode<HTMLElement>;
+	private readonly _headerNode: FastDomNode<HTMLElement>;
+	private readonly _codeLinesNode: FastDomNode<HTMLElement>;
+	private _showScheduler: RunOnceScheduler;
+	private readonly _hideScheduler: RunOnceScheduler;
+	private _pendingLine: number = 0;
+	private _pendingOffsetY: number = 0;
+	private _visibleStartLine: number = 0;
+	private _visibleEndLine: number = 0;
+	private _isVisible: boolean = false;
+
+	private readonly _onDidShow = new Emitter<{ startLineNumber: number; endLineNumber: number; centerLine: number }>();
+	public readonly onDidShow: Event<{ startLineNumber: number; endLineNumber: number; centerLine: number }> = this._onDidShow.event;
+
+	private readonly _onDidHide = new Emitter<void>();
+	public readonly onDidHide: Event<void> = this._onDidHide.event;
+
+	constructor(
+		private readonly _model: IMinimapModel,
+		parent: FastDomNode<HTMLElement>,
+		hoverPreviewDelay: number,
+		private _hoverPreviewMaxLines: number
+	) {
+		this._domNode = createFastDomNode(document.createElement('div'));
+		this._domNode.setClassName('minimap-hover-preview');
+		this._domNode.setPosition('absolute');
+		this._domNode.setRight(0);
+
+		this._headerNode = createFastDomNode(document.createElement('div'));
+		this._headerNode.setClassName('minimap-hover-header');
+		this._domNode.appendChild(this._headerNode);
+
+		this._codeLinesNode = createFastDomNode(document.createElement('div'));
+		this._codeLinesNode.setClassName('minimap-hover-code-lines');
+		this._domNode.appendChild(this._codeLinesNode);
+
+		parent.appendChild(this._domNode);
+
+		this._showScheduler = new RunOnceScheduler(() => this._showPendingPreview(), hoverPreviewDelay);
+		this._hideScheduler = new RunOnceScheduler(() => this._hidePreview(), 250);
+	}
+
+	/**
+	 * Called on canvas mouse move with the computed model line and mouse offset.
+	 */
+	public onMouseMove(lineNumber: number, offsetY: number): void {
+		this._hideScheduler.cancel();
+
+		// If hovering on a line already visible in the current preview range, just update position
+		if (this._isVisible && lineNumber >= this._visibleStartLine && lineNumber <= this._visibleEndLine) {
+			this._updatePosition(offsetY);
+			return;
+		}
+		if (lineNumber === this._pendingLine && this._showScheduler.isScheduled()) {
+			return;
+		}
+
+		this._pendingLine = lineNumber;
+		this._pendingOffsetY = offsetY;
+		this._showScheduler.cancel();
+		this._showScheduler.schedule();
+	}
+
+	public onMouseEnter(): void {
+		this._hideScheduler.cancel();
+	}
+
+	public onMouseLeave(): void {
+		this._showScheduler.cancel();
+		this._hideScheduler.schedule();
+	}
+
+	public hideImmediately(): void {
+		this._showScheduler.cancel();
+		this._hideScheduler.cancel();
+		this._hidePreview();
+	}
+
+	public onOptionsChanged(hoverPreviewDelay: number, hoverPreviewMaxLines: number): void {
+		this._showScheduler.cancel();
+		this._showScheduler = new RunOnceScheduler(() => this._showPendingPreview(), hoverPreviewDelay);
+		this._hoverPreviewMaxLines = hoverPreviewMaxLines;
+	}
+
+	private _showPendingPreview(): void {
+		const lineCount = this._model.getLineCount();
+		if (lineCount === 0) {
+			return;
+		}
+
+		const centerLine = Math.min(Math.max(1, this._pendingLine), lineCount);
+		const numLines = Math.min(this._hoverPreviewMaxLines, lineCount);
+
+		// Center the preview around the hovered line, clamped to file boundaries
+		let halfLines = Math.floor(numLines / 2);
+		let startLine = Math.max(1, centerLine - halfLines);
+		let endLine = Math.min(lineCount, startLine + numLines - 1);
+
+		// If we hit the bottom boundary, shift start line back up
+		if (endLine - startLine + 1 < numLines) {
+			startLine = Math.max(1, endLine - numLines + 1);
+		}
+
+		this._visibleStartLine = startLine;
+		this._visibleEndLine = endLine;
+
+		this._renderLines(startLine, endLine, centerLine);
+		this._updatePosition(this._pendingOffsetY);
+		this._showPreview(startLine, endLine, centerLine);
+	}
+
+	private _renderLines(startLine: number, endLine: number, centerLine: number): void {
+		const lineCount = endLine - startLine + 1;
+		this._headerNode.domNode.textContent = `Ln ${startLine}\u2013${endLine}  (${lineCount} line${lineCount > 1 ? 's' : ''})`;
+
+		// Build multi-line code content with highlighted center line
+		let html = '';
+		for (let ln = startLine; ln <= endLine; ln++) {
+			const lineText = this._model.getLineContent(ln);
+			const truncated = lineText.length > MAX_HOVER_PREVIEW_LINE_LENGTH
+				? strings.escape(lineText.substring(0, MAX_HOVER_PREVIEW_LINE_LENGTH)) + '\u2026'
+				: strings.escape(lineText);
+
+			const isCenter = (ln === centerLine);
+			const lineClass = isCenter ? 'minimap-hover-code-line center' : 'minimap-hover-code-line';
+			html += `<div class="${lineClass}" data-line="${ln}"><span class="minimap-hover-ln">${ln}</span> ${truncated || ' '}</div>`;
+		}
+
+		this._codeLinesNode.domNode.innerHTML = html;
+	}
+
+	private _updatePosition(offsetY: number): void {
+		const previewHeight = this._domNode.domNode.offsetHeight || 100;
+		const centerY = offsetY - (previewHeight / 2);
+		this._domNode.setTop(Math.max(0, centerY));
+	}
+
+	private _showPreview(startLine: number, endLine: number, centerLine: number): void {
+		if (this._isVisible) {
+			return;
+		}
+		this._domNode.setClassName('minimap-hover-preview visible');
+		this._isVisible = true;
+		this._onDidShow.fire({ startLineNumber: startLine, endLineNumber: endLine, centerLine });
+	}
+
+	private _hidePreview(): void {
+		if (!this._isVisible) {
+			return;
+		}
+		this._domNode.setClassName('minimap-hover-preview');
+		this._isVisible = false;
+		this._visibleStartLine = 0;
+		this._visibleEndLine = 0;
+		this._pendingLine = 0;
+		this._onDidHide.fire();
+	}
+
+	public dispose(): void {
+		this._showScheduler.dispose();
+		this._hideScheduler.dispose();
+		this._onDidShow.dispose();
+		this._onDidHide.dispose();
+		this._domNode.domNode.remove();
+	}
+}
+
 class InnerMinimap extends Disposable {
 
 	private readonly _theme: EditorTheme;
@@ -1167,6 +1363,16 @@ class InnerMinimap extends Disposable {
 	private readonly _sliderTouchStartListener: IDisposable;
 	private readonly _sliderTouchMoveListener: IDisposable;
 	private readonly _sliderTouchEndListener: IDisposable;
+
+	// Hover preview
+	private readonly _canvasMouseMoveListener: IDisposable;
+	private readonly _canvasMouseEnterListener: IDisposable;
+	private readonly _canvasMouseLeaveListener: IDisposable;
+	private _hoverPreview: MinimapHoverPreview | null = null;
+	private readonly _onDidShowMinimapHover = this._register(new Emitter<{ startLineNumber: number; endLineNumber: number; centerLine: number }>());
+	public readonly onDidShowMinimapHover: Event<{ startLineNumber: number; endLineNumber: number; centerLine: number }> = this._onDidShowMinimapHover.event;
+	private readonly _onDidHideMinimapHover = this._register(new Emitter<void>());
+	public readonly onDidHideMinimapHover: Event<void> = this._onDidHideMinimapHover.event;
 
 	private _lastRenderData: RenderData | null;
 	private _selectionColor: Color | undefined;
@@ -1304,6 +1510,33 @@ class InnerMinimap extends Disposable {
 			this._gestureInProgress = false;
 			this._slider.toggleClassName('active', false);
 		});
+
+		// --- Hover preview ---
+		const minimapOpts = this._model.options;
+		if (minimapOpts.showHoverPreview && minimapOpts.renderMinimap !== RenderMinimap.None) {
+			this._hoverPreview = new MinimapHoverPreview(this._model, this._domNode, minimapOpts.hoverPreviewDelay, minimapOpts.hoverPreviewMaxLines);
+			this._register(this._hoverPreview.onDidShow((e) => this._onDidShowMinimapHover.fire(e)));
+			this._register(this._hoverPreview.onDidHide(() => this._onDidHideMinimapHover.fire()));
+
+			this._canvasMouseMoveListener = dom.addDisposableListener(this._canvas.domNode, dom.EventType.MOUSE_MOVE, (e: MouseEvent) => {
+				const lineNumber = this._computeLineNumberFromY(e.offsetY);
+				if (lineNumber !== null) {
+					this._hoverPreview!.onMouseMove(lineNumber, e.offsetY);
+				}
+			});
+
+			this._canvasMouseEnterListener = dom.addDisposableListener(this._canvas.domNode, dom.EventType.MOUSE_ENTER, () => {
+				this._hoverPreview!.onMouseEnter();
+			});
+
+			this._canvasMouseLeaveListener = dom.addDisposableListener(this._canvas.domNode, dom.EventType.MOUSE_LEAVE, () => {
+				this._hoverPreview!.onMouseLeave();
+			});
+		} else {
+			this._canvasMouseMoveListener = Disposable.None;
+			this._canvasMouseEnterListener = Disposable.None;
+			this._canvasMouseLeaveListener = Disposable.None;
+		}
 	}
 
 	private _hideSoon() {
@@ -1317,6 +1550,27 @@ class InnerMinimap extends Disposable {
 			return;
 		}
 		this._domNode.toggleClassName('active', false);
+	}
+
+	private _computeLineNumberFromY(offsetY: number): number | null {
+		if (this._model.options.renderMinimap === RenderMinimap.None) {
+			return null;
+		}
+		if (!this._lastRenderData) {
+			return null;
+		}
+
+		const minimapLineHeight = this._model.options.minimapLineHeight;
+		const internalOffsetY = (this._model.options.canvasInnerHeight / this._model.options.canvasOuterHeight) * offsetY;
+		const lineIndex = Math.floor(internalOffsetY / minimapLineHeight);
+
+		let lineNumber = lineIndex + this._lastRenderData.renderedLayout.startLineNumber - this._lastRenderData.renderedLayout.topPaddingLineCount;
+		lineNumber = Math.max(1, Math.min(lineNumber, this._model.getLineCount()));
+		return lineNumber;
+	}
+
+	private _invalidateHoverPreview(): void {
+		this._hoverPreview?.hideImmediately();
 	}
 
 	private _startSliderDragging(e: PointerEvent, initialPosY: number, initialSliderState: MinimapLayout): void {
@@ -1374,6 +1628,10 @@ class InnerMinimap extends Disposable {
 		this._sliderTouchStartListener.dispose();
 		this._sliderTouchMoveListener.dispose();
 		this._sliderTouchEndListener.dispose();
+		this._canvasMouseMoveListener.dispose();
+		this._canvasMouseEnterListener.dispose();
+		this._canvasMouseLeaveListener.dispose();
+		this._hoverPreview?.dispose();
 		super.dispose();
 	}
 
@@ -1438,7 +1696,39 @@ class InnerMinimap extends Disposable {
 		this._buffers = null;
 		this._applyLayout();
 		this._domNode.setClassName(this._getMinimapDomNodeClassName());
+
+		// Update hover preview when options change
+		const opts = this._model.options;
+		if (this._hoverPreview && opts.showHoverPreview) {
+			this._hoverPreview.onOptionsChanged(opts.hoverPreviewDelay, opts.hoverPreviewMaxLines);
+		} else if (this._hoverPreview && !opts.showHoverPreview) {
+			this._hoverPreview.dispose();
+			this._hoverPreview = null;
+			this._canvasMouseMoveListener.dispose();
+			this._canvasMouseEnterListener.dispose();
+			this._canvasMouseLeaveListener.dispose();
+			this._canvasMouseMoveListener = Disposable.None;
+			this._canvasMouseEnterListener = Disposable.None;
+			this._canvasMouseLeaveListener = Disposable.None;
+		} else if (!this._hoverPreview && opts.showHoverPreview && opts.renderMinimap !== RenderMinimap.None) {
+			this._hoverPreview = new MinimapHoverPreview(this._model, this._domNode, opts.hoverPreviewDelay, opts.hoverPreviewMaxLines);
+			this._register(this._hoverPreview.onDidShow((e) => this._onDidShowMinimapHover.fire(e)));
+			this._register(this._hoverPreview.onDidHide(() => this._onDidHideMinimapHover.fire()));
+			this._canvasMouseMoveListener = dom.addDisposableListener(this._canvas.domNode, dom.EventType.MOUSE_MOVE, (e: MouseEvent) => {
+				const lineNumber = this._computeLineNumberFromY(e.offsetY);
+				if (lineNumber !== null) {
+					this._hoverPreview!.onMouseMove(lineNumber, e.offsetY);
+				}
+			});
+			this._canvasMouseEnterListener = dom.addDisposableListener(this._canvas.domNode, dom.EventType.MOUSE_ENTER, () => {
+				this._hoverPreview!.onMouseEnter();
+			});
+			this._canvasMouseLeaveListener = dom.addDisposableListener(this._canvas.domNode, dom.EventType.MOUSE_LEAVE, () => {
+				this._hoverPreview!.onMouseLeave();
+			});
+		}
 	}
+
 	public onSelectionChanged(): boolean {
 		this._renderDecorations = true;
 		return true;
@@ -1449,6 +1739,7 @@ class InnerMinimap extends Disposable {
 	}
 	public onFlushed(): boolean {
 		this._lastRenderData = null;
+		this._invalidateHoverPreview();
 		return true;
 	}
 	public onLinesChanged(changeFromLineNumber: number, changeCount: number): boolean {
@@ -1459,13 +1750,16 @@ class InnerMinimap extends Disposable {
 	}
 	public onLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number): boolean {
 		this._lastRenderData?.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
+		this._invalidateHoverPreview();
 		return true;
 	}
 	public onLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): boolean {
 		this._lastRenderData?.onLinesInserted(insertFromLineNumber, insertToLineNumber);
+		this._invalidateHoverPreview();
 		return true;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		this._invalidateHoverPreview();
 		if (this._model.options.autohide === 'scroll' && (e.scrollTopChanged || e.scrollHeightChanged)) {
 			this._domNode.toggleClassName('active', true);
 			this._hideSoon();

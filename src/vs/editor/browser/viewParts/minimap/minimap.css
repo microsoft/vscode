@@ -65,3 +65,68 @@
 .monaco-editor .minimap canvas {
 	opacity: 0.9;
 }
+
+/* Minimap hover preview */
+.monaco-editor .minimap .minimap-hover-preview {
+	display: none;
+	position: absolute;
+	background: var(--vscode-editorHoverWidget-background);
+	border: 1px solid var(--vscode-editorHoverWidget-border);
+	border-radius: 4px;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	padding: 4px 8px;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: var(--vscode-editor-font-size, 14px);
+	line-height: var(--vscode-editor-line-height, 20px);
+	color: var(--vscode-editor-foreground);
+	z-index: 10;
+	pointer-events: none;
+	overflow: hidden;
+	max-width: 650px;
+	opacity: 0.95;
+	transition: opacity 100ms ease-in-out;
+}
+
+.monaco-editor .minimap .minimap-hover-preview.visible {
+	display: block;
+}
+
+/* Header showing line range (e.g. "Ln 10–14 (5 lines)") */
+.monaco-editor .minimap .minimap-hover-preview .minimap-hover-header {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 3px;
+	padding-bottom: 3px;
+	border-bottom: 1px solid var(--vscode-editorHoverWidget-border);
+}
+
+/* Container for code lines */
+.monaco-editor .minimap .minimap-hover-preview .minimap-hover-code-lines {
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: inherit;
+	line-height: inherit;
+}
+
+/* Single code line */
+.monaco-editor .minimap .minimap-hover-preview .minimap-hover-code-line {
+	white-space: pre;
+	display: block;
+}
+
+/* Highlight the center/hovered line */
+.monaco-editor .minimap .minimap-hover-preview .minimap-hover-code-line.center {
+	background: var(--vscode-editor-lineHighlightBackground);
+	margin: 0 -8px;
+	padding: 0 8px;
+}
+
+/* Line number badge on each line */
+.monaco-editor .minimap .minimap-hover-preview .minimap-hover-code-line .minimap-hover-ln {
+	display: inline-block;
+	min-width: 3ch;
+	color: var(--vscode-editorLineNumber-foreground);
+	text-align: right;
+	margin-right: 1ch;
+	user-select: none;
+	pointer-events: none;
+}
