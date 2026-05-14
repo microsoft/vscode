@@ -9,7 +9,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { ChatEndpointFamily, EmbeddingsEndpointFamily, IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
-import { CopilotChatEndpoint } from '../../../platform/endpoint/node/copilotChatEndpoint';
+import { CopilotChatEndpoint, CopilotUtilityChatEndpoint, CopilotUtilitySmallChatEndpoint } from '../../../platform/endpoint/node/copilotChatEndpoint';
 import { EmbeddingEndpoint } from '../../../platform/endpoint/node/embeddingsEndpoint';
 import { IModelMetadataFetcher, ModelMetadataFetcher } from '../../../platform/endpoint/node/modelMetadataFetcher';
 import { ExtensionContributedChatEndpoint } from '../../../platform/endpoint/vscode-node/extChatEndpoint';
@@ -66,14 +66,13 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 		this._logService.trace(`Resolving chat model`);
 
 		if (typeof requestOrFamilyOrModel === 'string') {
-			const modelMetadata = await this._modelFetcher.getChatModelFromFamily(requestOrFamilyOrModel);
-			return this.getOrCreateChatEndpointInstance(modelMetadata!);
+			return this._resolveUtilityFamily(requestOrFamilyOrModel);
 		}
 
 		const model = 'model' in requestOrFamilyOrModel ? requestOrFamilyOrModel.model : requestOrFamilyOrModel;
 
 		if (!model) {
-			return this.getChatEndpoint('copilot-base');
+			return this.getChatEndpoint('copilot-utility');
 		}
 
 		if (model.vendor !== 'copilot') {
@@ -85,13 +84,30 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 				const allEndpoints = await this.getAllChatEndpoints();
 				return this._autoModeService.resolveAutoModeEndpoint(requestOrFamilyOrModel as ChatRequest, allEndpoints);
 			} catch {
-				return this.getChatEndpoint('copilot-base');
+				return this.getChatEndpoint('copilot-utility');
 			}
 		}
 
 		const modelMetadata = await this._modelFetcher.getChatModelFromApiModel(model);
-		// If we fail to resolve a model since this is panel we give copilot base. This really should never happen as the picker is powered by the same service.
-		return modelMetadata ? this.getOrCreateChatEndpointInstance(modelMetadata) : this.getChatEndpoint('copilot-base');
+		// If we fail to resolve a model since this is panel we give copilot utility. This really should never happen as the picker is powered by the same service.
+		return modelMetadata ? this.getOrCreateChatEndpointInstance(modelMetadata) : this.getChatEndpoint('copilot-utility');
+	}
+
+	/**
+	 * Resolves an internal utility family (`copilot-utility-small` /
+	 * `copilot-utility`) to a concrete `CopilotChatEndpoint`. The model
+	 * selection for each family lives in the corresponding resolver
+	 * class so callers don't need to know which CAPI family backs each
+	 * purpose.
+	 */
+	private _resolveUtilityFamily(family: ChatEndpointFamily): Promise<IChatEndpoint> {
+		if (family === 'copilot-utility-small') {
+			return CopilotUtilitySmallChatEndpoint.resolve(this._modelFetcher, this._instantiationService);
+		} else if (family === 'copilot-utility') {
+			return CopilotUtilityChatEndpoint.resolve(this._modelFetcher, this._instantiationService);
+		} else {
+			throw new Error(`Unrecognized chat endpoint family ${family}`);
+		}
 	}
 
 	async getEmbeddingsEndpoint(family?: EmbeddingsEndpointFamily): Promise<IEmbeddingsEndpoint> {

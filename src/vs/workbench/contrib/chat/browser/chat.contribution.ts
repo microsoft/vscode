@@ -6,10 +6,11 @@
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
 import { CopilotSessionSearchPolicy } from '../../../../base/common/defaultAccount.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentSdkPathSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentSdkPathSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
@@ -44,11 +45,11 @@ import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCod
 import '../common/widget/chatColors.js';
 import { IChatEditingService } from '../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../common/widget/chatLayoutService.js';
-import { ChatModeService, IChatMode, IChatModeService } from '../common/chatModes.js';
+import { ChatModeService, IChatMode, IChatModeService, IChatModes } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider, ChatResponseResourceWorkbenchContribution, IChatResponseResourceFileSystemProvider } from '../common/widget/chatResponseResourceFileSystemProvider.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { ChatService } from '../common/chatService/chatServiceImpl.js';
-import { IChatSessionsService, SessionType } from '../common/chatSessionsService.js';
+import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { ChatArtifactsService, IChatArtifactsService } from '../common/tools/chatArtifactsService.js';
 import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatTodoListService.js';
@@ -172,6 +173,7 @@ import { AgentPluginRepositoryService } from './agentPluginRepositoryService.js'
 import { BrowserPluginGitCommandService } from './pluginGitCommandService.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { PluginInstallService } from './pluginInstallService.js';
+import { PluginAutoUpdate } from './pluginAutoUpdate.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import { ChatSessionOptionSlashCommandsContribution, ChatSlashCommandsContribution } from './chatSlashCommands.js';
@@ -1004,6 +1006,56 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
+		[AgentHostCustomTerminalToolEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.customTerminalTool.enabled', "When enabled, Copilot SDK sessions use the Agent Host terminal tool override instead of the SDK's default terminal behavior."),
+			default: true,
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostOTelEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.otel.enabled', "When enabled, the agent host emits OpenTelemetry traces from the Copilot SDK. Requires `#chat.agentHost.enabled#`. Either configure `#chat.agentHost.otel.otlpEndpoint#` to ship traces to an external collector or enable `#chat.agentHost.otel.dbSpanExporter.enabled#` to capture them locally."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostOTelExporterTypeSettingId]: {
+			type: 'string',
+			enum: ['otlp-http', 'otlp-grpc', 'console', 'file'],
+			description: nls.localize('chat.agentHost.otel.exporterType', "Exporter backend used by the Copilot SDK when `#chat.agentHost.otel.enabled#` is on. `otlp-grpc` is downgraded to `otlp-http` transparently in the CLI runtime."),
+			default: 'otlp-http',
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostOTelOtlpEndpointSettingId]: {
+			type: 'string',
+			description: nls.localize('chat.agentHost.otel.otlpEndpoint', "OTLP endpoint URL when exporter type is `otlp-http` or `otlp-grpc`. Sets `OTEL_EXPORTER_OTLP_ENDPOINT` inside the agent host process."),
+			default: '',
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostOTelCaptureContentSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.otel.captureContent', "When enabled, includes prompt and response content in OTel span attributes. Sets `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`. Privacy-sensitive: do not enable in environments that ship spans to shared sinks."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostOTelOutfileSettingId]: {
+			type: 'string',
+			description: nls.localize('chat.agentHost.otel.outfile', "Output path for span JSON lines when exporter type is `file`. Sets `COPILOT_OTEL_FILE_EXPORTER_PATH`."),
+			default: '',
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostOTelDbSpanExporterEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.otel.dbSpanExporter.enabled', "When enabled, the agent host persists every emitted OTel span to a local SQLite database. Spans can be inspected via the `Export Agent Host Traces Database` command. Compatible with external exporters: spans are written to SQLite *and* forwarded to the user-configured sink."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
 		[ChatConfiguration.AgentHostClientTools]: {
 			type: 'array',
 			items: { type: 'string' },
@@ -1034,7 +1086,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ToolRiskAssessmentModel]: {
 			type: 'string',
 			description: nls.localize('chat.tools.riskAssessment.model', "The language model id used to generate tool risk assessments. Should be a small, fast model."),
-			default: 'copilot-fast',
+			default: 'copilot-utility-small',
 			tags: ['experimental', 'advanced'],
 			experiment: {
 				mode: 'auto'
@@ -2076,41 +2128,41 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 	private readonly _modeActionDisposables = new DisposableMap<string>();
 
 	constructor(
-		@IChatModeService private readonly chatModeService: IChatModeService,
+		@IChatModeService _chatModeService: IChatModeService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		this._store.add(this._modeActionDisposables);
 
-		const chatModes = this.chatModeService.getModes(SessionType.Local);
-		const { builtin, custom } = chatModes;
+		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
+		this._register(autorun(reader => {
+			const chatModes = focusedWidget.read(reader)?.input.currentChatModesObs.read(reader);
+			this._syncModeActions(chatModes);
+		}));
+	}
 
-		// Register actions for existing custom modes (avoiding name collisions)
+	private _syncModeActions(chatModes: IChatModes | undefined): void {
+		if (!chatModes) {
+			this._modeActionDisposables.clearAndDisposeAll();
+			return;
+		}
+
+		const { builtin, custom } = chatModes;
 		const currentModeIds = getCustomModesWithUniqueNames(builtin, custom);
-		for (const mode of custom) {
-			if (currentModeIds.has(mode.id)) {
-				this._registerModeAction(mode);
+
+		// Remove modes that no longer exist and those replaced by modes later in the list with same name.
+		for (const modeId of this._modeActionDisposables.keys()) {
+			if (!currentModeIds.has(modeId)) {
+				this._modeActionDisposables.deleteAndDispose(modeId);
 			}
 		}
 
-		// Listen for custom mode changes by tracking snapshots
-		this._register(chatModes.onDidChange(() => {
-			const { builtin, custom } = chatModes;
-			const currentModeIds = getCustomModesWithUniqueNames(builtin, custom);
-
-			// Remove modes that no longer exist and those replaced by modes later in the list with same name
-			for (const modeId of this._modeActionDisposables.keys()) {
-				if (!currentModeIds.has(modeId)) {
-					this._modeActionDisposables.deleteAndDispose(modeId);
-				}
+		// Register new modes.
+		for (const mode of custom) {
+			if (currentModeIds.has(mode.id) && !this._modeActionDisposables.has(mode.id)) {
+				this._registerModeAction(mode);
 			}
-
-			// Register new modes
-			for (const mode of custom) {
-				if (currentModeIds.has(mode.id) && !this._modeActionDisposables.has(mode.id)) {
-					this._registerModeAction(mode);
-				}
-			}
-		}));
+		}
 	}
 
 	private _registerModeAction(mode: IChatMode): void {
@@ -2264,6 +2316,7 @@ registerWorkbenchContribution2(PromptLanguageFeaturesProvider.ID, PromptLanguage
 registerWorkbenchContribution2(ChatWindowNotifier.ID, ChatWindowNotifier, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatRepoInfoContribution.ID, ChatRepoInfoContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(AgentPluginRecommendations.ID, AgentPluginRecommendations, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(PluginAutoUpdate.ID, PluginAutoUpdate, WorkbenchPhase.Eventually);
 
 registerChatActions();
 registerChatAccessibilityActions();

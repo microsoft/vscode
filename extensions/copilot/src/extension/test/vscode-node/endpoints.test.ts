@@ -27,7 +27,14 @@ class FakeModelMetadataFetcher implements IModelMetadataFetcher {
 	async getChatModelFromApiModel(model: LanguageModelChat): Promise<IChatModelInformation | undefined> {
 		return undefined;
 	}
-	async getChatModelFromFamily(modelId: string): Promise<IChatModelInformation> {
+	async getCopilotUtilityModel(): Promise<IChatModelInformation> {
+		return this._fakeChatModel('copilot-utility');
+	}
+	async getChatModelFromCapiFamily(family: string): Promise<IChatModelInformation> {
+		return this._fakeChatModel(family);
+	}
+
+	private _fakeChatModel(modelId: string): IChatModelInformation {
 		return {
 			id: modelId,
 			vendor: 'fake-vendor',

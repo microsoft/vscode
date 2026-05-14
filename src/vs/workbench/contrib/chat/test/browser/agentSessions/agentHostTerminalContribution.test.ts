@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -143,6 +143,12 @@ function rootStateWithoutDefaultShellKey(): RootState {
 	});
 }
 
+function rootStateWithDisableCustomTerminalToolKey(): RootState {
+	return makeRootStateWithSchema({
+		[AgentHostConfigKey.DisableCustomTerminalTool]: { type: 'boolean', title: 'Use SDK Terminal Tool' },
+	});
+}
+
 interface ITestSetup {
 	contribution: AgentHostTerminalContribution;
 	agentHostService: MockAgentHostService;
@@ -160,6 +166,7 @@ function setup(disposables: DisposableStore, agentHostEnabled: boolean = true): 
 	disposables.add({ dispose: () => profileService.dispose() });
 	const configurationService = new TestConfigurationService({
 		[AgentHostEnabledSettingId]: agentHostEnabled,
+		[AgentHostCustomTerminalToolEnabledSettingId]: true,
 	});
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -324,5 +331,52 @@ suite('AgentHostTerminalContribution', () => {
 
 		assert.strictEqual(resolver.lastOptions?.os, OS as OperatingSystem);
 		assert.strictEqual(resolver.lastOptions?.remoteAuthority, undefined);
+	});
+
+	test('dispatches inverted disableCustomTerminalTool from the VS Code setting', async () => {
+		const { agentHostService, configurationService } = setup(disposables);
+		configurationService.setUserConfiguration(AgentHostCustomTerminalToolEnabledSettingId, false);
+
+		agentHostService.setRootState(rootStateWithDisableCustomTerminalToolKey());
+		await flush();
+
+		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+		assert.deepStrictEqual((agentHostService.dispatchedActions[0] as IRootConfigChangedAction).config, {
+			[AgentHostConfigKey.DisableCustomTerminalTool]: true,
+		});
+	});
+
+	test('dispatches disableCustomTerminalTool false by default', async () => {
+		const { agentHostService } = setup(disposables);
+
+		agentHostService.setRootState(rootStateWithDisableCustomTerminalToolKey());
+		await flush();
+
+		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+		assert.deepStrictEqual((agentHostService.dispatchedActions[0] as IRootConfigChangedAction).config, {
+			[AgentHostConfigKey.DisableCustomTerminalTool]: false,
+		});
+	});
+
+	test('re-dispatches disableCustomTerminalTool when the enabled setting changes', async () => {
+		const { agentHostService, configurationService } = setup(disposables);
+		const rootState = rootStateWithDisableCustomTerminalToolKey();
+		rootState.config!.values[AgentHostConfigKey.DisableCustomTerminalTool] = false;
+		agentHostService.setRootState(rootState);
+		await flush();
+		assert.deepStrictEqual(agentHostService.dispatchedActions, []);
+
+		configurationService.setUserConfiguration(AgentHostCustomTerminalToolEnabledSettingId, false);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectedKeys: new Set([AgentHostCustomTerminalToolEnabledSettingId]),
+			affectsConfiguration: (key: string) => key === AgentHostCustomTerminalToolEnabledSettingId,
+			source: 1, // ConfigurationTarget.USER
+			change: { keys: [AgentHostCustomTerminalToolEnabledSettingId], overrides: [] },
+		});
+
+		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+		assert.deepStrictEqual((agentHostService.dispatchedActions[0] as IRootConfigChangedAction).config, {
+			[AgentHostConfigKey.DisableCustomTerminalTool]: true,
+		});
 	});
 });
