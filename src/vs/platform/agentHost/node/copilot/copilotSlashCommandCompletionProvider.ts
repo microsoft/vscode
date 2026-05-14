@@ -90,11 +90,10 @@ function leadingSlashToken(text: string, offset: number): { token: string; end: 
  * with `/`.
  *
  * The returned items carry a {@link MessageAttachmentKind.Simple}
- * attachment. Today the workbench bridge drops non-`Resource` attachments,
- * so no chip is rendered in the input — by design. Command dispatch
- * happens text-side in `CopilotAgentSession.send` via
- * {@link parseLeadingSlashCommand}, so the feature works whether the user
- * picks the item or types it manually.
+ * attachment, which the workbench bridge maps into command/skill completion
+ * attachments. Command dispatch happens text-side in
+ * `CopilotAgentSession.send` via {@link parseLeadingSlashCommand}, so the
+ * feature works whether the user picks the item or types it manually.
  */
 export class CopilotSlashCommandCompletionProvider implements IAgentHostCompletionItemProvider {
 	readonly kinds: ReadonlySet<CompletionItemKind> = new Set([CompletionItemKind.UserMessage]);
