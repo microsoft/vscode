@@ -1241,7 +1241,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// to a microtask. This method is invoked from tool autoruns, which fire synchronously inside
 		// `renderChatContentDiff` while the array is being iterated — splicing it mid-render would
 		// orphan subsequent parts and leave detached DOM nodes referenced from `renderedParts`.
-		queueMicrotask(() => this.doUpdateWorkingProgressForPendingConfirmations(templateData));
+		// Capture the originating element so we bail out if the template was recycled for a different one.
+		const originalElement = templateData.currentElement;
+		queueMicrotask(() => {
+			if (templateData.currentElement !== originalElement) {
+				return;
+			}
+			this.doUpdateWorkingProgressForPendingConfirmations(templateData);
+		});
 	}
 
 	private doUpdateWorkingProgressForPendingConfirmations(templateData: IChatListItemTemplate): void {
