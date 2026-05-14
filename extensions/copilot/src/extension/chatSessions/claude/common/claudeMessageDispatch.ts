@@ -42,7 +42,7 @@ export interface MessageHandlerState {
 	readonly toolStartTimes: Map<string, number>;
 	readonly otelToolSpans: Map<string, ISpanHandle>;
 	readonly otelHookSpans: Map<string, ISpanHandle>;
-	parentTraceContext?: TraceContext;
+	readonly parentTraceContext?: TraceContext;
 	/** Trace contexts for subagent tool spans, keyed by tool_use_id. Used to parent
 	 *  child spans (chat, tool) from subagent messages under the Agent tool span. */
 	readonly subagentTraceContexts: Map<string, TraceContext>;
@@ -167,13 +167,12 @@ export function handleAssistantMessage(
 	request: MessageHandlerRequestContext,
 	state: MessageHandlerState,
 ): void {
-	const logService = accessor.get(ILogService);
-
 	if (message.message.model === SYNTHETIC_MODEL_ID) {
-		logService.trace('[ClaudeMessageDispatch] Skipping synthetic message');
+		accessor.get(ILogService).trace('[ClaudeMessageDispatch] Skipping synthetic message');
 		return;
 	}
 
+	const logService = accessor.get(ILogService);
 	const otelService = accessor.get(IOTelService);
 	const { stream } = request;
 	const { otelToolSpans, unprocessedToolCalls } = state;
