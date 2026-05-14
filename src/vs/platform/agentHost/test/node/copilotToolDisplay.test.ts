@@ -90,16 +90,11 @@ suite('copilotToolDisplay — edit tool classification', () => {
 
 	test('classifies str_replace_editor by command', () => {
 		for (const command of ['edit', 'str_replace', 'insert', 'create']) {
-			assert.strictEqual(isEditTool('str_replace_editor', { command, path: '/repo/file.ts' }), true, command);
+			assert.strictEqual(isEditTool('str_replace_editor', command), true, command);
 		}
-		assert.strictEqual(isEditTool('str_replace_editor', { command: 'view', path: '/repo/file.ts' }), false);
-		assert.strictEqual(isEditTool('str_replace_editor', { command: 'unknown', path: '/repo/file.ts' }), false);
+		assert.strictEqual(isEditTool('str_replace_editor', 'view'), false);
+		assert.strictEqual(isEditTool('str_replace_editor', 'unknown'), false);
 		assert.strictEqual(isEditTool('str_replace_editor'), false);
-	});
-
-	test('classifies str_replace_editor from JSON-encoded arguments', () => {
-		assert.strictEqual(isEditTool('str_replace_editor', JSON.stringify({ command: 'edit', path: '/repo/file.ts' })), true);
-		assert.strictEqual(isEditTool('str_replace_editor', JSON.stringify({ command: 'view', path: '/repo/file.ts' })), false);
 	});
 });
 

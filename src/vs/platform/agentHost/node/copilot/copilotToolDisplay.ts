@@ -103,10 +103,6 @@ interface ICopilotFileToolArgs {
 	path: string;
 }
 
-interface ICopilotStrReplaceEditorToolArgs extends ICopilotFileToolArgs {
-	command?: string;
-}
-
 /**
  * Parameters for the `view` tool. The Copilot CLI accepts an optional
  * `view_range: [startLine, endLine]` (1-based, inclusive). `endLine` may be
@@ -266,27 +262,15 @@ const STR_REPLACE_EDITOR_EDIT_COMMANDS: ReadonlySet<string> = new Set([
 	CopilotToolName.Create,
 ]);
 
-function getObjectParameters(parameters: unknown): Record<string, unknown> | undefined {
-	if (typeof parameters === 'string') {
-		try {
-			parameters = JSON.parse(parameters);
-		} catch {
-			return undefined;
-		}
-	}
-	return parameters && typeof parameters === 'object' ? parameters as Record<string, unknown> : undefined;
-}
-
 /**
  * Returns true if the tool modifies files on disk.
  */
-export function isEditTool(toolName: string, parameters?: unknown): boolean {
+export function isEditTool(toolName: string, command?: string): boolean {
 	if (EDIT_TOOL_NAMES.has(toolName)) {
 		return true;
 	}
 	if (toolName === CopilotToolName.StrReplaceEditor) {
-		const args = getObjectParameters(parameters) as ICopilotStrReplaceEditorToolArgs | undefined;
-		return typeof args?.command === 'string' && STR_REPLACE_EDITOR_EDIT_COMMANDS.has(args.command);
+		return command !== undefined && STR_REPLACE_EDITOR_EDIT_COMMANDS.has(command);
 	}
 	return false;
 }
