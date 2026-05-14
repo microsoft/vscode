@@ -10,7 +10,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IToolResult, IToolResultTextPart } from '../../common/tools/languageModelToolsService.js';
-import { formatCompressionBanner, IToolResultCache, IToolResultCompressor, IToolResultFilter, isProtectedFromCompression, MIN_COMPRESSIBLE_LENGTH } from '../../common/tools/toolResultCompressor.js';
+import { IToolResultCache, IToolResultCompressor, IToolResultFilter, isProtectedFromCompression, MIN_COMPRESSIBLE_LENGTH } from '../../common/tools/toolResultCompressor.js';
 
 type ToolResultCompressedClassification = {
 	owner: 'meganrogge';
@@ -177,22 +177,10 @@ export class ToolResultCompressorService extends Disposable implements IToolResu
 
 			totalAfter += current.length;
 			if (current !== original) {
-				// Prepend a banner so the model knows the output was filtered, by
-				// which filters, and how to disable compression. We only annotate
-				// the parts we actually changed — non-compressed parts pass through
-				// untouched.
-				const banner = formatCompressionBanner(partFilterIds, original.length, current.length);
-				const annotated = `${banner}\n${current}`;
-				// Only apply compression if the savings exceed the banner overhead.
-				// Otherwise the "compressed" result is actually larger.
-				if (annotated.length >= original.length) {
-					totalAfter = totalAfter - current.length + original.length;
-					return part;
-				}
 				anyCompressed = true;
 				const rewritten: IToolResultTextPart = {
 					kind: 'text',
-					value: annotated,
+					value: current,
 					audience: part.audience,
 					title: part.title,
 				};
@@ -206,16 +194,7 @@ export class ToolResultCompressorService extends Disposable implements IToolResu
 			return undefined;
 		}
 
-		// Guard: don't return a "compressed" result if banner overhead makes it
-		// larger than the original. This is the primary cause of increased token
-		// usage — short savings get wiped out by per-part banners.
-		const actualAfter = newContent.reduce((acc, p) => acc + (p.kind === 'text' ? p.value.length : 0), 0);
-		if (actualAfter >= totalBefore) {
-			this._recordInCaches(toolId, input, result, caches);
-			return undefined;
-		}
-
-		this._sendTelemetry(toolId, [...usedFilterIds], totalBefore, actualAfter, false);
+		this._sendTelemetry(toolId, [...usedFilterIds], totalBefore, totalAfter, false);
 
 		const finalResult: IToolResult = {
 			...result,
@@ -227,7 +206,7 @@ export class ToolResultCompressorService extends Disposable implements IToolResu
 
 	private _buildCacheHitResult(original: IToolResult, hit: { text: string; timestamp: number }): IToolResult {
 		const iso = new Date(hit.timestamp).toISOString();
-		const text = `Same output as last run (${iso}). To disable, set ${ChatConfiguration.CompressOutputEnabled} to false.`;
+		const text = `Same output as last run (${iso}).`;
 		// Preserve the first text part's audience metadata so downstream
 		// model-routing logic still behaves the same way.
 		const firstText = original.content.find((p): p is IToolResultTextPart => p.kind === 'text');

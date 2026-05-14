@@ -125,17 +125,8 @@ export function isProtectedFromCompression(text: string): boolean {
 /**
  * Outputs below this many characters (UTF-16 code units, i.e.
  * `string.length`) are not worth compressing: filter savings on short
- * outputs rarely outweigh the banner overhead, and skipping them avoids
+ * outputs rarely outweigh the overhead, and skipping them avoids
  * the agent issuing redundant `read_file` / `get_terminal_output` calls
  * to recover content that would have fit uncompressed.
  */
 export const MIN_COMPRESSIBLE_LENGTH = 1024;
-
-/**
- * Format the banner that gets prepended to compressed text parts so the
- * model knows compression happened, which filters fired, and how to opt out.
- */
-export function formatCompressionBanner(filterIds: readonly string[], beforeChars: number, afterChars: number): string {
-	const ids = filterIds.length > 0 ? filterIds.join(', ') : 'unknown';
-	return `[Output compressed by ${ids} (${beforeChars} → ${afterChars} chars). To disable, set chat.tools.compressOutput.enabled to false.]`;
-}
