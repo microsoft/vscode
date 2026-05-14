@@ -1457,6 +1457,11 @@ export class ActionListWidget<T> extends Disposable {
 			if (element.submenuActions?.length) {
 				hoverHeader.classList.add('has-submenu');
 			}
+			// Prevent mousedown from moving focus away from the action list,
+			// which would trigger the blur handler and dismiss the widget.
+			this._submenuDisposables.add(dom.addDisposableListener(hoverHeader, dom.EventType.MOUSE_DOWN, (e) => {
+				e.preventDefault();
+			}));
 			this._submenuContainer.appendChild(hoverHeader);
 		}
 
