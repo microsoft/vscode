@@ -29,14 +29,23 @@ const PriorityFields = Object.freeze({
 });
 
 const customEditorPrioritySchema = {
-	type: 'string',
-	enum: [
-		CustomEditorPriority.default,
-		CustomEditorPriority.option,
-	],
-	markdownEnumDescriptions: [
-		nls.localize('contributes.priority.default', 'The editor is automatically used when the user opens a resource, provided that no other default custom editors are registered for that resource.'),
-		nls.localize('contributes.priority.option', 'The editor is not automatically used when the user opens a resource, but a user can switch to the editor using the `Reopen With` command.'),
+	anyOf: [
+		{
+			type: 'string',
+			enum: [
+				CustomEditorPriority.default,
+				CustomEditorPriority.option,
+			],
+			markdownEnumDescriptions: [
+				nls.localize('contributes.priority.default', 'The editor is automatically used when the user opens a resource, provided that no other default custom editors are registered for that resource.'),
+				nls.localize('contributes.priority.option', 'The editor is not automatically used when the user opens a resource, but a user can switch to the editor using the `Reopen With` command.'),
+			],
+		},
+		{
+			type: 'string',
+			enum: [CustomEditorPriority.builtin],
+			doNotSuggest: true,
+		},
 	],
 } as const satisfies IJSONSchema;
 

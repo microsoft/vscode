@@ -60,6 +60,11 @@ export class ContributedCustomEditors extends Disposable {
 		for (const extension of extensions) {
 			const hasCustomEditorPriorityProposal = extension.description.enabledApiProposals?.includes('customEditorPriority') ?? false;
 			for (const webviewEditorContribution of extension.value) {
+				if (!extension.description.isBuiltin && hasBuiltinPriority(webviewEditorContribution.priority)) {
+					extension.collector.error(nls.localize('customEditorPriority.builtinOnlyForBuiltins', "The custom editor priority 'builtin' for '{0}' can only be used by built-in extensions. The custom editor will be ignored.", webviewEditorContribution.viewType));
+					continue;
+				}
+
 				const priority = getPriorityFromContribution(webviewEditorContribution.priority, extension.description, hasCustomEditorPriorityProposal);
 				this.add(new CustomEditorInfo({
 					id: webviewEditorContribution.viewType,
@@ -116,6 +121,18 @@ function normalizeStoredCustomEditorDescriptor(descriptor: StoredCustomEditorDes
 			merge: descriptor.priority.merge ?? descriptor.priority.editor,
 		},
 	};
+}
+
+function hasBuiltinPriority(contribution: ICustomEditorsExtensionPoint['priority']): boolean {
+	if (contribution === CustomEditorPriority.builtin) {
+		return true;
+	}
+	if (!contribution || typeof contribution === 'string') {
+		return false;
+	}
+	return contribution.editor === CustomEditorPriority.builtin
+		|| contribution.diff === CustomEditorPriority.builtin
+		|| contribution.merge === CustomEditorPriority.builtin;
 }
 
 function getPriorityFromContribution(
