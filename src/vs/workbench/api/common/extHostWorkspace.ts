@@ -259,6 +259,12 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._configProvider?.getConfiguration('search').get<boolean>('experimental.useIgnoreFilesInFindFiles') ?? false;
 	}
 
+	private _userIgnoreFilesSetting(): boolean {
+		// Default in `search.useIgnoreFiles` is `true`; mirror that here so telemetry computed against
+		// an unset config still reflects the fallback the query builder will apply.
+		return this._configProvider?.getConfiguration('search').get<boolean>('useIgnoreFiles') ?? true;
+	}
+
 	$initializeWorkspace(data: IWorkspaceData | null, trusted: boolean): void {
 		this._trusted = trusted;
 		this.$acceptWorkspaceData(data);
@@ -541,60 +547,70 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		intent: FindFilesCallIntent,
 		token: vscode.CancellationToken
 	): Promise<vscode.Uri[]> {
-		if (token.isCancellationRequested) {
-			return Promise.resolve([]);
-		}
-
-		const filePatternsToUse = query.type === 'include' ? [query.value] : query.value ?? [];
-		if (!Array.isArray(filePatternsToUse)) {
-			console.error('Invalid file pattern provided', filePatternsToUse);
-			throw new Error(`Invalid file pattern provided ${JSON.stringify(filePatternsToUse)}`);
-		}
-
-		const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = filePatternsToUse.map(filePattern => {
-
-			const excludePatterns = globsToISearchPatternBuilder(options.exclude);
-
-			const fileQueries: IFileQueryBuilderOptions = {
-				ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
-				disregardIgnoreFiles: typeof options.useIgnoreFiles?.local === 'boolean' ? !options.useIgnoreFiles.local : undefined,
-				disregardGlobalIgnoreFiles: typeof options.useIgnoreFiles?.global === 'boolean' ? !options.useIgnoreFiles.global : undefined,
-				disregardParentIgnoreFiles: typeof options.useIgnoreFiles?.parent === 'boolean' ? !options.useIgnoreFiles.parent : undefined,
-				disregardExcludeSettings: options.useExcludeSettings !== undefined && options.useExcludeSettings === ExcludeSettingOptions.None,
-				disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== ExcludeSettingOptions.SearchAndFilesExclude),
-				maxResults: options.maxResults,
-				excludePattern: excludePatterns.length > 0 ? excludePatterns : undefined,
-				ignoreGlobCase: options.caseInsensitive,
-				_reason: 'startFileSearch',
-				shouldGlobSearch: query.type === 'include' ? undefined : true,
-			};
-
-			const parseInclude = parseSearchExcludeInclude(GlobPattern.from(filePattern));
-			const folderToUse = parseInclude?.folder;
-			if (query.type === 'include') {
-				fileQueries.includePattern = parseInclude?.pattern;
-			} else {
-				fileQueries.filePattern = parseInclude?.pattern;
-			}
-
-			return {
-				folder: folderToUse,
-				options: fileQueries
-			};
-		});
-
-		// Effective ignore-file behavior across all sub-queries: if any sub-query disables local ignore handling
-		// (i.e. passes `--no-ignore`), the call as a whole did not respect the user's `.gitignore`.
-		const respectedIgnoreFiles = !queryOptions.some(q => q.options.disregardIgnoreFiles === true);
 		const useIgnoreFilesLocalRequested: 'unspecified' | 'true' | 'false' =
 			intent.useIgnoreFilesLocal === true ? 'true'
 				: intent.useIgnoreFilesLocal === false ? 'false'
 					: 'unspecified';
 		const sw = new StopWatch(true);
+		let queryCount = 0;
+		let respectedIgnoreFiles = this._userIgnoreFilesSetting();
 		let resultCount = 0;
 		let cancelled = false;
 		let errored = false;
 		try {
+			if (token.isCancellationRequested) {
+				cancelled = true;
+				return [];
+			}
+
+			const filePatternsToUse = query.type === 'include' ? [query.value] : query.value ?? [];
+			if (!Array.isArray(filePatternsToUse)) {
+				console.error('Invalid file pattern provided', filePatternsToUse);
+				throw new Error(`Invalid file pattern provided ${JSON.stringify(filePatternsToUse)}`);
+			}
+
+			const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = filePatternsToUse.map(filePattern => {
+
+				const excludePatterns = globsToISearchPatternBuilder(options.exclude);
+
+				const fileQueries: IFileQueryBuilderOptions = {
+					ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
+					disregardIgnoreFiles: typeof options.useIgnoreFiles?.local === 'boolean' ? !options.useIgnoreFiles.local : undefined,
+					disregardGlobalIgnoreFiles: typeof options.useIgnoreFiles?.global === 'boolean' ? !options.useIgnoreFiles.global : undefined,
+					disregardParentIgnoreFiles: typeof options.useIgnoreFiles?.parent === 'boolean' ? !options.useIgnoreFiles.parent : undefined,
+					disregardExcludeSettings: options.useExcludeSettings !== undefined && options.useExcludeSettings === ExcludeSettingOptions.None,
+					disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== ExcludeSettingOptions.SearchAndFilesExclude),
+					maxResults: options.maxResults,
+					excludePattern: excludePatterns.length > 0 ? excludePatterns : undefined,
+					ignoreGlobCase: options.caseInsensitive,
+					_reason: 'startFileSearch',
+					shouldGlobSearch: query.type === 'include' ? undefined : true,
+				};
+
+				const parseInclude = parseSearchExcludeInclude(GlobPattern.from(filePattern));
+				const folderToUse = parseInclude?.folder;
+				if (query.type === 'include') {
+					fileQueries.includePattern = parseInclude?.pattern;
+				} else {
+					fileQueries.filePattern = parseInclude?.pattern;
+				}
+
+				return {
+					folder: folderToUse,
+					options: fileQueries
+				};
+			});
+
+			queryCount = queryOptions.length;
+			// Effective ignore-file behavior across all sub-queries: a call respected `.gitignore` only when every
+			// sub-query is either explicitly honoring it or falls back to a user setting that honors it. When
+			// `disregardIgnoreFiles` is `undefined` the query builder uses `search.useIgnoreFiles`, which we mirror here.
+			const userHonorsIgnore = this._userIgnoreFilesSetting();
+			respectedIgnoreFiles = queryOptions.every(q =>
+				q.options.disregardIgnoreFiles === true ? false
+					: q.options.disregardIgnoreFiles === false ? true
+						: userHonorsIgnore);
+
 			const result = await this._findFilesBase(queryOptions, token);
 			resultCount = result.length;
 			cancelled = token.isCancellationRequested;
@@ -612,7 +628,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				excludeWasNull: intent.excludeWasNull,
 				resultCount,
 				durationMs: sw.elapsed(),
-				queryCount: queryOptions.length,
+				queryCount,
 				cancelled,
 				errored,
 			});
