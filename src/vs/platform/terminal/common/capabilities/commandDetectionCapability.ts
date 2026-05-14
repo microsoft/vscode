@@ -28,6 +28,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	protected _commands: TerminalCommand[] = [];
 	private _cwd: string | undefined;
+	private _cwdIsTrusted = true;
 	private _promptTerminator: string | undefined;
 	private _currentCommand: PartialTerminalCommand;
 	private _commandMarkers: IMarker[] = [];
@@ -213,8 +214,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._promptInputModel.setLastPromptLine(lastPromptLine);
 	}
 
-	setCwd(value: string) {
+	setCwd(value: string, isTrusted: boolean = true) {
 		this._cwd = value;
+		this._cwdIsTrusted = isTrusted;
 	}
 
 	setIsWindowsPty(value: boolean) {

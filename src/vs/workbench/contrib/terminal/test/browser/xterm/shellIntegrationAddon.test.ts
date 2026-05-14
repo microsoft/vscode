@@ -53,8 +53,22 @@ suite('ShellIntegrationAddon', () => {
 
 		test('should pass cwd sequence to the capability', async () => {
 			const mock = shellIntegrationAddon.getCwdDectionMock();
-			mock.expects('updateCwd').once().withExactArgs('/foo');
+			mock.expects('updateCwd').once().withExactArgs('/foo', false);
 			await writeP(xterm, '\x1b]633;P;Cwd=/foo\x07');
+			mock.verify();
+		});
+
+		test('should treat cwd sequence as untrusted when nonce is missing', async () => {
+			const mock = shellIntegrationAddon.getCwdDectionMock();
+			mock.expects('updateCwd').once().withExactArgs('/foo', false);
+			await writeP(xterm, '\x1b]633;P;Cwd=/foo\x07');
+			mock.verify();
+		});
+
+		test('should treat cwd sequence as untrusted when nonce does not match', async () => {
+			const mock = shellIntegrationAddon.getCwdDectionMock();
+			mock.expects('updateCwd').once().withExactArgs('/foo', false);
+			await writeP(xterm, '\x1b]633;P;Cwd=/foo;invalid-nonce\x07');
 			mock.verify();
 		});
 
@@ -67,7 +81,7 @@ suite('ShellIntegrationAddon', () => {
 			for (const x of cases) {
 				const [title, input, expected] = x;
 				const mock = shellIntegrationAddon.getCwdDectionMock();
-				mock.expects('updateCwd').once().withExactArgs(expected).named(title);
+				mock.expects('updateCwd').once().withExactArgs(expected, false).named(title);
 				await writeP(xterm, `\x1b]1337;CurrentDir=${input}\x07`);
 				mock.verify();
 			}
@@ -89,7 +103,7 @@ suite('ShellIntegrationAddon', () => {
 				for (const x of cases) {
 					const [title, input, expected] = x;
 					const mock = shellIntegrationAddon.getCwdDectionMock();
-					mock.expects('updateCwd').once().withExactArgs(expected).named(title);
+					mock.expects('updateCwd').once().withExactArgs(expected, false).named(title);
 					await writeP(xterm, `\x1b]7;${input}\x07`);
 					mock.verify();
 				}
@@ -129,7 +143,7 @@ suite('ShellIntegrationAddon', () => {
 			for (const x of cases) {
 				const [title, input, expected] = x;
 				const mock = shellIntegrationAddon.getCwdDectionMock();
-				mock.expects('updateCwd').once().withExactArgs(expected).named(title);
+				mock.expects('updateCwd').once().withExactArgs(expected, false).named(title);
 				await writeP(xterm, `\x1b]9;9;${input}\x07`);
 				mock.verify();
 			}
@@ -210,7 +224,7 @@ suite('ShellIntegrationAddon', () => {
 		});
 		test('should pass cwd sequence to the capability if it\'s initialized', async () => {
 			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
-			mock.expects('setCwd').once().withExactArgs('/foo');
+			mock.expects('setCwd').once().withExactArgs('/foo', false);
 			await writeP(xterm, '\x1b]633;P;Cwd=/foo\x07');
 			mock.verify();
 		});

@@ -581,7 +581,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						return true;
 					}
 					case 'Cwd': {
-						this._updateCwd(value);
+						// OSC 633 ; P ; Cwd=<value> ; <nonce> ST — the nonce is optional and only
+						// present when emitted by a trusted shell integration script. CWD updates
+						// without a matching nonce are treated as untrusted to mitigate spoofing
+						// via OSC sequences injected through arbitrary terminal output.
+						const nonce = args[1];
+						this._updateCwd(value, nonce !== undefined && nonce === this._nonce);
 						return true;
 					}
 					case 'IsWindows': {
@@ -644,11 +649,11 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 	}
 
-	private _updateCwd(value: string) {
+	private _updateCwd(value: string, isTrusted: boolean = true) {
 		value = sanitizeCwd(value);
-		this._createOrGetCwdDetection().updateCwd(value);
+		this._createOrGetCwdDetection().updateCwd(value, isTrusted);
 		const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-		commandDetection?.setCwd(value);
+		commandDetection?.setCwd(value, isTrusted);
 	}
 
 	private _doHandleITermSequence(data: string): boolean {
@@ -675,8 +680,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 				switch (key) {
 					case ITermOscPt.CurrentDir:
-						// Encountered: `OSC 1337 ; CurrentDir=<Cwd> ST`
-						this._updateCwd(value);
+						// Encountered: `OSC 1337 ; CurrentDir=<Cwd> ST`. The iTerm2 protocol has no
+						// nonce, so cwd updates received this way are always considered untrusted.
+						this._updateCwd(value, false);
 						return true;
 				}
 			}
@@ -695,9 +701,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._markSequenceSeen(`${ShellIntegrationOscPs.SetWindowsFriendlyCwd};${command}`);
 		switch (command) {
 			case '9':
-				// Encountered `OSC 9 ; 9 ; <cwd> ST`
+				// Encountered `OSC 9 ; 9 ; <cwd> ST`. The ConEmu/Windows-friendly cwd protocol
+				// has no nonce, so cwd updates received this way are always considered untrusted.
 				if (args.length) {
-					this._updateCwd(args[0]);
+					this._updateCwd(args[0], false);
 				}
 				return true;
 		}
@@ -720,7 +727,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (command.match(/^file:\/\/.*\//)) {
 			const uri = URI.parse(command);
 			if (uri.path && uri.path.length > 0) {
-				this._updateCwd(uri.path);
+				// The `OSC 7 ; scheme://cwd ST` protocol has no nonce, so cwd updates received
+				// this way are always considered untrusted.
+				this._updateCwd(uri.path, false);
 				return true;
 			}
 		}
