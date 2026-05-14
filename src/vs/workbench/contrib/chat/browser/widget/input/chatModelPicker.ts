@@ -581,14 +581,11 @@ export function buildModelPickerItems(
 							markPlaced(model.identifier, model.metadata.id);
 							promotedItems.push({ kind: 'available', model });
 						}
-					}
-				}
-
-				// Unavailable featured models (not registered, !exists)
-				if (showUnavailableFeatured) {
-					for (const unavailable of collectUnavailableFeatured(placed)) {
-						markPlaced(unavailable.id);
-						promotedItems.push({ kind: 'unavailable', ...unavailable });
+					} else if (!model && !entry.exists) {
+						if (showUnavailableFeatured) {
+							markPlaced(entryId);
+							promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry) });
+						}
 					}
 				}
 			}
