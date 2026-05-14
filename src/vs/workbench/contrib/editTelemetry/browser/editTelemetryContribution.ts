@@ -56,6 +56,7 @@ export class EditTelemetryContribution extends Disposable {
 		// AiContributionFeature overrides these with real implementations
 		// when active, and the no-ops restore when it is disposed.
 		this._register(CommandsRegistry.registerCommand('_aiEdits.hasAiContributions', () => false));
+		this._register(CommandsRegistry.registerCommand('_aiEdits.markAiContributions', () => { }));
 		this._register(CommandsRegistry.registerCommand('_aiEdits.clearAiContributions', () => { }));
 		this._register(CommandsRegistry.registerCommand('_aiEdits.clearAllAiContributions', () => { }));
 

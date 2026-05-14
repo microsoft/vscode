@@ -274,6 +274,29 @@ suite('AiContributionFeature', () => {
 		disposables.dispose();
 	}));
 
+	test('clearAll resets contributions for a URI with both tracker and explicit mark', () => runWithFakedTimers({}, async () => {
+		setup();
+		const d = disposables.add(workspace.createDocument({ uri: fileA, initialValue: 'hello' }, undefined));
+		await timeout(1500);
+
+		d.applyEdit(StringEditWithReason.replace(d.findRange('hello'), 'world', chatEdit));
+		await timeout(1500);
+
+		markAiContributions([{ resource: d.uri, feature: 'chat' }]);
+
+		assert.deepStrictEqual({
+			beforeClearAll: hasAiContributions([d.uri], 'all'),
+			afterClearAll: (() => {
+				clearAllAiContributions();
+				return hasAiContributions([d.uri], 'all');
+			})(),
+		}, {
+			beforeClearAll: true,
+			afterClearAll: false,
+		});
+		disposables.dispose();
+	}));
+
 	test('tracks new edits after clear', () => runWithFakedTimers({}, async () => {
 		setup();
 		const d = disposables.add(workspace.createDocument({ uri: fileA, initialValue: 'hello' }, undefined));

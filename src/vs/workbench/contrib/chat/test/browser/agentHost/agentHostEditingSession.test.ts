@@ -217,7 +217,7 @@ suite('AgentHostEditingSession', () => {
 		assert.strictEqual(session.canRedo.get(), false);
 	});
 
-	test('addToolCallEdits leaves ai contribution tracking false for agent-host resources', () => runWithFakedTimers({}, async () => {
+	test('addToolCallEdits marks ai contributions for agent-host resources after materializing edits', () => runWithFakedTimers({}, async () => {
 		const workspace = new MutableObservableWorkspace();
 		setupAiContributionFeature(store, workspace);
 
@@ -249,8 +249,8 @@ suite('AgentHostEditingSession', () => {
 				{ uri: fileUri.toString(), done: true, isExternalEdit: true },
 			],
 			hasAiContributions: {
-				all: false,
-				chatAndAgent: false,
+				all: true,
+				chatAndAgent: true,
 			},
 		});
 	}));

@@ -20,6 +20,7 @@ import { ITextModelService } from '../../../../../../editor/common/services/reso
 import { localize } from '../../../../../../nls.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { FileEditKind, ToolCallStatus, type ToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { EditorActivation } from '../../../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -229,6 +230,7 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 		});
 
 		this._rebuildEntries();
+		this._syncAiContributionMarks();
 
 		// Build progress parts for the file edit pills in the chat response
 		const progressParts: IChatProgress[] = [];
@@ -628,6 +630,7 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 			this._currentCheckpointIndex.set(newIdx, tx);
 		});
 		this._rebuildEntries();
+		this._syncAiContributionMarks();
 	}
 
 	private async _redoInteractionImpl(): Promise<void> {
@@ -651,6 +654,7 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 			this._currentCheckpointIndex.set(nextIdx, tx);
 		});
 		this._rebuildEntries();
+		this._syncAiContributionMarks();
 	}
 
 	// ---- Explanations (stubs) -----------------------------------------------
@@ -692,6 +696,7 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 	}
 
 	override dispose(): void {
+		this._clearAiContributionMarks();
 		this._state.set(ChatEditingSessionState.Disposed, undefined);
 		this._onDidDispose.fire();
 		this._diffCache.clear();
@@ -699,6 +704,44 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 	}
 
 	// ---- Private helpers ----------------------------------------------------
+
+	private _syncAiContributionMarks(): void {
+		this._clearAiContributionMarks();
+
+		const activeResources = this._collectAiContributionResources(this._currentCheckpointIndex.get());
+		if (activeResources.length === 0) {
+			return;
+		}
+
+		CommandsRegistry.getCommand('_aiEdits.markAiContributions')?.handler(undefined!, activeResources.map(resource => ({
+			resource,
+			feature: 'chat' as const,
+		})));
+	}
+
+	private _clearAiContributionMarks(): void {
+		const resources = this._collectAiContributionResources(this._checkpoints.length - 1);
+		if (resources.length === 0) {
+			return;
+		}
+
+		CommandsRegistry.getCommand('_aiEdits.clearAiContributions')?.handler(undefined!, resources);
+	}
+
+	private _collectAiContributionResources(lastCheckpointIndex: number): URI[] {
+		const resources = new Map<string, URI>();
+
+		for (let i = 0; i <= lastCheckpointIndex && i < this._checkpoints.length; i++) {
+			for (const edit of this._checkpoints[i].edits) {
+				resources.set(edit.resource.toString(), edit.resource);
+				if (edit.kind === FileEditKind.Rename && edit.originalResource) {
+					resources.set(edit.originalResource.toString(), edit.originalResource);
+				}
+			}
+		}
+
+		return [...resources.values()];
+	}
 
 	private _rebuildEntries(): void {
 		const currentIdx = this._currentCheckpointIndex.get();
