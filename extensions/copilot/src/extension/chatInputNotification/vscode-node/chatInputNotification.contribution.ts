@@ -49,6 +49,17 @@ export class ChatInputNotificationContribution extends Disposable {
 	private _prevSessionPercentUsed: number | undefined;
 	private _prevWeeklyPercentUsed: number | undefined;
 
+	private get _quotaUsedUp(): boolean {
+		const info = this._chatQuotaService.quotaInfo;
+		if (!info) {
+			return false;
+		}
+		if (info.unlimited) {
+			return !info.hasQuota;
+		}
+		return info.percentRemaining <= 0;
+	}
+
 	constructor(
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
@@ -81,9 +92,17 @@ export class ChatInputNotificationContribution extends Disposable {
 		const isQuotaNotificationEligible = !hasCopilotToken
 			|| !!this._authService.copilotToken?.isUsageBasedBilling;
 
-		// Priority 1: Quota exhausted — sticky info notification
-		if (isQuotaNotificationEligible && this._chatQuotaService.quotaExhausted) {
-			this._showExhaustedNotification();
+		// Priority 1: Quota exhausted or fully used — sticky info notification
+		if (isQuotaNotificationEligible && this._quotaUsedUp) {
+			if (this._chatQuotaService.additionalUsageEnabled) {
+				// Only show the overage notification on a live transition,
+				// not on reload when already at 100%.
+				if (this._prevQuotaPercentUsed !== undefined) {
+					this._showOverageActivationNotification();
+				}
+			} else {
+				this._showExhaustedNotification();
+			}
 			return;
 		}
 
@@ -105,7 +124,7 @@ export class ChatInputNotificationContribution extends Disposable {
 
 		// Nothing new to show — only hide if the exhausted notification is
 		// active and the quota is no longer exhausted (state-driven).
-		if (this._showingExhausted && !this._chatQuotaService.quotaExhausted) {
+		if (this._showingExhausted && !this._quotaUsedUp) {
 			this._hideNotification();
 		}
 	}
@@ -119,6 +138,13 @@ export class ChatInputNotificationContribution extends Disposable {
 	private async _fetchAndShowQuotaWarning(fallbackWarning: IQuotaWarning): Promise<void> {
 		try {
 			await this._chatQuotaService.refreshQuota();
+			// After the async refresh, quota may have become exhausted or
+			// fully used (a re-entrant _update() from onDidChange may have
+			// already shown the exhausted notification).
+			if (this._quotaUsedUp) {
+				return;
+			}
+
 			const freshInfo = this._chatQuotaService.quotaInfo;
 			if (freshInfo && !freshInfo.unlimited) {
 				this._showQuotaApproachingWarning({
@@ -213,7 +239,7 @@ export class ChatInputNotificationContribution extends Disposable {
 
 		notification.severity = vscode.ChatInputNotificationSeverity.Info;
 		notification.dismissible = true;
-		notification.autoDismissOnMessage = false;
+		notification.autoDismissOnMessage = true;
 		notification.message = vscode.l10n.t('Credit Limit Reached');
 
 		const isAnonymous = !!this._authService.copilotToken?.isNoAuthUser;
@@ -246,6 +272,22 @@ export class ChatInputNotificationContribution extends Disposable {
 				{ label: vscode.l10n.t('Manage Budget'), commandId: 'workbench.action.chat.manageAdditionalSpend' },
 			];
 		}
+
+		notification.show();
+	}
+
+	// --- Overage notification -----------------------------------------------
+
+	private _showOverageActivationNotification(): void {
+		const notification = this._ensureNotification();
+		this._showingExhausted = true;
+
+		notification.severity = vscode.ChatInputNotificationSeverity.Info;
+		notification.dismissible = true;
+		notification.autoDismissOnMessage = true;
+		notification.message = vscode.l10n.t('Credit Limit Reached');
+		notification.description = vscode.l10n.t('Additional budget is now covering extra usage.');
+		notification.actions = [];
 
 		notification.show();
 	}
