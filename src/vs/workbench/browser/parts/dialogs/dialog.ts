@@ -49,7 +49,7 @@ export function createBrowserAboutDialogDetails(productService: IProductService)
 	// test-workbench_change start
 	const detailString = (useAgo: boolean): string => {
 		// If gitVersion exists, display it as TSCode Version
-		const gitVersion = (productService as Record<string, unknown>).gitVersion;
+		const gitVersion = (productService as unknown as Record<string, unknown>).gitVersion;
 		const versionLine = gitVersion ? `Version: ${productService.version || 'Unknown'}\nTSCode Version: ${gitVersion}` : `Version: ${productService.version || 'Unknown'}`;
 
 		return localize('aboutDetail',

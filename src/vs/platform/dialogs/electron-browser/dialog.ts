@@ -21,7 +21,7 @@ export function createNativeAboutDialogDetails(productService: IProductService, 
 	// test-workbench_change start
 	const getDetails = (useAgo: boolean): string => {
 		// If gitVersion exists, display it as TSCode Version
-		const gitVersion = (productService as Record<string, unknown>).gitVersion;
+		const gitVersion = (productService as unknown as Record<string, unknown>).gitVersion;
 		const versionLine = gitVersion ? `Version: ${version}\nTSCode Version: ${gitVersion}` : `Version: ${version}`;
 
 		return localize({ key: 'aboutDetail', comment: ['Electron, Chromium, Node.js and V8 are product names that need no translation'] },
