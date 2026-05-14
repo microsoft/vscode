@@ -420,7 +420,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				if (!this._footerSignInBtn && !this._userSignedIn) {
 					this._footerSignInBtn = append(this.footerLeft, $<HTMLButtonElement>('button.onboarding-a-signin-nudge-btn'));
 					this._footerSignInBtn.type = 'button';
-					this._footerSignInBtn.textContent = localize('onboarding.sessions.signInNudge', "Sign in for AI Powered Features");
+					this._footerSignInBtn.textContent = localize('onboarding.sessions.signInNudge', "Sign in for sync and optional AI features");
 					this.stepDisposables.add(addDisposableListener(this._footerSignInBtn, EventType.CLICK, async () => {
 						this._logAction('signInNudge');
 						await this._handleSignIn();
@@ -455,7 +455,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		title.textContent = localize('onboarding.signIn.heroTitle', "Welcome to VS Code");
 
 		const subtitle = append(contentMain, $('p.onboarding-a-signin-subtitle'));
-		subtitle.textContent = localize('onboarding.signIn.heroSubtitle', "Sign in to continue with AI-powered development.");
+		subtitle.textContent = localize('onboarding.signIn.heroSubtitle', "Sign in to sync your setup and optionally use AI features.");
 
 		const actions = append(contentMain, $('.onboarding-a-signin-actions'));
 
@@ -996,7 +996,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		// Group 1: Chat modes — Plan / Agent
 		const chatGroup = append(features, $('.onboarding-a-sessions-group'));
 		const chatLabel = append(chatGroup, $('div.onboarding-a-sessions-group-label'));
-		chatLabel.textContent = localize('onboarding.sessions.group.chat', "Choose Your Agent");
+		chatLabel.textContent = localize('onboarding.sessions.group.chat', "Chat modes");
 		const chatGrid = append(chatGroup, $('.onboarding-a-sessions-grid.onboarding-a-sessions-grid-2'));
 
 		this._createFeatureCard(chatGrid, Codicon.listOrdered,
@@ -1006,6 +1006,10 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		this._createFeatureCard(chatGrid, Codicon.commentDiscussion,
 			localize('onboarding.sessions.agentMode', "Agent"),
 			localize('onboarding.sessions.agentMode.desc', "Describe a goal. The agent plans the approach, edits files, runs commands, and self-corrects. You review and approve along the way."));
+
+		const modeTip = append(chatGroup, $('div.onboarding-a-sessions-tip'));
+		const modeTipText = append(modeTip, $('span.onboarding-a-sessions-tip-text'));
+		modeTipText.textContent = localize('onboarding.sessions.modeTip', "This is just a quick overview—you can switch modes anytime in Chat.");
 
 		// Group 2: ways to run and customize agents beyond the default Chat experience
 		const moreGroup = append(features, $('.onboarding-a-sessions-group'));
