@@ -33,6 +33,7 @@ import { ProtectedResourceMetadata, type ConfigSchema, type ModelSelection, type
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { CustomizationRef, CustomizationStatus, ResponsePartKind, SessionInputResponseKind, parseSubagentSessionUri, type MessageAttachment, type PendingMessage, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { CopilotAgentSession, SessionWrapperFactory, type CopilotSdkMode, type IActiveClientSnapshot } from './copilotAgentSession.js';
@@ -269,6 +270,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
@@ -454,6 +456,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			env[pathKey] = currentPath ? `${currentPath}${delimiter}${rgDir}` : rgDir;
 			this._logService.info(`[Copilot] Resolved CLI path: ${cliPath}`);
 
+			const telemetry = await this._otelService.getSdkTelemetryConfig();
+
 			const client = this._createCopilotClient({
 				gitHubToken: tokenAtStartup,
 				useLoggedInUser: false,
@@ -461,6 +465,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				autoStart: true,
 				env,
 				cliPath,
+				telemetry,
 			});
 			await client.start();
 			if (this._githubToken !== tokenAtStartup) {

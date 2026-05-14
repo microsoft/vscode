@@ -232,7 +232,7 @@ export class BackgroundTodoProcessor {
 		// ── First-pass fast path / progressive backoff ─────────────
 		// No todos exist yet for this session.  We want to fire early so
 		// even pure-exploration sessions get a plan as soon as there is
-		// something to track — but not re-invoke copilot-fast on every
+		// something to track — but not re-invoke copilot-utility-small on every
 		// INITIAL_SUBSTANTIVE_THRESHOLD reads when the model keeps no-op'ing.
 		//
 		// After each no-op the required threshold doubles (exponential
@@ -503,7 +503,7 @@ export class BackgroundTodoProcessor {
 					this._consecutiveInitialNoops = 0;
 				} else if (!this._hasCreatedTodos) {
 					// noop on the initial branch — back off so exploration-heavy sessions
-					// don't re-invoke copilot-fast every INITIAL_SUBSTANTIVE_THRESHOLD reads.
+					// don't re-invoke copilot-utility-small every INITIAL_SUBSTANTIVE_THRESHOLD reads.
 					this._consecutiveInitialNoops++;
 				}
 				this._logService?.debug(`[BackgroundTodo] pass #${passNum} completed: outcome=${result.outcome}, durationMs=${result.durationMs ?? '?'}, model=${result.model ?? '?'}, promptTokens=${result.promptTokens ?? '?'}, completionTokens=${result.completionTokens ?? '?'}`);
@@ -544,7 +544,7 @@ export class BackgroundTodoProcessor {
 	}
 
 	/**
-	 * The actual background work: render the todo prompt against copilot-fast,
+	 * The actual background work: render the todo prompt against copilot-utility-small,
 	 * parse tool calls, and invoke the todo tool.
 	 */
 	private static async _doExecute(
@@ -562,10 +562,10 @@ export class BackgroundTodoProcessor {
 		try {
 			fastEndpoint = await context.instantiationService.invokeFunction(async (accessor) => {
 				const ep = accessor.get(IEndpointProvider);
-				return ep.getChatEndpoint('copilot-fast');
+				return ep.getChatEndpoint('copilot-utility-small');
 			});
 		} catch (err) {
-			context.logService.warn(`[BackgroundTodo] copilot-fast endpoint unavailable, skipping pass: ${err}`);
+			context.logService.warn(`[BackgroundTodo] copilot-utility-small endpoint unavailable, skipping pass: ${err}`);
 			BackgroundTodoProcessor._sendTelemetry(context.telemetryService, 'skipped', conversationId, associatedRequestId, Date.now() - startTime);
 			return { outcome: 'noop' };
 		}
@@ -670,7 +670,7 @@ export class BackgroundTodoProcessor {
 		// propagate as errors so the delta is NOT marked processed — a later pass
 		// can retry with fresh or coalesced activity.
 		if (response.type !== ChatFetchResponseType.Success) {
-			context.logService.warn(`[BackgroundTodo] copilot-fast returned non-success response: ${response.type}`);
+			context.logService.warn(`[BackgroundTodo] copilot-utility-small returned non-success response: ${response.type}`);
 			BackgroundTodoProcessor._sendTelemetry(context.telemetryService, 'modelError', conversationId, associatedRequestId, durationMs);
 			throw new Error(`Background todo model request failed: ${response.type}`);
 		}
