@@ -18,7 +18,6 @@ import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { MockChatWidgetService } from '../widget/mockChatWidget.js';
 import { MockChatModeService } from '../../common/mockChatModeService.js';
-import { SessionType } from '../../../common/chatSessionsService.js';
 
 interface IExecuteHandoffResult {
 	success: boolean;
@@ -26,11 +25,6 @@ interface IExecuteHandoffResult {
 	error?: string;
 }
 
-// CommandsRegistry types all handlers as returning void, but our commands
-// return real values. This helper performs the double cast safely.
-function runCommand<T>(handler: Function, ...args: unknown[]): T {
-	return handler(...args) as unknown as T;
-}
 
 async function runCommandAsync<T>(handler: Function, ...args: unknown[]): Promise<T> {
 	return await handler(...args) as unknown as T;
@@ -71,7 +65,7 @@ suite('GetHandoffsAction', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('should return all modes when no sourceCustomAgent is specified', () => {
+	test('should return all modes when no sourceCustomAgent is specified', async () => {
 		const askMode = createMockMode({ id: 'ask', kind: ChatModeKind.Ask, isBuiltin: true });
 		const planMode = createMockMode({
 			id: 'plan',
@@ -86,7 +80,7 @@ suite('GetHandoffsAction', () => {
 		const handler = CommandsRegistry.getCommand(GetHandoffsActionId)?.handler;
 		assert.ok(handler);
 
-		const result = runCommand<ICustomAgentInfo[]>(handler, instantiationService);
+		const result = await runCommandAsync<ICustomAgentInfo[]>(handler, instantiationService);
 		assert.strictEqual(result.length, 2);
 		assert.strictEqual(result[0].name, 'ask');
 		assert.strictEqual(result[0].handoffs.length, 0);
@@ -94,7 +88,7 @@ suite('GetHandoffsAction', () => {
 		assert.strictEqual(result[1].handoffs.length, 1);
 	});
 
-	test('should filter by sourceCustomAgent (case-insensitive)', () => {
+	test('should filter by sourceCustomAgent (case-insensitive)', async () => {
 		const askMode = createMockMode({ id: 'ask', kind: ChatModeKind.Ask, isBuiltin: true });
 		const planMode = createMockMode({
 			id: 'plan',
@@ -109,13 +103,13 @@ suite('GetHandoffsAction', () => {
 		const handler = CommandsRegistry.getCommand(GetHandoffsActionId)?.handler;
 		assert.ok(handler);
 
-		const result = runCommand<ICustomAgentInfo[]>(handler, instantiationService, { sourceCustomAgent: 'Plan' });
+		const result = await runCommandAsync<ICustomAgentInfo[]>(handler, instantiationService, { sourceCustomAgent: 'Plan' });
 		assert.deepStrictEqual(result.length, 1);
 		assert.strictEqual(result[0].name, 'plan');
 		assert.strictEqual(result[0].handoffs.length, 1);
 	});
 
-	test('should return empty array for non-matching sourceCustomAgent', () => {
+	test('should return empty array for non-matching sourceCustomAgent', async () => {
 		const askMode = createMockMode({ id: 'ask', kind: ChatModeKind.Ask, isBuiltin: true });
 
 		instantiationService.set(IChatModeService, new MockChatModeService({ builtin: [askMode], custom: [] }));
@@ -123,7 +117,7 @@ suite('GetHandoffsAction', () => {
 		const handler = CommandsRegistry.getCommand(GetHandoffsActionId)?.handler;
 		assert.ok(handler);
 
-		const result = runCommand<ICustomAgentInfo[]>(handler, instantiationService, { sourceCustomAgent: 'nonexistent' });
+		const result = await runCommandAsync<ICustomAgentInfo[]>(handler, instantiationService, { sourceCustomAgent: 'nonexistent' });
 		assert.deepStrictEqual(result, []);
 	});
 });
@@ -198,7 +192,7 @@ suite('ExecuteHandoffAction', () => {
 
 	test('should fall back to lastFocusedWidget when sessionResource is omitted', async () => {
 		const chatModeService = new MockChatModeService();
-		const { widget, executeHandoffCalls } = createMockWidget(planMode, await chatModeService.awaitModes(SessionType.Local));
+		const { widget, executeHandoffCalls } = createMockWidget(planMode, await chatModeService.getLocalModes());
 
 		const mockWidgetService = new class extends MockChatWidgetService {
 			override readonly lastFocusedWidget = widget as IChatWidget;
@@ -218,7 +212,7 @@ suite('ExecuteHandoffAction', () => {
 
 	test('should resolve widget by sessionResource', async () => {
 		const chatModeService = new MockChatModeService({ builtin: [], custom: [planMode] });
-		const { widget, executeHandoffCalls } = createMockWidget(planMode, await chatModeService.awaitModes(SessionType.Local));
+		const { widget, executeHandoffCalls } = createMockWidget(planMode, await chatModeService.getLocalModes());
 		const sessionUri = URI.parse('test://session/1');
 
 		const mockWidgetService = new class extends MockChatWidgetService {
@@ -243,7 +237,7 @@ suite('ExecuteHandoffAction', () => {
 
 	test('should match by id (primary)', async () => {
 		const chatModeService = new MockChatModeService();
-		const { widget, executeHandoffCalls } = createMockWidget(planMode, await chatModeService.awaitModes(SessionType.Local));
+		const { widget, executeHandoffCalls } = createMockWidget(planMode, await chatModeService.getLocalModes());
 
 		const mockWidgetService = new class extends MockChatWidgetService {
 			override readonly lastFocusedWidget = widget as IChatWidget;
@@ -262,7 +256,7 @@ suite('ExecuteHandoffAction', () => {
 
 	test('should fall back to label match when id is not provided', async () => {
 		const chatModeService = new MockChatModeService();
-		const { widget, executeHandoffCalls } = createMockWidget(planMode, await chatModeService.awaitModes(SessionType.Local));
+		const { widget, executeHandoffCalls } = createMockWidget(planMode, await chatModeService.getLocalModes());
 
 		const mockWidgetService = new class extends MockChatWidgetService {
 			override readonly lastFocusedWidget = widget as IChatWidget;
@@ -281,7 +275,7 @@ suite('ExecuteHandoffAction', () => {
 
 	test('should return error for non-matching identifier', async () => {
 		const chatModeService = new MockChatModeService();
-		const { widget } = createMockWidget(planMode, await chatModeService.awaitModes(SessionType.Local));
+		const { widget } = createMockWidget(planMode, await chatModeService.getLocalModes());
 
 		const mockWidgetService = new class extends MockChatWidgetService {
 			override readonly lastFocusedWidget = widget as IChatWidget;
@@ -301,7 +295,7 @@ suite('ExecuteHandoffAction', () => {
 	test('should resolve sourceCustomAgent to look up handoffs from a different mode', async () => {
 		const askMode = createMockMode({ id: 'ask', kind: ChatModeKind.Ask, isBuiltin: true });
 		const modeService = new MockChatModeService({ builtin: [askMode], custom: [planMode] });
-		const { widget, executeHandoffCalls } = createMockWidget(askMode, await modeService.awaitModes(SessionType.Local)); // widget is in "ask" mode (no handoffs)
+		const { widget, executeHandoffCalls } = createMockWidget(askMode, await modeService.getLocalModes()); // widget is in "ask" mode (no handoffs)
 
 		const mockWidgetService = new class extends MockChatWidgetService {
 			override readonly lastFocusedWidget = widget as IChatWidget;
@@ -326,7 +320,7 @@ suite('ExecuteHandoffAction', () => {
 
 		const askMode = createMockMode({ id: 'ask', kind: ChatModeKind.Ask, isBuiltin: true });
 		const chatModeService = new MockChatModeService({ builtin: [askMode], custom: [] });
-		const { widget } = createMockWidget(askMode, await chatModeService.awaitModes(SessionType.Local)); // widget is in "ask" mode (no handoffs)
+		const { widget } = createMockWidget(askMode, await chatModeService.getLocalModes()); // widget is in "ask" mode (no handoffs)
 
 		const mockWidgetService = new class extends MockChatWidgetService {
 			override readonly lastFocusedWidget = widget as IChatWidget;

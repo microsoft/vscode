@@ -110,7 +110,7 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	private static readonly _maxHeaderValueLength = 8192;
 	private static readonly _maxCustomHeaderCount = 20;
 
-	private readonly _customHeaders: Record<string, string>;
+	protected readonly _customHeaders: Record<string, string>;
 	constructor(
 		_modelMetadata: IChatModelInformation,
 		protected readonly _apiKey: string,
@@ -237,16 +237,19 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	override createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {
 		if (this.useResponsesApi) {
 			// Handle Responses API: customize the body directly
-			options.ignoreStatefulMarker = false;
+			const zdr = !!this.modelMetadata.zeroDataRetentionEnabled;
+			// When ZDR is on the server refuses to retain responses, so we must
+			// not chain via `previous_response_id` and must not ask it to `store`.
+			options.ignoreStatefulMarker = zdr;
 			const body = super.createRequestBody(options);
-			body.store = true;
+			body.store = !zdr;
 			body.n = undefined;
 			body.stream_options = undefined;
 			if (!this.modelMetadata.capabilities.supports.thinking) {
 				body.reasoning = undefined;
 				body.include = undefined;
 			}
-			if (body.previous_response_id && (!body.previous_response_id.startsWith('resp_') || this.modelMetadata.zeroDataRetentionEnabled)) {
+			if (body.previous_response_id && (!body.previous_response_id.startsWith('resp_') || zdr)) {
 				// Don't use a response ID from CAPI or when zero data retention is enabled
 				body.previous_response_id = undefined;
 			}
@@ -321,12 +324,19 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		if (body) {
 			if (this.modelMetadata.capabilities.supports.thinking) {
 				delete body.temperature;
-				body['max_completion_tokens'] = body.max_tokens;
+				if (!this.useMessagesApi && !this.useResponsesApi) {
+					// OpenAI Chat Completions thinking models (e.g. o1/o3) require `max_completion_tokens` instead of `max_tokens`.
+					// Responses bodies use `max_output_tokens` natively, and Messages requires `max_tokens` — neither needs this rename.
+					body['max_completion_tokens'] = body.max_tokens;
+					delete body.max_tokens;
+				}
+			}
+			// Chat Completions: drop `max_tokens` so the server defaults to its maximum (preferred for BYOK).
+			// Responses uses `max_output_tokens`, so this delete is a no-op there. Messages requires `max_tokens`, so leave it alone.
+			if (!this.useMessagesApi) {
 				delete body.max_tokens;
 			}
-			// Removing max tokens defaults to the maximum which is what we want for BYOK
-			delete body.max_tokens;
-			if (!this.useResponsesApi && body.stream) {
+			if (!this.useResponsesApi && !this.useMessagesApi && body.stream) {
 				body['stream_options'] = { 'include_usage': true };
 			}
 		}

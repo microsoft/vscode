@@ -73,6 +73,10 @@ const HIDDEN_FAMILY_H_HASHES: string[] = [
 	'70fcded3f255d368e868cc807d8838a62108bfa5c86ce7d37966f58cda229e33',
 ];
 
+const HIDDEN_FAMILY_M_HASHES: string[] = [
+	'0902565c0c0fe145633a1f246ae551acc0f621249ef050428eba357fbd4655ee',
+];
+
 function getModelId(model: LanguageModelChat | IChatEndpoint): string {
 	return 'id' in model ? model.id : model.model;
 }
@@ -126,6 +130,24 @@ export function isGpt55(model: LanguageModelChat | IChatEndpoint | string) {
 	return family.startsWith('gpt-5.5') || HIDDEN_MODEL_B_HASHES.includes(h);
 }
 
+export function isGpt55EconomicalSearchAndEditExp(
+	accessor: ServicesAccessor,
+	model: LanguageModelChat | IChatEndpoint | string,
+) {
+	const configurationService = accessor.get(IConfigurationService);
+	const experimentationService = accessor.get(IExperimentationService);
+	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55EconomicalSearchAndEdit, experimentationService);
+}
+
+export function isGpt55LargePromptSectionsExp(
+	accessor: ServicesAccessor,
+	model: LanguageModelChat | IChatEndpoint | string,
+) {
+	const configurationService = accessor.get(IConfigurationService);
+	const experimentationService = accessor.get(IExperimentationService);
+	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55LargePromptSections, experimentationService);
+}
+
 export function isGpt54ConcisePromptExp(
 	accessor: ServicesAccessor,
 	model: LanguageModelChat | IChatEndpoint | string,
@@ -144,6 +166,10 @@ export function isGpt54LargePromptExp(
 	return isGpt54(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt54LargePromptExp, experimentationService);
 }
 
+export function isHiddenModelM(model: LanguageModelChat | IChatEndpoint | string) {
+	const family_hash = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
+	return HIDDEN_FAMILY_M_HASHES.includes(family_hash);
+}
 
 export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) {
 	const family = typeof model === 'string' ? model : model.family;
@@ -223,7 +249,8 @@ export function modelSupportsApplyPatch(model: LanguageModelChat | IChatEndpoint
 		|| isVSCModelB(model)
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
-		|| isHiddenModelB(model);
+		|| isHiddenModelB(model)
+		|| isHiddenModelM(model);
 }
 
 /**
@@ -236,7 +263,8 @@ export function modelPrefersJsonNotebookRepresentation(model: LanguageModelChat 
 		|| isGpt53Codex(model.family)
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
-		|| isHiddenModelB(model);
+		|| isHiddenModelB(model)
+		|| isHiddenModelM(model);
 }
 
 /**
@@ -403,34 +431,18 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
  * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
  * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
  * - Claude Opus 4.7 (claude-opus-4-7-* or claude-opus-4.7-*)
- * - OpenAI gpt-5.4/gpt-5.5, but only when the `ResponsesApiToolSearchEnabled` setting is enabled
+ * - OpenAI gpt-5.4 and gpt-5.5 (via Responses API client-side tool search)
  */
-export function modelSupportsToolSearch(modelId: string, configurationService?: IConfigurationService, experimentationService?: IExperimentationService): boolean {
+export function modelSupportsToolSearch(modelId: string): boolean {
 	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	if (isResponsesApiToolSearchModelId(normalized)) {
-		return !!configurationService && !!experimentationService && isResponsesApiToolSearchEnabled(modelId, configurationService, experimentationService);
-	}
-
-	return normalized.startsWith('claude-sonnet-4-5') ||
+	return normalized === 'gpt-5-4' ||
+		normalized === 'gpt-5-5' ||
+		normalized.startsWith('claude-sonnet-4-5') ||
 		normalized.startsWith('claude-sonnet-4-6') ||
 		normalized.startsWith('claude-opus-4-5') ||
 		normalized.startsWith('claude-opus-4-6') ||
 		normalized.startsWith('claude-opus-4-7') ||
-		isHiddenModelG(modelId);
-}
-
-function isResponsesApiToolSearchModelId(normalizedModelId: string): boolean {
-	return normalizedModelId === 'gpt-5-4' || normalizedModelId === 'gpt-5-5';
-}
-
-export function isResponsesApiToolSearchEnabled(
-	endpoint: IChatEndpoint | string,
-	configurationService: IConfigurationService,
-	experimentationService: IExperimentationService,
-): boolean {
-	const modelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
-	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	return isResponsesApiToolSearchModelId(normalized) && configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiToolSearchEnabled, experimentationService);
+		isHiddenModelG(modelId) || isHiddenModelM(modelId);
 }
 
 /**

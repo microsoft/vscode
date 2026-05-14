@@ -536,7 +536,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		await chatService.resendRequest(requestModel, {
 			...widget?.getModeRequestOptions(),
 			modeInfo,
-			userSelectedModelId: widget?.input.currentLanguageModel
+			userSelectedModelId: widget?.input?.currentLanguageModel
 		});
 	}
 

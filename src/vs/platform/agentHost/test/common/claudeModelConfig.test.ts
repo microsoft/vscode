@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CLAUDE_THINKING_LEVEL_KEY, createClaudeThinkingLevelSchema, isClaudeEffortLevel, resolveClaudeEffort, type ClaudeEffortLevel } from '../../common/claudeModelConfig.js';
+import { CLAUDE_THINKING_LEVEL_KEY, clampEffortForRuntime, createClaudeThinkingLevelSchema, isClaudeEffortLevel, resolveClaudeEffort, type ClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 
 suite('resolveClaudeEffort (Phase 6.1 / Cycle E)', () => {
@@ -36,6 +36,24 @@ suite('resolveClaudeEffort (Phase 6.1 / Cycle E)', () => {
 			{ id: 'claude-opus-4.6', config: { [CLAUDE_THINKING_LEVEL_KEY]: 'turbo' } },
 		];
 		assert.deepStrictEqual(cases.map(resolveClaudeEffort), [undefined, undefined, undefined, undefined, undefined]);
+	});
+});
+
+suite('clampEffortForRuntime (Phase 9 / Step 4)', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('clamps `max` to `xhigh`; passes other levels through; preserves undefined', () => {
+		// `Query.applyFlagSettings({ effortLevel })` (sdk.d.ts:4914) only
+		// accepts `'low' | 'medium' | 'high' | 'xhigh'` — `'max'` is a
+		// startup-only level. The clamp seam keeps `'max'` selections from
+		// being lost entirely on the runtime path; genuine `'max'` would
+		// require the restart-required path (Phase 9 D7).
+		const inputs: readonly (ClaudeEffortLevel | undefined)[] = [undefined, 'low', 'medium', 'high', 'xhigh', 'max'];
+		assert.deepStrictEqual(
+			inputs.map(clampEffortForRuntime),
+			[undefined, 'low', 'medium', 'high', 'xhigh', 'xhigh'],
+		);
 	});
 });
 

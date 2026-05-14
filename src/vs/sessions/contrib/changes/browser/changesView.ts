@@ -60,7 +60,7 @@ import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { COPILOT_CLOUD_SESSION_TYPE, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../services/sessions/common/session.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
@@ -68,7 +68,8 @@ import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ChecksViewModel } from './checksViewModel.js';
-import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../agentHost/browser/agentHostSkillButtons.js';
+// eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
+import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesVersionMode, ChangesViewMode, IsolationMode } from '../common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, toIChangesFileItem } from './changesViewRenderer.js';
 import { ChangesViewModel } from './changesViewModel.js';
@@ -248,6 +249,7 @@ class ChangesButtonBarWidget extends Disposable {
 			action.id === 'github.copilot.claude.sessions.commitAndSync' ||
 			action.id === 'agentSession.markAsDone' ||
 			action.id === 'agentSession.restore' ||
+			action.id === 'sessions.action.fixCIChecks' ||
 			isAgentHostSkillButtonId(action.id)
 		) {
 			return { showIcon: true, showLabel: true, isSecondary: false };
@@ -839,11 +841,11 @@ export class ChangesViewPane extends ViewPane {
 
 		// Get the repository details for the session
 		// - uri: location of the repository
-		// - workingDirectory (optional): location of the worktree
+		// - workingDirectory: location of the worktree
 		const activeSession = this.sessionManagementService.activeSession.get();
-		const repository = activeSession?.workspace.get()?.repositories[0];
-		const workspaceFolderUri = repository?.workingDirectory ?? repository?.uri;
-		if (!repository?.uri || !workspaceFolderUri) {
+		const folder = activeSession?.workspace.get()?.folders[0];
+		const workspaceFolderUri = folder?.workingDirectory;
+		if (!folder?.root || !workspaceFolderUri) {
 			return undefined;
 		}
 
@@ -858,9 +860,9 @@ export class ChangesViewPane extends ViewPane {
 		} else {
 			// Local session
 			const branchName = this.viewModel.activeSessionStateObs.get()?.branchName;
-			name = repository.workingDirectory
-				? `${basename(repository.uri)} (${branchName})`
-				: basename(repository.uri);
+			name = branchName
+				? `${basename(folder.workingDirectory)} (${branchName})`
+				: basename(folder.workingDirectory);
 		}
 
 		return {
@@ -997,10 +999,10 @@ export class ChangesViewPane extends ViewPane {
 				() => {
 					// Pass in the tree root to be used to compute the label description
 					const activeSession = this.sessionManagementService.activeSession.get();
-					const repository = activeSession?.workspace.get()?.repositories[0];
-					return repository?.uri.scheme === GITHUB_REMOTE_FILE_SCHEME
+					const folder = activeSession?.workspace.get()?.folders[0];
+					return folder?.root.scheme === GITHUB_REMOTE_FILE_SCHEME
 						? URI.from({ scheme: Schemas.copilotPr, path: '/' })
-						: repository?.workingDirectory ?? repository?.uri;
+						: folder?.workingDirectory;
 				})],
 			{
 				alwaysConsumeMouseWheel: false,
@@ -1375,7 +1377,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						detail: localize('chatEditing.versionsUncommittedChanges.description', 'Show uncommitted changes in this session'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.UncommittedChanges,
 						category: { label: 'changes', order: 2, showHeader: false },
-						enabled: viewModel.activeSessionTypeObs.get() !== COPILOT_CLOUD_SESSION_TYPE &&
+						enabled: !viewModel.activeSessionIsVirtualWorkspaceObs.get() &&
 							viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
 							viewModel.activeSessionIsArchivedObs.get() === false,
 						run: async () => {
@@ -1393,7 +1395,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						detail: localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.AllChanges,
 						category: { label: 'checkpoints', order: 3, showHeader: false },
-						enabled: viewModel.activeSessionTypeObs.get() === COPILOT_CLOUD_SESSION_TYPE ||
+						enabled: viewModel.activeSessionIsVirtualWorkspaceObs.get() ||
 							(viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
 								viewModel.activeSessionLastCheckpointRefObs.get() !== undefined),
 						run: async () => {
@@ -1411,7 +1413,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						detail: localize('chatEditing.versionsLastTurnChanges.description', 'Show only changes from the last turn'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.LastTurn,
 						category: { label: 'checkpoints', order: 4, showHeader: false },
-						enabled: viewModel.activeSessionTypeObs.get() === COPILOT_CLOUD_SESSION_TYPE ||
+						enabled: viewModel.activeSessionIsVirtualWorkspaceObs.get() ||
 							(viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
 								viewModel.activeSessionLastCheckpointRefObs.get() !== undefined),
 						run: async () => {

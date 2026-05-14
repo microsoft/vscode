@@ -143,6 +143,10 @@ export class CopilotToken {
 		return plan === 'business' || plan === 'enterprise';
 	}
 
+	get isUsageBasedBilling(): boolean {
+		return this._info.token_based_billing === true;
+	}
+
 	get isChatQuotaExceeded(): boolean {
 		return this.isFreeUser && (this._info.limited_user_quotas?.chat ?? 1) <= 0;
 	}
@@ -341,8 +345,6 @@ export interface TokenEnvelope {
 	codesearch: boolean;
 	/** Whether content exclusion (.copilotignore) is enabled. */
 	copilotignore_enabled: boolean;
-	/** Whether VS Code electron fetcher v2 is enabled. */
-	vsc_electron_fetcher_v2: boolean;
 
 	// Consent settings
 	/** 'enabled', 'disabled', or 'unconfigured' for public code suggestions. */
@@ -361,8 +363,6 @@ export interface TokenEnvelope {
 	limited_user_reset_date?: number | null;
 	/** Organization tracking IDs if user has org access. */
 	organization_list?: string[];
-	/** Notification to show in editor on successful token retrieval. */
-	user_notification?: NotificationEnvelope;
 }
 
 /**
@@ -415,7 +415,6 @@ const tokenEnvelopeValidator = vObj({
 	code_review_enabled: vBoolean(),
 	codesearch: vBoolean(),
 	copilotignore_enabled: vBoolean(),
-	vsc_electron_fetcher_v2: vBoolean(),
 	public_suggestions: vEnum('enabled', 'disabled', 'unconfigured'),
 	telemetry: vEnum('enabled', 'disabled'),
 	endpoints: vObj({
@@ -430,8 +429,7 @@ const tokenEnvelopeValidator = vObj({
 		completions: vRequired(vNumber()),
 	})),
 	limited_user_reset_date: vNullable(vNumber()),
-	organization_list: vArray(vString()),
-	user_notification: notificationEnvelopeValidator,
+	organization_list: vArray(vString())
 });
 
 const standardErrorEnvelopeValidator = vObj({
@@ -530,6 +528,7 @@ export interface CopilotUserInfo extends CopilotUserQuotaInfo {
 		name: string | null;
 	}>;
 	codex_agent_enabled?: boolean;
+	token_based_billing?: boolean;
 }
 
 /**
@@ -540,7 +539,7 @@ export type ExtendedTokenInfo = TokenEnvelope & {
 	// Extended fields added by client
 	username: string;
 	isVscodeTeamMember: boolean;
-} & Pick<CopilotUserInfo, 'copilot_plan' | 'quota_snapshots' | 'quota_reset_date' | 'codex_agent_enabled' | 'organization_login_list'>;
+} & Pick<CopilotUserInfo, 'copilot_plan' | 'quota_snapshots' | 'quota_reset_date' | 'codex_agent_enabled' | 'organization_login_list' | 'token_based_billing'>;
 
 /**
  * Creates a minimal ExtendedTokenInfo for testing purposes.
@@ -560,7 +559,6 @@ export function createTestExtendedTokenInfo(overrides?: Partial<ExtendedTokenInf
 		code_review_enabled: false,
 		codesearch: false,
 		copilotignore_enabled: false,
-		vsc_electron_fetcher_v2: false,
 		// Consent settings
 		public_suggestions: 'enabled',
 		telemetry: 'enabled',
