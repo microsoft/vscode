@@ -16,7 +16,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { localize } from '../../../../nls.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { TaskStorageTarget } from './sessionsConfigurationService.js';
+import { TaskStorageTarget } from './sessionsTasksService.js';
 
 export const WORKTREE_CREATED_RUN_ON = 'worktreeCreated' as const;
 
@@ -222,7 +222,7 @@ export class RunScriptCustomTaskWidget extends Disposable {
 
 	private _getSubmitLabel(): string {
 		if (this._isAddExistingTask) {
-			return localize('confirmAddToSessions', "Add to Sessions Window");
+			return localize('confirmAddToAgents', "Add to Agents Window");
 		}
 		if (!this._isExistingTask) {
 			return localize('confirmAddTask', "Add Task");

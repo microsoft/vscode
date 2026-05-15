@@ -283,6 +283,18 @@ export interface IEditorOptions {
 	source?: EditorOpenSource;
 
 	/**
+	 * Indicates whether the editor is being opened due to an explicit user
+	 * action (`true`) or automatically (`false`) as a side effect of another
+	 * action (e.g. the chat agent opening files it has edited).
+	 *
+	 * When omitted, callers should be treated as explicit. Layout logic may
+	 * use this to decide whether to react to the visibility change (for
+	 * example, by leaving the auxiliary side bar maximized when the change
+	 * was not initiated by the user).
+	 */
+	isExplicit?: boolean;
+
+	/**
 	 * An optional property to signal that certain view state should be
 	 * applied when opening the editor.
 	 */
@@ -361,13 +373,23 @@ export interface IModalEditorPartOptions {
 	 * opening and cannot currently be added, removed, or updated
 	 * after the modal editor is opened.
 	 */
-	readonly sidebar?: IModalEditorSidebarContent;
+	readonly sidebar?: IModalEditorSidebar;
 }
 
 /**
- * Content to render in the modal editor sidebar.
+ * Modal sidebar supports rendering custom content in a sidebar next to the main editor content.
  */
-export interface IModalEditorSidebarContent {
+export interface IModalEditorSidebar {
+
+	/**
+	 * Sidebar width set by the user via resizing, if any.
+	 */
+	readonly sidebarWidth?: number;
+
+	/**
+	 * Whether the sidebar is hidden.
+	 */
+	readonly sidebarHidden?: boolean;
 
 	/**
 	 * Render the sidebar content into the given container.

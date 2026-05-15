@@ -1,0 +1,216 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`anthropicMessagesToRawMessages > converts messages with content blocks 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "System prompt",
+        "type": 1,
+      },
+    ],
+    "role": 0,
+  },
+  {
+    "content": [
+      {
+        "text": "Look at this image:",
+        "type": 1,
+      },
+      {
+        "imageUrl": {
+          "url": "data:image/jpeg;base64,fake-base64-data",
+        },
+        "type": 0,
+      },
+    ],
+    "role": 1,
+  },
+]
+`;
+
+exports[`anthropicMessagesToRawMessages > converts simple text messages 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "You are a helpful assistant",
+        "type": 1,
+      },
+    ],
+    "role": 0,
+  },
+  {
+    "content": [
+      {
+        "text": "Hello world",
+        "type": 1,
+      },
+    ],
+    "role": 1,
+  },
+  {
+    "content": [
+      {
+        "text": "Hi there!",
+        "type": 1,
+      },
+    ],
+    "role": 2,
+  },
+]
+`;
+
+exports[`anthropicMessagesToRawMessages > converts tool result messages 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "The weather in London is sunny",
+        "type": 1,
+      },
+    ],
+    "role": 3,
+    "toolCallId": "call_123",
+  },
+]
+`;
+
+exports[`anthropicMessagesToRawMessages > converts tool result with content blocks 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "Here is the chart:",
+        "type": 1,
+      },
+      {
+        "imageUrl": {
+          "url": "data:image/png;base64,chart-data",
+        },
+        "type": 0,
+      },
+    ],
+    "role": 3,
+    "toolCallId": "call_456",
+  },
+]
+`;
+
+exports[`anthropicMessagesToRawMessages > converts tool use messages 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "I will use a tool:",
+        "type": 1,
+      },
+    ],
+    "role": 2,
+    "toolCalls": [
+      {
+        "function": {
+          "arguments": "{"location":"London"}",
+          "name": "get_weather",
+        },
+        "id": "call_123",
+        "type": "function",
+      },
+    ],
+  },
+]
+`;
+
+exports[`anthropicMessagesToRawMessages > handles cache control blocks 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "System with cache",
+        "type": 1,
+      },
+      {
+        "cacheType": "ephemeral",
+        "type": 3,
+      },
+    ],
+    "role": 0,
+  },
+  {
+    "content": [
+      {
+        "text": "Cached content",
+        "type": 1,
+      },
+      {
+        "cacheType": "ephemeral",
+        "type": 3,
+      },
+    ],
+    "role": 1,
+  },
+]
+`;
+
+exports[`anthropicMessagesToRawMessages > handles empty system message 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "Hello",
+        "type": 1,
+      },
+    ],
+    "role": 1,
+  },
+]
+`;
+
+exports[`anthropicMessagesToRawMessages > handles empty tool result content 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "",
+        "type": 1,
+      },
+    ],
+    "role": 3,
+    "toolCallId": "call_empty",
+  },
+]
+`;
+
+exports[`anthropicMessagesToRawMessages > handles url-based images 1`] = `
+[
+  {
+    "content": [
+      {
+        "imageUrl": {
+          "url": "https://example.com/image.jpg",
+        },
+        "type": 0,
+      },
+    ],
+    "role": 1,
+  },
+]
+`;
+
+exports[`anthropicMessagesToRawMessages > includes thinking blocks in conversion to raw messages 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "[THINKING: Let me think...]",
+        "type": 1,
+      },
+      {
+        "text": "Here is my response",
+        "type": 1,
+      },
+    ],
+    "role": 2,
+  },
+]
+`;

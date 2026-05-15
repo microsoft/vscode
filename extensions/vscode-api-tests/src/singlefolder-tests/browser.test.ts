@@ -73,6 +73,23 @@ import { assertNoRpc, closeAllEditors } from '../utils';
 		assert.strictEqual(window.browserTabs.length, countBefore - 1);
 	});
 
+	test('Closing via workbench.action.closeActiveEditor removes tab from browserTabs', async () => {
+		const tab = await window.openBrowserTab('about:blank');
+		assert.ok(window.browserTabs.includes(tab));
+
+		const closed = new Promise<vscode.BrowserTab>(resolve => {
+			const disposable = window.onDidCloseBrowserTab(t => {
+				disposable.dispose();
+				resolve(t);
+			});
+		});
+
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+		const firedTab = await closed;
+		assert.ok(firedTab);
+		assert.ok(!window.browserTabs.includes(tab));
+	});
+
 	test('Can move a browser tab to a new group and close it successfully', async () => {
 		const tab = await window.openBrowserTab('about:blank');
 		assert.ok(window.browserTabs.includes(tab));

@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter, applyStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CustomizationCreatorService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationCreatorService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
@@ -61,8 +61,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				return override;
 			}
 			const session = this.sessionsService.activeSession.read(reader);
-			const repo = session?.workspace.read(reader)?.repositories[0];
-			const root = repo?.workingDirectory ?? repo?.uri;
+			const folder = session?.workspace.read(reader)?.folders[0];
+			const root = folder?.workingDirectory;
 			if (root?.scheme === AGENT_HOST_SCHEME) {
 				return undefined;
 			}
@@ -80,8 +80,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			return override;
 		}
 		const session = this.sessionsService.activeSession.get();
-		const repo = session?.workspace.get()?.repositories[0];
-		const root = repo?.workingDirectory ?? repo?.uri;
+		const folder = session?.workspace.get()?.folders[0];
+		const root = folder?.workingDirectory;
 		if (root?.scheme === AGENT_HOST_SCHEME) {
 			return undefined;
 		}
@@ -100,7 +100,6 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
-		AICustomizationManagementSection.Prompts,
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Plugins,
@@ -112,6 +111,10 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 
 	readonly isSessionsWindow = true;
 
+	readonly welcomePageFeatures = {
+		showGettingStartedBanner: true,
+	};
+
 	/**
 	 * Commits customization files. Always commits to the main repository
 	 * so the change persists across worktrees. When a worktree is active
@@ -119,13 +122,13 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 */
 	async commitFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
 		const session = this.sessionsService.activeSession.get();
-		const repo = session?.workspace.get()?.repositories[0];
-		if (!repo?.uri) {
+		const folder = session?.workspace.get()?.folders[0];
+		if (!folder?.root) {
 			return;
 		}
 
 		for (const fileUri of fileUris) {
-			await this.commitFileToRepos(fileUri, repo.uri, repo.workingDirectory);
+			await this.commitFileToRepos(fileUri, folder.root, folder.workingDirectory);
 		}
 	}
 
@@ -136,13 +139,13 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 */
 	async deleteFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
 		const session = this.sessionsService.activeSession.get();
-		const repo = session?.workspace.get()?.repositories[0];
-		if (!repo?.uri) {
+		const folder = session?.workspace.get()?.folders[0];
+		if (!folder?.root) {
 			return;
 		}
 
 		for (const fileUri of fileUris) {
-			await this.commitDeletionToRepos(fileUri, repo.uri, repo.workingDirectory);
+			await this.commitDeletionToRepos(fileUri, folder.root, folder.workingDirectory);
 		}
 	}
 
@@ -266,8 +269,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	async getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
 		const allCommands = await this.promptsService.getPromptSlashCommands(token);
 		return allCommands.filter(cmd => {
-			const filter = this.getStorageSourceFilter(cmd.promptPath.type);
-			return applyStorageSourceFilter([cmd.promptPath], filter).length > 0;
+			const filter = this.getStorageSourceFilter(cmd.type);
+			return applyStorageSourceFilter([cmd], filter).length > 0;
 		});
 	}
 

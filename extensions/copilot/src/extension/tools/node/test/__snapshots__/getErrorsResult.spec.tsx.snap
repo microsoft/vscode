@@ -1,0 +1,75 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`GetErrorsResult > diagnostics with max 1`] = `
+"Showing first 1 results out of 2
+<errors path="/test/workspace/file.ts">
+This code at line 1
+\`\`\`
+line 1
+\`\`\`
+has the problem reported:
+<compileError>
+error
+</compileError>
+
+</errors>
+"
+`;
+
+exports[`GetErrorsResult > diagnostics with more complex max 1`] = `
+"Showing first 3 results out of 4
+<errors path="/test/workspace/file.ts">
+This code at line 1
+\`\`\`
+line 1
+\`\`\`
+has the problem reported:
+<compileError>
+error
+</compileError>
+This code at line 2
+\`\`\`
+line 2
+\`\`\`
+has the problem reported:
+<compileError>
+error 2
+</compileError>
+
+</errors>
+<errors path="/test/workspace/file2.ts">
+This code at line 1
+\`\`\`
+line 1
+\`\`\`
+has the problem reported:
+<compileError>
+error
+</compileError>
+
+</errors>
+"
+`;
+
+exports[`GetErrorsResult > simple diagnostics 1`] = `
+"<errors path="/test/workspace/file.ts">
+This code at line 1
+\`\`\`
+line 1
+\`\`\`
+has the problem reported:
+<compileError>
+error
+</compileError>
+This code at line 2
+\`\`\`
+line 2
+\`\`\`
+has the problem reported:
+<compileError>
+error 2
+</compileError>
+
+</errors>
+"
+`;

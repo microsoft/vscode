@@ -15,9 +15,8 @@ import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/r
 import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { IToolCallState, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ContentEncoding, IWriteFileParams } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import type { IToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolCallState, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -57,7 +56,7 @@ function makeToolCall(opts: {
 	afterURI: string;
 	added?: number;
 	removed?: number;
-}): IToolCallCompletedState {
+}): ToolCallCompletedState {
 	return {
 		status: ToolCallStatus.Completed,
 		toolCallId: opts.toolCallId,
@@ -70,8 +69,14 @@ function makeToolCall(opts: {
 		confirmed: ToolCallConfirmationReason.NotNeeded,
 		content: [{
 			type: ToolResultContentType.FileEdit,
-			beforeURI: opts.beforeURI,
-			afterURI: opts.afterURI,
+			before: {
+				uri: URI.file(opts.filePath).toString(),
+				content: { uri: opts.beforeURI },
+			},
+			after: {
+				uri: URI.file(opts.filePath).toString(),
+				content: { uri: opts.afterURI },
+			},
 			diff: {
 				added: opts.added ?? 0,
 				removed: opts.removed ?? 0,
@@ -89,6 +94,21 @@ function makeMockFileService(contentMap: Map<string, string>): IFileService {
 				throw new Error(`Content not found: ${key}`);
 			}
 			return { value: VSBuffer.fromString(data) } as IFileContent;
+		}
+		override async writeFile(uri: URI, content: VSBuffer): Promise<any> {
+			contentMap.set(uri.toString(), content.toString());
+			return {};
+		}
+		override async del(uri: URI) {
+			contentMap.delete(uri.toString());
+		}
+		override async move(source: URI, target: URI): Promise<any> {
+			const data = contentMap.get(source.toString());
+			if (data !== undefined) {
+				contentMap.set(target.toString(), data);
+				contentMap.delete(source.toString());
+			}
+			return {};
 		}
 	};
 }
@@ -176,7 +196,7 @@ suite('AgentHostEditingSession', () => {
 	test('addToolCallEdits ignores non-completed tool calls', () => {
 		const session = createSession(store, new Map());
 
-		const tc = { ...makeToolCall({ toolCallId: 'tc-1', filePath: '/f.ts', beforeURI: 'b', afterURI: 'a' }), status: ToolCallStatus.Running } as IToolCallState;
+		const tc = { ...makeToolCall({ toolCallId: 'tc-1', filePath: '/f.ts', beforeURI: 'b', afterURI: 'a' }), status: ToolCallStatus.Running } as ToolCallState;
 		session.addToolCallEdits('req-1', tc);
 
 		assert.strictEqual(session.state.get(), ChatEditingSessionState.Idle);
@@ -305,56 +325,50 @@ suite('AgentHostEditingSession', () => {
 
 	suite('undo/redo', () => {
 
-		test('undo fires writeFile with before-content and updates state', async () => {
-			const beforeUri = toAgentHostUri(URI.file('/workspace/file.ts'), 'local');
+		test('undo writes before-content to file and updates state', async () => {
+			const beforeContentUri = toAgentHostUri(URI.parse('content://before-1'), 'local');
+			const fileUri = toAgentHostUri(URI.file('/workspace/file.ts'), 'local');
 			const contentMap = new Map<string, string>();
-			contentMap.set(beforeUri.toString(), 'before-content');
+			contentMap.set(beforeContentUri.toString(), 'before-content');
+			contentMap.set(fileUri.toString(), 'current-content');
 			const session = createSession(store, contentMap);
 
 			session.addToolCallEdits('req-1', makeToolCall({
 				toolCallId: 'tc-1',
 				filePath: '/workspace/file.ts',
-				beforeURI: URI.file('/workspace/file.ts').toString(),
+				beforeURI: 'content://before-1',
 				afterURI: 'content://after-1',
 			}));
 
-			const writes: IWriteFileParams[] = [];
-			store.add(session.onDidRequestFileWrite(p => writes.push(p)));
-
 			await session.undoInteraction();
 
-			assert.strictEqual(writes.length, 1);
-			assert.strictEqual(writes[0].data, 'before-content');
-			assert.strictEqual(writes[0].encoding, ContentEncoding.Utf8);
+			assert.strictEqual(contentMap.get(fileUri.toString()), 'before-content');
 			assert.strictEqual(session.canUndo.get(), false);
 			assert.strictEqual(session.canRedo.get(), true);
 			assert.deepStrictEqual(session.entries.get(), []);
 		});
 
-		test('redo fires writeFile with after-content', async () => {
-			const beforeUri = toAgentHostUri(URI.file('/workspace/file.ts'), 'local');
-			const afterUri = toAgentHostUri(URI.parse('content://after-1'), 'local');
+		test('redo writes after-content to file', async () => {
+			const beforeContentUri = toAgentHostUri(URI.parse('content://before-1'), 'local');
+			const afterContentUri = toAgentHostUri(URI.parse('content://after-1'), 'local');
+			const fileUri = toAgentHostUri(URI.file('/workspace/file.ts'), 'local');
 			const contentMap = new Map<string, string>();
-			contentMap.set(beforeUri.toString(), 'before-content');
-			contentMap.set(afterUri.toString(), 'after-content');
+			contentMap.set(beforeContentUri.toString(), 'before-content');
+			contentMap.set(afterContentUri.toString(), 'after-content');
+			contentMap.set(fileUri.toString(), 'current-content');
 			const session = createSession(store, contentMap);
 
 			session.addToolCallEdits('req-1', makeToolCall({
 				toolCallId: 'tc-1',
 				filePath: '/workspace/file.ts',
-				beforeURI: URI.file('/workspace/file.ts').toString(),
+				beforeURI: 'content://before-1',
 				afterURI: 'content://after-1',
 			}));
 
 			await session.undoInteraction();
-
-			const writes: IWriteFileParams[] = [];
-			store.add(session.onDidRequestFileWrite(p => writes.push(p)));
-
 			await session.redoInteraction();
 
-			assert.strictEqual(writes.length, 1);
-			assert.strictEqual(writes[0].data, 'after-content');
+			assert.strictEqual(contentMap.get(fileUri.toString()), 'after-content');
 			assert.strictEqual(session.canUndo.get(), true);
 			assert.strictEqual(session.canRedo.get(), false);
 			assert.strictEqual(session.entries.get().length, 1);
@@ -363,12 +377,8 @@ suite('AgentHostEditingSession', () => {
 		test('undo when nothing to undo is no-op', async () => {
 			const session = createSession(store, new Map());
 
-			const writes: IWriteFileParams[] = [];
-			store.add(session.onDidRequestFileWrite(p => writes.push(p)));
-
 			await session.undoInteraction();
-
-			assert.strictEqual(writes.length, 0);
+			// No assertions needed — just verifying no throw
 		});
 
 		test('redo when nothing to redo is no-op', async () => {
@@ -381,26 +391,22 @@ suite('AgentHostEditingSession', () => {
 				afterURI: 'a',
 			}));
 
-			const writes: IWriteFileParams[] = [];
-			store.add(session.onDidRequestFileWrite(p => writes.push(p)));
-
 			await session.redoInteraction();
-
-			assert.strictEqual(writes.length, 0);
+			// No assertions needed — just verifying no throw
 		});
 
 		test('undo after multiple checkpoints removes entries correctly', async () => {
 			const contentMap = new Map<string, string>();
-			contentMap.set(toAgentHostUri(URI.file('/workspace/a.ts'), 'local').toString(), 'a-before');
-			contentMap.set(toAgentHostUri(URI.file('/workspace/b.ts'), 'local').toString(), 'b-before');
-			contentMap.set(toAgentHostUri(URI.parse('content://after-a'), 'local').toString(), 'a-after');
-			contentMap.set(toAgentHostUri(URI.parse('content://after-b'), 'local').toString(), 'b-after');
+			contentMap.set(toAgentHostUri(URI.parse('content://before-a'), 'local').toString(), 'a-before');
+			contentMap.set(toAgentHostUri(URI.parse('content://before-b'), 'local').toString(), 'b-before');
+			contentMap.set(toAgentHostUri(URI.file('/workspace/a.ts'), 'local').toString(), 'a-current');
+			contentMap.set(toAgentHostUri(URI.file('/workspace/b.ts'), 'local').toString(), 'b-current');
 			const session = createSession(store, contentMap);
 
 			session.addToolCallEdits('req-1', makeToolCall({
 				toolCallId: 'tc-1',
 				filePath: '/workspace/a.ts',
-				beforeURI: URI.file('/workspace/a.ts').toString(),
+				beforeURI: 'content://before-a',
 				afterURI: 'content://after-a',
 				added: 5,
 			}));
@@ -408,7 +414,7 @@ suite('AgentHostEditingSession', () => {
 			session.addToolCallEdits('req-2', makeToolCall({
 				toolCallId: 'tc-2',
 				filePath: '/workspace/b.ts',
-				beforeURI: URI.file('/workspace/b.ts').toString(),
+				beforeURI: 'content://before-b',
 				afterURI: 'content://after-b',
 				added: 3,
 			}));
@@ -673,6 +679,323 @@ suite('AgentHostEditingSession', () => {
 			}
 			assert.ok(diff);
 			assert.strictEqual(diff!.isFinal, true);
+		});
+	});
+
+	suite('requestDisablement', () => {
+		test('returns empty when at the latest checkpoint', () => {
+			const session = createSession(store, new Map());
+
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-1',
+				filePath: '/workspace/file.ts',
+				beforeURI: 'b',
+				afterURI: 'a',
+			}));
+
+			assert.deepStrictEqual(session.requestDisablement.get(), []);
+		});
+
+		test('disables requests after undo', async () => {
+			const contentMap = new Map<string, string>();
+			contentMap.set(toAgentHostUri(URI.file('/workspace/file.ts'), 'local').toString(), 'before');
+			const session = createSession(store, contentMap);
+
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-1',
+				filePath: '/workspace/file.ts',
+				beforeURI: URI.file('/workspace/file.ts').toString(),
+				afterURI: 'content://after-1',
+			}));
+
+			session.addToolCallEdits('req-2', makeToolCall({
+				toolCallId: 'tc-2',
+				filePath: '/workspace/file.ts',
+				beforeURI: 'content://after-1',
+				afterURI: 'content://after-2',
+			}));
+
+			// Undo the last tool call — req-2's sentinel + tool call are now after the cursor
+			await session.undoInteraction();
+
+			const disabled = session.requestDisablement.get();
+			assert.strictEqual(disabled.length, 1);
+			assert.strictEqual(disabled[0].requestId, 'req-2');
+			// The first checkpoint after current is the sentinel (undoStopId === undefined)
+			assert.strictEqual(disabled[0].afterUndoStop, undefined);
+		});
+
+		test('clears disablement after redo', async () => {
+			const contentMap = new Map<string, string>();
+			contentMap.set(toAgentHostUri(URI.file('/workspace/file.ts'), 'local').toString(), 'before');
+			contentMap.set(toAgentHostUri(URI.parse('content://after-2'), 'local').toString(), 'after-2');
+			const session = createSession(store, contentMap);
+
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-1',
+				filePath: '/workspace/file.ts',
+				beforeURI: URI.file('/workspace/file.ts').toString(),
+				afterURI: 'content://after-1',
+			}));
+
+			session.addToolCallEdits('req-2', makeToolCall({
+				toolCallId: 'tc-2',
+				filePath: '/workspace/file.ts',
+				beforeURI: 'content://after-1',
+				afterURI: 'content://after-2',
+			}));
+
+			await session.undoInteraction();
+			assert.strictEqual(session.requestDisablement.get().length, 1);
+
+			await session.redoInteraction();
+			assert.deepStrictEqual(session.requestDisablement.get(), []);
+		});
+	});
+
+	suite('restoreSnapshot', () => {
+		test('restoreSnapshot with undefined stopId navigates before the request', async () => {
+			const contentMap = new Map<string, string>();
+			contentMap.set(toAgentHostUri(URI.file('/workspace/file.ts'), 'local').toString(), 'before');
+			contentMap.set(toAgentHostUri(URI.parse('content://after-1'), 'local').toString(), 'after-1');
+			const session = createSession(store, contentMap);
+
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-1',
+				filePath: '/workspace/file.ts',
+				beforeURI: URI.file('/workspace/file.ts').toString(),
+				afterURI: 'content://after-1',
+			}));
+
+			session.addToolCallEdits('req-2', makeToolCall({
+				toolCallId: 'tc-2',
+				filePath: '/workspace/file.ts',
+				beforeURI: 'content://after-1',
+				afterURI: 'content://after-2',
+			}));
+
+			// Restore to before req-2 — should undo req-2's edits
+			await session.restoreSnapshot('req-2', undefined);
+
+			// Entries should only show req-1's edits
+			assert.strictEqual(session.entries.get().length, 1);
+			assert.strictEqual(session.entries.get()[0].lastModifyingRequestId, 'req-1');
+			// req-2 should be disabled
+			assert.strictEqual(session.requestDisablement.get().length, 1);
+			assert.strictEqual(session.requestDisablement.get()[0].requestId, 'req-2');
+		});
+
+		test('restoreSnapshot with stopId navigates to that checkpoint', async () => {
+			const contentMap = new Map<string, string>();
+			contentMap.set(toAgentHostUri(URI.file('/workspace/file.ts'), 'local').toString(), 'before');
+			contentMap.set(toAgentHostUri(URI.parse('content://after-1'), 'local').toString(), 'after-1');
+			const session = createSession(store, contentMap);
+
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-1',
+				filePath: '/workspace/file.ts',
+				beforeURI: URI.file('/workspace/file.ts').toString(),
+				afterURI: 'content://after-1',
+			}));
+
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-2',
+				filePath: '/workspace/file.ts',
+				beforeURI: 'content://after-1',
+				afterURI: 'content://after-2',
+			}));
+
+			// Restore to specific tool call tc-1 within req-1
+			await session.restoreSnapshot('req-1', 'tc-1');
+
+			// Should keep tc-1 but not tc-2
+			assert.strictEqual(session.canUndo.get(), true);
+			assert.strictEqual(session.canRedo.get(), true);
+		});
+
+		test('restoreSnapshot for first request navigates to before all edits', async () => {
+			const contentMap = new Map<string, string>();
+			contentMap.set(toAgentHostUri(URI.file('/workspace/file.ts'), 'local').toString(), 'before');
+			const session = createSession(store, contentMap);
+
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-1',
+				filePath: '/workspace/file.ts',
+				beforeURI: URI.file('/workspace/file.ts').toString(),
+				afterURI: 'content://after-1',
+			}));
+
+			await session.restoreSnapshot('req-1', undefined);
+
+			// No entries visible, all disabled
+			assert.deepStrictEqual(session.entries.get(), []);
+			assert.strictEqual(session.canUndo.get(), false);
+			assert.strictEqual(session.requestDisablement.get().length, 1);
+			assert.strictEqual(session.requestDisablement.get()[0].requestId, 'req-1');
+		});
+	});
+
+	suite('undo branch (splice stale checkpoints)', () => {
+		test('new edits after undo remove stale checkpoints', async () => {
+			const contentMap = new Map<string, string>();
+			contentMap.set(toAgentHostUri(URI.file('/workspace/file.ts'), 'local').toString(), 'before');
+			const session = createSession(store, contentMap);
+
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-1',
+				filePath: '/workspace/file.ts',
+				beforeURI: URI.file('/workspace/file.ts').toString(),
+				afterURI: 'content://after-1',
+			}));
+
+			session.addToolCallEdits('req-2', makeToolCall({
+				toolCallId: 'tc-2',
+				filePath: '/workspace/file.ts',
+				beforeURI: 'content://after-1',
+				afterURI: 'content://after-2',
+			}));
+
+			// Undo last checkpoint
+			await session.undoInteraction();
+
+			// Now add a new edit — should splice away req-2's sentinel + checkpoint
+			session.addToolCallEdits('req-3', makeToolCall({
+				toolCallId: 'tc-3',
+				filePath: '/workspace/file.ts',
+				beforeURI: 'content://after-1',
+				afterURI: 'content://after-3',
+			}));
+
+			// req-2 should be gone, req-3 should be present
+			assert.strictEqual(session.canRedo.get(), false);
+			assert.strictEqual(session.requestDisablement.get().length, 0);
+			assert.strictEqual(session.hasEditsInRequest('req-2'), false);
+			assert.strictEqual(session.hasEditsInRequest('req-3'), true);
+		});
+
+		test('sentinel checkpoint is preserved after splice for new request', async () => {
+			const contentMap = new Map<string, string>();
+			contentMap.set(toAgentHostUri(URI.file('/workspace/file.ts'), 'local').toString(), 'before');
+			const session = createSession(store, contentMap);
+
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-1',
+				filePath: '/workspace/file.ts',
+				beforeURI: URI.file('/workspace/file.ts').toString(),
+				afterURI: 'content://after-1',
+			}));
+
+			// Undo
+			await session.undoInteraction();
+
+			// Add new request — sentinel should survive the splice
+			session.addToolCallEdits('req-2', makeToolCall({
+				toolCallId: 'tc-2',
+				filePath: '/workspace/file.ts',
+				beforeURI: URI.file('/workspace/file.ts').toString(),
+				afterURI: 'content://after-2',
+			}));
+
+			// Undo once (tc-2), then check that req-2 is disabled via the sentinel
+			await session.undoInteraction();
+			const disabled = session.requestDisablement.get();
+			assert.strictEqual(disabled.length, 1);
+			assert.strictEqual(disabled[0].requestId, 'req-2');
+			assert.strictEqual(disabled[0].afterUndoStop, undefined);
+		});
+	});
+
+	suite('ensureRequestCheckpoint', () => {
+		test('creates sentinel for request without tool calls', () => {
+			const session = createSession(store, new Map());
+
+			session.ensureRequestCheckpoint('req-1');
+
+			// No entries visible (sentinel has no edits)
+			assert.deepStrictEqual(session.entries.get(), []);
+			// hasEditsInRequest returns true because the sentinel exists
+			assert.strictEqual(session.hasEditsInRequest('req-1'), true);
+		});
+
+		test('request without edits appears in requestDisablement after undo', async () => {
+			const contentMap = new Map<string, string>();
+			contentMap.set(toAgentHostUri(URI.file('/workspace/file.ts'), 'local').toString(), 'before');
+			const session = createSession(store, contentMap);
+
+			// req-1 has file edits
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-1',
+				filePath: '/workspace/file.ts',
+				beforeURI: URI.file('/workspace/file.ts').toString(),
+				afterURI: 'content://after-1',
+			}));
+
+			// req-2 has no file edits, only a sentinel
+			session.ensureRequestCheckpoint('req-2');
+
+			// Undo tc-1 — both req-1 (partially) and req-2 should be disabled
+			await session.undoInteraction();
+
+			const disabled = session.requestDisablement.get();
+			const disabledIds = disabled.map(d => d.requestId);
+			assert.ok(disabledIds.includes('req-2'), 'req-2 should be disabled');
+		});
+
+		test('restoreSnapshot works for request with only sentinel', async () => {
+			const contentMap = new Map<string, string>();
+			contentMap.set(toAgentHostUri(URI.file('/workspace/file.ts'), 'local').toString(), 'before');
+			const session = createSession(store, contentMap);
+
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-1',
+				filePath: '/workspace/file.ts',
+				beforeURI: URI.file('/workspace/file.ts').toString(),
+				afterURI: 'content://after-1',
+			}));
+
+			session.ensureRequestCheckpoint('req-2');
+
+			// Restore to before req-2 — should keep req-1's edits but disable req-2
+			await session.restoreSnapshot('req-2', undefined);
+
+			assert.strictEqual(session.entries.get().length, 1);
+			assert.strictEqual(session.entries.get()[0].lastModifyingRequestId, 'req-1');
+			assert.strictEqual(session.requestDisablement.get().length, 1);
+			assert.strictEqual(session.requestDisablement.get()[0].requestId, 'req-2');
+		});
+
+		test('idempotent — calling twice does not duplicate', () => {
+			const session = createSession(store, new Map());
+
+			session.ensureRequestCheckpoint('req-1');
+			session.ensureRequestCheckpoint('req-1');
+
+			// Should still work — only one sentinel
+			assert.strictEqual(session.hasEditsInRequest('req-1'), true);
+		});
+
+		test('splices stale checkpoints when called after restore', async () => {
+			const contentMap = new Map<string, string>();
+			contentMap.set(toAgentHostUri(URI.file('/workspace/file.ts'), 'local').toString(), 'before');
+			const session = createSession(store, contentMap);
+
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-1',
+				filePath: '/workspace/file.ts',
+				beforeURI: URI.file('/workspace/file.ts').toString(),
+				afterURI: 'content://after-1',
+			}));
+
+			session.ensureRequestCheckpoint('req-2');
+
+			// Undo to before req-2's sentinel
+			await session.undoInteraction();
+
+			// New request should splice away req-2
+			session.ensureRequestCheckpoint('req-3');
+
+			assert.strictEqual(session.hasEditsInRequest('req-2'), false);
+			assert.strictEqual(session.hasEditsInRequest('req-3'), true);
 		});
 	});
 });

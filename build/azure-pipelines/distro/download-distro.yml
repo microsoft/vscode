@@ -53,3 +53,9 @@ steps:
       mv .build/microsoft-vscode-distro-$DistroVersion .build/distro
     condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
     displayName: Download distro (non-Windows)
+
+  - script: git lfs install --local
+    displayName: Initialize Git LFS
+
+  - script: git lfs pull
+    displayName: Pull Git LFS objects

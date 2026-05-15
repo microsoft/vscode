@@ -429,7 +429,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 
 		// Tips are only relevant after sign-in has completed.
-		if (this._chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
+		if (this._chatEntitlementService.entitlement === ChatEntitlement.Unknown && !this._chatEntitlementService.hasByokModels) {
 			return undefined;
 		}
 
@@ -521,7 +521,18 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			return;
 		}
 
-		if (this._isEligible(this._shownTip, this._contextKeyService)) {
+		let eligible: boolean;
+		try {
+			eligible = this._isEligible(this._shownTip, this._contextKeyService);
+		} catch (err) {
+			// The stored scoped context key service may have been disposed
+			// (e.g. its owning chat widget was torn down). Drop the stale
+			// reference and bail out — there is nothing meaningful to hide.
+			this._contextKeyService = undefined;
+			return;
+		}
+
+		if (eligible) {
 			return;
 		}
 
@@ -852,7 +863,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		this._tipCommandListener.value = this._commandService.onDidExecuteCommand(e => {
 			if (enabledCommandSet.has(e.commandId) && this._shownTip?.id === tip.id) {
 				this._logTipTelemetry(tip.id, 'commandClicked', e.commandId);
-				this.dismissTip();
+				this.dismissTipForSession();
 			}
 		});
 	}
