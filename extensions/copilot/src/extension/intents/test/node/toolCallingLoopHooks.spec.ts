@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CancellationToken, ChatHookResult, ChatHookType, ChatRequest, LanguageModelToolInformation } from 'vscode';
+import type { CancellationToken, ChatRequest, LanguageModelToolInformation } from 'vscode';
 import { IChatHookService, SessionStartHookInput, StopHookInput, SubagentStartHookInput, SubagentStopHookInput } from '../../../../platform/chat/common/chatHookService';
 import { MockChatHookService } from './mockChatHookService';
 import { NoopOTelService } from '../../../../platform/otel/common/noopOtelService';
