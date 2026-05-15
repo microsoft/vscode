@@ -2559,10 +2559,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				templateData.value.appendChild(createdPart.domNode);
 				// Decrement thinking part counters for the materialized item that was moved out
 				thinkingPart.removeMaterializedItem(toolInvocation.toolCallId);
+				// removeMaterializedItem detaches the part from the thinking part's ownership
+				// without disposing it, so transfer ownership to the element.
+				templateData.elementDisposables.add(createdPart);
 			} else {
 				thinkingPart.removeLazyItem(toolInvocation.toolId);
 				const { domNode, part: createdPart } = createToolPart();
 				part = createdPart;
+				templateData.elementDisposables.add(createdPart);
 				templateData.value.appendChild(domNode);
 			}
 			this.finalizeCurrentThinkingPart(context, templateData);
