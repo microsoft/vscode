@@ -21,11 +21,18 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { TitleBarLeadingActionsGroup } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
+import { IChatWidgetService } from '../../browser/chat.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
+import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
+import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
 
 export class OpenWorkspaceInAgentsWindowAction extends Action2 {
@@ -80,9 +87,70 @@ export class OpenAgentsWindowAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor) {
+	async run(accessor: ServicesAccessor, args?: { folderUri?: UriComponents; initialQuery?: string; sessionResource?: UriComponents }) {
 		const nativeHostService = accessor.get(INativeHostService);
-		await nativeHostService.openAgentsWindow();
+		await nativeHostService.openAgentsWindow(args);
+	}
+}
+
+/**
+ * Opens the current chat session inside the Agents window. Visible only when
+ * the active chat is a first-party agent-host session (Copilot CLI today)
+ * since those are the session types the Agents window can render directly.
+ */
+export class OpenChatSessionInAgentsWindowAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.openSessionInAgentsWindow';
+
+	constructor() {
+		super({
+			id: OpenChatSessionInAgentsWindowAction.ID,
+			title: localize2('openSessionInAgentsWindow', "Open in Agents Window"),
+			category: CHAT_CATEGORY,
+			precondition: OPEN_AGENTS_WINDOW_PRECONDITION,
+			f1: false,
+			menu: [{
+				id: MenuId.ChatTitleBarMenu,
+				group: 'c_sessions',
+				order: 0,
+				when: ContextKeyExpr.and(
+					OPEN_AGENTS_WINDOW_PRECONDITION,
+					ContextKeyExpr.or(
+						ChatContextKeys.chatSessionType.isEqualTo('copilotcli'),
+						ChatContextKeys.chatSessionType.isEqualTo('agent-host-copilot'),
+					),
+				),
+			}],
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...rest: unknown[]): Promise<void> {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const nativeHostService = accessor.get(INativeHostService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+
+		let sessionResource: URI | undefined;
+		const arg = rest[0];
+		if (URI.isUri(arg)) {
+			sessionResource = arg;
+		} else if (arg && typeof arg === 'object') {
+			const ctx = arg as IChatViewTitleActionContext;
+			if (URI.isUri(ctx.sessionResource)) {
+				sessionResource = ctx.sessionResource;
+			}
+		}
+		if (!sessionResource) {
+			sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+		}
+		if (!sessionResource) {
+			return;
+		}
+
+		const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
+		await nativeHostService.openAgentsWindow({
+			folderUri: folderUri?.scheme === Schemas.file ? folderUri.toJSON() : undefined,
+			sessionResource: sessionResource.toJSON(),
+		});
 	}
 }
 
@@ -135,3 +203,120 @@ export class OpenWorkspaceInAgentsContribution extends Disposable implements IWo
 		}, undefined));
 	}
 }
+
+/**
+ * Posts a tip notification above the chat input whenever the focused chat
+ * widget is showing a contributed session (Copilot CLI, Cloud, Claude, etc.)
+ * that the Agents Window can render directly. The notification provides a
+ * one-click button to hand off the current session to the Agents Window.
+ */
+export class AgentsHandoffInputTipContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.agentsHandoffInputTip';
+
+	private static readonly NOTIFICATION_ID = 'chat.agentsHandoff.openInAgentsWindow';
+
+	/** Session types eligible for the handoff tip — the same set the Agents window can render directly. */
+	private static readonly ELIGIBLE_SESSION_TYPES = new Set(['copilotcli', 'agent-host-copilot']);
+
+	/** Storage key for the per-session dismissal set. Stored as a JSON-encoded array of session URI strings. */
+	private static readonly DISMISSED_STORAGE_KEY = 'chat.agentsHandoff.tip.dismissedSessions';
+
+	/** The session URI we last posted a notification for. Used to avoid clearing the user's dismissal when re-evaluating the same state. */
+	private _lastPostedFor: string | undefined;
+
+	/** Sessions for which the user has previously dismissed the tip; never re-posted. */
+	private readonly _dismissedSessions: Set<string>;
+
+	constructor(
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IChatInputNotificationService private readonly _notificationService: IChatInputNotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IStorageService private readonly _storageService: IStorageService,
+	) {
+		super();
+		this._dismissedSessions = new Set(this._loadDismissed());
+		this._register(this._chatWidgetService.onDidChangeFocusedSession(() => this._update()));
+		this._register(this._chatWidgetService.onDidAddWidget(() => this._update()));
+		this._register(contextKeyService.onDidChangeContext(() => this._update()));
+		this._register(this._notificationService.onDidDismiss(id => {
+			if (id !== AgentsHandoffInputTipContribution.NOTIFICATION_ID || !this._lastPostedFor) {
+				return;
+			}
+			this._dismissedSessions.add(this._lastPostedFor);
+			this._saveDismissed();
+		}));
+		this._update();
+	}
+
+	private _update(): void {
+		const widget = this._chatWidgetService.lastFocusedWidget;
+		const sessionResource = widget?.viewModel?.sessionResource;
+		const sessionType = sessionResource ? getChatSessionType(sessionResource) : undefined;
+		const preconditionMet = widget?.scopedContextKeyService.contextMatchesRules(OPEN_AGENTS_WINDOW_PRECONDITION) ?? false;
+		const eligible = preconditionMet
+			&& !!sessionResource
+			&& !!sessionType
+			&& AgentsHandoffInputTipContribution.ELIGIBLE_SESSION_TYPES.has(sessionType)
+			&& !isUntitledChatSession(sessionResource)
+			&& !this._dismissedSessions.has(sessionResource.toString());
+
+		if (!eligible || !sessionResource) {
+			if (this._lastPostedFor) {
+				this._notificationService.deleteNotification(AgentsHandoffInputTipContribution.NOTIFICATION_ID);
+				this._lastPostedFor = undefined;
+			}
+			return;
+		}
+
+		// Only call setNotification when the target session changes. Re-calling
+		// setNotification clears the user's dismissal, which would make the
+		// dismiss button effectively a no-op when the context key service
+		// fires repeated change events for the same session.
+		const key = sessionResource.toString();
+		if (this._lastPostedFor === key) {
+			return;
+		}
+		this._lastPostedFor = key;
+
+		this._notificationService.setNotification({
+			id: AgentsHandoffInputTipContribution.NOTIFICATION_ID,
+			severity: ChatInputNotificationSeverity.Info,
+			message: localize('chat.agentsHandoff.tip.message', "Continue this session in the Agents Window"),
+			description: localize('chat.agentsHandoff.tip.description', "Get a dedicated, multi-pane view alongside your workspace."),
+			actions: [
+				{
+					label: localize('chat.agentsHandoff.tip.action', "Open in Agents Window"),
+					commandId: OpenChatSessionInAgentsWindowAction.ID,
+					commandArgs: [sessionResource],
+				},
+			],
+			dismissible: true,
+			autoDismissOnMessage: false,
+			sessionTypes: Array.from(AgentsHandoffInputTipContribution.ELIGIBLE_SESSION_TYPES),
+		});
+	}
+
+	private _loadDismissed(): readonly string[] {
+		const raw = this._storageService.get(AgentsHandoffInputTipContribution.DISMISSED_STORAGE_KEY, StorageScope.PROFILE);
+		if (!raw) {
+			return [];
+		}
+		try {
+			const parsed = JSON.parse(raw);
+			return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === 'string') : [];
+		} catch {
+			return [];
+		}
+	}
+
+	private _saveDismissed(): void {
+		this._storageService.store(
+			AgentsHandoffInputTipContribution.DISMISSED_STORAGE_KEY,
+			JSON.stringify(Array.from(this._dismissedSessions)),
+			StorageScope.PROFILE,
+			StorageTarget.MACHINE,
+		);
+	}
+}
+

@@ -5,12 +5,15 @@
 
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { timeout } from '../../../../base/common/async.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { NewChatViewPane, SessionsViewId } from '../browser/newChatViewPane.js';
 import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
@@ -25,11 +28,184 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		@IViewsService private readonly viewsService: IViewsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ISessionsSetUpService private readonly sessionsSetUpService: ISessionsSetUpService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		ipcRenderer.on('vscode:selectAgentsFolder', (_: unknown, ...args: unknown[]) => {
-			const folderUri = URI.revive(args[0] as UriComponents);
-			this.selectFolder(folderUri);
+			const folderUri = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
+			const initialQuery = typeof args[1] === 'string' ? args[1] : undefined;
+			const sessionResource = args[2] ? URI.revive(args[2] as UriComponents) : undefined;
+			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${folderUri?.toString() ?? '(none)'} initialQuery=${initialQuery ? 'yes' : 'no'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
+			this.handleOpenIntent(folderUri, initialQuery, sessionResource);
+		});
+	}
+
+	private async handleOpenIntent(folderUri: URI | undefined, initialQuery: string | undefined, sessionResource: URI | undefined): Promise<void> {
+		if (folderUri) {
+			await this.selectFolder(folderUri);
+		}
+		if (sessionResource) {
+			await this.openExistingSession(sessionResource);
+			return;
+		}
+		if (initialQuery) {
+			await this.submitInitialQuery(initialQuery);
+		}
+	}
+
+	private async openExistingSession(sessionResource: URI): Promise<void> {
+		this.logService.info(`[AgentsHandoff] openExistingSession: target=${sessionResource.toString()}`);
+
+		// Wait for the workbench to be ready so the session list / providers
+		// have populated. Otherwise openSession can't find the session.
+		await this.lifecycleService.when(LifecyclePhase.Eventually);
+		this.logService.info('[AgentsHandoff] reached LifecyclePhase.Eventually');
+
+		// Fast path — already on the target session.
+		const current = this.sessionsManagementService.activeSession.get();
+		if (current && current.resource.toString() === sessionResource.toString()) {
+			this.logService.info('[AgentsHandoff] already on target session');
+			return;
+		}
+
+		// The Copilot Chat Sessions Provider lists sessions asynchronously
+		// via an RPC; the target session may not yet be in the providers'
+		// `getSessions()` map. Poll until it shows up.
+		const found = await this.waitForSessionAvailable(sessionResource);
+		if (!found) {
+			this.logService.warn(`[AgentsHandoff] target session never appeared in providers; aborting`);
+			return;
+		}
+		this.logService.info('[AgentsHandoff] target session available; opening');
+
+		// Retry on cancellation / not-found — the agents window may still be
+		// resolving its own restore, which can cancel our token.
+		for (let attempt = 0; attempt < 6; attempt++) {
+			try {
+				await this.sessionsManagementService.openSession(sessionResource);
+				this.logService.info('[AgentsHandoff] openSession succeeded');
+				return;
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				this.logService.warn(`[AgentsHandoff] openSession attempt ${attempt} failed: ${message}`);
+				const retryable = /canceled/i.test(message) || /not found/i.test(message);
+				if (!retryable) {
+					return;
+				}
+				await timeout(500 + attempt * 500);
+			}
+		}
+		this.logService.warn('[AgentsHandoff] gave up after retries');
+	}
+
+	private async waitForSessionAvailable(sessionResource: URI, timeoutMs = 15_000): Promise<boolean> {
+		const start = Date.now();
+		while (Date.now() - start < timeoutMs) {
+			if (this.sessionsManagementService.getSession(sessionResource)) {
+				return true;
+			}
+			await timeout(200);
+		}
+		return !!this.sessionsManagementService.getSession(sessionResource);
+	}
+
+	private async submitInitialQuery(query: string): Promise<void> {
+		// Wait for the workbench to be fully past Restored. The chat view
+		// container, copilot CLI agent, and provider registrations are all
+		// async; submitting too early leads to `_sendFirstChat` failing with
+		// "Failed to open chat widget" because the regular ChatView isn't
+		// resolvable yet.
+		await this.lifecycleService.when(LifecyclePhase.Eventually);
+
+		const view = await this.viewsService.openView<NewChatViewPane>(SessionsViewId, true);
+		if (!view) {
+			return;
+		}
+
+		// Prefill immediately so the user can see the staged prompt and click
+		// send themselves if our auto-submit doesn't fire (e.g. on a slow
+		// machine where startup races overrun our wait window).
+		view.prefillInput(query);
+
+		// The Agents window's startup churns the active session several times.
+		// Wait for it to stop changing before submitting; a fresh untitled CLI
+		// session needs to settle before _sendFirstChat can open its chat view.
+		const stableSession = await this.waitForStableActiveSession();
+		if (!stableSession) {
+			return;
+		}
+
+		// Even after the session settles, the chat view registry needs a beat
+		// to finish wiring up the regular ChatView pane (it's gated by a
+		// `when` clause that flips on submit). Give it a generous breather.
+		await timeout(3000);
+
+		view.sendQuery(query);
+	}
+
+	private waitForActiveSession(timeoutMs = 8000): Promise<boolean> {
+		if (this.sessionsManagementService.activeSession.get()) {
+			return Promise.resolve(true);
+		}
+		return new Promise<boolean>(resolve => {
+			const store = new DisposableStore();
+			const handle = setTimeout(() => {
+				store.dispose();
+				resolve(!!this.sessionsManagementService.activeSession.get());
+			}, timeoutMs);
+			store.add(autorun(reader => {
+				if (this.sessionsManagementService.activeSession.read(reader)) {
+					clearTimeout(handle);
+					store.dispose();
+					resolve(true);
+				}
+			}));
+		});
+	}
+
+	/**
+	 * Resolve once the active session has stopped changing for `stableMs`,
+	 * or after `timeoutMs` overall. The Agents window's restore flow can
+	 * swap the active session several times during startup; auto-submitting
+	 * mid-swap fails inside the chat session provider with "Failed to open
+	 * chat widget".
+	 */
+	private waitForStableActiveSession(timeoutMs = 20_000, stableMs = 2_500): Promise<boolean> {
+		return new Promise<boolean>(resolve => {
+			const start = Date.now();
+			let lastSeenId: string | undefined = this.sessionsManagementService.activeSession.get()?.sessionId;
+			let lastChange = Date.now();
+			let settled = false;
+
+			const store = new DisposableStore();
+			store.add(autorun(reader => {
+				const id = this.sessionsManagementService.activeSession.read(reader)?.sessionId;
+				if (id !== lastSeenId) {
+					lastSeenId = id;
+					lastChange = Date.now();
+				}
+			}));
+
+			const tick = async () => {
+				while (!settled) {
+					const now = Date.now();
+					const current = this.sessionsManagementService.activeSession.get();
+					if (current && now - lastChange >= stableMs) {
+						settled = true;
+						store.dispose();
+						resolve(true);
+						return;
+					}
+					if (now - start >= timeoutMs) {
+						settled = true;
+						store.dispose();
+						resolve(!!current);
+						return;
+					}
+					await timeout(200);
+				}
+			};
+			tick();
 		});
 	}
 

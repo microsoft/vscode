@@ -41,6 +41,7 @@ class FakePermissionService extends Disposable implements IAgentHostPermissionSe
 class FakeNotificationService implements IChatInputNotificationService {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void> = Event.None;
+	readonly onDidDismiss: Event<string> = Event.None;
 	readonly setCalls: IChatInputNotification[] = [];
 	readonly deleteCalls: string[] = [];
 

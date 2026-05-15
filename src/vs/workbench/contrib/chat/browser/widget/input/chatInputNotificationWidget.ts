@@ -43,17 +43,32 @@ export class ChatInputNotificationWidget extends Disposable {
 
 	private readonly _contentDisposables = this._register(new DisposableStore());
 
+	/**
+	 * Optional provider that returns the current session type of the owning
+	 * chat input part. When set and a notification specifies a `sessionTypes`
+	 * allow-list, the widget will only render the notification if the current
+	 * session type matches.
+	 */
+	private readonly _sessionTypeProvider: (() => string | undefined) | undefined;
+
 	constructor(
+		sessionTypeProvider: (() => string | undefined) | undefined,
 		@IChatInputNotificationService private readonly _notificationService: IChatInputNotificationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
+		this._sessionTypeProvider = sessionTypeProvider;
 
 		this.domNode = $('.chat-input-notification-widget');
 
 		this._register(this._notificationService.onDidChange(() => this._render()));
+		this._render();
+	}
+
+	/** Re-evaluates which notification (if any) to display. Safe to call externally when the owner's session type changes. */
+	rerender(): void {
 		this._render();
 	}
 
@@ -62,13 +77,21 @@ export class ChatInputNotificationWidget extends Disposable {
 		dom.clearNode(this.domNode);
 
 		const notification = this._notificationService.getActiveNotification();
-		if (!notification) {
+		if (!notification || !this._matchesSession(notification)) {
 			this.domNode.parentElement?.classList.remove('has-notification');
 			return;
 		}
 
 		this.domNode.parentElement?.classList.add('has-notification');
 		this._renderNotification(notification);
+	}
+
+	private _matchesSession(notification: IChatInputNotification): boolean {
+		if (!notification.sessionTypes || notification.sessionTypes.length === 0) {
+			return true;
+		}
+		const currentType = this._sessionTypeProvider?.();
+		return !!currentType && notification.sessionTypes.includes(currentType);
 	}
 
 	private _renderNotification(notification: IChatInputNotification): void {
@@ -103,13 +126,17 @@ export class ChatInputNotificationWidget extends Disposable {
 			dismissButton.role = 'button';
 			dismissButton.ariaLabel = localize('dismissNotification', "Dismiss notification");
 
-			this._contentDisposables.add(dom.addDisposableListener(dismissButton, dom.EventType.CLICK, () => {
-				this._notificationService.dismissNotification(notification.id);
-			}));
+			// Defer the dismiss to a microtask so the synchronous re-render
+			// (which clears all children of the widget) happens after the
+			// browser has finished propagating the click event. Otherwise
+			// blur handlers fired by removing the button from focus can
+			// move/remove nodes that `clearNode` then trips over.
+			const dismiss = () => queueMicrotask(() => this._notificationService.dismissNotification(notification.id));
+			this._contentDisposables.add(dom.addDisposableListener(dismissButton, dom.EventType.CLICK, dismiss));
 			this._contentDisposables.add(dom.addDisposableListener(dismissButton, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 				if (e.key === 'Enter' || e.key === ' ') {
 					e.preventDefault();
-					this._notificationService.dismissNotification(notification.id);
+					dismiss();
 				}
 			}));
 		}
