@@ -528,24 +528,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return this._config.connection.getCompletionTriggerCharacters();
 	}
 
-	private _toChatInputCompletionItem(raw: AhpCompletionItem, text: string): IChatInputCompletionItem | undefined {
-		const attachment = raw.attachment;
-		// Currently only resource attachments are surfaced as chat-input
-		// attachments; embedded resources and simple attachments will be
-		// added when the workbench grows first-class support for them.
-		if (attachment.type !== MessageAttachmentKind.Resource) {
-			return undefined;
-		}
-		const uri = typeof attachment.uri === 'string' ? URI.parse(attachment.uri) : URI.from(attachment.uri);
+	private _createCompletionItem(raw: AhpCompletionItem, text: string, attachment: IChatInputCompletionItem['attachment']): IChatInputCompletionItem {
 		const item: Mutable<IChatInputCompletionItem> = {
 			insertText: raw.insertText,
-			attachment: {
-				kind: 'resource',
-				uri,
-				displayName: attachment.label,
-				isDirectory: attachment.displayKind === 'directory',
-				...(attachment._meta !== undefined && { _meta: attachment._meta }),
-			},
+			attachment
 		};
 		if (raw.rangeStart !== undefined) {
 			item.start = offsetToPosition(text, raw.rangeStart);
@@ -554,6 +540,43 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			item.end = offsetToPosition(text, raw.rangeEnd);
 		}
 		return item;
+	}
+
+	private _toChatInputCompletionItem(raw: AhpCompletionItem, text: string): IChatInputCompletionItem | undefined {
+		const attachment = raw.attachment;
+		switch (attachment.type) {
+			case MessageAttachmentKind.Simple: {
+				if (typeof attachment._meta?.command === 'string') {
+					return this._createCompletionItem(raw, text, {
+						kind: 'command',
+						command: attachment._meta.command,
+						description: typeof attachment._meta.description === 'string' ? attachment._meta.description : '',
+						...(attachment._meta !== undefined && { _meta: attachment._meta }),
+					});
+				}
+				if (typeof attachment._meta?.uri === 'string') {
+					return this._createCompletionItem(raw, text, {
+						kind: 'skill',
+						uri: URI.parse(attachment._meta.uri),
+						...(attachment._meta !== undefined && { _meta: attachment._meta }),
+					});
+				}
+				return undefined;
+			}
+			case MessageAttachmentKind.Resource: {
+				const uri = typeof attachment.uri === 'string' ? URI.parse(attachment.uri) : URI.from(attachment.uri);
+				return this._createCompletionItem(raw, text, {
+					kind: 'resource',
+					uri,
+					displayName: attachment.label,
+					isDirectory: attachment.displayKind === 'directory',
+					...(attachment._meta !== undefined && { _meta: attachment._meta }),
+				});
+			}
+			default:
+				// Embedded resources will be added when the workbench grows first-class support for them.
+				return undefined; // unknown attachment type
+		}
 	}
 
 	async provideChatSessionContent(sessionResource: URI, _token: CancellationToken): Promise<IChatSession> {

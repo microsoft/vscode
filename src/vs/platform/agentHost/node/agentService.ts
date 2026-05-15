@@ -113,6 +113,9 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Exposes the terminal manager for use by agent providers. */
 	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
 
+	/** Exposes the completions service for use by agent providers (e.g. to register agent-scoped completion item providers). */
+	get completionsService(): IAgentHostCompletions { return this._completions; }
+
 	/**
 	 * Trigger characters announced to clients via `InitializeResult.completionTriggerCharacters`.
 	 * Aggregated from all registered {@link IAgentHostCompletionItemProvider}s.

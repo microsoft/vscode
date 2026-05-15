@@ -120,20 +120,44 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 
 	protected override _buildItem(position: Position, item: IChatInputCompletionItem, widget: IChatWidget): CompletionItem {
 		const replaceRange = AgentHostInputCompletions.computeRange(position, item);
-		const label = item.attachment.displayName ?? item.insertText;
-		const description = item.attachment.uri.path;
-		return {
-			label: { label, description },
-			insertText: item.insertText,
-			filterText: item.insertText,
-			range: replaceRange,
-			kind: item.attachment.isDirectory ? CompletionItemKind.Folder : CompletionItemKind.File,
-			command: {
-				id: AgentHostInputCompletions.addReferenceCommand,
-				title: '',
-				arguments: [new AgentHostReferenceArgument(widget, item.attachment.uri, item.attachment.displayName, !!item.attachment.isDirectory, replaceRange.replace.setEndPosition(replaceRange.replace.startLineNumber, replaceRange.replace.startColumn + item.insertText.length), item.attachment._meta)],
-			},
-		};
+		const attachment = item.attachment;
+		switch (attachment.kind) {
+			case 'command': {
+				return {
+					label: item.insertText,
+					insertText: item.insertText,
+					filterText: item.insertText,
+					range: replaceRange,
+					kind: CompletionItemKind.Text,
+					detail: attachment.description,
+				};
+			}
+			case 'skill': {
+				return {
+					label: item.insertText,
+					insertText: item.insertText,
+					filterText: item.insertText,
+					range: replaceRange,
+					kind: CompletionItemKind.Text,
+				};
+			}
+			default: {
+				const label = attachment.displayName ?? item.insertText;
+				const description = attachment.uri.path;
+				return {
+					label: { label, description },
+					insertText: item.insertText,
+					filterText: item.insertText,
+					range: replaceRange,
+					kind: attachment.isDirectory ? CompletionItemKind.Folder : CompletionItemKind.File,
+					command: {
+						id: AgentHostInputCompletions.addReferenceCommand,
+						title: '',
+						arguments: [new AgentHostReferenceArgument(widget, attachment.uri, attachment.displayName, !!attachment.isDirectory, replaceRange.replace.setEndPosition(replaceRange.replace.startLineNumber, replaceRange.replace.startColumn + item.insertText.length), attachment._meta)],
+					},
+				};
+			}
+		}
 	}
 }
 

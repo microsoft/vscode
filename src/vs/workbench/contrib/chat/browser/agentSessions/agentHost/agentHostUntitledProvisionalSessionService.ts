@@ -209,6 +209,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				if (this._entries.has(sessionResource)) {
 					void this.disposeSession(sessionResource);
 				}
+				// Drop any tombstone for the abandoned untitled URI so the
+				// set doesn't grow unbounded across the workbench lifetime.
+				this._rebound.delete(sessionResource);
 			}
 		}));
 	}
@@ -363,6 +366,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		}
 		this._entries.clear();
 		this._pending.clear();
+		this._rebound.clear();
 		super.dispose();
 	}
 

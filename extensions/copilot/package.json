@@ -4272,7 +4272,7 @@
 					},
 					"github.copilot.chat.freezeCustomizationsIndex": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"tags": [
 							"advanced",
 							"experimental",

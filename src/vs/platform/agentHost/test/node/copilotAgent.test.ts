@@ -31,6 +31,7 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotBranchNameHintFromMessage, getCopilotWorktreeBranchName, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
 import { CopilotAgentSession, type SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
@@ -219,6 +220,20 @@ class MockCopilotSession {
 	async destroy(): Promise<void> { }
 }
 
+class MockAgentHostOTelService implements IAgentHostOTelService {
+	readonly _serviceBrand: undefined;
+
+	async getSdkTelemetryConfig() {
+		return undefined;
+	}
+	getSpansDbPath() {
+		return undefined;
+	}
+	async flush() {
+		//
+	}
+}
+
 class TestableCopilotAgent extends CopilotAgent {
 	private readonly _fakeSessions = new Map<string, IFakeAgentSession>();
 	readonly resumeCalls: string[] = [];
@@ -232,9 +247,9 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentHostTerminalManager terminalManager: IAgentHostTerminalManager,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
-		@IAgentHostOTelService otelService: IAgentHostOTelService,
+		@IAgentHostCompletions completions: IAgentHostCompletions,
 	) {
-		super(logService, instantiationService, fileService, sessionDataService, gitService, terminalManager, configurationService, otelService);
+		super(logService, instantiationService, fileService, sessionDataService, gitService, terminalManager, configurationService, new MockAgentHostOTelService(), completions);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -304,6 +319,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 		getSpansDbPath: () => undefined,
 		flush: async () => undefined,
 	});
+	services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService)));
 	if (options?.environmentServiceRegistration !== 'none') {
 		const environmentService = {
 			_serviceBrand: undefined,
