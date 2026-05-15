@@ -1,0 +1,56 @@
+[
+	{
+		"name": "Debug tools list [context] - c",
+		"requests": [
+			"e8a92d5b88db06009c5f547de89294cef034c57c720dba618129e1ee70f1ed9a"
+		]
+	},
+	{
+		"name": "Debug tools list [context] - csharp",
+		"requests": [
+			"3bb5579c23a7fffca883d14d5ae4f60f97191e53cbb2d6371b416b8501a365bc"
+		]
+	},
+	{
+		"name": "Debug tools list [context] - elixir",
+		"requests": [
+			"3dfd531e38c96b008c582280fd4115c20e150d915a812ec6888f9a1dc91673c3"
+		]
+	},
+	{
+		"name": "Debug tools list [context] - go",
+		"requests": [
+			"392556e5153b760f35122c39090e00fdbcc457aa188759d64de8b9c376791497"
+		]
+	},
+	{
+		"name": "Debug tools list [context] - javascript",
+		"requests": [
+			"98f16f9c2271d39e94c21d93c0fd507266b91a728953dd2ae42597696db8bf16"
+		]
+	},
+	{
+		"name": "Debug tools list [context] - lua",
+		"requests": [
+			"a6e478c7fbf48f3d0b6e995ee164501a11a751b503c36656bb787c1b86df9fd8"
+		]
+	},
+	{
+		"name": "Debug tools list [context] - python",
+		"requests": [
+			"9d31acddf22fdad056e37e5e77ae85cb87c4ced08ed3a347aa84047c83e434e6"
+		]
+	},
+	{
+		"name": "Debug tools list [context] - ruby",
+		"requests": [
+			"333128e99913de228e9e2a48353ede2689379ace2bed4090370cb66b090cc5a0"
+		]
+	},
+	{
+		"name": "Debug tools list [context] - typescript",
+		"requests": [
+			"98f16f9c2271d39e94c21d93c0fd507266b91a728953dd2ae42597696db8bf16"
+		]
+	}
+]

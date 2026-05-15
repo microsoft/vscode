@@ -219,6 +219,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		await this._textModelChangeService.resetDocumentValues(undefined, this.initialContent);
 	}
 
+	async resetEditTrackerToInitialContent() {
+		await this._textModelChangeService.resetDocumentValues(this.initialContent, undefined);
+	}
+
 	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {
 		return this._textModelChangeService.areOriginalAndModifiedIdentical();
 	}

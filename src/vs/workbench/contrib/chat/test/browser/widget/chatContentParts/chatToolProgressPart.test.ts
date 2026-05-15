@@ -25,7 +25,6 @@ import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatConte
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ToolDataSource, type ToolDataSource as ToolDataSourceType } from '../../../../common/tools/languageModelToolsService.js';
-import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 
 suite('ChatToolProgressSubPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,7 +36,6 @@ suite('ChatToolProgressSubPart', () => {
 	let mockHoverService: IHoverService;
 	let mockConfigurationService: TestConfigurationService;
 	let mockEditorPool: EditorPool;
-	let mockCodeBlockModelCollection: CodeBlockModelCollection;
 
 	function createRenderContext(isComplete: boolean = false): IChatContentPartRenderContext {
 		const mockElement: Partial<IChatResponseViewModel> = {
@@ -59,7 +57,6 @@ suite('ChatToolProgressSubPart', () => {
 			codeBlockStartIndex: 0,
 			treeStartIndex: 0,
 			diffEditorPool: {} as DiffEditorPool,
-			codeBlockModelCollection: mockCodeBlockModelCollection,
 			currentWidth: observableValue('currentWidth', 500),
 			onDidChangeVisibility: Event.None
 		};
@@ -109,6 +106,7 @@ suite('ChatToolProgressSubPart', () => {
 				confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
 				progress: observableValue('progress', { message: undefined, progress: undefined })
 			}),
+			toolSpecificDataKind: observableValue('test', undefined),
 			isAttachedToThinking: false,
 			kind: 'toolInvocation',
 			toJSON: () => createSerializedToolInvocation({ source, toolId, invocationMessage: options.invocationMessage })
@@ -155,7 +153,6 @@ suite('ChatToolProgressSubPart', () => {
 		instantiationService.stub(IHoverService, mockHoverService);
 
 		mockEditorPool = {} as EditorPool;
-		mockCodeBlockModelCollection = {} as CodeBlockModelCollection;
 	});
 
 	teardown(() => {
@@ -182,7 +179,7 @@ suite('ChatToolProgressSubPart', () => {
 	});
 
 	test('adds shimmer styling for active MCP tool progress', () => {
-		const mcpTool = createSerializedToolInvocation({
+		const mcpTool = createToolInvocation({
 			source: {
 				type: 'mcp',
 				label: 'Weather MCP',
@@ -214,6 +211,30 @@ suite('ChatToolProgressSubPart', () => {
 		const part = disposables.add(instantiationService.createInstance(
 			ChatToolProgressSubPart,
 			tool,
+			createRenderContext(false),
+			mockMarkdownRenderer,
+			new Set<string>()
+		));
+
+		assert.strictEqual(part.domNode.querySelector('.shimmer-progress'), null);
+	});
+
+	test('does not add shimmer styling for completed MCP tool progress', () => {
+		const mcpTool = createSerializedToolInvocation({
+			source: {
+				type: 'mcp',
+				label: 'Weather MCP',
+				serverLabel: 'Weather',
+				instructions: undefined,
+				collectionId: 'collection',
+				definitionId: 'definition'
+			},
+			toolId: 'weather_lookup'
+		});
+
+		const part = disposables.add(instantiationService.createInstance(
+			ChatToolProgressSubPart,
+			mcpTool,
 			createRenderContext(false),
 			mockMarkdownRenderer,
 			new Set<string>()

@@ -16,7 +16,7 @@ import { addStandardDisposableListener, getWindow, ModifierKeyEmitter } from '..
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { createAgentFeedbackContext, getSessionForResource } from './agentFeedbackEditorUtils.js';
 import { localize } from '../../../../nls.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -25,7 +25,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 
-class AgentFeedbackInputWidget implements IOverlayWidget {
+class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 
 	private static readonly _ID = 'agentFeedback.inputWidget';
 	private static readonly _MIN_WIDTH = 150;
@@ -42,15 +42,16 @@ class AgentFeedbackInputWidget implements IOverlayWidget {
 	private _position: IOverlayWidgetPosition | null = null;
 	private _lineHeight = 0;
 
-	private readonly _onDidTriggerAdd = new Emitter<void>();
+	private readonly _onDidTriggerAdd = this._register(new Emitter<void>());
 	readonly onDidTriggerAdd: Event<void> = this._onDidTriggerAdd.event;
 
-	private readonly _onDidTriggerAddAndSubmit = new Emitter<void>();
+	private readonly _onDidTriggerAddAndSubmit = this._register(new Emitter<void>());
 	readonly onDidTriggerAddAndSubmit: Event<void> = this._onDidTriggerAddAndSubmit.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 	) {
+		super();
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('agent-feedback-input-widget');
 		this._domNode.style.display = 'none';
@@ -70,33 +71,31 @@ class AgentFeedbackInputWidget implements IOverlayWidget {
 		actionsContainer.classList.add('agent-feedback-input-actions');
 		this._domNode.appendChild(actionsContainer);
 
-		this._addAction = new Action(
+		this._addAction = this._register(new Action(
 			'agentFeedback.add',
 			localize('agentFeedback.add', "Add Feedback (Enter)"),
 			ThemeIcon.asClassName(Codicon.plus),
 			false,
 			() => { this._onDidTriggerAdd.fire(); return Promise.resolve(); }
-		);
+		));
 
-		this._addAndSubmitAction = new Action(
+		this._addAndSubmitAction = this._register(new Action(
 			'agentFeedback.addAndSubmit',
 			localize('agentFeedback.addAndSubmit', "Add Feedback and Submit (Alt+Enter)"),
 			ThemeIcon.asClassName(Codicon.send),
 			false,
 			() => { this._onDidTriggerAddAndSubmit.fire(); return Promise.resolve(); }
-		);
+		));
 
-		this._actionBar = new ActionBar(actionsContainer);
+		this._actionBar = this._register(new ActionBar(actionsContainer));
 		this._actionBar.push(this._addAction, { icon: true, label: false, keybinding: localize('enter', "Enter") });
 
 		// Toggle to alt action when Alt key is held
 		const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
-		modifierKeyEmitter.event(status => {
+		this._register(modifierKeyEmitter.event(status => {
 			this._updateActionForAlt(status.altKey);
-		});
+		}));
 
-		this._editor.applyFontInfo(this._inputElement);
-		this._editor.applyFontInfo(this._measureElement);
 		this._lineHeight = 22;
 		this._inputElement.style.lineHeight = `${this._lineHeight}px`;
 	}
@@ -181,13 +180,6 @@ class AgentFeedbackInputWidget implements IOverlayWidget {
 		this._inputElement.style.height = `${newHeight}px`;
 	}
 
-	dispose(): void {
-		this._actionBar.dispose();
-		this._addAction.dispose();
-		this._addAndSubmitAction.dispose();
-		this._onDidTriggerAdd.dispose();
-		this._onDidTriggerAddAndSubmit.dispose();
-	}
 }
 
 export class AgentFeedbackEditorInputContribution extends Disposable implements IEditorContribution {
@@ -205,7 +197,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 	) {
 		super();
@@ -291,7 +283,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
-		const sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._agentSessionsService);
+		const sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._sessionsManagementService);
 		if (!sessionResource) {
 			this._hide();
 			return;

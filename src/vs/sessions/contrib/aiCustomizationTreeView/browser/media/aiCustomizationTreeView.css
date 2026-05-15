@@ -103,6 +103,11 @@
 	white-space: nowrap;
 }
 
+/* Disabled items */
+.ai-customization-view .ai-customization-tree-item.disabled {
+	opacity: 0.5;
+}
+
 /* Empty state */
 .ai-customization-view .empty-message {
 	padding: 10px;

@@ -5,35 +5,29 @@
 
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import {
-	CustomizationHarness,
 	CustomizationHarnessServiceBase,
 	ICustomizationHarnessService,
-	createCliHarnessDescriptor,
-	createClaudeHarnessDescriptor,
 	createVSCodeHarnessDescriptor,
-	getCliUserRoots,
-	getClaudeUserRoots,
 } from '../../common/customizationHarnessService.js';
-import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
+import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
+import { SessionType } from '../../common/chatSessionsService.js';
 
 /**
  * Core implementation of the customization harness service.
- * Exposes VS Code, CLI, and Claude harnesses for filtering customizations.
+ *
+ * Only the Local harness is registered statically. All other harnesses
+ * (e.g. Copilot CLI) are contributed by extensions via the provider API.
  */
 class CustomizationHarnessService extends CustomizationHarnessServiceBase {
 	constructor(
-		@IPathService pathService: IPathService,
+		@IPromptsService promptsService: IPromptsService
 	) {
-		const userHome = pathService.userHome({ preferLocal: true });
-		const extras = [PromptsStorage.extension];
+		const localExtras = [PromptsStorage.extension, BUILTIN_STORAGE];
 		super(
-			[
-				createVSCodeHarnessDescriptor(extras),
-				createCliHarnessDescriptor(getCliUserRoots(userHome), extras),
-				createClaudeHarnessDescriptor(getClaudeUserRoots(userHome), extras),
-			],
-			CustomizationHarness.VSCode,
+			[createVSCodeHarnessDescriptor(localExtras)],
+			SessionType.Local,
+			promptsService,
 		);
 	}
 }

@@ -465,9 +465,9 @@ class DotGitWatcher implements IFileWatcher {
 		const rootWatcher = watch(repository.dotGit.path);
 		this.disposables.push(rootWatcher);
 
-		// Ignore changes to the "index.lock" file, and watchman fsmonitor hook (https://git-scm.com/docs/githooks#_fsmonitor_watchman) cookie files.
+		// Ignore changes to the "index.lock" file (including worktree index.lock files), and watchman fsmonitor hook (https://git-scm.com/docs/githooks#_fsmonitor_watchman) cookie files.
 		// Watchman creates a cookie file inside the git directory whenever a query is run (https://facebook.github.io/watchman/docs/cookies.html).
-		const filteredRootWatcher = filterEvent(rootWatcher.event, uri => uri.scheme === 'file' && !/\/\.git(\/index\.lock)?$|\/\.watchman-cookie-/.test(uri.path));
+		const filteredRootWatcher = filterEvent(rootWatcher.event, uri => uri.scheme === 'file' && !/\/\.git(\/index\.lock|\/worktrees\/[^/]+\/index\.lock)?$|\/\.watchman-cookie-/.test(uri.path));
 		this.event = anyEvent(filteredRootWatcher, this.emitter.event);
 
 		repository.onDidRunGitStatus(this.updateTransientWatchers, this, this.disposables);
@@ -878,6 +878,11 @@ export class Repository implements Disposable {
 		return this.repository.kind;
 	}
 
+	private _isUsingVirtualFileSystem: boolean | undefined = undefined;
+	get isUsingVirtualFileSystem(): boolean {
+		return this._isUsingVirtualFileSystem === true;
+	}
+
 	private _artifactProvider: GitArtifactProvider;
 	get artifactProvider(): GitArtifactProvider { return this._artifactProvider; }
 
@@ -932,7 +937,7 @@ export class Repository implements Disposable {
 
 		// FS changes should trigger `git status`:
 		// 	- any change inside the repository working tree
-		//	- any change whithin the first level of the `.git` folder, except the folder itself and `index.lock`
+		//	- any change within the first level of the `.git` folder, except the folder itself and `index.lock` (repository and worktree)
 		const onFileChange = anyEvent(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange);
 		onFileChange(this.onFileChange, this, this.disposables);
 
@@ -941,12 +946,17 @@ export class Repository implements Disposable {
 
 		this.disposables.push(new FileEventLogger(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange, logger));
 
-		// Parent source control
-		const parentRoot = repository.kind === 'submodule'
-			? repository.dotGit.superProjectPath
-			: repository.kind === 'worktree' && repository.dotGit.commonPath
-				? path.dirname(repository.dotGit.commonPath)
-				: undefined;
+		// Parent source control. Repositories opened in the Sessions app
+		// don't use the parent/child relationship and it is expected for
+		// a worktree repository to be opened while the main repository
+		// is closed.
+		const parentRoot = workspace.isAgentSessionsWorkspace
+			? undefined
+			: repository.kind === 'submodule'
+				? repository.dotGit.superProjectPath
+				: repository.kind === 'worktree' && repository.dotGit.commonPath
+					? path.dirname(repository.dotGit.commonPath)
+					: undefined;
 		const parent = parentRoot
 			? this.repositoryResolver.getRepository(parentRoot)?.sourceControl
 			: undefined;
@@ -1360,6 +1370,54 @@ export class Repository implements Disposable {
 			});
 	}
 
+	async restore(resources: Uri[], options?: { staged?: boolean; ref?: string }): Promise<void> {
+		await this.run(
+			Operation.Restore(!this.optimisticUpdateEnabled()),
+			async () => {
+				const toClean: string[] = [];
+				const toRestore: string[] = [];
+
+				const resourceStates = [
+					...this.indexGroup.resourceStates,
+					...this.workingTreeGroup.resourceStates,
+					...this.untrackedGroup.resourceStates
+				];
+
+				for (const resource of resources) {
+					const scmResource = find(resourceStates, r => r.resourceUri.toString() === resource.toString());
+
+					if (!scmResource) {
+						toRestore.push(resource.fsPath);
+						continue;
+					}
+
+					switch (scmResource.type) {
+						case Status.UNTRACKED:
+						case Status.IGNORED:
+							toClean.push(resource.fsPath);
+							break;
+
+						default:
+							toRestore.push(resource.fsPath);
+							break;
+					}
+				}
+
+				if (toClean.length > 0) {
+					await this._clean(toClean);
+				}
+
+				if (toRestore.length > 0) {
+					await this.repository.restore(toRestore, options);
+				}
+
+				this.closeDiffEditors([], [...toClean, ...toRestore]);
+
+				// Clear AI contribution tracking for discarded resources
+				commands.executeCommand('_aiEdits.clearAiContributions', resources);
+			});
+	}
+
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
 		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
 		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
@@ -1439,6 +1497,11 @@ export class Repository implements Disposable {
 			return message;
 		}
 
+		const chatConfig = workspace.getConfiguration('chat');
+		if (chatConfig.get<boolean>('disableAIFeatures', false)) {
+			return message;
+		}
+
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const addAICoAuthor = config.get<'off' | 'chatAndAgent' | 'all'>('addAICoAuthor', 'off');
 
@@ -1489,9 +1552,6 @@ export class Repository implements Disposable {
 	}
 
 	async clean(resources: Uri[]): Promise<void> {
-		const config = workspace.getConfiguration('git');
-		const discardUntrackedChangesToTrash = config.get<boolean>('discardUntrackedChangesToTrash', true) && !isRemote && !isLinuxSnap;
-
 		await this.run(
 			Operation.Clean(!this.optimisticUpdateEnabled()),
 			async () => {
@@ -1530,33 +1590,7 @@ export class Repository implements Disposable {
 				});
 
 				if (toClean.length > 0) {
-					if (discardUntrackedChangesToTrash) {
-						try {
-							// Attempt to move the first resource to the recycle bin/trash to check
-							// if it is supported. If it fails, we show a confirmation dialog and
-							// fall back to deletion.
-							await workspace.fs.delete(Uri.file(toClean[0]), { useTrash: true });
-
-							const limiter = new Limiter<void>(5);
-							await Promise.all(toClean.slice(1).map(fsPath => limiter.queue(
-								async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
-						} catch {
-							const message = isWindows
-								? l10n.t('Failed to delete using the Recycle Bin. Do you want to permanently delete instead?')
-								: l10n.t('Failed to delete using the Trash. Do you want to permanently delete instead?');
-							const primaryAction = toClean.length === 1
-								? l10n.t('Delete File')
-								: l10n.t('Delete All {0} Files', resources.length);
-
-							const result = await window.showWarningMessage(message, { modal: true }, primaryAction);
-							if (result === primaryAction) {
-								// Delete permanently
-								await this.repository.clean(toClean);
-							}
-						}
-					} else {
-						await this.repository.clean(toClean);
-					}
+					await this._clean(toClean);
 				}
 
 				if (toCheckout.length > 0) {
@@ -1591,6 +1625,43 @@ export class Repository implements Disposable {
 
 				return { workingTreeGroup, untrackedGroup };
 			});
+	}
+
+	async _clean(resources: string[]): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const discardUntrackedChangesToTrash = config.get<boolean>('discardUntrackedChangesToTrash', true) && !isRemote && !isLinuxSnap;
+
+		if (resources.length === 0) {
+			return;
+		}
+
+		if (discardUntrackedChangesToTrash) {
+			try {
+				// Attempt to move the first resource to the recycle bin/trash to check
+				// if it is supported. If it fails, we show a confirmation dialog and
+				// fall back to deletion.
+				await workspace.fs.delete(Uri.file(resources[0]), { useTrash: true });
+
+				const limiter = new Limiter<void>(5);
+				await Promise.all(resources.slice(1).map(fsPath => limiter.queue(
+					async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
+			} catch {
+				const message = isWindows
+					? l10n.t('Failed to delete using the Recycle Bin. Do you want to permanently delete instead?')
+					: l10n.t('Failed to delete using the Trash. Do you want to permanently delete instead?');
+				const primaryAction = resources.length === 1
+					? l10n.t('Delete File')
+					: l10n.t('Delete All {0} Files', resources.length);
+
+				const result = await window.showWarningMessage(message, { modal: true }, primaryAction);
+				if (result === primaryAction) {
+					// Delete permanently
+					await this.repository.clean(resources);
+				}
+			}
+		} else {
+			await this.repository.clean(resources);
+		}
 	}
 
 	closeDiffEditors(indexResources: string[] | undefined, workingTreeResources: string[] | undefined, ignoreSetting = false): void {
@@ -1862,14 +1933,14 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string> {
+	async createWorktree(options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string> {
 		const defaultWorktreeRoot = this.globalState.get<string>(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`);
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const branchPrefix = config.get<string>('branchPrefix', '');
 
 		return await this.run(Operation.Worktree(false), async () => {
 			let worktreeName: string | undefined;
-			let { path: worktreePath, commitish, branch } = options || {};
+			let { path: worktreePath, commitish, branch, noTrack } = options || {};
 
 			// Create worktree path based on the branch name
 			if (worktreePath === undefined && branch !== undefined) {
@@ -1893,7 +1964,7 @@ export class Repository implements Disposable {
 			}
 
 			// Create the worktree
-			await this.repository.addWorktree({ path: worktreePath!, commitish: commitish ?? 'HEAD', branch });
+			await this.repository.addWorktree({ path: worktreePath!, commitish: commitish ?? 'HEAD', branch, noTrack });
 
 			// Update worktree root in global state
 			const newWorktreeRoot = path.dirname(worktreePath!);
@@ -2814,7 +2885,8 @@ export class Repository implements Disposable {
 					this.getRebaseCommit(),
 					this.isMergeInProgress(),
 					this.isCherryPickInProgress(),
-					this.getInputTemplate()]);
+					this.getInputTemplate(),
+					this.initIsUsingVirtualFileSystem()]);
 
 			// Reset the list of unpublished commits if HEAD has
 			// changed (ex: checkout, fetch, pull, push, publish, etc.).
@@ -3397,6 +3469,20 @@ export class Repository implements Disposable {
 		return undefined;
 	}
 
+	private async initIsUsingVirtualFileSystem(): Promise<void> {
+		if (this._isUsingVirtualFileSystem !== undefined) {
+			return;
+		}
+
+		try {
+			const result = await this.getConfig('core.virtualfilesystem');
+			this._isUsingVirtualFileSystem = result.length > 0;
+		} catch (error) {
+			this._isUsingVirtualFileSystem = false;
+			return;
+		}
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}
@@ -3418,7 +3504,7 @@ function retargetTaskToWorktree(task: Task, worktreePath: string): Task | undefi
 	worktreeTask.detail = task.detail;
 	worktreeTask.group = task.group;
 	worktreeTask.isBackground = task.isBackground;
-	worktreeTask.presentationOptions = { reveal: TaskRevealKind.Never, panel: TaskPanelKind.New, ...task.presentationOptions };
+	worktreeTask.presentationOptions = { ...task.presentationOptions, reveal: TaskRevealKind.Never, panel: TaskPanelKind.New };
 	worktreeTask.runOptions = { ...task.runOptions };
 
 	return worktreeTask;

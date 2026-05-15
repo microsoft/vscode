@@ -13,6 +13,8 @@ import { AgentFeedbackService, IAgentFeedbackService } from '../../browser/agent
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 function r(startLine: number, endLine: number = startLine): Range {
 	return new Range(startLine, 1, endLine, 1);
@@ -36,6 +38,7 @@ suite('AgentFeedbackService - Ordering', () => {
 
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
 		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { });
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
 		session = URI.parse('test://session/1');

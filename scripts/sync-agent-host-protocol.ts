@@ -9,12 +9,10 @@
 //   npx tsx scripts/sync-agent-host-protocol.ts
 //
 // Transformations applied:
-//   1. Converts `const enum` to `const` object + string literal union (VS Code
-//      tsconfig uses `preserveConstEnums` which makes `const enum` nominal).
-//   2. Converts 2-space indentation to tabs.
-//   3. Merges duplicate imports from the same module.
-//   4. Formats with the project's tsfmt.json settings.
-//   5. Adds Microsoft copyright header.
+//   1. Converts 2-space indentation to tabs.
+//   2. Merges duplicate imports from the same module.
+//   3. Formats with the project's tsfmt.json settings.
+//   4. Adds Microsoft copyright header.
 //
 // URI stays as `string` (the protocol's canonical representation). VS Code code
 // should call `URI.parse()` at point-of-use where a URI class is needed.
@@ -70,6 +68,8 @@ const BANNER = '// allow-any-unicode-comment-file\n// DO NOT EDIT -- auto-genera
 const FILES: { src: string; dest: string }[] = [
 	{ src: 'state.ts', dest: 'state.ts' },
 	{ src: 'actions.ts', dest: 'actions.ts' },
+	{ src: 'action-origin.generated.ts', dest: 'action-origin.generated.ts' },
+	{ src: 'reducers.ts', dest: 'reducers.ts' },
 	{ src: 'commands.ts', dest: 'commands.ts' },
 	{ src: 'errors.ts', dest: 'errors.ts' },
 	{ src: 'notifications.ts', dest: 'notifications.ts' },
@@ -168,98 +168,13 @@ function mergeDuplicateImports(content: string): string {
 	}).join('\n');
 }
 
-// Global enum definitions collected from all files before per-file processing
-let globalEnumDefs = new Map<string, Map<string, string>>();
 
-function collectAllEnumDefs(): void {
-	globalEnumDefs = new Map();
-	for (const file of FILES) {
-		const srcPath = path.join(TYPES_DIR, file.src);
-		if (!fs.existsSync(srcPath)) {
-			continue;
-		}
-		const content = fs.readFileSync(srcPath, 'utf-8');
-		content.replace(
-			/export const enum (\w+) \{([^}]+)\}/g,
-			(_match, name: string, body: string) => {
-				const members = new Map<string, string>();
-				for (const line of body.split('\n')) {
-					const memberMatch = line.match(/^\s*(\w+)\s*=\s*'([^']+)'/);
-					if (memberMatch) {
-						members.set(memberMatch[1], memberMatch[2]);
-					}
-				}
-				if (members.size > 0) {
-					globalEnumDefs.set(name, members);
-				}
-				return _match;
-			}
-		);
-	}
-}
 
-/**
- * Converts `const enum Foo { A = 'a', B = 'b' }` into:
- * ```
- * export const Foo = { A: 'a', B: 'b' } as const;
- * export type Foo = typeof Foo[keyof typeof Foo];
- * ```
- * Then replaces `Foo.A` in type positions with the string literal `'a'`,
- * using the global enum definitions collected from all protocol files.
- */
-function convertConstEnums(content: string): string {
-	// Replace the const enum declarations in this file
-	content = content.replace(
-		/export const enum (\w+) \{([^}]+)\}/g,
-		(_match, name: string) => {
-			const members = globalEnumDefs.get(name);
-			if (!members) {
-				return _match;
-			}
-			const objEntries = [...members.entries()].map(([k, v]) => `  ${k}: '${v}'`).join(',\n');
-			return `export const ${name} = {\n${objEntries},\n} as const;\nexport type ${name} = typeof ${name}[keyof typeof ${name}];`;
-		}
-	);
 
-	// Replace Enum.Member references with their resolved string literals
-	for (const [enumName, members] of globalEnumDefs) {
-		for (const [memberName, value] of members) {
-			const ref = `${enumName}.${memberName}`;
-			content = content.split(ref).join(`'${value}'`);
-		}
-	}
 
-	// Remove value imports of enums that are no longer referenced as values
-	content = content.replace(
-		/import \{([^}]+)\} from '([^']+)';/g,
-		(_match, names: string, from: string) => {
-			const parts = names.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
-			const remaining = parts.filter((name: string) => {
-				if (!globalEnumDefs.has(name)) {
-					return true;
-				}
-				const uses = content.split(name).length - 1;
-				return uses > 1;
-			});
-			if (remaining.length === 0) {
-				return '';
-			}
-			if (remaining.length === parts.length) {
-				return _match;
-			}
-			return `import { ${remaining.join(', ')} } from '${from}';`;
-		}
-	);
-
-	return content;
-}
-
-function processFile(src: string, dest: string, commitHash: string): void {
+function processFile(src: string, dest: string): void {
 	let content = fs.readFileSync(src, 'utf-8');
 	content = stripExistingHeader(content);
-
-	// Convert `const enum` to plain `const` object + string literal union
-	content = convertConstEnums(content);
 
 	// Merge duplicate imports from the same module
 	content = mergeDuplicateImports(content);
@@ -267,7 +182,7 @@ function processFile(src: string, dest: string, commitHash: string): void {
 	content = convertIndentation(content);
 	content = content.split('\n').map(line => line.trimEnd()).join('\n');
 
-	const header = `${COPYRIGHT}\n\n${BANNER}\n// Synced from agent-host-protocol @ ${commitHash}\n`;
+	const header = `${COPYRIGHT}\n\n${BANNER}\n`;
 	content = header + '\n' + content;
 
 	if (!content.endsWith('\n')) {
@@ -297,10 +212,6 @@ function main() {
 	console.log(`  Dest:   ${DEST_DIR}`);
 	console.log();
 
-	// Collect all enum definitions across all protocol files
-	collectAllEnumDefs();
-	console.log(`  Collected ${globalEnumDefs.size} const enums`);
-
 	// Copy protocol files
 	for (const file of FILES) {
 		const srcPath = path.join(TYPES_DIR, file.src);
@@ -308,8 +219,13 @@ function main() {
 			console.error(`  SKIP (not found): ${file.src}`);
 			continue;
 		}
-		processFile(srcPath, file.dest, commitHash);
+		processFile(srcPath, file.dest);
 	}
+
+	// Write the source commit hash to a single version file
+	const versionFile = path.join(DEST_DIR, '.ahp-version');
+	fs.writeFileSync(versionFile, commitHash + '\n', 'utf-8');
+	console.log(`  .ahp-version -> ${commitHash}`);
 
 	console.log();
 	console.log('Done.');
