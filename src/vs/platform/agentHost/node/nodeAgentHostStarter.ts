@@ -13,7 +13,7 @@ import { parseAgentHostDebugPort } from '../../environment/node/environmentServi
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostEnableClaudeEnvVar } from '../common/agentService.js';
+import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
 
 /**
  * Options for configuring the agent host WebSocket server in the child process.
@@ -74,12 +74,29 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 		};
 
 		// Gate optional providers via env vars consumed by `agentHostMain.ts`.
-		// The Claude agent is opt-in: enabled when either the workbench setting is on
-		// or the env var is already set on the parent process (developer override).
-		if (this._configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId)
-			|| process.env[AgentHostEnableClaudeEnvVar] === '1') {
-			env[AgentHostEnableClaudeEnvVar] = '1';
+		// The Claude agent is opt-in: enabled when the user points the SDK path
+		// setting at a locally-installed `@anthropic-ai/claude-agent-sdk` package,
+		// or when the env var is already set on the parent process (developer
+		// override). The SDK itself is intentionally not bundled with VS Code.
+		const claudeSdkPath = this._configurationService.getValue<string>(AgentHostClaudeAgentSdkPathSettingId)
+			|| process.env[AgentHostClaudeSdkPathEnvVar]
+			|| '';
+		if (claudeSdkPath) {
+			env[AgentHostClaudeSdkPathEnvVar] = claudeSdkPath;
 		}
+
+		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by
+		// the agent host process. Any value already present on `process.env` wins
+		// (developer override) — see `buildAgentHostOTelEnv`.
+		const otelEnv = buildAgentHostOTelEnv({
+			enabled: this._configurationService.getValue<boolean>(AgentHostOTelEnabledSettingId),
+			exporterType: this._configurationService.getValue<string>(AgentHostOTelExporterTypeSettingId),
+			otlpEndpoint: this._configurationService.getValue<string>(AgentHostOTelOtlpEndpointSettingId),
+			captureContent: this._configurationService.getValue<boolean>(AgentHostOTelCaptureContentSettingId),
+			outfile: this._configurationService.getValue<string>(AgentHostOTelOutfileSettingId),
+			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
+		}, process.env);
+		Object.assign(env, otelEnv);
 
 		// Forward WebSocket server configuration to the child process via env vars
 		if (this._wsConfig) {

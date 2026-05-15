@@ -179,19 +179,13 @@ describe('SessionStore', () => {
 		expect(store.getStats().sessions).toBe(0);
 	});
 
-	it('executeReadOnly allows SELECT queries or throws without authorizer', () => {
+	it('executeReadOnly returns rows for a SELECT query', () => {
 		store.upsertSession({ id: 'session-1', branch: 'main', repository: 'owner/repo' });
 
-		try {
-			const rows = store.executeReadOnly('SELECT id, branch FROM sessions WHERE id = \'session-1\'');
-			// Authorizer available — verify results
-			expect(rows).toHaveLength(1);
-			expect((rows[0] as { id: string }).id).toBe('session-1');
-			expect((rows[0] as { branch: string }).branch).toBe('main');
-		} catch (err) {
-			// Authorizer not available (Node.js < 24.2) — fail-closed is expected
-			expect((err as Error).message).toContain('executeReadOnly requires SQLite authorizer support');
-		}
+		const rows = store.executeReadOnly('SELECT id, branch FROM sessions WHERE id = \'session-1\'');
+		expect(rows).toHaveLength(1);
+		expect((rows[0] as { id: string }).id).toBe('session-1');
+		expect((rows[0] as { branch: string }).branch).toBe('main');
 	});
 
 	it('FTS5 search indexes turn content', () => {

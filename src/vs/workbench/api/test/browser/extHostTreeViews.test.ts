@@ -20,14 +20,14 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
-function unBatchChildren(result: (number | ITreeItem)[][] | undefined): ITreeItem[] | undefined {
+function unBatchChildren(result: (readonly (number | ITreeItem)[])[] | undefined): readonly ITreeItem[] | undefined {
 	if (!result || result.length === 0) {
 		return undefined;
 	}
 	if (result.length > 1) {
 		throw new Error('Unexpected result length, all tests are unbatched.');
 	}
-	return result[0].slice(1) as ITreeItem[];
+	return result[0].slice(1) as readonly ITreeItem[];
 }
 
 suite('ExtHostTreeView', function () {

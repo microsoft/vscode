@@ -14,6 +14,13 @@ import { type CustomizationRef } from './state/protocol/state.js';
 export const enum AgentHostConfigKey {
 	/** Host-owned Open Plugins available to remote sessions. */
 	Customizations = 'customizations',
+	/**
+	 * Absolute path to the shell executable for host-managed terminals.
+	 * TODO: revisit magic key in config; refine into a dedicated typed channel. https://github.com/microsoft/vscode/issues/313812
+	 */
+	DefaultShell = 'defaultShell',
+	/** When true, Copilot SDK sessions use the SDK's default terminal behavior instead of Agent Host's terminal tool override. */
+	DisableCustomTerminalTool = 'disableCustomTerminalTool',
 }
 
 export const agentHostCustomizationConfigSchema = createSchema({
@@ -41,6 +48,17 @@ export const agentHostCustomizationConfigSchema = createSchema({
 			},
 			required: ['uri', 'displayName'],
 		},
+	}),
+	[AgentHostConfigKey.DefaultShell]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.defaultShell.title', "Default Shell"),
+		description: localize('agentHost.config.defaultShell.description', "Absolute path to the shell executable used by host-managed terminals. Normally pushed by the connected VS Code client from `terminal.integrated.agentHostProfile.<os>` (falling back to `terminal.integrated.defaultProfile.<os>`); when unset, the agent host falls back to the system shell. Only the path is supported; `args` and `env` from the workbench profile are not piped through yet. The workbench only pushes this for the local agent host — remote agent host operators should set this directly in the remote machine's `agent-host-config.json`."),
+	}),
+	[AgentHostConfigKey.DisableCustomTerminalTool]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.disableCustomTerminalTool.title', "Use SDK Terminal Tool"),
+		description: localize('agentHost.config.disableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use the SDK's default terminal behavior instead of Agent Host's terminal tool override."),
+		default: false,
 	}),
 });
 

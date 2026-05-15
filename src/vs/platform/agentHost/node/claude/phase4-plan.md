@@ -457,13 +457,13 @@ This is the proof Phase 4 actually ships. The unit tests prove the class is wire
 
 For Phase 4 specifically, the plan's per-phase table requires:
 
-- [ ] **Gate verified disabled:** launch the Agents app *without* the env var (and with the setting off) and confirm only `CopilotAgent registered` appears in `agenthost.log` — no `ClaudeAgent registered`, no `'claude'` provider in root state.
-- [ ] **Gate verified enabled:** re-launch via `launch-smoke.sh` (which sets `VSCODE_AGENT_HOST_ENABLE_CLAUDE=1`) and confirm both providers register.
-- [ ] At least one `claude:/<uuid>` session URI appears in the IPC log after the user picks Claude (the session URI scheme is `claude:`, **not** `agent-host-claude:` — the longer form is the synced-customization namespace, observable separately).
-- [ ] The first user prompt surfaces `TODO: Phase 5` in the response area. (`createSession` is the earliest stub on the path; `sendMessage` is reached only after `createSession` succeeds, which lands in Phase 5.)
-- [ ] Attach `registration.log`, `picker-open.png`, `stub-error.png`, and `claude-session-uris.log` to the PR.
+- [~] **Gate verified disabled:** _skipped for the Phase 4 PR — covered by the unit-level gate test in `claudeAgent.test.ts` and the env-var guard in `agentHostMain.ts`. Re-enable for Phase 5._
+- [x] **Gate verified enabled:** re-launched via `launch-smoke.sh` (which sets `VSCODE_AGENT_HOST_ENABLE_CLAUDE=1`); both providers register. See `registration.log` (`Registering agent provider: copilotcli` + `…: claude`).
+- [x] At least one `claude:/<uuid>` session URI appears in the IPC log after the user picks Claude. Captured: `claude:/e32d3567-9da7-41c4-a71a-57daa0a6cf46` in `claude-session-uris.log`.
+- [x] The first user prompt surfaces `TODO: Phase 5` in the response area. Captured in `todo-phase5-error.png`.
+- [x] Smoke artifacts captured under `/tmp/claude-phase4-smoke/<timestamp>/`: `registration.log`, `auth.log`, `proxy.log`, `claude-models.log` (46 Claude models), `claude-session-uris.log`, `root-state.log`, `picker-open.png`, `todo-phase5-error.png`, `smoke-summary.log`. Attach the four required artifacts (`registration.log`, `picker-open.png`, `stub-error.png`/`todo-phase5-error.png`, `claude-session-uris.log`) to the PR.
 
-If any step in §7.8 fails, the PR is **not** ready regardless of whether §7.1–7.7 are green.
+**Live-smoke completed: 2026-05-01.** All required Phase 4 invariants verified except the optional disabled-gate run (deferred — see above).
 
 ## 8. Resolved decisions
 

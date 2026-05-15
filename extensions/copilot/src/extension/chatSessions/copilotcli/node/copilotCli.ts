@@ -23,7 +23,6 @@ import { ResourceSet } from '../../../../util/vs/base/common/map';
 import { basename } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { getCopilotLogger } from './logger';
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -44,6 +43,10 @@ export interface CopilotCLIModelInfo {
 	readonly id: string;
 	readonly name: string;
 	readonly multiplier?: number;
+	readonly priceCategory?: string;
+	readonly inputCost?: number;
+	readonly outputCost?: number;
+	readonly cacheCost?: number;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
 	readonly maxContextWindowTokens: number;
@@ -153,18 +156,26 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		const [{ getAvailableModels }, authInfo] = await Promise.all([this.copilotCLISDK.getPackage(), this.copilotCLISDK.getAuthInfo()]);
 		try {
 			const models = await getAvailableModels(authInfo);
-			return models.map(model => ({
-				id: model.id,
-				name: model.name,
-				multiplier: model.billing?.multiplier,
-				maxInputTokens: model.capabilities.limits.max_prompt_tokens,
-				maxOutputTokens: model.capabilities.limits.max_output_tokens,
-				maxContextWindowTokens: model.capabilities.limits.max_context_window_tokens,
-				supportsVision: model.capabilities.supports.vision,
-				supportsReasoningEffort: model.capabilities.supports.reasoningEffort,
-				defaultReasoningEffort: model.defaultReasoningEffort,
-				supportedReasoningEfforts: model.supportedReasoningEfforts,
-			} satisfies CopilotCLIModelInfo));
+			return models.map(model => {
+				const tokenPrices = model.billing?.token_prices;
+				const normalizedPricing = normalizeTokenPricing(tokenPrices);
+				return {
+					id: model.id,
+					name: model.name,
+					multiplier: model.billing?.multiplier,
+					priceCategory: model.model_picker_price_category,
+					inputCost: normalizedPricing?.inputPrice,
+					outputCost: normalizedPricing?.outputPrice,
+					cacheCost: normalizedPricing?.cachePrice,
+					maxInputTokens: model.capabilities.limits.max_prompt_tokens,
+					maxOutputTokens: model.capabilities.limits.max_output_tokens,
+					maxContextWindowTokens: model.capabilities.limits.max_context_window_tokens,
+					supportsVision: model.capabilities.supports.vision,
+					supportsReasoningEffort: model.capabilities.supports.reasoningEffort,
+					defaultReasoningEffort: model.defaultReasoningEffort,
+					supportedReasoningEfforts: model.supportedReasoningEfforts,
+				} satisfies CopilotCLIModelInfo;
+			});
 		} catch (ex) {
 			this.logService.error(`[CopilotCLISession] Failed to fetch models`, ex);
 			return [];
@@ -206,6 +217,10 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				maxInputTokens: model.maxInputTokens ?? model.maxContextWindowTokens,
 				maxOutputTokens: model.maxOutputTokens ?? 0,
 				pricing: multiplier,
+				priceCategory: model.priceCategory,
+				inputCost: model.inputCost,
+				outputCost: model.outputCost,
+				cacheCost: model.cacheCost,
 				multiplierNumeric: model.multiplier,
 				isUserSelectable: true,
 				configurationSchema: isReasoningEffortEnabled ? buildConfigurationSchema(model) : undefined,
@@ -233,7 +248,7 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 	return {
 		id: 'auto',
 		name: 'Auto',
-		tooltip: l10n.t('Auto selects the best model for your request based on capacity and performance.'),
+		tooltip: l10n.t('Auto selects the best model based on your request complexity and model performance. Model use through Auto is billed at a 10% discount.'),
 		family: defaultModel?.id ?? '',
 		version: '',
 		maxInputTokens: defaultModel?.maxInputTokens ?? defaultModel?.maxContextWindowTokens ?? 0,
@@ -307,7 +322,6 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 	readonly onDidChangeAgents: Event<void> = this._onDidChangeAgents.event;
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ICopilotCLISDK private readonly copilotCLISDK: ICopilotCLISDK,
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
@@ -355,11 +369,7 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 		if (agentId === COPILOT_CLI_DEFAULT_AGENT_ID) {
 			return '';
 		}
-		if (typeof agentId === 'string') {
-			return agentId;
-		}
-		const agents = await this.getAgents();
-		return agents.find(a => a.agent.name.toLowerCase() === agentId)?.agent.name;
+		return agentId;
 	}
 
 	async resolveAgent(agentId: string): Promise<SweCustomAgent | undefined> {
@@ -390,23 +400,23 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 	async getAgentsImpl(): Promise<readonly CLIAgentInfo[]> {
 		const merged = new Map<string, CLIAgentInfo>();
 		const knownAgents = new ResourceSet();
-		for (const agent of await this.getSDKAgents()) {
-			const sourceUri = agent.path ? URI.file(agent.path) : URI.from({ scheme: 'copilotcli', path: `/agents/${agent.name}` });
-			knownAgents.add(sourceUri);
-			merged.set(agent.name.toLowerCase(), {
-				agent: this.cloneAgent(agent),
-				sourceUri,
-			});
-		}
-		for (const customAgent of await this.promptsService.getCustomAgents(CancellationToken.None)) {
+		const customAgents = await this.promptsService.getCustomAgents(CancellationToken.None);
+		const hiddenOrInvalidAgentUris = new ResourceSet();
+		const validCustomAgents = customAgents.filter(customAgent => {
 			if (!customAgent.enabled || !isEnabledForCopilotCLI(customAgent)) {
-				continue;
+				hiddenOrInvalidAgentUris.add(customAgent.uri);
+				return false;
 			}
 			// Skip legacy .chatmode.md files — they are a deprecated format
 			// and should not appear in the Copilot CLI agent list.
 			if (customAgent.uri.path.toLowerCase().endsWith('.chatmode.md')) {
-				continue;
+				hiddenOrInvalidAgentUris.add(customAgent.uri);
+				return false;
 			}
+			return true;
+		});
+
+		for (const customAgent of validCustomAgents) {
 			if (knownAgents.has(customAgent.uri)) {
 				continue;
 			}
@@ -418,18 +428,6 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 		}
 
 		return [...merged.values()];
-	}
-
-	private async getSDKAgents(): Promise<Readonly<SweCustomAgent>[]> {
-		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
-		if (workspaceFolders.length === 0) {
-			return [];
-		}
-
-		const [auth, { getCustomAgents }] = await Promise.all([this.copilotCLISDK.getAuthInfo(), this.copilotCLISDK.getPackage()]);
-		const workingDirectory = workspaceFolders[0];
-		const agents = await getCustomAgents(auth, workingDirectory.fsPath, undefined, getCopilotLogger(this.logService));
-		return agents.map(agent => this.cloneAgent(agent));
 	}
 
 	private toCustomAgent(customAgent: vscode.ChatCustomAgent): CLIAgentInfo | undefined {
@@ -617,5 +615,26 @@ async function checkFileExists(filePath: string): Promise<boolean> {
 export function isEnabledForCopilotCLI(customization: { sessionTypes?: readonly string[] }): boolean {
 	const sessionTypes = customization.sessionTypes;
 	return sessionTypes === undefined || sessionTypes.includes('copilotcli') || false;
+}
+
+const AIC_DIVISOR = 1_000_000_000;
+const TOKENS_PER_MILLION = 1_000_000;
+
+/**
+ * Converts raw billing token prices (nano-AICs with a batch_size) into
+ * normalized AICs per million tokens, matching the normalization in
+ * chatEndpoint.ts for non-CLI models.
+ */
+function normalizeTokenPricing(tokenPrices: { input_price?: number; output_price?: number; cache_price?: number; batch_size?: number } | undefined): { inputPrice: number; outputPrice: number; cachePrice: number | undefined } | undefined {
+	if (!tokenPrices || tokenPrices.input_price === undefined || tokenPrices.output_price === undefined) {
+		return undefined;
+	}
+	const batchSize = tokenPrices.batch_size ?? TOKENS_PER_MILLION;
+	const scale = TOKENS_PER_MILLION / batchSize;
+	return {
+		inputPrice: (tokenPrices.input_price / AIC_DIVISOR) * scale,
+		outputPrice: (tokenPrices.output_price / AIC_DIVISOR) * scale,
+		cachePrice: tokenPrices.cache_price !== undefined ? (tokenPrices.cache_price / AIC_DIVISOR) * scale : undefined,
+	};
 }
 

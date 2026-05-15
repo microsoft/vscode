@@ -12,8 +12,9 @@ import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { AgentSession, type IAgentService } from '../common/agentService.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
+import type { UnsupportedProtocolVersionErrorData } from '../common/state/protocol/errors.js';
 import { ActionEnvelope, ActionType, INotification, isSessionAction, isTerminalAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
-import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
+import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import {
 	AHP_AUTH_REQUIRED,
 	AHP_PROVIDER_NOT_FOUND,
@@ -60,10 +61,11 @@ function jsonRpcErrorFrom(id: number, err: unknown): JsonRpcResponse {
 }
 
 /**
- * Methods handled by the request dispatcher. Excludes `initialize` and
- * `reconnect` which are handled during the handshake phase.
+ * Methods handled by the request dispatcher. Excludes `initialize`,
+ * `reconnect`, and `ping`, which are handled directly during message
+ * dispatch without requiring an established client context.
  */
-type RequestMethod = Exclude<keyof CommandMap, 'initialize' | 'reconnect'>;
+type RequestMethod = Exclude<keyof CommandMap, 'initialize' | 'reconnect' | 'ping'>;
 
 /**
  * Typed handler map: each key is a request method, each value is a handler
@@ -79,7 +81,7 @@ type RequestHandlerMap = {
  */
 interface IConnectedClient {
 	readonly clientId: string;
-	readonly protocolVersion: number;
+	readonly protocolVersion: string;
 	readonly transport: IProtocolTransport;
 	readonly subscriptions: Set<string>;
 	readonly disposables: DisposableStore;
@@ -91,6 +93,12 @@ interface IConnectedClient {
 export interface IProtocolServerConfig {
 	/** Default directory returned to clients during the initialize handshake. */
 	readonly defaultDirectory?: string;
+	/**
+	 * Characters that, when typed in a {@link UserMessage} input, SHOULD
+	 * cause the client to issue a `completions` request. Announced to
+	 * clients in the `initialize` response.
+	 */
+	readonly completionTriggerCharacters?: readonly string[];
 }
 
 /**
@@ -145,6 +153,14 @@ export class ProtocolServerHandler extends Disposable {
 		disposables.add(transport.onMessage(msg => {
 			if (isJsonRpcRequest(msg)) {
 				this._logService.trace(`[ProtocolServer] request: method=${msg.method} id=${msg.id}`);
+
+				// Ping is stateless and MUST be answerable regardless of whether
+				// the connection has been initialized. Carries no payload — the
+				// round-trip itself is the liveness signal.
+				if (msg.method === 'ping') {
+					transport.send(jsonRpcSuccess(msg.id, null));
+					return;
+				}
 
 				// Handle initialize/reconnect as requests that set up the client
 				if (!client && msg.method === 'initialize') {
@@ -205,7 +221,11 @@ export class ProtocolServerHandler extends Disposable {
 				if (pending) {
 					this._pendingReverseRequests.delete(msg.id);
 					if (hasKey(msg, { error: true })) {
-						pending.reject(new Error(msg.error?.message ?? 'Reverse RPC error'));
+						pending.reject(new ProtocolError(
+							msg.error?.code ?? -32000,
+							msg.error?.message ?? 'Reverse RPC error',
+							msg.error?.data,
+						));
 					} else {
 						pending.resolve(msg.result);
 					}
@@ -241,18 +261,21 @@ export class ProtocolServerHandler extends Disposable {
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
 	): { client: IConnectedClient; response: unknown } {
-		this._logService.info(`[ProtocolServer] Initialize: clientId=${params.clientId}, version=${params.protocolVersion}`);
+		const offered = Array.isArray(params.protocolVersions) ? params.protocolVersions : [];
+		this._logService.info(`[ProtocolServer] Initialize: clientId=${params.clientId}, protocolVersions=[${offered.join(', ')}]`);
 
-		if (params.protocolVersion < MIN_PROTOCOL_VERSION) {
+		const negotiated = offered.find(v => v === PROTOCOL_VERSION);
+		if (!negotiated) {
 			throw new ProtocolError(
 				AHP_UNSUPPORTED_PROTOCOL_VERSION,
-				`Client protocol version ${params.protocolVersion} is below minimum ${MIN_PROTOCOL_VERSION}`,
+				`Client offered protocol versions [${offered.join(', ')}], but this server only supports ${PROTOCOL_VERSION}.`,
+				{ supportedVersions: [`^${PROTOCOL_VERSION}`] } satisfies UnsupportedProtocolVersionErrorData,
 			);
 		}
 
 		const client: IConnectedClient = {
 			clientId: params.clientId,
-			protocolVersion: params.protocolVersion,
+			protocolVersion: negotiated,
 			transport,
 			subscriptions: new Set(),
 			disposables,
@@ -266,6 +289,7 @@ export class ProtocolServerHandler extends Disposable {
 			resourceWrite: (params_) => this._sendReverseRequest(params.clientId, 'resourceWrite', params_),
 			resourceDelete: (params_) => this._sendReverseRequest(params.clientId, 'resourceDelete', params_),
 			resourceMove: (params_) => this._sendReverseRequest(params.clientId, 'resourceMove', params_),
+			resourceRequest: (params_) => this._sendReverseRequest(params.clientId, 'resourceRequest', params_),
 		}));
 
 
@@ -286,10 +310,11 @@ export class ProtocolServerHandler extends Disposable {
 		return {
 			client,
 			response: {
-				protocolVersion: PROTOCOL_VERSION,
+				protocolVersion: negotiated,
 				serverSeq: this._stateManager.serverSeq,
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
+				completionTriggerCharacters: this._config.completionTriggerCharacters,
 			},
 		};
 	}
@@ -575,6 +600,9 @@ export class ProtocolServerHandler extends Disposable {
 				query: params.query,
 			});
 		},
+		completions: async (_client, params) => {
+			return this._agentService.completions(params);
+		},
 		fetchTurns: async (_client, params) => {
 			const state = this._stateManager.getSessionState(params.session);
 			if (!state) {
@@ -612,10 +640,16 @@ export class ProtocolServerHandler extends Disposable {
 		resourceMove: async (_client, params) => {
 			return this._agentService.resourceMove(params);
 		},
+		resourceRequest: async (_client, _params) => {
+			// The local agent host does not yet enforce per-resource grants
+			// for client → server access. Always grant; receivers MAY rescind
+			// access by returning `PermissionDenied` on subsequent operations.
+			return {};
+		},
 		authenticate: async (_client, params) => {
 			const result = await this._agentService.authenticate(params);
 			if (!result.authenticated) {
-				throw new ProtocolError(AHP_AUTH_REQUIRED, 'Authentication failed for resource: ' + params.resource);
+				throw new ProtocolError(AHP_AUTH_REQUIRED, `Authentication failed for resource: ${params.resource}`);
 			}
 			return {};
 		},
