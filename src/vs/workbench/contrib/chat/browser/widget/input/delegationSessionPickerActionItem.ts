@@ -19,7 +19,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
-import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviders, AgentSessionTarget, getAgentCanContinueIn, getAgentSessionProvider, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypeItem, SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
@@ -60,7 +60,7 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		}
 	}
 
-	protected override _getSelectedSessionType(): AgentSessionProviders | undefined {
+	protected override _getSelectedSessionType(): AgentSessionTarget | undefined {
 		const delegationTarget = this.delegate.getPendingDelegationTarget ? this.delegate.getPendingDelegationTarget() : undefined;
 		if (delegationTarget) {
 			return delegationTarget;
@@ -68,7 +68,7 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		return this.delegate.getActiveSessionProvider();
 	}
 
-	protected override _isSessionTypeEnabled(type: AgentSessionProviders): boolean {
+	protected override _isSessionTypeEnabled(type: AgentSessionTarget): boolean {
 		const allContributions = this.chatSessionsService.getAllChatSessionContributions();
 		const contribution = allContributions.find(contribution => getAgentSessionProvider(contribution.type) === type);
 
@@ -95,10 +95,13 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 	}
 
 	private _hasGitRepository(): boolean {
+		if (this.delegate.hasGitRepository) {
+			return this.delegate.hasGitRepository();
+		}
 		return !Iterable.isEmpty(this.gitService.repositories);
 	}
 
-	protected override _isVisible(type: AgentSessionProviders): boolean {
+	protected override _isVisible(type: AgentSessionTarget): boolean {
 		// In the sessions window, only show Background and Cloud targets
 		if (this._isSessionsWindow && type === AgentSessionProviders.Local) {
 			return false;
@@ -119,9 +122,6 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 	}
 
 	protected override _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
-		if (this._isSessionsWindow && sessionTypeItem.type === AgentSessionProviders.Cloud && !this._hasGitRepository()) {
-			return localize('chat.cloudRequiresGit', "Requires a Git repository");
-		}
 		return undefined;
 	}
 
@@ -148,7 +148,7 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 			class: undefined,
 			label: localize('chat.newChatSession', "New Chat Session"),
 			tooltip: '',
-			hover: { content: '', position: this.pickerOptions.hoverPosition },
+			hover: { content: '' },
 			checked: false,
 			icon: Codicon.plus,
 			enabled: true,

@@ -219,7 +219,7 @@ export function extractImagesFromChatRequest(
 		}
 		const mimeType = variable.mimeType ?? getMediaMime(variable.name) ?? 'image/png';
 		const uri = variable.references?.[0]?.reference;
-		const imageUri = URI.isUri(uri) ? uri : URI.from({ scheme: 'data', path: variable.name });
+		const imageUri = URI.isUri(uri) ? uri : URI.from({ scheme: 'data', path: `${variable.id}/${encodeURIComponent(variable.name)}` });
 		images.push({
 			id: imageUri.toString(),
 			uri: imageUri,

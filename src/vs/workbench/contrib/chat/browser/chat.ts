@@ -11,7 +11,7 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/participants/chatAgents.js';
@@ -28,7 +28,7 @@ import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
 import { ChatInputPart } from './widget/input/chatInputPart.js';
 import { ChatWidget, IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext } from './widget/chatContentParts/codeBlockPart.js';
-import { AgentSessionProviders } from './agentSessions/agentSessions.js';
+import { AgentSessionTarget } from './agentSessions/agentSessions.js';
 
 /**
  * A workspace item that can be selected in the workspace picker.
@@ -75,29 +75,34 @@ export interface IWorkspacePickerDelegate {
  * Allows consumers to get and optionally set the active session provider.
  */
 export interface ISessionTypePickerDelegate {
-	getActiveSessionProvider(): AgentSessionProviders | undefined;
+	getActiveSessionProvider(): AgentSessionTarget | undefined;
 	/**
 	 * Optional setter for the active session provider.
 	 * When provided, the picker will call this instead of executing the openNewChatSessionInPlace command.
 	 * This allows the welcome view to maintain independent state from the main chat panel.
 	 */
-	setActiveSessionProvider?(provider: AgentSessionProviders): void;
+	setActiveSessionProvider?(provider: AgentSessionTarget): void;
 	/**
 	 * Optional getter for the pending delegation target - the target that will be used when submit is pressed.
 	 */
-	getPendingDelegationTarget?(): AgentSessionProviders | undefined;
+	getPendingDelegationTarget?(): AgentSessionTarget | undefined;
 	/**
 	 * Optional setter for the pending delegation target.
 	 * When a user selects a different session provider in a non-empty chat,
 	 * this stores the target for delegation on the next submit instead of immediately creating a new session.
 	 */
-	setPendingDelegationTarget?(provider: AgentSessionProviders): void;
+	setPendingDelegationTarget?(provider: AgentSessionTarget): void;
 	/**
 	 * Optional event that fires when the active session provider changes.
 	 * When provided, listeners (like chatInputPart) can react to session type changes
 	 * and update pickers accordingly.
 	 */
-	onDidChangeActiveSessionProvider?: Event<AgentSessionProviders>;
+	onDidChangeActiveSessionProvider?: Event<AgentSessionTarget>;
+	/**
+	 * Returns whether the current session's workspace has a git repository.
+	 * Used to gate cloud delegation which requires a GitHub repository.
+	 */
+	hasGitRepository?(): boolean;
 }
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
@@ -145,7 +150,7 @@ export interface IChatWidgetService {
 
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
-	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget): Promise<IChatWidget | undefined>;
+	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 
@@ -205,7 +210,6 @@ export interface IChatCodeBlockInfo {
 	readonly codeBlockIndex: number;
 	readonly elementId: string;
 	readonly uri: URI | undefined;
-	readonly uriPromise: Promise<URI | undefined>;
 	codemapperUri: URI | undefined;
 	readonly chatSessionResource: URI | undefined;
 	focus(): void;
@@ -360,6 +364,8 @@ export interface IChatWidget {
 	lastSelectedAgent: IChatAgentData | undefined;
 	readonly scopedContextKeyService: IContextKeyService;
 	readonly input: ChatInputPart;
+	/** The main input part at the bottom of the widget. Unlike `input`, this always returns the main input, not the inline editing input. */
+	readonly inputPart: ChatInputPart;
 	readonly attachmentModel: ChatAttachmentModel;
 	readonly locationData?: IChatLocationData;
 	readonly contribs: readonly IChatWidgetContrib[];
@@ -418,6 +424,11 @@ export interface IChatWidget {
 	 */
 	navigateToNextQuestion(): boolean;
 	/**
+	 * Focuses the terminal associated with the active question carousel.
+	 * @returns Whether the operation succeeded (i.e., a terminal was found and focused).
+	 */
+	focusQuestionCarouselTerminal(): boolean;
+	/**
 	 * Toggles focus between the tip widget and the chat input.
 	 * Returns false if no tip is visible.
 	 * @returns Whether the operation succeeded (i.e., the focus was toggled).
@@ -453,3 +464,6 @@ export interface IChatCodeBlockContextProviderService {
 
 export const ChatViewId = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
 export const ChatViewContainerId = 'workbench.panel.chat';
+
+export const HasInstalledAgentPluginsContext = new RawContextKey<boolean>('hasInstalledAgentPlugins', false);
+export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.installed';
