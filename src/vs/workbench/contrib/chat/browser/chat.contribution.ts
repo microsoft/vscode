@@ -194,6 +194,7 @@ import { ChatTipService, IChatTipService } from './chatTipService.js';
 import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionItem.js';
 import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
+import { UtilityModelContribution, UtilitySmallModelContribution } from './utilityModelContribution.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
 import { browserChatToolReferenceNames } from '../../browserView/common/browserChatToolReferenceNames.js';
 
@@ -1111,6 +1112,22 @@ configurationRegistry.registerConfiguration({
 			enum: ExploreAgentDefaultModel.modelIds,
 			enumItemLabels: ExploreAgentDefaultModel.modelLabels,
 			markdownEnumDescriptions: ExploreAgentDefaultModel.modelDescriptions
+		},
+		[ChatConfiguration.UtilityModel]: {
+			type: 'string',
+			description: nls.localize('chat.utilityModel.description', "Override the language model used by built-in utility flows (titles, summaries, fallback responses, etc.). Leave empty to use the default model.\n\nStored as `${vendor}/${id}`, where `vendor` and `id` correspond to a `vscode.lm.selectChatModels({ vendor, id })` selector. The empty string falls back to the built-in default."),
+			default: '',
+			enum: UtilityModelContribution.modelIds,
+			enumItemLabels: UtilityModelContribution.modelLabels,
+			markdownEnumDescriptions: UtilityModelContribution.modelDescriptions
+		},
+		[ChatConfiguration.UtilitySmallModel]: {
+			type: 'string',
+			description: nls.localize('chat.utilitySmallModel.description', "Override the language model used by built-in small/fast utility flows (commit messages, intent detection, inline-chat progress, etc.). A fast and inexpensive model is recommended. Leave empty to use the default model.\n\nStored as `${vendor}/${id}`, where `vendor` and `id` correspond to a `vscode.lm.selectChatModels({ vendor, id })` selector. The empty string falls back to the built-in default."),
+			default: '',
+			enum: UtilitySmallModelContribution.modelIds,
+			enumItemLabels: UtilitySmallModelContribution.modelLabels,
+			markdownEnumDescriptions: UtilitySmallModelContribution.modelDescriptions
 		},
 		[ChatConfiguration.RequestQueueingDefaultAction]: {
 			type: 'string',
