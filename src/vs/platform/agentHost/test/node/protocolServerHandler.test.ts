@@ -287,6 +287,7 @@ suite('ProtocolServerHandler', () => {
 
 		assert.strictEqual(resp.id, 7);
 		assert.strictEqual(resp.result, null);
+		transport.simulateClose();
 	});
 
 	test('ping responds after initialize', async () => {
