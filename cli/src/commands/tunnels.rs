@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use async_trait::async_trait;
 use base64::{engine::general_purpose as b64, Engine as _};
 use futures::{stream::FuturesUnordered, StreamExt};
 use serde::Serialize;
@@ -20,6 +19,7 @@ use tokio::{
 };
 
 use super::{
+	agent_host::ensure_supervisor_running,
 	args::{
 		AuthProvider, CliCore, CommandShellArgs, ExistingTunnelArgs, TunnelArgs, TunnelForwardArgs,
 		TunnelRenameArgs, TunnelServeArgs, TunnelServiceSubCommands, TunnelUserSubCommands,
@@ -76,7 +76,7 @@ impl From<AuthProvider> for crate::auth::AuthProvider {
 	}
 }
 
-fn fulfill_existing_tunnel_args(
+pub(super) fn fulfill_existing_tunnel_args(
 	d: ExistingTunnelArgs,
 	name_arg: &Option<String>,
 ) -> Option<dev_tunnels::ExistingTunnel> {
@@ -118,7 +118,6 @@ impl TunnelServiceContainer {
 	}
 }
 
-#[async_trait]
 impl ServiceContainer for TunnelServiceContainer {
 	async fn run_service(
 		&mut self,
@@ -149,6 +148,25 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 		shutdown_reqs.push(ShutdownRequest::ParentProcessKilled(p));
 	}
 
+	// Ensure a per-machine agent host supervisor is running on the remote
+	// (the SSH/`command-shell` entry point) so the renderer that connects
+	// to the spawned VS Code server can reach the agent host via the
+	// `agentHostProxy` IPC channel. Best-effort: if the supervisor can't
+	// be started we still serve the stream so editing / extension host
+	// keep working — the renderer will just see "Unknown channel:
+	// agentHostProxy".
+	let agent_host_bridge = match ensure_supervisor_running(&ctx.paths, &ctx.log).await {
+		Ok(a) => Some(a),
+		Err(e) => {
+			warning!(
+				ctx.log,
+				"Could not start agent host supervisor; the renderer will not be able to reach it: {}",
+				e
+			);
+			None
+		}
+	};
+
 	let mut params = ServeStreamParams {
 		log: ctx.log,
 		launcher_paths: ctx.paths,
@@ -162,6 +180,10 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 	};
 
 	args.server_args.apply_to(&mut params.code_server_args);
+
+	if let Some(a) = &agent_host_bridge {
+		a.apply_to_bridge(&mut params.code_server_args);
+	}
 
 	let mut listener: Box<dyn AsyncRWAccepter> =
 		match (args.on_port.first(), &args.on_host, args.on_socket) {
@@ -639,7 +661,7 @@ async fn serve_with_csa(
 
 	let mut server =
 		make_singleton_server(log_broadcast.clone(), log.clone(), server, shutdown.clone());
-	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
+	let platform = PreReqChecker::new().verify().await?;
 	let _lock = app_mutex_name.map(AppMutex::new);
 
 	let auth = Auth::new(&paths, log.clone());

@@ -1491,9 +1491,9 @@ suite('yamlString round-trip with custom YAML parser', () => {
 		const yaml = `key: ${yamlStr}`;
 		const parsed = parse(yaml);
 
-		if (parsed?.type === 'object' && parsed.properties.length > 0) {
+		if (parsed?.type === 'map' && parsed.properties.length > 0) {
 			const prop = parsed.properties[0];
-			if (prop.value.type === 'string') {
+			if (prop.value.type === 'scalar') {
 				return prop.value.value;
 			}
 		}

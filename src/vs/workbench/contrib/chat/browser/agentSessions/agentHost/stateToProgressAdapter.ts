@@ -3,20 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { decodeBase64 } from '../../../../../../base/common/buffer.js';
+import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { StringOrMarkdown, type FileEdit } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange, type UserMessage } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { type IToolConfirmationMessages, type IToolData, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
+import type { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
+import type { IRange } from '../../../../../../editor/common/core/range.js';
 
 /**
  * Constructs a terminal tool session ID from a terminal URI and backend session.
@@ -95,13 +100,38 @@ export function getTerminalContentUri(content: ToolResultContent[] | undefined):
 }
 
 /**
- * Converts completed turns from the protocol state into session history items.
+ * Resolves a raw per-turn model id (as it appears on `UsageInfo.model`) into
+ * the chat layer's namespaced language-model id and a human-readable display
+ * details. Both halves are independent: the id flows onto request history
+ * items (so the input picker shows the model that ran), while the details
+ * flow onto response history items (so the response footer shows the model
+ * and any usage metadata).
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string | undefined, modelId?: string): IChatSessionHistoryItem[] {
+export interface TurnModelLookup {
+	/** Returns the chat-layer namespaced model id for a raw AHP model id. */
+	toLanguageModelId(rawModelId: string | undefined): string | undefined;
+	/** Returns the human-readable response details, or undefined if unknown. */
+	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined): string | undefined;
+}
+
+/**
+ * Converts completed turns from the protocol state into session history items.
+ *
+ * Per turn, prefers `turn.usage?.model` so each request/response pair shows
+ * the model that actually ran, even if the user changed models mid-session.
+ * The `lookup` callback is responsible for any session-level fallback (e.g.
+ * `summary.model?.id` when usage hasn't reported a model yet).
+ */
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
+		const rawModelId = turn.usage?.model;
+		const modelId = lookup?.toLanguageModelId(rawModelId);
+		const details = lookup?.toResponseDetails(rawModelId, turn.usage);
+
 		// Request
-		history.push({ id: turn.id, type: 'request', prompt: turn.userMessage.text, participant: participantId, modelId });
+		const variableData = userMessageToVariableData(turn.userMessage, connectionAuthority);
+		history.push({ id: turn.id, type: 'request', prompt: turn.userMessage.text, participant: participantId, modelId, variableData });
 
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
@@ -141,9 +171,108 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			parts.push({ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${turn.error.errorType}) ${turn.error.message}`) });
 		}
 
-		history.push({ type: 'response', parts, participant: participantId });
+		history.push({ type: 'response', parts, participant: participantId, details });
 	}
 	return history;
+}
+
+/**
+ * Converts a turn's persisted {@link UserMessage} into the chat-layer
+ * {@link IChatRequestVariableData} shape so attachments survive a
+ * history replay (and pending/server-initiated turn synthesis). Returns
+ * `undefined` when the message has no convertible attachments.
+ */
+export function userMessageToVariableData(userMessage: UserMessage, connectionAuthority: string): IChatRequestVariableData | undefined {
+	return messageAttachmentsToVariableData(userMessage.attachments, connectionAuthority);
+}
+
+export function messageAttachmentsToVariableData(attachments: readonly MessageAttachment[] | undefined, connectionAuthority: string): IChatRequestVariableData | undefined {
+	if (!attachments?.length) {
+		return undefined;
+	}
+	const variables: IChatRequestVariableEntry[] = [];
+	for (const a of attachments) {
+		const v = messageAttachmentToVariableEntry(a, connectionAuthority);
+		if (v) {
+			variables.push(v);
+		}
+	}
+	return variables.length > 0 ? { variables } : undefined;
+}
+
+function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string): IChatRequestVariableEntry | undefined {
+	if (attachment.type === MessageAttachmentKind.Resource) {
+		const uri = toAgentHostUri(URI.parse(attachment.uri), connectionAuthority);
+		const name = attachment.label;
+		const id = uri.toString() + (attachment.selection
+			? `:${attachment.selection.range.start.line}-${attachment.selection.range.end.line}`
+			: '');
+		const _meta = attachment._meta;
+
+		if (attachment.displayKind === 'directory') {
+			return { kind: 'directory', id, name, value: uri, _meta };
+		}
+		if (attachment.displayKind === 'image') {
+			return {
+				kind: 'image',
+				id,
+				name,
+				value: uri,
+				isURL: true,
+				references: [{ kind: 'reference', reference: uri }],
+				_meta,
+			};
+		}
+		if (attachment.selection) {
+			return {
+				kind: 'file',
+				id,
+				name,
+				value: { uri, range: textRangeToIRange(attachment.selection.range) },
+				_meta,
+			};
+		}
+		return { kind: 'file', id, name, value: uri, _meta };
+	}
+
+	if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
+		if (!attachment.contentType.startsWith('image/')) {
+			return {
+				kind: 'generic',
+				id: generateUuid(),
+				name: attachment.label,
+				value: decodeBase64(attachment.data).buffer,
+				_meta: attachment._meta,
+			};
+		}
+
+		return {
+			kind: 'image',
+			id: generateUuid(),
+			name: attachment.label || 'image',
+			value: decodeBase64(attachment.data).buffer,
+			mimeType: attachment.contentType,
+			isURL: false,
+			_meta: attachment._meta,
+		};
+	}
+
+	return {
+		kind: 'generic',
+		id: generateUuid(),
+		name: attachment.label,
+		value: attachment.modelRepresentation || attachment.label,
+		_meta: attachment._meta,
+	};
+}
+
+function textRangeToIRange(range: TextRange): IRange {
+	return {
+		startLineNumber: range.start.line + 1,
+		startColumn: range.start.character + 1,
+		endLineNumber: range.end.line + 1,
+		endColumn: range.end.character + 1,
+	};
 }
 
 /**
@@ -207,6 +336,51 @@ function getTerminalLanguage(tc: ToolCallState) {
 	return tc.toolName === 'powershell' ? 'powershell' : 'shellscript';
 }
 
+function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorString: string | undefined): IToolResultInputOutputDetails | undefined {
+	const toolInput = tc.status === ToolCallStatus.Streaming ? undefined : tc.toolInput;
+	if (!toolInput) {
+		return undefined;
+	}
+
+	const output: IToolResultInputOutputDetails['output'] = [];
+	if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running) {
+		for (const block of tc.content ?? []) {
+			switch (block.type) {
+				case ToolResultContentType.Text:
+					output.push({ type: 'embed', value: block.text, isText: true, mimeType: 'text/plain' });
+					break;
+				case ToolResultContentType.EmbeddedResource:
+					output.push({ type: 'embed', value: block.data, mimeType: block.contentType });
+					break;
+				case ToolResultContentType.Resource:
+					output.push({ type: 'ref', uri: URI.parse(block.uri), mimeType: block.contentType });
+					break;
+			}
+		}
+	}
+
+	if (output.length === 0 && errorString) {
+		output.push({ type: 'embed', value: errorString, isText: true, mimeType: 'text/plain' });
+	}
+
+	return {
+		input: toolInput,
+		inputLanguage: 'json',
+		output,
+		isError,
+	};
+}
+
+function getToolErrorString(tc: ToolCallState): string | undefined {
+	if (tc.status === ToolCallStatus.Completed) {
+		return tc.error?.message;
+	}
+	if (tc.status === ToolCallStatus.Cancelled) {
+		return typeof tc.reasonMessage === 'string' ? tc.reasonMessage : tc.reasonMessage?.markdown;
+	}
+	return undefined;
+}
+
 /**
  * Converts a completed tool call from the protocol state into a serialized
  * tool invocation suitable for history replay.
@@ -248,7 +422,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		};
 	}
 
-	let toolSpecificData: IChatTerminalToolInvocationData | undefined;
+	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | undefined;
 	if (isTerminal || getToolKind(tc) === 'terminal') {
 		toolSpecificData = {
 			kind: 'terminal',
@@ -259,11 +433,16 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			terminalCommandOutput: getTerminalOutput(tc),
 			terminalCommandState: { exitCode: isSuccess ? 0 : 1 },
 		};
+	} else if (getToolKind(tc) === 'search') {
+		toolSpecificData = { kind: 'search' };
 	}
 
 	const pastTenseMsg = isSuccess
 		? stringOrMarkdownToString(tc.pastTenseMessage, connectionAuthority) ?? invocationMsg
 		: invocationMsg;
+	const resultDetails = !toolSpecificData && (tc.status !== ToolCallStatus.Completed || getToolFileEdits(tc).length === 0)
+		? getToolInputOutputDetails(tc, !isSuccess, getToolErrorString(tc))
+		: undefined;
 
 	return {
 		kind: 'toolInvocationSerialized',
@@ -280,6 +459,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		presentation: undefined,
 		subAgentInvocationId: subAgentInvocationId,
 		toolSpecificData,
+		resultDetails,
 	};
 }
 
@@ -413,8 +593,12 @@ export function rewriteMarkdownLinks(markdown: string, connectionAuthority: stri
  *
  * The output collapses to the canonical inline form `[](newHref)` (or
  * `![](newHref)` for images) — the chat renderer has richer handling for
- * empty-text agent-host links, so preserving the original label isn't
- * useful. This also means autolinks (`<url>`) and reference-style links
+ * empty-text agent-host links (rendering them as a file widget), so
+ * preserving the original label isn't useful for most links. The one
+ * exception is skill links (URIs whose basename is `SKILL.md`), where the
+ * skill name is preserved as the label so the skill pill renderer can
+ * display it instead of the always-identical `SKILL.md` basename. This
+ * also means autolinks (`<url>`) and reference-style links
  * (`[text][ref]`) are normalized into the inline form.
  */
 function rewriteLinkTokenRaw(token: Tokens.Link | Tokens.Image, connectionAuthority: string): string | undefined {
@@ -428,9 +612,39 @@ function rewriteLinkTokenRaw(token: Tokens.Link | Tokens.Image, connectionAuthor
 	if (!scheme || EXTERNAL_LINK_SCHEMES.has(scheme)) {
 		return undefined;
 	}
-	const newHref = toAgentHostUri(parsed, connectionAuthority).toString();
+	let agentHostUri = toAgentHostUri(parsed, connectionAuthority);
+	const isSkill = isSkillFileUri(parsed);
+	// VS-Code-specific: links pointing at a `SKILL.md` file are rendered as a
+	// rich skill pill rather than a plain markdown link. The chat renderer's
+	// inline anchor widget keys off the `vscodeLinkType` query parameter (see
+	// `chatInlineAnchorWidget.ts`), so we tag the URI here on the client side
+	// rather than at the agent host. We do this whether or not the link came
+	// in pre-tagged so older sessions and other agent providers also benefit.
+	if (isSkill && !agentHostUri.query.includes('vscodeLinkType=')) {
+		const existing = agentHostUri.query;
+		agentHostUri = agentHostUri.with({ query: existing ? `${existing}&vscodeLinkType=skill` : 'vscodeLinkType=skill' });
+	}
 	const prefix = token.type === 'image' ? '![' : '[';
-	return `${prefix}](${newHref})`;
+	// Preserve the label for skill links (so the skill pill renderer can show
+	// the skill name) and for image alt text (accessibility — the inline
+	// anchor widget only applies to links, not images). For all other
+	// agent-host links, leave the text empty so the chat renderer's inline
+	// anchor widget takes over with its rich file-widget rendering.
+	// Escape only the characters that would break out of markdown link text
+	// syntax (`\` and `]`); a full markdown escape would leave visible
+	// backslashes in the skill pill which extracts text without re-parsing.
+	const text = isSkill || token.type === 'image' ? escapeMarkdownLinkLabel(token.text ?? '') : '';
+	return `${prefix}${text}](${agentHostUri.toString()})`;
+}
+
+/**
+ * Returns true when the URI's basename is `SKILL.md` (case-insensitive).
+ * Used to tag skill links so the chat renderer shows the rich skill pill
+ * instead of a plain markdown anchor.
+ */
+function isSkillFileUri(uri: URI): boolean {
+	const name = basename(uri);
+	return name.toLowerCase() === 'skill.md';
 }
 
 /**
@@ -494,7 +708,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 
 		let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatModifiedFilesConfirmationData | undefined;
 		const pendingEdits = tc.edits?.items;
-		if (pendingEdits && pendingEdits.length > 0) {
+		if (pendingEdits?.length) {
 			const wrap = (uri: URI) => connectionAuthority ? toAgentHostUri(uri, connectionAuthority) : uri;
 			const mapped = mapFileEdits(pendingEdits, tc.toolCallId);
 			toolSpecificData = {
@@ -572,6 +786,8 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			description: getSubagentTaskDescription(tc),
 			agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
 		};
+	} else if (getToolKind(tc) === 'search') {
+		invocation.toolSpecificData = { kind: 'search' };
 	}
 
 	return invocation;
@@ -650,7 +866,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	const terminalContentUri = tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed
 		? getTerminalContentUri(tc.content)
 		: undefined;
-	const isTerminal = invocation.toolSpecificData?.kind === 'terminal' || !!terminalContentUri;
+	const isTerminal = invocation.toolSpecificData?.kind === 'terminal' || !!terminalContentUri || getToolKind(tc) === 'terminal';
 
 	if ((isCompleted || isCancelled) && hasKey(tc, { invocationMessage: true })) {
 		invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? invocation.invocationMessage;
@@ -705,7 +921,16 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 
-	invocation.didExecuteTool(isFailure ? { content: [], toolResultError: errorString } : undefined);
+	const resultDetails = !isTerminal
+		&& invocation.toolSpecificData?.kind !== 'subagent'
+		&& getToolKind(tc) !== 'search'
+		&& fileEdits.length === 0
+		? getToolInputOutputDetails(tc, isFailure, errorString)
+		: undefined;
+	const result: IToolResult | undefined = isFailure || resultDetails
+		? { content: [], toolResultError: isFailure ? errorString : undefined, toolResultDetails: resultDetails }
+		: undefined;
+	invocation.didExecuteTool(result);
 
 	return fileEdits;
 }

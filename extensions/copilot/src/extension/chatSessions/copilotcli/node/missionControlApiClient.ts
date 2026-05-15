@@ -20,6 +20,7 @@ export interface McEvent {
 	id: string;
 	timestamp: string;
 	parentId: string | null;
+	ephemeral?: boolean;
 	type: string;
 	data: Record<string, unknown>;
 }

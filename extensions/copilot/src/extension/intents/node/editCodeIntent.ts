@@ -123,7 +123,7 @@ export class EditCodeIntent implements IIntent {
 				const { references } = await renderPromptElement(this.instantiationService, endpoint, ToolCallResultWrapper, { toolCallResults }, undefined, token);
 				foundReferences.push(...toNewChatReferences(variables, references));
 				// TODO: how should we splice in the assistant message?
-				conversation = new Conversation(conversation.sessionId, [...conversation.turns.slice(0, -1), new Turn(latestTurn.id, latestTurn.request, undefined)]);
+				conversation = new Conversation(conversation.sessionId, [...conversation.turns.slice(0, -1), new Turn(latestTurn.id, latestTurn.request, undefined, [], undefined, undefined, false, latestTurn.modeInstructions)]);
 			}
 			return { conversation, request: { ...request, references: [...request.references, ...foundReferences], toolReferences: request.toolReferences.filter((r) => r.name !== CodebaseTool.toolName) } };
 		}

@@ -9,7 +9,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { IBrowserEditorViewState, IBrowserViewWorkbenchService } from './browserView.js';
+import { BrowserViewSharingState, IBrowserEditorViewState, IBrowserViewWorkbenchService } from './browserView.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -22,6 +22,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -44,6 +45,14 @@ export interface IBrowserEditorInputData extends IBrowserEditorViewState {
 	readonly id: string;
 }
 
+/**
+ * Fired before a {@link BrowserEditorInput} is disposed. Listeners may call
+ * {@link veto} to prevent disposal and keep the input and its model alive.
+ */
+export interface IBeforeDisposeBrowserEditorEvent {
+	veto(): void;
+}
+
 export class BrowserEditorInput extends EditorInput {
 	static readonly ID = 'workbench.editorinputs.browser';
 	static readonly EDITOR_ID = 'workbench.editor.browser';
@@ -56,12 +65,19 @@ export class BrowserEditorInput extends EditorInput {
 	private _modelPromise: Promise<IBrowserViewModel> | undefined;
 	private _modelStore = this._register(new DisposableStore());
 
+	private readonly _onBeforeDispose = this._register(new Emitter<IBeforeDisposeBrowserEditorEvent>());
+	readonly onBeforeDispose: Event<IBeforeDisposeBrowserEditorEvent> = this._onBeforeDispose.event;
+
+	private readonly _onDidResolveModel = this._register(new Emitter<IBrowserViewModel>());
+	readonly onDidResolveModel: Event<IBrowserViewModel> = this._onDidResolveModel.event;
+
 	constructor(
 		options: IBrowserEditorInputData,
 		private _resolveModel: () => Promise<IBrowserViewModel>,
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 	) {
 		super();
 		this._id = options.id;
@@ -88,7 +104,7 @@ export class BrowserEditorInput extends EditorInput {
 
 		// Auto-close editor when webcontents closes
 		this._modelStore.add(this._model.onDidClose(() => {
-			this.dispose();
+			this.dispose(true);
 		}));
 
 		// Listen for label-relevant changes to fire onDidChangeLabel
@@ -98,6 +114,7 @@ export class BrowserEditorInput extends EditorInput {
 		this._modelStore.add(this._model.onDidNavigate(() => this._onDidChangeLabel.fire()));
 
 		this._onDidChangeLabel.fire();
+		this._onDidResolveModel.fire(model);
 	}
 
 	get id() {
@@ -117,6 +134,18 @@ export class BrowserEditorInput extends EditorInput {
 	get favicon(): string | undefined {
 		// Use model favicon if available, otherwise fall back to initial data
 		return this._model ? this._model.favicon : this._initialData.favicon;
+	}
+
+	/**
+	 * Whether this editor was opened via a default localhost link open (setting
+	 * not explicitly configured by the user). Transient — not serialized.
+	 */
+	get isDefaultLinkOpen(): boolean {
+		return !!this._initialData.isDefaultLinkOpen;
+	}
+
+	get isSharingAvailable(): boolean {
+		return this._model ? this._model.sharingState !== BrowserViewSharingState.Unavailable : this.browserViewWorkbenchService.isSharingAvailable;
 	}
 
 	navigate(url: string): void {
@@ -286,7 +315,15 @@ export class BrowserEditorInput extends EditorInput {
 		};
 	}
 
-	override dispose(): void {
+	override dispose(force?: boolean): void {
+		if (!force) {
+			let vetoed = false;
+			this._onBeforeDispose.fire({ veto: () => { vetoed = true; } });
+			if (vetoed) {
+				return;
+			}
+		}
+
 		super.dispose(); // Emit `onWillDispose` event first, then clean up the model.
 		if (this._model) {
 			// `toUntyped()` is called after disposal. Store the latest data in `_initialData` so we can still get them there.

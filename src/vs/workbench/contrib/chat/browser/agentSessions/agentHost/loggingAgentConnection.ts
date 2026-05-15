@@ -10,8 +10,8 @@ import { Registry } from '../../../../../../platform/registry/common/platform.js
 import { IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, AgentHostIpcLoggingSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents, type ComponentToState, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import type { ActionEnvelope, INotification, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { ActionEnvelope, IRootConfigChangedAction, SessionAction, TerminalAction, INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../services/output/common/output.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -192,6 +192,14 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		return this._logCall('sessionConfigCompletions', params, () => this._inner.sessionConfigCompletions(params));
 	}
 
+	async completions(params: CompletionsParams): Promise<CompletionsResult> {
+		return this._logCall('completions', params, () => this._inner.completions(params));
+	}
+
+	async getCompletionTriggerCharacters(): Promise<readonly string[]> {
+		return this._inner.getCompletionTriggerCharacters();
+	}
+
 	async disposeSession(session: URI): Promise<void> {
 		return this._logCall('disposeSession', session, () => this._inner.disposeSession(session));
 	}
@@ -216,7 +224,7 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		return this._inner.getSubscriptionUnmanaged(kind, resource);
 	}
 
-	dispatch(action: SessionAction | TerminalAction): void {
+	dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
 		this._log('>>', 'dispatch', action);
 		this._inner.dispatch(action);
 	}

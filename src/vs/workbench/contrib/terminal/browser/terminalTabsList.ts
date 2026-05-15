@@ -100,7 +100,10 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				getHeight: () => TerminalTabsListSizes.TabHeight,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements(), () => this.hasText, () => this.hasActionBar)],
+			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements(), {
+				getHasText: () => this.hasText,
+				getHasActionBar: () => this.hasActionBar
+			})],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
@@ -275,8 +278,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		_container: HTMLElement,
 		private readonly _labels: ResourceLabels,
 		private readonly _getSelection: () => ITerminalInstance[],
-		private readonly _getHasText: () => boolean,
-		private readonly _getHasActionBar: () => boolean,
+		private readonly _getVisibilityState: ITerminalTabsRendererOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -342,8 +344,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
-		const hasText = this._getHasText();
-		const hasActionBar = this._getHasActionBar();
+		const hasText = this._getVisibilityState.getHasText();
+		const hasActionBar = this._getVisibilityState.getHasActionBar();
 
 		const group = this._terminalGroupService.getGroupForInstance(instance);
 		if (!group) {
@@ -560,6 +562,11 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		this._terminalGroupService.focusTabs();
 		this._listService.lastFocusedList?.focusNext();
 	}
+}
+
+interface ITerminalTabsRendererOptions {
+	getHasText: () => boolean;
+	getHasActionBar: () => boolean;
 }
 
 interface ITerminalTabEntryTemplate {

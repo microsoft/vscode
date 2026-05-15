@@ -5,7 +5,9 @@
 
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
+import { ILogService } from '../../log/common/log.js';
+import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
+import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolTransport } from '../common/state/sessionTransport.js';
 import type { ISSHRelayMessage, ISSHRemoteAgentHostMainService } from '../common/sshRemoteAgentHost.js';
 
@@ -27,14 +29,20 @@ export class SSHRelayTransport extends Disposable implements IProtocolTransport 
 	constructor(
 		private readonly _connectionId: string,
 		private readonly _sshService: ISSHRemoteAgentHostMainService,
+		private readonly _ahpLogger: AhpJsonlLogger | undefined,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		if (this._ahpLogger) {
+			this._register(this._ahpLogger);
+		}
 
 		// Listen for relay messages from the shared process
 		this._register(this._sshService.onDidRelayMessage((msg: ISSHRelayMessage) => {
 			if (msg.connectionId === this._connectionId) {
 				try {
 					const parsed = JSON.parse(msg.data) as ProtocolMessage;
+					this._ahpLogger?.log(parsed, 's2c', getAhpLogByteLength(msg.data));
 					this._onMessage.fire(parsed);
 				} catch {
 					// Malformed message — drop
@@ -45,14 +53,17 @@ export class SSHRelayTransport extends Disposable implements IProtocolTransport 
 		// Listen for relay close
 		this._register(this._sshService.onDidRelayClose((closedId: string) => {
 			if (closedId === this._connectionId) {
+				this._logService.info('[SSHRelayTransport] onDidRelayClose');
 				this._onClose.fire();
 			}
 		}));
 	}
 
-	send(message: ProtocolMessage | AhpServerNotification | JsonRpcResponse): void {
-		this._sshService.relaySend(this._connectionId, JSON.stringify(message)).catch(() => {
-			// Send failed — connection probably closed
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest): void {
+		const text = JSON.stringify(message);
+		this._ahpLogger?.log(message, 'c2s', getAhpLogByteLength(text));
+		this._sshService.relaySend(this._connectionId, text).catch((err) => {
+			this._logService.error('[SSHRelayTransport] relaySend failed', err);
 		});
 	}
 }

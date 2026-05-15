@@ -20,7 +20,7 @@ import './nullInlineChatSessionService.js';
 import './nullChatTipService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ISessionsConfigurationService, SessionsConfigurationService } from './sessionsConfigurationService.js';
+import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';
 import { AgenticPromptsService } from './promptsService.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -38,6 +38,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
+import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 
 
 class NewChatInSessionsWindowAction extends Action2 {
@@ -66,10 +67,6 @@ class NewChatInSessionsWindowAction extends Action2 {
 }
 
 registerAction2(NewChatInSessionsWindowAction);
-
-
-
-
 
 // --- Sessions New Chat View Registration ---
 // Registers in the same ChatBar container as the existing ChatViewPane.
@@ -152,7 +149,7 @@ registerWorkbenchContribution2(SessionsOpenerParticipantContribution.ID, Session
 
 // register services
 registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);
-registerSingleton(ISessionsConfigurationService, SessionsConfigurationService, InstantiationType.Delayed);
+registerSingleton(ISessionsTasksService, SessionsTasksService, InstantiationType.Delayed);
 registerSingleton(IAICustomizationWorkspaceService, SessionsAICustomizationWorkspaceService, InstantiationType.Delayed);
 registerSingleton(ICustomizationHarnessService, SessionsCustomizationHarnessService, InstantiationType.Delayed);
 
