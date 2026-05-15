@@ -357,6 +357,12 @@ export interface IChatInputCompletionCommandAttachment {
 	readonly kind: 'command';
 	readonly command: string;
 	readonly description: string;
+	/**
+	 * Implementation-defined metadata that MUST be preserved by the
+	 * workbench when the accepted completion is sent back as part of a
+	 * user message attachment.
+	 */
+	readonly _meta?: Record<string, unknown>;
 }
 
 /**
@@ -366,6 +372,12 @@ export interface IChatInputCompletionCommandAttachment {
 export interface IChatInputCompletionSkillAttachment {
 	readonly kind: 'skill';
 	readonly uri: URI;
+	/**
+	 * Implementation-defined metadata that MUST be preserved by the
+	 * workbench when the accepted completion is sent back as part of a
+	 * user message attachment.
+	 */
+	readonly _meta?: Record<string, unknown>;
 }
 
 /**

@@ -551,12 +551,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						kind: 'command',
 						command: attachment._meta.command,
 						description: typeof attachment._meta.description === 'string' ? attachment._meta.description : '',
+						...(attachment._meta !== undefined && { _meta: attachment._meta }),
 					});
 				}
 				if (typeof attachment._meta?.uri === 'string') {
 					return this._createCompletionItem(raw, text, {
 						kind: 'skill',
 						uri: URI.parse(attachment._meta.uri),
+						...(attachment._meta !== undefined && { _meta: attachment._meta }),
 					});
 				}
 				return undefined;
