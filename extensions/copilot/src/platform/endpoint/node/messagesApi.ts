@@ -183,8 +183,11 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	// context is short-lived. The three subagent call sites (search loop,
 	// execution loop, Task-tool-spawned agent) all set
 	// `interactionTypeOverride: 'conversation-subagent'`, which is also the
-	// source of truth for the `X-Interaction-Type` wire header. The rolling
-	// breakpoints on messages always use the default 5m TTL.
+	// source of truth for the `X-Interaction-Type` wire header.
+	//
+	// The rolling message breakpoints default to the 5m TTL and only upgrade to
+	// 1h when the `extendedTtlMessages` sub-toggle is on (which itself requires
+	// the parent `extendedTtl` to be on — see `isExtendedCacheTtlMessagesEnabled`).
 	const isSubagent = options.interactionTypeOverride === 'conversation-subagent';
 	const useExtendedCacheTtl = isExtendedCacheTtlEnabled(endpoint, configurationService, experimentationService, options.location, isSubagent);
 	const cacheTtl = useExtendedCacheTtl ? '1h' : undefined;
