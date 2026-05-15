@@ -51,6 +51,10 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 		return this.defaultAccount.authenticationProvider;
 	}
 
+	resolveGitHubUrl(path: string): string {
+		return `https://github.com/${path}`;
+	}
+
 	async refresh(): Promise<IDefaultAccount | null> {
 		return this.defaultAccount;
 	}

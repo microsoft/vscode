@@ -215,7 +215,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		}));
 
 		templateDisposables.add(bindContextKey(ChangesContextKeys.VersionMode, contextKeyService, reader => {
-			return this.viewModel.versionModeObs.read(reader);
+			return this.viewModel.activeSessionChangesetObs.read(reader)?.id ?? '';
 		}));
 
 		const changeKindContextKey = ChangesContextKeys.ChangeKind.bindTo(contextKeyService);

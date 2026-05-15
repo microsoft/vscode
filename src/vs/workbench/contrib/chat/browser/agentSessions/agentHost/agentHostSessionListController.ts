@@ -12,8 +12,10 @@ import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agen
 import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ISessionFileDiff, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionFileChange2, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
+import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
 function mapDiffsToChanges(diffs: readonly ISessionFileDiff[] | undefined, connectionAuthority: string): readonly IChatSessionFileChange2[] | undefined {
 	if (!diffs || diffs.length === 0) {
@@ -83,6 +85,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		private readonly _description: string | undefined,
 		private readonly _connectionAuthority: string,
 		@IProductService private readonly _productService: IProductService,
+		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -156,6 +160,20 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			createdAt: now,
 			modifiedAt: now,
 		});
+
+		// Bridge any pre-creation provisional session the user built up
+		// against the untitled chat-input URI to the freshly-minted real
+		// resource. The provisional service is the source of truth for the
+		// `state.config.values` the user picked via chips; copying them
+		// here means the agent's `_materializeProvisional` will see them on
+		// first send. Best-effort — if no provisional exists or the rebind
+		// fails, the handler falls through to its standard
+		// `_createAndSubscribe` path with no user selections.
+		if (request.untitledResource) {
+			const workingDirectory = this._workspaceContextService.getWorkspace().folders[0]?.uri;
+			await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider, workingDirectory);
+		}
+
 		return item;
 	}
 

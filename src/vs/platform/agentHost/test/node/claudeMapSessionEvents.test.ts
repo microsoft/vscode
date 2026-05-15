@@ -310,6 +310,78 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 	// #endregion
 
+	// #region Phase 8 — file-edit cache
+
+	test('Phase 8 — cached file edit is appended to SessionToolCallComplete.result.content', () => {
+		const log = new NullLogService();
+		const state = new ClaudeMapperState();
+
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_edit', 'Write')), SESSION, TURN_ID, state, log);
+
+		const fileEdit = {
+			type: ToolResultContentType.FileEdit as const,
+			before: { uri: 'file:///tmp/a', content: { uri: 'session-db://abc/before' } },
+			after: { uri: 'file:///tmp/a', content: { uri: 'session-db://abc/after' } },
+			diff: { added: 3, removed: 1 },
+		};
+		state.cacheFileEdit('tu_edit', fileEdit);
+
+		const signals = mapSDKMessageToAgentSignals(
+			makeUserToolResultMessage(SESSION_ID, 'tu_edit', 'wrote file'),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+		);
+
+		const complete = signals[0];
+		assert.ok(complete.kind === 'action' && complete.action.type === ActionType.SessionToolCallComplete);
+		assert.deepStrictEqual(complete.action.result.content, [
+			{ type: ToolResultContentType.Text, text: 'wrote file' },
+			fileEdit,
+		]);
+	});
+
+	test('Phase 8 — no cached edit leaves content text-only (no regression)', () => {
+		const log = new NullLogService();
+		const state = new ClaudeMapperState();
+
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_read', 'Read')), SESSION, TURN_ID, state, log);
+
+		const signals = mapSDKMessageToAgentSignals(
+			makeUserToolResultMessage(SESSION_ID, 'tu_read', 'file contents'),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+		);
+
+		const complete = signals[0];
+		assert.ok(complete.kind === 'action' && complete.action.type === ActionType.SessionToolCallComplete);
+		assert.deepStrictEqual(complete.action.result.content, [
+			{ type: ToolResultContentType.Text, text: 'file contents' },
+		]);
+	});
+
+	test('Phase 8 — takeFileEdit returns undefined on cache miss and consumes on hit', () => {
+		const state = new ClaudeMapperState();
+
+		assert.strictEqual(state.takeFileEdit('absent'), undefined);
+
+		const fileEdit = {
+			type: ToolResultContentType.FileEdit as const,
+			before: { uri: 'file:///tmp/x', content: { uri: 'session-db://x/before' } },
+			after: { uri: 'file:///tmp/x', content: { uri: 'session-db://x/after' } },
+			diff: undefined,
+		};
+		state.cacheFileEdit('tu_x', fileEdit);
+		assert.strictEqual(state.takeFileEdit('tu_x'), fileEdit);
+		// Second take is a miss — the entry was consumed.
+		assert.strictEqual(state.takeFileEdit('tu_x'), undefined);
+	});
+
+	// #endregion
+
 	test('canonical assistant envelope drops tool_use blocks silently (partial stream owns SessionToolCallStart)', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();
@@ -345,7 +417,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(log.warns, []);
 	});
 
-	test('result success emits SessionUsage (with model) followed by SessionTurnComplete', () => {
+	test('result success emits SessionUsage (with model); SessionTurnComplete now lives on the pipeline, not the mapper', () => {
 		const result = makeResultSuccess(SESSION_ID);
 		result.usage.input_tokens = 12;
 		result.usage.output_tokens = 34;
@@ -365,6 +437,11 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		const signals = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService());
 
+		// Pipeline (Phase 9 refactor) owns the protocol-Turn boundary; it
+		// fires SessionTurnComplete via `onTurnComplete` only on the FINAL
+		// result of a turn (intermediate results during steering preempt do
+		// NOT close the protocol Turn). The mapper therefore emits only
+		// SessionUsage for `result` messages.
 		assert.deepStrictEqual(signals, [
 			{
 				kind: 'action',
@@ -381,15 +458,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 					},
 				},
 			},
-			{
-				kind: 'action',
-				session: SESSION,
-				action: {
-					type: ActionType.SessionTurnComplete,
-					session: SESSION_STR,
-					turnId: TURN_ID,
-				},
-			},
 		]);
 	});
 
@@ -399,7 +467,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		const signals = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService());
 
-		assert.strictEqual(signals.length, 2);
+		assert.strictEqual(signals.length, 1);
 		const usage = signals[0];
 		assert.ok(usage.kind === 'action' && usage.action.type === ActionType.SessionUsage);
 		assert.strictEqual(usage.action.usage.model, undefined);
@@ -428,7 +496,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			log,
 		);
 
-		assert.strictEqual(resultSignals.length, 2);
+		assert.strictEqual(resultSignals.length, 1);
 		assert.strictEqual(log.warns.length, 1);
 		assert.ok(log.warns[0].includes(TOOL_USE_ID), `expected warn to mention orphan id, got: ${log.warns[0]}`);
 		assert.ok(log.warns[0].includes('Read'), `expected warn to mention tool name, got: ${log.warns[0]}`);

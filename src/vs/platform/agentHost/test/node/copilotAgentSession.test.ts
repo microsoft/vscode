@@ -306,6 +306,55 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
+	test('emits accumulated Copilot usage metadata', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-usage');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-sonnet-4.6',
+			inputTokens: 10,
+			outputTokens: 20,
+			cacheReadTokens: 5,
+			cost: 2,
+			copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
+		});
+		mockSession.fire('assistant.usage', {
+			model: 'claude-sonnet-4.6',
+			inputTokens: 30,
+			outputTokens: 40,
+			cost: 2,
+			copilotUsage: { totalNanoAiu: 750_000_000, tokenDetails: [] },
+		});
+
+		const usageActions = signals
+			.filter((s): s is IAgentActionSignal => s.kind === 'action')
+			.map(s => s.action)
+			.filter(a => a.type === ActionType.SessionUsage);
+
+		assert.deepStrictEqual(usageActions.map(a => a.usage), [
+			{
+				inputTokens: 10,
+				outputTokens: 20,
+				model: 'claude-sonnet-4.6',
+				cacheReadTokens: 5,
+				_meta: {
+					cost: 2,
+					copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
+				},
+			},
+			{
+				inputTokens: 30,
+				outputTokens: 40,
+				model: 'claude-sonnet-4.6',
+				cacheReadTokens: undefined,
+				_meta: {
+					cost: 2,
+					copilotUsage: { totalNanoAiu: 1_250_000_000, tokenDetails: [] },
+				},
+			},
+		]);
+	});
+
 	test('extracts selected text from file contents for different line endings and bounds', async () => {
 		const testCases = [
 			{

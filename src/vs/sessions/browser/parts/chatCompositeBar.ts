@@ -132,15 +132,16 @@ export class ChatCompositeBar extends Disposable {
 			const status = chat.status.read(reader);
 			const isRead = chat.isRead.read(reader);
 
-			let mode: 'unread' | 'in-progress' | 'none' = 'none';
+			let mode: 'needs-input' | 'unread' | 'in-progress' | 'none' = 'none';
 			if (status === SessionStatus.NeedsInput) {
-				mode = 'unread';
+				mode = 'needs-input';
 			} else if (status === SessionStatus.InProgress) {
 				mode = 'in-progress';
 			} else if (!isRead && !isActive) {
 				mode = 'unread';
 			}
 
+			tab.classList.toggle('needs-input', mode === 'needs-input');
 			tab.classList.toggle('unread', mode === 'unread');
 			tab.classList.toggle('in-progress', mode === 'in-progress');
 
