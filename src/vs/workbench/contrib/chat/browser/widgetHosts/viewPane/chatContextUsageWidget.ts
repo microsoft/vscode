@@ -295,21 +295,19 @@ export class ChatContextUsageWidget extends Disposable {
 		// Store current data for use in details popup
 		this.currentData = { usedTokens, completionTokens, totalContextWindow, percentage, outputBufferPercentage, promptTokenDetails };
 
-		// Pie chart shows actual usage + remaining reserve so the user can see
-		// how much of the context window is spoken for.
-		this.progressIndicator.setProgress(percentage + (outputBufferPercentage ?? 0));
+		// Pie chart shows actual usage percentage only
+		this.progressIndicator.setProgress(percentage);
 
 		// Update percentage label and aria-label (clamp display to 100)
 		const roundedPercentage = Math.min(100, Math.round(percentage));
 		this.percentageLabel.textContent = `${roundedPercentage}%`;
 		this.domNode.setAttribute('aria-label', localize('contextUsagePercentageLabel', "Context window usage: {0}%", roundedPercentage));
 
-		// Color based on total spoken-for percentage (usage + remaining reserve)
-		const effectivePercentage = percentage + (outputBufferPercentage ?? 0);
+		// Color based on actual usage percentage
 		this.domNode.classList.remove('warning', 'error');
-		if (effectivePercentage >= 90) {
+		if (percentage >= 90) {
 			this.domNode.classList.add('error');
-		} else if (effectivePercentage >= 75) {
+		} else if (percentage >= 75) {
 			this.domNode.classList.add('warning');
 		}
 	}

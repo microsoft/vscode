@@ -9,6 +9,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 export const IExtensionHostStarter = createDecorator<IExtensionHostStarter>('extensionHostStarter');
 
 export const ipcExtensionHostStarterChannelName = 'extensionHostStarter';
+export const extensionHostGraceTimeMs = 6000;
 
 export interface IExtensionHostProcessOptions {
 	responseWindowId: number;
@@ -31,6 +32,7 @@ export interface IExtensionHostStarter {
 	createExtensionHost(): Promise<{ id: string }>;
 	start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number | undefined }>;
 	enableInspectPort(id: string): Promise<boolean>;
+	waitForExit(id: string, maxWaitTimeMs: number): Promise<void>;
 	kill(id: string): Promise<void>;
 
 }

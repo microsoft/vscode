@@ -1,0 +1,219 @@
+[
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - (AML-10-31) Parameter data implicitly has an any type.",
+		"requests": [
+			"8170fbe075286b3536a23750410ef278f11d7f56f4210ef5201a1b9e7ffb4e91"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - 22222 Error 2322 - type undefined is not assignable to type",
+		"requests": [
+			"df8cc4b91a50f37f14787958711696685c0b8e855cda4a0eb805eb3aa679e317"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - can not assign to parameter of type",
+		"requests": [
+			"bf6ddef5be5d681505185d7517dc584fa05d3136b2f56bd4fcfb812aeb6189d6"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - declaration or statement expected",
+		"requests": [
+			"8a051c967d897fe401de5b948665651b22fe3a60ebc529d48c3ae1b4aaf7e856"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - duplicate identifier",
+		"requests": [
+			"d4ef39bb9e0d3b963cd697b475ba6c49548a5479924f63d9a65f5e5b71b5839a"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 1015 - parameter cannot have question mark and initializer, with corresponding diagnostics",
+		"requests": [
+			"94cbb89bd630de805856c96098cf0ed64be62249d7fcd183ea9dcc79638ffb4e"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 1015 - parameter cannot have question mark and initializer, without corresponding diagnostics",
+		"requests": [
+			"94cbb89bd630de805856c96098cf0ed64be62249d7fcd183ea9dcc79638ffb4e"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 18047 - (AML-10-64) possibly null",
+		"requests": [
+			"380dd5d6e394dc1ed44c02e3c02294518c44a974fdd448b9031e52d7c95960c0"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 18047 - (AML-8-1) property does not exist on type window",
+		"requests": [
+			"584245975ceed021766221bcf45e8dd0a56e1e54db084bbbec2f48e531b9601d"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 18048 - (AML-10-86) possibly undefined",
+		"requests": [
+			"4dfa52b866c18cb189eea4fb16eece6e847fa7bd98e1cb24c817e201421b0398"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2304 - (AML-10-14) can not find module",
+		"requests": [
+			"625f4acdb102bafb72231a50cb0843dda9b7c58210288961a9a13fc385386261",
+			"c8d4c66748a07684f0aff297e5eb1beabed1ee781e3e8595445d3f15f7f6a550"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2304 - (AML-8-125) can not find name",
+		"requests": [
+			"cbb237ac804e8d44612bd9e99560d7f3da436d9a3666b4944a4faa3824cb7c17"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2304 - (AML-8-125) can not find name 2",
+		"requests": [
+			"64d17c05afe6cfce7ce7c68ae4bc1f0a4b5ba2eb83b64676e97b07c172342035"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2304 - can not find name",
+		"requests": [
+			"3801b2bd06f673233b476dcdfabc05f01dbf35a39c8d74494ec780d111de4fa9"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2307 - can not find module",
+		"requests": [
+			"6931d120bbec237a1377bfd4bc0571488c37e21fe139269cde7030585d99215d"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2322 - type undefined is not assignable to type",
+		"requests": [
+			"df8cc4b91a50f37f14787958711696685c0b8e855cda4a0eb805eb3aa679e317"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2339 - (AML-10-55) property does not exist on type 2",
+		"requests": [
+			"88d5da47eaf9f4c1d76e8ae2c4c5cefa5a67065c1ca0bfd458284f85502f245e"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2339 - (AML-10-98) property does not exist on type 3",
+		"requests": [
+			"7fae839c457d1abc1a073a1509b1b03cf63c96aa11bc80b3b83dcf698a79f9be"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2339 - property does not exist on type 1",
+		"requests": [
+			"526a7df96175b06264b924897e8fb1aa0668d624385e683b321a86b6c1d26a05"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2341 - property is private and only accessible within class",
+		"requests": [
+			"2bc8b68a5901544059fbf9e4d70f11ee7a50d9042e0208779f84f616f4050192"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2345 - Got boolean but expected options bag",
+		"requests": [
+			"948f8801faf2d860cbccfa3a7c903fc2537d2521b8061cdf285bbb1613f60c1e"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2345 - Last two arguments swapped",
+		"requests": [
+			"a3b3377e9ba3850b6d99cc4a4536a9969a70f9075cb863adda0d1a99b22be195"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2355 - a function whose declared type is neither undefined, void, nor any must return a value.",
+		"requests": [
+			"3db57422e8aeb3bce93a4ea6f0d8b5dcc06d3599f496d9016602c7939c390f4e"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2391 - function implementation is missing or not immediately following the declaration",
+		"requests": [
+			"6265e465bb59035b85433f73acdd909df991b8831d203642ef1237aa8c65a283"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2420 - incorrect interface implementation",
+		"requests": [
+			"af7a2ad9b7c8508be225a246394ef8ea68aac4ab81accca243e4d3c5fd743f82"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2420 - incorrect interface implementation, with related information",
+		"requests": [
+			"3620e024d12c941280cb60656aefbba2631eb1f7f5edae8ff8d7005fe91e5147"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2454 - variable is used before being assigned",
+		"requests": [
+			"60a78774ab8f7f6644e7ca59ed2176661e9d70b36d004de2a4352b23127efd44"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2554 - expected m arguments, but got n.",
+		"requests": [
+			"c6c9dfc638b0e55709fa07d6621535f595c05d81ac6122f9fc5c224449508b6d"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2554 - Got two args but expected options bag",
+		"requests": [
+			"f0cb148f3c7b4e6158ba835cc15143e9a02bc9120e242de976ccb36ea62e4acc"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2802 - large file - Type Uint32Array can only be iterated through",
+		"requests": [
+			"6ff9fd82ae54ad46270ab1ffef5e598633ce6e9a319d24ce17250e5aa089ffc9"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 7006 - (AML-10-23) implicitly has any type",
+		"requests": [
+			"9b498036df422a3fb1cb90b8f00b80f31b58081e99b0ade26a15b91f14dde6a3"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 7053 - (AML-10-25) expression of type can't be used to index",
+		"requests": [
+			"0d939c59c12799a602674cd6da94f8e4296c2ad99990f778e737ef72014f9c23"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Issue #7300",
+		"requests": [
+			"d7b0a8e9a3e4388097e1d9be5fd8522f823fd541835e88a437eaddd0ddab512f"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Issue 6571",
+		"requests": [
+			"a788b01daeed6e4bd5de16e326ee8e088ea3d4eb466751eb6e88d145c66f4d00"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - left side of comma operator is unused",
+		"requests": [
+			"def8ed22a648a1c49f500c7af5d362942972a025b51a6a0e4b1f6209f4042ac9"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (TSC) [inline] [typescript] - object is possibly undefined",
+		"requests": [
+			"f8ed2f2ef839f272317c0f17b2e0c7b6329537dbf5097daec836b52931fd9960"
+		]
+	}
+]

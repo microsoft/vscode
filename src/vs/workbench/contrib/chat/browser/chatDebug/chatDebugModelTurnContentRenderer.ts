@@ -6,16 +6,21 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IChatDebugEventModelTurnContent } from '../../common/chatDebugService.js';
-import { renderCollapsibleSection } from './chatDebugCollapsible.js';
+import { renderSection, tokenizeContent } from './chatDebugToolCallContentRenderer.js';
+import { safeIntl } from '../../../../../base/common/date.js';
 
 const $ = DOM.$;
+const numberFormatter = safeIntl.NumberFormat();
 
 /**
  * Render a resolved model turn content with structured display of
  * request metadata, token usage, and timing.
+ * When JSON is detected in section content, renders it with syntax highlighting.
  */
-export function renderModelTurnContent(content: IChatDebugEventModelTurnContent): { element: HTMLElement; disposables: DisposableStore } {
+export async function renderModelTurnContent(content: IChatDebugEventModelTurnContent, languageService: ILanguageService, clipboardService?: IClipboardService, scrollable?: { scanDomNode(): void }): Promise<{ element: HTMLElement; disposables: DisposableStore }> {
 	const disposables = new DisposableStore();
 	const container = $('div.chat-debug-message-content');
 	container.tabIndex = 0;
@@ -31,11 +36,11 @@ export function renderModelTurnContent(content: IChatDebugEventModelTurnContent)
 	if (content.model) {
 		statusParts.push(content.model);
 	}
-	if (content.status) {
+	if (content.status && content.status !== 'unknown') {
 		statusParts.push(content.status);
 	}
 	if (content.durationInMillis !== undefined) {
-		statusParts.push(localize('chatDebug.modelTurn.duration', "{0}ms", content.durationInMillis));
+		statusParts.push(localize('chatDebug.modelTurn.duration', "{0}ms", numberFormatter.value.format(content.durationInMillis)));
 	}
 	if (statusParts.length > 0) {
 		DOM.append(container, $('div.chat-debug-message-content-summary', undefined, statusParts.join(' \u00b7 ')));
@@ -45,25 +50,25 @@ export function renderModelTurnContent(content: IChatDebugEventModelTurnContent)
 	const detailsContainer = DOM.append(container, $('div.chat-debug-model-turn-details'));
 
 	if (content.inputTokens !== undefined) {
-		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.inputTokens', "Input tokens: {0}", content.inputTokens)));
+		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.inputTokens', "Input tokens: {0}", numberFormatter.value.format(content.inputTokens))));
 	}
 	if (content.outputTokens !== undefined) {
-		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.outputTokens', "Output tokens: {0}", content.outputTokens)));
+		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.outputTokens', "Output tokens: {0}", numberFormatter.value.format(content.outputTokens))));
 	}
 	if (content.cachedTokens !== undefined) {
-		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.cachedTokens', "Cached tokens: {0}", content.cachedTokens)));
+		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.cachedTokens', "Cached tokens: {0}", numberFormatter.value.format(content.cachedTokens))));
 	}
 	if (content.totalTokens !== undefined) {
-		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.totalTokens', "Total tokens: {0}", content.totalTokens)));
+		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.totalTokens', "Total tokens: {0}", numberFormatter.value.format(content.totalTokens))));
 	}
 	if (content.timeToFirstTokenInMillis !== undefined) {
-		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.ttft', "Time to first token: {0}ms", content.timeToFirstTokenInMillis)));
+		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.ttft', "Time to first token: {0}ms", numberFormatter.value.format(content.timeToFirstTokenInMillis))));
 	}
 	if (content.maxInputTokens !== undefined) {
-		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.maxInputTokens', "Max input tokens: {0}", content.maxInputTokens)));
+		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.maxInputTokens', "Max input tokens: {0}", numberFormatter.value.format(content.maxInputTokens))));
 	}
 	if (content.maxOutputTokens !== undefined) {
-		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.maxOutputTokens', "Max output tokens: {0}", content.maxOutputTokens)));
+		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.maxOutputTokens', "Max output tokens: {0}", numberFormatter.value.format(content.maxOutputTokens))));
 	}
 	if (content.errorMessage) {
 		DOM.append(detailsContainer, $('div.chat-debug-model-turn-error', undefined, localize('chatDebug.modelTurn.error', "Error: {0}", content.errorMessage)));
@@ -76,7 +81,8 @@ export function renderModelTurnContent(content: IChatDebugEventModelTurnContent)
 			localize('chatDebug.modelTurn.sections', "Sections ({0})", content.sections.length)));
 
 		for (const section of content.sections) {
-			renderCollapsibleSection(sectionsContainer, section, disposables);
+			const { plainText, tokenizedHtml } = await tokenizeContent(section.content, languageService);
+			renderSection(sectionsContainer, section.name, plainText, tokenizedHtml, disposables, false, clipboardService, scrollable);
 		}
 	}
 
@@ -93,32 +99,32 @@ export function modelTurnContentToPlainText(content: IChatDebugEventModelTurnCon
 	if (content.model) {
 		lines.push(localize('chatDebug.modelTurn.modelLabel', "Model: {0}", content.model));
 	}
-	if (content.status) {
+	if (content.status && content.status !== 'unknown') {
 		lines.push(localize('chatDebug.modelTurn.statusLabel', "Status: {0}", content.status));
 	}
 	if (content.durationInMillis !== undefined) {
-		lines.push(localize('chatDebug.modelTurn.durationLabel', "Duration: {0}ms", content.durationInMillis));
+		lines.push(localize('chatDebug.modelTurn.durationLabel', "Duration: {0}ms", numberFormatter.value.format(content.durationInMillis)));
 	}
 	if (content.timeToFirstTokenInMillis !== undefined) {
-		lines.push(localize('chatDebug.modelTurn.ttftLabel', "Time to first token: {0}ms", content.timeToFirstTokenInMillis));
+		lines.push(localize('chatDebug.modelTurn.ttftLabel', "Time to first token: {0}ms", numberFormatter.value.format(content.timeToFirstTokenInMillis)));
 	}
 	if (content.inputTokens !== undefined) {
-		lines.push(localize('chatDebug.modelTurn.inputTokensLabel', "Input tokens: {0}", content.inputTokens));
+		lines.push(localize('chatDebug.modelTurn.inputTokensLabel', "Input tokens: {0}", numberFormatter.value.format(content.inputTokens)));
 	}
 	if (content.outputTokens !== undefined) {
-		lines.push(localize('chatDebug.modelTurn.outputTokensLabel', "Output tokens: {0}", content.outputTokens));
+		lines.push(localize('chatDebug.modelTurn.outputTokensLabel', "Output tokens: {0}", numberFormatter.value.format(content.outputTokens)));
 	}
 	if (content.cachedTokens !== undefined) {
-		lines.push(localize('chatDebug.modelTurn.cachedTokensLabel', "Cached tokens: {0}", content.cachedTokens));
+		lines.push(localize('chatDebug.modelTurn.cachedTokensLabel', "Cached tokens: {0}", numberFormatter.value.format(content.cachedTokens)));
 	}
 	if (content.totalTokens !== undefined) {
-		lines.push(localize('chatDebug.modelTurn.totalTokensLabel', "Total tokens: {0}", content.totalTokens));
+		lines.push(localize('chatDebug.modelTurn.totalTokensLabel', "Total tokens: {0}", numberFormatter.value.format(content.totalTokens)));
 	}
 	if (content.maxInputTokens !== undefined) {
-		lines.push(localize('chatDebug.modelTurn.maxInputTokensLabel', "Max input tokens: {0}", content.maxInputTokens));
+		lines.push(localize('chatDebug.modelTurn.maxInputTokensLabel', "Max input tokens: {0}", numberFormatter.value.format(content.maxInputTokens)));
 	}
 	if (content.maxOutputTokens !== undefined) {
-		lines.push(localize('chatDebug.modelTurn.maxOutputTokensLabel', "Max output tokens: {0}", content.maxOutputTokens));
+		lines.push(localize('chatDebug.modelTurn.maxOutputTokensLabel', "Max output tokens: {0}", numberFormatter.value.format(content.maxOutputTokens)));
 	}
 	if (content.errorMessage) {
 		lines.push(localize('chatDebug.modelTurn.errorLabel', "Error: {0}", content.errorMessage));

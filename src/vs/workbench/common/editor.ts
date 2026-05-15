@@ -855,7 +855,13 @@ export const enum EditorInputCapabilities {
 	 * Signals that the editor should be revealed when being
 	 * opened if it is already opened in any editor group.
 	 */
-	ForceReveal = 1 << 10
+	ForceReveal = 1 << 10,
+
+	/**
+	 * Signals that the editor must be opened in a modal editor
+	 * part, overriding the `workbench.editor.useModal` setting.
+	 */
+	RequiresModal = 1 << 11
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
@@ -1160,6 +1166,15 @@ export interface IActiveEditorChangeEvent {
 	 * The new active editor or `undefined` if the group is empty.
 	 */
 	editor: EditorInput | undefined;
+
+	/**
+	 * Indicates whether the editor change is the result of an explicit
+	 * user action (`true`) or happened automatically as a side effect
+	 * (e.g. the chat agent opening files it has edited).
+	 *
+	 * When omitted, callers should treat the change as explicit.
+	 */
+	isExplicit?: boolean;
 }
 
 export interface IEditorWillMoveEvent extends IEditorIdentifier {
