@@ -6,7 +6,7 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived } from '../../../../base/common/observable.js';
+import { derived } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -21,7 +21,6 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../nls.js';
-import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAquariumService, IMountedToggleHandle, isAquariumAsSessionsEnabled, SESSIONS_DEVELOPER_JOY_AQUARIUM_AS_SESSIONS_SETTING, SESSIONS_DEVELOPER_JOY_ENABLED_SETTING } from '../../aquarium/browser/aquariumOverlay.js';
@@ -149,10 +148,10 @@ class NewChatWidget extends Disposable {
 	}
 
 	/**
-	 * When the combined gate is on, hide the new-chat input + workspace picker
-	 * and surface a transparent click-catcher hotspot so the user sees the
-	 * aquarium first. Reveal on click / focus / keyboard, dismiss on submit /
-	 * outside-click / Esc.
+	 * When the aquarium-as-sessions gate is on, hide the new-chat input +
+	 * workspace picker and surface a transparent click-catcher hotspot so the
+	 * user sees the aquarium first. Reveal on click / focus / keyboard,
+	 * dismiss on submit / outside-click / Esc.
 	 */
 	private _setupAquariumModeController(chatWidgetContainer: HTMLElement): void {
 		const recompute = () => this._recomputeAquariumMode(chatWidgetContainer);
@@ -163,11 +162,6 @@ class NewChatWidget extends Disposable {
 				recompute();
 			}
 		}));
-		this._register(this._workspacePicker.onDidSelectWorkspace(() => recompute()));
-		this._register(autorun(reader => {
-			this.sessionsManagementService.activeSession.read(reader);
-			recompute();
-		}));
 
 		recompute();
 	}
@@ -176,18 +170,7 @@ class NewChatWidget extends Disposable {
 		if (this.configurationService.getValue<boolean>(SESSIONS_DEVELOPER_JOY_ENABLED_SETTING) !== true) {
 			return false;
 		}
-		if (!isAquariumAsSessionsEnabled(this.configurationService)) {
-			return false;
-		}
-		const project = this._workspacePicker.selectedProject;
-		if (project && ANY_AGENT_HOST_PROVIDER_RE.test(project.providerId)) {
-			return true;
-		}
-		const active = this.sessionsManagementService.activeSession.get();
-		if (active && ANY_AGENT_HOST_PROVIDER_RE.test(active.providerId)) {
-			return true;
-		}
-		return false;
+		return isAquariumAsSessionsEnabled(this.configurationService);
 	}
 
 	private _recomputeAquariumMode(chatWidgetContainer: HTMLElement): void {
@@ -276,9 +259,12 @@ class NewChatWidget extends Disposable {
 		this._aquariumDismissStore.value = store;
 		const targetWindow = dom.getWindow(chatWidgetContainer);
 
-		// Outside-click → dismiss. Use capture phase so we see clicks before
-		// they're consumed elsewhere. Skip clicks inside picker popups.
-		store.add(dom.addDisposableListener(targetWindow.document, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+		// Outside-input click → dismiss. The chat widget container fills the
+		// whole pane, so "outside the container" is unreachable; instead
+		// dismiss whenever the click target isn't inside the actual input,
+		// picker, footer, or any floating popup. Use the generic mouse/touch
+		// helper so taps on iOS / touch surfaces also dismiss.
+		store.add(dom.addDisposableGenericMouseDownListener(targetWindow.document, (e: MouseEvent) => {
 			if (!this._aquariumModeActive || !this._revealed) {
 				return;
 			}
@@ -286,17 +272,15 @@ class NewChatWidget extends Disposable {
 			if (!target) {
 				return;
 			}
-			if (chatWidgetContainer.contains(target)) {
-				return;
-			}
-			if (target.closest('.monaco-list, .monaco-action-bar, .context-view, .monaco-menu, .monaco-hover, .monaco-quick-input-widget')) {
+			if (target.closest('.new-chat-input-container, .new-session-workspace-picker-container, .new-chat-bottom-container, .monaco-list, .monaco-action-bar, .context-view, .monaco-menu, .monaco-hover, .monaco-quick-input-widget, .agents-aquarium-toggle')) {
 				return;
 			}
 			this._setRevealed(false, chatWidgetContainer, /*focus*/ false, 'outside');
 		}, true));
 
-		// Esc on the input → dismiss when the input is empty (so the first
-		// press still clears partial text via Monaco's native handler).
+		// Esc → dismiss. Falls through to Monaco's native handler when the
+		// input has partial text so the first press still clears it; a
+		// second press (or a press while empty) backs out to the aquarium.
 		store.add(dom.addDisposableListener(chatWidgetContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (e.key !== 'Escape') {
 				return;

@@ -6,7 +6,6 @@
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAquariumHost, IAquariumPopulationDriver, IFishHandle } from './aquariumOverlay.js';
@@ -15,9 +14,9 @@ import { FishStatusVariant } from './fish.js';
 
 /**
  * Soft cap on session-fish so the aquarium never balloons past a comfortable
- * count even when the user runs unusually many parallel agent-host sessions.
- * The driver enforces this by aging out the oldest **terminal** (completed /
- * error) fish first; active sessions are never displaced by the cap.
+ * count even when the user runs unusually many parallel sessions. The driver
+ * enforces this by aging out the oldest **terminal** (completed / error)
+ * fish first; active sessions are never displaced by the cap.
  */
 const MAX_SESSION_FISH = 20;
 
@@ -45,9 +44,9 @@ interface ISessionFishEntry {
 }
 
 /**
- * Population driver that maps the live set of agent-host sessions 1:1 to fish
- * in the aquarium. Status drives color via {@link FishStatusVariant}; add /
- * remove animations are handled by the engine via {@link IFishHandle.fadeOut}.
+ * Population driver that maps the live set of sessions 1:1 to fish in the
+ * aquarium. Status drives color via {@link FishStatusVariant}; add / remove
+ * animations are handled by the engine via {@link IFishHandle.fadeOut}.
  *
  * Activity bubbles and submit-grow tweens are layered on top in later phases
  * (this driver only deals with population + status).
@@ -70,9 +69,7 @@ export class SessionPopulationDriver extends Disposable implements IAquariumPopu
 		this._host = host;
 
 		for (const session of this._sessionsManagementService.getSessions()) {
-			if (this._isAgentHost(session)) {
-				this._addSession(session);
-			}
+			this._addSession(session);
 		}
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
@@ -80,9 +77,7 @@ export class SessionPopulationDriver extends Disposable implements IAquariumPopu
 				this._removeSession(removed.sessionId);
 			}
 			for (const added of e.added) {
-				if (this._isAgentHost(added)) {
-					this._addSession(added);
-				}
+				this._addSession(added);
 			}
 			// `changed` is reactively handled by per-session autoruns wired in `_addSession`.
 		}));
@@ -98,10 +93,6 @@ export class SessionPopulationDriver extends Disposable implements IAquariumPopu
 		this._entries.clear();
 		this._host = undefined;
 		super.dispose();
-	}
-
-	private _isAgentHost(session: ISession): boolean {
-		return ANY_AGENT_HOST_PROVIDER_RE.test(session.providerId);
 	}
 
 	private _addSession(session: ISession): void {

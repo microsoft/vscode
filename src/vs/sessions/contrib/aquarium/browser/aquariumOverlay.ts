@@ -282,7 +282,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 
 		const mount: IMountedToggle = { button, hostVisible: true, driverFactory: opts?.driverFactory };
 		this.mounts.add(mount);
-		this.applyFeatureEnabledStateForButton(button);
+		this.applyButtonVisibility(mount);
 		this.applyDriverFactoryToActive();
 		this.reconcileActivation();
 
@@ -298,8 +298,21 @@ export class AquariumService extends Disposable implements IAquariumService {
 				if (mount.driverFactory === factory) {
 					return;
 				}
+				const wasActive = !!this.activeRef.value;
 				mount.driverFactory = factory;
-				this.applyDriverFactoryToActive();
+				// A non-undefined factory is a developer-joy gate forcing the
+				// aquarium on, so hide the manual toggle button to avoid
+				// conflict; setting it back to undefined restores the button.
+				this.applyButtonVisibility(mount);
+				this.reconcileActivation();
+				if (wasActive && this.activeRef.value) {
+					// Stayed active across the change — propagate the new
+					// factory by swapping drivers in place. (When newly
+					// activated we skip this: activate() already created the
+					// aquarium with the right factory. When newly deactivated
+					// we also skip: there's nothing to swap into.)
+					this.applyDriverFactoryToActive();
+				}
 			},
 			dispose: () => {
 				store.dispose();
@@ -340,15 +353,16 @@ export class AquariumService extends Disposable implements IAquariumService {
 	}
 
 	/**
-	 * Activate when at least one mount is host-visible and the user has it on;
-	 * otherwise deactivate synchronously (no fade) so the aquarium can't flash
-	 * behind a sibling view during a view swap.
+	 * Activate when at least one mount is host-visible and either the user
+	 * has the aquarium toggled on or a mount has supplied a driver factory
+	 * (developer-joy gate forces the aquarium on). When the host disappears,
+	 * tear down synchronously so the aquarium can't flash behind a sibling
+	 * view during a swap. When the activation reason goes away (factory
+	 * unset and toggle off), fade out without persisting.
 	 */
 	private reconcileActivation(): void {
 		const anyHostVisible = this.hasVisibleMount();
-		if (anyHostVisible && this.isFeatureEnabled() && this.isStoredEnabled() && !this.activeRef.value) {
-			this.activate(/* persist */ false);
-		} else if (!anyHostVisible) {
+		if (!anyHostVisible) {
 			// Host hide: dispose any active aquarium synchronously AND cancel
 			// any in-flight animated exit (from a prior user toggle-off) so it
 			// can't keep painting fish behind whatever view took our place.
@@ -356,12 +370,34 @@ export class AquariumService extends Disposable implements IAquariumService {
 			if (this.activeRef.value) {
 				this.deactivate(/* persist */ false, /* animate */ false);
 			}
+			return;
+		}
+		if (!this.isFeatureEnabled()) {
+			return;
+		}
+		const shouldBeActive = this.isStoredEnabled() || this.hasAnyDriverFactory();
+		if (shouldBeActive && !this.activeRef.value) {
+			this.activate(/* persist */ false);
+		} else if (!shouldBeActive && this.activeRef.value) {
+			// Reason for being active is gone (gate flipped off, user hadn't
+			// toggled the legacy aquarium on) — fade out without persisting
+			// so a future toggle still reflects user preference.
+			this.deactivate(/* persist */ false);
 		}
 	}
 
 	private hasVisibleMount(): boolean {
 		for (const m of this.mounts) {
 			if (m.hostVisible) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private hasAnyDriverFactory(): boolean {
+		for (const m of this.mounts) {
+			if (m.driverFactory) {
 				return true;
 			}
 		}
@@ -382,7 +418,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 
 	private applyFeatureEnabledState(): void {
 		for (const mount of this.mounts) {
-			this.applyFeatureEnabledStateForButton(mount.button);
+			this.applyButtonVisibility(mount);
 		}
 		if (!this.isFeatureEnabled() && this.activeRef.value) {
 			// Setting turned off — don't persist so the prior preference survives a re-enable.
@@ -392,8 +428,13 @@ export class AquariumService extends Disposable implements IAquariumService {
 		}
 	}
 
-	private applyFeatureEnabledStateForButton(button: HTMLButtonElement): void {
-		button.style.display = this.isFeatureEnabled() ? '' : 'none';
+	private applyButtonVisibility(mount: IMountedToggle): void {
+		// Hide the button when the public feature flag is off, or when this
+		// mount is being externally driven by a population driver factory —
+		// in that case the host is forcing the aquarium on and a manual
+		// hide-toggle would just create a confusing visual conflict.
+		const shouldShow = this.isFeatureEnabled() && !mount.driverFactory;
+		mount.button.style.display = shouldShow ? '' : 'none';
 	}
 
 	private updateToggleButtonVisual(button: HTMLButtonElement, active: boolean): void {
