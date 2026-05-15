@@ -6,7 +6,7 @@
 import { distinct } from '../../../../base/common/arrays.js';
 import { Barrier, RunOnceScheduler, ThrottledDelayer, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { CopilotSessionSearchPolicy, ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData } from '../../../../base/common/defaultAccount.js';
+import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -557,7 +557,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				policyData = policyData ?? {};
 				policyData.chat_agent_enabled = tokenEntitlementsData.policyData.chat_agent_enabled;
 				policyData.chat_preview_features_enabled = tokenEntitlementsData.policyData.chat_preview_features_enabled;
-				policyData.session_search = tokenEntitlementsData.policyData.session_search;
+				policyData.cloud_session_storage_enabled = tokenEntitlementsData.policyData.cloud_session_storage_enabled;
 				policyData.mcp = tokenEntitlementsData.policyData.mcp;
 				if (policyData.mcp) {
 					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData, options);
@@ -679,8 +679,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 						chat_agent_enabled: tokenMap.get('agent_mode') !== '0',
 						// MCP is only enabled if the flag is explicitly present and set to 1
 						mcp: tokenMap.get('mcp') === '1',
-						// Session search policy enum from Copilot token
-						session_search: Number(tokenMap.get('session_search') ?? '0') as CopilotSessionSearchPolicy,
+						// Cloud session storage policy boolean from Copilot token; undefined when not present
+						cloud_session_storage_enabled: tokenMap.has('cloud_session_storage_enabled') ? tokenMap.get('cloud_session_storage_enabled') === '1' : undefined,
 					},
 					copilotTokenInfo: {
 						sn: tokenMap.get('sn'),
