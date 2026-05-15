@@ -7,7 +7,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
-import { InlineChatEditorAffordance } from '../../../../contrib/inlineChat/browser/inlineChatEditorAffordance.js';
+import { InlineChatAffordanceWidget } from '../../../../contrib/inlineChat/browser/inlineChatAffordanceWidget.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
@@ -89,7 +89,7 @@ function renderInlineChatAffordance({ container, disposableStore, theme }: Compo
 	editor.focus();
 
 	disposableStore.add(instantiationService.createInstance(
-		InlineChatEditorAffordance,
+		InlineChatAffordanceWidget,
 		editor,
 		observableCodeEditor(editor).cursorSelection.map(sel => sel ?? undefined),
 	));

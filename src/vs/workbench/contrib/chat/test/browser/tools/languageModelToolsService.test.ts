@@ -30,12 +30,21 @@ import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { CopilotChatSettingId, CopilotToolId } from '../../../common/tools/copilotToolIds.js';
 import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
 import { MockLanguageModelToolsConfirmationService } from '../../common/tools/mockLanguageModelToolsConfirmationService.js';
+import { IToolResultCompressor } from '../../../common/tools/toolResultCompressor.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
+
+const noopToolResultCompressor: IToolResultCompressor = {
+	_serviceBrand: undefined,
+	registerFilter: () => { },
+	registerCache: () => { },
+	maybeCompress: () => undefined,
+};
 
 class TestAccessibilitySignalService implements Partial<IAccessibilitySignalService> {
 	public signalPlayedCalls: { signal: AccessibilitySignal; options?: any }[] = [];
@@ -142,6 +151,7 @@ function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreL
 	const chatService = new MockChatService();
 	instaService.stub(IChatService, chatService);
 	instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+	instaService.stub(IToolResultCompressor, noopToolResultCompressor);
 
 	if (options?.accessibilityService) {
 		instaService.stub(IAccessibilityService, options.accessibilityService);
@@ -2023,6 +2033,7 @@ suite('LanguageModelToolsService', () => {
 		instaService1.stub(IAccessibilityService, testAccessibilityService1);
 		instaService1.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
 		instaService1.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		instaService1.stub(IToolResultCompressor, noopToolResultCompressor);
 		const testService1 = store.add(instaService1.createInstance(LanguageModelToolsService));
 
 		const tool1 = registerToolForTest(testService1, store, 'soundOnlyTool', {
@@ -2064,6 +2075,7 @@ suite('LanguageModelToolsService', () => {
 		instaService2.stub(IAccessibilityService, testAccessibilityService2);
 		instaService2.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
 		instaService2.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		instaService2.stub(IToolResultCompressor, noopToolResultCompressor);
 		const testService2 = store.add(instaService2.createInstance(LanguageModelToolsService));
 
 		const tool2 = registerToolForTest(testService2, store, 'autoScreenReaderTool', {
@@ -2106,6 +2118,7 @@ suite('LanguageModelToolsService', () => {
 		instaService3.stub(IAccessibilityService, testAccessibilityService3);
 		instaService3.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
 		instaService3.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		instaService3.stub(IToolResultCompressor, noopToolResultCompressor);
 		const testService3 = store.add(instaService3.createInstance(LanguageModelToolsService));
 
 		const tool3 = registerToolForTest(testService3, store, 'offTool', {
@@ -2899,6 +2912,7 @@ suite('LanguageModelToolsService', () => {
 		}, store);
 		instaService.stub(IChatService, chatService);
 		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		instaService.stub(IToolResultCompressor, noopToolResultCompressor);
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		const tool = registerToolForTest(testService, store, 'gitCommitTool', {
@@ -2937,6 +2951,7 @@ suite('LanguageModelToolsService', () => {
 		}, store);
 		instaService.stub(IChatService, chatService);
 		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		instaService.stub(IToolResultCompressor, noopToolResultCompressor);
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Tool that was previously namespaced under extension but is now internal
@@ -2976,6 +2991,7 @@ suite('LanguageModelToolsService', () => {
 		}, store);
 		instaService.stub(IChatService, chatService);
 		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		instaService.stub(IToolResultCompressor, noopToolResultCompressor);
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Tool that was previously namespaced under extension but is now internal
@@ -3018,6 +3034,7 @@ suite('LanguageModelToolsService', () => {
 		}, store);
 		instaService.stub(IChatService, chatService);
 		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		instaService.stub(IToolResultCompressor, noopToolResultCompressor);
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Tool that was previously namespaced under extension but is now internal
@@ -3202,6 +3219,45 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(result.get(anyModelTool), true, 'anyModelTool should be enabled');
 		// claudeTool should NOT be in the enablement map (filtered out by model)
 		assert.strictEqual(result.has(claudeTool), false, 'claudeTool should be filtered out by model');
+	});
+
+	test('gpt-5.5 readFile setting controls Copilot read tool availability', () => {
+		const readTool: IToolData = {
+			id: CopilotToolId.ReadFile,
+			toolReferenceName: 'readFile',
+			modelDescription: 'Read File Tool',
+			displayName: 'Read File',
+			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(readTool));
+		store.add(service.readToolSet.addTool(readTool));
+
+		const gpt55Model = { id: 'gpt-5.5', vendor: 'copilot', family: 'gpt-5.5', version: '1.0' } as ILanguageModelChatMetadata;
+
+		configurationService.setUserConfiguration(CopilotChatSettingId.Gpt55ReadFileToolEnabled, false);
+
+		const disabledTools = Array.from(service.getTools(gpt55Model));
+		assert.ok(!disabledTools.some(tool => tool.id === CopilotToolId.ReadFile), 'readFile should not be returned from getTools when disabled for gpt-5.5');
+
+		const disabledReadToolSet = Array.from(service.getToolSetsForModel(gpt55Model)).find(toolSet => toolSet.id === 'read');
+		assert.ok(disabledReadToolSet, 'read tool set should exist');
+		assert.ok(!Array.from(disabledReadToolSet.getTools()).some(tool => tool.id === CopilotToolId.ReadFile), 'readFile should not be included as a read tool-set member when disabled for gpt-5.5');
+
+		const disabledEnablementMap = service.toToolAndToolSetEnablementMap(['read/readFile'], gpt55Model);
+		assert.strictEqual(disabledEnablementMap.has(readTool), false, 'readFile should not be included in explicit enablement maps when disabled for gpt-5.5');
+
+		configurationService.setUserConfiguration(CopilotChatSettingId.Gpt55ReadFileToolEnabled, true);
+
+		const enabledTools = Array.from(service.getTools(gpt55Model));
+		assert.ok(enabledTools.some(tool => tool.id === CopilotToolId.ReadFile), 'readFile should be returned from getTools when enabled for gpt-5.5');
+
+		const enabledReadToolSet = Array.from(service.getToolSetsForModel(gpt55Model)).find(toolSet => toolSet.id === 'read');
+		assert.ok(enabledReadToolSet, 'read tool set should exist');
+		assert.ok(Array.from(enabledReadToolSet.getTools()).some(tool => tool.id === CopilotToolId.ReadFile), 'readFile should be included as a read tool-set member when enabled for gpt-5.5');
+
+		const enabledEnablementMap = service.toToolAndToolSetEnablementMap(['read/readFile'], gpt55Model);
+		assert.strictEqual(enabledEnablementMap.get(readTool), true, 'readFile should be included in explicit enablement maps when enabled for gpt-5.5');
 	});
 
 	test('observeTools returns tools filtered by context', async () => {

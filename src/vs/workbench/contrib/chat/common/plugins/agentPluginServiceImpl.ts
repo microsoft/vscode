@@ -141,12 +141,27 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 type PluginEntry = IAgentPlugin;
 
 /**
+ * Minimal shape of a parsed plugin manifest. Known fields are typed; unknown
+ * keys (e.g. `commands`, `skills`, `hooks`, `mcpServers`) remain `unknown` and
+ * are parsed by the component readers.
+ *
+ * NOTE: `name` is typed as `string | undefined` to express intent, but
+ * consumers must still runtime-validate it (manifests are untrusted JSON).
+ */
+interface IPluginManifest {
+	readonly name?: string;
+	readonly [key: string]: unknown;
+}
+
+/**
  * Describes a single discovered plugin source, before the shared
  * infrastructure builds the full {@link IAgentPlugin} from it.
  */
 interface IPluginSource {
 	readonly uri: URI;
 	readonly fromMarketplace: IMarketplacePlugin | undefined;
+	/** Repository root that serves as the boundary for component path resolution. */
+	readonly repositoryUri?: URI;
 	/** Called when remove is invoked on the plugin */
 	remove(): void;
 }
@@ -203,7 +218,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			if (!seenPluginUris.has(key)) {
 				seenPluginUris.add(key);
 				const format = await detectPluginFormat(source.uri, this._fileService);
-				plugins.push(this._toPlugin(source.uri, format, source.fromMarketplace, () => source.remove()));
+				plugins.push(await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, () => source.remove()));
 			}
 		}
 
@@ -222,7 +237,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 	}
 
-	private _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, removeCallback: () => void): IAgentPlugin {
+	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: () => void): Promise<IAgentPlugin> {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
@@ -237,9 +252,12 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		const store = new DisposableStore();
 		const enablement = derived(r => this._enablementModel.readEnabled(key, r));
 
-		// Track current component directories for the file watcher. These are
-		// updated whenever the manifest is read (inside each component reader).
-		const manifest = observableValue<Record<string, unknown> | undefined>('agentPluginManifest', undefined);
+		// Read the manifest up front so its `name` field can be used in the
+		// plugin label (for direct installs that have no marketplace metadata).
+		// Component directories are tracked via observers downstream and
+		// re-read whenever the manifest changes on disk.
+		const initialManifest = await this._readManifest(uri, format);
+		const manifest = observableValue<IPluginManifest | undefined>('agentPluginManifest', initialManifest);
 
 		const observeComponent = <T>(
 			prop: string,
@@ -258,7 +276,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 				}
 
 				const paths = parseComponentPathConfig(section);
-				const dirs = resolveComponentDirs(uri, defaultPath, paths);
+				const dirs = resolveComponentDirs(uri, defaultPath, paths, repositoryUri);
 				for (const d of dirs) {
 					const watcher = this._fileService.createWatcher(d, { recursive: false, excludes: [] });
 					reader.store.add(watcher);
@@ -309,7 +327,8 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			'.mcp.json',
 		);
 
-		// Read the manifest initially and re-read whenever manifest files change.
+		// Re-read the manifest whenever it changes on disk. The initial value
+		// was already populated above before constructing the observable.
 		const readManifest = async () => {
 			manifest.set(await this._readManifest(uri, format), undefined);
 		};
@@ -321,11 +340,13 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		store.add(manifestWatcher);
 		store.add(manifestWatcher.onDidChange(() => readManifest()));
 
-		readManifest();
+		const manifestName = typeof initialManifest?.name === 'string' && initialManifest.name.trim()
+			? initialManifest.name.trim()
+			: undefined;
 
 		const plugin: PluginEntry = {
 			uri,
-			label: fromMarketplace?.name ?? basename(uri),
+			label: fromMarketplace?.name ?? manifestName ?? basename(uri),
 			enablement,
 			remove: removeCallback,
 			hooks,
@@ -342,10 +363,10 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		return plugin;
 	}
 
-	private async _readManifest(pluginUri: URI, format: IPluginFormatConfig): Promise<Record<string, unknown> | undefined> {
+	private async _readManifest(pluginUri: URI, format: IPluginFormatConfig): Promise<IPluginManifest | undefined> {
 		const json = await this._readJsonFile(joinPath(pluginUri, format.manifestPath));
-		if (json && typeof json === 'object') {
-			return json as Record<string, unknown>;
+		if (json && typeof json === 'object' && !Array.isArray(json)) {
+			return json as IPluginManifest;
 		}
 		return undefined;
 	}
@@ -632,9 +653,12 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 				continue;
 			}
 
+			const repositoryUri = this._pluginRepositoryService.getRepositoryUri(entry.plugin.marketplaceReference, entry.plugin.marketplaceType);
+
 			sources.push({
 				uri: stat.resource,
 				fromMarketplace: entry.plugin,
+				repositoryUri,
 				remove: () => {
 					this._enablementModel.remove(stat.resource.toString());
 					this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri);
@@ -653,6 +677,180 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 		}
 
 		return sources;
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Copilot CLI plugin discovery
+// ---------------------------------------------------------------------------
+
+/**
+ * Directory under the Copilot CLI home where installed plugins are cached.
+ * Layout is two levels deep: `<marketplace>/<plugin>/`. Direct (non-marketplace)
+ * installs use the reserved marketplace segment `_direct`.
+ *
+ * See `src/plugins/manager.ts` in the copilot-agent-runtime repo.
+ */
+const COPILOT_CLI_INSTALLED_PLUGINS_DIR = '.copilot/installed-plugins';
+
+/**
+ * Discovers plugins installed by the Copilot CLI under
+ * `~/.copilot/installed-plugins/<marketplace>/<plugin>/`. Each leaf directory
+ * is treated as a plugin root, allowing CLI-installed plugins (both
+ * marketplace and direct) to surface in VS Code without a separate install.
+ */
+export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
+
+	constructor(
+		@IFileService fileService: IFileService,
+		@IPathService pathService: IPathService,
+		@ILogService logService: ILogService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IDialogService private readonly _dialogService: IDialogService,
+	) {
+		super(fileService, pathService, logService, workspaceContextService);
+	}
+
+	public override start(enablementModel: IEnablementModel): void {
+		this._enablementModel = enablementModel;
+		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
+
+		const watcherStore = this._register(new DisposableStore());
+		const setupWatchers = async () => {
+			watcherStore.clear();
+			if (this._store.isDisposed) {
+				return;
+			}
+
+			const root = await this._getInstalledPluginsDir();
+
+			// Walk up to the deepest existing ancestor and watch each directory
+			// from there down. Non-recursive watchers fail if the target doesn't
+			// exist, so we need to watch an existing parent (e.g. ~/.copilot or
+			// userHome) to detect the first-ever plugin install.
+			const dirsToWatch: URI[] = [];
+			let candidate: URI | undefined = root;
+			while (candidate) {
+				dirsToWatch.unshift(candidate);
+				const parent = joinPath(candidate, '..');
+				if (parent.toString() === candidate.toString()) {
+					break;
+				}
+				if (await this._pathExists(parent)) {
+					dirsToWatch.unshift(parent);
+					break;
+				}
+				candidate = parent;
+			}
+
+			for (const dir of dirsToWatch) {
+				if (!(await this._pathExists(dir))) {
+					continue;
+				}
+				const watcher = this._fileService.createWatcher(dir, { recursive: false, excludes: [] });
+				watcherStore.add(watcher);
+				watcherStore.add(watcher.onDidChange(() => {
+					scheduler.schedule();
+					// Re-attach watchers in case directories appeared/disappeared.
+					setupWatchers().catch(() => { /* watchers are best-effort */ });
+				}));
+			}
+
+			// Watch each marketplace bucket non-recursively for plugin
+			// install/uninstall events.
+			let rootStat;
+			try {
+				rootStat = await this._fileService.resolve(root);
+			} catch {
+				return;
+			}
+			if (!rootStat.children) {
+				return;
+			}
+			for (const marketplaceDir of rootStat.children) {
+				if (!marketplaceDir.isDirectory) {
+					continue;
+				}
+				const watcher = this._fileService.createWatcher(marketplaceDir.resource, { recursive: false, excludes: [] });
+				watcherStore.add(watcher);
+				watcherStore.add(watcher.onDidChange(() => scheduler.schedule()));
+			}
+		};
+
+		setupWatchers().catch(() => { /* watchers are best-effort */ });
+		scheduler.schedule();
+	}
+
+	private async _getInstalledPluginsDir(): Promise<URI> {
+		const userHome = await this._pathService.userHome();
+		return joinPath(userHome, COPILOT_CLI_INSTALLED_PLUGINS_DIR);
+	}
+
+	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
+		const root = await this._getInstalledPluginsDir();
+
+		let rootStat;
+		try {
+			rootStat = await this._fileService.resolve(root);
+		} catch {
+			// Directory doesn't exist — Copilot CLI hasn't installed any plugins.
+			return [];
+		}
+
+		if (!rootStat.isDirectory || !rootStat.children) {
+			return [];
+		}
+
+		const sources: IPluginSource[] = [];
+		// Each immediate child is a marketplace bucket (e.g. `_direct`,
+		// `<marketplace-name>`); each grandchild is a plugin root.
+		for (const marketplaceDir of rootStat.children) {
+			if (!marketplaceDir.isDirectory) {
+				continue;
+			}
+
+			let marketplaceStat;
+			try {
+				marketplaceStat = await this._fileService.resolve(marketplaceDir.resource);
+			} catch {
+				continue;
+			}
+
+			if (!marketplaceStat.children) {
+				continue;
+			}
+
+			for (const pluginDir of marketplaceStat.children) {
+				if (!pluginDir.isDirectory) {
+					continue;
+				}
+				sources.push({
+					uri: pluginDir.resource,
+					fromMarketplace: undefined,
+					remove: () => this._promptRemove(pluginDir.resource),
+				});
+			}
+		}
+
+		return sources;
+	}
+
+	private async _promptRemove(resource: URI): Promise<void> {
+		const { confirmed } = await this._dialogService.confirm({
+			message: localize('copilotCliPlugin.remove.confirm', "This plugin was installed by the Copilot CLI. Remove it from disk?"),
+			detail: localize('copilotCliPlugin.remove.detail', "The plugin directory '{0}' will be moved to the trash. You can reinstall it later via the Copilot CLI.", resource.fsPath),
+			primaryButton: localize('copilotCliPlugin.remove.primary', "Remove"),
+		});
+		if (!confirmed) {
+			return;
+		}
+
+		try {
+			await this._fileService.del(resource, { recursive: true, useTrash: true });
+			this._enablementModel.remove(resource.toString());
+		} catch (error) {
+			this._logService.error('[CopilotCliAgentPluginDiscovery] Failed to remove plugin', error);
+		}
 	}
 }
 

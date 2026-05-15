@@ -5,7 +5,7 @@
 
 import { BasePromptElementProps, PromptElement, PromptElementProps, PromptMetadata, Raw, SystemMessage, UserMessage } from '@vscode/prompt-tsx';
 import type { CancellationToken, ChatContext, ChatParticipantDetectionProvider, ChatParticipantDetectionResult, ChatParticipantMetadata, ChatRequest, Uri, ChatLocation as VscodeChatLocation } from 'vscode';
-import { CHAT_PARTICIPANT_ID_PREFIX, editingSessionAgentEditorName, getChatParticipantIdFromName } from '../../../platform/chat/common/chatAgents';
+import { CHAT_PARTICIPANT_ID_PREFIX, getChatParticipantIdFromName } from '../../../platform/chat/common/chatAgents';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { getTextPart, roleToString } from '../../../platform/chat/common/globalStringUtils';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -187,7 +187,7 @@ export class IntentDetector implements ChatParticipantDetectionProvider {
 			return undefined;
 		}
 
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 
 		const preferredIntent = await this.getPreferredIntent(location, documentContext, history, messageText);
 
@@ -260,7 +260,7 @@ export class IntentDetector implements ChatParticipantDetectionProvider {
 		history: Turn[] = [],
 		document?: TextDocumentSnapshot
 	) {
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 
 		const { messages: currentSelection } = await renderPromptElement(this.instantiationService, endpoint, CurrentSelection, { document });
 		const { messages: conversationHistory } = await renderPromptElement(this.instantiationService, endpoint, ConversationHistory, { history, priority: 1000 }, undefined, undefined).catch(() => ({ messages: [] }));
@@ -347,15 +347,6 @@ export class IntentDetector implements ChatParticipantDetectionProvider {
 			}
 		}
 
-		if (location === ChatLocation.Editor
-			&& !this.configurationService.getNonExtensionConfig('inlineChat.enableV2')
-			&& chosenIntent !== Intent.InlineChat
-		) {
-			return {
-				command: chosenIntent,
-				participant: getChatParticipantIdFromName(editingSessionAgentEditorName)
-			};
-		}
 
 		if (baseUserTelemetry) {
 			const promptTelemetryData = baseUserTelemetry.extendedBy({

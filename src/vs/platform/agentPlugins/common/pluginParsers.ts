@@ -187,16 +187,18 @@ export function parseComponentPathConfig(raw: unknown): IComponentPathConfig {
 /**
  * Resolves the directories to scan for a given component type, combining
  * the default directory with any custom paths from the manifest config.
- * Paths that resolve outside the plugin root are silently ignored.
+ * Paths that resolve outside the boundary are silently ignored.
+ * @param boundaryUri The outermost directory that resolved paths must stay within. Defaults to {@link pluginUri}.
  */
-export function resolveComponentDirs(pluginUri: URI, defaultDir: string, config: IComponentPathConfig): readonly URI[] {
+export function resolveComponentDirs(pluginUri: URI, defaultDir: string, config: IComponentPathConfig, boundaryUri?: URI): readonly URI[] {
+	const boundary = (boundaryUri && isEqualOrParent(pluginUri, boundaryUri)) ? boundaryUri : pluginUri;
 	const dirs: URI[] = [];
 	if (!config.exclusive) {
 		dirs.push(joinPath(pluginUri, defaultDir));
 	}
 	for (const p of config.paths) {
 		const resolved = normalizePath(joinPath(pluginUri, p));
-		if (isEqualOrParent(resolved, pluginUri)) {
+		if (isEqualOrParent(resolved, boundary)) {
 			dirs.push(resolved);
 		}
 	}
@@ -811,6 +813,7 @@ export async function parsePlugin(
 	fileService: IFileService,
 	workspaceRoot: URI | undefined,
 	userHome: string,
+	boundaryUri?: URI,
 ): Promise<IParsedPlugin> {
 	const formatConfig = await detectPluginFormat(pluginUri, fileService);
 
@@ -819,10 +822,10 @@ export async function parsePlugin(
 	const manifest = (manifestJson && typeof manifestJson === 'object') ? manifestJson as Record<string, unknown> : undefined;
 
 	// Resolve component directories from manifest
-	const hookDirs = resolveComponentDirs(pluginUri, formatConfig.hookConfigPath, parseComponentPathConfig(manifest?.['hooks']));
-	const mcpDirs = resolveComponentDirs(pluginUri, '.mcp.json', parseComponentPathConfig(manifest?.['mcpServers']));
-	const skillDirs = resolveComponentDirs(pluginUri, 'skills', parseComponentPathConfig(manifest?.['skills']));
-	const agentDirs = resolveComponentDirs(pluginUri, 'agents', parseComponentPathConfig(manifest?.['agents']));
+	const hookDirs = resolveComponentDirs(pluginUri, formatConfig.hookConfigPath, parseComponentPathConfig(manifest?.['hooks']), boundaryUri);
+	const mcpDirs = resolveComponentDirs(pluginUri, '.mcp.json', parseComponentPathConfig(manifest?.['mcpServers']), boundaryUri);
+	const skillDirs = resolveComponentDirs(pluginUri, 'skills', parseComponentPathConfig(manifest?.['skills']), boundaryUri);
+	const agentDirs = resolveComponentDirs(pluginUri, 'agents', parseComponentPathConfig(manifest?.['agents']), boundaryUri);
 
 	// Handle embedded MCP servers in manifest
 	let embeddedMcp: IMcpServerDefinition[] = [];

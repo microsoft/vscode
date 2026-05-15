@@ -134,4 +134,47 @@ suite('ChatQuestionCarouselData', () => {
 			});
 		});
 	});
+
+	suite('dismiss', () => {
+		test('sets data, marks used, clears drafts, and resolves completion', async () => {
+			const carousel = new ChatQuestionCarouselData(createQuestions(), true, 'resolve-1');
+			carousel.draftAnswers = { q1: 'draft' };
+			carousel.draftCurrentIndex = 1;
+			carousel.draftCollapsed = true;
+
+			const answers = { q1: 'answer1' };
+			carousel.dismiss(answers);
+
+			assert.deepStrictEqual(carousel.data, answers);
+			assert.strictEqual(carousel.isUsed, true);
+			assert.strictEqual(carousel.draftAnswers, undefined);
+			assert.strictEqual(carousel.draftCurrentIndex, undefined);
+			assert.strictEqual(carousel.draftCollapsed, undefined);
+
+			const result = await carousel.completion.p;
+			assert.deepStrictEqual(result, { answers });
+		});
+
+		test('with undefined answers stores empty object as data', async () => {
+			const carousel = new ChatQuestionCarouselData(createQuestions(), true, 'resolve-1');
+			carousel.dismiss(undefined);
+
+			assert.deepStrictEqual(carousel.data, {});
+			assert.strictEqual(carousel.isUsed, true);
+
+			const result = await carousel.completion.p;
+			assert.strictEqual(result.answers, undefined);
+		});
+
+		test('is a no-op when already dismissed', async () => {
+			const carousel = new ChatQuestionCarouselData(createQuestions(), true, 'resolve-1');
+
+			carousel.dismiss({ q1: 'first' });
+			carousel.dismiss({ q1: 'second' });
+
+			assert.deepStrictEqual(carousel.data, { q1: 'first' }, 'Second dismiss should not overwrite data');
+			const result = await carousel.completion.p;
+			assert.deepStrictEqual(result.answers, { q1: 'first' });
+		});
+	});
 });

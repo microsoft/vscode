@@ -485,6 +485,12 @@ export enum ChatErrorLevel {
 	Error = 2
 }
 
+export enum ChatInputNotificationSeverity {
+	Info = 0,
+	Warning = 1,
+	Error = 2,
+}
+
 export enum ChatRequestEditedFileEventKind {
 	Keep = 1,
 	Undo = 2,
