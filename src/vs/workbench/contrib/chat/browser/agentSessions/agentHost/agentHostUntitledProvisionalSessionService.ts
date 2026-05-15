@@ -385,27 +385,35 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		workingDirectory: URI | undefined,
 		partial: Record<string, unknown>,
 	): Promise<URI | undefined> {
-		const backend = await this.getOrCreate(sessionResource, provider, workingDirectory);
-		if (!backend) {
-			return undefined;
-		}
-
-		// SYNCHRONOUS: mutate cache + dispatch BEFORE awaiting anything.
-		// `tryRebind` only awaits `_pending`, not this service's `_sequencer`,
-		// so the rebound entry must observe the latest `entry.config` even if
-		// the user clicks Send the very next tick.
-		const entry = this._entries.get(sessionResource);
-		if (entry) {
-			Object.assign(entry.config, partial);
+		// SYNCHRONOUS pre-await mutation: a `tryRebind` racing during
+		// `getOrCreate` only awaits `_pending` (not this service's
+		// `_sequencer`), so the rebound entry must observe the latest
+		// `entry.config` even if the user clicks Send the very next tick.
+		const preExisting = this._entries.get(sessionResource);
+		if (preExisting) {
+			Object.assign(preExisting.config, partial);
 			// Keep overlay values in sync with the cache so the picker (which
 			// prefers `overlay.values`) doesn't render a stale value during the
 			// re-resolve round-trip. Schema is left as-is; the queued resolve
 			// replaces both atomically below.
-			if (entry.resolvedConfig) {
-				entry.resolvedConfig = {
-					...entry.resolvedConfig,
-					values: { ...entry.resolvedConfig.values, ...partial },
+			if (preExisting.resolvedConfig) {
+				preExisting.resolvedConfig = {
+					...preExisting.resolvedConfig,
+					values: { ...preExisting.resolvedConfig.values, ...partial },
 				};
+			}
+		}
+		const backend = await this.getOrCreate(sessionResource, provider, workingDirectory);
+		if (!backend) {
+			return undefined;
+		}
+		if (!preExisting) {
+			// Fresh entry just created by getOrCreate; apply partial on top.
+			// No `resolvedConfig` exists yet on a newly-created entry, so
+			// there's nothing to merge into.
+			const entry = this._entries.get(sessionResource);
+			if (entry) {
+				Object.assign(entry.config, partial);
 			}
 		}
 		this._agentHostService.dispatch({
