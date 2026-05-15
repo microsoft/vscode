@@ -413,6 +413,7 @@
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	z-index: 50;
 	width: max-content;
+	outline: none;
 }
 
 .action-list-submenu-hover-header {
@@ -423,7 +424,6 @@
 	word-wrap: break-word;
 	-webkit-user-select: text;
 	user-select: text;
-	outline: none;
 }
 
 .action-list-submenu-hover-header a {
