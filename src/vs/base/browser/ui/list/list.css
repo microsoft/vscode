@@ -43,6 +43,17 @@
 	touch-action: none;
 }
 
+/* In native overflow scroll mode, let the browser handle touch interactions on rows
+   so it can scroll the list, fire long-press selection, and pop the OS copy/paste callout. */
+.monaco-list.native-overflow-scroll.mouse-support .monaco-list-row {
+	touch-action: auto;
+}
+
+.monaco-list.native-overflow-scroll > .monaco-scrollable-element.native-overflow-scroll {
+	-webkit-overflow-scrolling: touch;
+	overscroll-behavior: contain;
+}
+
 /* Make sure the scrollbar renders above overlays (sticky scroll) */
 .monaco-list .monaco-scrollable-element > .scrollbar.vertical,
 .monaco-pane-view > .monaco-split-view2.vertical > .monaco-scrollable-element > .scrollbar.vertical {

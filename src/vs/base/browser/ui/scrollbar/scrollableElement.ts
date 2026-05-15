@@ -14,7 +14,7 @@ import { VerticalScrollbar } from './verticalScrollbar.js';
 import { Widget } from '../widget.js';
 import { TimeoutTimer } from '../../../common/async.js';
 import { Emitter, Event } from '../../../common/event.js';
-import { IDisposable, dispose } from '../../../common/lifecycle.js';
+import { DisposableStore, IDisposable, dispose } from '../../../common/lifecycle.js';
 import * as platform from '../../../common/platform.js';
 import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from '../../../common/scrollable.js';
 import './media/scrollbars.css';
@@ -198,6 +198,10 @@ export abstract class AbstractScrollableElement extends Widget {
 	private _inertialTimeout: TimeoutTimer | null = null;
 	private _inertialSpeed: { X: number; Y: number } = { X: 0, Y: 0 };
 
+	private readonly _contentNode: HTMLElement;
+	private _isApplyingNativeScroll: boolean = false;
+	private _nativeScrollDisposables: DisposableStore | null = null;
+
 	private readonly _onScroll = this._register(new Emitter<ScrollEvent>());
 	public get onScroll(): Event<ScrollEvent> { return this._onScroll.event; }
 
@@ -210,8 +214,8 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	protected constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable: Scrollable) {
 		super();
-		element.style.overflow = 'hidden';
 		this._options = resolveOptions(options);
+		this._contentNode = element;
 		this._scrollable = scrollable;
 
 		this._register(this._scrollable.onScroll((e) => {
@@ -270,6 +274,108 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._shouldRender = true;
 
 		this._revealOnScroll = true;
+
+		if (this._options.useNativeOverflowScroll) {
+			this._applyNativeOverflowScroll();
+		} else {
+			element.style.overflow = 'hidden';
+		}
+	}
+
+	/**
+	 * Toggle native browser overflow-scrolling for the host element. When enabled the browser
+	 * provides momentum / rubber-band scrolling and the inner {@link Scrollable} mirrors the
+	 * native scrollTop. Used to restore mobile gesture behaviour on touch devices.
+	 */
+	public setUseNativeOverflowScroll(enabled: boolean): void {
+		if (this._options.useNativeOverflowScroll === enabled) {
+			return;
+		}
+		this._options.useNativeOverflowScroll = enabled;
+		if (enabled) {
+			this._applyNativeOverflowScroll();
+		} else {
+			this._removeNativeOverflowScroll();
+		}
+	}
+
+	private _applyNativeOverflowScroll(): void {
+		this._domNode.classList.add('native-overflow-scroll');
+		this._domNode.style.overflow = '';
+		this._domNode.style.overflowY = 'auto';
+		this._domNode.style.overflowX = 'hidden';
+		// Browser-native momentum + rubber-band scrolling and isolation.
+		(this._domNode.style as CSSStyleDeclaration & { webkitOverflowScrolling?: string }).webkitOverflowScrolling = 'touch';
+		this._domNode.style.overscrollBehavior = 'contain';
+		// Custom scrollbar widgets are unused in native mode — keep them hidden but appended,
+		// so existing references (e.g. getOverviewRulerLayoutInfo) keep working.
+		this._verticalScrollbar.domNode.domNode.style.display = 'none';
+		this._horizontalScrollbar.domNode.domNode.style.display = 'none';
+		// The inner content node may have been forced to overflow:hidden during construction (default mode);
+		// clear that so the native overflow on the host can actually scroll the content.
+		this._contentNode.style.overflow = '';
+
+		// Size content node to scrollHeight so the host has scrollable content.
+		const dims = this._scrollable.getScrollDimensions();
+		this._contentNode.style.height = `${dims.scrollHeight}px`;
+		if (dims.scrollWidth > dims.width) {
+			this._contentNode.style.width = `${dims.scrollWidth}px`;
+		}
+
+		// Sync the host's scroll position to whatever the Scrollable currently believes.
+		const pos = this._scrollable.getCurrentScrollPosition();
+		this._isApplyingNativeScroll = true;
+		try {
+			this._domNode.scrollTop = pos.scrollTop;
+			this._domNode.scrollLeft = pos.scrollLeft;
+		} finally {
+			this._isApplyingNativeScroll = false;
+		}
+
+		this._nativeScrollDisposables = new DisposableStore();
+		// Mirror the host element's native scrollTop/scrollLeft into the inner Scrollable
+		// so consumers (e.g. list/tree virtualization) continue to receive onScroll events
+		// driven by the browser's native momentum/inertial scrolling.
+		this._nativeScrollDisposables.add(dom.addDisposableListener(this._domNode, 'scroll', () => {
+			const dims = this._scrollable.getScrollDimensions();
+			const scrollTop = Math.max(0, Math.min(this._domNode.scrollTop, Math.max(0, dims.scrollHeight - dims.height)));
+			const scrollLeft = Math.max(0, Math.min(this._domNode.scrollLeft, Math.max(0, dims.scrollWidth - dims.width)));
+			this._isApplyingNativeScroll = true;
+			try {
+				this._scrollable.setScrollPositionNow({ scrollTop, scrollLeft });
+			} finally {
+				this._isApplyingNativeScroll = false;
+			}
+		}, { passive: true }));
+
+		// When a consumer programmatically moves the Scrollable, mirror that to the native scrollTop.
+		this._nativeScrollDisposables.add(this._scrollable.onScroll((e) => {
+			if (this._isApplyingNativeScroll) {
+				return;
+			}
+			if (e.scrollTopChanged && this._domNode.scrollTop !== e.scrollTop) {
+				this._domNode.scrollTop = e.scrollTop;
+			}
+			if (e.scrollLeftChanged && this._domNode.scrollLeft !== e.scrollLeft) {
+				this._domNode.scrollLeft = e.scrollLeft;
+			}
+		}));
+	}
+
+	private _removeNativeOverflowScroll(): void {
+		this._nativeScrollDisposables?.dispose();
+		this._nativeScrollDisposables = null;
+		this._domNode.classList.remove('native-overflow-scroll');
+		this._domNode.style.overflowY = '';
+		this._domNode.style.overflowX = '';
+		(this._domNode.style as CSSStyleDeclaration & { webkitOverflowScrolling?: string }).webkitOverflowScrolling = '';
+		this._domNode.style.overscrollBehavior = '';
+		this._domNode.style.overflow = 'hidden';
+		this._verticalScrollbar.domNode.domNode.style.display = '';
+		this._horizontalScrollbar.domNode.domNode.style.display = '';
+		this._contentNode.style.overflow = 'hidden';
+		this._contentNode.style.height = '';
+		this._contentNode.style.width = '';
 	}
 
 	public override dispose(): void {
@@ -278,6 +384,8 @@ export abstract class AbstractScrollableElement extends Widget {
 			this._inertialTimeout.dispose();
 			this._inertialTimeout = null;
 		}
+		this._nativeScrollDisposables?.dispose();
+		this._nativeScrollDisposables = null;
 		super.dispose();
 	}
 
@@ -309,6 +417,14 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	public setScrollDimensions(dimensions: INewScrollDimensions): void {
 		this._scrollable.setScrollDimensions(dimensions, false);
+		if (this._options.useNativeOverflowScroll) {
+			// Size the content node to match scrollHeight/scrollWidth so the host can natively scroll.
+			const dims = this._scrollable.getScrollDimensions();
+			this._contentNode.style.height = `${dims.scrollHeight}px`;
+			if (dims.scrollWidth > dims.width) {
+				this._contentNode.style.width = `${dims.scrollWidth}px`;
+			}
+		}
 	}
 
 	/**
@@ -756,7 +872,8 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		verticalHasArrows: (typeof opts.verticalHasArrows !== 'undefined' ? opts.verticalHasArrows : false),
 		verticalSliderSize: (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : 0),
 
-		scrollByPage: (typeof opts.scrollByPage !== 'undefined' ? opts.scrollByPage : false)
+		scrollByPage: (typeof opts.scrollByPage !== 'undefined' ? opts.scrollByPage : false),
+		useNativeOverflowScroll: (typeof opts.useNativeOverflowScroll !== 'undefined' ? opts.useNativeOverflowScroll : false)
 	};
 
 	result.horizontalSliderSize = (typeof opts.horizontalSliderSize !== 'undefined' ? opts.horizontalSliderSize : result.horizontalScrollbarSize);

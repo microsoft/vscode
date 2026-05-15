@@ -128,6 +128,25 @@ export interface ScrollableElementCreationOptions {
 	 * Defaults to false.
 	 */
 	scrollByPage?: boolean;
+	/**
+	 * Use native browser overflow scrolling instead of the custom scrollbar/transform model.
+	 *
+	 * When enabled:
+	 *  - The host element receives `overflow-y: auto` (plus `-webkit-overflow-scrolling: touch`
+	 *    and `overscroll-behavior: contain`) so the browser handles touch inertia, rubber-band,
+	 *    and momentum natively.
+	 *  - The custom scrollbar widgets are hidden.
+	 *  - The wrapped content node is sized to `scrollHeight` so it actually overflows the
+	 *    viewport and can be scrolled natively.
+	 *  - The inner `Scrollable` mirrors the native scroll position; consumers (like list/tree
+	 *    virtualization) continue to receive `onScroll` events as before.
+	 *
+	 * Designed primarily for mobile web (phones), where the custom touch model produces a
+	 * poor scrolling feel and blocks native long-press selection / copy / paste callouts.
+	 *
+	 * Defaults to false.
+	 */
+	useNativeOverflowScroll?: boolean;
 }
 
 export interface ScrollableElementChangeOptions {
@@ -167,4 +186,5 @@ export interface ScrollableElementResolvedOptions {
 	verticalSliderSize: number;
 	verticalHasArrows: boolean;
 	scrollByPage: boolean;
+	useNativeOverflowScroll: boolean;
 }

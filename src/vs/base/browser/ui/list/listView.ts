@@ -91,6 +91,13 @@ export interface IListViewOptions<T> extends IListViewOptionsUpdate {
 	readonly alwaysConsumeMouseWheel?: boolean;
 	readonly initialSize?: Dimension;
 	readonly scrollToActiveElement?: boolean;
+	/**
+	 * Use the browser's native overflow scrolling for the list viewport.
+	 * Intended for mobile web phones, where the custom touch/inertia model
+	 * produces poor scroll feel and blocks native long-press selection.
+	 * Defaults to false.
+	 */
+	readonly useNativeOverflowScroll?: boolean;
 }
 
 const DefaultOptions = {
@@ -275,6 +282,7 @@ export interface IListView<T> extends ISpliceable<T>, IDisposable {
 	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null): void;
 	rerender(): void;
 	layout(height?: number, width?: number): void;
+	setUseNativeOverflowScroll(enabled: boolean): void;
 }
 
 /**
@@ -318,6 +326,10 @@ export class ListView<T> implements IListView<T> {
 	private paddingBottom: number;
 	private accessibilityProvider: ListViewAccessibilityProvider<T>;
 	private scrollWidth: number | undefined;
+
+	private _useNativeOverflowScroll: boolean = false;
+	get useNativeOverflowScroll(): boolean { return this._useNativeOverflowScroll; }
+	private readonly _transformOptimization: boolean;
 
 	private dnd: IListViewDragAndDrop<T>;
 	private canDrop: boolean = false;
@@ -415,12 +427,11 @@ export class ListView<T> implements IListView<T> {
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
 
-		const transformOptimization = options.transformOptimization ?? DefaultOptions.transformOptimization;
-		if (transformOptimization) {
-			this.rowsContainer.style.transform = 'translate3d(0px, 0px, 0px)';
-			this.rowsContainer.style.overflow = 'hidden';
-			this.rowsContainer.style.contain = 'strict';
-		}
+		this._useNativeOverflowScroll = options.useNativeOverflowScroll ?? false;
+		this.domNode.classList.toggle('native-overflow-scroll', this._useNativeOverflowScroll);
+
+		this._transformOptimization = options.transformOptimization ?? DefaultOptions.transformOptimization;
+		this._applyRowsContainerTransformStyle();
 
 		this.disposables.add(Gesture.addTarget(this.rowsContainer));
 
@@ -436,7 +447,8 @@ export class ListView<T> implements IListView<T> {
 			useShadows: options.useShadows ?? DefaultOptions.useShadows,
 			mouseWheelScrollSensitivity: options.mouseWheelScrollSensitivity,
 			fastScrollSensitivity: options.fastScrollSensitivity,
-			scrollByPage: options.scrollByPage
+			scrollByPage: options.scrollByPage,
+			useNativeOverflowScroll: this._useNativeOverflowScroll
 		}, this.scrollable));
 
 		this.domNode.appendChild(this.scrollableElement.getDomNode());
@@ -446,6 +458,11 @@ export class ListView<T> implements IListView<T> {
 		this.disposables.add(addDisposableListener(this.rowsContainer, TouchEventType.Change, e => this.onTouchChange(e as GestureEvent)));
 
 		this.disposables.add(addDisposableListener(this.scrollableElement.getDomNode(), 'scroll', e => {
+			if (this._useNativeOverflowScroll) {
+				// The host element scrolls natively; ScrollableElement mirrors that into the inner
+				// Scrollable, which drives onScroll → render(). Nothing else to do here.
+				return;
+			}
 			// Make sure the active element is scrolled into view
 			const element = (e.target as HTMLElement);
 			const scrollValue = element.scrollTop;
@@ -499,6 +516,56 @@ export class ListView<T> implements IListView<T> {
 			// Scroll up
 			this.setScrollTop(this.scrollTop + topOffset);
 		}
+	}
+
+	/**
+	 * Apply the transform / native-overflow specific layout styles to the rows container.
+	 * Called at construction and whenever {@link setUseNativeOverflowScroll} flips the mode.
+	 */
+	private _applyRowsContainerTransformStyle(): void {
+		if (this._useNativeOverflowScroll) {
+			// In native overflow scroll mode the rowsContainer's height is set explicitly to
+			// `scrollHeight` via ScrollableElement.setScrollDimensions so the host can scroll.
+			// Rows inside are still absolutely positioned (top: ${elementTop}px).
+			this.rowsContainer.style.transform = '';
+			this.rowsContainer.style.overflow = '';
+			this.rowsContainer.style.contain = '';
+			this.rowsContainer.style.position = 'relative';
+		} else if (this._transformOptimization) {
+			this.rowsContainer.style.transform = 'translate3d(0px, 0px, 0px)';
+			this.rowsContainer.style.overflow = 'hidden';
+			this.rowsContainer.style.contain = 'strict';
+			this.rowsContainer.style.position = '';
+		} else {
+			this.rowsContainer.style.transform = '';
+			this.rowsContainer.style.overflow = '';
+			this.rowsContainer.style.contain = '';
+			this.rowsContainer.style.position = '';
+		}
+	}
+
+	/**
+	 * Toggle the use of native browser overflow scrolling for this list at runtime. When
+	 * enabled, the inner ScrollableElement switches to native scroll (delegating momentum,
+	 * rubber-band and OS gesture handling to the browser); rows are no longer translated
+	 * via `transform`, and the host element scrolls natively. Used by mobile chat to
+	 * restore native touch scroll/selection/copy/paste.
+	 */
+	setUseNativeOverflowScroll(enabled: boolean): void {
+		if (this._useNativeOverflowScroll === enabled) {
+			return;
+		}
+		this._useNativeOverflowScroll = enabled;
+		this.domNode.classList.toggle('native-overflow-scroll', enabled);
+		this._applyRowsContainerTransformStyle();
+		this.scrollableElement.setUseNativeOverflowScroll(enabled);
+
+		// Re-render at the current scroll position so row top offsets are recomputed for
+		// the new (translate vs. absolute) layout, and re-emit scroll dimensions so the
+		// content node is sized to `scrollHeight` for native mode.
+		this.eventuallyUpdateScrollDimensions();
+		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		this.render(previousRenderRange, this.lastRenderTop, this.lastRenderHeight, undefined, undefined, true);
 	}
 
 	updateOptions(options: IListViewOptionsUpdate) {
@@ -937,7 +1004,13 @@ export class ListView<T> implements IListView<T> {
 			this.rowsContainer.style.left = `-${renderLeft}px`;
 		}
 
-		this.rowsContainer.style.top = `-${renderTop}px`;
+		if (this._useNativeOverflowScroll) {
+			// Host element scrolls natively; rows are absolutely positioned at their elementTop,
+			// so the rowsContainer stays anchored at top: 0.
+			this.rowsContainer.style.top = '0px';
+		} else {
+			this.rowsContainer.style.top = `-${renderTop}px`;
+		}
 
 		if (this.horizontalScrolling && scrollWidth !== undefined) {
 			this.rowsContainer.style.width = `${Math.max(scrollWidth, this.renderWidth)}px`;

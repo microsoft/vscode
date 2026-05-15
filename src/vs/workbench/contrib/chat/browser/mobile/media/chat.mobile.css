@@ -1,0 +1,40 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* All rules in this file are scoped under `.chat-mobile-web`, which the
+   ChatMobileContribution sets on the workbench root only when running on a
+   mobile web phone. On every other platform these rules never match. */
+
+/* --- Selection / copy / paste -------------------------------------------- */
+
+/* Re-enable text selection inside transcript bubbles so long-press / drag handles
+   actually select text. The list-wide `.monaco-list.mouse-support { user-select: none }`
+   normally suppresses this. */
+.chat-mobile-web .interactive-item-container .value,
+.chat-mobile-web .interactive-item-container .rendered-markdown,
+.chat-mobile-web .interactive-item-container .interactive-result-code-block {
+	user-select: text;
+	-webkit-user-select: text;
+	-webkit-touch-callout: default;
+}
+
+/* --- Toolbar visibility -------------------------------------------------- */
+
+/* Without persistent hover on touch devices the row action toolbar (Copy, Retry,
+   etc.) is hard to reach. Keep it visible so Copy is always tappable. */
+.chat-mobile-web .interactive-item-container .header-toolbars,
+.chat-mobile-web .interactive-item-container .chat-actions-row {
+	opacity: 1;
+}
+
+/* --- Native scroll surfaces --------------------------------------------- */
+
+/* The chat list runs in native overflow mode on mobile web — make sure the
+   surfaces that the browser scrolls expose momentum + isolation. */
+.chat-mobile-web .interactive-list .monaco-scrollable-element.native-overflow-scroll,
+.chat-mobile-web .interactive-list .monaco-list.native-overflow-scroll > .monaco-scrollable-element {
+	-webkit-overflow-scrolling: touch;
+	overscroll-behavior: contain;
+}
