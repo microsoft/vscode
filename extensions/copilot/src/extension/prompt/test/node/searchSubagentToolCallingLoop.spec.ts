@@ -11,7 +11,7 @@ import { CancellationTokenSource } from '../../../../util/vs/base/common/cancell
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { MockChatHookService } from '../../../intents/test/node/toolCallingLoopHooks.spec';
+import { MockChatHookService } from '../../../intents/test/node/mockChatHookService';
 import { Conversation, Turn } from '../../../prompt/common/conversation';
 import { IBuildPromptContext } from '../../../prompt/common/intents';
 import { nullRenderPromptResult } from '../../../prompt/node/intents';
