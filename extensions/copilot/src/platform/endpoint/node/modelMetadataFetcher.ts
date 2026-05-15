@@ -172,6 +172,11 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 
 	public async getCopilotUtilityModel(): Promise<IChatModelInformation> {
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
+		if (!this._copilotUtilityModel && this._familyMap.size > 0) {
+			// Server returned models but did not flag a chat fallback; force one refresh
+			// before throwing so we are not stuck on a stale 10-minute cache window.
+			await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, () => this._fetchModels(true));
+		}
 		const resolvedModel = this._copilotUtilityModel;
 		if (!resolvedModel || !isChatModelInformation(resolvedModel)) {
 			throw new Error(await this._getErrorMessage('Unable to resolve Copilot utility chat model (server did not mark a chat fallback model)'));
@@ -272,6 +277,7 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 			}
 
 			this._familyMap.clear();
+			this._copilotUtilityModel = undefined;
 
 			const data: IModelAPIResponse[] = (await response.json()).data;
 			this._requestLogger.logModelListCall(requestId, requestMetadata, data);
