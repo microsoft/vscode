@@ -69,6 +69,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 				}
 				viewer.dataProvider = dataProvider;
 				this.registerListeners(treeViewId, viewer, disposables);
+				this.updateFocusedTreeView();
 				this._proxy.$setVisible(treeViewId, viewer.visible);
 			} else {
 				this.notificationService.error('No view is registered with id: ' + treeViewId);
@@ -144,6 +145,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		}
 
 		this._dataProviders.deleteAndDispose(treeViewId);
+		this.updateFocusedTreeView();
 	}
 
 	$logResolveTreeNodeFailure(extensionId: string): void {
@@ -160,7 +162,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		});
 	}
 
-	private updateFocusedTreeView() {
+	private updateFocusedTreeView(): void {
 		let next: string | undefined;
 
 		const focusedView = this.viewsService.getFocusedView();
