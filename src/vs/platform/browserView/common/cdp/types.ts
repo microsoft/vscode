@@ -126,30 +126,36 @@ export interface CDPWindowBounds {
  * A debuggable CDP target (e.g., a browser view).
  * Targets can be attached to by CDP clients.
  */
-export interface ICDPTarget {
-	/** Get target info for CDP protocol. Initializes the target if needed. */
-	getTargetInfo(): Promise<CDPTargetInfo>;
-	/** Attach to receive events and send commands. Initializes if needed. Dispose to detach. */
+export interface ICDPTarget extends IDisposable {
+	/** Get target info for CDP protocol. */
+	targetInfo: CDPTargetInfo;
+	/** Fired when target info changes. */
+	readonly onTargetInfoChanged: Event<CDPTargetInfo>;
+
+	/** Attach to receive events and send commands. Dispose to detach. */
 	attach(): Promise<ICDPConnection>;
+
+	/** All active sessions on this target. */
+	readonly sessions: ReadonlyMap<string, ICDPConnection>;
+	/** Fired when a new session is created on this target. */
+	readonly onSessionCreated: Event<{ session: ICDPConnection; waitingForDebugger: boolean }>;
+	/** Can be called to notify the target that a new session has been created for it. */
+	notifySessionCreated(session: ICDPConnection, waitingForDebugger: boolean): void;
+
+	/** Fired when this target is closed or disposed. */
+	readonly onClose: Event<void>;
 }
 
 /**
  * Service interface for managing CDP targets and browser contexts.
  */
 export interface ICDPBrowserTarget extends ICDPTarget {
-	/** Event fired when a target is created */
-	readonly onTargetCreated: Event<ICDPTarget>;
-	/** Event fired when a target is about to be destroyed */
-	readonly onTargetDestroyed: Event<ICDPTarget>;
 
 	// Browser-level information
 	/** Get browser version info for CDP Browser.getVersion */
 	getVersion(): CDPBrowserVersion;
 	/** Get the window ID and bounds for a target */
 	getWindowForTarget(target: ICDPTarget): { windowId: number; bounds: CDPWindowBounds };
-
-	/** Get all available targets */
-	getTargets(): IterableIterator<ICDPTarget>;
 	/** Create a new target in the specified browser context */
 	createTarget(url: string, browserContextId?: string, windowId?: number): Promise<ICDPTarget>;
 	/** Activate a target (bring to foreground) */
@@ -172,8 +178,12 @@ export interface ICDPBrowserTarget extends ICDPTarget {
  * implemented by CDPBrowserProxy for the full protocol-aware connection.
  */
 export interface ICDPConnection extends IDisposable {
+	/** Optional parent session ID of this connection, if created via a specific session */
+	readonly parentSessionId?: string;
 	/** The session ID for this connection */
 	readonly sessionId: string;
+	/** The target ID this session is attached to */
+	readonly targetId: string;
 
 	/** Event fired when the connection receives a CDP event */
 	readonly onEvent: Event<CDPEvent>;

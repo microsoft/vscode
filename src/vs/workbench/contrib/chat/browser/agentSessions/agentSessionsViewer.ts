@@ -51,6 +51,8 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { compareIgnoreCase } from '../../../../../base/common/strings.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection | IAgentSessionShowMore | IAgentSessionShowLess;
 
@@ -128,6 +130,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 	}
@@ -310,6 +313,18 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		if (this._approvalModel) {
 			this.renderApprovalRow(session, template);
 		}
+
+		// Lazily resolve item details (timing, changes, badge, etc.)
+		this.triggerResolve(session, template);
+	}
+
+	private triggerResolve(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+		const cts = new CancellationTokenSource();
+		template.elementDisposable.add({ dispose() { cts.dispose(true); } });
+
+		this.chatSessionsService.resolveChatSessionItem(session.element.providerType, session.element.resource, cts.token).catch(() => {
+			// Resolve failures are non-fatal — the item continues to display with whatever data is available
+		});
 	}
 
 	private renderBadge(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
@@ -403,15 +418,15 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 	private getIcon(session: IAgentSession, statusOnly?: boolean): ThemeIcon {
 		if (session.status === AgentSessionStatus.InProgress) {
-			return Codicon.sessionInProgress;
+			return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
 		}
 
 		if (session.status === AgentSessionStatus.NeedsInput) {
-			return Codicon.circleFilled;
+			return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
 		}
 
 		if (session.status === AgentSessionStatus.Failed) {
-			return Codicon.error;
+			return { ...Codicon.error, color: themeColorFromId('errorForeground') };
 		}
 
 		if (statusOnly) {
@@ -433,18 +448,18 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		}
 
 		if (!session.isRead() && !session.isArchived()) {
-			return Codicon.circleFilled;
+			return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
 		}
 
 		if (!statusOnly && session.providerType === AgentSessionProviders.Local) {
-			return Codicon.circleSmallFilled;
+			return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 		}
 
 		if (!statusOnly) {
 			return session.icon;
 		}
 
-		return Codicon.circleSmallFilled;
+		return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 	}
 
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
@@ -900,7 +915,11 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 
 	getAriaLabel(element: AgentSessionListItem): string | null {
 		if (isAgentSessionSection(element)) {
-			return localize('agentSessionSectionAriaLabel', "{0} sessions section, {1} sessions", element.label, element.sessions.length);
+			const count = element.sessions.length;
+			if (count === 1) {
+				return localize('agentSessionSectionAriaLabel.singular', "{0} sessions section, {1} session", element.label, count);
+			}
+			return localize('agentSessionSectionAriaLabel.plural', "{0} sessions section, {1} sessions", element.label, count);
 		}
 
 		if (isAgentSessionShowMore(element)) {
@@ -1552,16 +1571,16 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
 		// Sort by time
 		const sortBy = this.getSortBy();
-		const timeA = prioritizeActiveSessions
-			? sessionA.timing.lastRequestStarted ?? sessionA.timing.created
-			: sortBy === AgentSessionsSorting.Updated
-				? sessionA.timing.lastRequestEnded ?? sessionA.timing.created
-				: sessionA.timing.created;
-		const timeB = prioritizeActiveSessions
-			? sessionB.timing.lastRequestStarted ?? sessionB.timing.created
-			: sortBy === AgentSessionsSorting.Updated
-				? sessionB.timing.lastRequestEnded ?? sessionB.timing.created
-				: sessionB.timing.created;
+		const timeA = sortBy === AgentSessionsSorting.Updated
+			? (prioritizeActiveSessions
+				? sessionA.timing.lastRequestStarted ?? sessionA.timing.created
+				: sessionA.timing.lastRequestEnded ?? sessionA.timing.created)
+			: sessionA.timing.created;
+		const timeB = sortBy === AgentSessionsSorting.Updated
+			? (prioritizeActiveSessions
+				? sessionB.timing.lastRequestStarted ?? sessionB.timing.created
+				: sessionB.timing.lastRequestEnded ?? sessionB.timing.created)
+			: sessionB.timing.created;
 		return timeB - timeA;
 	}
 }

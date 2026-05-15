@@ -12,6 +12,7 @@ import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -25,7 +26,6 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 const AI_DISABLED_SETTING = 'chat.disableAIFeatures';
-const AI_CUSTOMIZATION_MENU_ENABLED_SETTING = 'chat.customizationsMenu.enabled';
 const AGENT_STATUS_ENABLED_SETTING = 'chat.agentsControl.enabled';
 
 export class CommandCenterControl {
@@ -61,8 +61,21 @@ export class CommandCenterControl {
 			}
 		});
 
-		this._disposables.add(Event.filter(quickInputService.onShow, () => isActiveDocument(this.element), this._disposables)(this._setVisibility.bind(this, false)));
-		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
+		let quickInputVisible = false;
+		this._disposables.add(Event.filter(quickInputService.onShow, () => isActiveDocument(this.element), this._disposables)(() => {
+			quickInputVisible = true;
+			this._setVisibility(quickInputService.alignment.get() !== 'top');
+		}));
+		this._disposables.add(quickInputService.onHide(() => {
+			quickInputVisible = false;
+			this._setVisibility(true);
+		}));
+		this._disposables.add(autorun(reader => {
+			const alignment = quickInputService.alignment.read(reader);
+			if (quickInputVisible) {
+				this._setVisibility(alignment !== 'top');
+			}
+		}));
 		this._disposables.add(titleToolbar);
 	}
 
@@ -154,8 +167,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							// Backward compat: the old boolean setting (true) and the new default (undefined) both map to compact
 							const aiFeaturesDisabled = that._configurationService.getValue<boolean>(AI_DISABLED_SETTING) === true;
 							const aiCustomizationsDisabled = that._configurationService.getValue<boolean>('disableAICustomizations') === true
-								|| that._configurationService.getValue<boolean>('workbench.disableAICustomizations') === true
-								|| that._configurationService.getValue<boolean>(AI_CUSTOMIZATION_MENU_ENABLED_SETTING) === false;
+								|| that._configurationService.getValue<boolean>('workbench.disableAICustomizations') === true;
 							const forcedHidden = aiFeaturesDisabled && aiCustomizationsDisabled;
 							const agentControlValue = that._configurationService.getValue(AGENT_STATUS_ENABLED_SETTING);
 							const isCompactMode = !forcedHidden && (agentControlValue === true || agentControlValue === undefined || agentControlValue === 'compact');

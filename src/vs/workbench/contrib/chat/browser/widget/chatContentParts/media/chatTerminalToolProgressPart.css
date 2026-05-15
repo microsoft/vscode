@@ -177,7 +177,7 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 	background: inherit;
 }
 .chat-terminal-output-body {
-	padding: 5px 0px 1px;
+	padding: 5px 0px 3px;
 	max-width: 100%;
 	box-sizing: border-box;
 	min-height: 0;
@@ -238,4 +238,20 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 .chat-terminal-output-info {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-chat-font-size-body-xs);
+}
+
+.chat-used-context-label .chat-terminal-show-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.chat-used-context-label .chat-terminal-show-link:hover {
+	text-decoration: underline;
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.chat-terminal-show-link-container {
+	display: inline;
+	white-space: nowrap;
 }

@@ -204,7 +204,7 @@ suite('ChatImageCarouselService helpers', () => {
 				mimeType: result[0].images[0].mimeType,
 				data: [...result[0].images[0].data],
 			}, {
-				id: URI.from({ scheme: 'data', path: 'cat.png' }).toString(),
+				id: URI.from({ scheme: 'data', path: 'img-1/cat.png' }).toString(),
 				name: 'cat.png',
 				mimeType: 'image/png',
 				data: [1, 2, 3],

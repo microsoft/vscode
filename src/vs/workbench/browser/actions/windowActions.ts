@@ -429,7 +429,7 @@ class NewWindowAction extends Action2 {
 			menu: {
 				id: MenuId.MenubarFileMenu,
 				group: '1_new',
-				order: 3
+				order: 3,
 			}
 		});
 	}
@@ -516,5 +516,5 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	title: localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent"),
 	submenu: MenuId.MenubarRecentMenu,
 	group: '2_open',
-	order: 4
+	order: 4,
 });
