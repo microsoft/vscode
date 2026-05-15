@@ -135,7 +135,7 @@
     "minimist": "^1.2.8",
     "native-is-elevated": "0.9.0",
     "native-keymap": "^3.3.5",
-    "node-pty": "^1.2.0-beta.12",
+    "node-pty": "^1.2.0-beta.13",
     "open": "^10.1.2",
     "playwright-core": "1.59.1",
     "ssh2": "^1.16.0",
