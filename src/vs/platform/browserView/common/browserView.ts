@@ -11,6 +11,7 @@ const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
 	// Tab management
 	Open = `${commandPrefix}.open`,
+	OpenFile = `${commandPrefix}.openFile`,
 	NewTab = `${commandPrefix}.newTab`,
 	QuickOpen = `${commandPrefix}.quickOpen`,
 	OpenOrList = `${commandPrefix}.openOrList`,
