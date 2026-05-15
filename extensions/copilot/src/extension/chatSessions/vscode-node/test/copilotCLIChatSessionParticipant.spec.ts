@@ -354,7 +354,6 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		}();
 		itemProvider = new class extends mock<CopilotCLIChatSessionItemProvider>() {
 			override swap = vi.fn();
-			override notifySessionsChange = vi.fn();
 			override untitledSessionIdMapping = new Map<string, string>();
 			override sdkToUntitledUriMapping = new Map<string, Uri>();
 			override isNewSession = vi.fn((_session: string) => false);

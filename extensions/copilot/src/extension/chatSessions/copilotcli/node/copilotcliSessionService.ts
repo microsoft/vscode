@@ -268,10 +268,6 @@ export type ICreateSessionOptions = ISessionOptions & { sessionId?: string };
 export interface ICopilotCLISessionService {
 	readonly _serviceBrand: undefined;
 
-	/**
-	 * @deprecated Kept only for non-controller API
-	 */
-	onDidChangeSessions: Event<void>;
 	onDidDeleteSession: Event<string>;
 	onDidChangeSession: Event<ICopilotCLISessionItem>;
 	onDidCreateSession: Event<ICopilotCLISessionItem>;
@@ -310,9 +306,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	private readonly _partialSessionHistories = new Map<string, readonly (ChatRequestTurn2 | ChatResponseTurn2)[]>();
 
 
-	private readonly _onDidChangeSessions = this._register(new Emitter<void>());
-	public readonly onDidChangeSessions = this._onDidChangeSessions.event;
-
 	private readonly _onDidDeleteSession = this._register(new Emitter<string>());
 	public readonly onDidDeleteSession = this._onDidDeleteSession.event;
 
@@ -327,7 +320,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 	private readonly _sessionTracker: CopilotCLISessionWorkspaceTracker;
 	private readonly _sessionWorkingDirectories = new Map<string, Uri | undefined>();
-	private readonly _onDidChangeSessionsThrottler = this._register(new ThrottledDelayer<void>(500));
 	private readonly _cachedSessionItems = new Map<string, ICopilotCLISessionItem>();
 	private readonly _sessionsBeingCreatedViaFork = new Set<string>();
 	private readonly _newSessionIds = new Set<string>();
@@ -445,15 +437,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return this._sessionWorkingDirectories.get(sessionId);
 	}
 
-	private triggerSessionsChangeEvent() {
-		// If we're busy fetching sessions, then do not trigger change event as we'll trigger one after we're done fetching sessions.
-		if (this._isGettingSessions > 0) {
-			return;
-		}
-
-		this._onDidChangeSessionsThrottler.trigger(() => Promise.resolve(this._onDidChangeSessions.fire()));
-	}
-
 	public createNewSessionId(): string {
 		const sessionId = generateUuid();
 		this._newSessionIds.add(sessionId);
@@ -473,10 +456,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				if (sessionId && this._sessionsBeingCreatedViaFork.has(sessionId)) {
 					return;
 				}
-				this.triggerSessionsChangeEvent();
-				const sessionItem = sessionId ? await this.getSessionItemImpl(sessionId, 'disk', CancellationToken.None) : undefined;
-				if (sessionItem) {
-					this._onDidChangeSession.fire(sessionItem);
+				if (sessionId) {
+					this.triggerOnDidChangeSessionItem(sessionId, 'fileSystemChange');
 				}
 			}));
 			this._register(watcher.onDidDelete(e => {
@@ -484,8 +465,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				if (sessionId) {
 					this._cachedSessionItems.delete(sessionId);
 					this._onDidDeleteSession.fire(sessionId);
+					this._onDidDeleteSession.fire(sessionId);
 				}
-				this.triggerSessionsChangeEvent();
 			}));
 			this._register(watcher.onDidChange((e) => {
 				// If we're busy fetching sessions, then do not trigger change event as we'll trigger one after we're done fetching sessions.
@@ -505,7 +486,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				if (sessionId) {
 					this.triggerOnDidChangeSessionItem(sessionId, 'fileSystemChange');
 				}
-				this.triggerSessionsChangeEvent();
 			}));
 		} catch (error) {
 			this.logService.error(`Failed to monitor Copilot CLI session files: ${error}`);
