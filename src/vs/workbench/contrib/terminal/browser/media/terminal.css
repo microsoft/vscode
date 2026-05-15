@@ -477,6 +477,20 @@
 .monaco-action-bar .action-item .single-terminal-tab {
 	display: flex !important;
 	align-items: center;
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-action-bar .action-item.single-terminal-tab-container {
+	min-width: 0;
+	flex-shrink: 1;
+}
+
+.monaco-action-bar .action-item .single-terminal-tab .codicon {
+	flex-shrink: 0;
 }
 
 .monaco-action-bar .action-item .single-terminal-tab .codicon:first-child {
