@@ -6,10 +6,13 @@
 import * as vscode from 'vscode';
 import { ChatExtendedRequestHandler } from 'vscode';
 import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
+import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { INativeEnvService } from '../../../platform/env/common/envService';
 import { getGitHubRepoInfoFromContext, IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
@@ -27,6 +30,7 @@ import { IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../claude/node/claudeModelId';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
 import { IClaudeCodeSessionService } from '../claude/node/sessionParser/claudeCodeSessionService';
+import { formatModelDetailsWithCredits } from '../../../platform/chat/common/chatModelDetails';
 import { IClaudeCodeSessionInfo, IClaudeCodeSession, SYNTHETIC_MODEL_ID } from '../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
@@ -82,7 +86,8 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		@IClaudeSlashCommandService private readonly slashCommandService: IClaudeSlashCommandService,
 		@IClaudeCodeModels private readonly claudeModels: IClaudeCodeModels,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 	) {
 		super();
 		this._controller = this._register(instantiationService.createInstance(ClaudeChatSessionItemController));
@@ -154,16 +159,34 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 				stream.usage(usage);
 			});
 
-			const prompt = request.prompt;
-			await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.InProgress, prompt);
-			const result = await this.claudeAgentManager.handleRequest(effectiveSessionId, request, stream, token, isNewSession, yieldRequested);
-			await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.Completed, prompt);
+			// Set turn ID for per-turn credit tracking via chatMLFetcher
+			this._chatQuotaService.resetTurnCredits(request.id);
+			this.sessionStateService.setTurnIdForSession(effectiveSessionId, request.id);
 
-			// Clear usage handler after request completes
-			this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, undefined);
+			let result: vscode.ChatResult;
+			let creditsUsed: number | undefined;
+			try {
+				const prompt = request.prompt;
+				await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.InProgress, prompt);
+				result = await this.claudeAgentManager.handleRequest(effectiveSessionId, request, stream, token, isNewSession, yieldRequested);
+				await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.Completed, prompt);
+			} finally {
+				// Clear usage handler and turn ID after request completes (even on error/cancellation)
+				this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, undefined);
+				this.sessionStateService.setTurnIdForSession(effectiveSessionId, undefined);
+				creditsUsed = this._chatQuotaService.getCreditsForTurn(request.id);
+				this._chatQuotaService.resetTurnCredits(request.id);
+			}
 
 			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
-			const details = modelDetailsEnabled && endpoint ? formatClaudeModelDetails(endpoint) : undefined;
+			let details: string | undefined;
+			if (modelDetailsEnabled && endpoint) {
+				if (creditsUsed !== undefined) {
+					details = formatModelDetailsWithCredits(endpoint.name, creditsUsed);
+				} else {
+					details = formatClaudeModelDetails(endpoint);
+				}
+			}
 			return {
 				...(details ? { details } : {}),
 				...(result.errorDetails ? { errorDetails: result.errorDetails } : {}),
@@ -259,6 +282,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 
 	/** Whether the "bypass permissions" config is enabled — controls permission mode items. */
 	private readonly _bypassPermissionsEnabled: IObservable<boolean>;
+	private readonly _autoPermissionsEnabled: IObservable<boolean>;
 
 	/** Current workspace folders — controls folder group items and visibility. */
 	private readonly _workspaceFolders: IObservable<URI[]>;
@@ -277,15 +301,28 @@ export class ClaudeChatSessionItemController extends Disposable {
 		@IClaudeCodeSdkService private readonly _sdkService: IClaudeCodeSdkService,
 		@ILogService private readonly _logService: ILogService,
 		@IClaudeWorkspaceFolderService private readonly _claudeWorkspaceFolderService: IClaudeWorkspaceFolderService,
+		@IAuthenticationService _authenticationService: IAuthenticationService,
+		@IExperimentationService experimentationService: IExperimentationService,
 	) {
 		super();
-		this._optionBuilder = new ClaudeSessionOptionBuilder(_configurationService, folderMruService, _workspaceService);
+		this._optionBuilder = new ClaudeSessionOptionBuilder(_configurationService, folderMruService, _workspaceService, experimentationService);
 
 		this._bypassPermissionsEnabled = observableFromEvent(
 			this,
 			Event.filter(_configurationService.onDidChangeConfiguration,
 				e => e.affectsConfiguration(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions.fullyQualifiedId)),
 			() => _configurationService.getConfig(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions) as boolean,
+		);
+
+		this._autoPermissionsEnabled = observableFromEvent(
+			this,
+			Event.any(
+				Event.filter(_configurationService.onDidChangeConfiguration,
+					e => e.affectsConfiguration(ConfigKey.ClaudeAgentAllowAutoPermissions.fullyQualifiedId)),
+				_authenticationService.onDidAuthenticationChange,
+			),
+			() => _configurationService.getExperimentBasedConfig(ConfigKey.ClaudeAgentAllowAutoPermissions, experimentationService)
+				&& (_authenticationService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? false),
 		);
 
 		// Bridge vscode.Event → internal Event for workspace folder changes
@@ -447,8 +484,9 @@ export class ClaudeChatSessionItemController extends Disposable {
 		const permissionModeGroup = derived(reader => {
 			/** @description permissionModeGroup */
 			const bypassEnabled = this._bypassPermissionsEnabled.read(reader);
+			const autoEnabled = this._autoPermissionsEnabled.read(reader);
 			const selectedMode = permissionMode.read(reader);
-			const group = buildPermissionModeItems(bypassEnabled);
+			const group = buildPermissionModeItems(bypassEnabled, autoEnabled);
 			const selectedItem = group.items.find(i => i.id === selectedMode) ?? group.items[0];
 			return { ...group, selected: selectedItem };
 		});
@@ -514,11 +552,12 @@ export class ClaudeChatSessionItemController extends Disposable {
 
 			if (sessionResource) {
 				pipeline.isSessionStarted.set(true, undefined);
+				const sessionId = ClaudeSessionUri.getSessionId(sessionResource);
+				this._sessionStateService.setPermissionModeForSession(sessionId, pipeline.permissionMode.get());
 
 				// React to external permission mode changes for this session.
 				// Runs for both previousInputState and new-state paths so that
 				// EnterPlanMode / ExitPlanMode tool calls always update the input UI.
-				const sessionId = ClaudeSessionUri.getSessionId(sessionResource);
 				const externalPermissionMode = observableFromEvent(
 					this,
 					Event.filter(this._sessionStateService.onDidChangeSessionState,

@@ -19,7 +19,7 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostEnableClaudeEnvVar } from '../common/agentService.js';
+import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
 
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
@@ -65,10 +65,25 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		const shellEnv = await this._resolveShellEnv();
 
 		// Gate optional providers via env vars consumed by `agentHostMain.ts`.
-		// The Claude agent is opt-in: enabled when either the workbench setting is on
-		// or the env var is already set on the parent process (developer override).
-		const claudeEnabled = this._configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId)
-			|| process.env[AgentHostEnableClaudeEnvVar] === '1';
+		// The Claude agent is opt-in: enabled when the user points the SDK path
+		// setting at a locally-installed `@anthropic-ai/claude-agent-sdk` package,
+		// or when the env var is already set on the parent process (developer
+		// override). The SDK itself is intentionally not bundled with VS Code.
+		const claudeSdkPath = this._configurationService.getValue<string>(AgentHostClaudeAgentSdkPathSettingId)
+			|| process.env[AgentHostClaudeSdkPathEnvVar]
+			|| '';
+
+		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by
+		// the agent host process. Any value already present on `process.env` wins
+		// (developer override) — see `buildAgentHostOTelEnv` for the precedence.
+		const otelEnv = buildAgentHostOTelEnv({
+			enabled: this._configurationService.getValue<boolean>(AgentHostOTelEnabledSettingId),
+			exporterType: this._configurationService.getValue<string>(AgentHostOTelExporterTypeSettingId),
+			otlpEndpoint: this._configurationService.getValue<string>(AgentHostOTelOtlpEndpointSettingId),
+			captureContent: this._configurationService.getValue<boolean>(AgentHostOTelCaptureContentSettingId),
+			outfile: this._configurationService.getValue<string>(AgentHostOTelOutfileSettingId),
+			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
+		}, process.env);
 
 		this.utilityProcess.start({
 			type: 'agentHost',
@@ -85,7 +100,8 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 				VSCODE_ESM_ENTRYPOINT: 'vs/platform/agentHost/node/agentHostMain',
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true',
-				...(claudeEnabled ? { [AgentHostEnableClaudeEnvVar]: '1' } : {}),
+				...(claudeSdkPath ? { [AgentHostClaudeSdkPathEnvVar]: claudeSdkPath } : {}),
+				...otelEnv,
 			}
 		});
 

@@ -27,9 +27,11 @@ import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeV
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService } from './views/sessionsListModelService.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
-import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId } from './views/sessionsList.js';
+import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId, SessionItemHasBranchNameContext } from './views/sessionsList.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+
+const titleBarContextKeys = new Set([IsNewChatSessionContext.key]);
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title
@@ -93,6 +95,13 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._lastRenderState = undefined;
 			this._render();
 		}));
+
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(titleBarContextKeys)) {
+				this._lastRenderState = undefined;
+				this._render();
+			}
+		}));
 	}
 
 	override render(container: HTMLElement): void {
@@ -126,6 +135,17 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		this._isRendering = true;
 
 		try {
+			const isNewChatSession = this.contextKeyService.getContextKeyValue<boolean>(IsNewChatSessionContext.key);
+			this._container.classList.toggle('agent-sessions-titlebar-hidden', !!isNewChatSession);
+			if (isNewChatSession) {
+				this._dynamicDisposables.clear();
+				this._container.setAttribute('aria-hidden', 'true');
+				this._container.removeAttribute('role');
+				this._container.removeAttribute('aria-label');
+				this._container.tabIndex = -1;
+				return;
+			}
+
 			const label = this._getActiveSessionLabel();
 			const icon = this._getActiveSessionIcon();
 			const repoLabel = this._getRepositoryLabel();
@@ -145,6 +165,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._dynamicDisposables.clear();
 
 			// Set up container as the button directly
+			this._container.removeAttribute('aria-hidden');
 			this._container.setAttribute('role', 'button');
 			this._container.setAttribute('aria-label', localize('agentSessionsShowSessions', "Show Sessions"));
 			this._container.tabIndex = 0;
@@ -264,17 +285,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	/**
-	 * Get the branch label for the active session (only when using a worktree).
+	 * Get the branch label for the active session.
 	 */
 	private _getRepositoryBranchLabel(): string | undefined {
 		const sessionData = this.sessionsManagementService.activeSession.get();
-		const workspace = sessionData?.workspace.get();
-		const repository = workspace?.repositories[0];
-		if (!workspace || !repository || !repository.workingDirectory) {
-			return undefined;
-		}
-
-		return repository.branchName ?? repository.detail;
+		return sessionData?.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim() || undefined;
 	}
 
 	private _showContextMenu(e: MouseEvent): void {
@@ -294,6 +309,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			[IsSessionPinnedContext.key, isPinned],
 			[IsSessionArchivedContext.key, isArchived],
 			[IsSessionReadContext.key, isRead],
+			[SessionItemHasBranchNameContext.key, !!sessionData.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim()],
 			['chatSessionType', sessionData.sessionType],
 			[ChatSessionProviderIdContext.key, sessionData.providerId],
 		];

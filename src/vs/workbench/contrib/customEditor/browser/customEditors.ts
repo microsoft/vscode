@@ -406,7 +406,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		const possibleEditors = this.getAllCustomEditors(newResource);
 
 		// See if we have any non-optional custom editor for this resource
-		if (!possibleEditors.allEditors.some(editor => editor.priority !== RegisteredEditorPriority.option)) {
+		if (!possibleEditors.allEditors.some(editor => editor.priority.editor !== RegisteredEditorPriority.option)) {
 			return;
 		}
 

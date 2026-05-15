@@ -6,11 +6,11 @@
 use std::fs;
 
 use crate::log;
+use crate::tunnels::agent_host_metadata::AgentHostMetadata;
 use crate::util::command::kill_tree;
 use crate::util::errors::{wrap, AnyError};
 use crate::util::machine::process_exists;
 
-use super::agent_host::AgentHostLockData;
 use super::CommandContext;
 
 /// Forcefully kills the running agent host process tree and cleans up.
@@ -24,14 +24,14 @@ pub async fn agent_kill(ctx: CommandContext) -> Result<i32, AnyError> {
 		)
 	})?;
 
-	let lock: AgentHostLockData = serde_json::from_str(&data).map_err(|e| {
+	let metadata: AgentHostMetadata = serde_json::from_str(&data).map_err(|e| {
 		wrap(
 			e,
 			format!("Corrupt agent host lockfile at {}", lockfile_path.display()),
 		)
 	})?;
 
-	if !process_exists(lock.pid) {
+	if !process_exists(metadata.pid) {
 		let _ = fs::remove_file(&lockfile_path);
 		ctx.log
 			.result("Agent host is not running (stale lockfile cleaned up).");
@@ -40,17 +40,17 @@ pub async fn agent_kill(ctx: CommandContext) -> Result<i32, AnyError> {
 
 	debug!(
 		ctx.log,
-		"Killing agent host process tree (pid {})", lock.pid
+		"Killing agent host process tree (pid {})", metadata.pid
 	);
 
-	kill_tree(lock.pid)
+	kill_tree(metadata.pid)
 		.await
 		.map_err(|e| wrap(e, "Failed to kill agent host process tree"))?;
 
 	let _ = fs::remove_file(&lockfile_path);
 
 	ctx.log
-		.result(format!("Killed agent host (pid {}).", lock.pid));
+		.result(format!("Killed agent host (pid {}).", metadata.pid));
 
 	Ok(0)
 }

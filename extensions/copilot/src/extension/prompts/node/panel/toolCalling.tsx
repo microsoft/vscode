@@ -122,8 +122,14 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 
 		// Don't include this when rendering and triggering summarization
 		const statefulMarker = round.statefulMarker && <StatefulMarkerContainer statefulMarker={{ modelId: this.promptEndpoint.model, marker: round.statefulMarker }} />;
-		const thinking = (!this.props.isHistorical) && round.thinking && <ThinkingDataContainer thinking={round.thinking} />;
-		const phase = (round.phase && round.phaseModelId === this.promptEndpoint.model) ? <PhaseDataContainer phase={round.phase} /> : undefined;
+		// Backward compat: older persisted rounds use `phaseModelId` instead of `modelId`. Read both.
+		const roundModelId = round.modelId ?? (round as IToolCallRound & { phaseModelId?: string }).phaseModelId;
+		const sameModelAsEndpoint = roundModelId === this.promptEndpoint.model;
+		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses' || this.promptEndpoint.apiType === 'messages';
+		const includeThinking = !this.props.isHistorical
+			|| (apiSupportsHistoricalThinking && sameModelAsEndpoint);
+		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} />;
+		const phase = (round.phase && roundModelId === this.promptEndpoint.model) ? <PhaseDataContainer phase={round.phase} /> : undefined;
 		const compaction = round.compaction && <CompactionDataContainer compaction={round.compaction} />;
 		children.push(
 			<AssistantMessage toolCalls={assistantToolCalls}>
@@ -489,6 +495,7 @@ export function sendInvokedToolTelemetry(instantiationService: IInstantiationSer
 	// matching the prior behavior with modelMaxPromptTokens: Infinity
 	const endpointWithUnlimitedBudget: IChatEndpoint = {
 		...endpoint,
+		tokenizer: endpoint.tokenizer,
 		modelMaxPromptTokens: Infinity,
 	};
 
@@ -721,8 +728,8 @@ class PrimitiveToolResult<T extends IPrimitiveToolResultProps> extends PromptEle
 
 	constructor(
 		props: T,
-		@IPromptEndpoint protected readonly endpoint: IPromptEndpoint,
-		@IAuthenticationService private readonly authService: IAuthenticationService,
+		@IPromptEndpoint protected readonly endpoint?: IPromptEndpoint,
+		@IAuthenticationService private readonly authService?: IAuthenticationService,
 		@ILogService private readonly logService?: ILogService,
 		@IImageService private readonly imageService?: IImageService,
 		@IConfigurationService private readonly configurationService?: IConfigurationService,
@@ -773,7 +780,7 @@ class PrimitiveToolResult<T extends IPrimitiveToolResultProps> extends PromptEle
 	}
 
 	protected async onImage(part: LanguageModelDataPart, _imageIndex?: number) {
-		if (!this.endpoint.supportsVision) {
+		if (!this.endpoint?.supportsVision) {
 			return '[Image content is not available because vision is not supported by the current model or is disabled by your organization.]';
 		}
 
@@ -782,7 +789,7 @@ class PrimitiveToolResult<T extends IPrimitiveToolResultProps> extends PromptEle
 			: false;
 
 		// Anthropic (from CAPI) currently does not support image uploads from tool calls.
-		const canUpload = uploadsEnabled && modelCanUseMcpResultImageURL(this.endpoint);
+		const canUpload = uploadsEnabled && !!this.endpoint && modelCanUseMcpResultImageURL(this.endpoint);
 
 		// Enforce image budgets only when images will be inlined as base64.
 		// When uploads are available, the request body stays small (URL reference).
@@ -813,10 +820,10 @@ class PrimitiveToolResult<T extends IPrimitiveToolResultProps> extends PromptEle
 		// Only call getGitHubSession when uploads are potentially available
 		let uploadToken: string | undefined;
 		if (canUpload) {
-			uploadToken = (await this.authService.getGitHubSession('any', { silent: true }))?.accessToken;
+			uploadToken = (await this.authService?.getGitHubSession('any', { silent: true }))?.accessToken;
 		}
 
-		return Promise.resolve(imageDataPartToTSX(part, uploadToken, this.endpoint.urlOrRequestMetadata, this.logService, this.imageService));
+		return Promise.resolve(imageDataPartToTSX(part, uploadToken, this.endpoint?.urlOrRequestMetadata, this.logService, this.imageService));
 	}
 
 	protected onTSX(part: JSONTree.PromptElementJSON) {
@@ -949,8 +956,8 @@ export class ToolResult extends PrimitiveToolResult<IToolResultProps> {
 			return content;
 		}
 
-		const tokens = await this.endpoint.acquireTokenizer().tokenLength(content);
-		if (tokens < truncateAtTokens) {
+		const tokens = await this.endpoint?.acquireTokenizer().tokenLength(content);
+		if (!tokens || tokens < truncateAtTokens) {
 			return content;
 		}
 

@@ -7,7 +7,7 @@ import { URI } from '../../../base/common/uri.js';
 import type { IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import type { IDiffComputeService } from '../common/diffComputeService.js';
 import { FileEditKind, type ISessionFileDiff } from '../common/state/sessionState.js';
-import { buildSessionDbUri } from './copilot/fileEditTracker.js';
+import { buildSessionDbUri } from './shared/fileEditTracker.js';
 
 function getFileEditUri(diff: ISessionFileDiff): string | undefined {
 	return diff.after?.uri ?? diff.before?.uri;

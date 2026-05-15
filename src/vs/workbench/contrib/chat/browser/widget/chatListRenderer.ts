@@ -345,8 +345,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (normalizedHeight === template.currentElement.currentRenderedHeight) {
 			return;
 		}
+
+		const originalStoredHeight = template.currentElement.currentRenderedHeight;
 		template.currentElement.currentRenderedHeight = normalizedHeight;
-		if (template.currentElement !== this._elementBeingRendered) {
+		if (template.currentElement !== this._elementBeingRendered && typeof originalStoredHeight === 'number') {
 			this._onDidChangeItemHeight.fire({ element: template.currentElement, height: normalizedHeight });
 		}
 	}
@@ -636,7 +638,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}));
 
-		const resizeObserver = templateDisposables.add(new dom.DisposableResizeObserver((entries) => {
+		const resizeObserver = templateDisposables.add(new dom.DisposableResizeObserver('ChatListItemRenderer.itemHeight', (entries) => {
 			const entry = entries[0];
 			if (entry) {
 				this.fireItemHeightChange(template, entry.borderBoxSize.at(0)?.blockSize);
@@ -1235,6 +1237,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private updateWorkingProgressForPendingConfirmations(templateData: IChatListItemTemplate): void {
+		// Defer mutation of `templateData.renderedParts` (via `removeWorkingProgressContentPart`)
+		// to a microtask. This method is invoked from tool autoruns, which fire synchronously inside
+		// `renderChatContentDiff` while the array is being iterated — splicing it mid-render would
+		// orphan subsequent parts and leave detached DOM nodes referenced from `renderedParts`.
+		// Capture the originating element so we bail out if the template was recycled for a different one.
+		const originalElement = templateData.currentElement;
+		queueMicrotask(() => {
+			if (templateData.currentElement !== originalElement) {
+				return;
+			}
+			this.doUpdateWorkingProgressForPendingConfirmations(templateData);
+		});
+	}
+
+	private doUpdateWorkingProgressForPendingConfirmations(templateData: IChatListItemTemplate): void {
 		const element = templateData.currentElement;
 		if (!isResponseVM(element)) {
 			return;
@@ -2383,8 +2400,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
-		// Skip rendering completed tool invocations that have no meaningful content - ie, autopilot "task complete"
-		if (IChatToolInvocation.isComplete(toolInvocation)) {
+		// Skip rendering completed tool invocations that are hidden and have no meaningful content - ie, autopilot "task complete".
+		// We intentionally only short-circuit when the invocation's presentation is hidden, otherwise extension-contributed
+		// tools that don't supply a `pastTenseMessage` (proposed API) get filtered out incorrectly.
+		if (IChatToolInvocation.isComplete(toolInvocation) && IChatToolInvocation.isEffectivelyHidden(toolInvocation)) {
 			const msg = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
 			const text = typeof msg === 'string' ? msg : msg?.value;
 			if (!text || text.trim().length === 0) {

@@ -24,7 +24,8 @@ body {
 }
 
 .container.loading,
-.container.error {
+.container.error,
+.container.git-lfs {
 	display: flex;
 	justify-content: center;
 	align-items: center;
@@ -38,16 +39,19 @@ body {
 }
 
 .loading-indicator,
-.loading-error {
+.loading-error,
+.git-lfs-info {
 	display: none;
 }
 
 .loading .loading-indicator,
-.error .loading-error {
+.error .loading-error,
+.git-lfs .git-lfs-info {
 	display: block;
 }
 
-.loading-error {
+.loading-error,
+.git-lfs-info {
 	margin: 1em;
 }
 
