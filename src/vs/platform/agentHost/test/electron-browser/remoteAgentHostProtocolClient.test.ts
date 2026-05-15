@@ -21,10 +21,16 @@ import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type SessionActiveClientChangedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
+import { hasKey } from '../../../../base/common/types.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { ROOT_STATE_URI, StateComponents } from '../../common/state/sessionState.js';
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
+
+function isPingRequest(msg: ProtocolTransportMessage): msg is JsonRpcRequest & { method: 'ping' } {
+	return hasKey(msg, { method: true, id: true }) && msg.method === 'ping';
+}
 
 class TestProtocolTransport extends Disposable implements IProtocolTransport {
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
@@ -80,9 +86,9 @@ suite('RemoteAgentHostProtocolClient', () => {
 		};
 	}
 
-	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService()): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport } {
+	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport } {
 		const fileService = disposables.add(new FileService(new NullLogService()));
-		const client = disposables.add(new RemoteAgentHostProtocolClient('test.example:1234', transport, new NullLogService(), fileService, permissionService));
+		const client = disposables.add(new RemoteAgentHostProtocolClient('test.example:1234', transport, loadEstimator, new NullLogService(), fileService, permissionService));
 		return { client, transport };
 	}
 
@@ -203,38 +209,61 @@ suite('RemoteAgentHostProtocolClient', () => {
 		assert.strictEqual(transport.sentMessages.length, 0);
 	});
 
-	test('watchdog forces close when a request stays unanswered past the timeout', async () => {
+	test('liveness sends a ping when idle and force-closes after the ping ages out', async () => {
 		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
-			const { client, transport } = createClient();
+			const lowLoad = { hasHighLoad: () => false };
+			const { client, transport } = createClient(undefined, undefined, lowLoad);
 			let closeCount = 0;
 			disposables.add(client.onDidClose(() => closeCount++));
 
-			// Outstanding request the server never answers.
-			const pending = client.resourceList(URI.file('/workspace'));
-			const rejected = pending.catch(err => err);
-
-			// Advance well past WATCHDOG_TIMEOUT_MS (20s). The watchdog
-			// ticks every 5s; after ~25s with no response and no inbound
-			// traffic it should force-close the connection.
+			// First idle tick (t=5s) sends a ping; that ping then ages out
+			// over the next ~20s and triggers a close at ~t=25s.
 			await timeout(30_000);
 
-			const err = await rejected;
-			assert.ok(err instanceof ProtocolError, `Expected ProtocolError, got ${String(err)}`);
-			assert.strictEqual(err.code, -32000);
-			assert.match(err.message, /Connection appears dead/);
+			const pings = transport.sentMessages.filter(isPingRequest);
+			assert.ok(pings.length >= 1, `expected at least 1 ping, got ${pings.length}`);
 			assert.strictEqual(closeCount, 1);
-			assert.strictEqual(transport.sentMessages.length, 1);
 			client.dispose();
 		});
 	});
 
-	test('watchdog stays quiet when there are no outstanding requests', async () => {
+	test('liveness keeps the connection open while pings are answered', async () => {
 		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
-			const { client } = createClient();
+			const lowLoad = { hasHighLoad: () => false };
+			const { client, transport } = createClient(undefined, undefined, lowLoad);
 			let closeCount = 0;
 			disposables.add(client.onDidClose(() => closeCount++));
 
-			// No request issued — the watchdog has nothing to time out on.
+			// Auto-respond to every outgoing ping.
+			let answered = 0;
+			const dispose = mainWindow.setInterval(() => {
+				for (const msg of transport.sentMessages) {
+					if (isPingRequest(msg) && msg.id > answered) {
+						answered = msg.id;
+						transport.fireMessage({ jsonrpc: '2.0', id: msg.id, result: null });
+					}
+				}
+			}, 1_000);
+
+			await timeout(60_000);
+			mainWindow.clearInterval(dispose);
+
+			assert.strictEqual(closeCount, 0);
+			assert.ok(answered >= 4, `expected several pings to have been answered, got ${answered}`);
+			client.dispose();
+		});
+	});
+
+	test('liveness is suppressed while local load is high', async () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const highLoad = { hasHighLoad: () => true };
+			const { client } = createClient(undefined, undefined, highLoad);
+			let closeCount = 0;
+			disposables.add(client.onDidClose(() => closeCount++));
+
+			// 60s of silence — would normally trigger the timeout — but
+			// high local load means we attribute the silence to ourselves
+			// and stay quiet.
 			await timeout(60_000);
 
 			assert.strictEqual(closeCount, 0);
@@ -242,49 +271,24 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 	});
 
-	test('watchdog resets when a response arrives before the timeout', async () => {
+	test('liveness stops after the connection is closed', async () => {
 		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
-			const { client, transport } = createClient();
+			const lowLoad = { hasHighLoad: () => false };
+			const { client, transport } = createClient(undefined, undefined, lowLoad);
 			let closeCount = 0;
 			disposables.add(client.onDidClose(() => closeCount++));
 
-			const first = client.resourceList(URI.file('/one'));
-			await timeout(10_000);
-			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: { entries: [] } });
-			await first;
-
-			// Issue another request 5s later, then wait another 15s.
-			// Without the reset on the inbound message, the watchdog
-			// would already have fired by now (20s since the first send).
-			await timeout(5_000);
-			const second = client.resourceList(URI.file('/two'));
-			await timeout(15_000);
-
-			assert.strictEqual(closeCount, 0);
-			transport.fireMessage({ jsonrpc: '2.0', id: 2, result: { entries: [] } });
-			await second;
-			client.dispose();
-		});
-	});
-
-	test('watchdog stops ticking after the connection is closed', async () => {
-		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
-			const { client, transport } = createClient();
-			let closeCount = 0;
-			disposables.add(client.onDidClose(() => closeCount++));
-
-			// Trigger the watchdog so the first close fires.
-			client.resourceList(URI.file('/workspace')).catch(() => { /* expected */ });
+			// Wait for the first force-close.
 			await timeout(30_000);
-			assert.strictEqual(closeCount, 1, 'watchdog should have force-closed once');
+			assert.strictEqual(closeCount, 1, 'should have force-closed once');
 
-			// Issue another request after close. The protocol client may
-			// outlive the close briefly while addManagedConnection swaps in
-			// a new client. The watchdog must NOT keep ticking and re-close.
-			client.resourceList(URI.file('/workspace2')).catch(() => { /* expected */ });
+			const pingsAtClose = transport.sentMessages.filter(isPingRequest).length;
+
+			// Wait much longer; no further pings, no further closes.
 			await timeout(60_000);
-			assert.strictEqual(closeCount, 1, 'watchdog should not fire again after close');
-			assert.strictEqual(transport.sentMessages.length, 1, 'no further requests should be sent after close');
+			assert.strictEqual(closeCount, 1, 'should not fire again after close');
+			const pingsLater = transport.sentMessages.filter(isPingRequest).length;
+			assert.strictEqual(pingsLater, pingsAtClose, 'no further pings should be sent after close');
 			client.dispose();
 		});
 	});
@@ -429,6 +433,27 @@ suite('RemoteAgentHostProtocolClient', () => {
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, error: { code: AhpErrorCodes.TurnInProgress, message: 'Turn in progress' } });
 
 		await assertRemoteProtocolError(resultPromise, { code: AhpErrorCodes.TurnInProgress, message: 'Turn in progress' });
+	});
+
+	test('ping sends a JSON-RPC request and resolves on response', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.ping();
+
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		assert.strictEqual(sent.method, 'ping');
+		assert.strictEqual(sent.id, 1);
+
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+
+		assert.strictEqual(await resultPromise, undefined);
+	});
+
+	test('ping rejects with ProtocolError when the connection closes', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.ping();
+		const rejected = assertRemoteProtocolError(resultPromise, { code: -32000, message: 'Connection closed: test.example:1234' });
+		transport.fireClose();
+		await rejected;
 	});
 
 	suite('reverse permission gating', () => {
@@ -744,7 +769,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 			};
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			const client = disposables.add(new RemoteAgentHostProtocolClient(
-				'test.example:1234', factory, new NullLogService(), fileService, createPermissionService(),
+				'test.example:1234', factory, undefined, new NullLogService(), fileService, createPermissionService(),
 			));
 			return { client, transports };
 		}

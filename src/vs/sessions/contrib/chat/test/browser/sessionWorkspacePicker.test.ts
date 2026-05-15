@@ -13,7 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { RemoteAgentHostConnectionStatus, IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { RemoteAgentHostConnectionStatus, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -32,6 +32,7 @@ import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GRO
 import { WorkspacePicker, IWorkspaceSelection } from '../../browser/sessionWorkspacePicker.js';
 import { IWorkspacesService } from '../../../../../platform/workspaces/common/workspaces.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -160,7 +161,7 @@ function createTestPicker(
 	instantiationService.stub(IClipboardService, {});
 	instantiationService.stub(IPreferencesService, {});
 	instantiationService.stub(IOutputService, {});
-	instantiationService.stub(IConfigurationService, { getValue: () => undefined });
+	instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
 	instantiationService.stub(ICommandService, { executeCommand: async () => { } });
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
@@ -544,7 +545,7 @@ function makeBrowseAction(providerId: string, group: string | undefined, label =
 	};
 }
 
-function createTestablePicker(disposables: DisposableStore, providersService: MockSessionsProvidersService): TestablePicker {
+function createTestablePicker(disposables: DisposableStore, providersService: MockSessionsProvidersService, remoteAgentHostsEnabled = true): TestablePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { }, show: () => { } });
 	instantiationService.stub(IContextViewService, { showContextView: () => ({ close: () => { } }), hideContextView: () => { }, layout: () => { } });
@@ -556,7 +557,7 @@ function createTestablePicker(disposables: DisposableStore, providersService: Mo
 	instantiationService.stub(IClipboardService, {});
 	instantiationService.stub(IPreferencesService, {});
 	instantiationService.stub(IOutputService, {});
-	instantiationService.stub(IConfigurationService, { getValue: () => undefined });
+	instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: remoteAgentHostsEnabled }));
 	instantiationService.stub(ICommandService, { executeCommand: async () => { } });
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
@@ -587,6 +588,14 @@ suite('WorkspacePicker - Tab discovery', () => {
 		providersService.setProviders([createMockProvider('p1')]);
 		const picker = createTestablePicker(disposables, providersService);
 		assert.deepStrictEqual(picker.getAvailableTabs(), [SESSION_WORKSPACE_GROUP_REMOTE]);
+	});
+
+	test('hides Remote group when remote agent hosts are disabled', () => {
+		providersService.setProviders([
+			createMockProvider('p1', { browseActions: [makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_REMOTE)] }),
+		]);
+		const picker = createTestablePicker(disposables, providersService, false);
+		assert.deepStrictEqual(picker.getAvailableTabs(), []);
 	});
 
 	test('orders well-known groups Local first, then alphabetical', () => {
@@ -661,7 +670,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		instantiationService.stub(IClipboardService, {});
 		instantiationService.stub(IPreferencesService, {});
 		instantiationService.stub(IOutputService, {});
-		instantiationService.stub(IConfigurationService, { getValue: () => undefined });
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
 		instantiationService.stub(ICommandService, { executeCommand: async () => { } });
 		instantiationService.stub(IFileDialogService, {});
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());

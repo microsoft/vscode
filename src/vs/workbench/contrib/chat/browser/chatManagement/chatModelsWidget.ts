@@ -7,6 +7,8 @@ import './media/chatModelsWidget.css';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { Button, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ILanguageModelsService, ILanguageModelProviderDescriptor } from '../../../chat/common/languageModels.js';
@@ -896,6 +898,10 @@ export class ChatModelsWidget extends Disposable {
 	private searchActionsContainer!: HTMLElement;
 	private table!: WorkbenchTable<IViewModelEntry>;
 	private tableContainer!: HTMLElement;
+	private tableViewport!: HTMLElement;
+	private tableInner!: HTMLElement;
+	private tableScrollable: DomScrollableElement | undefined;
+	private tableMinWidth: number = 0;
 	private addButtonContainer!: HTMLElement;
 	private addButton!: Button;
 	private dropdownActions: IAction[] = [];
@@ -1057,6 +1063,16 @@ export class ChatModelsWidget extends Disposable {
 		this.tableDisposables.clear();
 		DOM.clearNode(this.tableContainer);
 
+		this.tableViewport = $('.models-table-viewport');
+		this.tableInner = DOM.append(this.tableViewport, $('.models-table-inner'));
+		this.tableScrollable = this.tableDisposables.add(new DomScrollableElement(this.tableViewport, {
+			horizontal: ScrollbarVisibility.Auto,
+			vertical: ScrollbarVisibility.Hidden,
+			useShadows: false,
+			scrollYToX: true,
+		}));
+		this.tableContainer.appendChild(this.tableScrollable.getDomNode());
+
 		const gutterColumnRenderer = this.instantiationService.createInstance(GutterColumnRenderer, this.viewModel);
 		const modelNameColumnRenderer = this.instantiationService.createInstance(ModelNameColumnRenderer);
 		const combinedCostColumnRenderer = this.instantiationService.createInstance(CombinedCostColumnRenderer);
@@ -1130,10 +1146,13 @@ export class ChatModelsWidget extends Disposable {
 			}
 		);
 
+		this.tableMinWidth = columns.reduce((sum, c) => sum + c.minimumWidth, 0);
+		this.tableInner.style.minWidth = `${this.tableMinWidth}px`;
+
 		this.table = this.tableDisposables.add(this.instantiationService.createInstance(
 			WorkbenchTable,
 			'ModelsWidget',
-			this.tableContainer,
+			this.tableInner,
 			new Delegate(),
 			columns,
 			[
@@ -1385,7 +1404,9 @@ export class ChatModelsWidget extends Disposable {
 		this.searchWidget.layout(new DOM.Dimension(width - this.searchActionsContainer.clientWidth - this.addButtonContainer.clientWidth - 8, 22));
 		const tableHeight = height - 40;
 		this.tableContainer.style.height = `${tableHeight}px`;
-		this.table.layout(tableHeight, width);
+		const tableWidth = Math.max(width, this.tableMinWidth);
+		this.table.layout(tableHeight, tableWidth);
+		this.tableScrollable?.scanDomNode();
 	}
 
 	public focusSearch(): void {

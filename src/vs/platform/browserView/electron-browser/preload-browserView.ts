@@ -297,6 +297,7 @@ class ElementPicker {
 	private readonly _highlight: HTMLDivElement;
 	private readonly _label: HTMLDivElement;
 	private readonly _labelSelector: HTMLSpanElement;
+	private readonly _labelClasses: HTMLSpanElement;
 	private readonly _labelDims: HTMLSpanElement;
 	private readonly _dragbox: HTMLDivElement;
 
@@ -341,10 +342,19 @@ class ElementPicker {
 		root.appendChild(label);
 		this._label = label;
 
+		const labelInfo = document.createElement('span');
+		labelInfo.className = 'label-info';
+		label.appendChild(labelInfo);
+
 		const labelSelector = document.createElement('span');
 		labelSelector.className = 'label-selector';
-		label.appendChild(labelSelector);
+		labelInfo.appendChild(labelSelector);
 		this._labelSelector = labelSelector;
+
+		const labelClasses = document.createElement('span');
+		labelClasses.className = 'label-classes';
+		labelInfo.appendChild(labelClasses);
+		this._labelClasses = labelClasses;
 
 		const labelDims = document.createElement('span');
 		labelDims.className = 'label-dims';
@@ -630,28 +640,30 @@ class ElementPicker {
 		highlight.style.width = `${rect.width}px`;
 		highlight.style.height = `${rect.height}px`;
 
-		// Label is in *viewport* coordinates and sticky-clamped to the
-		// viewport so it stays visible while any part of the element is
-		// in view.
-		if (rect.bottom <= 0 || rect.top >= viewportHeight) {
-			label.style.display = 'none';
-			return;
-		}
+		// Label is in *viewport* coordinates and sticky-clamped to the viewport.
 		const tagName = String(target.tagName || '').toLowerCase();
 		const idPart = target.id ? `#${target.id}` : '';
 		const classPart = target.classList.length
 			? '.' + [...target.classList].join('.')
 			: '';
-		let selector = tagName + idPart + classPart;
-		if (selector.length > 60) {
-			selector = selector.slice(0, 59) + '\u2026';
-		}
-		this._labelSelector.textContent = selector;
+		this._labelSelector.textContent = tagName + idPart;
+		this._labelClasses.textContent = classPart;
 		this._labelDims.textContent = `${Math.round(rect.width)} \u00d7 ${Math.round(rect.height)}`;
 		label.style.display = 'inline-flex';
 		const idealTop = rect.top - labelHeight;
 		const labelTop = Math.max(0, Math.min(viewportHeight - labelHeight, idealTop));
-		label.style.left = `${Math.max(0, rect.left)}px`;
+		// Use clientWidth (excludes scrollbar) rather than innerWidth so the
+		// label doesn't extend behind the scrollbar on Windows/Linux.
+		// eslint-disable-next-line no-restricted-syntax
+		const viewportWidth = document.documentElement.clientWidth;
+		// Position label at the element's left edge, but push it left if it
+		// would overflow the viewport. Clamp to 0 so it never goes off-screen.
+		label.style.maxWidth = `${viewportWidth}px`;
+		label.style.left = '0';
+		const naturalWidth = label.offsetWidth;
+		const idealLeft = rect.left;
+		const labelLeft = Math.max(0, Math.min(idealLeft, viewportWidth - naturalWidth));
+		label.style.left = `${labelLeft}px`;
 		label.style.top = `${labelTop}px`;
 	}
 
@@ -720,17 +732,20 @@ class ElementPicker {
 				background: var(--vscode-button-background, #0078d4);
 				color: var(--vscode-button-foreground, white);
 				font-family: inherit;
-				font-size: 11px; font-weight: 600; line-height: 20px;
+				font-size: 11px; line-height: 20px;
 				white-space: nowrap;
 				border-radius: 2px;
 				box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 				z-index: 3;
 			}
+			.label-info {
+				display: inline-block; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+			}
 			.label-selector {
-				overflow: hidden; text-overflow: ellipsis; min-width: 0;
+				font-weight: 600;
 			}
 			.label-dims {
-				flex-shrink: 0; opacity: 0.8; font-weight: normal;
+				flex-shrink: 0; opacity: 0.8;
 			}
 			.dragbox {
 				position: fixed; box-sizing: border-box;

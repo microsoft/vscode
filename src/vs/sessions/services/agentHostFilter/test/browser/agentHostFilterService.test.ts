@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../../base/common/event.js';
-import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { isWeb } from '../../../../../../base/common/platform.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ISessionsProvider } from '../../../sessions/common/sessionsProvider.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../sessions/browser/sessionsProvidersService.js';
 import { AgentHostFilterService } from '../../browser/agentHostFilterService.js';
 import { AgentHostFilterConnectionStatus } from '../../common/agentHostFilter.js';
 

@@ -101,6 +101,14 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		this.sendTheme();
 		this._register(this.themeService.onDidColorThemeChange(() => this.sendTheme()));
 
+		this.sendConfiguration();
+		const chatEnabledKeys = new Set(ChatContextKeys.enabled.keys());
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(chatEnabledKeys)) {
+				this.sendConfiguration();
+			}
+		}));
+
 		// Track sharing availability from context keys
 		this._isSharingAvailable = this.contextKeyService.contextMatchesRules(BrowserViewWorkbenchService._sharingAvailableContext);
 		const sharingKeys = new Set(BrowserViewWorkbenchService._sharingAvailableContext.keys());
@@ -286,6 +294,12 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			buttonBackground: theme.getColor(buttonBackground)?.toString(),
 			buttonForeground: theme.getColor(buttonForeground)?.toString(),
 			font: DEFAULT_FONT_FAMILY,
+		});
+	}
+
+	private sendConfiguration(): void {
+		void this._browserViewService.updateConfiguration({
+			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
 		});
 	}
 }

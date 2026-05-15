@@ -9,7 +9,6 @@ import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
-import { CopilotSessionSearchPolicy } from '../../../../base/common/defaultAccount.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentSdkPathSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
@@ -505,8 +504,8 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'CopilotSessionSync',
 				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.119',
-				value: (policyData) => policyData.session_search === CopilotSessionSearchPolicy.Disabled ? false : undefined,
+				minimumVersion: '1.121',
+				value: (policyData) => policyData.cloud_session_storage_enabled === false ? false : undefined,
 				localization: {
 					description: {
 						key: 'chat.sessionSync.enabled.policy',

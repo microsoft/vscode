@@ -73,6 +73,10 @@ export interface IBrowserViewTheme {
 	readonly font?: string;
 }
 
+export interface IBrowserViewConfiguration {
+	readonly aiFeaturesDisabled?: boolean;
+}
+
 export interface IBrowserViewBounds {
 	windowId: number;
 	x: number;
@@ -474,4 +478,10 @@ export interface IBrowserViewService {
 	 * @param keybindings A map of command ID to accelerator label
 	 */
 	updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void>;
+
+	/**
+	 * Update workbench configuration that affect browser view behavior.
+	 * @param config The configuration to apply
+	 */
+	updateConfiguration(config: IBrowserViewConfiguration): Promise<void>;
 }

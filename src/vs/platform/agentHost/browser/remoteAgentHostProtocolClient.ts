@@ -30,6 +30,7 @@ import { isClientTransport, type IProtocolTransport } from '../common/state/sess
 import { AhpErrorCodes } from '../common/state/protocol/errors.js';
 import { ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
@@ -203,6 +204,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private readonly _watchdog = this._register(new IntervalTimer());
 
 	/**
+	 * Used to suppress watchdog-triggered closes when our own JS event loop
+	 * has been pegged — in that case the silence is on our side, not the
+	 * remote's, and tearing down the transport would just generate a useless
+	 * reconnect cycle that aborts in-flight requests.
+	 */
+	private readonly _loadEstimator: ILoadEstimator;
+
+	/**
 	 * Comparison keys of customization URIs we have already granted implicit
 	 * read access for on this connection. Dedupes repeat sends so we don't
 	 * pile up grants per dispatch. Cleared with the connection.
@@ -228,6 +237,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	constructor(
 		address: string,
 		transportOrFactory: IProtocolTransport | (() => IProtocolTransport),
+		loadEstimator: ILoadEstimator | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostPermissionService private readonly _permissionService: IAgentHostPermissionService,
@@ -235,6 +245,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		super();
 		this._address = address;
 		this._connectionAuthority = agentHostAuthority(address);
+		this._loadEstimator = loadEstimator ?? LoadEstimator.getInstance();
 
 		if (typeof transportOrFactory === 'function') {
 			this._transportFactory = transportOrFactory;
@@ -655,6 +666,18 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	async completions(params: CompletionsParams): Promise<CompletionsResult> {
 		return this._sendRequest('completions', params);
+	}
+
+	/**
+	 * Send an application-level ping and wait for the server's response.
+	 * Used by {@link _watchdogTick} to keep idle connections under
+	 * watchdog supervision; safe to call from external code as well.
+	 *
+	 * The returned promise rejects with a {@link ProtocolError} if the
+	 * connection closes before a response arrives.
+	 */
+	async ping(): Promise<void> {
+		await this._sendRequest('ping', {});
 	}
 
 	/**
@@ -1137,13 +1160,32 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * arrived in the same window, declare the transport dead and trigger
 	 * the renderer's reconnect path.
 	 *
+	 * Idle connections still get supervision: if there are no outstanding
+	 * requests, the tick fires off a {@link ping} so the next tick has
+	 * something to time out on. This catches silently-dead transports
+	 * (e.g. SSH/tunnel after laptop sleep + network change) even when
+	 * there's no user activity. Tolerates servers that don't implement
+	 * `ping` — the error response still updates `_lastReadTime`.
+	 *
+	 * The {@link ILoadEstimator} guards against the *local* side of the
+	 * confusion: if our own JS event loop has been pegged we suppress the
+	 * close — the silence is on our end, not the remote's, and tearing
+	 * down the transport would just abort in-flight requests.
+	 *
 	 * After laptop sleep + wake the JS event loop is paused, so the
 	 * interval fires only once after wake. The lookback comparison still
 	 * works — we're comparing wall-clock {@link Date.now()} values, not
 	 * counting ticks.
 	 */
 	private _watchdogTick(): void {
-		if (this._state.kind === AgentHostClientState.Closed || this._pendingRequests.size === 0) {
+		if (this._state.kind === AgentHostClientState.Closed) {
+			return;
+		}
+		if (this._pendingRequests.size === 0) {
+			// Active liveness probe — keep idle connections under
+			// supervision. Fire-and-forget; the next tick checks for
+			// staleness via the normal pending-request path.
+			void this.ping().catch(() => undefined);
 			return;
 		}
 		const now = Date.now();
@@ -1163,6 +1205,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}
 		const oldestAge = now - oldestSentAt;
 		if (oldestAge < WATCHDOG_TIMEOUT_MS) {
+			return;
+		}
+		if (this._loadEstimator.hasHighLoad()) {
 			return;
 		}
 		this._logService.info(
