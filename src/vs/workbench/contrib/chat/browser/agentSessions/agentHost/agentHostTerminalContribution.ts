@@ -3,113 +3,98 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { URI } from '../../../../../../base/common/uri.js';
+import { OS } from '../../../../../../base/common/platform.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
-import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
+import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { LoggingAgentConnection } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/loggingAgentConnection.js';
+import { ITerminalProfileResolverService, ITerminalProfileService } from '../../../../../../workbench/contrib/terminal/common/terminal.js';
 import { IAgentHostTerminalService } from '../../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
-import { ITerminalProfileProvider, ITerminalProfileService } from '../../../../../../workbench/contrib/terminal/common/terminal.js';
 
-const AGENT_HOST_PROFILE_EXT_ID = 'vscode.agent-host-terminal';
-
-export interface IAgentHostEntry {
-	/** Display name for the profile */
-	readonly name: string;
-	/** Address or identifier for the host */
-	readonly address: string;
-	/** Getter for the connection (may be lazily resolved) */
-	readonly getConnection: () => IAgentConnection | undefined;
-}
+/** Terminal settings whose change should re-resolve the agent host shell. */
+const AGENT_HOST_SHELL_DEPENDENT_SETTINGS = [
+	TerminalSettingId.AgentHostProfileLinux,
+	TerminalSettingId.AgentHostProfileMacOs,
+	TerminalSettingId.AgentHostProfileWindows,
+	TerminalSettingId.DefaultProfileLinux,
+	TerminalSettingId.DefaultProfileMacOs,
+	TerminalSettingId.DefaultProfileWindows,
+	TerminalSettingId.ProfilesLinux,
+	TerminalSettingId.ProfilesMacOs,
+	TerminalSettingId.ProfilesWindows,
+];
 
 /**
- * Registers terminal profiles for connected agent hosts, allowing users to
- * open terminals on remote (or local) agent host processes directly from the
- * terminal dropdown.
+ * Registers local agent host terminal entries with
+ * {@link IAgentHostTerminalService} so they appear in the terminal dropdown.
+ *
+ * Gated on the `chat.agentHost.enabled` setting.
  */
 export class AgentHostTerminalContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.agentHostTerminal';
 
-	private readonly _registrations = this._register(new DisposableMap<string>());
-	private readonly _usedHosts = new Set<string>();
+	private readonly _localEntry = this._register(new MutableDisposable());
+	private readonly _conditionalListeners = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
-		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
+		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 	) {
 		super();
 
-		// React to local agent host lifecycle
-		this._register(this._agentHostService.onAgentHostStart(() => this._reconcile()));
-		this._register(this._agentHostService.onAgentHostExit(() => this._reconcile()));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AgentHostEnabledSettingId)) {
+				this._updateEnabled();
+			}
+		}));
 
-		// Initial reconciliation
-		this._reconcile();
+		this._updateEnabled();
 	}
 
-	protected _reconcile(): void {
-		const entries = this._collectEntries();
-
-		// Determine which profiles to show
-		const desiredProfiles = new Map<string, IAgentHostEntry>();
-
-		if (entries.length === 0) {
-			// No hosts connected — no profiles
-		} else if (entries.length === 1) {
-			// Single host — always show a named profile
-			const entry = entries[0];
-			desiredProfiles.set(entry.address, entry);
+	private _updateEnabled(): void {
+		if (this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+			if (!this._conditionalListeners.value) {
+				const store = new DisposableStore();
+				store.add(this._agentHostService.onAgentHostStart(() => this._reconcile()));
+				store.add(this._configurationService.onDidChangeConfiguration(e => {
+					if (AGENT_HOST_SHELL_DEPENDENT_SETTINGS.some(s => e.affectsConfiguration(s))) {
+						this._pushDefaultShell();
+					}
+					if (e.affectsConfiguration(AgentHostCustomTerminalToolEnabledSettingId)) {
+						this._pushCustomTerminalToolEnabled();
+					}
+				}));
+				store.add(this._terminalProfileService.onDidChangeAvailableProfiles(() => this._pushDefaultShell()));
+				// Retry the push when the host's root state hydrates or its schema
+				// changes - the initial push from `_reconcile()` may have raced an
+				// undefined `rootState.value`, in which case the schema gate below
+				// in `_pushDefaultShell` returned early.
+				store.add(this._agentHostService.rootState.onDidChange(() => {
+					this._pushDefaultShell();
+					this._pushCustomTerminalToolEnabled();
+				}));
+				this._conditionalListeners.value = store;
+				this._reconcile();
+			}
 		} else {
-			// Multiple hosts, some active — show named profiles for active ones
-			let displaying = 0;
-			for (const address of this._usedHosts) {
-				const entry = entries.find(e => e.address === address);
-				if (entry) {
-					displaying++;
-					desiredProfiles.set(entry.address, entry);
-				}
-			}
-
-			if (displaying === entries.length - 1) {
-				const missing = entries.find(e => !this._usedHosts.has(e.address));
-				if (missing) {
-					desiredProfiles.set(missing.address, missing);
-				}
-			} else if (displaying < entries.length) {
-				// Multiple hosts, none active — show a generic quickpick profile
-				desiredProfiles.set('__quickpick__', {
-					name: localize('agentHostTerminal.pick', "Agent Host\u2026"),
-					address: '__quickpick__',
-					getConnection: () => undefined,
-				});
-			}
-		}
-
-		// Diff and update profile registrations
-		for (const [key, entry] of desiredProfiles) {
-			if (!this._registrations.has(key)) {
-				this._registerProfile(key, entry, entries);
-			}
-		}
-		for (const key of this._registrations.keys()) {
-			if (!desiredProfiles.has(key)) {
-				this._registrations.deleteAndDispose(key);
-			}
+			this._conditionalListeners.value = undefined;
+			this._localEntry.value = undefined;
 		}
 	}
 
-	protected _collectEntries(): IAgentHostEntry[] {
-		const entries: IAgentHostEntry[] = [];
-
-		// Local agent host
-		try {
-			entries.push({
+	private _reconcile(): void {
+		if (!this._localEntry.value) {
+			this._localEntry.value = this._agentHostTerminalService.registerEntry({
 				name: localize('agentHostTerminal.local', "Local"),
 				address: '__local__',
 				getConnection: () => this._instantiationService.createInstance(
@@ -119,72 +104,85 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 					localize('agentHostTerminal.channelLocal', "Agent Host Terminal (Local)"),
 				),
 			});
-		} catch {
-			// Local agent host may not be available
 		}
-
-		return entries;
+		this._pushDefaultShell();
+		this._pushCustomTerminalToolEnabled();
 	}
 
-	private _registerProfile(key: string, entry: IAgentHostEntry, allEntries: IAgentHostEntry[]): void {
-		const provider: ITerminalProfileProvider = {
-			createContributedTerminalProfile: async (options) => {
-				let connection: IAgentConnection | undefined;
-				let displayName = entry.name;
+	/**
+	 * Resolve the agent host terminal profile (with `defaultProfile.<os>`
+	 * fallback) and push the shell path into the agent host's root config so
+	 * its host-managed shells inherit the user's preferred terminal binary.
+	 *
+	 * No-ops if the host's root-config schema doesn't advertise
+	 * `AgentHostConfigKey.DefaultShell` - protects older / third-party
+	 * agent hosts from receiving keys they don't understand. The push is
+	 * retried automatically when `rootState` hydrates (see `_updateEnabled`).
+	 *
+	 * Local agent host only. Remote agent hosts (via
+	 * `IRemoteAgentHostService.connections`) are intentionally not fanned out
+	 * to: the resolved path is local-machine-shaped (e.g. a Windows path) and
+	 * not necessarily valid on the remote machine. Remote operators should
+	 * configure the shell server-side via the remote's `agent-host-config.json`.
+	 * See https://github.com/microsoft/vscode/issues/313160 follow-ups.
+	 */
+	private async _pushDefaultShell(): Promise<void> {
+		const rootState = this._agentHostService.rootState.value;
+		if (!rootState || rootState instanceof Error) {
+			return;
+		}
+		if (!rootState.config?.schema.properties[AgentHostConfigKey.DefaultShell]) {
+			return;
+		}
 
-				if (key === '__quickpick__') {
-					// Show quickpick to let user choose a host
-					const picks: (IQuickPickItem & { address: string; hostName: string })[] = allEntries.map(e => ({
-						label: localize('agentHostTerminal.profileName', "Agent Host ({0})", e.name),
-						address: e.address,
-						hostName: e.name,
-					}));
-					const pick = await this._quickInputService.pick(picks, {
-						placeHolder: localize('agentHostTerminal.pickHost', "Select an agent host to open a terminal on"),
-					});
-					if (!pick) {
-						return;
-					}
-					this._usedHosts.add(pick.address);
-					this._reconcile();
-					displayName = pick.hostName;
-					connection = allEntries.find(e => e.address === pick.address)?.getConnection();
-				} else {
-					connection = entry.getConnection();
-				}
+		let profile;
+		try {
+			profile = await this._terminalProfileResolverService.getDefaultProfile({
+				remoteAuthority: undefined,
+				os: OS,
+				allowAgentHostShell: true,
+			});
+		} catch {
+			return;
+		}
 
-				if (!connection) {
-					return;
-				}
+		if (!profile.path) {
+			return;
+		}
 
-				await this._agentHostTerminalService.createTerminal(connection, {
-					name: localize('agentHostTerminal.profileName', "Agent Host ({0})", displayName),
-					cwd: options.cwd ? (typeof options.cwd === 'string' ? URI.file(options.cwd) : options.cwd) : undefined,
-					location: options.location,
-				});
-			},
-		};
+		const currentRootState = this._agentHostService.rootState.value;
+		if (!currentRootState || currentRootState instanceof Error) {
+			return;
+		}
 
-		const title = key === '__quickpick__'
-			? localize('agentHostTerminal.pick', "Agent Host\u2026")
-			: localize('agentHostTerminal.profileName', "Agent Host ({0})", entry.name);
+		// Fix #314385
+		if (rootState.config.values[AgentHostConfigKey.DefaultShell] === profile.path) {
+			return;
+		}
 
-		const store = new DisposableStore();
-		store.add(this._terminalProfileService.registerTerminalProfileProvider(
-			AGENT_HOST_PROFILE_EXT_ID,
-			key,
-			provider,
-		));
+		this._agentHostService.dispatch({
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostConfigKey.DefaultShell]: profile.path },
+		});
+	}
 
-		// Register the profile metadata in-memory so it appears in the
-		// contribution list without writing to user configuration.
-		store.add(this._terminalProfileService.registerInternalContributedProfile({
-			extensionIdentifier: AGENT_HOST_PROFILE_EXT_ID,
-			id: key,
-			title,
-			icon: 'remote',
-		}));
+	private _pushCustomTerminalToolEnabled(): void {
+		const rootState = this._agentHostService.rootState.value;
+		if (!rootState || rootState instanceof Error) {
+			return;
+		}
+		if (!rootState.config?.schema.properties[AgentHostConfigKey.DisableCustomTerminalTool]) {
+			return;
+		}
 
-		this._registrations.set(key, store);
+		const disableCustomTerminalTool = !this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId);
+		if (rootState.config.values[AgentHostConfigKey.DisableCustomTerminalTool] === disableCustomTerminalTool) {
+			return;
+		}
+
+		this._agentHostService.dispatch({
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostConfigKey.DisableCustomTerminalTool]: disableCustomTerminalTool },
+		});
 	}
 }

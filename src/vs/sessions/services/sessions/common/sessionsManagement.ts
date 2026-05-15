@@ -12,7 +12,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { IChat, ISession, ISessionType } from './session.js';
 import { ISendRequestOptions } from './sessionsProvider.js';
 
-export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session's provider supports multiple chats per session"));
+export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session supports multiple chats"));
 
 /**
  * Event fired when sessions change within a provider.
@@ -74,17 +74,6 @@ export interface ISessionsManagementService {
 	readonly activeSession: IObservable<IActiveSession | undefined>;
 
 	/**
-	 * Observable for the currently active sessions provider ID.
-	 * When only one provider exists, it is selected automatically.
-	 */
-	readonly activeProviderId: IObservable<string | undefined>;
-
-	/**
-	 * Set the active sessions provider by ID.
-	 */
-	setActiveProvider(providerId: string): void;
-
-	/**
 	 * Select an existing session as the active session.
 	 * Sets `isNewChatSession` context to false and opens the active chat belonging to the session.
 	 */
@@ -95,6 +84,13 @@ export interface ISessionsManagementService {
 	 * Sets `isNewChatSession` context to false and opens the chat.
 	 */
 	openChat(session: ISession, chatUri: URI): Promise<void>;
+
+	/**
+	 * Restore the last active session from persisted state.
+	 * Waits until the session provider is available and then opens the session.
+	 * Falls back to the new-session view if the session is not found.
+	 */
+	restoreLastActiveSession(): Promise<void>;
 
 	/**
 	 * Switch to the new-session view.
@@ -129,6 +125,12 @@ export interface ISessionsManagementService {
 	 * and shows a rich input for composing a message.
 	 */
 	openNewChatInSession(session: ISession): void;
+
+	/** Navigate to the previous session in the navigation history. */
+	openPreviousSession(): Promise<void>;
+
+	/** Navigate to the next session in the navigation history. */
+	openNextSession(): Promise<void>;
 
 	// -- Session Actions --
 

@@ -184,6 +184,52 @@ export function safeStringify(obj: any): string {
 	});
 }
 
+/**
+ * Like `JSON.stringify`, but with deterministic ordering of object keys so that
+ * structurally equal inputs always produce the same string. Useful for cache
+ * keys derived from arbitrary object payloads.
+ *
+ * - Object keys are sorted at every level of nesting.
+ * - Properties whose value is `undefined` are omitted (matching `JSON.stringify`).
+ * - Circular references are replaced with the string `"[Circular]"` to avoid
+ *   throwing.
+ * - A top-level `undefined` returns the string `'undefined'`; any other
+ *   stringification failure returns the empty string.
+ */
+export function stableStringify(value: unknown): string {
+	if (value === undefined) {
+		return 'undefined';
+	}
+	try {
+		return _stableStringify(value, new WeakSet());
+	} catch {
+		return '';
+	}
+}
+
+function _stableStringify(value: unknown, seen: WeakSet<object>): string {
+	if (value === null || typeof value !== 'object') {
+		return JSON.stringify(value) ?? 'null';
+	}
+	if (seen.has(value as object)) {
+		return '"[Circular]"';
+	}
+	seen.add(value as object);
+	if (Array.isArray(value)) {
+		return '[' + value.map(v => _stableStringify(v, seen)).join(',') + ']';
+	}
+	const keys = Object.keys(value as object).sort();
+	const parts: string[] = [];
+	for (const k of keys) {
+		const v = (value as Record<string, unknown>)[k];
+		if (v === undefined) {
+			continue;
+		}
+		parts.push(JSON.stringify(k) + ':' + _stableStringify(v, seen));
+	}
+	return '{' + parts.join(',') + '}';
+}
+
 type obj = { [key: string]: any };
 /**
  * Returns an object that has keys for each value that is different in the base object. Keys

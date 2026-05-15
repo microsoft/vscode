@@ -509,6 +509,9 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 			return;
 		}
 
+		// Clear the parent change listener before disposeContext to avoid
+		// forwarding parent events after this service has begun tearing down.
+		this._parentChangeListener.clear();
 		this._parent.disposeContext(this._myContextId);
 		this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
 		super.dispose();

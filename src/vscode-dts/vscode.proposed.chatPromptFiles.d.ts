@@ -21,6 +21,16 @@ declare module 'vscode' {
 		 * Uri to the chat resource. This is typically a `.agent.md`, `.instructions.md`, `.prompt.md`, or `SKILL.md` file.
 		 */
 		readonly uri: Uri;
+
+		/**
+		 * Optional condition that must evaluate to true for the resource to be offered.
+		 */
+		readonly when?: string;
+
+		/**
+		 * Optional session types that describe when the resource should be offered.
+		 */
+		readonly sessionTypes?: readonly string[];
 	}
 
 	/**
@@ -46,6 +56,11 @@ declare module 'vscode' {
 		 * Where the custom agent was loaded from.
 		 */
 		readonly source: ChatResourceSource;
+
+		/**
+		 * Optional session types that describe when the custom agent should be offered.
+		 */
+		readonly sessionTypes?: readonly string[];
 
 		/**
 		 * The contributing extension identifier when {@link source} is `extension`.
@@ -81,6 +96,12 @@ declare module 'vscode' {
 		 * Whether this custom agent should be excluded from model invocation.
 		 */
 		readonly disableModelInvocation: boolean;
+
+		/**
+		 * Whether this custom agent is enabled. Disabled agents are included in the list
+		 * but should not be offered to users or used in automated flows.
+		 */
+		readonly enabled: boolean;
 	}
 
 	/**
@@ -106,6 +127,11 @@ declare module 'vscode' {
 		 * Where the instruction was loaded from.
 		 */
 		readonly source: ChatResourceSource;
+
+		/**
+		 * Optional session types that describe when the instruction should be offered.
+		 */
+		readonly sessionTypes?: readonly string[];
 
 		/**
 		 * The contributing extension identifier when {@link source} is `extension`.
@@ -148,6 +174,11 @@ declare module 'vscode' {
 		readonly source: ChatResourceSource;
 
 		/**
+		 * Optional session types that describe when the skill should be offered.
+		 */
+		readonly sessionTypes?: readonly string[];
+
+		/**
 		 * The contributing extension identifier when {@link source} is `extension`.
 		 */
 		readonly extensionId?: string;
@@ -161,6 +192,12 @@ declare module 'vscode' {
 		 * Whether this skill should be shown to users as invocable.
 		 */
 		readonly userInvocable?: boolean;
+
+		/**
+		 * Whether this skill should be excluded from model invocation.
+		 * When true, the skill can only be triggered manually via `/name`.
+		 */
+		readonly disableModelInvocation: boolean;
 	}
 
 	/**
@@ -188,6 +225,11 @@ declare module 'vscode' {
 		readonly source: ChatResourceSource;
 
 		/**
+		 * Optional session types that describe when the slash command should be offered.
+		 */
+		readonly sessionTypes?: readonly string[];
+
+		/**
 		 * The contributing extension identifier when {@link source} is `extension`.
 		 */
 		readonly extensionId?: string;
@@ -210,10 +252,35 @@ declare module 'vscode' {
 
 	export interface ChatHook {
 		readonly uri: Uri;
+		/**
+		 * Optional session types that describe when the hook should be offered.
+		 */
+		readonly sessionTypes?: readonly string[];
+
+		/**
+		 * Where the chat resource was loaded from.
+		 */
+		readonly source: ChatResourceSource;
+
+		/**
+		 * The contributing extension identifier when {@link source} is `extension`.
+		 */
+		readonly extensionId?: string;
+
+		/**
+		 * The contributing plugin URI when {@link source} is `plugin`.
+		 */
+		readonly pluginUri?: Uri;
+
 	}
 
 	export interface ChatPlugin {
 		readonly uri: Uri;
+		/**
+		 * Optional session types that describe when the plugin should be offered.
+		 */
+		readonly sessionTypes?: readonly string[];
+
 	}
 
 	// #endregion
@@ -385,7 +452,7 @@ declare module 'vscode' {
 		 * Provide the list of currently available hook configuration files. These are JSON files that define lifecycle hooks from all sources (workspace, user, and extension-provided).
 		 * @param token A cancellation token.
 		 */
-		export function getHooks(token: CancellationToken): Thenable<readonly ChatResource[]>;
+		export function getHooks(token: CancellationToken): Thenable<readonly ChatHook[]>;
 
 		/**
 		 * An event that fires when the list of {@link plugins plugins} changes.
@@ -397,7 +464,7 @@ declare module 'vscode' {
 		 * Provide the list of currently installed agent plugins.
 		 * @param token A cancellation token.
 		 */
-		export function getPlugins(token: CancellationToken): Thenable<readonly ChatResource[]>;
+		export function getPlugins(token: CancellationToken): Thenable<readonly ChatPlugin[]>;
 
 		/**
 		 * Register a provider for custom agents.
