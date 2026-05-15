@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -20,56 +19,6 @@ export interface ISessionType {
 	readonly label: string;
 	/** Icon for this session type. */
 	readonly icon: ThemeIcon;
-}
-
-/** Session type ID for local Copilot CLI sessions. */
-export const COPILOT_CLI_SESSION_TYPE = 'copilotcli';
-
-/** Session type ID for Copilot Cloud sessions. */
-export const COPILOT_CLOUD_SESSION_TYPE = 'copilot-cloud-agent';
-
-/** Copilot CLI session type — local background agent running in a Git worktree. */
-export const CopilotCLISessionType: ISessionType = {
-	id: COPILOT_CLI_SESSION_TYPE,
-	label: localize('copilotCLI', "Copilot CLI"),
-	icon: Codicon.copilot,
-};
-
-/** Copilot Cloud session type - cloud-hosted agent. */
-export const CopilotCloudSessionType: ISessionType = {
-	id: COPILOT_CLOUD_SESSION_TYPE,
-	label: localize('copilotCloud', "Cloud"),
-	icon: Codicon.cloud,
-};
-
-/** Session type ID for Claude Code sessions. */
-export const CLAUDE_CODE_SESSION_TYPE = 'claude-code';
-
-/** Claude Code session type — local agent powered by Claude. */
-export const ClaudeCodeSessionType: ISessionType = {
-	id: CLAUDE_CODE_SESSION_TYPE,
-	label: localize('claudeCode', "Claude"),
-	icon: Codicon.claude,
-};
-
-/** Session type ID for local VS Code chat sessions (in-process, no worktree). */
-export const LOCAL_SESSION_TYPE = 'local';
-
-/** Local session type — in-process VS Code chat, no background agent or worktree. */
-export const LocalSessionType: ISessionType = {
-	id: LOCAL_SESSION_TYPE,
-	label: localize('localSession', "Local"),
-	icon: Codicon.vm,
-};
-
-/**
- * Returns whether the given session type represents a workspace-backed
- * agent (e.g. Copilot CLI, Claude Code) that operates on a worktree or
- * repository — regardless of whether the agent runs locally or remotely.
- * TODO: Somehow make this contributable so we don't have to hardcode session types here.
- */
-export function isWorkspaceAgentSessionType(sessionType: string | undefined): boolean {
-	return sessionType === COPILOT_CLI_SESSION_TYPE || sessionType === CLAUDE_CODE_SESSION_TYPE;
 }
 
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
@@ -156,6 +105,10 @@ export interface ISessionWorkspace {
 	readonly folders: ISessionFolder[];
 	/** Whether the session requires workspace trust to operate. */
 	readonly requiresWorkspaceTrust: boolean;
+	/**
+	 * Whether this workspace is a virtual
+	 */
+	readonly isVirtualWorkspace: boolean;
 }
 
 /**

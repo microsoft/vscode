@@ -9,7 +9,7 @@ import { GlobalPointerMoveMonitor } from '../../../../base/browser/globalPointer
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { Action } from '../../../../base/common/actions.js';
+import { Action, Separator } from '../../../../base/common/actions.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Orientation, Sash, SashState } from '../../../../base/browser/ui/sash/sash.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -31,7 +31,7 @@ import { EditorPart } from './editorPart.js';
 import { GroupDirection, GroupsOrder, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, EditorPartModalSidebarVisibleContext } from '../../../common/contextkeys.js';
-import { EditorResourceAccessor, SideBySideEditor, Verbosity } from '../../../common/editor.js';
+import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ResourceLabel } from '../../labels.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -386,7 +386,13 @@ export class ModalEditorPart {
 			editorPart.handleHeaderDoubleClick();
 		}));
 
-		// Handle right-click on header to open context menu
+		// Handle right-click on header to open context menu. The context menu
+		// also surfaces the editor actions of the active editor group, mirroring
+		// how the workbench titlebar exposes them when
+		// `workbench.editor.editorActionsLocation` is set to `titleBar`. The
+		// active editor pane's `scopedContextKeyService` is used so the actions'
+		// `when`/`precondition` and keybinding labels are evaluated in the correct
+		// scope.
 		disposables.add(addDisposableListener(headerElement, EventType.CONTEXT_MENU, e => {
 			const target = e.target;
 			if (isHTMLElement(target) && (target.closest('.monaco-button') || target.closest('.action-item'))) {
@@ -395,9 +401,21 @@ export class ModalEditorPart {
 
 			EventHelper.stop(e, true);
 
+			const contextMenuDisposables = new DisposableStore();
+			const activeGroup = editorPart.activeGroup;
+			const activeEditor = activeGroup.activeEditor;
+			const editorScopedContextKeyService = activeGroup.activeEditorPane?.scopedContextKeyService ?? activeGroup.scopedContextKeyService;
+			const editorActions = activeGroup.createEditorActions(contextMenuDisposables, MenuId.EditorTitle);
+			const { primary, secondary } = editorActions.actions;
+
 			this.contextMenuService.showContextMenu({
 				menuId: MenuId.ModalEditorTitleContext,
-				getAnchor: () => ({ x: e.clientX, y: e.clientY })
+				contextKeyService: editorScopedContextKeyService,
+				getAnchor: () => ({ x: e.clientX, y: e.clientY }),
+				getActions: () => Separator.join(primary, secondary),
+				getActionsContext: () => ({ groupId: activeGroup.id, editorIndex: activeEditor ? activeGroup.getIndexOfEditor(activeEditor) : undefined } satisfies IEditorCommandsContext),
+				getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id, editorScopedContextKeyService),
+				onHide: () => contextMenuDisposables.dispose(),
 			});
 		}));
 

@@ -10,7 +10,7 @@ import { derived, derivedOpts, IObservable, ISettableObservable, observableValue
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { COPILOT_CLOUD_SESSION_TYPE, ISessionChangeset, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
@@ -36,6 +36,7 @@ export interface ActiveSessionState {
 export class ChangesViewModel extends Disposable {
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
+	readonly activeSessionIsVirtualWorkspaceObs: IObservable<boolean>;
 	readonly activeSessionChangesObs: IObservable<readonly ISessionFileChange[]>;
 	readonly activeSessionChangesetsObs: IObservable<readonly ISessionChangeset[] | undefined>;
 	readonly activeSessionChangesetObs: IObservable<ISessionChangeset | undefined>;
@@ -79,10 +80,15 @@ export class ChangesViewModel extends Disposable {
 			return activeSession?.sessionType;
 		});
 
+		this.activeSessionIsVirtualWorkspaceObs = derived(reader => {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			return activeSession?.workspace.read(reader)?.isVirtualWorkspace ?? false;
+		});
+
 		// Active session has git repository
 		this.activeSessionHasGitRepositoryObs = derived(reader => {
-			const sessionType = this.activeSessionTypeObs.read(reader);
-			if (sessionType === COPILOT_CLOUD_SESSION_TYPE) {
+			const isVirtualWorkspace = this.activeSessionIsVirtualWorkspaceObs.read(reader);
+			if (isVirtualWorkspace) {
 				return true;
 			}
 

@@ -36,7 +36,7 @@ suite('CopilotLanguageModelWrapper', () => {
 		let endpoint: IChatEndpoint;
 		setup(async () => {
 			createAccessor();
-			endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-base');
+			endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
 			wrapper = instaService.createInstance(CopilotLanguageModelWrapper);
 		});
 
@@ -66,7 +66,7 @@ suite('CopilotLanguageModelWrapper', () => {
 		let endpoint: IChatEndpoint;
 		setup(async () => {
 			createAccessor();
-			endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-base');
+			endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
 			wrapper = instaService.createInstance(CopilotLanguageModelWrapper);
 		});
 		const runTest = async (messages: vscode.LanguageModelChatMessage[], tools?: vscode.LanguageModelChatTool[]) => {
@@ -97,7 +97,7 @@ suite('CopilotLanguageModelWrapper', () => {
 		setup(async () => {
 			createAccessor();
 			fetcher = accessor.get(IChatMLFetcher) as MockChatMLFetcher;
-			endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-base');
+			endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
 			wrapper = instaService.createInstance(CopilotLanguageModelWrapper);
 		});
 

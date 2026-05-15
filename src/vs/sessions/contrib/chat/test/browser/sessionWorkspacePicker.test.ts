@@ -67,6 +67,7 @@ function createMockProvider(id: string, opts?: {
 				gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 			}],
 			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
 		}),
 		onDidChangeSessions: Event.None,
 		getSessions: () => [],
@@ -642,6 +643,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 					gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 				}],
 				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
 			}),
 		};
 		const storage = disposables.add(new TestStorageService());

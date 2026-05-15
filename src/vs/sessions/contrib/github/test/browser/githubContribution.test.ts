@@ -192,6 +192,7 @@ class TestSession implements ISession {
 				gitRepository: { uri: workspaceUri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: gitHubInfoObs },
 			}],
 			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
 		});
 		this.modelId = observableValue<string | undefined>(`test.modelId.${id}`, undefined);
 		this.mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(`test.mode.${id}`, undefined);
