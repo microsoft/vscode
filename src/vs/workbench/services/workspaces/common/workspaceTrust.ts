@@ -188,7 +188,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private registerListeners(): void {
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(async () => await this.updateWorkspaceTrust()));
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, this.storageKey, this._store)(async () => {
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION_SHARED, this.storageKey, this._store)(async () => {
 			/* This will only execute if storage was changed by a user action in a separate window */
 			if (JSON.stringify(this._trustStateInfo) !== JSON.stringify(this.loadTrustInfo())) {
 				this._trustStateInfo = this.loadTrustInfo();
@@ -249,7 +249,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private loadTrustInfo(): IWorkspaceTrustInfo {
-		const infoAsString = this.storageService.get(this.storageKey, StorageScope.APPLICATION);
+		const infoAsString = this.storageService.get(this.storageKey, StorageScope.APPLICATION_SHARED);
 
 		let result: IWorkspaceTrustInfo | undefined;
 		try {
@@ -275,7 +275,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private async saveTrustInfo(): Promise<void> {
-		this.storageService.store(this.storageKey, JSON.stringify(this._trustStateInfo), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this.storageService.store(this.storageKey, JSON.stringify(this._trustStateInfo), StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
 		this._onDidChangeTrustedFolders.fire();
 
 		await this.updateWorkspaceTrust();

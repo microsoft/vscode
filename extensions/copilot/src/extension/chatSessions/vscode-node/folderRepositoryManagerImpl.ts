@@ -16,7 +16,7 @@ import { ResourceSet } from '../../../util/vs/base/common/map';
 import { isEqual } from '../../../util/vs/base/common/resources';
 import { createTimeout } from '../../inlineEdits/common/common';
 import { IToolsService } from '../../tools/common/toolsService';
-import { RepositoryProperties } from '../common/chatSessionMetadataStore';
+import { RepositoryProperties, IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
 import { ChatSessionWorktreeProperties, IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import {
@@ -67,6 +67,7 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 		protected readonly workspaceService: IWorkspaceService,
 		protected readonly logService: ILogService,
 		protected readonly toolsService: IToolsService,
+		protected readonly metadataStore: IChatSessionMetadataStore
 
 	) {
 		super();
@@ -211,7 +212,8 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 
 			// If we're in a single folder workspace, possible the user has opened the worktree folder directly.
 			if (sessionId && folderUri) {
-				worktreeProperties = await this.worktreeService.getWorktreeProperties(folderUri);
+				const worktreeSessionIds = this.metadataStore.getWorktreeSessions(folderUri);
+				worktreeProperties = worktreeSessionIds.length ? await this.worktreeService.getWorktreeProperties(worktreeSessionIds[0]) : undefined;
 				worktree = worktreeProperties ? vscode.Uri.file(worktreeProperties.worktreePath) : undefined;
 				repositoryUri = worktreeProperties ? vscode.Uri.file(worktreeProperties.repositoryPath) : repositoryUri;
 			}
@@ -239,7 +241,8 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 
 			// If we're in a single folder workspace, possible the user has opened the worktree folder directly.
 			if (sessionId && folderUri) {
-				worktreeProperties = await this.worktreeService.getWorktreeProperties(folderUri);
+				const worktreeSessionIds = this.metadataStore.getWorktreeSessions(folderUri);
+				worktreeProperties = worktreeSessionIds.length ? await this.worktreeService.getWorktreeProperties(worktreeSessionIds[0]) : undefined;
 				worktree = worktreeProperties ? vscode.Uri.file(worktreeProperties.worktreePath) : undefined;
 				repositoryUri = worktreeProperties ? vscode.Uri.file(worktreeProperties.repositoryPath) : repositoryUri;
 			}
@@ -252,6 +255,10 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 				const repoContext = await this.gitService.getRepository(selectedFolder);
 				const branchBase = repoContext?.headBranchName && repoContext.headCommitHash
 					? await this.gitService.getBranchBase(repoContext.rootUri, repoContext.headBranchName)
+					: undefined;
+
+				const mergeBaseCommit = repoContext?.headBranchName && branchBase?.commit
+					? await this.gitService.getMergeBase(repoContext.rootUri, repoContext.headBranchName, branchBase.commit)
 					: undefined;
 
 				const gitHubRemote = repoContext
@@ -275,6 +282,8 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 						upstreamBranchName: repoContext?.upstreamRemote && repoContext?.upstreamBranchName
 							? `${repoContext.upstreamRemote}/${repoContext.upstreamBranchName}`
 							: undefined,
+						baseCommit: repoContext.headCommitHash,
+						mergeBaseCommit,
 						hasGitHubRemote: gitHubRemote !== undefined,
 						incomingChanges,
 						outgoingChanges,
@@ -411,7 +420,6 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 		// Store worktree properties for the session
 		// Note: The caller is responsible for calling setWorktreeProperties after getting the real session ID
 
-		this.logService.info(`[FolderRepositoryManager] Created worktree for session ${sessionId}: ${worktreeProperties.worktreePath}`);
 
 		// Migrate changes from active repository to worktree if requested
 		if (uncommittedChangesAction === 'move' || uncommittedChangesAction === 'copy') {
@@ -453,7 +461,6 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 		const trustedInfos: { folder: vscode.Uri; info: FolderRepositoryInfo }[] = [];
 		for (let i = 0; i < allFolders.length; i++) {
 			if (folderInfos[i].trusted === false) {
-				this.logService.warn(`[FolderRepositoryManager] Multi-root: folder ${allFolders[i].fsPath} is not trusted, excluding`);
 				continue;
 			}
 			trustedInfos.push({ folder: allFolders[i], info: folderInfos[i] });
@@ -468,7 +475,6 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 
 		// 3. If workspace mode, skip worktree creation — return all as-is
 		if (isolation === 'workspace') {
-			this.logService.info(`[FolderRepositoryManager] Multi-root: workspace isolation mode, skipping worktree creation for all folders`);
 			const primary = trustedInfos.find(t => t.folder.fsPath === primaryFolder.fsPath)?.info
 				?? { folder: primaryFolder, repository: undefined, repositoryProperties: undefined, worktree: undefined, worktreeProperties: undefined, trusted: true };
 			const additional = trustedInfos
@@ -849,9 +855,10 @@ export class CopilotCLIFolderRepositoryManager extends FolderRepositoryManager {
 		@IWorkspaceService workspaceService: IWorkspaceService,
 		@ILogService logService: ILogService,
 		@IToolsService toolsService: IToolsService,
-		@IFileSystemService private readonly fileSystem: IFileSystemService
+		@IFileSystemService private readonly fileSystem: IFileSystemService,
+		@IChatSessionMetadataStore metadataStore: IChatSessionMetadataStore
 	) {
-		super(worktreeService, workspaceFolderService, gitService, workspaceService, logService, toolsService);
+		super(worktreeService, workspaceFolderService, gitService, workspaceService, logService, toolsService, metadataStore);
 	}
 
 	/**
@@ -892,9 +899,10 @@ export class ClaudeFolderRepositoryManager extends FolderRepositoryManager {
 		@ILogService logService: ILogService,
 		@IToolsService toolsService: IToolsService,
 		@IClaudeSessionStateService private readonly sessionStateService: IClaudeSessionStateService,
-		@IFileSystemService private readonly fileSystem: IFileSystemService
+		@IFileSystemService private readonly fileSystem: IFileSystemService,
+		@IChatSessionMetadataStore metadataStore: IChatSessionMetadataStore
 	) {
-		super(worktreeService, workspaceFolderService, gitService, workspaceService, logService, toolsService);
+		super(worktreeService, workspaceFolderService, gitService, workspaceService, logService, toolsService, metadataStore);
 	}
 
 	/**
