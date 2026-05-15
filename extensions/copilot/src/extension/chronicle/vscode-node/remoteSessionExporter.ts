@@ -704,9 +704,13 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 				return;
 			}
 
-			// Only start tracking on invoke_agent (real user interaction)
+			// Only start tracking on invoke_agent (real user interaction).
+			// Sub-agent invoke_agent spans must never initialize the parent: child spans
+			// typically complete before their parent, and using a sub-agent span as the
+			// init trigger would seed sessionSource/firstCloudWriteSessionSource and
+			// telemetry from the sub-agent's AGENT_NAME instead of the parent's.
 			if (!this._cloudSessions.has(sessionId) && !this._initializingSessions.has(sessionId)) {
-				if (operationName !== GenAiOperationName.INVOKE_AGENT) {
+				if (operationName !== GenAiOperationName.INVOKE_AGENT || subagentId) {
 					return;
 				}
 				// Trigger lazy initialization — don't await, buffer events in the meantime
