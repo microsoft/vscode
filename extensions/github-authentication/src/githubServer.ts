@@ -18,10 +18,26 @@ import { base64Encode } from './node/buffer';
 const REDIRECT_URL_STABLE = 'https://vscode.dev/redirect';
 const REDIRECT_URL_INSIDERS = 'https://insiders.vscode.dev/redirect';
 
+/**
+ * Result of a token validity probe.
+ * - `valid`: the server returned a 2xx response.
+ * - `invalid`: the server returned 401 or 403 — the token has been revoked or expired.
+ * - `unknown`: the probe failed for a reason unrelated to credentials (network
+ *   error, server outage, unexpected status). Callers should NOT drop the
+ *   session in this case — the next probe may succeed.
+ */
+export type TokenValidationResult = 'valid' | 'invalid' | 'unknown';
+
 export interface IGitHubServer {
 	login(scopes: string, signInProvider?: GitHubSocialSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<string>;
 	logout(session: vscode.AuthenticationSession): Promise<void>;
 	getUserInfo(token: string): Promise<{ id: string; accountName: string }>;
+	/**
+	 * Lightweight probe that asks GitHub whether {@link token} is still
+	 * accepted. Used to proactively detect server-side revocations so callers
+	 * can drop dead sessions instead of leaving them in storage indefinitely.
+	 */
+	validateToken(token: string): Promise<TokenValidationResult>;
 	sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
 	friendlyName: string;
 }
@@ -258,6 +274,41 @@ export class GitHubServer implements IGitHubServer {
 			this._logger.error(`Getting account info failed: ${errorMessage}`);
 			throw new Error(errorMessage);
 		}
+	}
+
+	public async validateToken(token: string): Promise<TokenValidationResult> {
+		let result;
+		try {
+			this._logger.info('Validating token...');
+			result = await fetching(this.getServerUri('/user').toString(), {
+				logger: this._logger,
+				retryFallbacks: true,
+				expectJSON: true,
+				headers: {
+					Authorization: `token ${token}`,
+					'User-Agent': `${vscode.env.appName} (${vscode.env.appHost})`
+				}
+			});
+		} catch (ex) {
+			this._logger.error(`Token validation network error: ${ex.message ?? ex}`);
+			return 'unknown';
+		}
+		if (result.ok) {
+			return 'valid';
+		}
+		// Only an explicit 401 means the credential itself was rejected. 403 is
+		// returned for non-credential reasons too: primary/secondary/abuse rate
+		// limits, organisation SAML SSO enforcement, IP allowlist denials and
+		// scope-policy tightening. Treating those as `invalid` would silently
+		// sign the user out — exactly the regression this validation path is
+		// meant to prevent — so map them to `unknown` and let the caller keep
+		// the session.
+		if (result.status === 401) {
+			this._logger.info('Token validation: server rejected token (401).');
+			return 'invalid';
+		}
+		this._logger.warn(`Token validation: non-OK status ${result.status}; treating as unknown.`);
+		return 'unknown';
 	}
 
 	public async sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void> {

@@ -9,6 +9,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import * as nls from '../../../../nls.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -63,8 +64,22 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private readonly _reconnectPaused = new Set<string>();
 	/** Addresses paused specifically because the remote host is offline. */
 	private readonly _hostOfflinePaused = new Set<string>();
+	/**
+	 * Addresses paused because the upstream rejected our credentials. We
+	 * track these separately so wake/visibility events do NOT auto-resume
+	 * them — only an authentication-session change (a fresh token, or an
+	 * explicit "removed" event firing from a session validation) should
+	 * lift the pause. Without this, any tab focus would burn through the
+	 * retry budget against a token that the server has already rejected.
+	 */
+	private readonly _reconnectPausedForAuth = new Set<string>();
 	/** Timestamp of the last wake-triggered resume, to rate-limit rapid tab toggles. */
 	private _lastResumeAt = 0;
+	/**
+	 * In-flight session-validation promise, to coalesce concurrent failures
+	 * across multiple addresses into a single command invocation.
+	 */
+	private _pendingValidation: Promise<void> | undefined;
 
 	/**
 	 * Per-address connect sessions for telemetry. A session starts at the
@@ -83,6 +98,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		@ILogService private readonly _logService: ILogService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IAgentHostFilterService agentHostFilterService: IAgentHostFilterService,
 	) {
 		super();
@@ -295,13 +311,30 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				this._finishConnectAttempt(address, { success: true, attemptNumber, attemptStart, session, isReconnect });
 			} catch (err) {
 				this._logService.warn(`[TunnelAgentHost] Connect to ${cached.name} failed:`, err);
-				const errorCategory = this._categorizeError(err);
+				let errorCategory = this._categorizeError(err);
 				this._finishConnectAttempt(address, { success: false, attemptNumber, attemptStart, session, isReconnect, error: err });
 				// Clear the pending-connect entry BEFORE deciding what to do
 				// next; otherwise `_scheduleReconnect`'s in-flight guard
 				// (`_pendingConnects.has(address)`) would silently bail and
 				// we'd never re-arm the timer, leaving the tunnel stuck.
 				this._pendingConnects.delete(address);
+
+				// The web embedder masks the upstream HTTP status — a 401 on
+				// the WebSocket upgrade arrives as the generic string
+				// `"WebSocket relay connection failed"`. Probe the auth
+				// provider before scheduling another retry, so we can
+				// upgrade a `relayConnectionFailed` to `authExpired` when
+				// the underlying cause was actually a revoked token.
+				if (errorCategory === 'relayConnectionFailed' && cached.authProvider) {
+					const authStillValid = await this._probeAuthValid(cached.authProvider);
+					if (authStillValid === false) {
+						this._logService.info(
+							`[TunnelAgentHost] Upgrading ${address} failure to authExpired ` +
+							`after auth-provider probe found no valid session.`
+						);
+						errorCategory = 'authExpired';
+					}
+				}
 
 				// Auth failures are not worth retrying — a fresh token must
 				// be acquired by the user or by a session-change event. Pause
@@ -497,6 +530,82 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		}
 	}
 
+	/**
+	 * Ask the matching authentication provider to re-validate its stored
+	 * sessions, then check whether the user is still authenticated for that
+	 * provider. Returns:
+	 * - `true`: at least one session is still present, AND no session was
+	 *   removed during revalidation (i.e. the failure we're investigating
+	 *   was probably not auth).
+	 * - `false`: revalidation either removed all sessions, or removed at
+	 *   least one session — caller should treat this failure as auth-expired.
+	 * - `undefined`: we couldn't determine (provider doesn't support
+	 *   server-side revalidation, command not registered, etc.) — caller
+	 *   should not draw conclusions and should fall back to retry.
+	 *
+	 * Concurrent invocations share a single in-flight validation so a burst
+	 * of failed reconnect attempts triggers exactly one `/user` round-trip.
+	 *
+	 * Comparing the session-id set before vs. after revalidation (rather
+	 * than only checking whether *any* sessions remain afterwards) covers
+	 * the partial-revocation case: a user with multiple github sessions
+	 * (e.g. tunnel scope + Copilot scope) where only one was revoked still
+	 * has `getSessions(...).length > 0`, but their tunnel session is the
+	 * one that's gone.
+	 */
+	private async _probeAuthValid(providerId: 'github' | 'microsoft'): Promise<boolean | undefined> {
+		// Server-side revalidation is github-specific: only the
+		// github-authentication extension currently exposes the
+		// `_github.authentication.validateSessions` command. For other
+		// providers we have no way to force the keychain to re-probe,
+		// so we don't draw any conclusion.
+		if (providerId !== 'github') {
+			return undefined;
+		}
+
+		try {
+			const sessionsBefore = await this._authenticationService.getSessions(providerId);
+			const idsBefore = new Set(sessionsBefore.map(s => s.id));
+
+			if (!this._pendingValidation) {
+				this._pendingValidation = (async () => {
+					try {
+						// Fire-and-await: the github-authentication extension
+						// registers this command; on the desktop the auth
+						// provider may handle expiry differently and not
+						// register it — we tolerate that with a try/catch.
+						await this._commandService.executeCommand('_github.authentication.validateSessions');
+					} catch (err) {
+						this._logService.debug(`[TunnelAgentHost] Auth validation command failed: ${err}`);
+					}
+				})();
+				this._pendingValidation.finally(() => {
+					this._pendingValidation = undefined;
+				});
+			}
+			await this._pendingValidation;
+
+			const sessionsAfter = await this._authenticationService.getSessions(providerId);
+			if (sessionsAfter.length === 0) {
+				return false;
+			}
+			// If revalidation dropped any previously-known session id, treat
+			// the failure as auth-expired even though other sessions remain
+			// (partial revocation: a different scope set may still be valid
+			// but the tunnel-scoped one is gone).
+			const idsAfter = new Set(sessionsAfter.map(s => s.id));
+			for (const id of idsBefore) {
+				if (!idsAfter.has(id)) {
+					return false;
+				}
+			}
+			return true;
+		} catch (err) {
+			this._logService.debug(`[TunnelAgentHost] Auth probe failed: ${err}`);
+			return undefined;
+		}
+	}
+
 	private _cancelReconnect(address: string): void {
 		const timer = this._reconnectTimeouts.get(address);
 		if (timer !== undefined) {
@@ -510,6 +619,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		this._reconnectAttempts.delete(address);
 		this._reconnectPaused.delete(address);
 		this._hostOfflinePaused.delete(address);
+		this._reconnectPausedForAuth.delete(address);
 	}
 
 	/** Drop all reconnect + telemetry state for an address (e.g. on removal). */
@@ -564,6 +674,14 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			this._hostOfflinePaused.add(address);
 		} else {
 			this._hostOfflinePaused.delete(address);
+		}
+		// Auth-class failures must not be resumed by visibility/online events
+		// alone — only a session change ("removed" or "added") should clear
+		// them, otherwise we'd retry against the same rejected token forever.
+		if (reason === 'authExpired' || reason === 'auth') {
+			this._reconnectPausedForAuth.add(address);
+		} else {
+			this._reconnectPausedForAuth.delete(address);
 		}
 		this._logService.info(
 			`[TunnelAgentHost] Pausing auto-reconnect for ${address} (${reason}); ` +
@@ -663,11 +781,19 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		// flaky Wi-Fi toggling online/offline) so we don't hammer the relay
 		// with immediate retries. This is an event-smoothing gate, not an
 		// error-backoff — that's handled by `_scheduleReconnect`.
-		const now = Date.now();
-		if (now - this._lastResumeAt < RESUME_RATE_LIMIT_MS) {
-			return;
+		//
+		// `sessionAdded` is NOT rate-limited: a session change is rare,
+		// authoritative, and is the only signal that releases an
+		// auth-paused tunnel (see `_reconnectPausedForAuth`). Dropping it
+		// because a wake event happened to fire ten seconds earlier would
+		// strand the auth pause until the user manually reconnects.
+		if (trigger !== 'sessionAdded') {
+			const now = Date.now();
+			if (now - this._lastResumeAt < RESUME_RATE_LIMIT_MS) {
+				return;
+			}
+			this._lastResumeAt = now;
 		}
-		this._lastResumeAt = now;
 
 		const cached = this._tunnelService.getCachedTunnels();
 		for (const tunnel of cached) {
@@ -677,6 +803,17 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			}
 			const live = this._remoteAgentHostService.connections.find(c => c.address === address);
 			if (live && live.status === RemoteAgentHostConnectionStatus.Connected) {
+				continue;
+			}
+
+			// Don't resume an auth-paused tunnel from a wake/visibility/online
+			// event — the only valid resume signal is a session change. The
+			// background validation timer in github-authentication will clear
+			// (or re-issue) the session and trigger us via _handleSessionsChange.
+			if (this._reconnectPausedForAuth.has(address) && trigger !== 'sessionAdded') {
+				this._logService.info(
+					`[TunnelAgentHost] Skipping resume for ${address} (trigger: ${trigger}); auth-paused, awaiting session change.`
+				);
 				continue;
 			}
 
@@ -701,6 +838,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			...this._reconnectTimeouts.keys(),
 			...this._reconnectAttempts.keys(),
 			...this._reconnectPaused,
+			...this._reconnectPausedForAuth,
 			...this._connectSessions.keys(),
 		]);
 		for (const address of tracked) {

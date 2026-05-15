@@ -65,7 +65,8 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(uriHandler);
 	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
 
-	context.subscriptions.push(new GitHubAuthenticationProvider(context, uriHandler));
+	const githubProvider = new GitHubAuthenticationProvider(context, uriHandler);
+	context.subscriptions.push(githubProvider);
 
 	let before = vscode.workspace.getConfiguration().get<string>('github-enterprise.uri');
 	let githubEnterpriseAuthProvider = initGHES(context, uriHandler);
@@ -79,6 +80,23 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		}
 	}));
+
+	// Allow other workbench code (e.g. the agent host tunnel layer, which
+	// can detect a 401 on a long-lived WebSocket but cannot cleanly observe
+	// expiry without a probe) to ask us to re-validate every stored session
+	// on demand. Returning a promise lets callers await and then re-check
+	// `getSessions` instead of polling.
+	context.subscriptions.push(vscode.commands.registerCommand(
+		'_github.authentication.validateSessions',
+		async () => {
+			await Promise.all([
+				githubProvider.validateSessions(),
+				githubEnterpriseAuthProvider instanceof GitHubAuthenticationProvider
+					? githubEnterpriseAuthProvider.validateSessions()
+					: Promise.resolve(),
+			]);
+		}
+	));
 
 	// Listener to prompt for reload when the fetch implementation setting changes
 	const beforeFetchSetting = vscode.workspace.getConfiguration().get<boolean>('github-authentication.useElectronFetch', true);

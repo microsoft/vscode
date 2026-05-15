@@ -18,6 +18,7 @@ import {
 	type ICachedTunnel,
 	type ITunnelInfo,
 } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -59,6 +60,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 		this._discoveryProvider = environmentService.options?.tunnelDiscoveryProvider;
@@ -94,6 +96,16 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 			return results;
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} Failed to list tunnels`, err);
+			// The embedder swallows the upstream HTTP status, so we cannot
+			// tell whether this was a 401 or a transient network failure.
+			// Nudge the GitHub auth provider to re-validate stored sessions —
+			// if the underlying cause was a revoked token, that will drop the
+			// session, fire `removed`, and let the walkthrough re-show via
+			// the welcome contribution. The provider coalesces concurrent
+			// invocations, so back-to-back calls from different code paths
+			// share a single `/user` round-trip per session.
+			this._commandService.executeCommand('_github.authentication.validateSessions')
+				.then(undefined, e => this._logService.debug(`${LOG_PREFIX} Auth revalidation failed`, e));
 			return [];
 		}
 	}
