@@ -23,6 +23,20 @@ else
   SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_DIR="$VSCODE_REMOTE_SYSROOT_DIR" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
 fi
 
+mkdir -p "$HOME/.gyp"
+cat > "$HOME/.gyp/include.gypi" << 'EOF'
+{
+  "target_defaults": {
+    "conditions": [
+      ["OS=='linux'", {
+        'cflags_cc!': [ '-std=gnu++20' ],
+        'cflags_cc': [ '-std=gnu++2a' ],
+      }]
+    ]
+  }
+}
+EOF
+
 if [ "$npm_config_arch" == "x64" ]; then
   # Download clang based on chromium revision used by vscode
   curl -s https://raw.githubusercontent.com/chromium/chromium/148.0.7778.96/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
