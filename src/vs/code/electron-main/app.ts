@@ -141,6 +141,8 @@ import { IWebContentExtractorService } from '../../platform/webContentExtractor/
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../platform/networkFilter/common/networkFilterService.js';
 import { ITerminalSandboxService, NullTerminalSandboxService } from '../../platform/sandbox/common/terminalSandboxService.js';
+import { IProcessStateProtocolMainService, PSP_MAIN_CHANNEL_NAME } from '../../platform/processStateProtocol/common/protocol.js';
+import { ProcessStateProtocolMainService } from '../../platform/processStateProtocol/electron-main/processStateProtocolMainService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 
 /**
@@ -1081,6 +1083,9 @@ export class CodeApplication extends Disposable {
 		services.set(IAgentNetworkFilterService, new SyncDescriptor(AgentNetworkFilterService, undefined, true));
 		services.set(IWebContentExtractorService, new SyncDescriptor(NativeWebContentExtractorService, undefined, false /* proxied to other processes */));
 
+		// Process State Protocol
+		services.set(IProcessStateProtocolMainService, new SyncDescriptor(ProcessStateProtocolMainService, undefined, false /* proxied to renderers */));
+
 		// Webview Manager
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 
@@ -1258,6 +1263,10 @@ export class CodeApplication extends Disposable {
 		// Web Content Extractor
 		const webContentExtractorChannel = ProxyChannel.fromService(accessor.get(IWebContentExtractorService), disposables);
 		mainProcessElectronServer.registerChannel('webContentExtractor', webContentExtractorChannel);
+
+		// Process State Protocol
+		const pspChannel = ProxyChannel.fromService(accessor.get(IProcessStateProtocolMainService), disposables);
+		mainProcessElectronServer.registerChannel(PSP_MAIN_CHANNEL_NAME, pspChannel);
 
 		// Workspaces
 		const workspacesChannel = ProxyChannel.fromService(accessor.get(IWorkspacesService), disposables);

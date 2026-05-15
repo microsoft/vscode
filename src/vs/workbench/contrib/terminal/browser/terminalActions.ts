@@ -1471,12 +1471,11 @@ function getSelectedViewInstances2(accessor: ServicesAccessor, args?: unknown): 
 function getSelectedViewInstances(accessor: ServicesAccessor, args?: unknown, args2?: unknown): ITerminalInstance[] | undefined {
 	const listService = accessor.get(IListService);
 	const terminalGroupService = accessor.get(ITerminalGroupService);
-	const result: ITerminalInstance[] = [];
 
 	// Assign list only if it's an instance of TerminalTabList (#234791)
 	const list = listService.lastFocusedList instanceof TerminalTabList ? listService.lastFocusedList : undefined;
-	// Get selected tab list instance(s)
-	const selections = list?.getSelection();
+	// Get selected tab list instance(s) (filters out PSP child rows).
+	const selections = list?.getSelectedTerminals();
 	// Get inline tab instance if there are not tab list selections #196578
 	if (terminalGroupService.lastAccessedMenu === 'inline-tab' && !selections?.length) {
 		const instance = terminalGroupService.activeInstance;
@@ -1486,21 +1485,16 @@ function getSelectedViewInstances(accessor: ServicesAccessor, args?: unknown, ar
 	if (!list || !selections) {
 		return undefined;
 	}
-	const focused = list.getFocus();
+	const focused = list.getFocusedTerminals();
 
-	const viewInstances = terminalGroupService.instances;
 	if (focused.length === 1 && !selections.includes(focused[0])) {
 		// focused length is always a max of 1
 		// if the focused one is not in the selected list, return that item
-		result.push(viewInstances[focused[0]]);
-		return result;
+		return [focused[0]];
 	}
 
 	// multi-select
-	for (const selection of selections) {
-		result.push(viewInstances[selection]);
-	}
-	return result.filter(r => !!r);
+	return selections.slice();
 }
 
 export function validateTerminalName(name: string): { content: string; severity: Severity } | null {

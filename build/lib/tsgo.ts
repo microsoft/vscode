@@ -14,14 +14,46 @@ const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const ansiRegex = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
 const timestampRegex = /^\[\d{2}:\d{2}:\d{2}\]\s*/;
 
-export function spawnTsgo(projectPath: string, config: { taskName: string; noEmit?: boolean }, onComplete?: () => Promise<void> | void): Promise<void> {
+// Matches `file(line,col): error TSxxxx: message` lines emitted by tsgo with `--pretty false`.
+const errorLineRegex = /^(.+?)\((\d+),(\d+)\):\s*error\s+(\w+):\s*(.+)$/;
+
+export interface ITsgoError {
+	readonly file?: string;
+	readonly line?: number;
+	readonly column?: number;
+	readonly code?: string;
+	readonly message: string;
+}
+
+export interface ITsgoConfig {
+	readonly taskName: string;
+	readonly noEmit?: boolean;
+	/** Invoked once per completed run with the parsed error list (empty on success). */
+	readonly onResult?: (result: { readonly errors: readonly ITsgoError[] }) => void;
+}
+
+export function spawnTsgo(projectPath: string, config: ITsgoConfig, onComplete?: () => Promise<void> | void): Promise<void> {
 	function runReporter(output: string) {
 		const lines = (output || '').split('\n');
-		const errorLines = lines.filter(line => /error \w+:/.test(line));
-		fancyLog(`Finished ${ansiColors.green(config.taskName)} ${projectPath} with ${errorLines.length} errors.`);
-		for (const line of errorLines) {
+		const errors: ITsgoError[] = [];
+		for (const line of lines) {
+			const m = errorLineRegex.exec(line);
+			if (!m) {
+				continue;
+			}
+			errors.push({
+				file: m[1],
+				line: Number(m[2]),
+				column: Number(m[3]),
+				code: m[4],
+				message: m[5],
+			});
+		}
+		fancyLog(`Finished ${ansiColors.green(config.taskName)} ${projectPath} with ${errors.length} errors.`);
+		for (const line of lines.filter(l => /error \w+:/.test(l))) {
 			fancyLog(line);
 		}
+		config.onResult?.({ errors });
 	}
 
 	const args = ['tsgo', '--project', projectPath, '--pretty', 'false', '--incremental'];
@@ -71,7 +103,7 @@ export function spawnTsgo(projectPath: string, config: { taskName: string; noEmi
 	});
 }
 
-export function createTsgoStream(projectPath: string, config: { taskName: string; noEmit?: boolean }, onComplete?: () => Promise<void> | void): NodeJS.ReadWriteStream {
+export function createTsgoStream(projectPath: string, config: ITsgoConfig, onComplete?: () => Promise<void> | void): NodeJS.ReadWriteStream {
 	const stream = es.through();
 
 	spawnTsgo(projectPath, config, onComplete).then(() => {

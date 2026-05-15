@@ -23,6 +23,7 @@ import watch from './watch/index.ts';
 import bom from 'gulp-bom';
 import * as tsb from './tsb/index.ts';
 import sourcemaps from 'gulp-sourcemaps';
+import { getPspGulpReporter } from './pspGulpReporter.ts';
 import { createTsgoStream } from './tsgo.ts';
 
 
@@ -173,12 +174,22 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 
 export function watchTypeCheckTask(src: string): task.Task {
 	return task.define(`watch-typecheck-${path.basename(src)}`, () => {
+		const taskName = `watch-typecheck-${path.basename(src)}`;
 		const projectPath = path.join(import.meta.dirname, '../../', src, 'tsconfig.json');
 		const generator = new MonacoGenerator(true);
 		generator.execute();
+
+		const psp = getPspGulpReporter();
+
 		const watchInput = watch(`${src}/**`, { base: src, readDelay: 200 });
 		const tsgoStream = watchInput.pipe(generator.stream).pipe(util.debounce(() => {
-			const stream = createTsgoStream(projectPath, { taskName: 'watch-client-noEmit', noEmit: true });
+			const stream = createTsgoStream(projectPath, {
+				taskName: 'watch-client-noEmit',
+				noEmit: true,
+				onResult: ({ errors }) => {
+					psp.setTaskDetails(taskName, { errors });
+				},
+			});
 			const result = es.through();
 			stream.on('end', () => {
 				result.emit('end');
