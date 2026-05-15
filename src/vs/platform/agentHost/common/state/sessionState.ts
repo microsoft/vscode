@@ -11,6 +11,7 @@
 // helpers and re-exports.
 
 import { hasKey } from '../../../../base/common/types.js';
+import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import {
 	SessionLifecycle,
 	ToolResultContentType,
@@ -26,6 +27,7 @@ import {
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
+	type URI as ProtocolURI,
 	type UserMessage,
 	TerminalState,
 } from './protocol/state.js';
@@ -41,6 +43,7 @@ export {
 	type ProjectInfo,
 	type MarkdownResponsePart,
 	type MessageAttachment,
+	type MessageResourceAttachment,
 	type ReasoningResponsePart,
 	type ResponsePart,
 	type RootState,
@@ -81,8 +84,8 @@ export {
 	type SessionInputQuestion,
 	type SessionInputAnswer,
 	type SessionInputOption,
-	AttachmentType,
 	CustomizationStatus,
+	MessageAttachmentKind,
 	PendingMessageKind,
 	PolicyState,
 	ResponsePartKind,
@@ -193,40 +196,58 @@ export function getToolSubagentContent(result: { content?: readonly ToolResultCo
 
 // ---- Subagent URI helpers ---------------------------------------------------
 
+const SUBAGENT_URI_SEGMENT = 'subagent';
+const SUBAGENT_URI_MARKER = `/${SUBAGENT_URI_SEGMENT}/`;
+const SUBAGENT_URI_PATH_REGEX = /^(?<parentPath>.+)\/subagent\/(?<toolCallId>.+)$/;
+
+function asResourceUri(uri: ProtocolURI | ResourceURI): ResourceURI {
+	return typeof uri === 'string' ? ResourceURI.parse(uri) : uri;
+}
+
+function getSubagentBasePath(parentSession: ProtocolURI | ResourceURI): { parent: ResourceURI; path: string } {
+	const parent = asResourceUri(parentSession);
+	const parentPath = parent.path.endsWith('/') ? parent.path.slice(0, -1) : parent.path;
+	return { parent, path: `${parentPath}${SUBAGENT_URI_MARKER}` };
+}
+
 /**
  * Builds a subagent session URI from a parent session URI and tool call ID.
  * Convention: `{parentSessionUri}/subagent/{toolCallId}`
  */
-export function buildSubagentSessionUri(parentSession: string, toolCallId: string): string {
-	// Normalize: strip trailing slash from parent to avoid double-slash in URI
-	const parent = parentSession.endsWith('/') ? parentSession.slice(0, -1) : parentSession;
-	return `${parent}/subagent/${toolCallId}`;
+export function buildSubagentSessionUri(parentSession: ProtocolURI | ResourceURI, toolCallId: string): string {
+	const { parent, path } = getSubagentBasePath(parentSession);
+	return parent.with({ path: `${path}${toolCallId}` }).toString();
 }
 
 /**
  * Parses a subagent session URI into its parent session URI and tool call ID.
  * Returns `undefined` if the URI does not follow the subagent convention.
  */
-export function parseSubagentSessionUri(uri: string): { parentSession: string; toolCallId: string } | undefined {
-	const idx = uri.lastIndexOf('/subagent/');
-	if (idx < 0) {
-		return undefined;
-	}
-	const toolCallId = uri.substring(idx + '/subagent/'.length);
-	if (!toolCallId) {
+export function parseSubagentSessionUri(uri: ProtocolURI | ResourceURI): { parentSession: ResourceURI; toolCallId: string } | undefined {
+	const resource = asResourceUri(uri);
+	const match = SUBAGENT_URI_PATH_REGEX.exec(resource.path);
+	if (!match?.groups) {
 		return undefined;
 	}
 	return {
-		parentSession: uri.substring(0, idx),
-		toolCallId,
+		parentSession: resource.with({ path: match.groups.parentPath }),
+		toolCallId: match.groups.toolCallId,
 	};
 }
 
 /**
  * Returns whether a session URI represents a subagent session.
  */
-export function isSubagentSession(uri: string): boolean {
-	return uri.includes('/subagent/');
+export function isSubagentSession(uri: ProtocolURI | ResourceURI): boolean {
+	return parseSubagentSessionUri(uri) !== undefined;
+}
+
+/**
+ * Builds the string prefix used by the state manager for cached subagent sessions.
+ */
+export function buildSubagentSessionUriPrefix(parentSession: ProtocolURI | ResourceURI): string {
+	const { parent, path } = getSubagentBasePath(parentSession);
+	return parent.with({ path }).toString();
 }
 
 // ---- Factory helpers --------------------------------------------------------
@@ -311,6 +332,10 @@ export interface ISessionGitState {
 	readonly outgoingChanges?: number;
 	/** Number of files with uncommitted changes. */
 	readonly uncommittedChanges?: number;
+	/** GitHub repository owner parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
+	readonly githubOwner?: string;
+	/** GitHub repository name parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
+	readonly githubRepo?: string;
 }
 
 /**
@@ -334,6 +359,8 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 		incomingChanges?: number;
 		outgoingChanges?: number;
 		uncommittedChanges?: number;
+		githubOwner?: string;
+		githubRepo?: string;
 	} = {};
 	if (typeof raw['hasGitHubRemote'] === 'boolean') { result.hasGitHubRemote = raw['hasGitHubRemote']; }
 	if (typeof raw['branchName'] === 'string') { result.branchName = raw['branchName']; }
@@ -342,6 +369,8 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	if (typeof raw['incomingChanges'] === 'number') { result.incomingChanges = raw['incomingChanges']; }
 	if (typeof raw['outgoingChanges'] === 'number') { result.outgoingChanges = raw['outgoingChanges']; }
 	if (typeof raw['uncommittedChanges'] === 'number') { result.uncommittedChanges = raw['uncommittedChanges']; }
+	if (typeof raw['githubOwner'] === 'string') { result.githubOwner = raw['githubOwner']; }
+	if (typeof raw['githubRepo'] === 'string') { result.githubRepo = raw['githubRepo']; }
 	return result;
 }
 

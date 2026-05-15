@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
-import { INodeProcess } from '../../../base/common/platform.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
@@ -12,7 +11,7 @@ import { refineServiceDecorator } from '../../instantiation/common/instantiation
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
-import { IUserDataProfilesService, WillCreateProfileEvent, WillRemoveProfileEvent, IUserDataProfile } from '../common/userDataProfile.js';
+import { IUserDataProfilesService, WillCreateProfileEvent, WillRemoveProfileEvent, IUserDataProfile, AGENTS_WINDOW_PROFILE_ID } from '../common/userDataProfile.js';
 import { UserDataProfilesService } from '../node/userDataProfile.js';
 import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IStateService } from '../../state/node/state.js';
@@ -23,6 +22,7 @@ import { join, resolve } from '../../../base/common/path.js';
 
 export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {
+	createAgentsWindowProfile(): Promise<IUserDataProfile>;
 	getProfileForWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier): IUserDataProfile | undefined;
 	unsetWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier, transient?: boolean): void;
 	getAssociatedEmptyWindows(): IEmptyWorkspaceIdentifier[];
@@ -47,25 +47,19 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 	}
 
 	protected override createDefaultProfile(): IUserDataProfile {
-		const defaultProfile = {
+		return {
 			...super.createDefaultProfile(),
 			agentPluginsHome: this.agentPluginsHome
 		};
-		if (!(process as INodeProcess).isEmbeddedApp) {
-			return defaultProfile;
+	}
+
+	async createAgentsWindowProfile(): Promise<IUserDataProfile> {
+		const existing = this.profiles.find(p => p.id === AGENTS_WINDOW_PROFILE_ID);
+		if (existing) {
+			return existing;
 		}
-		const hostUserRoamingDataHome = this.environmentService.parentAppUserRoamingDataHome;
-		if (!hostUserRoamingDataHome) {
-			return defaultProfile;
-		}
-		const hostAgentPluginsHome = getParentAppAgentPluginsPath(this.nativeEnvironmentService);
-		return {
-			...defaultProfile,
-			keybindingsResource: joinPath(hostUserRoamingDataHome, 'keybindings.json'),
-			promptsHome: joinPath(hostUserRoamingDataHome, 'prompts'),
-			mcpResource: joinPath(hostUserRoamingDataHome, 'mcp.json'),
-			agentPluginsHome: hostAgentPluginsHome ? URI.file(hostAgentPluginsHome) : this.agentPluginsHome
-		};
+
+		return this.createProfile(AGENTS_WINDOW_PROFILE_ID, 'Agents');
 	}
 
 	getAssociatedEmptyWindows(): IEmptyWorkspaceIdentifier[] {
@@ -75,14 +69,6 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		}
 		return emptyWindows;
 	}
-}
-
-function getParentAppAgentPluginsPath(environmentService: INativeEnvironmentService): string | undefined {
-	const hostUserHome = environmentService.parentAppUserHome;
-	if (!hostUserHome) {
-		return undefined;
-	}
-	return getAgentPluginsPath(environmentService.args, hostUserHome);
 }
 
 function getAgentPluginsPath(args: NativeParsedArgs, userHome: URI): string {

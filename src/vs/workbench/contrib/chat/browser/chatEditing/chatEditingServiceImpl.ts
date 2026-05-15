@@ -256,7 +256,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 						|| this._editorService.activeEditorPane?.input instanceof ChatEditorInput && isEqual(this._editorService.activeEditorPane.input.sessionResource, session.chatSessionResource)
 						|| Boolean(activeUri && session.entries.get().find(entry => isEqual(activeUri, entry.modifiedURI)));
 
-					this._editorService.openEditor({ resource: uri, options: { inactive, preserveFocus: true, pinned: true } });
+					this._editorService.openEditor({ resource: uri, options: { inactive, preserveFocus: true, pinned: true, isExplicit: false } });
 				}
 			})());
 		};

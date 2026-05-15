@@ -33,13 +33,14 @@ import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GRO
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
-import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions } from '../../remoteAgentHost/browser/remoteHostOptions.js';
+// eslint-disable-next-line local/code-import-patterns -- TODO: move remote host options out of providers
+import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions } from '../../providers/remoteAgentHost/browser/remoteHostOptions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { COPILOT_PROVIDER_ID } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import { IWorkspacesService, isRecentFolder } from '../../../../platform/workspaces/common/workspaces.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
 
-const LEGACY_STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 const FILTER_THRESHOLD = 10;
 const MAX_RECENT_WORKSPACES = 10;
@@ -126,7 +127,7 @@ export class WorkspacePicker extends Disposable {
 	/** Provider ID chosen during the last local folder browse. */
 	private _selectedLocalProviderId: string | undefined;
 
-	private _triggerElement: HTMLElement | undefined;
+	protected _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _tabbedWidget: TabbedActionListWidget;
 	private readonly _pickerGroupContext: IContextKey<string>;
@@ -165,6 +166,7 @@ export class WorkspacePicker extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -178,9 +180,6 @@ export class WorkspacePicker extends Disposable {
 		this._register(this._tabbedWidget.onDidHide(() => {
 			this._pickerGroupContext.reset();
 		}));
-
-		// Migrate legacy storage to new key
-		this._migrateLegacyStorage();
 
 		// Restore selected workspace from storage
 		this._selectedWorkspace = this._restoreSelectedWorkspace();
@@ -345,19 +344,7 @@ export class WorkspacePicker extends Disposable {
 		return {
 			onSelect: (item) => {
 				hide();
-				if (item.run) {
-					item.run();
-				} else if (item.commandId) {
-					this.commandService.executeCommand(item.commandId);
-				} else if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
-					// Workspace belongs to an unavailable remote — ignore selection
-					return;
-				}
-				if (item.browseActionIndex !== undefined) {
-					this._executeBrowseAction(item.browseActionIndex);
-				} else if (item.selection) {
-					this._selectProject(item.selection);
-				}
+				this._dispatchPickerItem(item);
 			},
 			onHide: () => {
 				triggerElement.setAttribute('aria-expanded', 'false');
@@ -442,6 +429,51 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	/**
+	 * Dispatch logic for a picker item once the user picks it. Shared
+	 * between the desktop action-widget delegate and any mobile sheet
+	 * subclass that opts to render a different UI but reuse the
+	 * selection semantics. Treats unavailable workspaces as a no-op.
+	 */
+	protected _dispatchPickerItem(item: IWorkspacePickerItem): void {
+		this._reportPickerClosed(item);
+		if (item.run) {
+			item.run();
+		} else if (item.commandId) {
+			this.commandService.executeCommand(item.commandId);
+		} else if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
+			// Workspace belongs to an unavailable remote — ignore selection
+			return;
+		}
+		if (item.browseActionIndex !== undefined) {
+			this._executeBrowseAction(item.browseActionIndex);
+		} else if (item.selection) {
+			this._selectProject(item.selection);
+		}
+	}
+
+	/**
+	 * Emits `newChatPickerClosed` telemetry on user selection. The
+	 * "before" value is read from storage (the currently-checked recent
+	 * workspace) if available, otherwise from the in-memory selection.
+	 * The "after" value comes from the item the user picked — undefined
+	 * when the item is a browse action or command rather than a workspace.
+	 */
+	private _reportPickerClosed(item: IWorkspacePickerItem): void {
+		const beforeFromStorage = this._restoreCheckedWorkspace();
+		const before = beforeFromStorage ?? this._selectedWorkspace;
+		const after = item.selection;
+		reportNewChatPickerClosed(this.telemetryService, {
+			id: 'NewChatWorkspacePicker',
+			name: 'NewChatWorkspacePicker',
+			optionIdBefore: before?.workspace?.uri.toString(),
+			optionIdAfter: after?.workspace?.uri.toString(),
+			optionLabelBefore: before?.workspace?.label,
+			optionLabelAfter: after?.workspace?.label,
+			isPII: true,
+		});
+	}
+
+	/**
 	 * Programmatically set the selected project.
 	 * @param fireEvent Whether to fire the onDidSelectWorkspace event. Defaults to true.
 	 */
@@ -481,7 +513,7 @@ export class WorkspacePicker extends Disposable {
 	 * Clears the selection if it matches the given URI.
 	 */
 	removeFromRecents(uri: URI): void {
-		if (this._selectedWorkspace && this.uriIdentityService.extUri.isEqual(this._selectedWorkspace.workspace.repositories[0]?.uri, uri)) {
+		if (this._selectedWorkspace && this.uriIdentityService.extUri.isEqual(this._selectedWorkspace.workspace.folders[0]?.root, uri)) {
 			this.clearSelection();
 		}
 	}
@@ -623,7 +655,7 @@ export class WorkspacePicker extends Disposable {
 			const isOwnRecent = i < ownRecentCount;
 			const provider = allProviders.find(p => p.id === providerId);
 			const connectionStatus = provider && isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined;
-			const isDisconnected = connectionStatus === RemoteAgentHostConnectionStatus.Disconnected;
+			const isDisconnected = RemoteAgentHostConnectionStatus.isDisconnected(connectionStatus) || RemoteAgentHostConnectionStatus.isIncompatible(connectionStatus);
 			const selection: IWorkspaceSelection = { providerId, workspace };
 			const selected = this._isSelectedWorkspace(selection);
 			items.push({
@@ -654,7 +686,7 @@ export class WorkspacePicker extends Disposable {
 		allBrowseActions.forEach((action, index) => {
 			const provider = allProviders.find(p => p.id === action.providerId);
 			const connectionStatus = provider && isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined;
-			const isUnavailable = connectionStatus === RemoteAgentHostConnectionStatus.Disconnected || connectionStatus === RemoteAgentHostConnectionStatus.Connecting;
+			const isUnavailable = !!connectionStatus && !RemoteAgentHostConnectionStatus.isConnected(connectionStatus);
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: localize('workspacePicker.browseSelectAction', "Select..."),
@@ -684,7 +716,9 @@ export class WorkspacePicker extends Disposable {
 					},
 				});
 				const extended = action as IWorkspacePickerAction;
-				extended.icon = isTunnel ? Codicon.cloud : Codicon.remote;
+				extended.icon = RemoteAgentHostConnectionStatus.isIncompatible(status)
+					? Codicon.warning
+					: (isTunnel ? Codicon.cloud : Codicon.remote);
 				extended.hoverContent = getStatusHover(status, provider.remoteAddress);
 				if (provider.remoteAddress) {
 					extended.onRemove = async () => {
@@ -764,7 +798,7 @@ export class WorkspacePicker extends Disposable {
 		if (!provider || !isAgentHostProvider(provider) || !provider.connectionStatus) {
 			return false;
 		}
-		return provider.connectionStatus.get() !== RemoteAgentHostConnectionStatus.Connected;
+		return !RemoteAgentHostConnectionStatus.isConnected(provider.connectionStatus.get());
 	}
 
 	protected _isSelectedWorkspace(selection: IWorkspaceSelection): boolean {
@@ -774,13 +808,13 @@ export class WorkspacePicker extends Disposable {
 		if (this._selectedWorkspace.providerId !== selection.providerId) {
 			return false;
 		}
-		const selectedUri = this._selectedWorkspace.workspace.repositories[0]?.uri;
-		const candidateUri = selection.workspace.repositories[0]?.uri;
+		const selectedUri = this._selectedWorkspace.workspace.folders[0]?.root;
+		const candidateUri = selection.workspace.folders[0]?.root;
 		return this.uriIdentityService.extUri.isEqual(selectedUri, candidateUri);
 	}
 
 	private _persistSelectedWorkspace(selection: IWorkspaceSelection): void {
-		const uri = selection.workspace.repositories[0]?.uri;
+		const uri = selection.workspace.folders[0]?.root;
 		if (!uri) {
 			return;
 		}
@@ -872,7 +906,7 @@ export class WorkspacePicker extends Disposable {
 			return;
 		}
 		const connStatus = provider.connectionStatus;
-		if (connStatus.get() === RemoteAgentHostConnectionStatus.Connected) {
+		if (RemoteAgentHostConnectionStatus.isConnected(connStatus.get())) {
 			return;
 		}
 
@@ -892,9 +926,9 @@ export class WorkspacePicker extends Disposable {
 		let isFirstRun = true;
 		store.add(autorun(reader => {
 			const status = connStatus.read(reader);
-			if (status === RemoteAgentHostConnectionStatus.Connected) {
+			if (RemoteAgentHostConnectionStatus.isConnected(status)) {
 				this._connectionStatusWatch.clear();
-			} else if (status === RemoteAgentHostConnectionStatus.Disconnected && !isFirstRun) {
+			} else if ((RemoteAgentHostConnectionStatus.isDisconnected(status) || RemoteAgentHostConnectionStatus.isIncompatible(status)) && !isFirstRun) {
 				fallback();
 			}
 			isFirstRun = false;
@@ -904,46 +938,16 @@ export class WorkspacePicker extends Disposable {
 		// fall back. Catches the case where the provider's status flips before
 		// our autorun subscribes (so we never observe a transition).
 		disposableTimeout(() => {
-			if (connStatus.get() !== RemoteAgentHostConnectionStatus.Connected) {
+			if (!RemoteAgentHostConnectionStatus.isConnected(connStatus.get())) {
 				fallback();
 			}
 		}, RESTORE_CONNECT_GRACE_MS, store);
 	}
 
-	/**
-	 * Migrate legacy `sessions.recentlyPickedProjects` storage to the new
-	 * `sessions.recentlyPickedWorkspaces` key, adding `providerId` (defaulting
-	 * to Copilot) and ensuring at least one entry is checked.
-	 */
-	private _migrateLegacyStorage(): void {
-		// Already migrated
-		if (this.storageService.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE)) {
-			return;
-		}
-
-		const raw = this.storageService.get(LEGACY_STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
-		if (!raw) {
-			return;
-		}
-
-		try {
-			const parsed = JSON.parse(raw) as { uri: UriComponents; checked?: boolean }[];
-			const hasAnyChecked = parsed.some(e => e.checked);
-			const migrated: IStoredRecentWorkspace[] = parsed.map((entry, index) => ({
-				uri: entry.uri,
-				providerId: COPILOT_PROVIDER_ID,
-				checked: hasAnyChecked ? !!entry.checked : index === 0,
-			}));
-			this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(migrated), StorageScope.PROFILE, StorageTarget.MACHINE);
-		} catch { /* ignore */ }
-
-		this.storageService.remove(LEGACY_STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
-	}
-
 	// -- Recent workspaces storage --
 
 	private _addRecentWorkspace(providerId: string, workspace: ISessionWorkspace, checked: boolean): void {
-		const uri = workspace.repositories[0]?.uri;
+		const uri = workspace.folders[0]?.root;
 		if (!uri) {
 			return;
 		}
@@ -979,7 +983,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _removeRecentWorkspace(selection: IWorkspaceSelection): void {
-		const uri = selection.workspace.repositories[0]?.uri;
+		const uri = selection.workspace.folders[0]?.root;
 		if (!uri) {
 			return;
 		}
@@ -999,7 +1003,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _removeVSCodeRecentWorkspace(selection: IWorkspaceSelection): void {
-		const uri = selection.workspace.repositories[0]?.uri;
+		const uri = selection.workspace.folders[0]?.root;
 		if (!uri) {
 			return;
 		}

@@ -20,7 +20,7 @@ import { RangeMapping } from '../../../../../editor/common/diff/rangeMapping.js'
 import { IChatDebugEventModelTurnContent, IChatDebugMessageSection, IChatDebugModelTurnEvent, IChatDebugService, IChatDebugUserMessageEvent } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
-import { appendSystemDrift, CacheDiffKind, diffPromptSignature, ICacheDiffResult, IComponentDrift, INormalizedMessage, parseInputMessages } from './chatDebugCacheDiff.js';
+import { appendSystemDrift, appendToolsDrift, CacheDiffKind, diffPromptSignature, ICacheDiffResult, IComponentDrift, INormalizedMessage, parseInputMessages } from './chatDebugCacheDiff.js';
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem } from './chatDebugTypes.js';
 
 const $ = DOM.$;
@@ -31,6 +31,7 @@ const timeFormatter = safeIntl.DateTimeFormat(undefined, { hour: 'numeric', minu
 const RAIL_DEFAULT_WIDTH = 280;
 const RAIL_MIN_WIDTH = 180;
 const RAIL_MAX_WIDTH = 600;
+const CURRENT_CONTINUATION_DELTA_COMPONENT = 'current continuation delta';
 
 /**
  * Navigation events fired by the Cache Explorer breadcrumb.
@@ -45,7 +46,17 @@ interface ISideData {
 	readonly event: IChatDebugModelTurnEvent;
 	readonly content: IChatDebugEventModelTurnContent | undefined;
 	readonly system: string | undefined;
+	readonly tools: string | undefined;
 	readonly inputMessages: readonly INormalizedMessage[];
+	readonly requestShape: IRequestShapeInfo;
+}
+
+interface IRequestShapeInfo {
+	readonly label: string;
+	readonly description: string | undefined;
+	readonly isContinuation: boolean;
+	readonly api: string | undefined;
+	readonly inputItemTypes: readonly string[];
 }
 
 /** A grouping of model turns sharing the same parent (one user request). */
@@ -98,7 +109,7 @@ export class ChatDebugCacheExplorerView extends Disposable {
 	private readonly resolvedCache = new Map<string, IChatDebugEventModelTurnContent | undefined>();
 
 	/** Components currently expanded (by component name). */
-	private readonly openComponents = new Set<string>(['system']);
+	private readonly openComponents = new Set<string>(['system', 'tools']);
 
 	/** Rail groups currently collapsed (by group key — the parent event id). */
 	private readonly collapsedGroups = new Set<string>();
@@ -166,6 +177,7 @@ export class ChatDebugCacheExplorerView extends Disposable {
 			this.collapsedGroups.clear();
 			this.openComponents.clear();
 			this.openComponents.add('system');
+			this.openComponents.add('tools');
 			this.selectedIndex = -1;
 		}
 		this.currentSessionResource = sessionResource;
@@ -257,13 +269,16 @@ export class ChatDebugCacheExplorerView extends Disposable {
 			return;
 		}
 
-		const diff = diffPromptSignature(a.inputMessages, b.inputMessages);
-		const drift = appendSystemDrift([...diff.drift], a.system, b.system);
+		const compareInputMessages = shouldCompareInputMessages(a, b);
+		const diff = compareInputMessages
+			? diffPromptSignature(a.inputMessages, b.inputMessages)
+			: diffPromptSignature([], []);
+		const drift = appendToolsDrift(appendSystemDrift([...diff.drift], a.system, b.system), a.tools, b.tools);
 
 		this.renderSummary(a, b, diff);
-		this.renderSignature(a, b, diff);
+		this.renderSignature(a, b, diff, compareInputMessages);
 		this.renderRequestOptions(a, b);
-		this.renderComponents(drift, a, b);
+		this.renderComponents(drift, a, b, compareInputMessages);
 	}
 
 	private async resolveSide(event: IChatDebugModelTurnEvent): Promise<ISideData> {
@@ -278,9 +293,36 @@ export class ChatDebugCacheExplorerView extends Disposable {
 			}
 		}
 		const system = findSection(content?.sections, 'System');
+		const tools = findSection(content?.sections, 'Tools');
+		const requestShapeJson = findSection(content?.sections, 'Request Shape');
 		const inputMessagesJson = findSection(content?.sections, 'Input Messages');
-		const inputMessages = parseInputMessages(inputMessagesJson);
-		return { event, content, system, inputMessages };
+		const rawMessages = parseInputMessages(inputMessagesJson);
+		// `chatMLFetcher.ts` extracts the system prompt from the messages
+		// array AND emits it separately as `gen_ai.system_instructions`.
+		// That double-counts the system prompt: once as the synthetic
+		// `system` segment we already render, and a second time as
+		// messages[0]. Strip leading system-role messages here so the
+		// signature lane reads `[system, tools, ...userMessages]`
+		// regardless of how the provider chose to ferry the system prompt
+		// (in-band as messages[0], or out-of-band via `instructions` /
+		// top-level `system`). The synthetic `system` component still
+		// diffs the system content faithfully because both sides go
+		// through the same dedup.
+		// Strip leading system-role messages here so the signature lane reads
+		// `[system, tools, ...userMessages]` regardless of how the provider
+		// chose to ferry the system prompt (in-band as messages[0], or
+		// out-of-band via `instructions` / top-level `system`). Loop in case a
+		// provider prepends multiple system-role messages; the synthetic
+		// `system` component still diffs the system content faithfully because
+		// both sides go through the same dedup.
+		let stripFrom = 0;
+		if (system) {
+			while (stripFrom < rawMessages.length && rawMessages[stripFrom].role === 'system') {
+				stripFrom++;
+			}
+		}
+		const inputMessages = stripFrom > 0 ? rawMessages.slice(stripFrom) : rawMessages;
+		return { event, content, system, tools, inputMessages, requestShape: describeRequestShape(inputMessages, requestShapeJson) };
 	}
 
 	private renderRail(groups: readonly ITurnGroup[]): void {
@@ -399,7 +441,15 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		const cachedTokens = b.event.cachedTokens ?? 0;
 		const lostTokens = Math.max(0, inputTokens - cachedTokens);
 		const optionsDiff = computeOptionsDiff(a, b);
-		const expiration = isLikelyCacheExpiration(hit, diff, optionsDiff);
+		const systemChanged = (a.system ?? '') !== (b.system ?? '');
+		const toolsChanged = (a.tools ?? '') !== (b.tools ?? '');
+		// Treat the comparison as a continuation only when the *current* request
+		// is a continuation. The previous turn's shape doesn't change how the
+		// current request was sent on the wire, so labeling a normal full-input
+		// current request as "continuation" just because the prior turn was
+		// would be misleading. Keep this in sync with `shouldCompareInputMessages`.
+		const continuationComparison = b.requestShape.isContinuation;
+		const expiration = !continuationComparison && isLikelyCacheExpiration(hit, diff, optionsDiff, systemChanged, toolsChanged);
 
 		const headline = DOM.append(breakCard, $('.chat-debug-cache-card-headline'));
 		if (expiration) {
@@ -416,21 +466,63 @@ export class ChatDebugCacheExplorerView extends Disposable {
 			numberFormatter.value.format(cachedTokens),
 			numberFormatter.value.format(inputTokens),
 		);
+		if (b.requestShape.description) {
+			const shapeLine = DOM.append(breakCard, $('.chat-debug-cache-perf-line.chat-debug-cache-request-shape-note'));
+			shapeLine.textContent = b.requestShape.description;
+		}
 
 		// Section 2: where the cache broke
 		DOM.append(breakCard, $('.chat-debug-cache-perf-rule'));
-		DOM.append(breakCard, $('.chat-debug-cache-perf-section-h', undefined, localize('chatDebug.cache.whereBroke', "Where the cache broke")));
+		DOM.append(breakCard, $('.chat-debug-cache-perf-section-h', undefined, continuationComparison
+			? localize('chatDebug.cache.visibleWireInput', "Visible wire input")
+			: localize('chatDebug.cache.whereBroke', "Where the cache broke")));
 		const breakLine = DOM.append(breakCard, $('.chat-debug-cache-perf-line'));
 		if (expiration) {
 			breakLine.textContent = localize('chatDebug.cache.expirationNote',
 				"The prompt prefix matches but the model still treated this as a fresh request. Most likely the cached entry expired between requests.",
 			);
+		} else if (systemChanged) {
+			breakLine.textContent = localize('chatDebug.cache.systemBroke',
+				"System instructions changed — the cache was invalidated even though the message prefix matches.",
+			);
+		} else if (toolsChanged) {
+			breakLine.textContent = localize('chatDebug.cache.toolsBroke',
+				"Tool definitions changed — the catalog of available tools differs between requests, which invalidates the cache even though the message prefix matches.",
+			);
+			if (continuationComparison && diff.break) {
+				const deltaName = diff.break.index === 0
+					? localize('chatDebug.cache.firstMessage', "the first message")
+					: `messages[${diff.break.index}]`;
+				const deltaLine = DOM.append(breakCard, $('.chat-debug-cache-perf-line'));
+				deltaLine.textContent = localize('chatDebug.cache.continuationDeltaAlsoChanged',
+					"The visible wire delta also changed at {0}. That is expected when comparing consecutive continuation requests of different kinds, such as tool_search_output followed by a new user input.",
+					deltaName,
+				);
+			}
+		} else if (continuationComparison && diff.break) {
+			const componentName = diff.break.index === 0
+				? localize('chatDebug.cache.firstMessage', "the first message")
+				: `messages[${diff.break.index}]`;
+			breakLine.textContent = localize('chatDebug.cache.continuationDeltaBreak',
+				"The captured wire delta changed at {0} — {1}. This is a delta-to-delta comparison between consecutive Responses API requests, not the full reconstructed prompt prefix.",
+				componentName,
+				describeBreakKind(diff.break.kind, diff, b),
+			);
+			if (lostTokens > 0 && inputTokens > 0) {
+				const lostPct = (lostTokens / inputTokens) * 100;
+				const lossLine = DOM.append(breakCard, $('.chat-debug-cache-perf-line'));
+				lossLine.textContent = localize('chatDebug.cache.uncachedLine',
+					"Uncached in this request: {0} tokens ({1}% of this request)",
+					numberFormatter.value.format(lostTokens),
+					formatCachePct(lostPct),
+				);
+			}
 		} else if (diff.break) {
 			const componentName = diff.break.index === 0
 				? localize('chatDebug.cache.firstMessage', "the first message")
 				: `messages[${diff.break.index}]`;
 			breakLine.textContent = localize('chatDebug.cache.breakAt',
-				"At {0} \u2014 {1}",
+				"At {0} — {1}",
 				componentName,
 				describeBreakKind(diff.break.kind, diff, b),
 			);
@@ -445,8 +537,10 @@ export class ChatDebugCacheExplorerView extends Disposable {
 			}
 		} else if (optionsDiff.length > 0) {
 			breakLine.textContent = localize('chatDebug.cache.optionsBroke',
-				"Request options changed \u2014 the cache was invalidated even though the message prefix matches.",
+				"Request options changed — the cache was invalidated even though the message prefix matches.",
 			);
+		} else if (continuationComparison) {
+			breakLine.textContent = localize('chatDebug.cache.continuationNoDeltaBreak', "No divergence detected in the captured wire delta. The full reconstructed prompt prefix is provider-side for this continuation request.");
 		} else {
 			breakLine.textContent = localize('chatDebug.cache.noBreak', "No prefix divergence detected.");
 		}
@@ -492,6 +586,7 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		this.appendKv(card, localize('chatDebug.cache.inputTok', "input tok"), formatTokens(data.event.inputTokens));
 		this.appendKv(card, localize('chatDebug.cache.cachedTok', "cached tok"), formatTokens(data.event.cachedTokens));
 		this.appendKv(card, localize('chatDebug.cache.cacheHit', "cache hit"), `${formatCachePct(computeCacheHit(data.event))}%`);
+		this.appendKv(card, localize('chatDebug.cache.requestShape', "shape"), data.requestShape.label);
 
 		const startTime = data.event.created;
 		const endTime = data.event.durationInMillis !== undefined
@@ -531,6 +626,10 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		headline.textContent = `${formatCachePct(computeCacheHit(b.event))}%`;
 		const sub = DOM.append(note, $('.chat-debug-cache-card-sub'));
 		sub.textContent = localize('chatDebug.cache.firstRequestNote', "OTel-reported cache hit. Nothing earlier in this session to diff against \u2014 the system prompt and tools may still match a previous session's cache.");
+		if (b.requestShape.description) {
+			const shapeLine = DOM.append(note, $('.chat-debug-cache-perf-line.chat-debug-cache-request-shape-note'));
+			shapeLine.textContent = b.requestShape.description;
+		}
 	}
 
 	private appendKv(parent: HTMLElement, key: string, value: string, copyable: boolean = false): void {
@@ -543,45 +642,70 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		}
 	}
 
-	private renderSignature(a: ISideData, b: ISideData, diff: ICacheDiffResult): void {
+	private renderSignature(a: ISideData, b: ISideData, diff: ICacheDiffResult, compareInputMessages: boolean): void {
+		// See note next to `continuationComparison` in `renderSummary`: only the
+		// current request's shape determines whether this is a continuation view.
+		const continuationComparison = b.requestShape.isContinuation;
 		const section = DOM.append(this.content, $('.chat-debug-cache-section'));
 		const heading = DOM.append(section, $('h3.chat-debug-cache-section-h'));
-		heading.textContent = localize('chatDebug.cache.signatureHeading', "Prompt Signature");
+		heading.textContent = continuationComparison
+			? localize('chatDebug.cache.visibleSignatureHeading', "Visible Request Signature")
+			: localize('chatDebug.cache.signatureHeading', "Prompt Signature");
+		if (continuationComparison) {
+			const note = DOM.append(section, $('.chat-debug-cache-sig-summary.chat-debug-cache-request-shape-note'));
+			note.textContent = localize('chatDebug.cache.visibleSignatureNote', "For Responses API continuations, this shows the captured request inputs: system instructions, tools sent on this request, and the visible input delta. Earlier conversation state is referenced by previous response id and is not expanded here.");
+		}
 
 		const legend = DOM.append(section, $('.chat-debug-cache-sig-legend'));
-		for (const role of ['system', 'user', 'assistant', 'tool']) {
+		// Order matters: keep `tools` (orange, the catalog of available tools)
+		// far from `tool` (yellow, individual tool result messages) so they
+		// aren't read as the same thing.
+		for (const role of ['system', 'user', 'assistant', 'tool', 'tool_search', 'tools']) {
 			const entry = DOM.append(legend, $('span.chat-debug-cache-sig-legend-entry'));
-			DOM.append(entry, $(`span.chat-debug-cache-sig-swatch.role-${role}`));
-			DOM.append(entry, DOM.$('span', undefined, role));
+			DOM.append(entry, $(`span.chat-debug-cache-sig-swatch.role-${roleClass(role)}`));
+			DOM.append(entry, DOM.$('span', undefined, role === 'tools'
+				? localize('chatDebug.cache.legend.tools', "tools (catalog)")
+				: role === 'tool_search'
+					? localize('chatDebug.cache.legend.toolSearch', "tool search")
+					: role));
 		}
 		const driftEntry = DOM.append(legend, $('span.chat-debug-cache-sig-legend-entry'));
 		DOM.append(driftEntry, $('span.chat-debug-cache-sig-swatch.role-drift'));
 		DOM.append(driftEntry, DOM.$('span', undefined, localize('chatDebug.cache.driftLegend', "drift")));
 
-		// Per-side char-length sequences. We prepend a synthetic 'system' segment for
-		// the system prompt so it shows up in the bar even though it's not in
-		// the inputMessages array.
+		// Per-side char-length sequences. We prepend synthetic 'system' and
+		// 'tools' segments (when present) so they show up in the bar even
+		// though they are not part of the inputMessages array. The synthetic
+		// segments share the cache-key role with the messages: a change in
+		// either also breaks the prefix.
 		interface ISegment {
 			readonly role: string;
 			readonly chars: number;
 			readonly drift: boolean;
 			readonly label: string;
+			/** True if this is one of the synthetic prefix segments (system/tools). */
+			readonly synthetic: boolean;
 		}
 		const toSegments = (side: ISideData, isA: boolean): ISegment[] => {
 			const segs: ISegment[] = [];
 			const sys = side.system;
 			if (sys) {
 				const other = isA ? b.system : a.system;
-				segs.push({ role: 'system', chars: sys.length, drift: sys !== (other ?? ''), label: 'system' });
+				segs.push({ role: 'system', chars: sys.length, drift: sys !== (other ?? ''), label: 'system', synthetic: true });
+			}
+			const tools = side.tools;
+			if (tools) {
+				const other = isA ? b.tools : a.tools;
+				segs.push({ role: 'tools', chars: tools.length, drift: tools !== (other ?? ''), label: 'tools', synthetic: true });
 			}
 			side.inputMessages.forEach((m, i) => {
 				const tok = diff.signature[i];
 				const kind = tok?.kind;
-				const drift = kind === CacheDiffKind.ContentDrift
+				const drift = compareInputMessages && (kind === CacheDiffKind.ContentDrift
 					|| kind === CacheDiffKind.LengthChange
 					|| (isA && kind === CacheDiffKind.OnlyInA)
-					|| (!isA && kind === CacheDiffKind.OnlyInB);
-				segs.push({ role: m.role, chars: m.charLength, drift, label: m.name ? `${m.role}-${m.name}` : m.role });
+					|| (!isA && kind === CacheDiffKind.OnlyInB));
+				segs.push({ role: m.role, chars: m.charLength, drift, label: m.name ? `${m.role}-${m.name}` : m.role, synthetic: false });
 			});
 			return segs;
 		};
@@ -601,14 +725,13 @@ export class ChatDebugCacheExplorerView extends Disposable {
 			if (!diff.break) {
 				return undefined;
 			}
-			// Skip the synthetic system segment when matching diff.break.index.
+			// Skip the synthetic system / tools segments when matching
+			// diff.break.index, which is an index into the messages array.
 			let cumulative = 0;
-			let skipSystem = segs[0]?.role === 'system';
 			let idx = 0;
 			for (const s of segs) {
-				if (skipSystem) {
+				if (s.synthetic) {
 					cumulative += s.chars;
-					skipSystem = false;
 					continue;
 				}
 				if (idx === diff.break.index) {
@@ -660,32 +783,45 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		lanes.appendChild(buildLane(localize('chatDebug.cache.lanePrevious', "Previous"), aSegs, breakCharPos(aSegs)));
 		lanes.appendChild(buildLane(localize('chatDebug.cache.laneCurrent', "Current"), bSegs, breakCharPos(bSegs)));
 
-		// Single-line text summary below the bars.
+		// Single-line text summary below the bars. Compute this in the
+		// same order the provider sees cache-keying inputs: system, tools,
+		// then captured input messages. This avoids reporting messages[0] as
+		// the first break when the tool catalog changed earlier.
 		let shared = 0;
-		for (const tok of diff.signature) {
-			if (tok.kind === CacheDiffKind.Identical) {
-				shared += tok.bCharLength ?? 0;
+		let firstDrift: string | undefined;
+		if (a.system || b.system) {
+			if ((a.system ?? '') === (b.system ?? '')) {
+				shared += b.system?.length ?? 0;
 			} else {
-				break;
+				firstDrift = localize('chatDebug.cache.systemComponent', "system");
 			}
 		}
-		if (a.system && a.system === b.system) {
-			shared += a.system.length;
+		if (!firstDrift && (a.tools || b.tools)) {
+			if ((a.tools ?? '') === (b.tools ?? '')) {
+				shared += b.tools?.length ?? 0;
+			} else {
+				firstDrift = localize('chatDebug.cache.toolsComponent', "tools catalog");
+			}
+		}
+		if (!firstDrift) {
+			for (const tok of diff.signature) {
+				if (tok.kind === CacheDiffKind.Identical) {
+					shared += tok.bCharLength ?? 0;
+				} else {
+					firstDrift = `messages[${tok.index}]`;
+					break;
+				}
+			}
 		}
 		const summary = DOM.append(section, $('.chat-debug-cache-sig-summary'));
-		if (diff.break) {
-			summary.textContent = localize('chatDebug.cache.signatureSummaryBreak',
-				"{0} of {1} chars reused \u00b7 break at messages[{2}]",
-				numberFormatter.value.format(shared),
-				numberFormatter.value.format(totalB),
-				diff.break.index,
-			);
+		if (firstDrift) {
+			summary.textContent = continuationComparison
+				? localize('chatDebug.cache.visibleSignatureSummaryBreak', "{0} of {1} captured request chars match before first captured drift: {2}", numberFormatter.value.format(shared), numberFormatter.value.format(totalB), firstDrift)
+				: localize('chatDebug.cache.signatureSummaryBreakComponent', "{0} of {1} chars reused · break at {2}", numberFormatter.value.format(shared), numberFormatter.value.format(totalB), firstDrift);
 		} else {
-			summary.textContent = localize('chatDebug.cache.signatureSummaryClean',
-				"{0} of {1} chars reused \u00b7 no divergence detected",
-				numberFormatter.value.format(shared),
-				numberFormatter.value.format(totalB),
-			);
+			summary.textContent = continuationComparison
+				? localize('chatDebug.cache.visibleSignatureSummaryClean', "{0} of {1} captured request chars match · no captured divergence detected", numberFormatter.value.format(shared), numberFormatter.value.format(totalB))
+				: localize('chatDebug.cache.signatureSummaryClean', "{0} of {1} chars reused · no divergence detected", numberFormatter.value.format(shared), numberFormatter.value.format(totalB));
 		}
 	}
 
@@ -727,19 +863,28 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		}
 	}
 
-	private renderComponents(drift: readonly IComponentDrift[], a: ISideData, b: ISideData): void {
+	private renderComponents(drift: readonly IComponentDrift[], a: ISideData, b: ISideData, compareInputMessages: boolean): void {
 		const section = DOM.append(this.content, $('.chat-debug-cache-section'));
 		DOM.append(section, $('h3.chat-debug-cache-section-h', undefined, localize('chatDebug.cache.componentsHeading', "Components")));
+		if (!compareInputMessages && b.requestShape.isContinuation) {
+			const note = DOM.append(section, $('.chat-debug-cache-sig-summary.chat-debug-cache-request-shape-note'));
+			note.textContent = localize('chatDebug.cache.continuationComponentsNote', "This request uses previous_response_id, so input messages are not positionally diffed against the previous request. Components below show cache-key shape changes; the current continuation delta is shown separately.");
+		}
 		const acc = DOM.append(section, $('.chat-debug-cache-acc'));
 
-		if (drift.length === 0) {
+		const effectiveDrift = !compareInputMessages && b.requestShape.isContinuation && b.inputMessages.length > 0
+			? [...drift, currentDeltaComponent(b)]
+			: drift;
+
+		if (effectiveDrift.length === 0) {
 			const empty = DOM.append(acc, $('.chat-debug-cache-acc-empty'));
 			empty.textContent = localize('chatDebug.cache.allComponentsIdentical', "All components are identical between A and B.");
 			return;
 		}
 
-		for (const c of drift) {
+		for (const c of effectiveDrift) {
 			const item = DOM.append(acc, $('.chat-debug-cache-acc-item'));
+			item.classList.add(c.status);
 			if (this.openComponents.has(c.name)) { item.classList.add('open'); }
 			const head = DOM.append(item, $('.chat-debug-cache-acc-head'));
 			DOM.append(head, $('span.chat-debug-cache-chev'));
@@ -749,11 +894,22 @@ export class ChatDebugCacheExplorerView extends Disposable {
 			const badge = DOM.append(head, $(`span.chat-debug-cache-acc-badge.${c.status}`));
 			badge.textContent = badgeLabel(c.status);
 			const sizes = DOM.append(head, $('span.chat-debug-cache-acc-sizes'));
-			sizes.textContent = `${formatTokens(c.aSize)} → ${formatTokens(c.bSize)} B`;
+			sizes.textContent = localize('chatDebug.cache.componentSizes', "{0} → {1} chars", formatTokens(c.aSize), formatTokens(c.bSize));
 
 			const body = DOM.append(item, $('.chat-debug-cache-acc-body'));
-			const aText = textForComponent(c, a);
-			const bText = textForComponent(c, b);
+			const aText = c.name === CURRENT_CONTINUATION_DELTA_COMPONENT ? '' : textForComponent(c, a);
+			const bText = c.name === CURRENT_CONTINUATION_DELTA_COMPONENT ? continuationDeltaText(b) : textForComponent(c, b);
+			// Surface OTel-side truncation: when either side ends with the
+			// truncation marker emitted by `truncateForOTel`, the diff below
+			// will only reflect the surviving prefix. Most likely on `tools`
+			// (large MCP catalogs) and very long messages.
+			const truncationNote = describeTruncation(aText, bText);
+			if (truncationNote) {
+				const note = DOM.append(item, $('.chat-debug-cache-acc-truncated'));
+				note.textContent = truncationNote;
+				note.title = truncationNote;
+				head.title = truncationNote;
+			}
 			body.appendChild(this.renderComponentDiff(aText, bText, c.aSize, c.bSize));
 
 			this.loadDisposables.add(DOM.addDisposableListener(head, DOM.EventType.CLICK, () => {
@@ -837,12 +993,35 @@ function textForComponent(c: IComponentDrift, side: ISideData): string {
 	if (c.name === 'system') {
 		return side.system ?? '';
 	}
+	if (c.name === 'tools') {
+		return side.tools ?? '';
+	}
+	if (c.name === CURRENT_CONTINUATION_DELTA_COMPONENT) {
+		return continuationDeltaText(side);
+	}
 	const m = /^messages\[(\d+)\]$/.exec(c.name);
 	if (m) {
 		const idx = parseInt(m[1], 10);
 		return side.inputMessages[idx]?.text ?? '';
 	}
 	return '';
+}
+
+function continuationDeltaText(side: ISideData): string {
+	return side.requestShape.isContinuation
+		? side.inputMessages.map((m, index) => `input[${index}] ${m.role}\n${m.text}`).join('\n\n')
+		: '';
+}
+
+function currentDeltaComponent(side: ISideData): IComponentDrift {
+	const size = side.inputMessages.reduce((sum, m) => sum + m.charLength, 0);
+	return {
+		name: CURRENT_CONTINUATION_DELTA_COMPONENT,
+		role: side.requestShape.inputItemTypes.join(', ') || side.inputMessages.map(m => m.role).join(', ') || undefined,
+		status: CacheDiffKind.OnlyInB,
+		aSize: 0,
+		bSize: size,
+	};
 }
 
 function badgeLabel(status: CacheDiffKind): string {
@@ -853,6 +1032,41 @@ function badgeLabel(status: CacheDiffKind): string {
 		case CacheDiffKind.OnlyInA: return localize('chatDebug.cache.badge.onlyA', "only in A");
 		case CacheDiffKind.OnlyInB: return localize('chatDebug.cache.badge.onlyB', "only in B");
 	}
+}
+
+/**
+ * Detect the OTel truncation marker that `truncateForOTel` appends to large
+ * attribute values: `...[truncated, original N chars]`. When either side of
+ * a component carries it, the diff below only reflects the surviving
+ * prefix \u2014 differences past the cap are invisible. We surface that as a
+ * one-line note above the diff so users don't read a partial diff as
+ * authoritative.
+ *
+ * Returns `undefined` when neither side is truncated.
+ */
+function describeTruncation(aText: string, bText: string): string | undefined {
+	const re = /\.\.\.\[truncated, original (\d+) chars\]$/;
+	const aMatch = re.exec(aText);
+	const bMatch = re.exec(bText);
+	if (!aMatch && !bMatch) {
+		return undefined;
+	}
+	if (aMatch && bMatch) {
+		return localize('chatDebug.cache.truncatedBoth',
+			"Both sides truncated by the OTel attribute cap (originals were {0} and {1} chars) \u2014 diff may be partial.",
+			numberFormatter.value.format(parseInt(aMatch[1], 10)),
+			numberFormatter.value.format(parseInt(bMatch[1], 10)),
+		);
+	}
+	const match = (aMatch ?? bMatch)!;
+	const side = aMatch
+		? localize('chatDebug.cache.truncatedSidePrev', "Previous")
+		: localize('chatDebug.cache.truncatedSideCurr', "Current");
+	return localize('chatDebug.cache.truncatedOne',
+		"{0} side truncated by the OTel attribute cap (original was {1} chars) \u2014 diff may be partial.",
+		side,
+		numberFormatter.value.format(parseInt(match[1], 10)),
+	);
 }
 
 /**
@@ -889,6 +1103,99 @@ function computeCacheHit(event: IChatDebugModelTurnEvent): number {
 	return Math.min(100, (event.cachedTokens / event.inputTokens) * 100);
 }
 
+function shouldCompareInputMessages(a: ISideData, b: ISideData): boolean {
+	// A Responses API continuation (`previous_response_id`) sends only the
+	// current wire delta. Positionally diffing that delta against the other
+	// side's input array makes it look as if previous context disappeared,
+	// when it is actually provider-side state. Suppress message-level diffing
+	// when *either* side is a continuation — the comparison would be
+	// asymmetric (delta vs. full input). Still compare system/tools and
+	// request options; show the current delta as a separate component.
+	return !a.requestShape.isContinuation && !b.requestShape.isContinuation;
+}
+
+interface IRequestShapeMetadata {
+	readonly api?: string;
+	readonly hasPreviousResponseId?: boolean;
+	readonly inputItemTypes?: readonly string[];
+}
+
+function describeRequestShape(inputMessages: readonly INormalizedMessage[], requestShapeJson: string | undefined): IRequestShapeInfo {
+	const metadata = parseRequestShapeMetadata(requestShapeJson);
+	// Defensive: a malformed log entry could deserialize `inputItemTypes` as
+	// something other than an array, which would crash `.includes(...)` below.
+	const inputItemTypes = Array.isArray(metadata?.inputItemTypes)
+		? metadata.inputItemTypes.filter((x): x is string => typeof x === 'string')
+		: [];
+	const common = { api: typeof metadata?.api === 'string' ? metadata.api : undefined, inputItemTypes };
+	const hasPreviousResponseId = metadata?.hasPreviousResponseId === true;
+	const hasToolSearchOutput = inputItemTypes.includes('tool_search_output') || inputMessages.some(m => m.role === 'tool_search');
+	const hasOnlyToolOutput = inputMessages.length > 0 && inputMessages.every(m => m.role === 'tool');
+
+	if (hasPreviousResponseId && hasToolSearchOutput) {
+		return {
+			label: localize('chatDebug.cache.requestShape.toolSearch', "tool_search_output continuation"),
+			description: localize('chatDebug.cache.requestShape.toolSearchDescription', "Responses API continuation: the displayed input is only the tool-search delta sent over the wire. The provider reconstructs prior context from the previous response id."),
+			isContinuation: true,
+			...common,
+		};
+	}
+	if (hasPreviousResponseId && hasOnlyToolOutput) {
+		return {
+			label: localize('chatDebug.cache.requestShape.toolOutput', "tool output continuation"),
+			description: localize('chatDebug.cache.requestShape.toolOutputDescription', "Responses API continuation: the displayed input is only the tool-output delta sent over the wire. The provider reconstructs prior context from the previous response id."),
+			isContinuation: true,
+			...common,
+		};
+	}
+	if (hasPreviousResponseId) {
+		return {
+			label: localize('chatDebug.cache.requestShape.continuation', "Responses API continuation"),
+			description: localize('chatDebug.cache.requestShape.continuationDescription', "Responses API continuation: the displayed input is only the delta sent over the wire. The provider reconstructs prior context from the previous response id."),
+			isContinuation: true,
+			...common,
+		};
+	}
+	if (hasToolSearchOutput) {
+		return {
+			label: localize('chatDebug.cache.requestShape.toolSearchRequest', "tool_search_output request"),
+			description: localize('chatDebug.cache.requestShape.toolSearchRequestDescription', "This request contains a Responses API tool_search_output item. No previous-response continuation marker was captured, so the displayed input may be a full or history-sliced request rather than only a continuation delta."),
+			isContinuation: false,
+			...common,
+		};
+	}
+	if (hasOnlyToolOutput) {
+		return {
+			label: localize('chatDebug.cache.requestShape.toolOutputRequest', "tool output request"),
+			description: undefined,
+			isContinuation: false,
+			...common,
+		};
+	}
+	return {
+		label: localize('chatDebug.cache.requestShape.fullInput', "full input request"),
+		description: undefined,
+		isContinuation: false,
+		...common,
+	};
+}
+
+function parseRequestShapeMetadata(requestShapeJson: string | undefined): IRequestShapeMetadata | undefined {
+	if (!requestShapeJson) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(requestShapeJson) as IRequestShapeMetadata;
+		if (parsed && typeof parsed === 'object') {
+			return parsed;
+		}
+	} catch {
+		// Ignore malformed metadata. The input-message role fallback still
+		// provides a conservative label for older or partially captured logs.
+	}
+	return undefined;
+}
+
 /**
  * Maps a normalized message role onto the small set of CSS color classes
  * the prompt-signature visualization recognizes. Unknown roles fall through
@@ -897,10 +1204,16 @@ function computeCacheHit(event: IChatDebugModelTurnEvent): number {
 function roleClass(role: string): string {
 	switch (role) {
 		case 'system':
+		case 'tools':
 		case 'user':
 		case 'assistant':
 		case 'tool':
 			return role;
+		case 'tool_search':
+			// Use a hyphenated CSS class for consistency with the rest of the
+			// `role-*` swatch/segment classes; the underlying data role keeps
+			// `tool_search` to match the OTel-emitted role string.
+			return 'tool-search';
 		default:
 			return 'tool';
 	}
@@ -1024,13 +1337,14 @@ function formatOptionValue(value: unknown): string {
  * Cache "expiration" heuristic. The provider doesn't tell us *why* it
  * invalidated a cache entry, so this is a best-effort guess: if the
  * structural diff says the prompt prefix is byte-identical AND the
+ * system instructions match AND the tool catalog matches AND the
  * request options match AND the model still reports 0 cached input
  * tokens, expiration is the most likely cause. Other causes we cannot
  * distinguish from this signal alone include provider-side eviction
  * under cache pressure, server-side restarts, and per-tenant quota
  * resets. The headline copy in the UI says "likely" for that reason.
  */
-function isLikelyCacheExpiration(hitPct: number, diff: ICacheDiffResult, optionsDiff: readonly IOptionDelta[]): boolean {
+function isLikelyCacheExpiration(hitPct: number, diff: ICacheDiffResult, optionsDiff: readonly IOptionDelta[], systemChanged: boolean, toolsChanged: boolean): boolean {
 	if (hitPct >= 1) {
 		return false;
 	}
@@ -1038,6 +1352,9 @@ function isLikelyCacheExpiration(hitPct: number, diff: ICacheDiffResult, options
 		return false;
 	}
 	if (optionsDiff.length > 0) {
+		return false;
+	}
+	if (systemChanged || toolsChanged) {
 		return false;
 	}
 	return true;

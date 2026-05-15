@@ -22,7 +22,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { CustomizationStatus } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, SessionAction } from '../../common/state/sessionActions.js';
-import { AttachmentType, buildSubagentSessionUri, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../common/state/sessionState.js';
+import { buildSubagentSessionUri, MessageAttachmentKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
@@ -137,7 +137,7 @@ suite('AgentSideEffects', () => {
 				type: ActionType.SessionTurnStarted,
 				session: sessionUri.toString(),
 				turnId: 'turn-1',
-				userMessage: { text: 'hello world', attachments: [{ type: AttachmentType.File, uri: fileUri.toString(), displayName: 'test.ts' }] },
+				userMessage: { text: 'hello world', attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'test.ts', displayKind: 'document' }] },
 			};
 
 			sideEffects.handleAction(action);
@@ -145,7 +145,51 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.sendMessageCalls, [{
 				session: URI.parse(sessionUri.toString()),
 				prompt: 'hello world',
-				attachments: [{ type: AttachmentType.File, uri: URI.parse(fileUri.toString()), displayName: 'test.ts' }],
+				attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'test.ts', displayKind: 'document' }],
+			}]);
+		});
+
+		test('passes protocol selection attachment range straight through to the agent', () => {
+			setupSession();
+			const fileUri = URI.file('/workspace/selection.ts');
+			const action: SessionAction = {
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				userMessage: {
+					text: 'hello world',
+					attachments: [{
+						type: MessageAttachmentKind.Resource,
+						uri: fileUri.toString(),
+						label: 'selection.ts',
+						displayKind: 'selection',
+						selection: {
+							range: {
+								start: { line: 2, character: 3 },
+								end: { line: 4, character: 5 },
+							},
+						},
+					}],
+				},
+			};
+
+			sideEffects.handleAction(action);
+
+			assert.deepStrictEqual(agent.sendMessageCalls, [{
+				session: URI.parse(sessionUri.toString()),
+				prompt: 'hello world',
+				attachments: [{
+					type: MessageAttachmentKind.Resource,
+					uri: fileUri.toString(),
+					label: 'selection.ts',
+					displayKind: 'selection',
+					selection: {
+						range: {
+							start: { line: 2, character: 3 },
+							end: { line: 4, character: 5 },
+						},
+					},
+				}],
 			}]);
 		});
 
@@ -426,7 +470,23 @@ suite('AgentSideEffects', () => {
 				supportsVision: false,
 				policyState: undefined,
 				configSchema: undefined,
+				_meta: undefined,
 			}]);
+		});
+
+		test('model observable update publishes model metadata', async () => {
+			const envelope = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, e => {
+				if (e.action.type !== ActionType.RootAgentsChanged) {
+					return false;
+				}
+				return e.action.agents[0]?.models.length === 1;
+			}));
+			agent.setModels([{ provider: 'mock', id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, supportsVision: false, _meta: { multiplierNumeric: 2 } }]);
+
+			const { action } = await envelope;
+
+			assert.strictEqual(action.type, ActionType.RootAgentsChanged);
+			assert.deepStrictEqual(action.agents[0].models[0]._meta, { multiplierNumeric: 2 });
 		});
 
 		test('unchanged model observable update does not dispatch unchanged agent infos', async () => {
@@ -504,7 +564,7 @@ suite('AgentSideEffects', () => {
 				session: sessionUri.toString(),
 				kind: PendingMessageKind.Queued,
 				id: 'q-uri',
-				userMessage: { text: 'queued message', attachments: [{ type: AttachmentType.File, uri: fileUri.toString(), displayName: 'queued.ts' }] },
+				userMessage: { text: 'queued message', attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'queued.ts', displayKind: 'document' }] },
 			};
 
 			stateManager.dispatchClientAction(action, { clientId: 'test', clientSeq: 1 });
@@ -513,7 +573,7 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.sendMessageCalls, [{
 				session: URI.parse(sessionUri.toString()),
 				prompt: 'queued message',
-				attachments: [{ type: AttachmentType.File, uri: URI.parse(fileUri.toString()), displayName: 'queued.ts' }],
+				attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'queued.ts', displayKind: 'document' }],
 			}]);
 		});
 
@@ -1913,7 +1973,7 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(innerTool, undefined, 'stale buffered inner tool call must not be replayed');
 		});
 
-		test('completeSubagentSession completes the subagent turn when parent tool completes', () => {
+		test('subagent_completed signal completes the subagent turn', () => {
 			setupSession();
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
@@ -1923,20 +1983,28 @@ suite('AgentSideEffects', () => {
 			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallReady, session: sessionUri.toString(), turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 			agent.fireProgress({ kind: 'subagent_started', session: sessionUri, toolCallId: 'tc-1', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
 
-			// Complete the parent tool call
+			// Completing the parent tool call must NOT tear down the
+			// subagent session — background subagents keep running after
+			// their parent tool call returns.
 			agent.fireProgress({
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallComplete, session: sessionUri.toString(), turnId: 'turn-1',
 					toolCallId: 'tc-1',
-					result: { success: true, pastTenseMessage: 'Done' },
+					result: { success: true, pastTenseMessage: 'Started in background' },
 				},
 			});
 
-			// Verify the subagent session's turn was completed
 			const subagentUri = `${sessionUri.toString()}/subagent/tc-1`;
-			const subState = stateManager.getSessionState(subagentUri);
+			let subState = stateManager.getSessionState(subagentUri);
 			assert.ok(subState);
+			assert.ok(subState!.activeTurn, 'subagent turn should still be active after parent tool completes');
+
+			// The SDK's `subagent.completed`/`subagent.failed` event is what
+			// actually closes the subagent session.
+			agent.fireProgress({ kind: 'subagent_completed', session: sessionUri, toolCallId: 'tc-1' });
+
+			subState = stateManager.getSessionState(subagentUri);
 			assert.strictEqual(subState!.activeTurn, undefined, 'subagent turn should be completed');
 			assert.strictEqual(subState!.turns.length, 1);
 		});

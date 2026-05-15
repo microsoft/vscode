@@ -1,0 +1,98 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Empty state shown in the new-session view on web when no agent hosts are
+ * known. Replaces the workspace picker row + chat input. The chat input is
+ * hidden via the `.no-agent-host` class on `.new-chat-widget-content`,
+ * which is set from `newChatViewPane.ts` in the same render pass that
+ * mounts this widget. */
+
+.no-agent-host-empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	gap: 12px;
+	width: 100%;
+	max-width: 480px;
+	margin: 0 auto;
+	padding: 24px 16px;
+	box-sizing: border-box;
+}
+
+.no-agent-host-empty-state .no-agent-host-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 56px;
+	height: 56px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	color: var(--vscode-foreground);
+	margin-bottom: 4px;
+}
+
+.no-agent-host-empty-state .no-agent-host-icon .codicon {
+	font-size: 28px;
+	line-height: 1;
+}
+
+.no-agent-host-empty-state .no-agent-host-title {
+	margin: 0;
+	font-size: 20px;
+	font-weight: 600;
+	line-height: 1.25;
+	color: var(--vscode-foreground);
+}
+
+.no-agent-host-empty-state .no-agent-host-description {
+	margin: 0;
+	font-size: 13px;
+	line-height: 1.5;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Inline command (e.g. `code tunnel` / `code-insiders tunnel`) rendered
+ * inside the description by `renderFormattedText` as a <code> element. */
+.no-agent-host-empty-state .no-agent-host-description code {
+	display: inline-block;
+	padding: 1px 6px;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	user-select: text;
+	white-space: nowrap;
+}
+
+.no-agent-host-empty-state .no-agent-host-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.no-agent-host-empty-state .no-agent-host-link:hover,
+.no-agent-host-empty-state .no-agent-host-link:focus {
+	text-decoration: underline;
+}
+
+/* When the empty state is mounted, hide the chat input below it — the
+ * input is non-functional without an active session anyway and would
+ * otherwise compete with the empty state for visual focus. Both
+ * `.new-chat-input-container` and `.new-chat-bottom-container` are
+ * direct children of `.new-chat-widget-content` (rendered by
+ * NewChatInputWidget). */
+.new-chat-widget-content.no-agent-host .new-chat-input-container,
+.new-chat-widget-content.no-agent-host .new-chat-bottom-container {
+	display: none !important;
+}
+
+/* Animate in alongside the rest of the welcome content so it lands at the
+ * same time as the workspace picker would have. */
+.new-chat-widget-container.revealed .no-agent-host-empty-state {
+	animation: chat-full-welcome-fade-in 0.35s ease 0.1s both;
+}
