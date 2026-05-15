@@ -201,6 +201,99 @@ describe('translateSpan', () => {
 		// Critical: assistant.message must chain to session.start, not the dropped user.message.
 		expect(events[1].parentId).toBe(events[0].id);
 	});
+
+	it('folds sub-agent spans into parent: skips session.start + user.message and tags agentId', () => {
+		// Parent has already started (root invoke_agent emitted session.start + user.message).
+		const state = createSessionTranslationState();
+		state.started = true;
+		state.lastEventId = 'parent-last-event-id';
+
+		const outputMessages = JSON.stringify([
+			{ role: 'assistant', parts: [{ type: 'text', content: 'sub-agent reply' }] },
+		]);
+		const subagentSpan = makeSpan({
+			attributes: {
+				'gen_ai.operation.name': 'invoke_agent',
+				'copilot_chat.user_request': 'synthetic prompt to sub-agent',
+				'gen_ai.output.messages': outputMessages,
+			},
+		});
+
+		const events = translateSpan(subagentSpan, state, undefined, 'child-session-id');
+
+		// Only assistant.message should be emitted; session.start (parent owns it)
+		// and user.message (synthetic sub-agent prompt) must be suppressed.
+		expect(events.map(e => e.type)).toEqual(['assistant.message']);
+		expect(events[0].agentId).toBe('child-session-id');
+		expect(events[0].parentId).toBe('parent-last-event-id');
+	});
+
+	it('tags agentId on tool.execution_start events from sub-agent invoke_agent spans', () => {
+		const state = createSessionTranslationState();
+		state.started = true;
+		state.lastEventId = 'parent-last';
+
+		const outputMessages = JSON.stringify([
+			{
+				role: 'assistant',
+				parts: [
+					{ type: 'text', content: 'calling tool' },
+					{ type: 'tool-call', toolCallId: 'call-1', toolName: 'read_file', args: { path: 'a.ts' } },
+				],
+			},
+		]);
+		const span = makeSpan({
+			attributes: {
+				'gen_ai.operation.name': 'invoke_agent',
+				'gen_ai.output.messages': outputMessages,
+			},
+		});
+
+		const events = translateSpan(span, state, undefined, 'child-session-id');
+
+		expect(events.map(e => e.type)).toEqual(['assistant.message', 'tool.execution_start']);
+		expect(events.every(e => e.agentId === 'child-session-id')).toBe(true);
+	});
+
+	it('tags agentId on tool.execution_complete events from sub-agent execute_tool spans', () => {
+		const state = createSessionTranslationState();
+		state.started = true;
+		state.lastEventId = 'parent-last';
+
+		const span = makeSpan({
+			attributes: {
+				'gen_ai.operation.name': 'execute_tool',
+				'gen_ai.tool.name': 'read_file',
+				'gen_ai.tool.call.id': 'call-1',
+				'gen_ai.tool.result': 'file contents',
+			},
+		});
+
+		const events = translateSpan(span, state, undefined, 'child-session-id');
+
+		expect(events).toHaveLength(1);
+		expect(events[0].type).toBe('tool.execution_complete');
+		expect(events[0].agentId).toBe('child-session-id');
+	});
+
+	it('does not set agentId on events from non-sub-agent (root) spans', () => {
+		const state = createSessionTranslationState();
+		const outputMessages = JSON.stringify([
+			{ role: 'assistant', parts: [{ type: 'text', content: 'root reply' }] },
+		]);
+		const span = makeSpan({
+			attributes: {
+				'gen_ai.operation.name': 'invoke_agent',
+				'copilot_chat.user_request': 'hi',
+				'gen_ai.output.messages': outputMessages,
+			},
+		});
+
+		const events = translateSpan(span, state);
+
+		expect(events.map(e => e.type)).toEqual(['session.start', 'user.message', 'assistant.message']);
+		expect(events.every(e => e.agentId === undefined)).toBe(true);
+	});
 });
 
 describe('makeIdleEvent', () => {

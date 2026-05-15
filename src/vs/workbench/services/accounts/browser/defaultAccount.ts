@@ -191,6 +191,14 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 		await this.defaultAccountProvider?.signOut();
 	}
 
+	resolveGitHubUrl(path: string): string {
+		if (this.defaultAccountProvider) {
+			return this.defaultAccountProvider.resolveGitHubUrl(path);
+		}
+
+		return `https://github.com/${path}`;
+	}
+
 	private setDefaultAccount(account: IDefaultAccount | null): void {
 		if (equals(this.defaultAccount, account)) {
 			return;
@@ -883,6 +891,21 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			...this.defaultAccountConfig.authenticationProvider.default,
 			enterprise: false
 		};
+	}
+
+	resolveGitHubUrl(path: string): string {
+		if (this.getDefaultAccountAuthenticationProvider().enterprise) {
+			try {
+				const enterpriseUrl = this.getEnterpriseUrl();
+				if (enterpriseUrl) {
+					return `${enterpriseUrl.protocol}//${enterpriseUrl.host}/${path}`;
+				}
+			} catch {
+				// fall through to default
+			}
+		}
+
+		return `https://github.com/${path}`;
 	}
 
 	private getEnterpriseUrl(): URL | undefined {

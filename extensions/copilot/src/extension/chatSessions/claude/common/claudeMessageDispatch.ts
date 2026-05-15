@@ -8,6 +8,7 @@ import type { TodoWriteInput } from '@anthropic-ai/claude-agent-sdk/sdk-tools';
 import type Anthropic from '@anthropic-ai/sdk';
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
+import type { ChatFetchError } from '../../../../platform/chat/common/commonTypes';
 import { vBoolean, vLiteral, vObj, vString, type ValidatorType } from '../../../../platform/configuration/common/validator';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, SpanKind, SpanStatusCode, truncateForOTel, type ISpanHandle, type TraceContext } from '../../../../platform/otel/common/index';
@@ -121,7 +122,29 @@ export const ALL_KNOWN_MESSAGE_KEYS = new Set([
 
 export const DENY_TOOL_MESSAGE = 'The user declined to run the tool';
 
+/**
+ * Prefix embedded by the proxy in HTTP error messages so the dispatch layer
+ * can identify proxy-classified errors in SDK result text without depending
+ * on the SDK's own error classification.
+ *
+ * Format: `VSCODE_PROXY_ERROR:<base64>` where the base64 payload decodes to
+ * a JSON-serialized ChatFetchError. Base64 avoids double-encoding issues
+ * when the SDK nests our message inside its own JSON error response.
+ */
+export const PROXY_ERROR_PREFIX = 'VSCODE_PROXY_ERROR:';
+
 export class KnownClaudeError extends Error { }
+
+/**
+ * Thrown when the SDK result text contains a proxy-classified error.
+ * Carries the original ChatFetchError so callers can use
+ * `getErrorDetailsFromChatFetchError` for consistent error messages.
+ */
+export class ClaudeProxyError extends KnownClaudeError {
+	constructor(public readonly fetchError: ChatFetchError) {
+		super(fetchError.reason);
+	}
+}
 
 interface IManageTodoListToolInputParams {
 	readonly operation?: 'write' | 'read';
@@ -674,13 +697,66 @@ export function handleHookResponse(
 	}
 }
 
+/**
+ * Extracts the error text from an SDK result message, if any.
+ * - `success` with `is_error`: error text is in `result`
+ * - `error_during_execution`: error text is in `errors`
+ */
+function getResultErrorText(message: SDKResultMessage): string | undefined {
+	if (message.subtype === 'success' && message.is_error) {
+		return message.result;
+	}
+	if (message.subtype === 'error_during_execution') {
+		return message.errors?.join('\n');
+	}
+	return undefined;
+}
+
+/**
+ * Attempts to parse a proxy-classified error from the SDK result text.
+ * Returns the parsed ChatFetchError if the text contains the proxy error prefix,
+ * or undefined if no proxy error is embedded.
+ */
+function tryParseProxyError(errorText: string | undefined): ChatFetchError | undefined {
+	if (!errorText) {
+		return undefined;
+	}
+	const idx = errorText.indexOf(PROXY_ERROR_PREFIX);
+	if (idx === -1) {
+		return undefined;
+	}
+
+	// Extract the base64 payload after the prefix, stopping at whitespace or quotes.
+	const start = idx + PROXY_ERROR_PREFIX.length;
+	const end = errorText.slice(start).search(/[\s"']/);
+	const b64 = end === -1 ? errorText.slice(start) : errorText.slice(start, start + end);
+
+	try {
+		return JSON.parse(Buffer.from(b64, 'base64').toString()) as ChatFetchError;
+	} catch {
+		return undefined;
+	}
+}
+
 export function handleResultMessage(
 	message: SDKResultMessage,
 	request: MessageHandlerRequestContext,
 ): MessageHandlerResult {
+	const isExecutionError =
+		message.subtype === 'error_during_execution'
+		|| (message.subtype === 'success' && message.is_error === true);
+
 	if (message.subtype === 'error_max_turns') {
 		request.stream.progress(l10n.t('Maximum turns reached ({0})', message.num_turns));
-	} else if (message.subtype === 'error_during_execution') {
+	} else if (isExecutionError) {
+		// Check the result/error text for proxy-classified errors.
+		// The proxy embeds VSCODE_PROXY_ERROR:<json> in the HTTP error message,
+		// which the SDK forwards through to the result text.
+		const errorText = getResultErrorText(message);
+		const fetchError = tryParseProxyError(errorText);
+		if (fetchError) {
+			throw new ClaudeProxyError(fetchError);
+		}
 		throw new KnownClaudeError(l10n.t('Error during execution'));
 	}
 	return { requestComplete: true };

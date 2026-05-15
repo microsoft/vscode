@@ -10,6 +10,7 @@ import type * as vscode from 'vscode';
 import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/chatDebugFileLoggerService';
 import { INativeEnvService } from '../../../../platform/env/common/envService';
 import { ILogService } from '../../../../platform/log/common/logService';
+import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { IMcpService } from '../../../../platform/mcp/common/mcpService';
 import { IOTelService, type ISpanHandle, SpanStatusCode, type TraceContext } from '../../../../platform/otel/common/index';
 import { deriveClaudeOTelEnv } from '../../../../platform/otel/common/agentOTelEnv';
@@ -20,11 +21,13 @@ import { Disposable, DisposableMap } from '../../../../util/vs/base/common/lifec
 import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { getErrorDetailsFromChatFetchError } from '../../../../platform/chat/common/commonTypes';
+import { IOctoKitService } from '../../../../platform/github/common/githubService';
 import { LanguageModelToolMCPSource } from '../../../../vscodeTypes';
 import { IClaudePluginService } from './claudeSkills';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { buildMcpServersFromRegistry } from '../common/claudeMcpServerRegistry';
-import { dispatchMessage, KnownClaudeError } from '../common/claudeMessageDispatch';
+import { dispatchMessage, ClaudeProxyError, KnownClaudeError } from '../common/claudeMessageDispatch';
 import { IClaudeRuntimeDataService } from '../common/claudeRuntimeDataService';
 import { ClaudeSessionUri } from '../common/claudeSessionUri';
 import { IClaudeToolPermissionService } from '../common/claudeToolPermissionService';
@@ -54,6 +57,8 @@ export class ClaudeAgentManager extends Disposable {
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IOctoKitService private readonly octoKitService: IOctoKitService,
 	) {
 		super();
 	}
@@ -98,6 +103,24 @@ export class ClaudeAgentManager extends Disposable {
 			if (isAbortError) {
 				this.logService.trace('[ClaudeAgentManager] Request was aborted/cancelled');
 				return {};
+			}
+
+			if (invokeError instanceof ClaudeProxyError) {
+				this.logService.info(`[ClaudeAgentManager] Request failed due to proxy error: ${invokeError.fetchError.type}`);
+				try {
+					const copilotToken = await this.authenticationService.getCopilotToken();
+					const outageStatus = await this.octoKitService.getGitHubOutageStatus();
+					const errorDetails = getErrorDetailsFromChatFetchError(
+						invokeError.fetchError,
+						copilotToken.copilotPlan,
+						outageStatus,
+						copilotToken.tokenBasedBilling,
+						copilotToken.quotaInfo.quota_reset_date,
+					);
+					return { errorDetails };
+				} catch {
+					return { errorDetails: { message: invokeError.message } };
+				}
 			}
 
 			this.logService.error(invokeError as Error);
@@ -643,6 +666,9 @@ export class ClaudeCodeSession extends Disposable {
 						subagentTraceContexts,
 					});
 				} catch (dispatchError) {
+					if (dispatchError instanceof ClaudeProxyError || dispatchError instanceof KnownClaudeError) {
+						throw dispatchError;
+					}
 					this.logService.warn(`[ClaudeCodeSession] Failed to dispatch message (stream may be disposed after yield): ${dispatchError}`);
 				}
 
