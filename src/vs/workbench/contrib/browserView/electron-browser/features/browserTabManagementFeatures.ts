@@ -575,7 +575,11 @@ class BrowserLinkOpenerContribution extends Disposable implements IWorkbenchCont
 		this._register(openerService.registerExternalOpener(this));
 	}
 
-	async openExternal(href: string, _ctx: { sourceUri: URI; preferredOpenerId?: string }, _token: CancellationToken): Promise<boolean> {
+	async openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string }, _token: CancellationToken): Promise<boolean> {
+		if (ctx.preferredOpenerId !== undefined) {
+			return false;
+		}
+
 		const openerSetting = getIntegratedBrowserLinkOpenerSetting(href);
 		if (openerSetting === undefined) {
 			return false;
