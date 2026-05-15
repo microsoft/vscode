@@ -359,21 +359,40 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			if (!endpoint) {
 				continue;
 			}
-			// Only republish endpoints that are surfaced by this provider
-			// (vendor `copilot`). BYOK selectors are already published by
-			// their own provider under a different vendor.
-			const base = models.find(m => m.id === endpoint.model);
-			if (!base) {
-				continue;
-			}
 			this._utilityAliasEndpoints.set(family, endpoint);
-			models.push({
-				...base,
-				id: family,
-				family,
-				isUserSelectable: false,
-				isDefault: false,
-			});
+			// When the alias points at a model surfaced by this provider
+			// (vendor `copilot`), clone the existing entry so the alias
+			// keeps any provider-specific metadata. When it resolves to
+			// a model from another provider (e.g. a BYOK override), build
+			// a minimal entry directly from the endpoint so the alias is
+			// still discoverable under the `copilot` vendor.
+			const base = models.find(m => m.id === endpoint.model);
+			if (base) {
+				this._logService.trace(`[LanguageModelAccess] Publishing alias '${family}' -> copilot/${endpoint.model} (cloned).`);
+				models.push({
+					...base,
+					id: family,
+					family,
+					isUserSelectable: false,
+					isDefault: false,
+				});
+			} else {
+				this._logService.trace(`[LanguageModelAccess] Publishing alias '${family}' -> ${endpoint.model} (synthesized; not in copilot model list — likely a BYOK override).`);
+				models.push({
+					id: family,
+					name: endpoint.name,
+					family,
+					version: endpoint.version,
+					maxInputTokens: endpoint.modelMaxPromptTokens,
+					maxOutputTokens: endpoint.maxOutputTokens,
+					isUserSelectable: false,
+					isDefault: false,
+					capabilities: {
+						toolCalling: endpoint.supportsToolCalls,
+						imageInput: endpoint.supportsVision,
+					},
+				});
+			}
 		}
 	}
 
