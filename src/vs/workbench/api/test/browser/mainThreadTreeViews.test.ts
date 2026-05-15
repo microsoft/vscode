@@ -16,7 +16,7 @@ import { NullTelemetryService } from '../../../../platform/telemetry/common/tele
 import { MainThreadTreeViews } from '../../browser/mainThreadTreeViews.js';
 import { DataTransferDTO, ExtHostTreeViewsShape } from '../../common/extHost.protocol.js';
 import { CustomTreeView } from '../../../browser/parts/views/treeView.js';
-import { Extensions, ITreeItem, ITreeView, ITreeViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, TreeItemCollapsibleState, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
+import { Extensions, ICustomViewDescriptor, ITreeItem, ITreeView, ITreeViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, TreeItemCollapsibleState, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
 import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
 import { ViewDescriptorService } from '../../../services/views/browser/viewDescriptorService.js';
@@ -26,6 +26,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as sinon from 'sinon';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 
 suite('MainThreadHostTreeView', function () {
 	const testTreeViewId = 'testTreeView';
@@ -191,8 +192,9 @@ suite('MainThreadHostTreeView', function () {
 	test('updates focused tree view', () => {
 		const proxy = sinon.spy(extHostTreeViewsShape, '$setFocusedTreeView');
 
-		viewsService.setFocusedView(<IViewDescriptor>{
-			id: testTreeViewId
+		viewsService.setFocusedView(<ICustomViewDescriptor>{
+			id: testTreeViewId,
+			extensionId: new ExtensionIdentifier('test.extension')
 		});
 
 		assert.strictEqual(proxy.callCount, 1);
@@ -217,8 +219,9 @@ suite('MainThreadHostTreeView', function () {
 	test('does not emit duplicate focused tree view values', () => {
 		const proxy = sinon.spy(extHostTreeViewsShape, '$setFocusedTreeView');
 
-		const view1 = <IViewDescriptor>{
-			id: testTreeViewId
+		const view1 = <ICustomViewDescriptor>{
+			id: testTreeViewId,
+			extensionId: new ExtensionIdentifier('test.extension')
 		};
 
 		viewsService.setFocusedView(view1);
