@@ -280,7 +280,9 @@ function findCommonVisibleAncestor(candidates: readonly (Node | null | undefined
  * then torn down. `stop()` tears down without picking.
  */
 class ElementPicker {
-	static DRAG_THRESHOLD_PX = 4;
+	private static readonly _DRAG_THRESHOLD_PX = 4;
+	private static readonly _CURSOR_DEFAULT = '/* VS Code injected style */ * { cursor: default !important; }';
+	private static readonly _CURSOR_CROSSHAIR = '/* VS Code injected style */ * { cursor: crosshair !important; }';
 
 	private _selectionActive = false;
 	private _continuous = false;
@@ -365,8 +367,9 @@ class ElementPicker {
 
 		// Inject a stylesheet into the page to override all cursors while element selection is active,
 		// so the cursor always appears as a normal pointer even when over e.g. links.
+		// Updated to crosshair in _onPointerDown, reset in _onPointerUp.
 		const cursorStyle = document.createElement('style');
-		cursorStyle.textContent = '/* VS Code injected style */ * { cursor: default !important; }';
+		cursorStyle.textContent = ElementPicker._CURSOR_DEFAULT;
 		// eslint-disable-next-line no-restricted-syntax
 		document.head.appendChild(cursorStyle);
 		this._cursorStylesheet = cursorStyle;
@@ -457,7 +460,7 @@ class ElementPicker {
 		}
 		const dx = Math.abs(e.clientX - this._dragStart.x);
 		const dy = Math.abs(e.clientY - this._dragStart.y);
-		if (dx < ElementPicker.DRAG_THRESHOLD_PX && dy < ElementPicker.DRAG_THRESHOLD_PX) {
+		if (dx < ElementPicker._DRAG_THRESHOLD_PX && dy < ElementPicker._DRAG_THRESHOLD_PX) {
 			return;
 		}
 		const left = Math.min(this._dragStart.x, e.clientX);
@@ -490,6 +493,9 @@ class ElementPicker {
 		}
 		this._dragStart = { x: e.clientX, y: e.clientY };
 		this._dragStartTarget = this._pickElementAt(e.clientX, e.clientY);
+		if (this._cursorStylesheet) {
+			this._cursorStylesheet.textContent = ElementPicker._CURSOR_CROSSHAIR;
+		}
 		e.preventDefault();
 		e.stopPropagation();
 	};
@@ -505,8 +511,11 @@ class ElementPicker {
 		const dy = Math.abs(e.clientY - this._dragStart.y);
 		const start = this._dragStart;
 		this._dragStart = undefined;
+		if (this._cursorStylesheet) {
+			this._cursorStylesheet.textContent = ElementPicker._CURSOR_DEFAULT;
+		}
 
-		if (dx < ElementPicker.DRAG_THRESHOLD_PX && dy < ElementPicker.DRAG_THRESHOLD_PX) {
+		if (dx < ElementPicker._DRAG_THRESHOLD_PX && dy < ElementPicker._DRAG_THRESHOLD_PX) {
 			// Click → pick the element under the pointer.
 			const target = this._dragStartTarget ?? this._pickElementAt(e.clientX, e.clientY);
 			this._dragStartTarget = undefined;
