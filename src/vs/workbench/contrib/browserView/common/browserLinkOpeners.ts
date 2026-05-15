@@ -12,13 +12,10 @@ export const enum BrowserLinkOpenerSettingKey {
 
 /**
  * Returns the matching Integrated Browser opener setting key for an HTTP(S) link.
- * Returns `undefined` when the href is invalid, non-HTTP(S), or when the corresponding
- * setting for the classified link type (localhost/all-interfaces vs non-localhost) is disabled.
+ * Returns `undefined` when the href is invalid or non-HTTP(S).
  */
 export function getIntegratedBrowserLinkOpenerSetting(
-	href: string,
-	openLocalhostLinks: boolean,
-	openExternalLinks: boolean
+	href: string
 ): BrowserLinkOpenerSettingKey | undefined {
 	try {
 		const parsed = new URL(href);
@@ -28,10 +25,10 @@ export function getIntegratedBrowserLinkOpenerSetting(
 
 		const isLocal = isLocalhostAuthority(parsed.host) || isAllInterfacesAuthority(parsed.host);
 		if (isLocal) {
-			return openLocalhostLinks ? BrowserLinkOpenerSettingKey.OpenLocalhostLinks : undefined;
+			return BrowserLinkOpenerSettingKey.OpenLocalhostLinks;
 		}
 
-		return openExternalLinks ? BrowserLinkOpenerSettingKey.OpenExternalLinks : undefined;
+		return BrowserLinkOpenerSettingKey.OpenExternalLinks;
 	} catch {
 		return undefined;
 	}

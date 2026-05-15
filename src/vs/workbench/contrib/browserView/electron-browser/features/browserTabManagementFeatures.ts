@@ -521,12 +521,12 @@ class BrowserLinkOpenerContribution extends Disposable implements IWorkbenchCont
 	}
 
 	async openExternal(href: string, _ctx: { sourceUri: URI; preferredOpenerId?: string }, _token: CancellationToken): Promise<boolean> {
-		const openerSetting = getIntegratedBrowserLinkOpenerSetting(
-			href,
-			this.configurationService.getValue<boolean>(BrowserLinkOpenerSettingKey.OpenLocalhostLinks),
-			this.configurationService.getValue<boolean>(BrowserLinkOpenerSettingKey.OpenExternalLinks)
-		);
+		const openerSetting = getIntegratedBrowserLinkOpenerSetting(href);
 		if (openerSetting === undefined) {
+			return false;
+		}
+
+		if (!this.configurationService.getValue<boolean>(openerSetting)) {
 			return false;
 		}
 

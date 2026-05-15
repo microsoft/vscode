@@ -12,40 +12,29 @@ suite('BrowserLinkOpeners', () => {
 
 	test('returns localhost setting for localhost and all-interfaces links', () => {
 		assert.strictEqual(
-			getIntegratedBrowserLinkOpenerSetting('http://localhost:3000', true, true),
+			getIntegratedBrowserLinkOpenerSetting('http://localhost:3000'),
 			BrowserLinkOpenerSettingKey.OpenLocalhostLinks
 		);
 		assert.strictEqual(
-			getIntegratedBrowserLinkOpenerSetting('https://0.0.0.0:8080', true, true),
+			getIntegratedBrowserLinkOpenerSetting('https://0.0.0.0:8080'),
 			BrowserLinkOpenerSettingKey.OpenLocalhostLinks
 		);
 	});
 
 	test('returns external setting for non-localhost HTTP(S) links', () => {
 		assert.strictEqual(
-			getIntegratedBrowserLinkOpenerSetting('https://example.com/path', true, true),
+			getIntegratedBrowserLinkOpenerSetting('https://example.com/path'),
 			BrowserLinkOpenerSettingKey.OpenExternalLinks
-		);
-	});
-
-	test('respects disabled settings', () => {
-		assert.strictEqual(
-			getIntegratedBrowserLinkOpenerSetting('https://localhost:3000', false, true),
-			undefined
-		);
-		assert.strictEqual(
-			getIntegratedBrowserLinkOpenerSetting('https://example.com/path', true, false),
-			undefined
 		);
 	});
 
 	test('ignores non-http(s) and invalid links', () => {
 		assert.strictEqual(
-			getIntegratedBrowserLinkOpenerSetting('mailto:test@example.com', true, true),
+			getIntegratedBrowserLinkOpenerSetting('mailto:test@example.com'),
 			undefined
 		);
 		assert.strictEqual(
-			getIntegratedBrowserLinkOpenerSetting('not-a-url', true, true),
+			getIntegratedBrowserLinkOpenerSetting('not-a-url'),
 			undefined
 		);
 	});
