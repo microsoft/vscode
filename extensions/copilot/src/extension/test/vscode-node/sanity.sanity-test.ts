@@ -89,7 +89,7 @@ suite('Copilot Chat Sanity Test', function () {
 				const conversation = conversationStore.getConversation(result2.metadata.responseId);
 				assert.ok(conversation, 'Expected conversation to be available');
 			} finally {
-				conversationFeature.activated = false;
+				conversationFeature.dispose();
 			}
 		});
 	});
@@ -132,7 +132,7 @@ suite('Copilot Chat Sanity Test', function () {
 				const conversation = conversationStore.getConversation(result2.metadata.responseId);
 				assert.ok(conversation, 'Expected conversation to be available');
 			} finally {
-				conversationFeature.activated = false;
+				conversationFeature.dispose();
 			}
 		});
 	});
@@ -153,7 +153,7 @@ suite('Copilot Chat Sanity Test', function () {
 				await interactiveSession.getResult();
 				assert.ok(progressReport.currentProgress);
 			} finally {
-				conversationFeature.activated = false;
+				conversationFeature.dispose();
 			}
 		});
 	});
@@ -216,7 +216,7 @@ suite('Copilot Chat Sanity Test', function () {
 				const text = await textPromise;
 				assert.ok(text.length > 0);
 			} finally {
-				conversationFeature.activated = false;
+				conversationFeature.dispose();
 				r.dispose();
 			}
 		});
