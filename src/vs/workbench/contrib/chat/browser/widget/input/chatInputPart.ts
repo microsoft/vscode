@@ -89,7 +89,7 @@ import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from 
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../../../common/model/chatModel.js';
 import { filterModelsForSession, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, mergeModelsWithCache, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel } from './chatModelSelectionLogic.js';
-import { getChatSessionType } from '../../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
@@ -107,8 +107,10 @@ import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../cha
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
 import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from '../../agentSessions/agentHost/agentHostChatInputPicker.js';
-import { OpenAgentHostBranchPickerAction, OpenAgentHostIsolationPickerAction, OpenAgentHostModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostBranchPickerAction, OpenAgentHostIsolationPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { IChatPhoneInputPresenter, MobileChatInputCombinedPickerActionItem } from './chatPhoneInputPresenter.js';
 import { IChatContextService } from '../../contextContrib/chatContextService.js';
 import { IDisposableReference } from '../chatContentParts/chatCollections.js';
@@ -355,6 +357,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	// Disposables for model observation
 	private readonly _modelSyncDisposables = this._register(new DisposableStore());
+	private readonly _currentChatModes = this._register(new MutableDisposable<IChatModes & IDisposable>());
 
 	// Flag to prevent circular updates between view and model
 	private _isSyncingToOrFromInputModel = false;
@@ -576,7 +579,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 		this._currentModeObservable = observableValue<IChatMode>('currentMode', this.options.defaultMode ?? ChatMode.Agent);
-		this._currentChatModesObservable = observableValue<IChatModes>('currentChatModes', this.chatModeService.getModes(localChatSessionType));
+		const localModes = this.chatModeService.createModes(LocalChatSessionUri.getNewSessionUri());
+		this._currentChatModes.value = localModes;
+		this._currentChatModesObservable = observableValue<IChatModes>('currentChatModes', localModes);
 		this._currentPermissionLevel = observableValue<ChatPermissionLevel>('permissionLevel', this.getDefaultPermissionLevel());
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this._indexOfLastOpenedContext = -1;
@@ -1010,7 +1015,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._inputModel = model;
 		this._modelSyncDisposables.clear();
-		this._currentChatModesObservable.set(this.chatModeService.getModes(getChatSessionType(forSessionResource)), undefined);
+		const chatModes = this.chatModeService.createModes(forSessionResource);
+		this._currentChatModes.value = chatModes;
+		this._currentChatModesObservable.set(chatModes, undefined);
 		this.selectedToolsModel.resetSessionEnablementState();
 		this._chatSessionIsEmpty = chatSessionIsEmpty;
 
@@ -1097,7 +1104,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Sync selected model - validate it belongs to the current session's model pool
 			if (state?.selectedModel) {
 				const allModels = this.getAllMergedModels();
-				const sessionType = this.getCurrentSessionType() ?? getChatSessionType(forSessionResource);
+				const sessionType = getChatSessionType(forSessionResource);
 				const syncResult = resolveModelFromSyncState(state.selectedModel, this._currentLanguageModel.get(), allModels, sessionType, {
 					location: this.location,
 					currentModeKind: this.currentModeKind,
@@ -2558,9 +2565,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Secondary toolbar (permissions) — below the input box
 		const agentHostShortPickerIds = new Set<string>([
 			OpenAgentHostModePickerAction.ID,
+			OpenAgentHostAutoApprovePickerAction.ID,
+			OpenAgentHostPermissionModePickerAction.ID,
 			OpenAgentHostBranchPickerAction.ID,
 			OpenAgentHostIsolationPickerAction.ID,
 		]);
+		// Direct-rendered chip lane for agent-host config properties that
+		// are advertised by the agent's schema but not handled by a
+		// dedicated `MenuId.ChatInputSecondary` action. Sits as a sibling
+		// of the secondary toolbar so the toolbar can take the available
+		// space (`flex: 1 1 0`) while the chips pin to the right next to
+		// the context-usage widget.
+		const genericChipsContainer = dom.$('.chat-secondary-generic-chips');
+		const genericChipsLane = this._register(this.instantiationService.createInstance(
+			AgentHostGenericConfigChips,
+			widget,
+			secondaryPickerOptions,
+		));
+		genericChipsLane.render(genericChipsContainer);
 		this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryToolbarContainer, MenuId.ChatInputSecondary, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
@@ -2655,15 +2677,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					return widget;
 				} else if (
 					(action.id === OpenAgentHostModePickerAction.ID
+						|| action.id === OpenAgentHostAutoApprovePickerAction.ID
+						|| action.id === OpenAgentHostPermissionModePickerAction.ID
 						|| action.id === OpenAgentHostBranchPickerAction.ID
 						|| action.id === OpenAgentHostIsolationPickerAction.ID)
 					&& action instanceof MenuItemAction
 				) {
+					if (this.options.isSessionsWindow) {
+						return new HiddenActionViewItem(action);
+					}
 					const property = action.id === OpenAgentHostBranchPickerAction.ID
 						? SessionConfigKey.Branch
 						: action.id === OpenAgentHostIsolationPickerAction.ID
 							? SessionConfigKey.Isolation
-							: SessionConfigKey.Mode;
+							: action.id === OpenAgentHostAutoApprovePickerAction.ID
+								? SessionConfigKey.AutoApprove
+								: action.id === OpenAgentHostPermissionModePickerAction.ID
+									? ClaudeSessionConfigKey.PermissionMode
+									: SessionConfigKey.Mode;
 					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, property, secondaryPickerOptions);
 					return new AgentHostChatInputPickerActionViewItem(action, picker);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
@@ -2680,6 +2711,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this.secondaryToolbar.getElement().classList.add('chat-secondary-input-toolbar');
 		this.secondaryToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		dom.append(this.secondaryToolbarContainer, genericChipsContainer);
 		this._register(this.secondaryToolbar.onDidChangeMenuItems(() => {
 			// Update container reference for the pickers when the secondary toolbar hosts one.
 			// Only assign when found so we don't overwrite a valid primary container reference

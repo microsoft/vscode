@@ -37,6 +37,7 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
+import { AgentHostSkillCompletionProvider } from './agentHostSkillCompletionProvider.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 
@@ -90,6 +91,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _configurationService: IAgentConfigurationService;
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
 	private readonly _completions: IAgentHostCompletions;
+	private _skillCompletionProviderRegistered = false;
 
 	/**
 	 * Authoritative server-side per-resource subscription refcount, keyed by
@@ -112,6 +114,9 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Exposes the terminal manager for use by agent providers. */
 	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
+
+	/** Exposes the completions service for use by agent providers (e.g. to register agent-scoped completion item providers). */
+	get completionsService(): IAgentHostCompletions { return this._completions; }
 
 	/**
 	 * Trigger characters announced to clients via `InitializeResult.completionTriggerCharacters`.
@@ -180,12 +185,26 @@ export class AgentService extends Disposable implements IAgentService {
 		if (provider.onDidMaterializeSession) {
 			this._providerSubscriptions.add(provider.onDidMaterializeSession(e => this._onDidMaterializeSession(e)));
 		}
+		this._registerSkillCompletionProvider();
 		if (!this._defaultProvider) {
 			this._defaultProvider = provider.id;
 		}
 
 		// Update root state with current agents list
 		this._updateAgents();
+	}
+
+	private _registerSkillCompletionProvider(): void {
+		if (this._skillCompletionProviderRegistered) {
+			return;
+		}
+		this._skillCompletionProviderRegistered = true;
+		const provider = this._register(new AgentHostSkillCompletionProvider(
+			session => this._findProviderForSession(session),
+			this._fileService,
+			this._logService,
+		));
+		this._register(this._completions.registerProvider(provider));
 	}
 
 	// ---- auth ---------------------------------------------------------------

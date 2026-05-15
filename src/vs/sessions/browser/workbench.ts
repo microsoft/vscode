@@ -1006,7 +1006,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		// Hide editor part when last editor closes
 		this._register(this.editorService.onDidCloseEditor(() => {
-			if (this.partVisibility.editor && this.areAllGroupsEmpty()) {
+			if (this.partVisibility.editor && this.areAllGroupsInMainPartEmpty()) {
 				this.rememberAttachedEditorMaximizedState();
 				this.setEditorHidden(true);
 			}
@@ -1025,8 +1025,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.editor = visDefaults.editor;
 	}
 
-	private areAllGroupsEmpty(): boolean {
-		for (const group of this.editorGroupService.groups) {
+	private areAllGroupsInMainPartEmpty(): boolean {
+		for (const group of this.editorGroupService.mainPart.groups) {
 			if (!group.isEmpty) {
 				return false;
 			}

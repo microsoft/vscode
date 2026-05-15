@@ -672,7 +672,7 @@ export namespace ConfigKey {
 		/** Maximum number of tool calls the execution subagent can make */
 		export const ExecutionSubagentToolCallLimit = defineSetting<number>('chat.executionSubagent.toolCallLimit', ConfigType.ExperimentBased, 10);
 
-		/** When enabled, the main agent's manage_todo_list tool is disabled and a background copilot-fast model maintains the todo list instead. */
+		/** When enabled, the main agent's manage_todo_list tool is disabled and a background copilot-utility-small model maintains the todo list instead. */
 		export const BackgroundTodoAgentEnabled = defineSetting<boolean>('chat.agent.backgroundTodoAgent.enabled', ConfigType.ExperimentBased, false);
 
 		export const InlineEditsTriggerOnEditorChangeAfterSeconds = defineAndMigrateExpSetting<number | undefined>('chat.advanced.inlineEdits.triggerOnEditorChangeAfterSeconds', 'chat.inlineEdits.triggerOnEditorChangeAfterSeconds', 10);
@@ -731,7 +731,7 @@ export namespace ConfigKey {
 		export const AnthropicExtendedCacheTtl = defineSetting<boolean>('chat.anthropic.promptCaching.extendedTtl', ConfigType.ExperimentBased, false);
 
 		/** Freeze the customizations-index variable (the `<instructions>`/`<skills>`/`<agents>` block) at the first turn of a conversation and reuse it on subsequent turns. Prevents the system prompt cache from being invalidated by per-turn churn — e.g. the active mode swapping which subagent entry appears in `<agents>`, or async experimentation flipping a `when`-gated skill. */
-		export const FreezeCustomizationsIndex = defineSetting<boolean>('chat.freezeCustomizationsIndex', ConfigType.ExperimentBased, false);
+		export const FreezeCustomizationsIndex = defineSetting<boolean>('chat.freezeCustomizationsIndex', ConfigType.ExperimentBased, true);
 
 		export const InlineEditsXtabProviderModelConfiguration = (() => {
 			const oldKey = 'chat.advanced.inlineEdits.xtabProvider.modelConfiguration';
@@ -943,10 +943,6 @@ export namespace ConfigKey {
 	export const Updated53CodexPromptEnabled = defineSetting<boolean>('chat.updated53CodexPrompt.enabled', ConfigType.ExperimentBased, true);
 	/** Enable updated prompt for Claude Opus 4.7 model */
 	export const Claude47OpusPromptEnabled = defineSetting<boolean>('chat.claude47OpusPrompt.enabled', ConfigType.ExperimentBased, false);
-	/** Enable concise prompt experiment for GPT-5.4 model */
-	export const EnableGpt54ConcisePromptExp = defineSetting<boolean>('chat.gpt54ConcisePrompt.enabled', ConfigType.ExperimentBased, false);
-	/** Enable large prompt experiment for GPT-5.4 model */
-	export const EnableGpt54LargePromptExp = defineSetting<boolean>('chat.gpt54LargePrompt.enabled', ConfigType.ExperimentBased, false);
 	/** Enable get_changed_files tool for GPT-5.5 models */
 	export const EnableGpt55GetChangedFilesTool = defineSetting<boolean>('chat.gpt55GetChangedFilesTool.enabled', ConfigType.ExperimentBased, true);
 	/** Enable read_file tool for GPT-5.5 models */

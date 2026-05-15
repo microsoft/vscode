@@ -12,7 +12,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
-import { hasKey } from '../../../../base/common/types.js';
+import { hasKey, isObject, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -32,6 +32,7 @@ import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind,
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeRequestParams, IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
+import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { ShellManager } from './copilotShellTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
@@ -95,6 +96,12 @@ type ElicitationFieldValue = NonNullable<ElicitationResult['content']>[string];
 type SessionHooks = NonNullable<SessionConfig['hooks']>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+type ToolUseHookInput = PreToolUseHookInput | PostToolUseHookInput;
+
+function getToolCommand(input: ToolUseHookInput): string | undefined {
+	const command = isObject(input.toolArgs) ? Reflect.get(input.toolArgs, 'command') : undefined;
+	return isString(command) ? command : undefined;
+}
 
 /**
  * Projects an {@link ElicitationSchema} field into a
@@ -658,6 +665,21 @@ export class CopilotAgentSession extends Disposable {
 			this._turnCopilotUsageTotalNanoAiu = 0;
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
+
+		const slashCommand = parseLeadingSlashCommand(prompt);
+		if (slashCommand?.command === 'compact') {
+			try {
+				await this._wrapper.session.rpc.history.compact();
+			} catch (err) {
+				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.history.compact failed`);
+				throw err;
+			}
+			return;
+		}
+		if (slashCommand?.command === 'plan') {
+			mode = 'plan';
+			prompt = slashCommand.rest;
+		}
 
 		const sdkAttachments = attachments
 			? (await Promise.all(attachments.map(a => this._toSdkAttachment(a))))
@@ -1304,7 +1326,7 @@ export class CopilotAgentSession extends Disposable {
 
 	private async _handlePreToolUse(input: PreToolUseHookInput): Promise<void> {
 		try {
-			if (isEditTool(input.toolName)) {
+			if (isEditTool(input.toolName, getToolCommand(input))) {
 				const filePaths = this._getEditFilePaths(input.toolArgs);
 				await Promise.all(filePaths.map(p => this._editTracker.trackEditStart(p)));
 			}
@@ -1316,7 +1338,7 @@ export class CopilotAgentSession extends Disposable {
 
 	private async _handlePostToolUse(input: PostToolUseHookInput): Promise<void> {
 		try {
-			if (isEditTool(input.toolName)) {
+			if (isEditTool(input.toolName, getToolCommand(input))) {
 				const filePaths = this._getEditFilePaths(input.toolArgs);
 				await Promise.all(filePaths.map(p => this._editTracker.completeEdit(p)));
 			}
@@ -1498,7 +1520,8 @@ export class CopilotAgentSession extends Disposable {
 				content.push({ type: ToolResultContentType.Text, text: toolOutput });
 			}
 
-			const filePaths = isEditTool(tracked.toolName) ? this._getEditFilePaths(tracked.parameters) : [];
+			const command = isString(tracked.parameters?.command) ? tracked.parameters.command : undefined;
+			const filePaths = isEditTool(tracked.toolName, command) ? this._getEditFilePaths(tracked.parameters) : [];
 			for (const filePath of filePaths) {
 				try {
 					const fileEdit = await this._editTracker.takeCompletedEdit(this._turnId, e.data.toolCallId, filePath);
