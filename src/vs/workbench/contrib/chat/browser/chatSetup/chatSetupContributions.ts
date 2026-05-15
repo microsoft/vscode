@@ -371,6 +371,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
 							ChatContextKeys.Setup.completed.negate(),
+							ChatEntitlementContextKeys.hasByokModels.negate(),
 							ChatContextKeys.Entitlement.signedOut
 						)
 					}

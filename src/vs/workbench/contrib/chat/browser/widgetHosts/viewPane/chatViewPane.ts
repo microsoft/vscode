@@ -64,7 +64,7 @@ import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
-import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
@@ -598,10 +598,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// - chat widget being in empty state or showing a chat
 		// - extensions provided welcome view showing or not
 		// - configuration setting
+		// - `hasByokModels` flipping (BYOK models becoming available or going away)
+		const hasByokModelsContextKeys = new Set([ChatEntitlementContextKeys.hasByokModels.key]);
 		this._register(Event.any(
 			chatWidget.onDidChangeEmptyState,
 			Event.fromObservable(welcomeController.isShowingWelcome),
-			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled))
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled)),
+			Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(hasByokModelsContextKeys))
 		)(() => {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				sessionsControl.clearFocus(); // improve visual appearance when switching visibility by clearing focus

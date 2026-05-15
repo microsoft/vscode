@@ -627,6 +627,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _resolveLMSequencer = new SequencerByKey<string>();
 	private readonly _modelConfigurations = new Map<string, IStringDictionary<unknown>>();
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
+	private readonly _hasNonCopilotUserSelectableModels: IContextKey<boolean>;
 
 	private readonly _onLanguageModelChange = this._store.add(new Emitter<string>());
 	readonly onDidChangeLanguageModels: Event<string> = this._onLanguageModelChange.event;
@@ -661,12 +662,26 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@IRequestService private readonly _requestService: IRequestService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
+		this._hasNonCopilotUserSelectableModels = ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._recentlyUsedModelIds = this._readRecentlyUsedModels();
 		this._pinnedModelIds = this._readPinnedModels();
 		this._initChatControlData();
 
 		this._store.add(this.onDidChangeLanguageModels(() => {
-			this._hasUserSelectableModels.set(this._modelCache.size > 0 && Array.from(this._modelCache.values()).some(model => model.isUserSelectable !== false));
+			let hasUserSelectable = false;
+			let hasNonCopilotUserSelectable = false;
+			for (const model of this._modelCache.values()) {
+				if (model.isUserSelectable === false) {
+					continue;
+				}
+				hasUserSelectable = true;
+				if (model.vendor !== COPILOT_VENDOR_ID) {
+					hasNonCopilotUserSelectable = true;
+					break;
+				}
+			}
+			this._hasUserSelectableModels.set(hasUserSelectable);
+			this._hasNonCopilotUserSelectableModels.set(hasNonCopilotUserSelectable);
 			this._refreshModelsControlManifest();
 		}));
 		this._store.add(this._languageModelsConfigurationService.onDidChangeLanguageModelGroups(changedGroups => this._onDidChangeLanguageModelGroups(changedGroups)));
