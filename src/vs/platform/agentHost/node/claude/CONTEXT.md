@@ -27,6 +27,36 @@ _Avoid_: "Anthropic proxy", "language model server".
 GitHub Copilot's chat completions API, accessed through `ICopilotApiService`.
 The terminal hop after the proxy.
 
+**Materialization** / `ClaudeMaterializer`:
+Promoting a provisional session record (created by `ClaudeAgent.createSession`,
+no SDK contact yet) into a live `ClaudeAgentSession` with a bound `WarmQuery`.
+Owned by `ClaudeMaterializer`: assembles the SDK `Options` bag, awaits
+`IClaudeAgentSdkService.startup`, opens the per-session DB ref, and constructs
+the session wrapper. `ClaudeAgent` retains sequencing, the `_sessions` map,
+permission-mode resolution, the post-materialize metadata write, and the
+second abort gate.
+_Avoid_: "session creation" (overloaded with `IAgent.createSession`).
+
+**Claude session overlay** / `ClaudeSessionMetadataStore`:
+The per-session DB layer that decorates the SDK's `SDKSessionInfo` with
+Claude-namespaced fields (`customizationDirectory`, `model`, `permissionMode`).
+The SDK is the source of truth for session existence; the overlay merely
+decorates. External Claude CLI sessions have no overlay DB, so reads return
+an empty overlay rather than throwing. Owns the three `claude.*` DB keys,
+the `ModelSelection` JSON codec, and the projection from SDK info + overlay
+onto the platform's `IAgentSessionMetadata` shape.
+_Avoid_: "session metadata" (overloaded with `IAgentSessionMetadata`).
+
+**Claude file-edit observer** / `ClaudeFileEditObserver`:
+The per-session collaborator that watches the SDK message stream for
+file-edit `tool_use` / `tool_result` block pairs and persists before/after
+content via `FileEditTracker`. Owned by `ClaudeAgentSession`; takes the
+session's dbRef at construction. Stages `ToolResultFileEditContent` on the
+session's `ClaudeMapperState` so the synchronous mapper can attach it to the
+matching `SessionToolCallComplete` action. Hooks (`Options.hooks.PreToolUse` /
+`PostToolUse`) are deliberately NOT used because they are user-bypassable
+via settings; the message stream is the canonical, non-bypassable signal.
+
 ## Relationships
 
 - The **Agent Host** owns one **Claude Proxy** for the lifetime of the process.
@@ -651,6 +681,25 @@ disable them entirely via settings — relying on them for permission
 gating would create a silent-bypass class of bugs. `canUseTool` and
 `onElicitation` are non-bypassable via SDK contract.
 
+The same constraint drives **Phase 8 file-edit tracking**. The SDK's
+`Options.hooks.PreToolUse` / `PostToolUse` would be the obvious place
+to snapshot before/after content, but they are user-bypassable. And
+`canUseTool` is short-circuited under `permissionMode:
+'bypassPermissions'`. The non-bypassable signal is the SDK message
+stream itself: the SDK has to yield the canonical assistant
+`tool_use` block and the synthetic-user `tool_result` block
+regardless of permission mode or hook configuration. So
+`ClaudeAgentSession._processMessages` interposes
+`_observeAssistantMessage` (fire-and-forget pre-snapshot) and
+`_observeUserMessage` (awaited after-snapshot, populating
+`ClaudeMapperState` before the synchronous mapper runs) directly in
+the message-pump loop. Mirrors the production extension's dispatch-time
+observation at
+[`claudeMessageDispatch.ts:200`](../../../../../../extensions/copilot/src/extension/chatSessions/claude/common/claudeMessageDispatch.ts#L200).
+The pre-snapshot races tool execution but the SDK's own I/O before
+the write gives sufficient microtask headroom — same guarantee
+production relies on with `stream.externalEdit`.
+
 **Per-session sequencer.** Both flows funnel through the same
 `_sessionSequencer`; at most one outstanding permission/input
 request per session is in flight at a time, matching the protocol's
@@ -765,7 +814,7 @@ system messages as `SystemNotificationResponsePart`:
 | `SDKSystemMessage` subtype | Render? | Rationale |
 |---|---|---|
 | `compact_boundary` | Yes | "Conversation compacted" — context-loss event |
-| `notification` (priority ≥ medium) | Yes | Loop-side text notifications |
+| `notification` (all priorities) | Yes | Loop-side text notifications. Earlier draft gated on `priority ≥ medium`; relaxed to all priorities pending real-world data on what `priority: 'low'` notifications actually contain. Revisit and re-introduce the gate if `low` notifications turn out to be noise (transcript-only TODO). |
 | `api_retry`, `plugin_install`, `auth_status`, `status` | No | Live UI signals; not transcript content |
 | `hook_started`, `hook_progress`, `hook_response` | No | Decorate the associated `ToolCall`, don't stand alone |
 | anything else | Drop by default | Conservative; opt in subtypes as needs emerge |

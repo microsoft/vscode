@@ -490,7 +490,7 @@ export class DefaultIntentRequestHandler {
 		const status = await this._octoKitService.getGitHubOutageStatus();
 		// DEV: prefer mock plan for error wording when quota-tester is active
 		const copilotPlan = this._chatQuotaService?.mockCopilotPlan ?? this._authenticationService.copilotToken?.copilotPlan;
-		return getErrorDetailsFromChatFetchError(error, copilotPlan, status);
+		return getErrorDetailsFromChatFetchError(error, copilotPlan, status, this._authenticationService.copilotToken?.tokenBasedBilling, this._authenticationService.copilotToken?.quotaInfo.quota_reset_date);
 	}
 
 	private async processResult(fetchResult: ChatResponse, responseMessage: string, chatResult: ChatResult | void, metadataFragment: Partial<IResultMetadata>, baseModelTelemetry: ConversationalBaseTelemetryData, rounds: IToolCallRound[]): Promise<ChatResult> {

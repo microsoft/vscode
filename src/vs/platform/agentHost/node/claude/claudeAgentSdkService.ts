@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ListSessionsOptions, Options, SDKSessionInfo, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { GetSessionMessagesOptions, ListSessionsOptions, Options, SDKSessionInfo, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import * as fs from 'fs';
 import { pathToFileURL } from 'url';
 import { join, resolve } from '../../../../base/common/path.js';
@@ -59,6 +59,15 @@ export interface IClaudeAgentSdkService {
 	 * can atomically dispatch the deferred `sessionAdded` notification.
 	 */
 	startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery>;
+
+	/**
+	 * Reads a session's full transcript from disk via the SDK. Out-of-process:
+	 * no live `Query` is required — the SDK parses the JSONL file directly.
+	 * Phase 13 calls this from {@link import('./claudeAgent.js').ClaudeAgent.getSessionMessages}
+	 * with `{ includeSystemMessages: true }` so `compact_boundary` and other
+	 * allowlisted system subtypes survive into the replay mapper.
+	 */
+	getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]>;
 }
 
 /**
@@ -73,6 +82,7 @@ export interface IClaudeSdkBindings {
 	listSessions(options?: ListSessionsOptions): Promise<SDKSessionInfo[]>;
 	getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined>;
 	startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery>;
+	getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<SessionMessage[]>;
 }
 
 /**
@@ -120,6 +130,11 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
 		const sdk = await this._getSdk();
 		return sdk.startup(params);
+	}
+
+	async getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]> {
+		const sdk = await this._getSdk();
+		return sdk.getSessionMessages(sessionId, options);
 	}
 
 	private async _getSdk(): Promise<IClaudeSdkBindings> {

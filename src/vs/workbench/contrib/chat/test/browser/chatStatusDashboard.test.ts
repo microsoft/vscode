@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
@@ -19,6 +20,7 @@ import { IChatStatusItemService } from '../../../chat/browser/chatStatus/chatSta
 interface IQuotaConfig {
 	percentRemaining: number;
 	unlimited: boolean;
+	hasQuota?: boolean;
 	usageBasedBilling?: boolean;
 	resetAt?: number;
 	entitlement?: number;
@@ -41,6 +43,7 @@ function createEntitlementService(opts: {
 		copilotTrackingId: undefined,
 		onDidChangeQuotaExceeded: Event.None,
 		onDidChangeQuotaRemaining: Event.None,
+		onDidChangeUsageBasedBilling: Event.None,
 		quotas: {
 			chat: opts.chat,
 			completions: opts.completions,
@@ -64,6 +67,7 @@ function createEntitlementService(opts: {
 		setForceHidden: () => { },
 		previewFeaturesDisabled: false,
 		clientByokEnabled: false,
+		hasByokModels: false,
 	} as IChatEntitlementService;
 }
 
@@ -83,6 +87,11 @@ function getQuotaLabels(element: HTMLElement): string[] {
 
 function getIncludedLabels(element: HTMLElement): string[] {
 	const indicators = element.querySelectorAll('.quota-indicator.included .quota-title');
+	return Array.from(indicators).map(el => el.textContent ?? '');
+}
+
+function getIncludedDescriptions(element: HTMLElement): string[] {
+	const indicators = element.querySelectorAll('.quota-indicator.included .description');
 	return Array.from(indicators).map(el => el.textContent ?? '');
 }
 
@@ -301,6 +310,58 @@ suite('ChatStatusDashboard', () => {
 
 		assert.deepStrictEqual(getQuotaLabels(dashboard.element), []);
 		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Included with your organization\'s plan.']);
+	});
+
+	test('Business — pooled exhausted (no overages): shows exhausted indicator and callout', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: true, hasQuota: false },
+			completions: { percentRemaining: 100, unlimited: true },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Business,
+		}));
+
+		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Organization limit reached.']);
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets. Contact your administrator for more information.');
+	});
+
+	test('Enterprise — pooled exhausted (no overages): shows exhausted indicator and enterprise callout', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: true, hasQuota: false },
+			completions: { percentRemaining: 100, unlimited: true },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Enterprise,
+		}));
+
+		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Organization limit reached.']);
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets. Contact your administrator for more information.');
+	});
+
+	test('Enterprise — pooled exhausted TBB (no overages): shows Credits exhausted', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: true, usageBasedBilling: true, hasQuota: false },
+			completions: { percentRemaining: 100, unlimited: true },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Enterprise,
+		}));
+
+		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Credits']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Organization limit reached.']);
+	});
+
+	test('Enterprise — pooled exhausted but overages enabled: shows normal included state', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: true, hasQuota: false },
+			completions: { percentRemaining: 100, unlimited: true },
+			additionalUsageEnabled: true,
+			entitlement: ChatEntitlement.Enterprise,
+		}));
+
+		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Included with your organization\'s plan.']);
+		assert.strictEqual(getCalloutText(dashboard.element), null);
 	});
 
 	test('Enterprise — TBB (multi-quota): shows only Credits, not Chat messages or Inline Suggestions', () => {
@@ -441,7 +502,7 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Pro,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'Once the limit is reached, additional spend will be used.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Once the limit is reached, additional budget will be used.');
 	});
 
 	test('Callout: shows paused when quota exhausted and overage not permitted', () => {
@@ -479,7 +540,7 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(getCalloutText(dashboard.element), 'Premium request budget is configured. Usage will continue until limits reset.');
 	});
 
-	test('Callout: UBB — shows additional spend active when quota exhausted and overage count > 0', () => {
+	test('Callout: UBB — shows additional budget active when quota exhausted and overage count > 0', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
 			completions: { percentRemaining: 90, unlimited: false },
@@ -488,7 +549,7 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Pro,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'Additional spend is configured. Usage will continue until limits reset.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Additional budget is configured. Usage will continue until limits reset.');
 	});
 
 	test('Callout: shows warning when quota >= 75% used and overage not permitted', () => {
@@ -512,7 +573,7 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets. Contact your administrator for more information.');
 	});
 
-	test('Callout: TBB — shows additional spend active when exhausted with overage permitted but no usage yet', () => {
+	test('Callout: TBB — shows additional budget active when exhausted with overage permitted but no usage yet', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
 			additionalUsageEnabled: true,
@@ -520,10 +581,10 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Pro,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'Additional spend is configured. Usage will continue until limits reset.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Additional budget is configured. Usage will continue until limits reset.');
 	});
 
-	test('Callout: TBB — shows additional spend wording when overage count > 0', () => {
+	test('Callout: TBB — shows additional budget wording when overage count > 0', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
 			additionalUsageEnabled: true,
@@ -531,7 +592,97 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Pro,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'Additional spend is configured. Usage will continue until limits reset.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Additional budget is configured. Usage will continue until limits reset.');
+	});
+
+	// --- LIVE UPDATES ---
+
+	function createMutableEntitlementService(opts: {
+		chat?: IQuotaConfig;
+		completions?: IQuotaConfig;
+		premiumChat?: IQuotaConfig;
+		usageBasedBilling?: boolean;
+		additionalUsageEnabled?: boolean;
+		additionalUsageCount?: number;
+		entitlement?: ChatEntitlement;
+	}, emitterStore: Pick<DisposableStore, 'add'>): IChatEntitlementService & { quotas: ReturnType<typeof createEntitlementService>['quotas']; fireQuotaRemaining: () => void; fireQuotaExceeded: () => void } {
+		const onDidChangeQuotaRemaining = emitterStore.add(new Emitter<void>());
+		const onDidChangeQuotaExceeded = emitterStore.add(new Emitter<void>());
+		const svc = {
+			...createEntitlementService(opts),
+			onDidChangeQuotaRemaining: onDidChangeQuotaRemaining.event,
+			onDidChangeQuotaExceeded: onDidChangeQuotaExceeded.event,
+			fireQuotaRemaining: () => onDidChangeQuotaRemaining.fire(),
+			fireQuotaExceeded: () => onDidChangeQuotaExceeded.fire(),
+		};
+		return svc;
+	}
+
+	test('Live update: quota indicators update when onDidChangeQuotaRemaining fires', () => {
+		const svc = createMutableEntitlementService({
+			chat: { percentRemaining: 80, unlimited: false },
+			completions: { percentRemaining: 70, unlimited: false },
+			entitlement: ChatEntitlement.Free,
+		}, store);
+
+		const dashboard = createDashboard(svc);
+		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['20%', '30%']);
+
+		// Simulate fresh quota data arriving
+		(svc as { quotas: typeof svc.quotas }).quotas = {
+			...svc.quotas,
+			chat: { percentRemaining: 50, unlimited: false },
+			completions: { percentRemaining: 40, unlimited: false },
+		};
+		svc.fireQuotaRemaining();
+
+		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['50%', '60%']);
+	});
+
+	test('Live update: callout appears when onDidChangeQuotaExceeded fires and quota becomes exhausted', () => {
+		const svc = createMutableEntitlementService({
+			premiumChat: { percentRemaining: 50, unlimited: false },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Pro,
+		}, store);
+
+		const dashboard = createDashboard(svc);
+		assert.strictEqual(getCalloutText(dashboard.element), null);
+
+		// Quota becomes exhausted
+		(svc as { quotas: typeof svc.quotas }).quotas = {
+			...svc.quotas,
+			premiumChat: { percentRemaining: 0, unlimited: false },
+		};
+		svc.fireQuotaExceeded();
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
+	});
+
+	test('Live update: header button visibility updates when quota changes', () => {
+		const svc = createMutableEntitlementService({
+			premiumChat: { percentRemaining: 50, unlimited: false },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			entitlement: ChatEntitlement.Pro,
+		}, store);
+
+		const dashboard = createDashboard(svc);
+
+		// No callout initially (quota < 75% used), so button should be hidden
+		const headerButton = dashboard.element.querySelector('.header-cta-button') as HTMLElement;
+		assert.ok(headerButton);
+		assert.strictEqual(headerButton.style.display, 'none');
+
+		// Quota approaches limit (>= 75% used)
+		(svc as { quotas: typeof svc.quotas }).quotas = {
+			...svc.quotas,
+			premiumChat: { percentRemaining: 20, unlimited: false },
+		};
+		svc.fireQuotaRemaining();
+
+		assert.notStrictEqual(headerButton.style.display, 'none');
 	});
 
 });

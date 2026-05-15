@@ -75,6 +75,8 @@ ToolRegistry.registerModelSpecificTool(
 			required: ['query'],
 		},
 		models: [
+			{ family: 'gpt-5.4' },
+			{ family: 'gpt-5.5' },
 			{ family: 'claude-sonnet-4.5' },
 			{ family: 'claude-sonnet-4.6' },
 			{ family: 'claude-opus-4.5' },
@@ -82,6 +84,9 @@ ToolRegistry.registerModelSpecificTool(
 			{ family: 'claude-opus-4.6-1m' },
 			{ family: 'claude-opus-4.7' },
 			{ family: 'claude-opus-4.7-1m' },
+			{ family: 'claude-opus-4.7-1m-internal' },
+			{ family: 'claude-opus-4.7-high' },
+			{ family: 'claude-opus-4.7-xhigh' },
 		],
 	},
 	ToolSearchTool,

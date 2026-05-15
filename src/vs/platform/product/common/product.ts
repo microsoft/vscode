@@ -84,7 +84,9 @@ else {
 						name: 'GitHub Enterprise',
 					}
 				},
-				providerScopes: []
+				providerScopes: [],
+				tokenEntitlementUrl: 'https://api.github.com/copilot_internal/v2/token',
+				mcpRegistryDataUrl: 'https://api.github.com/copilot/mcp_registry',
 			}
 		});
 	}
