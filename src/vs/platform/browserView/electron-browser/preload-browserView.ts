@@ -341,13 +341,6 @@ class ElementPicker {
 		root.appendChild(dragbox);
 		this._dragbox = dragbox;
 
-		// Event listeners are permanent — they only fire when the shadow host is
-		// in the document (i.e. when active). The scroll/resize listeners on
-		// window are cheap no-ops when _highlightTarget is undefined.
-		window.addEventListener('mousemove', e => this._onMouseMove(e));
-		window.addEventListener('mouseleave', () => this._onMouseLeave());
-		window.addEventListener('mousedown', e => this._onMouseDown(e));
-		window.addEventListener('mouseup', e => this._onMouseUp(e));
 		window.addEventListener('scroll', () => this._onScrollOrResize(), { passive: true, capture: true });
 		window.addEventListener('resize', () => this._onScrollOrResize());
 	}
@@ -361,6 +354,14 @@ class ElementPicker {
 		document.documentElement.appendChild(this._shadowHost);
 		this._shadowHost.classList.add('selecting');
 		this._selectionActive = true;
+
+		// Register high-frequency listeners only while selection is active.
+		window.addEventListener('pointermove', this._onPointerMove, true);
+		window.addEventListener('pointerleave', this._onPointerLeave, true);
+		window.addEventListener('pointerdown', this._onPointerDown, true);
+		window.addEventListener('pointerup', this._onPointerUp, true);
+		window.addEventListener('click', this._onClick, true);
+
 		return true;
 	}
 
@@ -402,6 +403,14 @@ class ElementPicker {
 		this._selectionActive = false;
 		this._shadowHost.classList.remove('selecting');
 		this._shadowHost.remove();
+
+		// Remove high-frequency listeners.
+		window.removeEventListener('pointermove', this._onPointerMove, true);
+		window.removeEventListener('pointerleave', this._onPointerLeave, true);
+		window.removeEventListener('pointerdown', this._onPointerDown, true);
+		window.removeEventListener('pointerup', this._onPointerUp, true);
+		window.removeEventListener('click', this._onClick, true);
+
 		this._highlight.style.display = 'none';
 		this._label.style.display = 'none';
 		this._dragbox.style.display = 'none';
@@ -412,12 +421,13 @@ class ElementPicker {
 
 	// --- Event handlers ---
 
-	private _onMouseMove(e: MouseEvent): void {
+	private _onPointerMove = (e: PointerEvent): void => {
 		if (!this._selectionActive) {
 			return;
 		}
+		e.preventDefault();
+		e.stopPropagation();
 		if (!this._dragStart) {
-			this._updateHighlight(this._pickElementAt(e.clientX, e.clientY));
 			return;
 		}
 		const dx = Math.abs(e.clientX - this._dragStart.x);
@@ -438,18 +448,18 @@ class ElementPicker {
 		// currently resolves to, so the user sees exactly what will be
 		// selected if they release the drag now.
 		this._updateHighlight(this._pickRegionAncestor({ x: left, y: top, width: dx, height: dy }));
-	}
+	};
 
-	private _onMouseLeave(): void {
+	private _onPointerLeave = (): void => {
 		if (!this._selectionActive) {
 			return;
 		}
 		if (!this._dragStart) {
 			this._updateHighlight(undefined);
 		}
-	}
+	};
 
-	private _onMouseDown(e: MouseEvent): void {
+	private _onPointerDown = (e: PointerEvent): void => {
 		if (!this._selectionActive) {
 			return;
 		}
@@ -459,9 +469,10 @@ class ElementPicker {
 		this._dragStart = { x: e.clientX, y: e.clientY };
 		this._dragStartTarget = this._pickElementAt(e.clientX, e.clientY);
 		e.preventDefault();
-	}
+		e.stopPropagation();
+	};
 
-	private _onMouseUp(e: MouseEvent): void {
+	private _onPointerUp = (e: PointerEvent): void => {
 		if (!this._selectionActive) {
 			return;
 		}
@@ -494,7 +505,17 @@ class ElementPicker {
 				this._commit(ancestor);
 			}
 		}
-	}
+		e.preventDefault();
+		e.stopPropagation();
+	};
+
+	private _onClick = (e: Event): void => {
+		if (!this._selectionActive) {
+			return;
+		}
+		e.preventDefault();
+		e.stopPropagation();
+	};
 
 	private _onScrollOrResize(): void {
 		if (this._highlightTarget) {
@@ -603,14 +624,17 @@ class ElementPicker {
 		if (!this._selectionActive) {
 			return;
 		}
-		if (!this._continuous) {
-			// Tear down the overlay before notifying the host so any
-			// screenshot capture doesn't include our chrome.
-			this.stop();
-		} else {
-			this._updateHighlight(undefined);
-		}
-		this._onPicked(target);
+		// Put this in a microtask so any running event handlers can be completed in the selecting active state.
+		queueMicrotask(() => {
+			if (!this._continuous) {
+				// Tear down the overlay before notifying the host so any
+				// screenshot capture doesn't include our chrome.
+				this.stop();
+			} else {
+				this._updateHighlight(undefined);
+			}
+			this._onPicked(target);
+		});
 	}
 
 	// --- Static helpers ---

@@ -173,6 +173,9 @@ export class BrowserViewElementInspector extends Disposable {
 				this.setTheme(this._theme);
 			}
 		});
+		this._register({
+			dispose: () => webContents.removeAllListeners('ipc-message')
+		});
 	}
 
 	setTheme(theme: IBrowserViewTheme): void {
@@ -217,9 +220,12 @@ export class BrowserViewElementInspector extends Disposable {
 			});
 		} : async () => {
 			const webContents = this.browser.webContents;
-			await webContents.executeJavaScriptInIsolatedWorld(browserViewIsolatedWorldId, [
+			const started = await webContents.executeJavaScriptInIsolatedWorld(browserViewIsolatedWorldId, [
 				{ code: `window.browserViewAPI?.pickElement?.start?.() ?? false` }
 			]);
+			if (!started) {
+				throw new Error('Preload element picker not available');
+			}
 		};
 		const stop = useCDP ? async () => {
 			const connection = await this._connectionPromise;
@@ -257,19 +263,15 @@ export class BrowserViewElementInspector extends Disposable {
 	/**
 	 * Resolve a handle to the element identified by `id`.
 	 *
-	 * `id` is interpreted by `__vscode_helpers.getElement(id, clear)`
-	 * in the page preload (see {@link BrowserViewSelectedElementId} for
-	 * well-known values). Returns `undefined` if no element is found.
-	 *
-	 * @param clear When true (default) the preload also clears any underlying
-	 * tracking ref it held for this id, so subsequent calls won't return the
-	 * same element. Pass `false` for a non-consuming peek.
+	 * `id` is interpreted by `__vscode_helpers.getElement(id)` in the page
+	 * preload (see {@link BrowserViewSelectedElementId} for well-known values).
+	 * Returns `undefined` if no element is found.
 	 */
-	async getElementHandle(id: string, clear: boolean = true): Promise<IElementHandle | undefined> {
+	async getElementHandle(id: string): Promise<IElementHandle | undefined> {
 		const connection = await this._connectionPromise;
 
 		const { result } = await connection.sendCommand('Runtime.evaluate', {
-			expression: `window.__vscode_helpers?.getElement(${JSON.stringify(id)}, ${clear})`,
+			expression: `window.__vscode_helpers?.getElement(${JSON.stringify(id)})`,
 			returnByValue: false,
 		}) as { result: { objectId?: string } };
 
