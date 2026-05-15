@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IModelService } from '../../../editor/common/services/model.js';
 import { ModelService } from '../../../editor/common/services/modelService.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
@@ -103,6 +103,8 @@ export class TestNativeHostService implements INativeHostService {
 		throw new Error('Method not implemented.');
 	}
 
+	async openAgentsWindow(_options?: { folderUri?: UriComponents }): Promise<void> { }
+
 	async toggleFullScreen(): Promise<void> { }
 	async isMaximized(): Promise<boolean> { return true; }
 	async isFullScreen(): Promise<boolean> { return true; }
@@ -182,6 +184,7 @@ export class TestNativeHostService implements INativeHostService {
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
 	async createZipFile(zipPath: URI, files: { path: string; contents: string }[]): Promise<void> { }
 	async profileRenderer(): Promise<any> { throw new Error(); }
+	async startTracing(): Promise<void> { throw new Error(); }
 	async getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> { return undefined; }
 	async showToast(options: IToastOptions): Promise<IToastResult> { return { supported: false, clicked: false }; }
 	async clearToast(id: string): Promise<void> { }

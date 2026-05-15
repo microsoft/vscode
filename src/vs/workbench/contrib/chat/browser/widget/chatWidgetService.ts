@@ -10,6 +10,7 @@ import { combinedDisposable, Disposable, IDisposable, toDisposable } from '../..
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ACTIVE_GROUP, IEditorService, type PreferredGroup } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroup, IEditorGroupsService, isEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -33,6 +34,12 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	private readonly _onDidBackgroundSession = this._register(new Emitter<URI>());
 	readonly onDidBackgroundSession = this._onDidBackgroundSession.event;
 
+	private readonly _onDidChangeFocusedWidget = this._register(new Emitter<IChatWidget | undefined>());
+	readonly onDidChangeFocusedWidget = this._onDidChangeFocusedWidget.event;
+
+	private readonly _onDidChangeFocusedSession = this._register(new Emitter<void>());
+	readonly onDidChangeFocusedSession = this._onDidChangeFocusedSession.event;
+
 	constructor(
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IViewsService private readonly viewsService: IViewsService,
@@ -40,6 +47,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IChatService private readonly chatService: IChatService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 	}
@@ -98,10 +106,15 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	async openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined> {
+		const t0 = Date.now();
+		const targetKind = target === ChatViewPaneTarget ? 'view' : (typeof target === 'undefined' ? 'undefined' : 'editor');
+		this.logService.trace(`[ChatWidgetService] openSession start uri=${sessionResource.toString()} target=${targetKind}`);
+
 		// Reveal if already open unless instructed otherwise
 		if (typeof target === 'undefined' || options?.revealIfOpened) {
 			const alreadyOpenWidget = await this.revealSessionIfAlreadyOpen(sessionResource, options);
 			if (alreadyOpenWidget) {
+				this.logService.trace(`[ChatWidgetService] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} path=reveal`);
 				return alreadyOpenWidget;
 			}
 		} else {
@@ -117,6 +130,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 					chatView.focusInput();
 				}
 			}
+			this.logService.trace(`[ChatWidgetService] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} path=view`);
 			return chatView?.widget;
 		}
 
@@ -128,6 +142,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 				revealIfOpened: options?.revealIfOpened ?? true // always try to reveal if already opened unless explicitly told not to
 			}
 		}, target);
+		this.logService.trace(`[ChatWidgetService] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} path=editor`);
 		return pane instanceof ChatEditor ? pane.widget : undefined;
 	}
 
@@ -218,6 +233,8 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		}
 
 		this._lastFocusedWidget = widget;
+		this._onDidChangeFocusedWidget.fire(widget);
+		this._onDidChangeFocusedSession.fire();
 	}
 
 	register(newWidget: IChatWidget): IDisposable {
@@ -235,6 +252,10 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		return combinedDisposable(
 			newWidget.onDidFocus(() => this.setLastFocusedWidget(newWidget)),
 			newWidget.onDidChangeViewModel(({ previousSessionResource, currentSessionResource }) => {
+				if (this._lastFocusedWidget === newWidget && !isEqual(previousSessionResource, currentSessionResource)) {
+					this._onDidChangeFocusedSession.fire();
+				}
+
 				if (!previousSessionResource || (currentSessionResource && isEqual(previousSessionResource, currentSessionResource))) {
 					return;
 				}

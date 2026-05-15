@@ -47,7 +47,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions as ConfigurationMigrationExtensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
-import { ResourceContextKey, WorkbenchStateContext } from '../../../common/contextkeys.js';
+import { IsSessionsWindowContext, ResourceContextKey, WorkbenchStateContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorExtensions } from '../../../common/editor.js';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../../common/views.js';
@@ -56,12 +56,14 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkspaceExtensionsConfigService } from '../../../services/extensionRecommendations/common/workspaceExtensionsConfig.js';
+import { EXTENSIONS_SUPPORT_AGENTS_WINDOW } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { CONTEXT_SYNC_ENABLEMENT } from '../../../services/userDataSync/common/userDataSync.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from '../../../services/workspaces/common/workspaceTrust.js';
+import { IPluginInstallService } from '../../chat/common/plugins/pluginInstallService.js';
 import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
 import { CONTEXT_KEYBINDINGS_EDITOR } from '../../preferences/common/preferences.js';
 import { IWebview } from '../../webview/browser/webview.js';
@@ -71,7 +73,6 @@ import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '
 import { ExtensionsInput } from '../common/extensionsInput.js';
 import { KeymapExtensions } from '../common/extensionsUtils.js';
 import { SearchExtensionsTool, SearchExtensionsToolData } from '../common/searchExtensionsTool.js';
-import { ShowRuntimeExtensionsAction } from './abstractRuntimeExtensionsEditor.js';
 import { ExtensionEditor } from './extensionEditor.js';
 import { ExtensionEnablementWorkspaceTrustTransitionParticipant } from './extensionEnablementWorkspaceTrustTransitionParticipant.js';
 import { ExtensionRecommendationNotificationService } from './extensionRecommendationNotificationService.js';
@@ -162,7 +163,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.ignoreRecommendations': {
 				type: 'boolean',
 				description: localize('extensionsIgnoreRecommendations', "When enabled, the notifications for extension recommendations will not be shown."),
-				default: false
+				default: false,
+				agentsWindow: { default: true, readOnly: true },
 			},
 			'extensions.showRecommendationsOnlyOnDemand': {
 				type: 'boolean',
@@ -209,6 +211,24 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				defaultSnippets: [{
 					'body': {
 						'pub.name': false
+					}
+				}]
+			},
+			[EXTENSIONS_SUPPORT_AGENTS_WINDOW]: {
+				type: 'object',
+				scope: ConfigurationScope.APPLICATION,
+				markdownDescription: localize('extensions.supportAgentsWindow', "Override the Agents window support of an extension. Extensions using `true` will be enabled in the Agents window even when they would otherwise be disabled."),
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+						type: 'boolean',
+						default: false
+					}
+				},
+				additionalProperties: false,
+				default: {},
+				defaultSnippets: [{
+					'body': {
+						'pub.name': true
 					}
 				}]
 			},
@@ -264,6 +284,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsInQuickAccess', "When enabled, extensions can be searched for via Quick Access and report issues from there."),
 				default: true
+			},
+			'extensions.allowOpenInModalEditor': {
+				type: 'boolean',
+				description: localize('extensions.allowOpenInModalEditor', "Controls whether extensions and MCP servers open in a modal editor overlay."),
+				default: false, // TODO@bpasero figure out the default for stable and retire this setting
+				tags: ['experimental'],
+				experiment: {
+					mode: 'auto'
+				}
 			},
 			[VerifyExtensionSignatureConfigKey]: {
 				type: 'boolean',
@@ -548,6 +577,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IProductService private readonly productService: IProductService,
+		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
 	) {
 		super();
 		const hasLocalServerContext = CONTEXT_HAS_LOCAL_SERVER.bindTo(contextKeyService);
@@ -612,7 +642,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
 			},
 			group: '2_configuration',
-			order: 3
+			order: 3,
+			when: IsSessionsWindowContext.negate()
 		}));
 		this._register(MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			command: {
@@ -689,11 +720,14 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 1
 			}],
 			run: async () => {
-				await this.extensionsWorkbenchService.checkForUpdates();
+				const [, pluginResult] = await Promise.all([
+					this.extensionsWorkbenchService.checkForUpdates(),
+					this.pluginInstallService.updateAllPlugins({ silent: true }, CancellationToken.None),
+				]);
 				const outdated = this.extensionsWorkbenchService.outdated;
 				if (outdated.length) {
 					return this.extensionsWorkbenchService.openSearch('@outdated ');
-				} else {
+				} else if (pluginResult.updatedNames.length === 0 && pluginResult.failedNames.length === 0) {
 					return this.dialogService.info(localize('noUpdatesAvailable', "All extensions are up to date."));
 				}
 			}
@@ -2046,10 +2080,6 @@ if (isWeb) {
 }
 
 registerWorkbenchContribution2(ExtensionToolsContribution.ID, ExtensionToolsContribution, WorkbenchPhase.AfterRestored);
-
-
-// Running Extensions
-registerAction2(ShowRuntimeExtensionsAction);
 
 registerAction2(class ExtensionsGallerySignInAction extends Action2 {
 	constructor() {

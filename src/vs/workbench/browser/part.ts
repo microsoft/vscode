@@ -50,7 +50,7 @@ export abstract class Part<MementoType extends object = object> extends Componen
 
 	constructor(
 		id: string,
-		private options: IPartOptions,
+		protected options: IPartOptions,
 		themeService: IThemeService,
 		storageService: IStorageService,
 		protected readonly layoutService: IWorkbenchLayoutService

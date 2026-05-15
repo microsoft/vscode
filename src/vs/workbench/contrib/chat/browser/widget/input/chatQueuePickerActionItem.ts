@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, ModifierKeyEmitter } from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
@@ -42,6 +42,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 	private readonly _primaryActionAction: Action;
 	private readonly _primaryAction: ActionViewItem;
 	private readonly _dropdown: ActionWidgetDropdownActionViewItem;
+	private _altKeyPressed = false;
 
 	constructor(
 		action: IAction,
@@ -49,8 +50,8 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(undefined, action);
@@ -61,14 +62,14 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 		this._primaryActionAction = this._register(new Action(
 			'chat.queuePickerPrimary',
 			isSteerDefault ? localize('chat.steerWithMessage', "Steer with Message") : localize('chat.queueMessage', "Add to Queue"),
-			ThemeIcon.asClassName(Codicon.send),
-			!!contextKeyService.getContextKeyValue(ChatContextKeys.inputHasText.key),
+			ThemeIcon.asClassName(isSteerDefault ? Codicon.arrowUp : Codicon.add),
+			!!this.contextKeyService.getContextKeyValue(ChatContextKeys.inputHasText.key),
 			() => this._runDefaultAction()
 		));
 		this._primaryAction = this._register(new ActionViewItem(undefined, this._primaryActionAction, { icon: true, label: false }));
 
-		this._register(contextKeyService.onDidChangeContext(e => {
-			this._primaryActionAction.enabled = !!contextKeyService.getContextKeyValue(ChatContextKeys.inputHasText.key);
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			this._primaryActionAction.enabled = !!this.contextKeyService.getContextKeyValue(ChatContextKeys.inputHasText.key);
 		}));
 
 		// Dropdown - action widget with hover descriptions and chevron-down icon
@@ -80,8 +81,8 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 				showItemKeybindings: true,
 			},
 			actionWidgetService,
-			keybindingService,
-			contextKeyService,
+			this.keybindingService,
+			this.contextKeyService,
 			telemetryService,
 		));
 
@@ -91,21 +92,35 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 				this._updatePrimaryAction();
 			}
 		}));
+
+		// Toggle icon when Alt key is pressed/released
+		this._register(ModifierKeyEmitter.getInstance().event(status => {
+			if (this._altKeyPressed !== status.altKey) {
+				this._altKeyPressed = status.altKey;
+				this._updatePrimaryAction();
+			}
+		}));
 	}
 
 	private _isSteerDefault(): boolean {
 		return this.configurationService.getValue<string>(ChatConfiguration.RequestQueueingDefaultAction) === 'steer';
 	}
 
-	private _updatePrimaryAction(): void {
+	private _isEffectiveSteer(): boolean {
 		const isSteerDefault = this._isSteerDefault();
-		this._primaryActionAction.label = isSteerDefault
+		return this._altKeyPressed ? !isSteerDefault : isSteerDefault;
+	}
+
+	private _updatePrimaryAction(): void {
+		const isSteer = this._isEffectiveSteer();
+		this._primaryActionAction.label = isSteer
 			? localize('chat.steerWithMessage', "Steer with Message")
 			: localize('chat.queueMessage', "Add to Queue");
+		this._primaryActionAction.class = ThemeIcon.asClassName(isSteer ? Codicon.arrowUp : Codicon.add);
 	}
 
 	private _runDefaultAction(): void {
-		const actionId = this._isSteerDefault()
+		const actionId = this._isEffectiveSteer()
 			? ChatSteerWithMessageAction.ID
 			: ChatQueueMessageAction.ID;
 		this.commandService.executeCommand(actionId);
@@ -159,13 +174,35 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 	}
 
 	private _getDropdownActions(): IActionWidgetDropdownAction[] {
+		const isSteerDefault = this._isSteerDefault();
+
+		// Resolve display keybindings against an overlay context that simulates the chat input
+		// being focused with a request in progress. The injected `contextKeyService` may be the
+		// chat widget's outer scope (which has `requestInProgress` but lacks `inChatInput`) or
+		// even the global scope; either way, the queue/steer keybindings' `when` clauses would
+		// not match and the resolver would fall back to the last-registered binding for each
+		// command, producing labels that contradict actual behavior. Overlaying the scope keys
+		// the bindings expect ensures we look up the binding that would actually fire.
+		// Other context keys (e.g. `editingRequestType`, `config.chat.requestQueuing.defaultAction`)
+		// are read from the parent context, so user customizations and scoped overrides like
+		// editing a queued/steer request are still respected.
+		const lookupContext = this.contextKeyService.createOverlay([
+			[ChatContextKeys.inputHasText.key, true],
+			[ChatContextKeys.inChatInput.key, true],
+			[ChatContextKeys.requestInProgress.key, true],
+		]);
+		const queueKeybinding = this.keybindingService.lookupKeybinding(ChatQueueMessageAction.ID, lookupContext, true);
+		const steerKeybinding = this.keybindingService.lookupKeybinding(ChatSteerWithMessageAction.ID, lookupContext, true);
+
 		const queueAction: IActionWidgetDropdownAction = {
 			id: ChatQueueMessageAction.ID,
 			label: localize('chat.queueMessage', "Add to Queue"),
 			tooltip: '',
 			enabled: true,
+			checked: !isSteerDefault,
 			icon: Codicon.add,
 			class: undefined,
+			keybinding: queueKeybinding,
 			hover: {
 				content: localize('chat.queueMessage.hover', "Queue this message to send after the current request completes. The current response will finish uninterrupted before the queued message is sent."),
 			},
@@ -179,8 +216,10 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 			label: localize('chat.steerWithMessage', "Steer with Message"),
 			tooltip: '',
 			enabled: true,
-			icon: Codicon.arrowRight,
+			checked: isSteerDefault,
+			icon: Codicon.arrowUp,
 			class: undefined,
+			keybinding: steerKeybinding,
 			hover: {
 				content: localize('chat.steerWithMessage.hover', "Send this message at the next opportunity, signaling the current request to yield. The current response will stop and the new message will be sent immediately."),
 			},
@@ -194,7 +233,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 			label: localize('chat.sendImmediately', "Stop and Send"),
 			tooltip: '',
 			enabled: true,
-			icon: Codicon.send,
+			icon: Codicon.arrowRight,
 			class: undefined,
 			hover: {
 				content: localize('chat.sendImmediately.hover', "Cancel the current request and send this message immediately."),

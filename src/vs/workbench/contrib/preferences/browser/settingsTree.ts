@@ -75,6 +75,11 @@ import { ExcludeSettingWidget, IBoolObjectDataItem, IIncludeExcludeDataItem, ILi
 
 const $ = DOM.$;
 
+const multiGroupTocSettings = new Set([
+	'accessibility.signals.chatUserActionRequired',
+	'accessibility.signals.chatResponseReceived'
+]);
+
 function getIncludeExcludeDisplayValue(element: SettingsTreeSettingElement): IIncludeExcludeDataItem[] {
 	const elementDefaultValue: Record<string, unknown> = typeof element.defaultValue === 'object'
 		? element.defaultValue ?? {}
@@ -171,7 +176,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 
 	const data = element.isConfigured ?
 		{ ...elementDefaultValue, ...elementScopeValue } :
-		element.hasPolicyValue ? element.scopeValue :
+		element.hasPolicyValue || element.isAgentsWindowReadOnly ? element.scopeValue :
 			elementDefaultValue;
 
 	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
@@ -665,7 +670,9 @@ function getMatchingSettings(allSettings: Set<ISetting>, filter: ITOCFilter): IS
 		// Include if matches include filter and doesn't match exclude filter
 		if (shouldInclude && !shouldExclude) {
 			result.push(setting);
-			allSettings.delete(setting);
+			if (!multiGroupTocSettings.has(setting.key)) {
+				allSettings.delete(setting);
+			}
 		}
 	});
 
@@ -1306,7 +1313,7 @@ class SettingComplexObjectRenderer extends SettingComplexRenderer implements ITr
 			showAddButton: false,
 			isReadOnly: true,
 		});
-		template.button.parentElement?.classList.toggle('hide', dataElement.hasPolicyValue);
+		template.button.parentElement?.classList.toggle('hide', dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly);
 		super.renderValue(dataElement, template, onChange);
 	}
 }
@@ -1728,7 +1735,7 @@ abstract class SettingIncludeExcludeRenderer extends AbstractSettingRenderer imp
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingIncludeExcludeItemTemplate, onChange: (value: string) => void): void {
 		const value = getIncludeExcludeDisplayValue(dataElement);
-		template.includeExcludeWidget.setValue(value, { isReadOnly: dataElement.hasPolicyValue });
+		template.includeExcludeWidget.setValue(value, { isReadOnly: dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly });
 		template.context = dataElement;
 		template.elementDisposables.add(toDisposable(() => {
 			template.includeExcludeWidget.cancelEdit();
@@ -1799,7 +1806,7 @@ abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer imple
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
-		template.inputBox.setEnabled(!dataElement.hasPolicyValue);
+		template.inputBox.setEnabled(!dataElement.hasPolicyValue && !dataElement.isAgentsWindowReadOnly);
 		template.inputBox.setAriaLabel(dataElement.setting.key);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
@@ -1949,7 +1956,7 @@ class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRender
 
 		template.selectBox.setOptions(displayOptions);
 		template.selectBox.setAriaLabel(dataElement.setting.key);
-		template.selectBox.setEnabled(!dataElement.hasPolicyValue);
+		template.selectBox.setEnabled(!dataElement.hasPolicyValue && !dataElement.isAgentsWindowReadOnly);
 
 		let idx = settingEnum.indexOf(dataElement.value);
 		if (idx === -1) {
@@ -2020,7 +2027,7 @@ class SettingNumberRenderer extends AbstractSettingRenderer implements ITreeRend
 			dataElement.value.toString() : '';
 		template.inputBox.step = dataElement.valueType.includes('integer') ? '1' : 'any';
 		template.inputBox.setAriaLabel(dataElement.setting.key);
-		template.inputBox.setEnabled(!dataElement.hasPolicyValue);
+		template.inputBox.setEnabled(!dataElement.hasPolicyValue && !dataElement.isAgentsWindowReadOnly);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
 				onChange(nullNumParseFn(value));
@@ -2103,7 +2110,7 @@ class SettingBoolRenderer extends AbstractSettingRenderer implements ITreeRender
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingBoolItemTemplate, onChange: (value: boolean) => void): void {
 		template.onChange = undefined;
 		template.checkbox.checked = dataElement.value;
-		if (dataElement.hasPolicyValue) {
+		if (dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly) {
 			template.checkbox.disable();
 			template.descriptionElement.classList.add('disabled');
 		} else {
@@ -2111,12 +2118,12 @@ class SettingBoolRenderer extends AbstractSettingRenderer implements ITreeRender
 			template.descriptionElement.classList.remove('disabled');
 
 			// Need to listen for mouse clicks on description and toggle checkbox - use target ID for safety
-			// Also have to ignore embedded links - too buried to stop propagation
+			// Also have to ignore embedded links - use closest('a') to handle clicks on child elements of links (e.g. SVG icons inside <a> tags)
 			template.elementDisposables.add(DOM.addDisposableListener(template.descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
-				const targetElement = <HTMLElement>e.target;
+				const targetElement: Element | null = e.target instanceof Element ? e.target : null;
 
 				// Toggle target checkbox
-				if (targetElement.tagName.toLowerCase() !== 'a') {
+				if (!targetElement || !targetElement.closest('a')) {
 					template.checkbox.checked = !template.checkbox.checked;
 					template.onChange!(template.checkbox.checked);
 				}

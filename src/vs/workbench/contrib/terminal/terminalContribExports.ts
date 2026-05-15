@@ -10,10 +10,12 @@ import { terminalAutoRepliesConfiguration } from '../terminalContrib/autoReplies
 import { TerminalChatCommandId, TerminalChatContextKeyStrings } from '../terminalContrib/chat/browser/terminalChat.js';
 import { terminalInitialHintConfiguration } from '../terminalContrib/inlineHint/common/terminalInitialHintConfiguration.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../terminalContrib/chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
+import { AgentSandboxSettingId } from '../../../platform/sandbox/common/settings.js';
 import { terminalCommandGuideConfiguration } from '../terminalContrib/commandGuide/common/terminalCommandGuideConfiguration.js';
 import { TerminalDeveloperCommandId } from '../terminalContrib/developer/common/terminal.developer.js';
 import { defaultTerminalFindCommandToSkipShell } from '../terminalContrib/find/common/terminal.find.js';
 import { defaultTerminalHistoryCommandsToSkipShell, terminalHistoryConfiguration } from '../terminalContrib/history/common/terminal.history.js';
+import { terminalOscNotificationsConfiguration } from '../terminalContrib/notification/common/terminalNotificationConfiguration.js';
 import { TerminalStickyScrollSettingId, terminalStickyScrollConfiguration } from '../terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration.js';
 import { defaultTerminalSuggestCommandsToSkipShell } from '../terminalContrib/suggest/common/terminal.suggest.js';
 import { TerminalSuggestSettingId, terminalSuggestConfiguration } from '../terminalContrib/suggest/common/terminalSuggestConfiguration.js';
@@ -45,6 +47,15 @@ export const enum TerminalContribSettingId {
 	EnableAutoApprove = TerminalChatAgentToolsSettingId.EnableAutoApprove,
 	ShellIntegrationTimeout = TerminalChatAgentToolsSettingId.ShellIntegrationTimeout,
 	OutputLocation = TerminalChatAgentToolsSettingId.OutputLocation,
+	AgentSandboxEnabled = AgentSandboxSettingId.AgentSandboxEnabled,
+	AgentSandboxAllowUnsandboxedCommands = AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
+	AgentSandboxAutoApproveUnsandboxedCommands = AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands,
+	AgentSandboxAllowAutoApprove = AgentSandboxSettingId.AgentSandboxAllowAutoApprove,
+	DeprecatedAgentSandboxEnabled = AgentSandboxSettingId.DeprecatedAgentSandboxEnabled,
+	DeprecatedAgentSandboxLinuxFileSystem = TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxLinuxFileSystem,
+	DeprecatedAgentSandboxMacFileSystem = TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxMacFileSystem,
+	AgentSandboxLinuxFileSystem = TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem,
+	AgentSandboxMacFileSystem = TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem,
 }
 
 // HACK: Export some context key strings from `terminalContrib/` that are depended upon elsewhere.
@@ -65,6 +76,7 @@ export const terminalContribConfiguration: IConfigurationNode['properties'] = {
 	...terminalInitialHintConfiguration,
 	...terminalCommandGuideConfiguration,
 	...terminalHistoryConfiguration,
+	...terminalOscNotificationsConfiguration,
 	...terminalStickyScrollConfiguration,
 	...terminalSuggestConfiguration,
 	...terminalTypeAheadConfiguration,

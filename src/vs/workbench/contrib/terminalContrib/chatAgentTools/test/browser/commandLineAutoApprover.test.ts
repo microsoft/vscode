@@ -1242,5 +1242,49 @@ suite('CommandLineAutoApprover', () => {
 			ok(!await isAutoApproved('echo hello'), 'Default rule should be ignored');
 			ok(!await isAutoApproved('cat file.txt'), 'Default rule should be ignored');
 		});
+
+		test('should attribute workspace-folder-scoped rules to WORKSPACE_FOLDER target', async () => {
+			const workspaceFolderConfig = { 'git': true };
+			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AutoApprove, workspaceFolderConfig);
+
+			const originalInspect = configurationService.inspect;
+			const originalGetValue = configurationService.getValue;
+
+			configurationService.inspect = (key: string): any => {
+				if (key === TerminalChatAgentToolsSettingId.AutoApprove) {
+					return {
+						default: undefined,
+						user: undefined,
+						workspace: undefined,
+						workspaceFolder: undefined,
+						workspaceFolderValue: workspaceFolderConfig,
+						application: undefined,
+						policy: undefined,
+						memory: undefined,
+						value: workspaceFolderConfig
+					};
+				}
+				return originalInspect.call(configurationService, key);
+			};
+
+			configurationService.getValue = (key: string): any => {
+				if (key === TerminalChatAgentToolsSettingId.AutoApprove) {
+					return workspaceFolderConfig;
+				}
+				return originalGetValue.call(configurationService, key);
+			};
+
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: () => true,
+				affectedKeys: new Set([TerminalChatAgentToolsSettingId.AutoApprove]),
+				source: ConfigurationTarget.WORKSPACE_FOLDER,
+				change: null!,
+			});
+
+			const result = await commandLineAutoApprover.isCommandAutoApproved('git status', shell, os, undefined);
+			strictEqual(result.result, 'approved', 'git command should be approved');
+			ok(isAutoApproveRule(result.rule), 'result should have an auto-approve rule');
+			strictEqual(result.rule.sourceTarget, ConfigurationTarget.WORKSPACE_FOLDER, 'workspace-folder-scoped rule should have WORKSPACE_FOLDER source target');
+		});
 	});
 });

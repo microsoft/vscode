@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 12
+// version: 15
 
 declare module 'vscode' {
 
@@ -117,9 +117,24 @@ declare module 'vscode' {
 		readonly parentRequestId?: string;
 
 		/**
+		 * The permission level for tool auto-approval in this request.
+		 * - `'autoApprove'`: Auto-approve all tool calls and retry on errors.
+		 * - `'autopilot'`: Everything autoApprove does plus continues until the task is done.
+		 */
+		readonly permissionLevel?: string;
+
+		/**
 		 * Whether any hooks are enabled for this request.
 		 */
 		readonly hasHooksEnabled: boolean;
+
+		/**
+		 * When true, this request was initiated by the system (e.g. a terminal
+		 * command completion notification) rather than by the user typing a
+		 * message. Extensions can use this to render the prompt differently
+		 * and skip billing.
+		 */
+		readonly isSystemInitiated?: boolean;
 	}
 
 	export enum ChatRequestEditedFileEventKind {
@@ -177,9 +192,19 @@ declare module 'vscode' {
 		readonly editedFileEvents?: ChatRequestEditedFileEvent[];
 
 		/**
+		 * The identifier of the language model that was used for this request, if known.
+		 */
+		readonly modelId?: string;
+
+		/**
+		 * The mode instructions that were active for this request, if any.
+		 */
+		readonly modeInstructions2?: ChatRequestModeInstructions;
+
+		/**
 		 * @hidden
 		 */
-		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined);
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined, modeInstructions2: ChatRequestModeInstructions | undefined);
 	}
 
 	export class ChatResponseTurn2 {
@@ -231,6 +256,15 @@ declare module 'vscode' {
 
 		isRateLimited?: boolean;
 
+		/**
+		 * If true, the error is an expected operational condition (e.g. user-actionable
+		 * configuration, network connectivity, missing dependency) and should not be
+		 * logged as a `chatAgentError` telemetry event. The error is still surfaced to
+		 * the user. Throwing an `Error` whose `name` is `'ChatExpectedError'` from a
+		 * chat participant handler will set this flag automatically.
+		 */
+		isExpectedError?: boolean;
+
 		level?: ChatErrorLevel;
 
 		code?: string;
@@ -258,17 +292,44 @@ declare module 'vscode' {
 		provideFileIgnored(uri: Uri, token: CancellationToken): ProviderResult<boolean>;
 	}
 
+	export type PreToolUsePermissionDecision = 'allow' | 'deny' | 'ask';
+
 	export interface LanguageModelToolInvocationOptions<T> {
 		chatRequestId?: string;
-		/** @deprecated Use {@link chatSessionResource} instead */
-		chatSessionId?: string;
 		chatSessionResource?: Uri;
 		chatInteractionId?: string;
 		terminalCommand?: string;
 		/**
+		 * The working directory URI for the session, if set.
+		 * In the agents window, each session can have its own working directory
+		 * that differs from the current workspace folders.
+		 */
+		workingDirectory?: Uri;
+		/**
 		 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
 		 */
 		subAgentInvocationId?: string;
+		/**
+		 * W3C trace context `traceparent` header value identifying the active distributed
+		 * tracing span. When provided to a tool implementation backed by an MCP server, this
+		 * value is forwarded as `_meta.traceparent` on the JSON-RPC `tools/call` request so
+		 * downstream servers can correlate their spans (MCP SEP-414).
+		 */
+		traceparent?: string;
+		/**
+		 * Optional W3C trace context `tracestate` header value paired with `traceparent`.
+		 */
+		tracestate?: string;
+		/**
+		 * Pre-tool-use hook result, if the hook was already executed by the caller.
+		 * When provided, the tools service will skip executing its own preToolUse hook
+		 * and use this result for permission decisions and input modifications instead.
+		 */
+		preToolUseResult?: {
+			permissionDecision?: PreToolUsePermissionDecision;
+			permissionDecisionReason?: string;
+			updatedInput?: object;
+		};
 	}
 
 	export interface LanguageModelToolInvocationPrepareOptions<T> {
@@ -277,10 +338,14 @@ declare module 'vscode' {
 		 */
 		input: T;
 		chatRequestId?: string;
-		/** @deprecated Use {@link chatSessionResource} instead */
-		chatSessionId?: string;
 		chatSessionResource?: Uri;
 		chatInteractionId?: string;
+		/**
+		 * The working directory URI for the session, if set.
+		 * In the agents window, each session can have its own working directory
+		 * that differs from the current workspace folders.
+		 */
+		workingDirectory?: Uri;
 		/**
 		 * If set, tells the tool that it should include confirmation messages.
 		 */
@@ -321,6 +386,19 @@ declare module 'vscode' {
 		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
 
 		export const onDidDisposeChatSession: Event<string>;
+	}
+
+	export namespace window {
+		/**
+		 * The resource URI of the currently active chat panel session,
+		 * or `undefined` if there is no active chat panel session.
+		 */
+		export const activeChatPanelSessionResource: Uri | undefined;
+
+		/**
+		 * An event that fires when the active chat panel session resource changes.
+		 */
+		export const onDidChangeActiveChatPanelSessionResource: Event<Uri | undefined>;
 	}
 
 	// #endregion
@@ -367,7 +445,27 @@ declare module 'vscode' {
 		 * will immediately follow up with a new request in the same conversation.
 		 */
 		readonly yieldRequested: boolean;
+
+		/**
+		 * The resource URI identifying the chat session this context belongs to.
+		 * Available when the context is provided for title generation, summarization,
+		 * or other session-scoped operations. Extracted from the session's history entries.
+		 */
+		readonly sessionResource?: Uri;
 	}
 
 	// #endregion
+
+	export interface LanguageModelToolInformation {
+		/**
+		 * The full reference name of this tool as used in agent definition files.
+		 *
+		 * For MCP tools, this is the canonical name in the format `serverShortName/toolReferenceName`
+		 * (e.g., `github/search_issues`). This can be used to map between the tool names specified
+		 * in agent `.md` files and the tool's internal {@link LanguageModelToolInformation.name id}.
+		 *
+		 * This property is only set for MCP tools. For other tool types, it is `undefined`.
+		 */
+		readonly fullReferenceName?: string;
+	}
 }

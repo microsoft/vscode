@@ -13,6 +13,8 @@
 	color: var(--vscode-editorHoverWidget-foreground);
 	background-color: var(--vscode-editorHoverWidget-background);
 	border: 1px solid var(--vscode-editorHoverWidget-border);
+	border-radius: var(--vscode-cornerRadius-large);
+	box-shadow: var(--vscode-shadow-lg);
 }
 
 .hc-black .monaco-editor .parameter-hints-widget,
@@ -76,6 +78,9 @@
 .monaco-editor .parameter-hints-widget .docs {
 	padding: 0 10px 0 5px;
 	white-space: pre-wrap;
+	overflow-wrap: break-word;
+	word-break: break-word;
+	min-width: 0;
 }
 
 .monaco-editor .parameter-hints-widget .docs.empty {
@@ -93,6 +98,9 @@
 
 .monaco-editor .parameter-hints-widget .docs .markdown-docs {
 	white-space: initial;
+	overflow-wrap: break-word;
+	word-break: break-word;
+	max-width: 100%;
 }
 
 .monaco-editor .parameter-hints-widget .docs code {

@@ -42,7 +42,7 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 		this.render({
 			allowActionId: AcceptToolPostConfirmationActionId,
 			skipActionId: SkipToolPostConfirmationActionId,
-			allowLabel: localize('allow', "Allow"),
+			allowLabel: localize('allow', "Allow Once"),
 			skipLabel: localize('skip.post', 'Skip Results'),
 			partType: 'chatToolPostConfirmation',
 			subtitle: typeof subtitle === 'string' ? subtitle : subtitle?.value,
@@ -87,6 +87,7 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 			actions.push({
 				label: action.label,
 				tooltip: action.detail,
+				scope: action.scope,
 				data: async () => {
 					const shouldConfirm = await action.select();
 					if (shouldConfirm) {

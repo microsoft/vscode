@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 .interactive-item-container.interactive-response .value .chat-markdown-part.rendered-markdown .code:has(.chat-codeblock-pill-container) {
-	margin-bottom: 8px;
+	margin-bottom: 16px;
 }
 
 .chat-markdown-part.rendered-markdown .code .chat-codeblock-pill-container {
 	display: flex;
 	align-items: center;
 	gap: 5px;
-	margin: 0 0 6px 4px;
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 
@@ -29,8 +28,18 @@
 			color: var(--vscode-icon-foreground) !important;
 
 			&::before {
-				font-size: var(--vscode-chat-font-size-body-s);
+				font-size: 12px;
 			}
+		}
+
+		.codicon.codicon-check {
+			display: none;
+		}
+
+		.show-checkmarks & .codicon.codicon-check {
+			display: inline-flex;
+			padding-left: 2px;
+			margin-left: 0.2em;
 		}
 
 		.status-label {

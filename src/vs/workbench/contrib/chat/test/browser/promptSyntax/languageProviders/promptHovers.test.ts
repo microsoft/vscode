@@ -18,14 +18,14 @@ import { ChatAgentLocation, ChatConfiguration } from '../../../../common/constan
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { PromptHoverProvider } from '../../../../common/promptSyntax/languageProviders/promptHovers.js';
-import { IPromptsService, PromptsStorage, Target } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { getLanguageIdForPromptsType, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { getLanguageIdForPromptsType, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 
 suite('PromptHoverProvider', () => {
@@ -53,12 +53,12 @@ suite('PromptHoverProvider', () => {
 		instaService.set(ILanguageModelToolsService, toolService);
 
 		const testModels: ILanguageModelChatMetadata[] = [
-			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
-			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
+			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
+			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			// Claude model equivalents
-			{ id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', vendor: 'copilot', version: '1.0', family: 'claude', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 200000, maxOutputTokens: 8192, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {} } satisfies ILanguageModelChatMetadata,
-			{ id: 'claude-opus-4.6', name: 'Claude Opus 4.6', vendor: 'copilot', version: '1.0', family: 'claude', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 200000, maxOutputTokens: 8192, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {} } satisfies ILanguageModelChatMetadata,
-			{ id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', vendor: 'copilot', version: '1.0', family: 'claude', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 200000, maxOutputTokens: 8192, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {} } satisfies ILanguageModelChatMetadata,
+			{ id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', vendor: 'copilot', version: '1.0', family: 'claude', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 200000, maxOutputTokens: 8192, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {} } satisfies ILanguageModelChatMetadata,
+			{ id: 'claude-opus-4.6', name: 'Claude Opus 4.6', vendor: 'copilot', version: '1.0', family: 'claude', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 200000, maxOutputTokens: 8192, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {} } satisfies ILanguageModelChatMetadata,
+			{ id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', vendor: 'copilot', version: '1.0', family: 'claude', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 200000, maxOutputTokens: 8192, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {} } satisfies ILanguageModelChatMetadata,
 		];
 
 		instaService.stub(ILanguageModelsService, {
@@ -79,7 +79,8 @@ suite('PromptHoverProvider', () => {
 			agentInstructions: { content: 'Beast mode instructions', toolReferences: [] },
 			source: { storage: PromptsStorage.local },
 			target: Target.Undefined,
-			visibility: { userInvokable: true, agentInvokable: true }
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true,
 		});
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
 
@@ -323,7 +324,7 @@ suite('PromptHoverProvider', () => {
 				'---',
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
-			assert.strictEqual(hover, 'Controls visibility of the agent.\n\nDeprecated: Use `user-invokable` and `disable-model-invocation` instead.');
+			assert.strictEqual(hover, 'Controls visibility of the agent.\n\nDeprecated: Use `user-invocable` and `disable-model-invocation` instead.');
 		});
 
 		test('hover on agents attribute shows description', async () => {
@@ -338,12 +339,12 @@ suite('PromptHoverProvider', () => {
 			assert.strictEqual(hover, 'One or more agents that this agent can use as subagents. Use \'*\' to specify all available agents.');
 		});
 
-		test('hover on user-invokable attribute shows description', async () => {
+		test('hover on user-invocable attribute shows description', async () => {
 			const content = [
 				'---',
 				'name: "Test Agent"',
 				'description: "Test agent"',
-				'user-invokable: true',
+				'user-invocable: true',
 				'---',
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
@@ -405,7 +406,7 @@ suite('PromptHoverProvider', () => {
 				'The agent to use when running this prompt.',
 				'',
 				'**Built-in agents:**',
-				'- `agent`: Describe what to build next',
+				'- `agent`: Describe what to build',
 				'- `ask`: Explore and understand your code',
 				'- `edit`: Edit or refactor selected code',
 				'',

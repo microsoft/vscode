@@ -224,6 +224,16 @@ declare module 'vscode' {
 		language: string;
 
 		/**
+		 * Overrides for how the command is presented in the UI.
+		 * For example, when a `cd <dir> && <command>` prefix is detected,
+		 * the presentation can show only the actual command.
+		 */
+		presentationOverrides?: {
+			commandLine: string;
+			language?: string;
+		};
+
+		/**
 		 * Terminal command output. Displayed when the terminal is no longer available.
 		 */
 		output?: {
@@ -443,6 +453,11 @@ declare module 'vscode' {
 		constructor(value: string | MarkdownString);
 	}
 
+	export class ChatResponseInfoPart {
+		value: MarkdownString;
+		constructor(value: string | MarkdownString);
+	}
+
 	export class ChatResponseProgressPart2 extends ChatResponseProgressPart {
 		value: string;
 		task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>;
@@ -622,6 +637,15 @@ declare module 'vscode' {
 		 * @returns This stream.
 		 */
 		warning(message: string | MarkdownString): void;
+
+		/**
+		 * Push an info banner to this stream. Short-hand for
+		 * `push(new ChatResponseInfoPart(message))`.
+		 *
+		 * @param message An informational message
+		 * @returns This stream.
+		 */
+		info(message: string | MarkdownString): void;
 
 		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): void;
 
@@ -830,6 +854,12 @@ declare module 'vscode' {
 		readonly completionTokens: number;
 
 		/**
+		 * The number of tokens reserved for the response.
+		 * This is rendered specially in the UI to indicate that these tokens aren't used but are reserved.
+		 */
+		readonly outputBuffer?: number;
+
+		/**
 		 * Optional breakdown of prompt token usage by category and label.
 		 * If the percentages do not sum to 100%, the remaining will be shown as "Uncategorized".
 		 */
@@ -974,10 +1004,6 @@ declare module 'vscode' {
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 	}
 
-	export interface ChatResultFeedback {
-		readonly unhelpfulReason?: string;
-	}
-
 	export namespace lm {
 		export function fileIsIgnored(uri: Uri, token?: CancellationToken): Thenable<boolean>;
 	}
@@ -1020,8 +1046,6 @@ declare module 'vscode' {
 		readonly rawInput?: unknown;
 
 		readonly chatRequestId?: string;
-		/** @deprecated Use {@link chatSessionResource} instead */
-		readonly chatSessionId?: string;
 		readonly chatSessionResource?: Uri;
 		readonly chatInteractionId?: string;
 	}
@@ -1051,9 +1075,15 @@ declare module 'vscode' {
 	}
 
 	export interface ChatRequestModeInstructions {
+		/** set when the mode a custom agent (not built-in), to be used as identifier */
+		readonly uri?: Uri;
 		readonly name: string;
 		readonly content: string;
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 		readonly metadata?: Record<string, boolean | string | number>;
+		/**
+		 * Whether the mode is a builtin mode (e.g. Ask, Edit, Agent) rather than a user or extension-defined custom mode.
+		 */
+		readonly isBuiltin?: boolean;
 	}
 }

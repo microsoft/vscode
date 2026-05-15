@@ -9,7 +9,8 @@ import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
 import { filterEvent, dispose, anyEvent, PromiseSource, combinedDisposable, runAndSubscribeEvent } from './util';
-import { Change, GitErrorCodes, Status } from './api/git';
+import type { Change } from './api/git';
+import { GitErrorCodes, Status } from './api/git.constants';
 
 function equalSourceControlHistoryItemRefs(ref1?: SourceControlHistoryItemRef, ref2?: SourceControlHistoryItemRef): boolean {
 	if (ref1 === ref2) {

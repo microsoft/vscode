@@ -17,6 +17,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
+import { ConfirmationOption } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ByteSize } from '../../../../../platform/files/common/files.js';
@@ -24,7 +25,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { ChatRequestToolReferenceEntry } from '../attachments/chatVariableEntries.js';
 import { IVariableReference } from '../chatModes.js';
-import { IChatExtensionsContent, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
+import { IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatSearchToolInvocationData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
 import { ILanguageModelChatMetadata, LanguageModelPartAudience } from '../languageModels.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './promptTsxTypes.js';
@@ -162,6 +163,16 @@ export namespace ToolDataSource {
 	}
 }
 
+/**
+ * Pre-tool-use hook result passed from the extension when the hook was executed externally.
+ */
+export interface IExternalPreToolUseHookResult {
+	permissionDecision?: 'allow' | 'deny' | 'ask';
+	permissionDecisionReason?: string;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	updatedInput?: Record<string, any>;
+}
+
 export interface IToolInvocation {
 	callId: string;
 	toolId: string;
@@ -179,22 +190,36 @@ export interface IToolInvocation {
 	 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
 	 */
 	subAgentInvocationId?: string;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData;
 	modelId?: string;
 	userSelectedTools?: UserSelectedTools;
 	/** The label of the custom button selected by the user during confirmation, if custom buttons were used. */
 	selectedCustomButton?: string;
+	/** Pre-tool-use hook result passed from the extension, if the hook was already executed externally. */
+	preToolUseResult?: IExternalPreToolUseHookResult;
+	/**
+	 * Optional W3C trace context `traceparent` value identifying the parent distributed
+	 * tracing span for this tool invocation. Forwarded to MCP tool implementations as
+	 * `_meta.traceparent` (MCP SEP-414).
+	 */
+	traceparent?: string;
+	/** Optional W3C trace context `tracestate` value paired with {@link traceparent}. */
+	tracestate?: string;
 }
 
 export interface IToolInvocationContext {
-	/** @deprecated Use {@link sessionResource} instead */
-	readonly sessionId: string;
 	readonly sessionResource: URI;
+	/**
+	 * The working directory URI associated with this session.
+	 * Only set in the agents window context where each session can
+	 * have its own working directory that differs from the workspace folders.
+	 */
+	readonly workingDirectory?: URI;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isToolInvocationContext(obj: any): obj is IToolInvocationContext {
-	return typeof obj === 'object' && typeof obj.sessionId === 'string' && URI.isUri(obj.sessionResource);
+	return obj !== null && typeof obj === 'object' && URI.isUri(obj.sessionResource);
 }
 
 export interface IToolInvocationPreparationContext {
@@ -202,13 +227,16 @@ export interface IToolInvocationPreparationContext {
 	parameters: any;
 	toolCallId: string;
 	chatRequestId?: string;
-	/** @deprecated Use {@link chatSessionResource} instead */
-	chatSessionId?: string;
 	chatSessionResource: URI | undefined;
 	chatInteractionId?: string;
 	modelId?: string;
 	/** If set, tells the tool that it should include confirmation messages. */
 	forceConfirmationReason?: string;
+	/**
+	 * The working directory URI for the session, if set.
+	 * Used by tools to resolve relative paths and check file access.
+	 */
+	workingDirectory?: URI;
 }
 
 export type ToolInputOutputBase = {
@@ -233,6 +261,8 @@ export type ToolInputOutputReference = ToolInputOutputBase & { type: 'ref'; uri:
 
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
+	/** Language identifier for syntax highlighting the input. Defaults to 'json'. */
+	readonly inputLanguage?: string;
 	readonly output: (ToolInputOutputEmbedded | ToolInputOutputReference)[];
 	readonly isError?: boolean;
 	/** Raw MCP tool result for MCP App UI rendering */
@@ -257,7 +287,7 @@ export interface IToolResult {
 	content: (IToolResultPromptTsxPart | IToolResultTextPart | IToolResultDataPart)[];
 	toolResultMessage?: string | IMarkdownString;
 	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails;
-	toolResultError?: string;
+	toolResultError?: string | boolean;
 	toolMetadata?: unknown;
 	/** Whether to ask the user to confirm these tool results. Overrides {@link IToolConfirmationMessages.confirmResults}. */
 	confirmResults?: boolean;
@@ -318,8 +348,17 @@ export interface IToolConfirmationMessages {
 	confirmResults?: boolean;
 	/** If title is not set (no confirmation needed), this reason will be shown to explain why confirmation was not needed */
 	confirmationNotNeededReason?: string | IMarkdownString;
-	/** Custom button labels to display instead of the default Allow/Skip buttons. */
-	customButtons?: string[];
+	/** Custom options to display instead of the default Allow/Skip buttons. */
+	customOptions?: ConfirmationOption[];
+	/** When set, shows an additional approval option to approve this particular combination of tool and arguments */
+	approveCombination?: {
+		/** Human-readable label for the approval option */
+		label: string | IMarkdownString;
+		/** Precomputed SHA-256 key for the combination (set during tool preparation) */
+		key: string;
+		/** String representation of the arguments for this combination */
+		arguments?: string;
+	};
 }
 
 export interface IToolConfirmationAction {
@@ -341,8 +380,6 @@ export interface IToolInvocationStreamContext {
 	toolCallId: string;
 	rawInput: unknown;
 	chatRequestId?: string;
-	/** @deprecated Use {@link chatSessionResource} instead */
-	chatSessionId?: string;
 	chatSessionResource?: URI;
 	chatInteractionId?: string;
 }
@@ -357,7 +394,8 @@ export interface IPreparedToolInvocation {
 	originMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: ToolInvocationPresentation;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData;
+	icon?: ThemeIcon;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData;
 }
 
 export interface IToolImpl {
@@ -463,10 +501,11 @@ export class ToolSetForModel {
 	constructor(
 		private readonly _toolSet: IToolSet,
 		private readonly model: ILanguageModelChatMetadata | undefined,
+		private readonly toolFilter?: (toolData: IToolData) => boolean,
 	) { }
 
 	public getTools(r?: IReader): Iterable<IToolData> {
-		return Iterable.filter(this._toolSet.getTools(r), toolData => toolMatchesModel(toolData, this.model));
+		return Iterable.filter(this._toolSet.getTools(r), toolData => toolMatchesModel(toolData, this.model) && (!this.toolFilter || this.toolFilter(toolData)));
 	}
 }
 
@@ -477,6 +516,13 @@ export interface IBeginToolCallOptions {
 	chatRequestId?: string;
 	sessionResource?: URI;
 	subagentInvocationId?: string;
+	/**
+	 * Create the streaming invocation even when the tool does not
+	 * implement `handleToolStream`. Used by callers that need a
+	 * `ChatToolInvocation` handle to observe state transitions (e.g.
+	 * confirmation) before invoking the tool.
+	 */
+	force?: boolean;
 }
 
 export interface IToolInvokedEvent {

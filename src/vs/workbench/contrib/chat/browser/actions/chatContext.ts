@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isElectron } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -22,14 +23,23 @@ import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInpu
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../attachments/chatContextPickService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { getAgentSessionProviderIcon, AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 
+/**
+ * Command ID that extensions can call to enable debug tools for the current
+ * chat session. Sets the context key and immediately flushes tool updates so
+ * that newly-enabled tools are visible on the next `vscode.lm.tools` read.
+ */
+export const EnableChatDebugToolsCommandId = 'chat.enableDebugTools';
 
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
 
@@ -54,6 +64,7 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));
 	}
 }
 
@@ -283,5 +294,55 @@ class ScreenshotContextValuePick implements IChatContextValueItem {
 	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
 		const blob = await this._hostService.getScreenshot();
 		return blob && convertBufferToScreenshotVariable(blob);
+	}
+}
+
+class SessionReferenceContextPickerPick implements IChatContextPickerItem {
+
+	readonly type = 'pickerPick';
+	readonly icon = Codicon.comment;
+	readonly label = localize('chatContext.sessions', 'Sessions...');
+	readonly ordinal = -400;
+
+	constructor(
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+	) { }
+
+	isEnabled(widget: IChatWidget): boolean {
+		return widget.location === ChatAgentLocation.Chat;
+	}
+
+	asPicker(widget: IChatWidget): IChatContextPicker {
+		const currentSessionResource = widget.viewModel?.sessionResource;
+		return {
+			placeholder: localize('chatContext.sessions.placeholder', 'Select a session'),
+			picks: (async () => {
+				const picks: IChatContextPickerPickItem[] = [];
+				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.Claude];
+				for await (const group of this._chatSessionsService.getChatSessionItems(sessionProviderFilter, CancellationToken.None)) {
+					const providerIcon = getAgentSessionProviderIcon(group.chatSessionType);
+					for (const item of group.items) {
+						if (currentSessionResource && item.resource.toString() === currentSessionResource.toString()) {
+							continue;
+						}
+						const sessionResource = item.resource;
+						const icon = item.iconPath ?? providerIcon;
+						picks.push({
+							label: item.label,
+							description: new Date(item.timing.lastRequestEnded ?? item.timing.created).toLocaleString(),
+							asAttachment: (): IChatRequestVariableEntry => ({
+								kind: 'sessionReference',
+								id: sessionResource.toString(),
+								name: item.label,
+								value: sessionResource,
+								icon,
+							})
+						});
+					}
+				}
+				picks.sort((a, b) => (b.description ?? '').localeCompare(a.description ?? ''));
+				return picks;
+			})()
+		};
 	}
 }

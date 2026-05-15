@@ -53,6 +53,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.editorTitle', "The editor title menu")
 	},
 	{
+		key: 'modalEditor/editorTitle',
+		id: MenuId.ModalEditorEditorTitle,
+		description: localize('menus.modalEditorEditorTitle', "The editor title menu in the modal editor")
+	},
+	{
 		key: 'editor/title/run',
 		id: MenuId.EditorTitleRun,
 		description: localize('menus.editorTitleRun', "Run submenu inside the editor title menu")
@@ -480,6 +485,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatSessionsProvider'
 	},
 	{
+		key: 'chat/input/editing/sessionTitleToolbar',
+		id: MenuId.ChatEditingSessionTitleToolbar,
+		description: localize('menus.chatEditingSessionTitleToolbar', "The Chat Editing widget toolbar menu for session title."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
 		// TODO: rename this to something like: `chatSessions/item/inline`
 		key: 'chat/chatSessions',
 		id: MenuId.AgentSessionsContext,
@@ -502,8 +513,22 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatSessionsProvider',
 	},
 	{
+		key: 'chat/customizations/create',
+		id: MenuId.for('AICustomizationManagementCreate'),
+		description: localize('menus.chatCustomizationsCreate', "The create button in the Chat Customizations management editor."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionCustomizationProvider',
+	},
+	{
+		key: 'chat/customizations/item',
+		id: MenuId.for('AICustomizationManagementEditorItem'),
+		description: localize('menus.chatCustomizationsItem', "The item context menu in the Chat Customizations management editor, including inline actions."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionCustomizationProvider',
+	},
+	{
 		key: 'chat/editor/inlineGutter',
-		id: MenuId.ChatEditorInlineGutter,
+		id: MenuId.ChatEditorInlineMenu,
 		description: localize('menus.chatEditorInlineGutter', "The inline gutter menu in the chat editor."),
 		supportsSubmenus: false,
 		proposed: 'contribChatEditorInlineGutterMenu',
@@ -513,6 +538,30 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.ChatContextUsageActions,
 		description: localize('menus.chatContextUsageActions', "Actions in the chat context usage details popup."),
 		proposed: 'chatParticipantAdditions'
+	},
+	{
+		key: 'chat/newSession',
+		id: MenuId.ChatNewMenu,
+		description: localize('menus.chatNewSession', "The Chat new session menu."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'agents/changes/actions',
+		id: MenuId.AgentsChangesToolbar,
+		description: localize('menus.agentsChangesToolbar', "The Changes view toolbar of the agents window."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'agents/changes/actions/primary',
+		id: MenuId.AgentsChangesPrimaryActionSubMenu,
+		description: localize('menus.agentsChangesPrimaryActionSubMenu', "The Changes view toolbar primary action submenu in the agents window."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'agents/change/inline',
+		id: MenuId.AgentsChangeInlineToolbar,
+		description: localize('menus.agentsChangeInline', "The Changes view inline menu in the agents window."),
+		proposed: 'chatSessionsProvider'
 	},
 ];
 

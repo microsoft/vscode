@@ -15,7 +15,8 @@ import {
 	IToolResult,
 	ToolDataSource,
 	IToolInvocationPreparationContext,
-	IPreparedToolInvocation
+	IPreparedToolInvocation,
+	ToolInvocationPresentation
 } from '../languageModelToolsService.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -157,7 +158,12 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			status: todo.status
 		}));
 
+		const invocationLabel = message?.replace(/^(Starting|Completed): /i, '') ?? localize('todo.updatingList', "Updating todo list");
+		const invocationMessage = new MarkdownString(invocationLabel);
+
 		return {
+			invocationMessage,
+			presentation: items.length ? undefined : ToolInvocationPresentation.Hidden,
 			pastTenseMessage: new MarkdownString(message ?? localize('todo.updatedList', "Updated todo list")),
 			toolSpecificData: {
 				kind: 'todoList',

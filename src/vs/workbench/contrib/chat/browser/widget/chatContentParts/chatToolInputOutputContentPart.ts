@@ -5,21 +5,21 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
-import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { LanguageModelPartAudience } from '../../../common/languageModels.js';
+import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from './codeBlockPart.js';
 import { IDisposableReference } from './chatCollections.js';
@@ -94,12 +94,12 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		private readonly output: IChatCollapsibleOutputData | undefined,
 		isError: boolean,
 		initiallyExpanded: boolean,
+		shimmer: boolean,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IHoverService hoverService: IHoverService,
-		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -123,29 +123,35 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		btn.element.classList.add('chat-confirmation-widget-title', 'monaco-text-button');
 		btn.labelElement.append(titleEl.root);
 
-		const check = dom.h(isError
-			? ThemeIcon.asCSSSelector(Codicon.error)
-			: output
-				? ThemeIcon.asCSSSelector(Codicon.check)
-				: ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin'))
-		);
+		// Add hover chevron indicator on the right (decorative, hide from screen readers)
+		const hoverChevron = dom.$('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right');
+		hoverChevron.setAttribute('aria-hidden', 'true');
+		btn.element.appendChild(hoverChevron);
 
-		if (progressTooltip) {
-			this._register(hoverService.setupDelayedHover(check.root, {
-				content: progressTooltip,
-				style: HoverStyle.Pointer,
-			}));
-		}
+		// Only show leading icon for errors, or for checkmarks/loading when the accessibility setting is on
+		const showCheckmarks = observableConfigValue(AccessibilityWorkbenchSettingId.ShowChatCheckmarks, false, this.configurationService);
 
 		const expanded = this._expanded = observableValue(this, initiallyExpanded);
 		this._register(autorun(r => {
 			const value = expanded.read(r);
-			btn.icon = isError
-				? Codicon.error
-				: output
+			const checkmarksEnabled = showCheckmarks.read(r);
+			elements.root.classList.toggle('collapsed', !value);
+
+			const isInProgress = !output && !isError;
+			if (isError) {
+				btn.icon = Codicon.error;
+			} else {
+				btn.icon = output
 					? Codicon.check
 					: ThemeIcon.modify(Codicon.loading, 'spin');
-			elements.root.classList.toggle('collapsed', !value);
+			}
+			elements.root.classList.toggle('shimmer-progress', shimmer && isInProgress);
+
+			container.root.classList.toggle('show-checkmarks', checkmarksEnabled);
+
+			// Update hover chevron direction
+			hoverChevron.classList.toggle('codicon-chevron-right', !value);
+			hoverChevron.classList.toggle('codicon-chevron-down', value);
 
 			// Lazy initialization: render content only when expanded for the first time
 			if (value && !this._contentInitialized) {
@@ -215,25 +221,17 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	}
 
 	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {
-		// Create the text model lazily when rendering
-		const textModel = this._register(this.modelService.createModel(
-			part.data,
-			this.languageService.createById(part.languageId),
-			undefined,
-			true
-		));
-
 		const data: ICodeBlockData = {
 			languageId: part.languageId,
-			textModel: Promise.resolve(textModel),
+			text: part.data,
 			codeBlockIndex: part.codeBlockIndex,
-			codeBlockPartIndex: 0,
 			element: this.context.element,
 			parentContextKeyService: this.contextKeyService,
 			renderOptions: part.options,
 			chatSessionResource: this.context.element.sessionResource,
 		};
-		const editorReference = this._register(this.context.editorPool.get());
+		const key = CodeBlockPart.poolKey(this.context.element.id, part.codeBlockIndex);
+		const editorReference = this._register(this.context.editorPool.get(key));
 		editorReference.object.render(data, this.context.currentWidth.get() || 300);
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);

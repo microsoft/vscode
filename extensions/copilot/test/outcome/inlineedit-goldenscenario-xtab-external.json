@@ -1,0 +1,62 @@
+[
+	{
+		"name": "InlineEdit GoldenScenario ([xtab]) [external] [cpp] - [MustHave] 8-cppIndividual-1-point.cpp",
+		"requests": [
+			"a4f876c93af6efc0736b46acb669054bd7daa7833bba6f93817af37279dcafaa"
+		]
+	},
+	{
+		"name": "InlineEdit GoldenScenario ([xtab]) [external] [cpp] - [MustHave] 8-cppIndividual-2-collection-farewell",
+		"requests": [
+			"198d423fe1c8b90e494e95390fa219b9484045eda51b0bbf44fb6a2b68087844"
+		]
+	},
+	{
+		"name": "InlineEdit GoldenScenario ([xtab]) [external] [cpp] - [MustHave] 9-cppProject-add-header-expect-implementation",
+		"requests": [
+			"628a2695aaaea3767c452b5ad04cb96786a1052e0b0da6f3ed02aaeec8c41c0f"
+		]
+	},
+	{
+		"name": "InlineEdit GoldenScenario ([xtab]) [external] [cpp] - [MustHave] 9-cppProject-add-implementation-expect-header",
+		"requests": [
+			"295cea272a8cdd2b54c1be9ede9a6e8a3531ad00184b0c87843823b9abda92b0"
+		]
+	},
+	{
+		"name": "InlineEdit GoldenScenario ([xtab]) [external] [java] - [MustHave] 6-vscode-remote-try-java-part-1",
+		"requests": [
+			"a220283004e599400babb3aff55203669573065eb3efbf6fff24b50226f0a8d9"
+		]
+	},
+	{
+		"name": "InlineEdit GoldenScenario ([xtab]) [external] [java] - [MustHave] 6-vscode-remote-try-java-part-2",
+		"requests": [
+			"1fa2e2cdf816322ed6a2aca1eb03f428a13d140890ae88d7bdbc5b41c8ea30ce"
+		]
+	},
+	{
+		"name": "InlineEdit GoldenScenario ([xtab]) [external] [python] - Notebook 10-update-name-in-same-cell-of-notebook",
+		"requests": [
+			"912c6c72d3990d3243c694713c2e0d2d7fd58573ee6f11d3f649673a97546221"
+		]
+	},
+	{
+		"name": "InlineEdit GoldenScenario ([xtab]) [external] [python] - Notebook 11-update-name-in-next-cell-of-notebook",
+		"requests": [
+			"f2b166a3f02605434b7f8314addc4ef33cb72a87924e5b89e357e2fdb3901275"
+		]
+	},
+	{
+		"name": "InlineEdit GoldenScenario ([xtab]) [external] [typescript] - [MustHave] 1-point.ts",
+		"requests": [
+			"b6c237efc810ffe7c12ea539f17e6308b0d7d9f2c6e6ac72ab44b2ff4d72888a"
+		]
+	},
+	{
+		"name": "InlineEdit GoldenScenario ([xtab]) [external] [typescript] - [NiceToHave] 2-helloworld-sample-remove-generic-parameter",
+		"requests": [
+			"d4a7670a35de431c76900e5937257a5830bfc091519b5392bb372dba404aac70"
+		]
+	}
+]

@@ -11,14 +11,14 @@ import { SerializedError, transformErrorForSerialization, transformErrorFromSeri
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Progress } from '../../../platform/progress/common/progress.js';
-import { IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../contrib/chat/common/languageModels.js';
-import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../contrib/chat/common/widget/input/modelPickerWidget.js';
+import { COPILOT_VENDOR_ID, IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatRequestOptions } from '../../contrib/chat/common/languageModels.js';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
@@ -220,15 +220,20 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					detail: m.detail,
 					tooltip: m.tooltip,
 					version: m.version,
-					multiplier: m.multiplier,
 					multiplierNumeric: m.multiplierNumeric,
+					pricing: m.pricing,
+					inputCost: m.inputCost,
+					outputCost: m.outputCost,
+					cacheCost: m.cacheCost,
+					priceCategory: m.priceCategory,
 					maxInputTokens: m.maxInputTokens,
 					maxOutputTokens: m.maxOutputTokens,
 					auth,
 					isDefaultForLocation,
 					isUserSelectable: m.isUserSelectable,
 					statusIcon: m.statusIcon,
-					modelPickerCategory: m.category ?? DEFAULT_MODEL_PICKER_CATEGORY,
+					targetChatSessionType: m.targetChatSessionType,
+					configurationSchema: m.configurationSchema as IJSONSchema | undefined,
 					capabilities: m.capabilities ? {
 						vision: m.capabilities.imageInput,
 						editTools: m.capabilities.editTools,
@@ -257,7 +262,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return modelMetadataAndIdentifier;
 	}
 
-	async $startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: vscode.LanguageModelChatRequestOptions, token: CancellationToken): Promise<void> {
+	async $startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier | undefined, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<void> {
 		const knownModel = this._localModels.get(modelId);
 		if (!knownModel) {
 			throw new Error('Model not found');
@@ -318,7 +323,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			value = data.provider.provideLanguageModelChatResponse(
 				knownModel.info,
 				messages.value.map(typeConvert.LanguageModelChatMessage2.to),
-				{ ...options, modelOptions: options.modelOptions ?? {}, requestInitiator: ExtensionIdentifier.toKey(from), toolMode: options.toolMode ?? extHostTypes.LanguageModelChatToolMode.Auto },
+				// todo@connor4312: move `core` -> `undefined` after 1.111 Insiders is out
+				{ ...options, modelOptions: options.modelOptions ?? {}, modelConfiguration: options.configuration, requestInitiator: from ? ExtensionIdentifier.toKey(from) : 'core', toolMode: options.toolMode ?? extHostTypes.LanguageModelChatToolMode.Auto },
 				progress,
 				token
 			);
@@ -362,7 +368,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 
 		for (const [modelIdentifier, modelData] of this._localModels) {
-			if (modelData.metadata.isDefaultForLocation[ChatAgentLocation.Chat]) {
+			if (modelData.metadata.isDefaultForLocation[ChatAgentLocation.Chat] && modelData.metadata.vendor === COPILOT_VENDOR_ID) {
 				defaultModelId = modelIdentifier;
 				break;
 			}
@@ -410,6 +416,11 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				family: model.info.family,
 				version: model.info.version,
 				name: model.info.name,
+				pricing: model.metadata.pricing,
+				inputCost: model.metadata.inputCost,
+				outputCost: model.metadata.outputCost,
+				cacheCost: model.metadata.cacheCost,
+				priceCategory: model.metadata.priceCategory,
 				capabilities: {
 					supportsImageToText: model.metadata.capabilities?.vision ?? false,
 					supportsToolCalling: !!model.metadata.capabilities?.toolCalling,
