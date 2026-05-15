@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { alert as alertFn } from '../../../../base/browser/ui/aria/aria.js';
 import { Delayer } from '../../../../base/common/async.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -18,7 +19,7 @@ import { OverviewRulerLane } from '../../../common/model.js';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_REPLACE_INPUT_FOCUSED, FindModelBoundToEditorModel, FIND_IDS, ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleSearchScopeKeybinding, ToggleWholeWordKeybinding } from './findModel.js';
 import { FindOptionsWidget } from './findOptionsWidget.js';
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from './findState.js';
-import { FindWidget, IFindController } from './findWidget.js';
+import { FindWidget, IFindController, NLS_NO_RESULTS } from './findWidget.js';
 import * as nls from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -763,7 +764,13 @@ async function matchFindAction(editor: ICodeEditor, next: boolean): Promise<void
 			updateSearchScope: false,
 			loop: editor.getOption(EditorOption.find).loop
 		});
-		runMatch();
+		if (!runMatch()) {
+			// Re-announce "no results" for screen readers on explicit navigation (#301126)
+			const state = controller.getState();
+			if (wasFindWidgetVisible && state.matchesCount === 0 && state.searchString) {
+				alertFn(nls.localize('ariaSearchNoResult', "{0} found for '{1}'", NLS_NO_RESULTS, state.searchString));
+			}
+		}
 	}
 }
 

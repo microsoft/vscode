@@ -50,6 +50,11 @@ export interface IRequestOptions {
 	 * be supported in all implementations.
 	 */
 	disableCache?: boolean;
+	/**
+	 * Identifies the call site making this request, used for telemetry.
+	 * Use "NO_FETCH_TELEMETRY" to opt out of request telemetry.
+	 */
+	callSite: string;
 }
 
 export interface IRequestContext {

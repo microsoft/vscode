@@ -6,7 +6,7 @@
 import { registerSingleton, InstantiationType } from '../../../../../../platform/instantiation/common/extensions.js';
 import { MenuId, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IAgentSessionProjectionService, AgentSessionProjectionService, AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS } from './agentSessionProjectionService.js';
-import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleAgentStatusAction, ToggleUnifiedAgentsBarAction } from './agentSessionProjectionActions.js';
+import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleUnifiedAgentsBarAction } from './agentSessionProjectionActions.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { AgentTitleBarStatusRendering } from './agentTitleBarStatusWidget.js';
 import { AgentTitleBarStatusService, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
@@ -166,6 +166,12 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 			return;
 		}
 
+		// Trigger a lazy resolve so providers that populate `changes` on
+		// demand (see IAgentSessionsModel.observeSession) deliver fresh data.
+		// Re-evaluation happens via the onDidChangeSessions listener in the
+		// constructor.
+		this.agentSessionsService.model.observeSession(sessionResource);
+
 		// Check if this is a projection-capable provider
 		if (!AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS.has(session.providerType)) {
 			this._clearEntriesWatcher();
@@ -235,7 +241,6 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 
 registerAction2(EnterAgentSessionProjectionAction);
 registerAction2(ExitAgentSessionProjectionAction);
-registerAction2(ToggleAgentStatusAction);
 registerAction2(ToggleUnifiedAgentsBarAction);
 
 registerSingleton(IAgentSessionProjectionService, AgentSessionProjectionService, InstantiationType.Delayed);
@@ -251,10 +256,8 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: Codicon.chatSparkle,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
-		ContextKeyExpr.or(
-			ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
-			ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
-		)
+		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, 'hidden'),
+		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, false)
 	),
 	order: 10002 // to the right of the chat button
 });
@@ -269,9 +272,7 @@ MenuRegistry.appendMenuItem(MenuId.TitleBar, {
 		ChatContextKeys.supported,
 		ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),
-			ChatContextKeys.Setup.disabled.negate()
 		),
-		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
 		ContextKeyExpr.has('config.window.commandCenter').negate(),
 	),
 	order: 1
@@ -283,13 +284,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 		id: 'workbench.action.chat.toggle',
 		title: localize('openChat', "Open Chat"),
 	},
-	when: ContextKeyExpr.and(
-		ChatContextKeys.enabled,
-		ContextKeyExpr.or(
-			ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
-			ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
-		)
-	),
+	when: ChatContextKeys.enabled,
 	group: 'a_open',
 	order: 1
 });

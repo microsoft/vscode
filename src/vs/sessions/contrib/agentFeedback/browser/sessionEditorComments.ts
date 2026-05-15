@@ -6,11 +6,12 @@
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAgentFeedback } from './agentFeedbackService.js';
-import { CodeReviewStateKind, ICodeReviewComment, ICodeReviewState, ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
+import { CodeReviewStateKind, ICodeReviewComment, ICodeReviewState, ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 
 export const enum SessionEditorCommentSource {
 	AgentFeedback = 'agentFeedback',
 	CodeReview = 'codeReview',
+	PRReview = 'prReview',
 }
 
 export interface ISessionEditorComment {
@@ -30,10 +31,15 @@ export function getCodeReviewComments(reviewState: ICodeReviewState): readonly I
 	return reviewState.kind === CodeReviewStateKind.Result ? reviewState.comments : [];
 }
 
+export function getPRReviewComments(prReviewState: IPRReviewState | undefined): readonly IPRReviewComment[] {
+	return prReviewState?.kind === PRReviewStateKind.Loaded ? prReviewState.comments : [];
+}
+
 export function getSessionEditorComments(
 	sessionResource: URI,
 	agentFeedbackItems: readonly IAgentFeedback[],
 	reviewState: ICodeReviewState,
+	prReviewState?: IPRReviewState,
 ): readonly ISessionEditorComment[] {
 	const comments: ISessionEditorComment[] = [];
 
@@ -62,6 +68,19 @@ export function getSessionEditorComments(
 			text: item.body,
 			suggestion: item.suggestion,
 			severity: item.severity,
+			canConvertToAgentFeedback: true,
+		});
+	}
+
+	for (const item of getPRReviewComments(prReviewState)) {
+		comments.push({
+			id: toSessionEditorCommentId(SessionEditorCommentSource.PRReview, item.id),
+			sourceId: item.id,
+			source: SessionEditorCommentSource.PRReview,
+			sessionResource,
+			resourceUri: item.uri,
+			range: item.range,
+			text: item.body,
 			canConvertToAgentFeedback: true,
 		});
 	}

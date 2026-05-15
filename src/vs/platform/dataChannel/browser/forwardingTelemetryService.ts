@@ -70,6 +70,10 @@ export class InterceptingTelemetryService implements ITelemetryService {
 	setExperimentProperty(name: string, value: string): void {
 		this._baseService.setExperimentProperty(name, value);
 	}
+
+	setCommonProperty(name: string, value: string): void {
+		this._baseService.setCommonProperty(name, value);
+	}
 }
 
 export interface IEditTelemetryData {

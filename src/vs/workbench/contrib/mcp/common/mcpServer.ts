@@ -41,6 +41,7 @@ import { IMcpSandboxService } from './mcpSandboxService.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { McpTaskManager } from './mcpTaskManager.js';
 import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPotentialSandboxBlock, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerStaticToolAvailability, McpServerTransportType, McpToolName, McpToolVisibility, MpcResponseError, UserInteractionRequiredError } from './mcpTypes.js';
+import { ContributionEnablementState, IEnablementModel } from '../../chat/common/enablement.js';
 import { MCP } from './modelContextProtocol.js';
 import { McpApps } from './modelContextProtocolApps.js';
 import { UriTemplate } from './uriTemplate.js';
@@ -424,6 +425,8 @@ export class McpServer extends Disposable implements IMcpServer {
 	/** Count of running tool calls, used to detect if sampling is during an LM call */
 	public runningToolCalls = new Set<IMcpToolCallContext>();
 
+	public readonly enablement: IObservable<ContributionEnablementState>;
+
 	constructor(
 		initialCollection: McpCollectionDefinition,
 		public readonly definition: McpDefinitionReference,
@@ -431,6 +434,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		private readonly _requiresExtensionActivation: boolean | undefined,
 		private readonly _primitiveCache: McpServerMetadataCache,
 		toolPrefix: string,
+		enablementModel: IEnablementModel,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@IWorkspaceContextService workspacesService: IWorkspaceContextService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -451,6 +455,7 @@ export class McpServer extends Disposable implements IMcpServer {
 
 		this.collection = initialCollection;
 		this._fullDefinitions = this._mcpRegistry.getServerDefinition(this.collection, this.definition);
+		this.enablement = derived(r => enablementModel.readEnabled(definition.id, r));
 		this._loggerId = `mcpServer.${definition.id}`;
 		this._logger = this._register(_loggerService.createLogger(this._loggerId, { hidden: true, name: `MCP: ${definition.label}` }));
 
@@ -1193,6 +1198,14 @@ export class McpTool implements IMcpTool {
 			}
 			if (context?.chatRequestId) {
 				meta['vscode.requestId'] = context.chatRequestId;
+			}
+			// Propagate W3C trace context to the MCP server (MCP SEP-414) so server-side
+			// spans can be correlated with the client trace.
+			if (context?.traceparent) {
+				meta['traceparent'] = context.traceparent;
+				if (context.tracestate) {
+					meta['tracestate'] = context.tracestate;
+				}
 			}
 
 			const taskHint = this._definition.execution?.taskSupport;

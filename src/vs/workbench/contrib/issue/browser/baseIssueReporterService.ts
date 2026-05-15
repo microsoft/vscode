@@ -134,17 +134,32 @@ export class BaseIssueReporterService extends Disposable {
 
 		this.createAction = this._register(new Action('issueReporter.create', localize('create', "Create on GitHub"), undefined, true, async () => {
 			this.delayedSubmit.trigger(async () => {
-				this.createIssue(true); // create issue
+				this.setSubmittingState(true);
+				try {
+					await this.createIssue(true);
+				} finally {
+					this.setSubmittingState(false);
+				}
 			});
 		}));
 		this.previewAction = this._register(new Action('issueReporter.preview', localize('preview', "Preview on GitHub"), undefined, true, async () => {
 			this.delayedSubmit.trigger(async () => {
-				this.createIssue(false); // preview issue
+				this.setSubmittingState(true);
+				try {
+					await this.createIssue(false);
+				} finally {
+					this.setSubmittingState(false);
+				}
 			});
 		}));
 		this.privateAction = this._register(new Action('issueReporter.privateCreate', localize('privateCreate', "Create Internally"), undefined, true, async () => {
 			this.delayedSubmit.trigger(async () => {
-				this.createIssue(true, true); // create private issue
+				this.setSubmittingState(true);
+				try {
+					await this.createIssue(true, true);
+				} finally {
+					this.setSubmittingState(false);
+				}
 			});
 		}));
 
@@ -406,6 +421,41 @@ export class BaseIssueReporterService extends Disposable {
 		} else {
 			hide(container);
 			container.style.display = 'none'; //todo: necessary even with hide?
+		}
+	}
+
+	private preSubmitButtonLabel: string | undefined;
+
+	private getSubmitButtonElement(): HTMLElement {
+		if (this.publicGithubButton instanceof ButtonWithDropdown) {
+			return this.publicGithubButton.primaryButton.element;
+		}
+		return this.publicGithubButton.element;
+	}
+
+	private setSubmittingState(submitting: boolean): void {
+		this.publicGithubButton.enabled = !submitting;
+		if (this.internalGithubButton) {
+			this.internalGithubButton.enabled = !submitting;
+		}
+
+		const buttonEl = this.getSubmitButtonElement();
+		if (submitting) {
+			const currentLabel = this.publicGithubButton instanceof ButtonWithDropdown
+				? this.publicGithubButton.primaryButton.label
+				: this.publicGithubButton.label;
+			this.preSubmitButtonLabel = typeof currentLabel === 'string' ? currentLabel : '';
+			this.publicGithubButton.label = localize('submittingIssue', "Submitting...");
+			const spinnerIcon = renderIcon(ThemeIcon.modify(Codicon.loading, 'spin'));
+			buttonEl.prepend(spinnerIcon);
+		} else {
+			// eslint-disable-next-line no-restricted-syntax
+			const spinnerEl = buttonEl.querySelector('.codicon-loading');
+			spinnerEl?.remove();
+			if (this.preSubmitButtonLabel !== undefined) {
+				this.publicGithubButton.label = this.preSubmitButtonLabel;
+				this.preSubmitButtonLabel = undefined;
+			}
 		}
 	}
 
@@ -706,8 +756,13 @@ export class BaseIssueReporterService extends Disposable {
 			// Cmd/Ctrl+Enter previews issue and closes window
 			if (cmdOrCtrlKey && e.key === 'Enter') {
 				this.delayedSubmit.trigger(async () => {
-					if (await this.createIssue()) {
-						this.close();
+					this.setSubmittingState(true);
+					try {
+						if (await this.createIssue()) {
+							this.close();
+						}
+					} finally {
+						this.setSubmittingState(false);
 					}
 				});
 			}

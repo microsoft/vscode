@@ -427,7 +427,11 @@ export function nlsPlugin(options: NLSPluginOptions): esbuild.Plugin {
 					// back to the original. Embed it inline so esbuild composes it
 					// with its own bundle source map, making the final map point to
 					// the original TS source.
-					const sourceName = relativePath.replace(/\\/g, '/');
+					// This inline source map is resolved relative to esbuild's sourcefile
+					// for args.path. Using the full repo-relative path here makes esbuild
+					// resolve it against the file's own directory, which duplicates the
+					// directory segments in the final bundled source map.
+					const sourceName = path.basename(args.path);
 					const sourcemap = generateNLSSourceMap(source, sourceName, edits);
 					const encodedMap = Buffer.from(sourcemap).toString('base64');
 					const contentsWithMap = code + `\n//# sourceMappingURL=data:application/json;base64,${encodedMap}\n`;

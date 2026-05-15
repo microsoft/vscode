@@ -157,16 +157,22 @@ export function setup(context: TestContext) {
 		try {
 			const window = await context.getPage(app.firstWindow());
 
-			context.log('Installing WSL extension');
-			await window.getByRole('button', { name: 'Install and Reload' }).click();
+			try {
+				await test.dismissWelcomeDialog(window);
 
-			context.log('Waiting for WSL connection');
-			await window.getByText(/WSL/).waitFor();
+				context.log('Installing WSL extension');
+				await window.getByRole('button', { name: 'Install and Reload' }).click();
+
+				context.log('Waiting for WSL connection');
+				await window.getByText(/WSL/).waitFor();
+			} catch (error) {
+				await context.captureScreenshot(window);
+				throw error;
+			}
 
 			await test.run(window);
 		} finally {
-			context.log('Closing the application');
-			await app.close();
+			await context.closeElectronApp(app);
 		}
 
 		test.validate();
