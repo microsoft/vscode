@@ -35,6 +35,7 @@ jobs:
           outputformat: text
         continueOnError: true
         retryCountOnTaskFailure: 5
+        condition: and(succeeded(), or(eq(lower(variables['VSCODE_PUBLISH']), 'true'), eq(lower(variables['VSCODE_RELEASE']), 'true')))
         displayName: Generate NOTICE file
 
       - script: |
