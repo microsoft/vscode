@@ -138,6 +138,13 @@ export class BrowserViewElementInspector extends Disposable {
 		this._register({
 			dispose: () => webContents.ipc.removeListener('vscode:browserView:elementPicked', onPicked)
 		});
+		const onPickStopped = () => {
+			this._activeSelection.clear();
+		};
+		webContents.ipc.on('vscode:browserView:elementPickStopped', onPickStopped);
+		this._register({
+			dispose: () => webContents.ipc.removeListener('vscode:browserView:elementPickStopped', onPickStopped)
+		});
 
 		// Navigation to a new document destroys the preload's page-side overlay
 		// and resets the CDP inspect mode. Clear the active selection so the
