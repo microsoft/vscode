@@ -64,6 +64,52 @@
 	}
 }
 
+/* --- Aquarium-as-sessions collapse mode ---
+ * When `.aquarium-mode-collapsed` is set without `.revealed`, the chat input
+ * and workspace picker are already hidden by the existing `.revealed`-gated
+ * rules above. We just need to surface the transparent click-catcher hotspot
+ * that fills the empty space so users can summon the chat input back. */
+
+.aquarium-compose-hotspot {
+	display: none;
+}
+
+.new-chat-widget-container.aquarium-mode-collapsed:not(.revealed) > .aquarium-compose-hotspot {
+	display: flex;
+	position: absolute;
+	inset: 0;
+	margin: 0;
+	padding: 0;
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	font-size: 12px;
+	letter-spacing: 0.02em;
+	opacity: 0.55;
+	transition: opacity 200ms ease;
+	z-index: 50;
+}
+
+.new-chat-widget-container.aquarium-mode-collapsed:not(.revealed) > .aquarium-compose-hotspot:hover,
+.new-chat-widget-container.aquarium-mode-collapsed:not(.revealed) > .aquarium-compose-hotspot:focus-visible {
+	opacity: 1;
+}
+
+.new-chat-widget-container.aquarium-mode-collapsed:not(.revealed) > .aquarium-compose-hotspot:focus-visible {
+	outline: 1px dashed var(--vscode-focusBorder);
+	outline-offset: -8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.new-chat-widget-container.aquarium-mode-collapsed:not(.revealed) > .aquarium-compose-hotspot {
+		transition: none;
+	}
+}
+
 .new-session-workspace-picker-container:empty {
 	display: none;
 	margin-bottom: 0;

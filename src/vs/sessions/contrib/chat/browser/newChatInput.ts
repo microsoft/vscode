@@ -600,6 +600,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._editor?.focus();
 	}
 
+	isInputEmpty(): boolean {
+		return !this._editor?.getModel()?.getValue();
+	}
+
 	prefillInput(text: string): void {
 		const editor = this._editor;
 		const model = editor?.getModel();

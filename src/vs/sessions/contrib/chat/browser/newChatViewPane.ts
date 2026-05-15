@@ -6,9 +6,10 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { derived } from '../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -16,12 +17,16 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../nls.js';
+import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
+import { IAquariumService, IMountedToggleHandle, isAquariumAsSessionsEnabled, SESSIONS_DEVELOPER_JOY_AQUARIUM_AS_SESSIONS_SETTING, SESSIONS_DEVELOPER_JOY_ENABLED_SETTING } from '../../aquarium/browser/aquariumOverlay.js';
+import { IAquariumSubmitIntentService } from '../../aquarium/browser/aquariumSubmitIntentService.js';
+import { SessionPopulationDriver } from '../../aquarium/browser/sessionPopulationDriver.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
@@ -32,6 +37,8 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 
 // #region --- New Chat Widget ---
 
+type AquariumChatInputTrigger = 'click' | 'submit' | 'outside' | 'esc' | 'scopeChanged';
+
 class NewChatWidget extends Disposable {
 
 	private readonly _workspacePicker: WorkspacePicker;
@@ -41,6 +48,15 @@ class NewChatWidget extends Disposable {
 	/** Tracks an in-flight wait for a provider's session types to become available. */
 	private readonly _pendingSessionTypeWait = new MutableDisposable<IDisposable>();
 
+	private _chatWidgetContainer: HTMLElement | undefined;
+	private _aquariumModeActive = false;
+	private _revealed = true;
+	private _sessionDriverFactoryApplied = false;
+	private _hotspotButton: HTMLButtonElement | undefined;
+	private readonly _hotspotStore = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _aquariumDismissStore = this._register(new MutableDisposable<DisposableStore>());
+	private _autoDismissTimer = this._register(new MutableDisposable<IDisposable>());
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
@@ -48,6 +64,10 @@ class NewChatWidget extends Disposable {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
+		@IAquariumSubmitIntentService private readonly aquariumSubmitIntentService: IAquariumSubmitIntentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
@@ -101,6 +121,7 @@ class NewChatWidget extends Disposable {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget'));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$('.new-chat-widget-content'));
+		this._chatWidgetContainer = chatWidgetContainer;
 
 		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
 
@@ -119,7 +140,223 @@ class NewChatWidget extends Disposable {
 			this._createNewSession(restoredProject, this._newChatInput.sessionTypePicker.selectedType);
 		}
 
+		// Default to the legacy "input visible" experience. The aquarium-mode
+		// controller below collapses it on first evaluation when the combined
+		// gate (developerJoy + aquariumAsSessions + agent-host scope) is on.
 		chatWidgetContainer.classList.add('revealed');
+
+		this._setupAquariumModeController(chatWidgetContainer);
+	}
+
+	/**
+	 * When the combined gate is on, hide the new-chat input + workspace picker
+	 * and surface a transparent click-catcher hotspot so the user sees the
+	 * aquarium first. Reveal on click / focus / keyboard, dismiss on submit /
+	 * outside-click / Esc.
+	 */
+	private _setupAquariumModeController(chatWidgetContainer: HTMLElement): void {
+		const recompute = () => this._recomputeAquariumMode(chatWidgetContainer);
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(SESSIONS_DEVELOPER_JOY_ENABLED_SETTING)
+				|| e.affectsConfiguration(SESSIONS_DEVELOPER_JOY_AQUARIUM_AS_SESSIONS_SETTING)) {
+				recompute();
+			}
+		}));
+		this._register(this._workspacePicker.onDidSelectWorkspace(() => recompute()));
+		this._register(autorun(reader => {
+			this.sessionsManagementService.activeSession.read(reader);
+			recompute();
+		}));
+
+		recompute();
+	}
+
+	private _isAquariumModeActive(): boolean {
+		if (this.configurationService.getValue<boolean>(SESSIONS_DEVELOPER_JOY_ENABLED_SETTING) !== true) {
+			return false;
+		}
+		if (!isAquariumAsSessionsEnabled(this.configurationService)) {
+			return false;
+		}
+		const project = this._workspacePicker.selectedProject;
+		if (project && ANY_AGENT_HOST_PROVIDER_RE.test(project.providerId)) {
+			return true;
+		}
+		const active = this.sessionsManagementService.activeSession.get();
+		if (active && ANY_AGENT_HOST_PROVIDER_RE.test(active.providerId)) {
+			return true;
+		}
+		return false;
+	}
+
+	private _recomputeAquariumMode(chatWidgetContainer: HTMLElement): void {
+		const wasActive = this._aquariumModeActive;
+		const nowActive = this._isAquariumModeActive();
+		this._aquariumModeActive = nowActive;
+
+		chatWidgetContainer.classList.toggle('aquarium-mode-collapsed', nowActive);
+
+		if (nowActive && !this._sessionDriverFactoryApplied) {
+			this._aquariumToggle?.setDriverFactory(() => this.instantiationService.createInstance(SessionPopulationDriver));
+			this._sessionDriverFactoryApplied = true;
+			this._logPopulationMode('sessions');
+		} else if (!nowActive && this._sessionDriverFactoryApplied) {
+			this._aquariumToggle?.setDriverFactory(undefined);
+			this._sessionDriverFactoryApplied = false;
+			this._logPopulationMode('random');
+		}
+
+		if (nowActive) {
+			this._installHotspot(chatWidgetContainer);
+			this._installAquariumDismissHandlers(chatWidgetContainer);
+			// On entering aquarium mode (or first eval) start collapsed.
+			if (!wasActive) {
+				this._setRevealed(false, chatWidgetContainer, /*focus*/ false, 'scopeChanged');
+			}
+		} else {
+			this._teardownHotspot();
+			this._aquariumDismissStore.clear();
+			this._autoDismissTimer.clear();
+			// Force the legacy always-visible experience when out of scope.
+			this._setRevealed(true, chatWidgetContainer, /*focus*/ false, 'scopeChanged');
+		}
+	}
+
+	private _setRevealed(revealed: boolean, chatWidgetContainer: HTMLElement, focus: boolean, trigger: AquariumChatInputTrigger): void {
+		if (this._revealed === revealed) {
+			return;
+		}
+		this._revealed = revealed;
+		chatWidgetContainer.classList.toggle('revealed', revealed);
+		this._logChatInputAction(revealed ? 'reveal' : 'dismiss', trigger);
+		if (!focus) {
+			return;
+		}
+		if (revealed) {
+			this._newChatInput.focus();
+		} else {
+			this._hotspotButton?.focus();
+		}
+	}
+
+	private _installHotspot(chatWidgetContainer: HTMLElement): void {
+		if (this._hotspotStore.value) {
+			return;
+		}
+		const store = new DisposableStore();
+		this._hotspotStore.value = store;
+		const button = dom.$('button.aquarium-compose-hotspot') as HTMLButtonElement;
+		button.type = 'button';
+		button.setAttribute('aria-label', localize('aquarium.composeHotspot.aria', "Compose new agent chat"));
+		button.textContent = localize('aquarium.composeHotspot.label', "Click to compose…");
+		// Keep the hotspot above the aquarium toggle's stacking context so
+		// pointer events on empty space reach the button rather than the
+		// (decorative, pointer-events:none) aquarium layers.
+		chatWidgetContainer.appendChild(button);
+		store.add({ dispose: () => button.remove() });
+		store.add(dom.addDisposableListener(button, dom.EventType.CLICK, () => {
+			if (this._aquariumModeActive) {
+				this._setRevealed(true, chatWidgetContainer, /*focus*/ true, 'click');
+			}
+		}));
+		this._hotspotButton = button;
+	}
+
+	private _teardownHotspot(): void {
+		this._hotspotStore.clear();
+		this._hotspotButton = undefined;
+	}
+
+	private _installAquariumDismissHandlers(chatWidgetContainer: HTMLElement): void {
+		if (this._aquariumDismissStore.value) {
+			return;
+		}
+		const store = new DisposableStore();
+		this._aquariumDismissStore.value = store;
+		const targetWindow = dom.getWindow(chatWidgetContainer);
+
+		// Outside-click → dismiss. Use capture phase so we see clicks before
+		// they're consumed elsewhere. Skip clicks inside picker popups.
+		store.add(dom.addDisposableListener(targetWindow.document, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			if (!this._aquariumModeActive || !this._revealed) {
+				return;
+			}
+			const target = e.target as HTMLElement | null;
+			if (!target) {
+				return;
+			}
+			if (chatWidgetContainer.contains(target)) {
+				return;
+			}
+			if (target.closest('.monaco-list, .monaco-action-bar, .context-view, .monaco-menu, .monaco-hover, .monaco-quick-input-widget')) {
+				return;
+			}
+			this._setRevealed(false, chatWidgetContainer, /*focus*/ false, 'outside');
+		}, true));
+
+		// Esc on the input → dismiss when the input is empty (so the first
+		// press still clears partial text via Monaco's native handler).
+		store.add(dom.addDisposableListener(chatWidgetContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (e.key !== 'Escape') {
+				return;
+			}
+			if (!this._aquariumModeActive || !this._revealed) {
+				return;
+			}
+			if (!this._newChatInput.isInputEmpty()) {
+				return;
+			}
+			e.stopPropagation();
+			this._setRevealed(false, chatWidgetContainer, /*focus*/ true, 'esc');
+		}, true));
+	}
+
+	private _scheduleAquariumAutoDismiss(): void {
+		if (!this._aquariumModeActive || !this._chatWidgetContainer) {
+			return;
+		}
+		const container = this._chatWidgetContainer;
+		const targetWindow = dom.getWindow(container);
+		this._autoDismissTimer.clear();
+		// Brief delay so the user sees the submit-fish spawn before the chat
+		// input slides away.
+		const delayMs = this.accessibilityService.isMotionReduced() ? 0 : 250;
+		const handle = targetWindow.setTimeout(() => {
+			if (this._aquariumModeActive) {
+				this._setRevealed(false, container, /*focus*/ false, 'submit');
+			}
+		}, delayMs);
+		this._autoDismissTimer.value = { dispose: () => targetWindow.clearTimeout(handle) };
+	}
+
+	private _logPopulationMode(mode: 'random' | 'sessions'): void {
+		type AquariumPopulationModeEvent = {
+			mode: string;
+		};
+		type AquariumPopulationModeClassification = {
+			mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which population driver is active for the aquarium overlay (random crowd vs 1:1 session mapping).' };
+			owner: 'osortega';
+			comment: 'Tracks adoption of the hidden "aquarium-as-sessions" developer-joy mode in the Agents new-chat view.';
+		};
+		this.telemetryService.publicLog2<AquariumPopulationModeEvent, AquariumPopulationModeClassification>('aquarium.populationMode', { mode });
+	}
+
+	private _logChatInputAction(action: 'reveal' | 'dismiss', trigger: AquariumChatInputTrigger): void {
+		// Only meaningful when the aquarium-mode controller is in scope (the
+		// non-aquarium force-reveal still flows through here on first eval to
+		// keep state coherent, but its trigger is `'scopeChanged'`).
+		type AquariumChatInputEvent = {
+			action: string;
+			trigger: string;
+		};
+		type AquariumChatInputClassification = {
+			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the chat input was revealed or dismissed.' };
+			trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What caused the reveal or dismiss (click on hotspot, submit success, outside click, escape, scope change).' };
+			owner: 'osortega';
+			comment: 'Tracks reveal/dismiss interactions on the aquarium-as-sessions collapsed chat input.';
+		};
+		this.telemetryService.publicLog2<AquariumChatInputEvent, AquariumChatInputClassification>('aquarium.chatInput', { action, trigger });
 	}
 
 	/**
@@ -217,8 +454,16 @@ class NewChatWidget extends Disposable {
 			this._workspacePicker.showPicker();
 			return;
 		}
+		// Record the submit intent BEFORE awaiting so the
+		// SessionPopulationDriver can consume it the moment the new agent-host
+		// session is registered. The service is a no-op when the
+		// sessions-aware aquarium isn't active.
+		this.aquariumSubmitIntentService.recordIntent();
 		try {
 			await this.sessionsManagementService.sendAndCreateChat(session, { query, attachedContext });
+			// In aquarium-mode, slide the chat input back away so the user can
+			// see the new fish appear from the input area.
+			this._scheduleAquariumAutoDismiss();
 		} catch (e) {
 			this.logService.error('Failed to send request:', e);
 		}

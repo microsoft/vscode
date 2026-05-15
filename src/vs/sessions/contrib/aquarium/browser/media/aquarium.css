@@ -103,6 +103,14 @@
 	pointer-events: none;
 }
 
+/* Bubble layer paints above fish so activity bubbles stay legible when
+ * fish school over each other. Decorative — `aria-hidden` set in JS. */
+.agents-aquarium-bubble-layer {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
 /* No drop-shadow / blur filter: those force a software rasterization pass
  * per fish per frame (~10x paint cost at 50 fish). */
 .agents-aquarium-fish {
@@ -165,6 +173,69 @@
 	100% {
 		transform: translateY(0);
 	}
+}
+
+/* --- Status variants (sessions-aware aquarium) --- */
+
+/* Each variant overrides the species color. The status-driven appearance
+ * intentionally stays subtle: the same VS Code logo silhouette, recolored.
+ * Inline `style.color` is cleared by Fish.setStatusVariant when a variant is
+ * active, so these class rules apply at the natural cascade order. */
+.agents-aquarium-fish--running {
+	color: var(--vscode-charts-blue, #3794ff);
+}
+
+.agents-aquarium-fish--needs-input {
+	color: var(--vscode-charts-orange, #d18616);
+}
+
+.agents-aquarium-fish--completed {
+	color: var(--vscode-descriptionForeground, #989898);
+}
+
+.agents-aquarium-fish--error {
+	color: var(--vscode-charts-red, #f14c4c);
+}
+
+/* Higher specificity so completed fish stay slightly faded even while
+ * `.visible` (which would otherwise pin opacity to 1). */
+.agents-aquarium-fish.visible.agents-aquarium-fish--completed {
+	opacity: 0.55;
+}
+
+/* --- Activity bubbles (sessions-aware aquarium) --- */
+
+.agents-aquarium-bubble {
+	position: absolute;
+	top: 0;
+	left: 0;
+	max-width: 220px;
+	padding: 4px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	line-height: 14px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	background: var(--vscode-editorHoverWidget-background, rgba(40, 40, 40, 0.92));
+	color: var(--vscode-editorHoverWidget-foreground, #d4d4d4);
+	border: 1px solid var(--vscode-editorHoverWidget-border, rgba(255, 255, 255, 0.1));
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+	pointer-events: none;
+	will-change: transform, opacity;
+	opacity: 1;
+	transition: opacity 200ms ease-out;
+}
+
+.agents-aquarium-bubble.fade-out {
+	opacity: 0;
+}
+
+.agents-aquarium-bubble-text {
+	display: inline-block;
+	max-width: 200px;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 /* --- Food pellets --- */
@@ -288,7 +359,8 @@
 	}
 
 	.agents-aquarium-water,
-	.agents-aquarium-fish {
+	.agents-aquarium-fish,
+	.agents-aquarium-bubble {
 		transition: none;
 	}
 }

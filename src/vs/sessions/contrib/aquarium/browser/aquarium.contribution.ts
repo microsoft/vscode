@@ -10,6 +10,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { AquariumService, IAquariumService, SESSIONS_DEVELOPER_JOY_ENABLED_SETTING } from './aquariumOverlay.js';
+import { AquariumSubmitIntentService, IAquariumSubmitIntentService } from './aquariumSubmitIntentService.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
@@ -20,7 +21,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('sessions.developerJoy.enabled', "Adds an easter egg to the Agents application."),
 			tags: ['experimental'],
 		},
+		// NOTE: `SESSIONS_DEVELOPER_JOY_AQUARIUM_AS_SESSIONS_SETTING`
+		// (`sessions.developerJoy.aquariumAsSessions`) is intentionally NOT
+		// registered here. It is a hidden developer-opt-in gate that must not
+		// appear in Settings UI, IntelliSense, or default settings exports.
+		// See the constant's JSDoc in `aquariumOverlay.ts` for details.
 	},
 });
 
 registerSingleton(IAquariumService, AquariumService, InstantiationType.Delayed);
+registerSingleton(IAquariumSubmitIntentService, AquariumSubmitIntentService, InstantiationType.Delayed);

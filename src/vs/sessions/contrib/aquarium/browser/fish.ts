@@ -24,6 +24,16 @@ const SPECIES_COLOR: Record<FishSpecies, string> = {
 	[FishSpecies.Exploration]: '#E04F00',
 };
 
+/**
+ * Visual status used by the sessions-aware aquarium. When set, the fish's
+ * color is taken over by a status-specific CSS class
+ * (`agents-aquarium-fish--<variant>`); when cleared, the species color is
+ * restored.
+ */
+export type FishStatusVariant = 'running' | 'needs-input' | 'completed' | 'error';
+
+const ALL_STATUS_VARIANTS: readonly FishStatusVariant[] = ['running', 'needs-input', 'completed', 'error'];
+
 /** Pick a random species, weighted Stable > Insiders > Exploration. */
 export function pickRandomSpecies(): FishSpecies {
 	const roll = Math.random();
@@ -70,7 +80,7 @@ export class Fish {
 	positionY: number;
 	velocityX: number;
 	velocityY: number;
-	readonly size: number;
+	size: number;
 
 	/** Timestamp until which this fish is in "panic" mode (faster, scattering). */
 	panicUntil = 0;
@@ -89,6 +99,17 @@ export class Fish {
 	 */
 	private facing = 1;
 
+	/** Inline `style.color` for this fish's species. Restored when a status variant is cleared. */
+	private readonly _speciesColor: string;
+
+	private _activeStatusVariant: FishStatusVariant | undefined;
+
+	/**
+	 * Active size tween, if any. `undefined` once the tween settles or when no
+	 * tween is active. Read by {@link tickSize} each frame.
+	 */
+	private _sizeTween: { startSize: number; targetSize: number; startTime: number; durationMs: number } | undefined;
+
 	constructor(opts: IFishOptions, targetDocument: Document) {
 		this.positionX = opts.positionX;
 		this.positionY = opts.positionY;
@@ -97,11 +118,13 @@ export class Fish {
 		this.size = opts.size;
 		this.wanderAngle = Math.atan2(opts.velocityY, opts.velocityX);
 
+		this._speciesColor = SPECIES_COLOR[opts.species];
+
 		this.element = targetDocument.createElement('div');
 		this.element.className = 'agents-aquarium-fish';
 		this.element.style.width = `${opts.size}px`;
 		this.element.style.height = `${opts.size}px`;
-		this.element.style.color = SPECIES_COLOR[opts.species];
+		this.element.style.color = this._speciesColor;
 
 		// Inner element receives the directional flip so the body strip animations
 		// (driven by --agents-aquarium-strip-index) are unaffected by direction changes.
@@ -111,6 +134,73 @@ export class Fish {
 		this.element.appendChild(this.innerElement);
 
 		this.applyTransform();
+	}
+
+	/**
+	 * Begin (or instantly apply) a tween from the current size to {@linkcode size}
+	 * over {@linkcode durationMs} milliseconds. Subsequent calls override any
+	 * in-flight tween. Pass `0` (default) to set the size immediately and clear
+	 * any active tween.
+	 */
+	setTargetSize(size: number, durationMs: number = 0): void {
+		const clamped = Math.max(1, size);
+		if (durationMs <= 0) {
+			this._sizeTween = undefined;
+			this.size = clamped;
+			this.element.style.width = `${clamped}px`;
+			this.element.style.height = `${clamped}px`;
+			return;
+		}
+		this._sizeTween = {
+			startSize: this.size,
+			targetSize: clamped,
+			startTime: performance.now(),
+			durationMs,
+		};
+	}
+
+	/**
+	 * Advance any in-flight size tween to {@linkcode now}. Cheap no-op when no
+	 * tween is active. Call once per frame from the aquarium tick.
+	 */
+	tickSize(now: number): void {
+		const tween = this._sizeTween;
+		if (!tween) {
+			return;
+		}
+		const elapsed = now - tween.startTime;
+		if (elapsed >= tween.durationMs) {
+			this.size = tween.targetSize;
+			this._sizeTween = undefined;
+		} else {
+			// easeOutCubic — fast at the start, soft landing.
+			const t = elapsed / tween.durationMs;
+			const eased = 1 - Math.pow(1 - t, 3);
+			this.size = tween.startSize + (tween.targetSize - tween.startSize) * eased;
+		}
+		this.element.style.width = `${this.size.toFixed(2)}px`;
+		this.element.style.height = `${this.size.toFixed(2)}px`;
+	}
+
+	/**
+	 * Apply a status-driven appearance override (color via class). Pass
+	 * `undefined` to revert to the species color.
+	 *
+	 * Only the inline color is touched: the species color is re-applied when
+	 * the variant clears, so toggling between variant and species is
+	 * idempotent.
+	 */
+	setStatusVariant(variant: FishStatusVariant | undefined): void {
+		if (variant === this._activeStatusVariant) {
+			return;
+		}
+		this._activeStatusVariant = variant;
+		for (const v of ALL_STATUS_VARIANTS) {
+			this.element.classList.toggle(`agents-aquarium-fish--${v}`, v === variant);
+		}
+		// Inline `color` wins over class rules at equal specificity, so we
+		// clear it while a variant is active and restore it when none is.
+		this.element.style.color = variant === undefined ? this._speciesColor : '';
 	}
 
 	/**

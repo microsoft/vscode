@@ -17,9 +17,34 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsAquariumActiveContext } from '../../../common/contextkeys.js';
-import { disposeSharedFishDefs, Fish, pickRandomSpecies } from './fish.js';
+import { Bubble } from './bubble.js';
+import { disposeSharedFishDefs, Fish, FishSpecies, pickRandomSpecies } from './fish.js';
 
 export const SESSIONS_DEVELOPER_JOY_ENABLED_SETTING = 'sessions.developerJoy.enabled';
+
+/**
+ * Hidden, **unregistered** configuration key that activates the
+ * sessions-aware aquarium experience (1:1 fish ↔ session, activity bubbles,
+ * collapse-mode chat input, submit-grows-a-fish).
+ *
+ * Intentionally NOT registered with the configuration schema: it must not
+ * appear in Settings UI, IntelliSense for `settings.json`, default settings
+ * exports, or product docs. To opt in, hand-edit `settings.json` and set the
+ * key to `true`.
+ *
+ * **Do not add this to `aquarium.contribution.ts`'s `registerConfiguration`
+ * block.** The combined gate (this + {@link SESSIONS_DEVELOPER_JOY_ENABLED_SETTING}
+ * + agent-host scope) is what flips the feature on.
+ */
+export const SESSIONS_DEVELOPER_JOY_AQUARIUM_AS_SESSIONS_SETTING = 'sessions.developerJoy.aquariumAsSessions';
+
+/**
+ * Read the hidden gate. Strictly compares to `true` so a misformatted value
+ * (e.g. the string `"true"`) does not silently activate the experience.
+ */
+export function isAquariumAsSessionsEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(SESSIONS_DEVELOPER_JOY_AQUARIUM_AS_SESSIONS_SETTING) === true;
+}
 
 const FISH_COUNT = 50;
 const FISH_MIN_SIZE = 22;
@@ -51,12 +76,101 @@ const DART_IMPULSE = 150;
 
 const ENABLED_STORAGE_KEY = 'sessions.developerJoy.enabled';
 
+/** Soft cap on simultaneously visible activity bubbles to keep the scene legible. */
+const MAX_BUBBLES = 6;
+
 interface IFoodPellet {
 	readonly element: HTMLDivElement;
 	positionX: number;
 	positionY: number;
 	fallSpeed: number;
 }
+
+// #region --- Population driver API -------------------------------------------------------
+
+/**
+ * Options accepted by {@link IAquariumHost.addFish}. Any field left undefined
+ * falls back to the random-crowd defaults the engine has always used (random
+ * size in [{@link FISH_MIN_SIZE}, {@link FISH_MAX_SIZE}], random heading,
+ * weighted random species, random position inside the water bounds).
+ */
+export interface IAddFishOptions {
+	readonly species?: FishSpecies;
+	readonly size?: number;
+	readonly positionX?: number;
+	readonly positionY?: number;
+	readonly velocityX?: number;
+	readonly velocityY?: number;
+	/** Stagger delay applied as `transition-delay` before adding `.visible`. */
+	readonly fadeInDelayMs?: number;
+}
+
+/**
+ * Handle returned to drivers for each fish they add. Owns the underlying
+ * {@link Fish} and provides a fade-out path that respects the engine's exit
+ * timing. Disposing the handle removes the fish synchronously without a fade.
+ */
+export interface IFishHandle extends IDisposable {
+	readonly fish: Fish;
+	/**
+	 * Start a swim-out fade and dispose this handle when it completes.
+	 * Idempotent: subsequent calls (or a direct dispose) are no-ops.
+	 */
+	fadeOut(delayMs?: number): void;
+}
+
+/**
+ * Driver-facing surface for an active aquarium. The engine owns the water,
+ * the food/RAF loop, mouse handling, and exit animation; drivers only decide
+ * which fish exist.
+ */
+export interface IAquariumHost {
+	readonly targetWindow: Window;
+	readonly mainContainer: HTMLElement;
+	/** Reflects the current size of the water in pixels. Mutated in place by the engine. */
+	readonly bounds: { readonly width: number; readonly height: number };
+	addFish(opts?: IAddFishOptions): IFishHandle;
+	/**
+	 * Show (or update) an activity bubble above the given fish. When a bubble
+	 * already exists for this fish, the text is replaced and the dwell timer
+	 * is reset; otherwise a fresh bubble is created (subject to the engine's
+	 * global cap, which evicts the oldest non-hovered bubble when exceeded).
+	 *
+	 * No-op if the handle is unknown to the engine (already disposed) or the
+	 * aquarium is exiting.
+	 */
+	showBubble(handle: IFishHandle, text: string): void;
+}
+
+/**
+ * Strategy supplied to the engine to populate an active aquarium. The engine
+ * calls {@link IAquariumPopulationDriver.attach} once during activation; the
+ * driver typically registers reactive listeners and calls
+ * {@link IAquariumHost.addFish} as data changes. Disposing the driver runs
+ * when the aquarium is being torn down or the driver is being swapped.
+ */
+export interface IAquariumPopulationDriver extends IDisposable {
+	attach(host: IAquariumHost): void;
+}
+
+/**
+ * Optional mount configuration. Today the only knob is the population
+ * driver factory; future per-mount knobs (e.g. opt out of the toggle button)
+ * land here.
+ */
+export interface IMountToggleOptions {
+	/**
+	 * If supplied, the active aquarium will use a driver instantiated from
+	 * this factory instead of the default random-crowd driver. Pass
+	 * `undefined` (or omit) to keep the default.
+	 *
+	 * Equivalent to {@link IMountedToggleHandle.setDriverFactory} called
+	 * with the same value at mount time.
+	 */
+	readonly driverFactory?: () => IAquariumPopulationDriver;
+}
+
+// #endregion
 
 /**
  * Owns the toggle button(s), the persisted on/off preference, and the active
@@ -75,8 +189,12 @@ export interface IAquariumService {
 	 * aquarium tied to their own visibility (e.g. a view pane). Disposing the
 	 * handle removes the button and tears down the active aquarium if it was
 	 * the last mount.
+	 *
+	 * `opts.driverFactory` selects a custom population driver. The most
+	 * recently set factory across all mounts wins; this is fine because today
+	 * there is only one consumer (the new chat view).
 	 */
-	mountToggle(parent: HTMLElement): IMountedToggleHandle;
+	mountToggle(parent: HTMLElement, opts?: IMountToggleOptions): IMountedToggleHandle;
 }
 
 export interface IMountedToggleHandle extends IDisposable {
@@ -88,11 +206,24 @@ export interface IMountedToggleHandle extends IDisposable {
 	 * Hosts that don't care can leave this alone — mounts default to visible.
 	 */
 	setHostVisible(visible: boolean): void;
+
+	/**
+	 * Replace the population driver. Pass `undefined` to revert to the
+	 * default random-crowd driver.
+	 *
+	 * If the aquarium is currently active, the running driver is disposed,
+	 * all existing fish are removed synchronously (no fade — used for an
+	 * internal swap, not a user-visible exit), and the new driver is
+	 * attached. If no aquarium is active, the factory is just stored for
+	 * the next activation.
+	 */
+	setDriverFactory(factory: (() => IAquariumPopulationDriver) | undefined): void;
 }
 
 interface IMountedToggle {
 	readonly button: HTMLButtonElement;
 	hostVisible: boolean;
+	driverFactory: (() => IAquariumPopulationDriver) | undefined;
 }
 
 export class AquariumService extends Disposable implements IAquariumService {
@@ -126,7 +257,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		}));
 	}
 
-	mountToggle(parent: HTMLElement): IMountedToggleHandle {
+	mountToggle(parent: HTMLElement, opts?: IMountToggleOptions): IMountedToggleHandle {
 		const doc = parent.ownerDocument;
 		const button = doc.createElement('button');
 		button.className = 'agents-aquarium-toggle';
@@ -149,9 +280,10 @@ export class AquariumService extends Disposable implements IAquariumService {
 
 		parent.appendChild(button);
 
-		const mount: IMountedToggle = { button, hostVisible: true };
+		const mount: IMountedToggle = { button, hostVisible: true, driverFactory: opts?.driverFactory };
 		this.mounts.add(mount);
 		this.applyFeatureEnabledStateForButton(button);
+		this.applyDriverFactoryToActive();
 		this.reconcileActivation();
 
 		return {
@@ -162,13 +294,49 @@ export class AquariumService extends Disposable implements IAquariumService {
 				mount.hostVisible = visible;
 				this.reconcileActivation();
 			},
+			setDriverFactory: (factory: (() => IAquariumPopulationDriver) | undefined) => {
+				if (mount.driverFactory === factory) {
+					return;
+				}
+				mount.driverFactory = factory;
+				this.applyDriverFactoryToActive();
+			},
 			dispose: () => {
 				store.dispose();
 				button.remove();
 				this.mounts.delete(mount);
+				this.applyDriverFactoryToActive();
 				this.reconcileActivation();
 			},
 		};
+	}
+
+	/**
+	 * Compute the most-recent driver factory across mounts (most recently
+	 * set wins) and push it to the active aquarium so it can swap drivers
+	 * in place. No-op if no aquarium is active or the factory is unchanged.
+	 */
+	private applyDriverFactoryToActive(): void {
+		const factory = this.selectedDriverFactory();
+		if (!this.activeRef.value) {
+			return;
+		}
+		this.activeRef.value.swapDriver(factory);
+	}
+
+	/**
+	 * The most recently set driver factory across all mounts (insertion order
+	 * for `Set`). With a single consumer today this collapses to "the chat
+	 * view's factory if any".
+	 */
+	private selectedDriverFactory(): (() => IAquariumPopulationDriver) | undefined {
+		let factory: (() => IAquariumPopulationDriver) | undefined;
+		for (const mount of this.mounts) {
+			if (mount.driverFactory) {
+				factory = mount.driverFactory;
+			}
+		}
+		return factory;
 	}
 
 	/**
@@ -275,7 +443,12 @@ export class AquariumService extends Disposable implements IAquariumService {
 		this.pendingExit.clear();
 		let active: IActiveAquarium | undefined;
 		try {
-			active = createActiveAquarium(this.mainContainer, this.layoutService, this.accessibilityService);
+			active = createActiveAquarium(
+				this.mainContainer,
+				this.layoutService,
+				this.accessibilityService,
+				this.selectedDriverFactory(),
+			);
 		} catch (e) {
 			console.error('[aquarium] failed to activate', e);
 			return;
@@ -338,6 +511,16 @@ interface IActiveAquarium extends IDisposable {
 	 * returned handle before the animation finishes disposes immediately.
 	 */
 	exit(onDidComplete: () => void): IDisposable;
+
+	/**
+	 * Replace the active population driver in place. The previous driver is
+	 * disposed, all current fish are removed synchronously (no fade — used
+	 * for an internal swap, not a user-visible exit), and the new driver is
+	 * attached. Pass `undefined` to revert to the default random crowd.
+	 *
+	 * No-op if the aquarium is already exiting.
+	 */
+	swapDriver(factory: (() => IAquariumPopulationDriver) | undefined): void;
 }
 
 /**
@@ -345,7 +528,12 @@ interface IActiveAquarium extends IDisposable {
  * Returns `undefined` if the chat bar isn't available so callers can bail
  * without leaving the toggle button stuck in an "active but invisible" state.
  */
-function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbenchLayoutService, accessibilityService: IAccessibilityService): IActiveAquarium | undefined {
+function createActiveAquarium(
+	mainContainer: HTMLElement,
+	layoutService: IWorkbenchLayoutService,
+	accessibilityService: IAccessibilityService,
+	populationDriverFactory: (() => IAquariumPopulationDriver) | undefined,
+): IActiveAquarium | undefined {
 	const targetWindow = getWindow(mainContainer);
 
 	// Host inside the chat bar so chat input UI naturally paints on top —
@@ -373,6 +561,13 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	foodLayer.className = 'agents-aquarium-food-layer';
 	water.appendChild(foodLayer);
 
+	// Bubble layer is ABOVE fish/food so activity bubbles paint on top and
+	// remain readable even when fish school over each other.
+	const bubbleLayer = doc.createElement('div');
+	bubbleLayer.className = 'agents-aquarium-bubble-layer';
+	bubbleLayer.setAttribute('aria-hidden', 'true');
+	water.appendChild(bubbleLayer);
+
 	const bounds = { width: 0, height: 0 };
 	// Cached so the per-mousemove handler doesn't trigger a layout flush.
 	const waterScreenOffset = { left: 0, top: 0 };
@@ -384,12 +579,20 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 		waterScreenOffset.top = rect.top;
 	};
 
-	const fish: Fish[] = [];
+	// Live fish keyed by allocation id. Insertion order is preserved by the
+	// `Map` spec, which the staggered exit animation leans on.
+	const fishHandles = new Map<number, FishHandle>();
+	/** Active bubbles keyed by their parent fish id. */
+	const bubblesByFishId = new Map<number, Bubble>();
+	let nextFishId = 0;
+	let exiting = false;
+	let currentDriver: IAquariumPopulationDriver | undefined;
 
 	updateBounds();
 	const resizeObserver = new ResizeObserver(() => {
 		updateBounds();
-		for (const f of fish) {
+		for (const handle of fishHandles.values()) {
+			const f = handle.fish;
 			f.positionX = Math.min(f.positionX, Math.max(0, bounds.width - f.size));
 			f.positionY = Math.min(f.positionY, Math.max(0, bounds.height - f.size));
 		}
@@ -397,62 +600,164 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	resizeObserver.observe(water);
 	store.add(toDisposable(() => resizeObserver.disconnect()));
 
-	for (let i = 0; i < FISH_COUNT; i++) {
-		const size = randomBetween(FISH_MIN_SIZE, FISH_MAX_SIZE);
-		const angle = Math.random() * Math.PI * 2;
-		const speed = randomBetween(BASE_SPEED * 0.6, BASE_SPEED * 1.2);
-		const f = new Fish({
-			species: pickRandomSpecies(),
-			size,
-			positionX: randomBetween(0, Math.max(1, bounds.width - size)),
-			positionY: randomBetween(0, Math.max(1, bounds.height - size)),
-			velocityX: Math.cos(angle) * speed,
-			velocityY: Math.sin(angle) * speed,
-		}, targetWindow.document);
-		fish.push(f);
+	// Local impl class so closure-captured state (fishHandles) is reachable
+	// without making the public IFishHandle interface leak engine internals.
+	class FishHandle implements IFishHandle {
+		readonly id = nextFishId++;
+		private _fadeOutTimer: ReturnType<typeof setTimeout> | undefined;
+		private _disposed = false;
+		constructor(readonly fish: Fish) { }
+		fadeOut(delayMs: number = 0): void {
+			if (this._disposed || this._fadeOutTimer !== undefined) {
+				return;
+			}
+			const adjustedDelay = Math.max(0, delayMs);
+			this.fish.element.style.transitionDelay = `${adjustedDelay}ms`;
+			this.fish.element.classList.remove('visible');
+			// The bubble (if any) should fade alongside the fish; don't leave
+			// orphan markup parented to a disappearing creature.
+			bubblesByFishId.get(this.id)?.fadeOut();
+			this._fadeOutTimer = setTimeout(() => {
+				this._fadeOutTimer = undefined;
+				this.dispose();
+			}, adjustedDelay + EXIT_DURATION_MS);
+		}
+		dispose(): void {
+			if (this._disposed) {
+				return;
+			}
+			this._disposed = true;
+			if (this._fadeOutTimer !== undefined) {
+				clearTimeout(this._fadeOutTimer);
+				this._fadeOutTimer = undefined;
+			}
+			// Synchronously drop any associated bubble so a sync `dispose()`
+			// (e.g. swapDriver) doesn't leak DOM.
+			const bubble = bubblesByFishId.get(this.id);
+			if (bubble) {
+				bubblesByFishId.delete(this.id);
+				bubble.dispose();
+			}
+			this.fish.element.remove();
+			fishHandles.delete(this.id);
+		}
 	}
-	// Spawn in two batches: first half synchronous (single layout pass via
-	// DocumentFragment), rest on the next frame so the toggle click stays snappy.
-	const SYNC_BATCH = Math.ceil(FISH_COUNT / 2);
-	const firstBatch = targetWindow.document.createDocumentFragment();
-	for (let i = 0; i < Math.min(SYNC_BATCH, fish.length); i++) {
-		firstBatch.appendChild(fish[i].element);
-	}
-	fishLayer.appendChild(firstBatch);
-	let exiting = false;
 
-	if (SYNC_BATCH < fish.length) {
-		const deferred = scheduleAtNextAnimationFrame(targetWindow, () => {
+	function evictOldestEvictableBubble(): void {
+		if (bubblesByFishId.size < MAX_BUBBLES) {
+			return;
+		}
+		// Prefer the oldest non-hovered, non-already-fading bubble.
+		let oldestId: number | undefined;
+		let oldestCreatedAt = Infinity;
+		for (const [fishId, bubble] of bubblesByFishId) {
+			if (bubble.isHovered || bubble.isFading) {
+				continue;
+			}
+			if (bubble.createdAt < oldestCreatedAt) {
+				oldestCreatedAt = bubble.createdAt;
+				oldestId = fishId;
+			}
+		}
+		if (oldestId !== undefined) {
+			// Trigger a fade-out; the bubble's onExpired handler will clean up.
+			bubblesByFishId.get(oldestId)?.fadeOut();
+		}
+	}
+
+	const host: IAquariumHost = {
+		targetWindow,
+		mainContainer,
+		bounds,
+		addFish: (opts: IAddFishOptions = {}): IFishHandle => {
+			const size = opts.size ?? randomBetween(FISH_MIN_SIZE, FISH_MAX_SIZE);
+			const positionX = opts.positionX ?? randomBetween(0, Math.max(1, bounds.width - size));
+			const positionY = opts.positionY ?? randomBetween(0, Math.max(1, bounds.height - size));
+			let velocityX = opts.velocityX;
+			let velocityY = opts.velocityY;
+			if (velocityX === undefined || velocityY === undefined) {
+				const angle = Math.random() * Math.PI * 2;
+				const speed = randomBetween(BASE_SPEED * 0.6, BASE_SPEED * 1.2);
+				velocityX = Math.cos(angle) * speed;
+				velocityY = Math.sin(angle) * speed;
+			}
+			const species = opts.species ?? pickRandomSpecies();
+			const fish = new Fish({
+				species,
+				size,
+				positionX,
+				positionY,
+				velocityX,
+				velocityY,
+			}, doc);
+			fishLayer.appendChild(fish.element);
+			const handle = new FishHandle(fish);
+			fishHandles.set(handle.id, handle);
+			// Add `.visible` on the NEXT frame so a paint at opacity:0 happens
+			// first — guarantees the CSS transition fires.
+			const fadeInDelayMs = Math.max(0, opts.fadeInDelayMs ?? 0);
+			const fadeIn = scheduleAtNextAnimationFrame(targetWindow, () => {
+				// Bail if we're exiting or the handle was disposed before the
+				// frame ran (a `Map.has` lookup avoids touching private state).
+				if (exiting || !fishHandles.has(handle.id)) {
+					return;
+				}
+				fish.element.style.transitionDelay = `${fadeInDelayMs}ms`;
+				fish.element.classList.add('visible');
+			});
+			store.add(fadeIn);
+			return handle;
+		},
+		showBubble: (handle: IFishHandle, text: string): void => {
 			if (exiting) {
 				return;
 			}
-			const restBatch = targetWindow.document.createDocumentFragment();
-			for (let i = SYNC_BATCH; i < fish.length; i++) {
-				restBatch.appendChild(fish[i].element);
+			// Reject handles we no longer own. A driver could be holding a
+			// stale reference after a swapDriver or fadeOut.
+			const fishId = (handle as FishHandle).id;
+			if (typeof fishId !== 'number' || !fishHandles.has(fishId)) {
+				return;
 			}
-			fishLayer.appendChild(restBatch);
-			// Add `.visible` on the NEXT frame so a paint at opacity:0 happens
-			// first — guarantees the CSS transition fires.
-			const fadeIn = scheduleAtNextAnimationFrame(targetWindow, () => {
-				if (exiting) {
-					return;
-				}
-				for (let i = SYNC_BATCH; i < fish.length; i++) {
-					const localIndex = i - SYNC_BATCH;
-					const delay = Math.min(localIndex * 12, 400);
-					fish[i].element.style.transitionDelay = `${delay}ms`;
-					fish[i].element.classList.add('visible');
-				}
+			const trimmed = text.trim();
+			if (!trimmed) {
+				// Clearing activity removes any active bubble.
+				bubblesByFishId.get(fishId)?.fadeOut();
+				return;
+			}
+			const existing = bubblesByFishId.get(fishId);
+			if (existing) {
+				existing.setText(trimmed);
+				return;
+			}
+			evictOldestEvictableBubble();
+			const bubble = new Bubble(doc, bubbleLayer, trimmed, () => {
+				bubblesByFishId.delete(fishId);
 			});
-			store.add(fadeIn);
-		});
-		store.add(deferred);
-	}
+			bubblesByFishId.set(fishId, bubble);
+		},
+	};
+
+	// Instantiate the population driver and let it populate the water.
+	// Default to RandomPopulationDriver when no factory is supplied so the
+	// long-standing "decorative crowd" behavior is preserved unchanged.
+	const initFactory = populationDriverFactory ?? (() => new RandomPopulationDriver(targetWindow));
+	currentDriver = initFactory();
+	currentDriver.attach(host);
+
+	// Final cleanup: dispose the driver, remove any remaining fish + bubbles,
+	// and tear down the shared SVG defs so we don't leak across reloads.
+	// Driver first so its bookkeeping doesn't try to touch fish that are
+	// about to be removed.
 	store.add(toDisposable(() => {
-		for (const f of fish) {
-			f.element.remove();
+		currentDriver?.dispose();
+		currentDriver = undefined;
+		for (const bubble of bubblesByFishId.values()) {
+			bubble.dispose();
 		}
-		// Tear down shared SVG defs so we don't leak across reloads.
+		bubblesByFishId.clear();
+		for (const handle of [...fishHandles.values()]) {
+			handle.dispose();
+		}
 		disposeSharedFishDefs(targetWindow.document);
 	}));
 
@@ -580,7 +885,8 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 
 	function updateFish(dt: number): void {
 		const now = performance.now();
-		for (const f of fish) {
+		for (const handle of fishHandles.values()) {
+			const f = handle.fish;
 			const centerX = f.positionX + f.size / 2;
 			const centerY = f.positionY + f.size / 2;
 
@@ -675,7 +981,22 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 			f.positionX = clamp(f.positionX, -f.size * 0.25, bounds.width - f.size * 0.75);
 			f.positionY = clamp(f.positionY, -f.size * 0.25, bounds.height - f.size * 0.75);
 
+			f.tickSize(now);
 			f.applyTransform(dt);
+		}
+
+		// Position any active bubbles directly above their fish. Cheap because
+		// the bubble count is small (capped by MAX_BUBBLES) and we already
+		// have all the fish positions locally.
+		if (bubblesByFishId.size > 0) {
+			for (const [fishId, bubble] of bubblesByFishId) {
+				const handle = fishHandles.get(fishId);
+				if (!handle) {
+					continue;
+				}
+				const f = handle.fish;
+				bubble.setPosition(f.positionX, f.positionY, f.size);
+			}
 		}
 	}
 
@@ -689,19 +1010,12 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	store.add(toDisposable(() => stopAnimation()));
 	startAnimation();
 
-	// First-batch fade-in (the deferred batch fades in when it mounts).
+	// Water fade-in (per-fish fade-in is handled inside `host.addFish`).
 	const fadeIn = scheduleAtNextAnimationFrame(targetWindow, () => {
 		if (exiting) {
 			return;
 		}
 		water.classList.add('visible');
-		for (let i = 0; i < Math.min(SYNC_BATCH, fish.length); i++) {
-			const f = fish[i];
-			// Slight stagger, capped at ~400ms so it doesn't drag on.
-			const delay = Math.min(i * 12, 400);
-			f.element.style.transitionDelay = `${delay}ms`;
-			f.element.classList.add('visible');
-		}
 	});
 	store.add(fadeIn);
 
@@ -712,17 +1026,45 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 			this._register(store);
 		}
 
+		swapDriver(factory: (() => IAquariumPopulationDriver) | undefined): void {
+			if (exiting) {
+				return;
+			}
+			currentDriver?.dispose();
+			currentDriver = undefined;
+			// Sync clear (no fade): this is an internal swap, not a
+			// user-visible exit. A staggered fade would let the previous
+			// crowd briefly mix with the incoming one.
+			for (const handle of [...fishHandles.values()]) {
+				handle.dispose();
+			}
+			const nextFactory = factory ?? (() => new RandomPopulationDriver(targetWindow));
+			currentDriver = nextFactory();
+			currentDriver.attach(host);
+		}
+
 		exit(onDidComplete: () => void): IDisposable {
 			if (exiting) {
 				return toDisposable(() => this.dispose());
 			}
 			exiting = true;
 
-			for (let i = 0; i < fish.length; i++) {
-				const f = fish[i];
+			// Stop the driver from spawning more fish during the fade-out;
+			// the engine remains alive until the animation completes.
+			currentDriver?.dispose();
+			currentDriver = undefined;
+
+			// Fade bubbles alongside the fish so they don't pop out.
+			for (const bubble of bubblesByFishId.values()) {
+				bubble.fadeOut();
+			}
+
+			let i = 0;
+			for (const handle of fishHandles.values()) {
 				const delay = Math.min(i * 12, 400);
-				f.element.style.transitionDelay = `${delay}ms`;
-				f.element.classList.remove('visible');
+				handle.fish.element.style.transitionDelay = `${delay}ms`;
+				handle.fish.element.classList.remove('visible');
+				i++;
 			}
 			water.classList.remove('visible');
 
@@ -742,6 +1084,36 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	};
 
 	return result;
+}
+
+/**
+ * Default population driver: spawns the long-standing decorative crowd of
+ * {@link FISH_COUNT} fish. Split into two batches — first half synchronous,
+ * rest deferred to the next animation frame — so a toggle click stays snappy.
+ */
+class RandomPopulationDriver extends Disposable implements IAquariumPopulationDriver {
+
+	constructor(private readonly _targetWindow: Window) {
+		super();
+	}
+
+	attach(host: IAquariumHost): void {
+		const SYNC_BATCH = Math.ceil(FISH_COUNT / 2);
+		for (let i = 0; i < SYNC_BATCH; i++) {
+			const delay = Math.min(i * 12, 400);
+			host.addFish({ fadeInDelayMs: delay });
+		}
+		if (SYNC_BATCH < FISH_COUNT) {
+			const deferred = scheduleAtNextAnimationFrame(this._targetWindow, () => {
+				for (let i = SYNC_BATCH; i < FISH_COUNT; i++) {
+					const localIndex = i - SYNC_BATCH;
+					const delay = Math.min(localIndex * 12, 400);
+					host.addFish({ fadeInDelayMs: delay });
+				}
+			});
+			this._register(deferred);
+		}
+	}
 }
 
 /** True for clicks not on a control — i.e. safe targets for spawning food. */
