@@ -7,7 +7,7 @@ import { randomUUID } from 'crypto';
 import type { CancellationToken, ChatRequest, ChatResponseStream, LanguageModelToolInformation, Progress } from 'vscode';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { IChatHookService } from '../../../platform/chat/common/chatHookService';
-import { ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
+import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
@@ -50,6 +50,8 @@ export interface ISearchSubagentToolCallingLoopOptions extends IToolCallingLoopO
 export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubagentToolCallingLoopOptions> {
 
 	public static readonly ID = 'searchSubagentTool';
+	private _budgetShrinkFactor = 1;
+	private _lastBuildPromptContext: IBuildPromptContext | undefined;
 
 	constructor(
 		options: ISearchSubagentToolCallingLoopOptions,
@@ -90,7 +92,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 	/**
 	 * Get the endpoint to use for the search subagent
 	 */
-	private async getEndpoint() {
+	protected async getEndpoint() {
 		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentModel, this._experimentationService) as ChatEndpointFamily | undefined;
 		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, this._experimentationService);
 
@@ -116,12 +118,19 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 	}
 
 	protected async buildPrompt(buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
+		this._lastBuildPromptContext = buildPromptContext;
 		const endpoint = await this.getEndpoint();
 		// Use the effective tool call limit from options (already adjusted for thoroughness in the tool)
 		const maxSearchTurns = this.options.toolCallLimit;
+
+		const tools = buildPromptContext.tools?.availableTools;
+		const toolTokens = tools?.length ? await endpoint.acquireTokenizer().countToolTokens(tools) : 0;
+		const messageBudget = Math.max(1, Math.floor((endpoint.modelMaxPromptTokens - toolTokens) * 0.9 * this._budgetShrinkFactor));
+		const renderEndpoint = toolTokens > 0 || this._budgetShrinkFactor < 1 ? endpoint.cloneWithTokenOverride(messageBudget) : endpoint;
+
 		const renderer = PromptRenderer.create(
 			this.instantiationService,
-			endpoint,
+			renderEndpoint,
 			SearchSubagentPrompt,
 			{
 				promptContext: buildPromptContext,
@@ -151,33 +160,75 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 
 	protected async fetch({ messages, finishedCb, requestOptions, modelCapabilities, iterationNumber }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
 		const endpoint = await this.getEndpoint();
-		return endpoint.makeChatRequest2({
-			debugName: SearchSubagentToolCallingLoop.ID,
-			messages,
-			finishedCb,
-			location: this.options.location,
-			modelCapabilities: { ...modelCapabilities, reasoningEffort: undefined },
-			requestOptions: {
-				...requestOptions,
-				temperature: 0
-			},
-			// This loop is inside a tool called from another request, so never user initiated
-			userInitiatedRequest: false,
-			turnId: this.options.request.id,
-			topLevelTurnId: this.options.topLevelTurnId,
-			telemetryProperties: {
-				requestId: this.options.subAgentInvocationId,
-				messageId: randomUUID(),
-				messageSource: 'chat.editAgent',
-				subType: 'search_subagent',
-				conversationId: this.options.conversation.sessionId,
-				parentToolCallId: this.options.parentToolCallId,
-				parentRequestId: this.options.request.id,
-				parentHeaderRequestId: this.options.parentHeaderRequestId,
-				parentModelCallId: this.options.parentModelCallId,
-				iterationNumber: iterationNumber.toString(),
-			},
-			interactionTypeOverride: 'conversation-subagent'
-		}, token);
+		let currentMessages = messages;
+		for (let attempt = 0; ; attempt++) {
+			const response = await endpoint.makeChatRequest2({
+				debugName: SearchSubagentToolCallingLoop.ID,
+				messages: currentMessages,
+				finishedCb,
+				location: this.options.location,
+				modelCapabilities: { ...modelCapabilities, reasoningEffort: undefined },
+				requestOptions: {
+					...requestOptions,
+					temperature: 0
+				},
+				// This loop is inside a tool called from another request, so never user initiated
+				userInitiatedRequest: false,
+				turnId: this.options.request.id,
+				topLevelTurnId: this.options.topLevelTurnId,
+				telemetryProperties: {
+					requestId: this.options.subAgentInvocationId,
+					messageId: randomUUID(),
+					messageSource: 'chat.editAgent',
+					subType: 'search_subagent',
+					conversationId: this.options.conversation.sessionId,
+					parentToolCallId: this.options.parentToolCallId,
+					parentRequestId: this.options.request.id,
+					parentHeaderRequestId: this.options.parentHeaderRequestId,
+					parentModelCallId: this.options.parentModelCallId,
+					iterationNumber: iterationNumber.toString(),
+				},
+				interactionTypeOverride: 'conversation-subagent'
+			}, token);
+
+			if (
+				attempt >= CONTEXT_OVERFLOW_SHRINK_FACTORS.length ||
+				token.isCancellationRequested ||
+				!this._lastBuildPromptContext ||
+				!isContextOverflowError(response)
+			) {
+				return response;
+			}
+
+			// Re-render with a smaller token budget so prompt-tsx prunes lower-priority elements (tool-call history).
+			this._budgetShrinkFactor = CONTEXT_OVERFLOW_SHRINK_FACTORS[attempt];
+			this._logService.warn(`[searchSubagent] context_length_exceeded; re-rendering with shrink factor ${this._budgetShrinkFactor} (attempt ${attempt + 1})`);
+			const rerendered = await this.buildPrompt(this._lastBuildPromptContext, { report: () => { } }, token);
+			currentMessages = rerendered.messages;
+		}
 	}
+}
+
+/**
+ * Successive `_budgetShrinkFactor` values applied to the message budget on reactive retries
+ * after a 400 context-overflow response. Length bounds the total number of retries.
+ */
+export const CONTEXT_OVERFLOW_SHRINK_FACTORS = [0.66, 0.4, 0.25];
+
+const CONTEXT_OVERFLOW_REASON_PATTERNS = [
+	'context_length_exceeded',
+	'context length is',
+	'context window',
+	'maximum context',
+	'prompt is too long',
+	'request too large',
+	'request_too_large',
+];
+
+export function isContextOverflowError(response: ChatResponse): boolean {
+	if (response.type !== ChatFetchResponseType.BadRequest) {
+		return false;
+	}
+	const haystack = `${response.reason ?? ''} ${response.reasonDetail ?? ''}`.toLowerCase();
+	return CONTEXT_OVERFLOW_REASON_PATTERNS.some(p => haystack.includes(p));
 }
