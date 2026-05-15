@@ -189,6 +189,9 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 				if (this._entries.has(sessionResource)) {
 					void this.disposeSession(sessionResource);
 				}
+				// Drop any tombstone for the abandoned untitled URI so the
+				// set doesn't grow unbounded across the workbench lifetime.
+				this._rebound.delete(sessionResource);
 			}
 		}));
 	}
@@ -343,6 +346,7 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 		}
 		this._entries.clear();
 		this._pending.clear();
+		this._rebound.clear();
 		super.dispose();
 	}
 
@@ -361,16 +365,23 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 		workingDirectory: URI | undefined,
 		partial: Record<string, unknown>,
 	): Promise<URI | undefined> {
+		// Mutate the workbench cache synchronously so a `tryRebind` racing
+		// with this call cannot snapshot stale config across the await
+		// below. When the entry doesn't exist yet, `getOrCreate` will seed
+		// its initial config and we apply the partial on top after.
+		const preExisting = this._entries.get(sessionResource);
+		if (preExisting) {
+			Object.assign(preExisting.config, partial);
+		}
 		const backend = await this.getOrCreate(sessionResource, provider, workingDirectory);
 		if (!backend) {
 			return undefined;
 		}
-		const entry = this._entries.get(sessionResource);
-		if (entry) {
-			// Mutate the cache synchronously so a `tryRebind` racing with this
-			// dispatch sees the latest value, even before the agent has echoed
-			// the action back through `state.config.values`.
-			Object.assign(entry.config, partial);
+		if (!preExisting) {
+			const entry = this._entries.get(sessionResource);
+			if (entry) {
+				Object.assign(entry.config, partial);
+			}
 		}
 		this._agentHostService.dispatch({
 			type: ActionType.SessionConfigChanged,
