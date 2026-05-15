@@ -37,7 +37,6 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatViewId } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatConfiguration } from '../../common/constants.js';
 
 
 const toolEnumValues: string[] = [];
@@ -332,7 +331,7 @@ export class ConfigureToolSets extends Action2 {
 			},
 			{
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 				order: 11,
 				group: '2_level'
 			}],

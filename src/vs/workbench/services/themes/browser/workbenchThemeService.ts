@@ -44,7 +44,8 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { mainWindow } from '../../../../base/browser/window.js';
 import { generateColorThemeCSS } from './colorThemeCss.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IHostService } from '../../host/browser/host.js';
+import { toAction } from '../../../../base/common/actions.js';
 
 // implementation
 
@@ -114,23 +115,22 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ICommandService private readonly commandService: ICommandService
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 		this.container = layoutService.mainContainer;
-		const isNewUser = this.storageService.isNew(StorageScope.APPLICATION);
-		this.settings = new ThemeConfiguration(configurationService, hostColorService, isNewUser);
+		this.settings = new ThemeConfiguration(configurationService, hostColorService);
 
 		this.colorThemeRegistry = this._register(new ThemeRegistry(colorThemesExtPoint, ColorThemeData.fromExtensionTheme));
 		this.colorThemeWatcher = this._register(new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentColorTheme.bind(this)));
-		this.onColorThemeChange = this._register(new Emitter<IWorkbenchColorTheme>({ leakWarningThreshold: 400 }));
+		this.onColorThemeChange = this._register(new Emitter<IWorkbenchColorTheme>({ leakWarningThreshold: 400, leakWarningName: 'ThemeService.onColorThemeChange' }));
 		this.currentColorTheme = ColorThemeData.createUnloadedTheme('');
 		this.colorThemeSequencer = new Sequencer();
 
 		this.fileIconThemeWatcher = this._register(new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentFileIconTheme.bind(this)));
 		this.fileIconThemeRegistry = this._register(new ThemeRegistry(fileIconThemesExtPoint, FileIconThemeData.fromExtensionTheme, true, FileIconThemeData.noIconTheme));
 		this.fileIconThemeLoader = new FileIconThemeLoader(extensionResourceLoaderService, languageService);
-		this.onFileIconThemeChange = this._register(new Emitter<IWorkbenchFileIconTheme>({ leakWarningThreshold: 400 }));
+		this.onFileIconThemeChange = this._register(new Emitter<IWorkbenchFileIconTheme>({ leakWarningThreshold: 400, leakWarningName: 'ThemeService.onFileIconThemeChange' }));
 		this.currentFileIconTheme = FileIconThemeData.createUnloadedTheme('');
 		this.fileIconThemeSequencer = new Sequencer();
 
@@ -146,6 +146,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
 		let themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
+		const previousColorThemeSetting = themeData?.settingsId;
 		const colorThemeSetting = this.settings.colorTheme;
 		if (themeData && colorThemeSetting !== themeData.settingsId) {
 			themeData = undefined;
@@ -179,7 +180,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			this.installConfigurationListener();
 			this.installPreferredSchemeListener();
 			this.installRegistryListeners();
-			this.initialize().catch(errors.onUnexpectedError);
+			this.initialize(previousColorThemeSetting).catch(errors.onUnexpectedError);
 		});
 
 		const codiconStyleSheet = createStyleSheet();
@@ -195,7 +196,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		delayer.schedule();
 	}
 
-	private async initialize(): Promise<[IWorkbenchColorTheme | null, IWorkbenchFileIconTheme | null, IWorkbenchProductIconTheme | null]> {
+	private async initialize(themePreviousSettingsId: string | undefined): Promise<[IWorkbenchColorTheme | null, IWorkbenchFileIconTheme | null, IWorkbenchProductIconTheme | null]> {
 		const extDevLocs = this.environmentService.extensionDevelopmentLocationURI;
 		const extDevLoc = extDevLocs && extDevLocs.length === 1 ? extDevLocs[0] : undefined; // in dev mode, switch to a theme provided by the extension under dev.
 
@@ -246,85 +247,64 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 
 		this.migrateColorThemeSettings();
-		await this.migrateAutoDetectColorScheme();
 		const result = await Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
-		this.showNewDefaultThemeNotification();
-		this.showThemeAutoUpdatedNotification();
+		await this.showNewDefaultThemeNotification(themePreviousSettingsId);
 		return result;
 	}
 
 	private static readonly NEW_THEME_NOTIFICATION_KEY = 'workbench.newDefaultThemeNotification';
 
-	private showNewDefaultThemeNotification(): void {
-		const newDefaultThemes = new Set([ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT]);
-		if (newDefaultThemes.has(this.currentColorTheme.settingsId)) {
-			return; // already using a new default theme
-		}
+	private async showNewDefaultThemeNotification(previousSettingsId: string | undefined): Promise<void> {
 		if (this.storageService.getBoolean(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, StorageScope.APPLICATION)) {
 			return; // already shown
 		}
-
-		const handle = this.notificationService.prompt(
-			Severity.Info,
-			nls.localize('newDefaultTheme', "New default themes are available for VS Code."),
-			[{
-				label: nls.localize('tryNewTheme', "Try Them Out"),
-				run: () => this.commandService.executeCommand('workbench.action.tryNewDefaultThemes')
-			}]
-		);
-		this._register(Event.once(handle.onDidClose)(() => {
+		if (!(await this.hostService.hadLastFocus()) || this.environmentService.isSessionsWindow) {
+			return;
+		}
+		try {
+			if (!this.settings.isDefaultColorTheme() || !previousSettingsId) {
+				return;
+			}
+			previousSettingsId = migrateThemeSettingsId(previousSettingsId);
+			if (!['Dark Modern', 'Light Modern'].includes(previousSettingsId)) {
+				return;
+			}
+			if (![ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT].includes(this.settings.colorTheme)) {
+				return;
+			}
+		} finally {
+			// remeber to not show the dialog again
 			this.storageService.store(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
-		}));
-	}
-
-	private static readonly THEME_AUTO_UPDATED_NOTIFICATION_KEY = 'workbench.themeAutoUpdatedNotification';
-
-	/**
-	 * Shows a one-time notification to existing users whose color theme changed
-	 * because the product default was updated (e.g. Dark Modern → VS Code Dark).
-	 * Offers the option to browse themes or revert to the previous default.
-	 */
-	private showThemeAutoUpdatedNotification(): void {
-		if (this.storageService.getBoolean(WorkbenchThemeService.THEME_AUTO_UPDATED_NOTIFICATION_KEY, StorageScope.APPLICATION)) {
-			return; // already shown
-		}
-		if (this.storageService.isNew(StorageScope.APPLICATION)) {
-			return; // new user, no migration happened
 		}
 
-		// Target existing users whose theme changed because the default changed.
-		// These users have no explicit user-scoped theme value — they inherited the default.
-		const newDefaultThemes = new Set([ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT]);
-		if (!newDefaultThemes.has(this.currentColorTheme.settingsId)) {
-			return; // not using a new default theme
-		}
-		if (!this.settings.isDefaultColorTheme()) {
-			return; // user explicitly chose this theme
-		}
-
-		const previousSettingsId = this.currentColorTheme.type === ColorScheme.LIGHT ? 'Light Modern' : 'Dark Modern';
-
-		const handle = this.notificationService.prompt(
-			Severity.Info,
-			nls.localize({ key: 'newDefaultThemeAutoUpdated', comment: ['{0} is the name of the current color theme, e.g. "VS Code Dark"'] }, "VS Code has a new look! You can keep {0}, switch to another theme, or go back to your previous one.", this.currentColorTheme.label),
-			[{
-				label: nls.localize('browseThemes', "Browse Themes"),
-				run: () => this.commandService.executeCommand('workbench.action.selectTheme')
-			}, {
-				label: nls.localize('revertTheme', "Revert"),
-				run: () => {
-					const previousTheme = this.colorThemeRegistry.findThemeBySettingsId(previousSettingsId);
-					if (previousTheme) {
-						this.setColorTheme(previousTheme.id, 'auto');
-					}
+		const keepTheme = await new Promise(resolve => {
+			this.notificationService.prompt(
+				Severity.Info,
+				nls.localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "VS Code has a new default theme: '{0}'.", this.getColorTheme().label),
+				[
+					toAction({
+						id: 'themeUpdated.tryItOut',
+						label: nls.localize('tryNewTheme', "Keep It"),
+						run: () => resolve(true)
+					}),
+					toAction({
+						id: 'themeUpdated.noThanks',
+						label: nls.localize('noThanks', "No Thanks"),
+						run: () => resolve(false)
+					})
+				],
+				{
+					onCancel: () => resolve(false)
 				}
-			}]
-		);
-		this._register(Event.once(handle.onDidClose)(() => {
-			this.storageService.store(WorkbenchThemeService.THEME_AUTO_UPDATED_NOTIFICATION_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
-			// Also suppress the "try new themes" notification — this user is already aware of the new themes.
-			this.storageService.store(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
-		}));
+			);
+		});
+
+		if (!keepTheme) {
+			const previousTheme = this.colorThemeRegistry.findThemeBySettingsId(previousSettingsId);
+			if (previousTheme) {
+				this.setColorTheme(previousTheme.id, 'auto');
+			}
+		}
 	}
 
 	/**
@@ -353,29 +333,6 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 					}
 				}
 			}
-		}
-	}
-
-	/**
-	 * For new users who haven't explicitly configured `window.autoDetectColorScheme`,
-	 * persist `true` so that auto-detect becomes the default going forward.
-	 */
-	private async migrateAutoDetectColorScheme(): Promise<void> {
-		if (!this.storageService.isNew(StorageScope.APPLICATION)) {
-			return;
-		}
-
-		// Ensure that user data (including synced settings) has finished initializing
-		// so we do not overwrite values that arrive via settings sync.
-		await this.userDataInitializationService.whenInitializationFinished();
-
-		const inspection = this.configurationService.inspect<boolean>(ThemeSettings.DETECT_COLOR_SCHEME);
-
-		// Treat any of userValue, userLocalValue, or userRemoteValue as an explicit configuration.
-		if (inspection.userValue === undefined
-			&& inspection.userLocalValue === undefined
-			&& inspection.userRemoteValue === undefined) {
-			await this.configurationService.updateValue(ThemeSettings.DETECT_COLOR_SCHEME, true, ConfigurationTarget.USER);
 		}
 	}
 

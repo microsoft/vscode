@@ -130,6 +130,14 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		this._register(this.widget.onDidSubmitAgent(() => {
 			this.group.pinEditor(this.input);
 		}));
+		this._register(this.widget.onDidChangeViewModel((e) => {
+			if (e.currentSessionResource && this.input instanceof ChatEditorInput) {
+				const newModel = this.chatService.getSession(e.currentSessionResource);
+				if (newModel) {
+					this.input.updateModel(newModel);
+				}
+			}
+		}));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
 	}
@@ -219,7 +227,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 
 		if (chatSessionType !== localChatSessionType) {
 			try {
-				await raceCancellationError(this.chatSessionsService.canResolveChatSession(input.resource.scheme), token);
+				await raceCancellationError(this.chatSessionsService.canResolveChatSession(chatSessionType), token);
 				const contributions = this.chatSessionsService.getAllChatSessionContributions();
 				const contribution = contributions.find(c => c.type === chatSessionType);
 				if (contribution) {
