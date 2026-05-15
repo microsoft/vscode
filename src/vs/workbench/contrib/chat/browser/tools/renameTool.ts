@@ -5,9 +5,8 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -15,16 +14,13 @@ import { TextEdit } from '../../../../../editor/common/languages.js';
 import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { rename } from '../../../../../editor/contrib/rename/browser/rename.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { ChatModel } from '../../common/model/chatModel.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
 import { createToolSimpleTextResult } from '../../common/tools/builtinTools/toolHelpers.js';
@@ -50,11 +46,9 @@ IMPORTANT: The file and line do NOT need to be the definition of the symbol. Any
 If the tool returns an error, retry with corrected input - ensure the file path is correct, the line content matches the actual file content, and the symbol name appears in that line.`;
 
 /**
- * Static description used when the {@link ChatConfiguration.SymbolToolsCacheStable}
- * experiment is enabled. Identical to {@link BaseModelDescription} plus a single
- * sentence describing the unsupported-language behavior. Crucially, this string
- * does NOT depend on the set of registered rename providers, so it stays
- * byte-stable across requests as language extensions activate during a turn.
+ * Static description that does not depend on the set of registered rename
+ * providers, so it stays byte-stable across requests as language extensions
+ * activate during a turn.
  */
 const StaticModelDescription = BaseModelDescription + `
 
@@ -62,63 +56,17 @@ If the file's language has no rename provider registered, the tool returns an er
 
 export class RenameTool extends Disposable implements IToolImpl {
 
-	private readonly _onDidUpdateToolData = this._store.add(new Emitter<void>());
-	readonly onDidUpdateToolData = this._onDidUpdateToolData.event;
-
 	constructor(
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@ILanguageService private readonly _languageService: ILanguageService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatService private readonly _chatService: IChatService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-
-		// In cache-stable mode the tool's wire bytes don't depend on the set
-		// of registered rename providers, so we don't need to re-fire the
-		// update event on provider changes. Skipping this subscription
-		// avoids unnecessary tool re-registration churn as well.
-		if (!this._isCacheStable()) {
-			this._store.add(Event.debounce(
-				this._languageFeaturesService.renameProvider.onDidChange,
-				() => { },
-				2000
-			)((() => this._onDidUpdateToolData.fire())));
-		}
 	}
 
-	private _isCacheStable(): boolean {
-		return this._configurationService.getValue<boolean>(ChatConfiguration.SymbolToolsCacheStable) === true;
-	}
-
-	getToolData(): IToolData | undefined {
-		if (this._isCacheStable()) {
-			return this._getStaticToolData();
-		}
-
-		const languageIds = this._languageFeaturesService.renameProvider.registeredLanguageIds;
-
-		if (languageIds.size === 0) {
-			return undefined;
-		}
-
-		let modelDescription = BaseModelDescription;
-		let userDescription: string;
-		if (languageIds.has('*')) {
-			modelDescription += '\n\nSupported for all languages.';
-			userDescription = localize('tool.rename.userDescription', 'Rename a symbol across the workspace');
-		} else {
-			const sorted = [...languageIds].sort();
-			modelDescription += `\n\nCurrently supported for: ${sorted.join(', ')}.`;
-			const niceNames = sorted.map(id => this._languageService.getLanguageName(id) ?? id);
-			userDescription = localize('tool.rename.userDescriptionWithLanguages', 'Rename a symbol across the workspace ({0})', niceNames.join(', '));
-		}
-		return this._buildToolData(modelDescription, userDescription);
-	}
-
-	private _getStaticToolData(): IToolData {
+	getToolData(): IToolData {
 		return this._buildToolData(
 			StaticModelDescription,
 			localize('tool.rename.userDescription', 'Rename a symbol across the workspace'),
@@ -176,7 +124,7 @@ export class RenameTool extends Disposable implements IToolImpl {
 		const input = invocation.parameters as IRenameToolInput;
 
 		// --- resolve URI ---
-		const uri = resolveToolUri(input, this._workspaceContextService);
+		const uri = resolveToolUri(input, this._workspaceContextService, invocation.context?.workingDirectory);
 		if (!uri) {
 			return errorResult('Provide either "uri" (a full URI) or "filePath" (a workspace-relative path) to identify the file.');
 		}
@@ -293,23 +241,6 @@ export class RenameToolContribution extends Disposable implements IWorkbenchCont
 		super();
 
 		const renameTool = this._store.add(instantiationService.createInstance(RenameTool));
-
-		let registration: IDisposable | undefined;
-		const registerRenameTool = () => {
-			registration?.dispose();
-			registration = undefined;
-			toolsService.flushToolUpdates();
-			const toolData = renameTool.getToolData();
-			if (toolData) {
-				registration = toolsService.registerTool(toolData, renameTool);
-			}
-		};
-		registerRenameTool();
-		this._store.add(renameTool.onDidUpdateToolData(registerRenameTool));
-		this._store.add({
-			dispose: () => {
-				registration?.dispose();
-			}
-		});
+		this._store.add(toolsService.registerTool(renameTool.getToolData(), renameTool));
 	}
 }

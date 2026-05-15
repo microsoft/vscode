@@ -1058,6 +1058,21 @@ describe('ChatSessionMetadataStore', () => {
 			store.dispose();
 		});
 
+		it('should clear cached request details when session metadata is deleted', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
+			const store = await createStore();
+
+			await store.updateRequestDetails('session-1', [{ vscodeRequestId: 'request-1', copilotRequestId: 'sdk-1', toolIdEditMap: { 'tool-1': 'edit-1' } }]);
+			expect(await store.getRequestDetails('session-1')).toEqual([
+				{ vscodeRequestId: 'request-1', copilotRequestId: 'sdk-1', toolIdEditMap: { 'tool-1': 'edit-1' } },
+			]);
+
+			await store.deleteSessionMetadata('session-1');
+
+			expect(await store.getRequestDetails('session-1')).toEqual([]);
+			store.dispose();
+		});
+
 
 		it('should merge with existing request details on append', async () => {
 			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));

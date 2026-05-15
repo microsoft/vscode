@@ -178,7 +178,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 		}));
 		this.messageScrollable.getDomNode().classList.add('chat-confirmation-widget-message-scrollable');
 		messageParent?.insertBefore(this.messageScrollable.getDomNode(), messageNextSibling);
-		const messageResizeObserver = this._register(new dom.DisposableResizeObserver(() => this.messageScrollable.scanDomNode()));
+		const messageResizeObserver = this._register(new dom.DisposableResizeObserver('BaseSimpleChatConfirmationWidget.message', () => this.messageScrollable.scanDomNode()));
 		this._register(messageResizeObserver.observe(this.messageElement));
 		this._register(messageResizeObserver.observe(this.messageScrollable.getDomNode()));
 
@@ -244,7 +244,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 
 	protected renderMessage(element: HTMLElement): void {
 		const store = new DisposableStore();
-		const messageContentResizeObserver = store.add(new dom.DisposableResizeObserver(() => this.messageScrollable.scanDomNode()));
+		const messageContentResizeObserver = store.add(new dom.DisposableResizeObserver('BaseSimpleChatConfirmationWidget.messageContent', () => this.messageScrollable.scanDomNode()));
 		store.add(messageContentResizeObserver.observe(element));
 		this.messageContentDisposables.value = store;
 		this.messageElement.append(element);
@@ -283,6 +283,7 @@ export interface IChatConfirmationWidget2Options<T> {
 	message: string | IMarkdownString | HTMLElement;
 	icon?: ThemeIcon;
 	subtitle?: string | IMarkdownString;
+	footerBanner?: HTMLElement;
 	buttons: IChatConfirmationButton<T>[];
 	toolbarData?: { arg: unknown; partType: string; partSource?: string };
 }
@@ -326,7 +327,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	) {
 		super();
 
-		const { title, subtitle, message, buttons, icon } = options;
+		const { title, subtitle, message, buttons, icon, footerBanner } = options;
 
 		const elements = dom.h('.chat-confirmation-widget-container@container', [
 			dom.h('.chat-confirmation-widget2@root', [
@@ -342,7 +343,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 				]),
 			]),]);
 
-		configureAccessibilityContainer(elements.container, title, message);
+		configureAccessibilityContainer(elements.container, title, message, footerBanner);
 		this._domNode = elements.root;
 		this._buttonsDomNode = elements.buttons;
 
@@ -363,9 +364,16 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		}));
 		this.messageScrollable.getDomNode().classList.add('chat-confirmation-widget-message-scrollable');
 		messageParent?.insertBefore(this.messageScrollable.getDomNode(), messageNextSibling);
-		const messageResizeObserver = this._register(new dom.DisposableResizeObserver(() => this.messageScrollable.scanDomNode()));
+		const messageResizeObserver = this._register(new dom.DisposableResizeObserver('BaseChatConfirmationWidget.message', () => this.messageScrollable.scanDomNode()));
 		this._register(messageResizeObserver.observe(this.messageElement));
 		this._register(messageResizeObserver.observe(this.messageScrollable.getDomNode()));
+
+		if (footerBanner) {
+			this.messageScrollable.getDomNode().insertAdjacentElement('afterend', footerBanner);
+			if (!footerBanner.hasAttribute('aria-live')) {
+				footerBanner.setAttribute('aria-live', 'polite');
+			}
+		}
 
 		this.updateButtons(buttons);
 
@@ -462,7 +470,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 
 		dom.clearNode(this.messageElement);
 		const store = new DisposableStore();
-		const messageContentResizeObserver = store.add(new dom.DisposableResizeObserver(() => this.messageScrollable.scanDomNode()));
+		const messageContentResizeObserver = store.add(new dom.DisposableResizeObserver('BaseChatConfirmationWidget.messageContent', () => this.messageScrollable.scanDomNode()));
 		store.add(messageContentResizeObserver.observe(element));
 		if (this.markdownContentPart.value) {
 			store.add(this.markdownContentPart.value.onDidChangeHeight(() => this.messageScrollable.scanDomNode()));
@@ -512,10 +520,13 @@ export class ChatCustomConfirmationWidget<T> extends BaseChatConfirmationWidget<
 	}
 }
 
-function configureAccessibilityContainer(container: HTMLElement, title: string | IMarkdownString, message?: string | IMarkdownString | HTMLElement): void {
+function configureAccessibilityContainer(container: HTMLElement, title: string | IMarkdownString, message?: string | IMarkdownString | HTMLElement, footerBanner?: HTMLElement): void {
 	container.tabIndex = 0;
 	const titleAsString = typeof title === 'string' ? title : title.value;
 	const messageAsString = typeof message === 'string' ? message : message && 'value' in message ? message.value : message && 'textContent' in message ? message.textContent : '';
-	container.setAttribute('aria-label', localize('chat.confirmationWidget.ariaLabel', "Chat Confirmation Dialog {0} {1}", titleAsString, messageAsString));
+	const bannerAsString = footerBanner?.textContent?.trim() ?? '';
+	container.setAttribute('aria-label', bannerAsString
+		? localize('chat.confirmationWidget.ariaLabelWithBannerTitleMessageBanner', "Chat Confirmation Dialog {0} {1} {2}", titleAsString, messageAsString, bannerAsString)
+		: localize('chat.confirmationWidget.ariaLabel', "Chat Confirmation Dialog {0} {1}", titleAsString, messageAsString));
 	container.classList.add('chat-confirmation-widget-container');
 }

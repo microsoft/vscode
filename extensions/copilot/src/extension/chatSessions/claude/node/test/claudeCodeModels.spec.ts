@@ -239,12 +239,12 @@ describe('ClaudeCodeModels', () => {
 			const sonnet = info.find(i => i.id === 'claude-sonnet-4-model')!;
 			expect(sonnet.name).toBe('Claude Sonnet 4');
 			expect(sonnet.family).toBe('claude-sonnet-4');
-			expect(sonnet.multiplier).toBe('1x');
+			expect(sonnet.pricing).toBe('1x');
 			expect(sonnet.targetChatSessionType).toBe('claude-code');
 			expect(sonnet.isUserSelectable).toBe(true);
 
 			const opus = info.find(i => i.id === 'claude-opus-4.5-model')!;
-			expect(opus.multiplier).toBe('5x');
+			expect(opus.pricing).toBe('5x');
 		});
 
 		it('returns undefined multiplier string when endpoint has no multiplier', async () => {
@@ -254,7 +254,7 @@ describe('ClaudeCodeModels', () => {
 			const { lm, getCapturedProvider } = createMockLm();
 
 			const info = await getProviderInfo(service, lm, getCapturedProvider);
-			expect(info[0].multiplier).toBeUndefined();
+			expect(info[0].pricing).toBeUndefined();
 		});
 
 		it('returns empty array when no endpoints are available', async () => {
