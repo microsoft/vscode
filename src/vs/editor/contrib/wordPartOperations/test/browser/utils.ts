@@ -20,9 +20,4 @@ export class StaticServiceAccessor implements ServicesAccessor {
 		}
 		return value as T;
 	}
-
-	getIfExists<T>(id: ServiceIdentifier<T>): T | undefined {
-		const value = this.services.get(id);
-		return value as T | undefined;
-	}
 }

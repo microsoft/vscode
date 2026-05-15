@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
 import fs from 'fs';
+import { builtinModules } from 'module';
 import path from 'path';
 import tseslint from 'typescript-eslint';
 
 import stylisticTs from '@stylistic/eslint-plugin-ts';
 import * as pluginLocal from './.eslint-plugin-local/index.ts';
+import * as pluginCopilotLocal from './extensions/copilot/.eslintplugin/index.ts';
+import pluginImport from 'eslint-plugin-import';
 import pluginJsdoc from 'eslint-plugin-jsdoc';
 
 import pluginHeader from 'eslint-plugin-header';
@@ -77,7 +80,7 @@ export default tseslint.config(
 			'no-var': 'warn',
 			'semi': 'warn',
 			'local/code-translation-remind': 'warn',
-			'local/code-no-native-private': 'warn',
+			'local/code-no-declare-const-enum': 'warn',
 			'local/code-parameter-properties-must-have-explicit-accessibility': 'warn',
 			'local/code-no-nls-in-standalone-editor': 'warn',
 			'local/code-no-potentially-unsafe-disposables': 'warn',
@@ -88,10 +91,13 @@ export default tseslint.config(
 			'local/code-must-use-super-dispose': 'warn',
 			'local/code-declare-service-brand': 'warn',
 			'local/code-no-reader-after-await': 'warn',
+			'local/code-no-accessor-after-await': 'warn',
 			'local/code-no-observable-get-in-reactive-context': 'warn',
 			'local/code-no-localized-model-description': 'warn',
 			'local/code-policy-localization-key-match': 'warn',
 			'local/code-no-localization-template-literals': 'error',
+			'local/code-no-icons-in-localized-strings': 'warn',
+			'local/code-no-http-import': ['warn', { target: 'src/vs/**' }],
 			'local/code-no-deep-import-of-internal': ['error', { '.*Internal': true, 'searchExtTypesInternal': false }],
 			'local/code-layering': [
 				'warn',
@@ -156,21 +162,7 @@ export default tseslint.config(
 				}
 			],
 			'jsdoc/no-types': 'warn',
-			'local/code-no-static-self-ref': 'warn'
-		}
-	},
-	// vscode TS
-	{
-		files: [
-			'src/**/*.ts',
-		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'@typescript-eslint': tseslint.plugin,
-		},
-		rules: {
+			'local/code-no-static-self-ref': 'warn',
 			'@typescript-eslint/naming-convention': [
 				'warn',
 				{
@@ -180,6 +172,18 @@ export default tseslint.config(
 					]
 				}
 			]
+		}
+	},
+	// Disallow common telemetry properties in event data
+	{
+		files: [
+			'src/**/*.ts',
+		],
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-telemetry-common-property': 'warn',
 		}
 	},
 	// Disallow 'in' operator except in type predicates
@@ -192,15 +196,11 @@ export default tseslint.config(
 			'src/bootstrap-node.ts',
 			'build/lib/extensions.ts',
 			'build/lib/test/render.test.ts',
+			'extensions/copilot/**/*',
 			'extensions/debug-auto-launch/src/extension.ts',
 			'extensions/emmet/src/updateImageSize.ts',
 			'extensions/emmet/src/util.ts',
 			'extensions/github-authentication/src/node/fetch.ts',
-			'extensions/terminal-suggest/src/fig/figInterface.ts',
-			'extensions/terminal-suggest/src/fig/fig-autocomplete-shared/mixins.ts',
-			'extensions/terminal-suggest/src/fig/fig-autocomplete-shared/specMetadata.ts',
-			'extensions/terminal-suggest/src/terminalSuggestMain.ts',
-			'extensions/terminal-suggest/src/test/env/pathExecutableCache.test.ts',
 			'extensions/tunnel-forwarding/src/extension.ts',
 			'extensions/typescript-language-features/src/utils/platform.ts',
 			'extensions/typescript-language-features/web/src/webServer.ts',
@@ -262,33 +262,22 @@ export default tseslint.config(
 			'src/vs/workbench/browser/workbench.ts',
 			'src/vs/workbench/common/notifications.ts',
 			'src/vs/workbench/contrib/accessibility/browser/accessibleView.ts',
-			'src/vs/workbench/contrib/chat/browser/chatAttachmentResolveService.ts',
-			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatAttachmentsContentPart.ts',
-			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatConfirmationWidget.ts',
-			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatElicitationContentPart.ts',
-			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatReferencesContentPart.ts',
-			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatTreeContentPart.ts',
-			'src/vs/workbench/contrib/chat/browser/chatContentParts/toolInvocationParts/abstractToolConfirmationSubPart.ts',
+			'src/vs/workbench/contrib/chat/browser/attachments/chatAttachmentResolveService.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/chatAttachmentsContentPart.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/chatConfirmationWidget.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/chatElicitationContentPart.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/chatReferencesContentPart.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/chatTreeContentPart.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/toolInvocationParts/abstractToolConfirmationSubPart.ts',
 			'src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingSession.ts',
 			'src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingSessionStorage.ts',
-			'src/vs/workbench/contrib/chat/browser/chatInlineAnchorWidget.ts',
-			'src/vs/workbench/contrib/chat/browser/chatResponseAccessibleView.ts',
-			'src/vs/workbench/contrib/chat/browser/chatSessions/common.ts',
-			'src/vs/workbench/contrib/chat/browser/chatSessions/localChatSessionsProvider.ts',
-			'src/vs/workbench/contrib/chat/browser/chatSessions/view/sessionsTreeRenderer.ts',
-			'src/vs/workbench/contrib/chat/browser/contrib/chatInputCompletions.ts',
-			'src/vs/workbench/contrib/chat/common/annotations.ts',
-			'src/vs/workbench/contrib/chat/common/chat.ts',
-			'src/vs/workbench/contrib/chat/common/chatAgents.ts',
-			'src/vs/workbench/contrib/chat/common/chatModel.ts',
-			'src/vs/workbench/contrib/chat/common/chatService.ts',
-			'src/vs/workbench/contrib/chat/common/chatServiceImpl.ts',
-			'src/vs/workbench/contrib/chat/common/codeBlockModelCollection.ts',
-			'src/vs/workbench/contrib/chat/test/common/chatModel.test.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/chatInlineAnchorWidget.ts',
+			'src/vs/workbench/contrib/chat/browser/accessibility/chatResponseAccessibleView.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/input/editor/chatInputCompletions.ts',
+			'src/vs/workbench/contrib/chat/common/model/chatModel.ts',
 			'src/vs/workbench/contrib/chat/test/common/promptSyntax/testUtils/mockFilesystem.test.ts',
 			'src/vs/workbench/contrib/chat/test/common/promptSyntax/testUtils/mockFilesystem.ts',
-			'src/vs/workbench/contrib/chat/test/common/tools/manageTodoListTool.test.ts',
-			'src/vs/workbench/contrib/debug/browser/breakpointsView.ts',
+			'src/vs/workbench/contrib/chat/test/common/tools/builtinTools/manageTodoListTool.test.ts',
 			'src/vs/workbench/contrib/debug/browser/debugAdapterManager.ts',
 			'src/vs/workbench/contrib/debug/browser/variablesView.ts',
 			'src/vs/workbench/contrib/debug/browser/watchExpressionsView.ts',
@@ -318,11 +307,6 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/output/browser/outputView.ts',
 			'src/vs/workbench/contrib/preferences/browser/settingsTree.ts',
 			'src/vs/workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.ts',
-			'src/vs/workbench/contrib/tasks/browser/abstractTaskService.ts',
-			'src/vs/workbench/contrib/tasks/browser/taskTerminalStatus.ts',
-			'src/vs/workbench/contrib/tasks/browser/terminalTaskSystem.ts',
-			'src/vs/workbench/contrib/terminalContrib/chatAgentTools/browser/taskHelpers.ts',
-			'src/vs/workbench/contrib/terminalContrib/chatAgentTools/browser/tools/monitoring/outputMonitor.ts',
 			'src/vs/workbench/contrib/testing/browser/explorerProjections/listProjection.ts',
 			'src/vs/workbench/contrib/testing/browser/explorerProjections/treeProjection.ts',
 			'src/vs/workbench/contrib/testing/browser/testCoverageBars.ts',
@@ -342,6 +326,7 @@ export default tseslint.config(
 			'src/vs/workbench/services/remote/common/tunnelModel.ts',
 			'src/vs/workbench/services/search/common/textSearchManager.ts',
 			'src/vs/workbench/test/browser/workbenchTestServices.ts',
+			'src/vs/platform/agentHost/common/state/protocol/reducers.ts',
 			'test/automation/src/playwrightDriver.ts',
 			'.eslint-plugin-local/**/*',
 		],
@@ -441,7 +426,6 @@ export default tseslint.config(
 			'src/vs/base/common/observableInternal/logging/debugger/rpc.ts',
 			'src/vs/base/test/browser/ui/grid/util.ts',
 			// Platform
-			'src/vs/platform/browserElements/electron-main/nativeBrowserElementsMainService.ts',
 			'src/vs/platform/commands/common/commands.ts',
 			'src/vs/platform/contextkey/browser/contextKeyService.ts',
 			'src/vs/platform/contextkey/common/contextkey.ts',
@@ -449,9 +433,7 @@ export default tseslint.config(
 			'src/vs/platform/debug/common/extensionHostDebugIpc.ts',
 			'src/vs/platform/debug/electron-main/extensionHostDebugIpc.ts',
 			'src/vs/platform/diagnostics/common/diagnostics.ts',
-			'src/vs/platform/diagnostics/node/diagnosticsService.ts',
 			'src/vs/platform/download/common/downloadIpc.ts',
-			'src/vs/platform/extensions/common/extensionValidator.ts',
 			'src/vs/platform/extensions/common/extensions.ts',
 			'src/vs/platform/instantiation/common/descriptors.ts',
 			'src/vs/platform/instantiation/common/extensions.ts',
@@ -462,13 +444,13 @@ export default tseslint.config(
 			'src/vs/platform/keybinding/common/keybindingResolver.ts',
 			'src/vs/platform/keybinding/common/keybindingsRegistry.ts',
 			'src/vs/platform/keybinding/common/resolvedKeybindingItem.ts',
-			'src/vs/platform/keyboardLayout/common/keyboardConfig.ts',
 			'src/vs/platform/languagePacks/node/languagePacks.ts',
 			'src/vs/platform/list/browser/listService.ts',
 			'src/vs/platform/log/browser/log.ts',
 			'src/vs/platform/log/common/log.ts',
 			'src/vs/platform/log/common/logIpc.ts',
 			'src/vs/platform/log/electron-main/logIpc.ts',
+			'src/vs/platform/meteredConnection/electron-main/meteredConnectionChannel.ts',
 			'src/vs/platform/observable/common/wrapInHotClass.ts',
 			'src/vs/platform/observable/common/wrapInReloadableClass.ts',
 			'src/vs/platform/policy/common/policyIpc.ts',
@@ -526,9 +508,6 @@ export default tseslint.config(
 			'src/vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorContribution.ts',
 			'src/vs/editor/contrib/find/browser/findController.ts',
 			'src/vs/editor/contrib/find/browser/findModel.ts',
-			'src/vs/editor/contrib/find/browser/findWidgetSearchHistory.ts',
-			'src/vs/editor/contrib/find/browser/replaceWidgetHistory.ts',
-			'src/vs/editor/contrib/folding/browser/folding.ts',
 			'src/vs/editor/contrib/gotoSymbol/browser/goToCommands.ts',
 			'src/vs/editor/contrib/gotoSymbol/browser/symbolNavigation.ts',
 			'src/vs/editor/contrib/hover/browser/hoverActions.ts',
@@ -571,7 +550,6 @@ export default tseslint.config(
 			'src/vs/workbench/api/common/extHostMessageService.ts',
 			'src/vs/workbench/api/common/extHostNotebookDocument.ts',
 			'src/vs/workbench/api/common/extHostNotebookDocumentSaveParticipant.ts',
-			'src/vs/workbench/api/common/extHostQuickOpen.ts',
 			'src/vs/workbench/api/common/extHostRequireInterceptor.ts',
 			'src/vs/workbench/api/common/extHostRpcService.ts',
 			'src/vs/workbench/api/common/extHostSCM.ts',
@@ -593,7 +571,6 @@ export default tseslint.config(
 			'src/vs/workbench/api/common/extHostWebviewView.ts',
 			'src/vs/workbench/api/common/extHostWorkspace.ts',
 			'src/vs/workbench/api/common/extensionHostMain.ts',
-			'src/vs/workbench/api/common/shared/tasks.ts',
 			'src/vs/workbench/api/node/extHostAuthentication.ts',
 			'src/vs/workbench/api/node/extHostCLIServer.ts',
 			'src/vs/workbench/api/node/extHostConsoleForwarder.ts',
@@ -609,44 +586,13 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/accessibility/browser/accessibilityConfiguration.ts',
 			'src/vs/workbench/contrib/accessibilitySignals/browser/commands.ts',
 			'src/vs/workbench/contrib/authentication/browser/actions/manageTrustedMcpServersForAccountAction.ts',
-			'src/vs/workbench/contrib/bulkEdit/browser/bulkCellEdits.ts',
 			'src/vs/workbench/contrib/bulkEdit/browser/bulkTextEdits.ts',
-			'src/vs/workbench/contrib/bulkEdit/browser/opaqueEdits.ts',
 			'src/vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane.ts',
 			'src/vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview.ts',
-			'src/vs/workbench/contrib/chat/browser/actions/chatCodeblockActions.ts',
-			'src/vs/workbench/contrib/chat/browser/actions/chatContextActions.ts',
-			'src/vs/workbench/contrib/chat/browser/actions/chatToolActions.ts',
-			'src/vs/workbench/contrib/chat/browser/chatAttachmentWidgets.ts',
-			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatConfirmationWidget.ts',
-			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatMultiDiffContentPart.ts',
-			'src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingActions.ts',
-			'src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingEditorActions.ts',
-			'src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingServiceImpl.ts',
-			'src/vs/workbench/contrib/chat/browser/chatSessions.contribution.ts',
-			'src/vs/workbench/contrib/chat/browser/chatSessions/common.ts',
-			'src/vs/workbench/contrib/chat/browser/chatSessions/view/sessionsTreeRenderer.ts',
-			'src/vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables.ts',
-			'src/vs/workbench/contrib/chat/common/chatAgents.ts',
-			'src/vs/workbench/contrib/chat/common/chatModel.ts',
-			'src/vs/workbench/contrib/chat/common/chatModes.ts',
-			'src/vs/workbench/contrib/chat/common/chatService.ts',
-			'src/vs/workbench/contrib/chat/common/chatServiceImpl.ts',
-			'src/vs/workbench/contrib/chat/common/chatSessionsService.ts',
-			'src/vs/workbench/contrib/chat/common/chatWidgetHistoryService.ts',
-			'src/vs/workbench/contrib/chat/common/languageModelToolsService.ts',
-			'src/vs/workbench/contrib/chat/common/languageModels.ts',
-			'src/vs/workbench/contrib/chat/common/promptSyntax/service/promptsServiceImpl.ts',
-			'src/vs/workbench/contrib/chat/common/tools/manageTodoListTool.ts',
-			'src/vs/workbench/contrib/chat/test/common/languageModels.ts',
-			'src/vs/workbench/contrib/chat/test/common/mockLanguageModelToolsService.ts',
-			'src/vs/workbench/contrib/chat/test/common/mockPromptsService.ts',
 			'src/vs/workbench/contrib/codeEditor/browser/inspectEditorTokens/inspectEditorTokens.ts',
 			'src/vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsOutline.ts',
 			'src/vs/workbench/contrib/codeEditor/electron-browser/selectionClipboard.ts',
 			'src/vs/workbench/contrib/commands/common/commands.contribution.ts',
-			'src/vs/workbench/contrib/comments/browser/commentNode.ts',
-			'src/vs/workbench/contrib/comments/browser/commentsAccessibleView.ts',
 			'src/vs/workbench/contrib/comments/browser/commentsTreeViewer.ts',
 			'src/vs/workbench/contrib/comments/browser/commentsView.ts',
 			'src/vs/workbench/contrib/comments/browser/reactionsAction.ts',
@@ -684,16 +630,12 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/extensions/browser/extensionsViews.ts',
 			'src/vs/workbench/contrib/extensions/browser/extensionsWorkbenchService.ts',
 			'src/vs/workbench/contrib/extensions/common/extensions.ts',
-			'src/vs/workbench/contrib/extensions/electron-browser/extensionProfileService.ts',
 			'src/vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsEditor.ts',
 			'src/vs/workbench/contrib/inlineChat/browser/inlineChatActions.ts',
 			'src/vs/workbench/contrib/inlineChat/browser/inlineChatController.ts',
 			'src/vs/workbench/contrib/inlineChat/browser/inlineChatStrategies.ts',
-			'src/vs/workbench/contrib/issue/browser/issueReporterModel.ts',
 			'src/vs/workbench/contrib/markdown/browser/markdownDocumentRenderer.ts',
-			'src/vs/workbench/contrib/markdown/browser/markdownSettingRenderer.ts',
 			'src/vs/workbench/contrib/markers/browser/markers.contribution.ts',
-			'src/vs/workbench/contrib/markers/browser/markersTable.ts',
 			'src/vs/workbench/contrib/markers/browser/markersView.ts',
 			'src/vs/workbench/contrib/mergeEditor/browser/commands/commands.ts',
 			'src/vs/workbench/contrib/mergeEditor/browser/utils.ts',
@@ -702,7 +644,6 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard.ts',
 			'src/vs/workbench/contrib/notebook/browser/contrib/find/notebookFind.ts',
 			'src/vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions.ts',
-			'src/vs/workbench/contrib/notebook/browser/contrib/multicursor/notebookMulticursor.ts',
 			'src/vs/workbench/contrib/notebook/browser/contrib/profile/notebookProfile.ts',
 			'src/vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout.ts',
 			'src/vs/workbench/contrib/notebook/browser/controller/chat/cellChatActions.ts',
@@ -713,29 +654,23 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/notebook/browser/diff/diffComponents.ts',
 			'src/vs/workbench/contrib/notebook/browser/diff/inlineDiff/notebookDeletedCellDecorator.ts',
 			'src/vs/workbench/contrib/notebook/browser/notebookBrowser.ts',
-			'src/vs/workbench/contrib/notebook/browser/notebookEditorWidget.ts',
 			'src/vs/workbench/contrib/notebook/browser/outputEditor/notebookOutputEditor.ts',
 			'src/vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl.ts',
 			'src/vs/workbench/contrib/notebook/browser/view/notebookCellList.ts',
 			'src/vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView.ts',
 			'src/vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages.ts',
 			'src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts',
-			'src/vs/workbench/contrib/notebook/browser/viewModel/cellEditorOptions.ts',
 			'src/vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel.ts',
 			'src/vs/workbench/contrib/notebook/browser/viewParts/notebookEditorStickyScroll.ts',
 			'src/vs/workbench/contrib/notebook/browser/viewParts/notebookHorizontalTracker.ts',
 			'src/vs/workbench/contrib/notebook/browser/viewParts/notebookKernelQuickPickStrategy.ts',
-			'src/vs/workbench/contrib/notebook/browser/viewParts/notebookViewZones.ts',
-			'src/vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel.ts',
 			'src/vs/workbench/contrib/notebook/common/model/notebookCellTextModel.ts',
 			'src/vs/workbench/contrib/notebook/common/model/notebookMetadataTextModel.ts',
 			'src/vs/workbench/contrib/notebook/common/model/notebookTextModel.ts',
 			'src/vs/workbench/contrib/notebook/common/notebookCommon.ts',
 			'src/vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl.ts',
-			'src/vs/workbench/contrib/notebook/common/notebookRange.ts',
 			'src/vs/workbench/contrib/notebook/test/browser/testNotebookEditor.ts',
 			'src/vs/workbench/contrib/performance/electron-browser/startupProfiler.ts',
-			'src/vs/workbench/contrib/preferences/browser/keybindingsEditor.ts',
 			'src/vs/workbench/contrib/preferences/browser/preferences.contribution.ts',
 			'src/vs/workbench/contrib/preferences/browser/preferencesRenderers.ts',
 			'src/vs/workbench/contrib/preferences/browser/settingsEditor2.ts',
@@ -750,6 +685,7 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/search/browser/replace.ts',
 			'src/vs/workbench/contrib/search/browser/replaceService.ts',
 			'src/vs/workbench/contrib/search/browser/searchActionsCopy.ts',
+			'src/vs/workbench/contrib/search/browser/searchActionsBase.ts',
 			'src/vs/workbench/contrib/search/browser/searchActionsFind.ts',
 			'src/vs/workbench/contrib/search/browser/searchActionsNav.ts',
 			'src/vs/workbench/contrib/search/browser/searchActionsRemoveReplace.ts',
@@ -764,28 +700,14 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/search/browser/searchTreeModel/searchTreeCommon.ts',
 			'src/vs/workbench/contrib/search/browser/searchTreeModel/textSearchHeading.ts',
 			'src/vs/workbench/contrib/search/browser/searchView.ts',
-			'src/vs/workbench/contrib/search/browser/searchWidget.ts',
-			'src/vs/workbench/contrib/search/common/cacheState.ts',
 			'src/vs/workbench/contrib/search/test/browser/mockSearchTree.ts',
 			'src/vs/workbench/contrib/searchEditor/browser/searchEditor.contribution.ts',
 			'src/vs/workbench/contrib/searchEditor/browser/searchEditorActions.ts',
 			'src/vs/workbench/contrib/searchEditor/browser/searchEditorInput.ts',
 			'src/vs/workbench/contrib/snippets/browser/commands/configureSnippets.ts',
 			'src/vs/workbench/contrib/snippets/browser/commands/insertSnippet.ts',
-			'src/vs/workbench/contrib/snippets/browser/snippetsFile.ts',
 			'src/vs/workbench/contrib/snippets/browser/snippetsService.ts',
-			'src/vs/workbench/contrib/tasks/browser/abstractTaskService.ts',
-			'src/vs/workbench/contrib/tasks/browser/runAutomaticTasks.ts',
-			'src/vs/workbench/contrib/tasks/browser/task.contribution.ts',
-			'src/vs/workbench/contrib/tasks/browser/terminalTaskSystem.ts',
-			'src/vs/workbench/contrib/tasks/common/jsonSchema_v1.ts',
-			'src/vs/workbench/contrib/tasks/common/jsonSchema_v2.ts',
-			'src/vs/workbench/contrib/tasks/common/problemMatcher.ts',
-			'src/vs/workbench/contrib/tasks/common/taskConfiguration.ts',
-			'src/vs/workbench/contrib/tasks/common/taskSystem.ts',
-			'src/vs/workbench/contrib/tasks/common/tasks.ts',
 			'src/vs/workbench/contrib/testing/common/storedValue.ts',
-			'src/vs/workbench/contrib/testing/common/testItemCollection.ts',
 			'src/vs/workbench/contrib/testing/test/browser/testObjectTree.ts',
 			'src/vs/workbench/contrib/typeHierarchy/browser/typeHierarchy.contribution.ts',
 			'src/vs/workbench/contrib/typeHierarchy/common/typeHierarchy.ts',
@@ -795,9 +717,6 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/webviewPanel/browser/webviewEditor.ts',
 			'src/vs/workbench/contrib/webviewPanel/browser/webviewEditorInputSerializer.ts',
 			'src/vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService.ts',
-			'src/vs/workbench/contrib/webviewView/browser/webviewViewPane.ts',
-			'src/vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.ts',
-			'src/vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedAccessibleView.ts',
 			'src/vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService.ts',
 			'src/vs/workbench/contrib/welcomeWalkthrough/browser/walkThroughPart.ts',
 			'src/vs/workbench/services/authentication/common/authentication.ts',
@@ -839,8 +758,6 @@ export default tseslint.config(
 			'src/vs/workbench/test/browser/workbenchTestServices.ts',
 			'src/vs/workbench/test/common/workbenchTestServices.ts',
 			'src/vs/workbench/test/electron-browser/workbenchTestServices.ts',
-			'src/vs/workbench/workbench.web.main.internal.ts',
-			'src/vs/workbench/workbench.web.main.ts',
 			// Server
 			'src/vs/server/node/remoteAgentEnvironmentImpl.ts',
 			'src/vs/server/node/remoteExtensionHostAgentServer.ts',
@@ -917,6 +834,36 @@ export default tseslint.config(
 			]
 		}
 	},
+	// git extension - ban non-type imports from git.d.ts (use git.constants for runtime values)
+	{
+		files: [
+			'extensions/git/src/**/*.ts',
+		],
+		ignores: [
+			'extensions/git/src/api/git.constants.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'@typescript-eslint': tseslint.plugin,
+		},
+		rules: {
+			'no-restricted-imports': 'off',
+			'@typescript-eslint/no-restricted-imports': [
+				'warn',
+				{
+					'patterns': [
+						{
+							'group': ['*/api/git'],
+							'allowTypeImports': true,
+							'message': 'Use \'import type\' for types from git.d.ts and import runtime const enum values from git.constants instead'
+						},
+					]
+				}
+			]
+		}
+	},
 	// vscode API
 	{
 		files: [
@@ -969,11 +916,17 @@ export default tseslint.config(
 					],
 					'verbs': [
 						'accept',
+						'archive',
 						'change',
 						'close',
 						'collapse',
 						'create',
 						'delete',
+						'lock',
+						'resume',
+						'shutdown',
+						'suspend',
+						'unlock',
 						'discover',
 						'dispose',
 						'drop',
@@ -1092,6 +1045,33 @@ export default tseslint.config(
 				'__dirname',
 				'__filename',
 				'require'
+			]
+		}
+	},
+	// electron-main layer: prevent static imports of heavy node_modules
+	// that would be synchronously loaded on startup
+	{
+		files: [
+			'src/vs/code/electron-main/**/*.ts',
+			'src/vs/code/node/**/*.ts',
+			'src/vs/platform/*/electron-main/**/*.ts',
+			'src/vs/platform/*/node/**/*.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-static-node-module-import': [
+				'error',
+				// Files that run in separate processes, not on the electron-main startup path
+				'src/vs/platform/agentHost/node/**/*.ts',
+				'src/vs/platform/files/node/watcher/**/*.ts',
+				'src/vs/platform/terminal/node/**/*.ts',
+				// Files that use small, safe modules
+				'src/vs/platform/environment/node/argv.ts',
 			]
 		}
 	},
@@ -1509,11 +1489,15 @@ export default tseslint.config(
 					// - electron-main
 					'when': 'hasNode',
 					'allow': [
+						'@github/copilot-sdk',
+						'@microsoft/dev-tunnels-contracts',
+						'@microsoft/dev-tunnels-management',
 						'@parcel/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',
 						'@vscode/ripgrep',
 						'@vscode/iconv-lite-umd',
+						'@vscode/native-watchdog',
 						'@vscode/policy-watcher',
 						'@vscode/proxy-agent',
 						'@vscode/spdlog',
@@ -1529,16 +1513,17 @@ export default tseslint.config(
 						'fs/promises',
 						'http',
 						'https',
+						'inspector',
 						'minimist',
 						'node:module',
 						'native-keymap',
-						'native-watchdog',
 						'net',
 						'node-pty',
 						'os',
 						// 'path', NOT allowed: use src/vs/base/common/path.ts instead
 						'perf_hooks',
 						'readline',
+						'ssh2',
 						'stream',
 						'string_decoder',
 						'tas-client',
@@ -1547,10 +1532,10 @@ export default tseslint.config(
 						'undici-types',
 						'url',
 						'util',
-						'v8-inspect-profiler',
 						'vscode-regexpp',
 						'vscode-textmate',
 						'worker_threads',
+						'ws',
 						'@xterm/addon-clipboard',
 						'@xterm/addon-image',
 						'@xterm/addon-ligatures',
@@ -1562,7 +1547,8 @@ export default tseslint.config(
 						'@xterm/xterm',
 						'yauzl',
 						'yazl',
-						'zlib'
+						'zlib',
+						'chrome-remote-interface'
 					]
 				},
 				{
@@ -1625,6 +1611,32 @@ export default tseslint.config(
 					]
 				},
 				{
+					'target': 'src/vs/platform/agentHost/node/diffWorkerMain.ts',
+					'layer': 'node',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/common/diff/**', // diffing logic used by the agent host
+					]
+				},
+				{
+					'target': 'src/vs/platform/agentHost/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'tas-client', // node module allowed even in /common/
+						'@microsoft/1ds-core-js', // node module allowed even in /common/
+						'@microsoft/1ds-post-js', // node module allowed even in /common/
+						'@xterm/headless', // node module allowed even in /common/
+						'@vscode/tree-sitter-wasm', // used by agentHost for command auto-approval
+						'@vscode/copilot-api', // used by agentHost for Copilot API requests
+						'@anthropic-ai/sdk', // used by agentHost for Anthropic API requests
+						'@anthropic-ai/claude-agent-sdk' // used by agentHost for Claude Agent SDK session enumeration / queries
+					]
+				},
+				{
 					'target': 'src/vs/platform/*/~',
 					'restrictions': [
 						'vs/base/~',
@@ -1633,7 +1645,8 @@ export default tseslint.config(
 						'tas-client', // node module allowed even in /common/
 						'@microsoft/1ds-core-js', // node module allowed even in /common/
 						'@microsoft/1ds-post-js', // node module allowed even in /common/
-						'@xterm/headless' // node module allowed even in /common/
+						'@xterm/headless', // node module allowed even in /common/
+						'@vscode/tree-sitter-wasm' // used by agentHost for command auto-approval
 					]
 				},
 				{
@@ -1769,6 +1782,7 @@ export default tseslint.config(
 						'vs/workbench/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
+						'vs/sessions/~',
 						'vs/workbench/contrib/terminal/terminalContribChatExports*',
 						'vs/workbench/contrib/terminal/terminalContribExports*',
 						'vscode-notebook-renderer', // Type only import
@@ -1846,6 +1860,17 @@ export default tseslint.config(
 					]
 				},
 				{
+					'target': 'src/vs/sessions/electron-browser/sessions.ts',
+					'layer': 'electron-browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/sessions.desktop.main.js'
+					]
+				},
+				{
 					'target': 'src/vs/server/~',
 					'restrictions': [
 						'vs/base/~',
@@ -1894,7 +1919,9 @@ export default tseslint.config(
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/workbench/contrib/terminal/terminal.all.js'
+						'vs/workbench/contrib/terminal/terminal.all.js',
+						'vs/sessions/common/theme.js', // side-effect import for color registry
+						'vs/sessions/common/sizes.js' // side-effect import for size registry
 					]
 				},
 				{
@@ -1928,7 +1955,7 @@ export default tseslint.config(
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/workbench/workbench.common.main.js'
+						'vs/workbench/workbench.web.main.js'
 					]
 				},
 				{
@@ -1955,7 +1982,7 @@ export default tseslint.config(
 					]
 				},
 				{
-					'target': 'src/vs/{loader.d.ts,monaco.d.ts,nls.ts,nls.messages.ts}',
+					'target': 'src/vs/{monaco.d.ts,nls.ts}',
 					'restrictions': []
 				},
 				{
@@ -1977,7 +2004,198 @@ export default tseslint.config(
 						'src/*.js',
 						'*' // node.js
 					]
-				}
+				},
+				{
+					'target': 'src/vs/sessions/sessions.common.main.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/editor/editor.all.js',
+						'vs/sessions/~',
+						'vs/sessions/services/*/~',
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
+						'vs/workbench/~',
+						'vs/workbench/api/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/terminal/terminal.all.js',
+					]
+				},
+				{
+					'target': 'src/vs/sessions/sessions.desktop.main.ts',
+					'layer': 'electron-browser',
+					'restrictions': [
+						'vs/base/*/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/editor/editor.all.js',
+						'vs/sessions/~',
+						'vs/sessions/services/*/~',
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
+						'vs/workbench/~',
+						'vs/workbench/api/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/sessions.common.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/sessions.web.main.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/editor/editor.all.js',
+						'vs/sessions/~',
+						'vs/sessions/services/*/~',
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
+						'vs/workbench/~',
+						'vs/workbench/api/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/sessions.common.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/sessions.web.main.internal.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/sessions.web.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/test/sessions.web.test.internal.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/test/**',
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/sessions.web.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/test/{web.test.ts,web.test.factory.ts}',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/test/**',
+						'vs/sessions/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/sessions/~',
+						'vs/sessions/services/*/~'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/contrib/providers/*/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
+						'vs/sessions/services/*/~',
+					]
+				},
+				{
+					'target': 'src/vs/sessions/contrib/*/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/services/*/~',
+					]
+				},
+				{
+					'target': 'src/vs/sessions/services/*/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/services/*/~',
+						'vs/sessions/~',
+						'vs/sessions/services/*/~',
+						'vs/workbench/contrib/*/~',
+						{
+							'when': 'test',
+							'pattern': 'vs/workbench/contrib/*/~'
+						}, // TODO@layers
+						'tas-client', // node module allowed even in /common/
+						'vscode-textmate', // node module allowed even in /common/
+						'@vscode/vscode-languagedetection', // node module allowed even in /common/
+						'@vscode/tree-sitter-wasm', // type import
+						{
+							'when': 'hasBrowser',
+							'pattern': '@xterm/xterm'
+						} // node module allowed even in /browser/
+					]
+				},
 			]
 		}
 	},
@@ -2002,6 +2220,13 @@ export default tseslint.config(
 						'@vscode/*',
 						'@parcel/*',
 						'@playwright/*',
+						'*' // node modules
+					]
+				},
+				{
+					'target': 'test/sanity/**',
+					'restrictions': [
+						'test/sanity/**',
 						'*' // node modules
 					]
 				},
@@ -2045,6 +2270,14 @@ export default tseslint.config(
 						'@parcel/*',
 						'@playwright/*',
 						'@modelcontextprotocol/sdk/**/*',
+						'*' // node modules
+					]
+				},
+				{
+					'target': 'test/componentFixtures/playwright/**',
+					'restrictions': [
+						'test/componentFixtures/playwright/**',
+						'@playwright/*',
 						'*' // node modules
 					]
 				}
@@ -2109,6 +2342,29 @@ export default tseslint.config(
 			'comma-dangle': ['warn', 'only-multiline']
 		}
 	},
+	// Ban dynamic require() and import() calls in extensions to ensure tree-shaking works
+	{
+		files: [
+			'extensions/**/*.{ts,tsx}',
+		],
+		ignores: [
+			'extensions/**/*.test.ts',
+			'extensions/copilot/**/*',
+		],
+		rules: {
+			'no-restricted-syntax': [
+				'warn',
+				{
+					'selector': `CallExpression[callee.name='require'][arguments.0.type!='Literal']`,
+					'message': 'Use static imports instead of dynamic require() calls to enable tree-shaking.'
+				},
+				{
+					'selector': `ImportExpression[source.type!='Literal']`,
+					'message': 'Use static imports instead of dynamic import() calls to enable tree-shaking.'
+				},
+			],
+		}
+	},
 	// markdown-language-features
 	{
 		files: [
@@ -2121,29 +2377,24 @@ export default tseslint.config(
 			'@typescript-eslint': tseslint.plugin,
 		},
 		rules: {
-			'@typescript-eslint/naming-convention': [
+			'no-restricted-syntax': [
 				'warn',
 				{
-					'selector': 'default',
-					'modifiers': ['private'],
-					'format': null,
-					'leadingUnderscore': 'require'
+					selector: ':matches(PropertyDefinition, TSParameterProperty, MethodDefinition[key.name!="constructor"])[accessibility="private"]',
+					message: 'Use #private instead',
 				},
-				{
-					'selector': 'default',
-					'modifiers': ['public'],
-					'format': null,
-					'leadingUnderscore': 'forbid'
-				}
-			]
+			],
 		}
 	},
 	// Additional extension strictness rules
 	{
 		files: [
-			'extensions/markdown-language-features/**/*.ts',
-			'extensions/mermaid-chat-features/**/*.ts',
-			'extensions/media-preview/**/*.ts',
+			'extensions/markdown-language-features/src/**/*.ts',
+			'extensions/markdown-language-features/notebook/**/*.ts',
+			'extensions/markdown-language-features/preview-src/**/*.ts',
+			'extensions/mermaid-markdown-features/preview-src/chat/**/*.ts',
+			'extensions/mermaid-markdown-features/src/**/*.ts',
+			'extensions/media-preview/src/**/*.ts',
 			'extensions/simple-browser/**/*.ts',
 			'extensions/typescript-language-features/**/*.ts',
 		],
@@ -2163,9 +2414,9 @@ export default tseslint.config(
 					'extensions/simple-browser/tsconfig.json',
 					'extensions/simple-browser/preview-src/tsconfig.json',
 
-					// Mermaid chat features
-					'extensions/mermaid-chat-features/tsconfig.json',
-					'extensions/mermaid-chat-features/chat-webview-src/tsconfig.json',
+					// Mermaid markdown features
+					'extensions/mermaid-markdown-features/tsconfig.json',
+					'extensions/mermaid-markdown-features/preview-src/chat/tsconfig.json',
 
 					// TypeScript
 					'extensions/typescript-language-features/tsconfig.json',
@@ -2182,4 +2433,424 @@ export default tseslint.config(
 			'@typescript-eslint/consistent-generic-constructors': ['warn', 'constructor'],
 		}
 	},
-);
+	// copilot extension - main sources
+	{
+		files: [
+			'extensions/copilot/src/**/*.{ts,tsx}',
+			'extensions/copilot/test/**/*.{ts,tsx}',
+		],
+		ignores: [
+			'extensions/copilot/**/.esbuild.ts',
+			'extensions/copilot/src/extension/completions-core/vscode-node/bridge/src/completionsTelemetryServiceBridge.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'import': pluginImport,
+			'copilot-local': pluginCopilotLocal,
+		},
+		rules: {
+			'local/code-no-dangerous-type-assertions': 'off',
+			'local/code-no-any-casts': 'off',
+			'local/code-no-deep-import-of-internal': 'off',
+			'no-restricted-imports': [
+				'warn',
+				// node: builtins
+				...builtinModules,
+				// node: dependencies
+				'@humanwhocodes/gitignore-to-minimatch',
+				'@vscode/extension-telemetry',
+				'applicationinsights',
+				'ignore',
+				'isbinaryfile',
+				'minimatch',
+				'source-map-support',
+				'vscode-tas-client',
+				'web-tree-sitter'
+			],
+			'import/no-restricted-paths': [
+				'warn',
+				{
+					zones: [
+						{
+							target: '**/common/**',
+							from: [
+								'**/vscode/**',
+								'**/node/**',
+								'**/vscode-node/**',
+								'**/worker/**',
+								'**/vscode-worker/**'
+							]
+						},
+						{
+							target: '**/vscode/**',
+							from: [
+								'**/node/**',
+								'**/vscode-node/**',
+								'**/worker/**',
+								'**/vscode-worker/**'
+							]
+						},
+						{
+							target: '**/node/**',
+							from: [
+								'**/vscode/**',
+								'**/vscode-node/**',
+								'**/worker/**',
+								'**/vscode-worker/**'
+							]
+						},
+						{
+							target: '**/vscode-node/**',
+							from: [
+								'**/worker/**',
+								'**/vscode-worker/**'
+							]
+						},
+						{
+							target: '**/worker/**',
+							from: [
+								'**/vscode/**',
+								'**/node/**',
+								'**/vscode-node/**',
+								'**/vscode-worker/**'
+							]
+						},
+						{
+							target: '**/vscode-worker/**',
+							from: [
+								'**/node/**',
+								'**/vscode-node/**'
+							]
+						},
+						{
+							target: './extensions/copilot/src/',
+							from: './extensions/copilot/test/'
+						},
+						{
+							target: './extensions/copilot/src/shared-fetch-utils',
+							from: ['./extensions/copilot/src/extension', './extensions/copilot/src/platform', './extensions/copilot/src/util', './extensions/copilot/src/lib']
+						},
+						{
+							target: './extensions/copilot/src/util',
+							from: ['./extensions/copilot/src/platform', './extensions/copilot/src/extension']
+						},
+						{
+							target: './extensions/copilot/src/platform',
+							from: ['./extensions/copilot/src/extension']
+						},
+						{
+							target: ['./extensions/copilot/test', '!./extensions/copilot/test/base/extHostContext/*.ts'],
+							from: ['**/vscode-node/**', '**/vscode-worker/**']
+						},
+						{
+							target: 'extensions/copilot/src/!(lib)/**',
+							from: './extensions/copilot/src/lib'
+						}
+					]
+				}
+			],
+			'copilot-local/no-instanceof-uri': ['warn'],
+			'copilot-local/no-test-imports': ['warn'],
+			'copilot-local/no-runtime-import': [
+				'warn',
+				{
+					test: ['vscode'],
+					'src/**/common/**/*': ['vscode'],
+					'src/**/node/**/*': ['vscode']
+				}
+			],
+			'copilot-local/no-funny-filename': ['warn'],
+			'copilot-local/no-bad-gdpr-comment': ['warn'],
+			'copilot-local/no-gdpr-event-name-mismatch': ['warn'],
+			'copilot-local/no-unlayered-files': ['warn'],
+			'copilot-local/no-restricted-copilot-pr-string': [
+				'warn',
+				{
+					className: 'GitHubPullRequestProviders',
+					string: 'Generate with Copilot'
+				}
+			],
+			'copilot-local/no-nls-localize': ['warn'],
+		}
+	},
+	// copilot extension - allow node imports in node layer
+	{
+		files: [
+			'extensions/copilot/**/{vscode-node,node}/**/*.ts',
+			'extensions/copilot/**/{vscode-node,node}/**/*.tsx',
+		],
+		rules: {
+			'no-restricted-imports': 'off'
+		}
+	},
+	// copilot extension - override files (tests, build, etc.)
+	{
+		files: [
+			'extensions/copilot/test/**',
+			'extensions/copilot/src/vscodeTypes.ts',
+			'extensions/copilot/script/**',
+			'extensions/copilot/src/extension/*.d.ts',
+			'extensions/copilot/build/**',
+		],
+		rules: {
+			'copilot-local/no-unlayered-files': 'off',
+			'no-restricted-imports': 'off'
+		}
+	},
+	// copilot extension - TSX linebreak rule
+	{
+		files: [
+			'extensions/copilot/src/extension/**/*.tsx',
+		],
+		plugins: {
+			'copilot-local': pluginCopilotLocal,
+		},
+		rules: {
+			'copilot-local/no-missing-linebreak': 'warn'
+		}
+	},
+	// copilot extension - test-only rule
+	{
+		files: [
+			'extensions/copilot/**/*.test.ts',
+			'extensions/copilot/**/*.test.tsx',
+		],
+		plugins: {
+			'copilot-local': pluginCopilotLocal,
+		},
+		rules: {
+			'copilot-local/no-test-only': 'warn'
+		}
+	},
+	// copilot extension - no-explicit-any
+	{
+		files: [
+			'extensions/copilot/src/**/*.ts',
+		],
+		ignores: [
+			'extensions/copilot/src/util/vs/**/*.ts',
+			'extensions/copilot/src/**/*.spec.ts',
+			'extensions/copilot/src/extension/agents/copilotcli/node/nodePtyShim.ts',
+			'extensions/copilot/src/extension/byok/common/anthropicMessageConverter.ts',
+			'extensions/copilot/src/extension/byok/common/geminiFunctionDeclarationConverter.ts',
+			'extensions/copilot/src/extension/byok/common/geminiMessageConverter.ts',
+			'extensions/copilot/src/extension/byok/vscode-node/anthropicProvider.ts',
+			'extensions/copilot/src/extension/byok/vscode-node/geminiNativeProvider.ts',
+			'extensions/copilot/src/extension/byok/vscode-node/ollamaProvider.ts',
+			'extensions/copilot/src/extension/chatSessions/vscode-node/copilotCloudSessionContentBuilder.ts',
+			'extensions/copilot/src/extension/chatSessions/vscode-node/copilotCloudSessionsProvider.ts',
+			'extensions/copilot/src/extension/codeBlocks/node/codeBlockProcessor.ts',
+			'extensions/copilot/src/extension/codeBlocks/vscode-node/provider.ts',
+			'extensions/copilot/src/extension/configuration/vscode-node/configurationMigration.ts',
+			'extensions/copilot/src/extension/context/node/resolvers/genericInlineIntentInvocation.ts',
+			'extensions/copilot/src/extension/context/node/resolvers/genericPanelIntentInvocation.ts',
+			'extensions/copilot/src/extension/context/node/resolvers/inlineFixIntentInvocation.ts',
+			'extensions/copilot/src/extension/context/node/resolvers/promptWorkspaceLabels.ts',
+			'extensions/copilot/src/extension/contextKeys/vscode-node/contextKeys.contribution.ts',
+			'extensions/copilot/src/extension/conversation/vscode-node/userActions.ts',
+			'extensions/copilot/src/extension/extension/vscode/services.ts',
+			'extensions/copilot/src/extension/inlineChat/node/rendererVisualization.ts',
+			'extensions/copilot/src/extension/inlineChat/vscode-node/inlineChatCommands.ts',
+			'extensions/copilot/src/extension/inlineEdits/common/observableWorkspaceRecordingReplayer.ts',
+			'extensions/copilot/src/extension/inlineEdits/vscode-node/parts/vscodeWorkspace.ts',
+			'extensions/copilot/src/extension/intents/node/editCodeIntent.ts',
+			'extensions/copilot/src/extension/intents/node/editCodeStep.ts',
+			'extensions/copilot/src/extension/intents/node/fixIntent.ts',
+			'extensions/copilot/src/extension/intents/node/newIntent.ts',
+			'extensions/copilot/src/extension/intents/node/searchIntent.ts',
+			'extensions/copilot/src/extension/languageContextProvider/vscode-node/languageContextProviderService.ts',
+			'extensions/copilot/src/extension/linkify/common/commands.ts',
+			'extensions/copilot/src/extension/linkify/common/responseStreamWithLinkification.ts',
+			'extensions/copilot/src/extension/linkify/test/node/util.ts',
+			'extensions/copilot/src/extension/log/vscode-node/loggingActions.ts',
+			'extensions/copilot/src/extension/log/vscode-node/requestLogTree.ts',
+			'extensions/copilot/src/extension/mcp/test/vscode-node/util.ts',
+			'extensions/copilot/src/extension/mcp/vscode-node/commands.ts',
+			'extensions/copilot/src/extension/mcp/vscode-node/nuget.ts',
+			'extensions/copilot/src/extension/onboardDebug/node/copilotDebugWorker/rpc.ts',
+			'extensions/copilot/src/extension/onboardDebug/node/parseLaunchConfigFromResponse.ts',
+			'extensions/copilot/src/extension/onboardDebug/vscode-node/copilotDebugCommandHandle.ts',
+			'extensions/copilot/src/extension/prompt/common/toolCallRound.ts',
+			'extensions/copilot/src/extension/prompt/node/chatMLFetcher.ts',
+			'extensions/copilot/src/extension/prompt/node/chatParticipantTelemetry.ts',
+			'extensions/copilot/src/extension/prompt/node/editGeneration.ts',
+			'extensions/copilot/src/extension/prompt/node/intents.ts',
+			'extensions/copilot/src/extension/prompt/node/todoListContextProvider.ts',
+			'extensions/copilot/src/extension/prompt/vscode-node/endpointProviderImpl.ts',
+			'extensions/copilot/src/extension/prompt/vscode-node/requestLoggerImpl.ts',
+			'extensions/copilot/src/extension/prompts/node/agent/promptRegistry.ts',
+			'extensions/copilot/src/extension/prompts/node/base/promptElement.ts',
+			'extensions/copilot/src/extension/prompts/node/base/promptRenderer.ts',
+			'extensions/copilot/src/extension/prompts/node/test/utils.ts',
+			'extensions/copilot/src/extension/replay/common/chatReplayResponses.ts',
+			'extensions/copilot/src/extension/replay/node/replayParser.ts',
+			'extensions/copilot/src/extension/replay/vscode-node/replayDebugSession.ts',
+			'extensions/copilot/src/extension/review/node/githubReviewAgent.ts',
+			'extensions/copilot/src/extension/test/node/services.ts',
+			'extensions/copilot/src/extension/test/vscode-node/extension.test.ts',
+			'extensions/copilot/src/extension/test/vscode-node/sanity.sanity-test.ts',
+			'extensions/copilot/src/extension/test/vscode-node/session.test.ts',
+			'extensions/copilot/src/extension/tools/common/toolSchemaNormalizer.ts',
+			'extensions/copilot/src/extension/tools/common/toolsService.ts',
+			'extensions/copilot/src/extension/typescriptContext/common/serverProtocol.ts',
+			'extensions/copilot/src/extension/typescriptContext/serverPlugin/src/common/baseContextProviders.ts',
+			'extensions/copilot/src/extension/typescriptContext/serverPlugin/src/common/contextProvider.ts',
+			'extensions/copilot/src/extension/typescriptContext/serverPlugin/src/common/protocol.ts',
+			'extensions/copilot/src/extension/typescriptContext/serverPlugin/src/common/typescripts.ts',
+			'extensions/copilot/src/extension/typescriptContext/serverPlugin/src/common/utils.ts',
+			'extensions/copilot/src/extension/typescriptContext/vscode-node/inspector.ts',
+			'extensions/copilot/src/extension/typescriptContext/vscode-node/languageContextService.ts',
+			'extensions/copilot/src/extension/workspaceRecorder/vscode-node/workspaceListenerService.ts',
+			'extensions/copilot/src/extension/workspaceSemanticSearch/node/semanticSearchTextSearchProvider.ts',
+			'extensions/copilot/src/lib/node/chatLibMain.ts',
+			'extensions/copilot/src/platform/authentication/test/node/simulationTestCopilotTokenManager.ts',
+			'extensions/copilot/src/platform/chat/common/blockedExtensionService.ts',
+			'extensions/copilot/src/platform/chunking/common/chunkingEndpointClientImpl.ts',
+			'extensions/copilot/src/platform/commands/common/mockRunCommandExecutionService.ts',
+			'extensions/copilot/src/platform/commands/common/runCommandExecutionService.ts',
+			'extensions/copilot/src/platform/commands/vscode/runCommandExecutionServiceImpl.ts',
+			'extensions/copilot/src/platform/configuration/common/configurationService.ts',
+			'extensions/copilot/src/platform/configuration/common/validator.ts',
+			'extensions/copilot/src/platform/configuration/test/common/inMemoryConfigurationService.ts',
+			'extensions/copilot/src/platform/configuration/vscode/configurationServiceImpl.ts',
+			'extensions/copilot/src/platform/customInstructions/common/customInstructionsService.ts',
+			'extensions/copilot/src/platform/debug/vscode/debugOutputListener.ts',
+			'extensions/copilot/src/platform/diff/node/diffWorkerMain.ts',
+			'extensions/copilot/src/platform/editing/common/notebookDocumentSnapshot.ts',
+			'extensions/copilot/src/platform/editing/common/textDocumentSnapshot.ts',
+			'extensions/copilot/src/platform/embeddings/common/embeddingsGrouper.ts',
+			'extensions/copilot/src/platform/embeddings/common/embeddingsIndex.ts',
+			'extensions/copilot/src/platform/embeddings/common/remoteEmbeddingsComputer.ts',
+			'extensions/copilot/src/platform/endpoint/node/modelMetadataFetcher.ts',
+			'extensions/copilot/src/platform/endpoint/test/node/openaiCompatibleEndpoint.ts',
+			'extensions/copilot/src/platform/env/common/packagejson.ts',
+			'extensions/copilot/src/platform/extensions/common/extensionsService.ts',
+			'extensions/copilot/src/platform/filesystem/common/fileSystemService.ts',
+			'extensions/copilot/src/platform/github/common/githubService.ts',
+			'extensions/copilot/src/platform/github/common/nullOctokitServiceImpl.ts',
+			'extensions/copilot/src/platform/inlineEdits/common/dataTypes/edit.ts',
+			'extensions/copilot/src/platform/inlineEdits/common/dataTypes/textEditLengthHelper/length.ts',
+			'extensions/copilot/src/platform/inlineEdits/common/editReason.ts',
+			'extensions/copilot/src/platform/inlineEdits/common/statelessNextEditProvider.ts',
+			'extensions/copilot/src/platform/inlineEdits/common/utils/observable.ts',
+			'extensions/copilot/src/platform/languages/common/languageDiagnosticsService.ts',
+			'extensions/copilot/src/platform/log/common/logExecTime.ts',
+			'extensions/copilot/src/platform/log/common/logService.ts',
+			'extensions/copilot/src/platform/log/vscode/outputChannelLogTarget.ts',
+			'extensions/copilot/src/platform/nesFetch/common/completionsFetchService.ts',
+			'extensions/copilot/src/platform/nesFetch/node/completionsFetchServiceImpl.ts',
+			'extensions/copilot/src/platform/networking/common/fetch.ts',
+			'extensions/copilot/src/platform/networking/common/fetcherService.ts',
+			'extensions/copilot/src/platform/networking/common/networking.ts',
+			'extensions/copilot/src/platform/networking/common/openai.ts',
+			'extensions/copilot/src/platform/networking/node/baseFetchFetcher.ts',
+			'extensions/copilot/src/platform/networking/node/chatStream.ts',
+			'extensions/copilot/src/platform/networking/node/fetcherFallback.ts',
+			'extensions/copilot/src/platform/networking/node/nodeFetchFetcher.ts',
+			'extensions/copilot/src/platform/networking/node/nodeFetcher.ts',
+			'extensions/copilot/src/platform/networking/node/stream.ts',
+			'extensions/copilot/src/platform/networking/node/test/nodeFetcherService.ts',
+			'extensions/copilot/src/platform/networking/vscode-node/electronFetcher.ts',
+			'extensions/copilot/src/platform/networking/vscode-node/fetcherServiceImpl.ts',
+			'extensions/copilot/src/platform/notification/common/notificationService.ts',
+			'extensions/copilot/src/platform/notification/vscode/notificationServiceImpl.ts',
+			'extensions/copilot/src/platform/openai/node/fetch.ts',
+			'extensions/copilot/src/platform/parser/node/nodes.ts',
+			'extensions/copilot/src/platform/parser/node/parserServiceImpl.ts',
+			'extensions/copilot/src/platform/parser/node/parserWorker.ts',
+			'extensions/copilot/src/platform/parser/node/treeSitterQueries.ts',
+			'extensions/copilot/src/platform/remoteCodeSearch/common/githubCodeSearchService.ts',
+			'extensions/copilot/src/platform/remoteSearch/node/codeOrDocsSearchClientImpl.ts',
+			'extensions/copilot/src/platform/review/vscode/reviewServiceImpl.ts',
+			'extensions/copilot/src/platform/scopeSelection/vscode-node/scopeSelectionImpl.ts',
+			'extensions/copilot/src/platform/snippy/common/snippyTypes.ts',
+			'extensions/copilot/src/platform/survey/vscode/surveyServiceImpl.ts',
+			'extensions/copilot/src/platform/tasks/vscode/tasksService.ts',
+			'extensions/copilot/src/platform/telemetry/common/failingTelemetryReporter.ts',
+			'extensions/copilot/src/platform/telemetry/common/telemetryData.ts',
+			'extensions/copilot/src/platform/telemetry/node/azureInsightsReporter.ts',
+			'extensions/copilot/src/platform/telemetry/node/spyingTelemetryService.ts',
+			'extensions/copilot/src/platform/terminal/common/terminalService.ts',
+			'extensions/copilot/src/platform/terminal/vscode/terminalServiceImpl.ts',
+			'extensions/copilot/src/platform/test/common/endpointTestFixtures.ts',
+			'extensions/copilot/src/platform/test/common/testExtensionsService.ts',
+			'extensions/copilot/src/platform/test/node/extensionContext.ts',
+			'extensions/copilot/src/platform/test/node/fetcher.ts',
+			'extensions/copilot/src/platform/test/node/services.ts',
+			'extensions/copilot/src/platform/test/node/simulationWorkspace.ts',
+			'extensions/copilot/src/platform/test/node/telemetry.ts',
+			'extensions/copilot/src/platform/test/node/testWorkbenchService.ts',
+			'extensions/copilot/src/platform/testing/common/nullWorkspaceMutationManager.ts',
+			'extensions/copilot/src/platform/thinking/common/thinking.ts',
+			'extensions/copilot/src/platform/tokenizer/node/tikTokenizerWorker.ts',
+			'extensions/copilot/src/platform/tokenizer/node/tokenizer.ts',
+			'extensions/copilot/src/platform/workbench/common/workbenchService.ts',
+			'extensions/copilot/src/platform/workbench/vscode/workbenchServiceImpt.ts',
+			'extensions/copilot/src/platform/workspaceChunkSearch/node/nullWorkspaceFileIndex.ts',
+			'extensions/copilot/src/platform/workspaceChunkSearch/node/tfidfChunkSearch.ts',
+			'extensions/copilot/src/platform/workspaceChunkSearch/node/workspaceFileIndex.ts',
+			'extensions/copilot/src/platform/workspaceRecorder/common/resolvedRecording/resolvedRecording.ts',
+			'extensions/copilot/src/util/common/async.ts',
+			'extensions/copilot/src/util/common/cache.ts',
+			'extensions/copilot/src/util/common/chatResponseStreamImpl.ts',
+			'extensions/copilot/src/util/common/debounce.ts',
+			'extensions/copilot/src/util/common/debugValueEditorGlobals.ts',
+			'extensions/copilot/src/util/common/diff.ts',
+			'extensions/copilot/src/util/common/progress.ts',
+			'extensions/copilot/src/util/common/test/shims/chatTypes.ts',
+			'extensions/copilot/src/util/common/test/shims/editing.ts',
+			'extensions/copilot/src/util/common/test/shims/l10n.ts',
+			'extensions/copilot/src/util/common/test/shims/notebookDocument.ts',
+			'extensions/copilot/src/util/common/test/shims/vscodeTypesShim.ts',
+			'extensions/copilot/src/util/common/test/simpleMock.ts',
+			'extensions/copilot/src/util/common/timeTravelScheduler.ts',
+			'extensions/copilot/src/util/common/types.ts',
+			'extensions/copilot/src/util/node/worker.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'@typescript-eslint': tseslint.plugin,
+		},
+		rules: {
+			'@typescript-eslint/no-explicit-any': [
+				'warn',
+				{
+					'fixToUnknown': true
+				}
+			]
+		}
+	},
+	// copilot extension - chatLibMain exception
+	{
+		files: [
+			'extensions/copilot/src/lib/node/chatLibMain.ts',
+		],
+		rules: {
+			'import/no-restricted-paths': 'off'
+		}
+	},
+	// Allow querySelector/querySelectorAll in test files - it's acceptable for test assertions
+	{
+		files: [
+			'src/**/test/**/*.ts',
+			'extensions/**/test/**/*.ts',
+		],
+		rules: {
+			'no-restricted-syntax': [
+				'warn',
+				// Keep the Intl helper restriction even in tests
+				{
+					'selector': `NewExpression[callee.object.name='Intl']`,
+					'message': 'Use safeIntl helper instead for safe and lazy use of potentially expensive Intl methods.'
+				},
+				{
+					'selector': 'TSAsExpression[typeAnnotation.type="TSTypeReference"][typeAnnotation.typeName.type="TSQualifiedName"][typeAnnotation.typeName.left.type="Identifier"][typeAnnotation.typeName.left.name="sinon"][typeAnnotation.typeName.right.name="SinonStub"]',
+					'message': `Avoid casting with 'as sinon.SinonStub'. Prefer typed stubs from 'sinon.stub(...)' or capture the stub in a typed variable.`
+				},
+			],
+		}
+	});

@@ -12,9 +12,11 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { IJSONSchema, TypeFromJsonSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import * as nls from '../../../../nls.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWebview, IWebviewService, WebviewContentPurpose } from '../../../contrib/webview/browser/webview.js';
@@ -22,7 +24,13 @@ import { IExtensionService, isProposedApiEnabled } from '../../../services/exten
 import { ExtensionsRegistry, IExtensionPointUser } from '../../../services/extensions/common/extensionsRegistry.js';
 
 export interface IChatOutputItemRenderer {
-	renderOutputPart(mime: string, data: Uint8Array, webview: IWebview, token: CancellationToken): Promise<void>;
+	renderOutputPart(mime: string, data: Uint8Array, webview: IWebview, context: IChatOutputRenderContext, token: CancellationToken): Promise<void>;
+}
+
+export interface IChatOutputRenderContext {
+	readonly codeBlockContext?: {
+		readonly languageIdentifier: string;
+	};
 }
 
 interface RegisterOptions {
@@ -37,9 +45,13 @@ export const IChatOutputRendererService = createDecorator<IChatOutputRendererSer
 export interface IChatOutputRendererService {
 	readonly _serviceBrand: undefined;
 
-	registerRenderer(mime: string, renderer: IChatOutputItemRenderer, options: RegisterOptions): IDisposable;
+	registerRenderer(viewType: string, renderer: IChatOutputItemRenderer, options: RegisterOptions): IDisposable;
+
+	hasCodeBlockRenderer(languageIdentifier: string): boolean;
 
 	renderOutputPart(mime: string, data: Uint8Array, parent: HTMLElement, webviewOptions: RenderOutputPartWebviewOptions, token: CancellationToken): Promise<RenderedOutputPart>;
+
+	renderCodeBlock(languageIdentifier: string, data: Uint8Array, parent: HTMLElement, webviewOptions: RenderOutputPartWebviewOptions, token: CancellationToken): Promise<RenderedOutputPart>;
 }
 
 export interface RenderedOutputPart extends IDisposable {
@@ -50,11 +62,18 @@ export interface RenderedOutputPart extends IDisposable {
 }
 
 interface RenderOutputPartWebviewOptions {
+	readonly title?: string;
 	readonly origin?: string;
+	readonly webviewState?: string;
 }
 
+interface ContributionEntry {
+	readonly mimes: readonly string[];
+	readonly codeBlockLanguageIdentifiers: readonly string[];
+}
 
 interface RendererEntry {
+	readonly viewType: string;
 	readonly renderer: IChatOutputItemRenderer;
 	readonly options: RegisterOptions;
 }
@@ -62,15 +81,14 @@ interface RendererEntry {
 export class ChatOutputRendererService extends Disposable implements IChatOutputRendererService {
 	_serviceBrand: undefined;
 
-	private readonly _contributions = new Map</*viewType*/ string, {
-		readonly mimes: readonly string[];
-	}>();
+	private readonly _contributions = new Map</*viewType*/ string, ContributionEntry>();
 
 	private readonly _renderers = new Map</*viewType*/ string, RendererEntry>();
 
 	constructor(
-		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IWebviewService private readonly _webviewService: IWebviewService,
 	) {
 		super();
 
@@ -80,7 +98,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 	}
 
 	registerRenderer(viewType: string, renderer: IChatOutputItemRenderer, options: RegisterOptions): IDisposable {
-		this._renderers.set(viewType, { renderer, options });
+		this._renderers.set(viewType, { viewType, renderer, options });
 		return {
 			dispose: () => {
 				this._renderers.delete(viewType);
@@ -88,8 +106,12 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 		};
 	}
 
+	hasCodeBlockRenderer(languageIdentifier: string): boolean {
+		return Array.from(this._contributions.values()).some(value => value.codeBlockLanguageIdentifiers.some(identifier => equalsIgnoreCase(identifier, languageIdentifier)));
+	}
+
 	async renderOutputPart(mime: string, data: Uint8Array, parent: HTMLElement, webviewOptions: RenderOutputPartWebviewOptions, token: CancellationToken): Promise<RenderedOutputPart> {
-		const rendererData = await this.getRenderer(mime, token);
+		const rendererData = await this.getRendererForMime(mime, token);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -98,11 +120,30 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 			throw new Error(`No renderer registered found for mime type: ${mime}`);
 		}
 
+		return this.doRenderOutputPart(rendererData, mime, data, {}, parent, webviewOptions, token);
+	}
+
+	async renderCodeBlock(languageIdentifier: string, data: Uint8Array, parent: HTMLElement, webviewOptions: RenderOutputPartWebviewOptions, token: CancellationToken): Promise<RenderedOutputPart> {
+		const rendererData = await this.getRendererForCodeBlock(languageIdentifier, token);
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		if (!rendererData) {
+			throw new Error(`No renderer registered found for code block language identifier: ${languageIdentifier}`);
+		}
+
+		return this.doRenderOutputPart(rendererData, 'text/x-vscode-chat-code-block', data, { codeBlockContext: { languageIdentifier } }, parent, webviewOptions, token);
+	}
+
+	private async doRenderOutputPart(rendererData: RendererEntry, mime: string, data: Uint8Array, context: IChatOutputRenderContext, parent: HTMLElement, webviewOptions: RenderOutputPartWebviewOptions, token: CancellationToken): Promise<RenderedOutputPart> {
+
 		const store = new DisposableStore();
 
 		const webview = store.add(this._webviewService.createWebviewElement({
-			title: '',
+			title: webviewOptions.title ?? '',
 			origin: webviewOptions.origin ?? generateUuid(),
+			providedViewType: rendererData.viewType,
 			options: {
 				enableFindWidget: false,
 				purpose: WebviewContentPurpose.ChatOutputItem,
@@ -111,6 +152,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 			contentOptions: {},
 			extension: rendererData.options.extension ? rendererData.options.extension : undefined,
 		}));
+		webview.setContextKeyService(store.add(this._contextKeyService.createScoped(parent)));
 
 		const onDidChangeHeight = store.add(new Emitter<number>());
 		store.add(autorun(reader => {
@@ -121,8 +163,12 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 			}
 		}));
 
+		if (webviewOptions.webviewState) {
+			webview.state = webviewOptions.webviewState;
+		}
+
 		webview.mountTo(parent, getWindow(parent));
-		await rendererData.renderer.renderOutputPart(mime, data, webview, token);
+		await rendererData.renderer.renderOutputPart(mime, data, webview, context, token);
 
 		return {
 			get webview() { return webview; },
@@ -136,10 +182,18 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 		};
 	}
 
-	private async getRenderer(mime: string, token: CancellationToken): Promise<RendererEntry | undefined> {
+	private async getRendererForMime(mime: string, token: CancellationToken): Promise<RendererEntry | undefined> {
+		return this.getRenderer(value => value.mimes.some(m => matchesMimeType(m, [mime])), token);
+	}
+
+	private async getRendererForCodeBlock(languageIdentifier: string, token: CancellationToken): Promise<RendererEntry | undefined> {
+		return this.getRenderer(value => value.codeBlockLanguageIdentifiers.some(identifier => equalsIgnoreCase(identifier, languageIdentifier)), token);
+	}
+
+	private async getRenderer(matches: (value: ContributionEntry) => boolean, token: CancellationToken): Promise<RendererEntry | undefined> {
 		await raceCancellationError(this._extensionService.whenInstalledExtensionsRegistered(), token);
 		for (const [id, value] of this._contributions) {
-			if (value.mimes.some(m => matchesMimeType(m, [mime]))) {
+			if (matches(value)) {
 				await raceCancellationError(this._extensionService.activateByEvent(`onChatOutputRenderer:${id}`), token);
 				const rendererData = this._renderers.get(id);
 				if (rendererData) {
@@ -164,8 +218,16 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 					continue;
 				}
 
+				const mimeTypes = contribution.mimeTypes ?? [];
+				const codeBlockLanguageIdentifiers = contribution.codeBlockLanguageIdentifiers ?? [];
+				if (!mimeTypes.length && !codeBlockLanguageIdentifiers.length) {
+					extension.collector.error(`Chat output renderer with view type '${contribution.viewType}' must specify at least one mime type or code block language identifier`);
+					continue;
+				}
+
 				this._contributions.set(contribution.viewType, {
-					mimes: contribution.mimeTypes,
+					mimes: mimeTypes,
+					codeBlockLanguageIdentifiers,
 				});
 			}
 		}
@@ -175,7 +237,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 const chatOutputRendererContributionSchema = {
 	type: 'object',
 	additionalProperties: false,
-	required: ['viewType', 'mimeTypes'],
+	required: ['viewType'],
 	properties: {
 		viewType: {
 			type: 'string',
@@ -184,6 +246,15 @@ const chatOutputRendererContributionSchema = {
 		mimeTypes: {
 			type: 'array',
 			description: nls.localize('chatOutputRenderer.mimeTypes', 'MIME types that this renderer can handle'),
+			uniqueItems: true,
+			items: {
+				type: 'string'
+			}
+		},
+		codeBlockLanguageIdentifiers: {
+			type: 'array',
+			description: nls.localize('chatOutputRenderer.codeBlockLanguageIdentifiers', 'Code block language identifiers that this renderer can handle'),
+			uniqueItems: true,
 			items: {
 				type: 'string'
 			}
@@ -201,7 +272,7 @@ const chatOutputRenderContributionPoint = ExtensionsRegistry.registerExtensionPo
 		}
 	},
 	jsonSchema: {
-		description: nls.localize('vscode.extension.contributes.chatOutputRenderer', 'Contributes a renderer for specific MIME types in chat outputs'),
+		description: nls.localize('vscode.extension.contributes.chatOutputRenderer', 'Contributes a renderer for specific MIME types and code block language identifiers in chat outputs'),
 		type: 'array',
 		items: chatOutputRendererContributionSchema,
 	}

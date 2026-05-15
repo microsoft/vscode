@@ -51,7 +51,8 @@ const NULL_PROFILE = {
 	snippetsHome: joinPath(homeDir, 'snippets'),
 	promptsHome: joinPath(homeDir, 'prompts'),
 	extensionsResource: joinPath(homeDir, 'extensions.json'),
-	cacheHome: joinPath(homeDir, 'cache')
+	cacheHome: joinPath(homeDir, 'cache'),
+	agentPluginsHome: joinPath(homeDir, 'agentPluginsHome'),
 };
 
 const TestNativeWindowConfiguration: INativeWindowConfiguration = {
@@ -59,6 +60,7 @@ const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	machineId: 'testMachineId',
 	sqmId: 'testSqmId',
 	devDeviceId: 'testdevDeviceId',
+	isPortable: false,
 	logLevel: LogLevel.Error,
 	loggers: [],
 	mainPid: 0,

@@ -1,12 +1,13 @@
 jobs:
   - job: Web
     displayName: Web
-    timeoutInMinutes: 30
+    timeoutInMinutes: 45
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux
     variables:
       VSCODE_ARCH: x64
+      BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
     templateContext:
       outputs:
         - output: pipelineArtifact
@@ -33,20 +34,11 @@ jobs:
           KeyVaultName: vscode-build-secrets
           SecretsFilter: "github-distro-mixin-password"
 
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifact: Compilation
-          path: $(Build.ArtifactStagingDirectory)
-        displayName: Download compilation output
-
-      - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-        displayName: Extract compilation output
-
-      - script: node build/setup-npm-registry.js $NPM_REGISTRY
+      - script: node build/setup-npm-registry.ts $NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
-      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js web $(node -p process.arch) > .build/packagelockhash
+      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts web $(node -p process.arch) > .build/packagelockhash
         displayName: Prepare node_modules cache key
 
       - task: Cache@2
@@ -101,22 +93,37 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - script: node build/azure-pipelines/distro/mixin-npm
+      - script: node build/azure-pipelines/distro/mixin-npm.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Mixin distro node modules
 
       - script: |
           set -e
-          node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
           mkdir -p .build/node_modules_cache
           tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Create node_modules archive
 
-      - script: node build/azure-pipelines/distro/mixin-quality
+      - script: node build/azure-pipelines/distro/mixin-quality.ts
         displayName: Mixin distro quality
 
       - template: ../common/install-builtin-extensions.yml@self
+
+      - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        displayName: Download Copilot VSIX (background)
+
+      - script: npm run gulp core-ci
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        displayName: Compile
+
+      - script: npx deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        displayName: Download Copilot VSIX
 
       - script: |
           set -e
@@ -147,7 +154,7 @@ jobs:
           AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
           AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
           AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-            node build/azure-pipelines/upload-cdn
+            node build/azure-pipelines/upload-cdn.ts
         displayName: Upload to CDN
 
       - script: |
@@ -156,8 +163,8 @@ jobs:
           AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
           AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
           AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-            node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.js.map
-        displayName: Upload sourcemaps (Web Main)
+            node build/azure-pipelines/upload-sourcemaps.ts out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.internal.js.map
+        displayName: Upload sourcemaps (Web)
 
       - script: |
           set -e
@@ -165,14 +172,5 @@ jobs:
           AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
           AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
           AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-            node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.internal.js.map
-        displayName: Upload sourcemaps (Web Internal)
-
-      - script: |
-          set -e
-          AZURE_STORAGE_ACCOUNT="vscodeweb" \
-          AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
-          AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-          AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-            node build/azure-pipelines/upload-nlsmetadata
+            node build/azure-pipelines/upload-nlsmetadata.ts
         displayName: Upload NLS Metadata

@@ -9,8 +9,9 @@ import { localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ElicitationState } from '../../common/chatService/chatService.js';
+import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
@@ -50,7 +51,7 @@ class AcceptElicitationRequestAction extends Action2 {
 			}
 
 			for (const content of item.response.value) {
-				if (content.kind === 'elicitation' && content.state === 'pending') {
+				if (content.kind === 'elicitation2' && content.state.get() === ElicitationState.Pending) {
 					await content.accept(true);
 					widget.focusInput();
 					return;

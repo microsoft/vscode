@@ -1,17 +1,17 @@
 # Code - OSS Development MCP Server
 
-This directory contains a Model Context Protocol (MCP) server that provides Playwright browser automation capabilities for Code - OSS development and testing. The MCP server exposes Code - OSS's Playwright testing infrastructure through a standardized interface, allowing AI assistants and other tools to interact with browsers programmatically.
+This directory contains a Model Context Protocol (MCP) server that provides VS Code automation capabilities for Code - OSS development and testing. The MCP server exposes Code - OSS's testing infrastructure through a standardized interface, allowing AI assistants and other tools to interact with VS Code programmatically.
 
 ## What is MCP?
 
-The [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is an open standard that enables AI assistants to securely connect to external data sources and tools. This MCP server specifically provides browser automation capabilities using Playwright, making it possible for AI assistants to:
+The [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is an open standard that enables AI assistants to securely connect to external data sources and tools. This MCP server specifically provides VS Code automation capabilities, making it possible for AI assistants to:
 
-- Navigate web pages
-- Interact with UI elements (click, type, hover, etc.)
-- Take screenshots and capture page content
-- Evaluate JavaScript in browser contexts
-- Handle file uploads and downloads
-- Manage browser tabs and windows
+- Start and stop VS Code instances
+- Interact with editors, terminals, and UI elements
+- Run commands and keybindings
+- Navigate the explorer, search, debug, and other viewlets
+- Manage extensions, settings, and keybindings
+- Work with notebooks and chat features
 
 ## Quick Start - Stdio
 
@@ -19,13 +19,11 @@ Firstly, make sure you install all dependencies (`npm i`) at the root of the rep
 
 Then, open the Command Palette and run:
 ```
-MCP: List Servers → vscode-playwright-mcp → Start Server
+MCP: List Servers → vscode-automation-mcp → Start Server
 ```
 or open [mcp.json](../../.vscode/mcp.json) and start it from there.
 
 That's it! It should automatically compile everything needed.
-
-Then you can use `/playwright` to ask specific questions.
 
 ## Arguments
 
@@ -41,7 +39,7 @@ Open the [mcp.json](../../.vscode/mcp.json) and modify the `args`:
 
 You can modify the mcp.json to debug the server:
 ```JSON
-"vscode-playwright-mcp": {
+"vscode-automation-mcp": {
 	"type": "stdio",
 	"command": "node",
 	"args": ["./out/stdio.js"],
@@ -57,26 +55,44 @@ You can modify the mcp.json to debug the server:
 
 ## What the Server Provides
 
-The MCP server exposes a comprehensive set of browser automation tools through the MCP protocol:
+The MCP server exposes a comprehensive set of VS Code automation tools through the MCP protocol:
 
-### Element Interaction
-- Click on elements (single, double, right-click)
-- Type text into input fields
-- Hover over elements
-- Drag and drop between elements
-- Select options in dropdowns
+### Application Management
+- Start, stop, and restart VS Code instances
+- Open workspaces and folders
 
-### Content Capture & Analysis
-- Take screenshots (full page or specific elements)
-- Capture accessibility snapshots for better element targeting
-- Get page console messages
-- Monitor network requests
+### Editor Tools
+- Open, close, and navigate files
+- Get and set editor content
+- Manage selections and cursors
 
-### Advanced Features
-- Evaluate JavaScript code in browser contexts
-- Handle file uploads
-- Wait for specific content or time delays
-- Handle browser dialogs and alerts
+### Terminal Tools
+- Create and manage terminal instances
+- Send commands to terminals
+- Read terminal output
+
+### Debug Tools
+- Start and stop debug sessions
+- Manage breakpoints
+- Step through code
+
+### Search Tools
+- Search for files and text
+- Navigate search results
+
+### Extension Tools
+- Install and manage extensions
+- View extension information
+
+### UI Interaction
+- Quick access and command palette
+- Explorer and activity bar
+- Source control management
+- Status bar interactions
+- Problems panel
+- Settings and keybindings editors
+- Notebook support
+- Chat features
 
 ## Development
 
@@ -103,22 +119,30 @@ npm start
 ```
 test/mcp/
 ├── src/
-│   ├── main.ts              # Express server and MCP endpoint handlers
-│   ├── playwright.ts        # Code - OSS Playwright integration
-│   ├── inMemoryEventStore.ts # Session management for resumability
-│   └── utils.ts             # Utility functions
+│   ├── stdio.ts             # Entry point for stdio transport
+│   ├── automation.ts        # MCP server with automation tools
+│   ├── application.ts       # VS Code application lifecycle management
+│   ├── options.ts           # Command-line options parsing
+│   ├── utils.ts             # Utility functions
+│   └── automationTools/     # Tool implementations organized by feature
+│       ├── index.ts         # Tool registration
+│       ├── core.ts          # Core application tools
+│       ├── editor.ts        # Editor tools
+│       ├── terminal.ts      # Terminal tools
+│       ├── debug.ts         # Debug tools
+│       └── ...              # Other feature-specific tools
 ├── package.json             # Dependencies and scripts
-├── tsconfig.json           # TypeScript configuration
-└── README.md              # This file
+├── tsconfig.json            # TypeScript configuration
+└── README.md                # This file
 ```
 
-### Key Features
+### Architecture
 
-- **Session Management**: Supports multiple concurrent MCP sessions with proper cleanup
-- **Resumability**: Built-in event store for connection resumption
-- **Code - OSS Integration**: Uses Code - OSS's existing Playwright test infrastructure
-- **CORS Support**: Configured for cross-origin requests
-- **Error Handling**: Comprehensive error handling and logging
+The server uses a simple architecture:
+- **stdio.ts** - Entry point that creates the MCP server and connects via stdio transport
+- **automation.ts** - Creates the MCP server and registers all automation tools
+- **application.ts** - Manages VS Code application lifecycle (start, stop, restart)
+- **automationTools/** - Modular tool implementations organized by VS Code feature area
 
 ## Troubleshooting
 
@@ -126,10 +150,10 @@ test/mcp/
 - Ensure Code - OSS has been built and run at least once (via F5 or `code.sh`)
 - Verify all dependencies are installed with `npm install`
 
-### Browser Automation Issues
+### Automation Issues
 - Ensure Code - OSS has been built and run at least once (via F5 or `code.sh`)
-- Check the server logs for Playwright-related errors
-- Verify the test repository is properly cloned
+- Check the server logs for errors
+- Verify the workspace path is correct
 
 ## Contributing
 

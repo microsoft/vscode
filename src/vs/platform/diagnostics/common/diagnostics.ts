@@ -142,6 +142,11 @@ export interface IProcessDiagnostics {
 	readonly name: string;
 }
 
+export interface IGPULogMessage {
+	readonly header: string;
+	readonly message: string;
+}
+
 export interface IMainProcessDiagnostics {
 	readonly mainPID: number;
 	readonly mainArguments: string[]; // All arguments after argv[0], the exec path
@@ -149,4 +154,5 @@ export interface IMainProcessDiagnostics {
 	readonly pidToNames: IProcessDiagnostics[];
 	readonly screenReader: boolean;
 	readonly gpuFeatureStatus: any;
+	readonly gpuLogMessages: IGPULogMessage[];
 }

@@ -137,12 +137,10 @@ class CellStatusBarLanguageDetectionProvider implements INotebookCellStatusBarIt
 		const items: INotebookCellStatusBarItem[] = [];
 		if (cached.guess && currentLanguageId !== cached.guess) {
 			const detectedName = this._languageService.getLanguageName(cached.guess) || cached.guess;
-			let tooltip = localize('notebook.cell.status.autoDetectLanguage', "Accept Detected Language: {0}", detectedName);
-			const keybinding = this._keybindingService.lookupKeybinding(DETECT_CELL_LANGUAGE);
-			const label = keybinding?.getLabel();
-			if (label) {
-				tooltip += ` (${label})`;
-			}
+			const tooltip = this._keybindingService.appendKeybinding(
+				localize('notebook.cell.status.autoDetectLanguage', "Accept Detected Language: {0}", detectedName),
+				DETECT_CELL_LANGUAGE
+			);
 			items.push({
 				text: '$(lightbulb-autofix)',
 				command: DETECT_CELL_LANGUAGE,

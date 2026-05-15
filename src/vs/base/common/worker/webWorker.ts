@@ -243,19 +243,21 @@ class WebWorkerProtocol {
 	}
 
 	private _handleEventMessage(msg: EventMessage): void {
-		if (!this._pendingEmitters.has(msg.req)) {
+		const emitter = this._pendingEmitters.get(msg.req);
+		if (emitter === undefined) {
 			console.warn('Got event for unknown req');
 			return;
 		}
-		this._pendingEmitters.get(msg.req)!.fire(msg.event);
+		emitter.fire(msg.event);
 	}
 
 	private _handleUnsubscribeEventMessage(msg: UnsubscribeEventMessage): void {
-		if (!this._pendingEvents.has(msg.req)) {
+		const event = this._pendingEvents.get(msg.req);
+		if (event === undefined) {
 			console.warn('Got unsubscribe for unknown req');
 			return;
 		}
-		this._pendingEvents.get(msg.req)!.dispose();
+		event.dispose();
 		this._pendingEvents.delete(msg.req);
 	}
 
@@ -399,11 +401,12 @@ export class WebWorkerClient<W extends object> extends Disposable implements IWe
 	}
 
 	public getChannel<T extends object>(channel: string): Proxied<T> {
-		if (!this._remoteChannels.has(channel)) {
-			const inst = this._protocol.createProxyToRemoteChannel(channel, async () => { await this._onModuleLoaded; });
+		let inst = this._remoteChannels.get(channel);
+		if (inst === undefined) {
+			inst = this._protocol.createProxyToRemoteChannel(channel, async () => { await this._onModuleLoaded; });
 			this._remoteChannels.set(channel, inst);
 		}
-		return this._remoteChannels.get(channel) as Proxied<T>;
+		return inst as Proxied<T>;
 	}
 
 	private _onError(message: string, error?: unknown): void {
@@ -511,11 +514,12 @@ export class WebWorkerServer<T extends IWebWorkerServerRequestHandler> implement
 	}
 
 	public getChannel<T extends object>(channel: string): Proxied<T> {
-		if (!this._remoteChannels.has(channel)) {
-			const inst = this._protocol.createProxyToRemoteChannel(channel);
+		let inst = this._remoteChannels.get(channel);
+		if (inst === undefined) {
+			inst = this._protocol.createProxyToRemoteChannel(channel);
 			this._remoteChannels.set(channel, inst);
 		}
-		return this._remoteChannels.get(channel) as Proxied<T>;
+		return inst as Proxied<T>;
 	}
 
 	private async initialize(workerId: number): Promise<void> {

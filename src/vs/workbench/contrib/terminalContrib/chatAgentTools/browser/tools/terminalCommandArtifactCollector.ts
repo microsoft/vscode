@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
-import { CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES } from '../../../../chat/common/constants.js';
+import { IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { getCommandOutputSnapshot } from '../../../../terminal/browser/chatTerminalCommandMirror.js';
+import { TerminalCapability, type ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 
 export class TerminalCommandArtifactCollector {
@@ -19,7 +19,6 @@ export class TerminalCommandArtifactCollector {
 		toolSpecificData: IChatTerminalToolInvocationData,
 		instance: ITerminalInstance,
 		commandId: string | undefined,
-		fallbackOutput?: string
 	): Promise<void> {
 		if (commandId) {
 			try {
@@ -28,19 +27,92 @@ export class TerminalCommandArtifactCollector {
 				this._logService.warn(`RunInTerminalTool: Failed to create terminal command URI for ${commandId}`, error);
 			}
 
-			const serialized = await this._tryGetSerializedCommandOutput(instance, commandId);
-			if (serialized) {
-				toolSpecificData.terminalCommandOutput = { text: serialized.text, truncated: serialized.truncated };
+			const command = await this._tryGetCommand(instance, commandId);
+			if (command) {
+				toolSpecificData.terminalCommandState = {
+					exitCode: command.exitCode,
+					timestamp: command.timestamp,
+					duration: command.duration
+				};
+				const snapshot = await this._captureCommandOutput(instance, command);
+				if (snapshot) {
+					toolSpecificData.terminalCommandOutput = snapshot;
+				}
 				this._applyTheme(toolSpecificData, instance);
 				return;
 			}
+
+			// Command not found in finished commands - try to capture current/partial command output
+			const partialSnapshot = await this._capturePartialCommandOutput(instance, commandId);
+			if (partialSnapshot) {
+				toolSpecificData.terminalCommandOutput = partialSnapshot;
+				this._logService.debug(`RunInTerminalTool: Captured partial command output for ${commandId}`);
+			}
 		}
 
-		if (fallbackOutput !== undefined) {
-			const normalized = fallbackOutput.replace(/\r\n/g, '\n');
-			toolSpecificData.terminalCommandOutput = { text: normalized, truncated: false };
-			this._applyTheme(toolSpecificData, instance);
+		this._applyTheme(toolSpecificData, instance);
+	}
+
+	private async _captureCommandOutput(instance: ITerminalInstance, command: ITerminalCommand): Promise<IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined> {
+		try {
+			await instance.xtermReadyPromise;
+		} catch {
+			return undefined;
 		}
+		const xterm = instance.xterm;
+		if (!xterm) {
+			return undefined;
+		}
+
+		return getCommandOutputSnapshot(xterm, command, (reason, error) => {
+			const suffix = reason === 'fallback' ? ' (fallback)' : '';
+			this._logService.debug(`RunInTerminalTool: Failed to snapshot command output${suffix}`, error);
+		});
+	}
+
+	/**
+	 * Captures output from a partial/current command that hasn't finished yet.
+	 * This is used when the command is cancelled mid-execution.
+	 */
+	private async _capturePartialCommandOutput(instance: ITerminalInstance, commandId: string): Promise<IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined> {
+		try {
+			await instance.xtermReadyPromise;
+		} catch {
+			return undefined;
+		}
+		const xterm = instance.xterm;
+		if (!xterm) {
+			return undefined;
+		}
+
+		// Try to find the current/partial command
+		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
+		const currentCommand = commandDetection?.currentCommand;
+		if (currentCommand && (currentCommand as { id?: string }).id === commandId) {
+			// Use commandExecutedMarker from partial command
+			const executedMarker = currentCommand.commandExecutedMarker;
+			if (executedMarker && !executedMarker.isDisposed) {
+				try {
+					// Get text from executed marker to current cursor position
+					const raw = xterm.raw;
+					const buffer = raw.buffer.active;
+					const endLine = buffer.baseY + buffer.cursorY;
+					const startLine = executedMarker.line;
+					const lineCount = Math.max(endLine - startLine, 0);
+
+					if (lineCount > 0) {
+						const text = await xterm.getRangeAsVT(executedMarker, undefined, true);
+						if (text) {
+							return { text, lineCount };
+						}
+					}
+				} catch (error) {
+					this._logService.debug(`RunInTerminalTool: Failed to capture partial command output`, error);
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	private _applyTheme(toolSpecificData: IChatTerminalToolInvocationData, instance: ITerminalInstance): void {
@@ -56,23 +128,8 @@ export class TerminalCommandArtifactCollector {
 		return instance.resource.with({ query: params.toString() });
 	}
 
-	private async _tryGetSerializedCommandOutput(instance: ITerminalInstance, commandId: string): Promise<{ text: string; truncated?: boolean } | undefined> {
+	private async _tryGetCommand(instance: ITerminalInstance, commandId: string) {
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
-		const command = commandDetection?.commands.find(c => c.id === commandId);
-		if (!command?.endMarker) {
-			return undefined;
-		}
-
-		const xterm = await instance.xtermReadyPromise;
-		if (!xterm) {
-			return undefined;
-		}
-
-		try {
-			return await xterm.getCommandOutputAsHtml(command, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
-		} catch (error) {
-			this._logService.warn(`RunInTerminalTool: Failed to serialize command output for ${commandId}`, error);
-			return undefined;
-		}
+		return commandDetection?.commands.find(c => c.id === commandId);
 	}
 }

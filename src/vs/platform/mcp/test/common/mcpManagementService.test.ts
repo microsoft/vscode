@@ -4,14 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AbstractCommonMcpManagementService } from '../../common/mcpManagementService.js';
-import { IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, ILocalMcpServer, InstallOptions, RegistryType, TransportType, UninstallOptions } from '../../common/mcpManagement.js';
-import { McpServerType, McpServerVariableType, IMcpServerVariable } from '../../common/mcpPlatformTypes.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { AbstractCommonMcpManagementService, AbstractMcpResourceManagementService } from '../../common/mcpManagementService.js';
+import { IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, ILocalMcpServer, IMcpGalleryService, InstallOptions, RegistryType, TransportType, UninstallOptions } from '../../common/mcpManagement.js';
+import { IMcpSandboxConfiguration, McpServerType, McpServerVariableType, IMcpServerConfiguration, IMcpServerVariable } from '../../common/mcpPlatformTypes.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ConfigurationTarget } from '../../../configuration/common/configuration.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { McpResourceScannerService } from '../../common/mcpResourceScannerService.js';
+import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
 
 class TestMcpManagementService extends AbstractCommonMcpManagementService {
 
@@ -42,6 +50,44 @@ class TestMcpManagementService extends AbstractCommonMcpManagementService {
 	}
 }
 
+class TestMcpResourceManagementService extends AbstractMcpResourceManagementService {
+	constructor(mcpResource: URI, fileService: FileService, uriIdentityService: UriIdentityService, mcpResourceScannerService: McpResourceScannerService) {
+		super(
+			mcpResource,
+			ConfigurationTarget.USER,
+			{} as IMcpGalleryService,
+			fileService,
+			uriIdentityService,
+			new NullLogService(),
+			mcpResourceScannerService,
+		);
+	}
+
+	public reload(): Promise<void> {
+		return this.updateLocal();
+	}
+
+	override canInstall(_server: IGalleryMcpServer | IInstallableMcpServer): true | IMarkdownString {
+		throw new Error('Not supported');
+	}
+
+	protected override getLocalServerInfo(_name: string, _mcpServerConfig: IMcpServerConfiguration) {
+		return Promise.resolve(undefined);
+	}
+
+	protected override installFromUri(_uri: URI): Promise<ILocalMcpServer> {
+		throw new Error('Not supported');
+	}
+
+	override installFromGallery(_server: IGalleryMcpServer, _options?: InstallOptions): Promise<ILocalMcpServer> {
+		throw new Error('Not supported');
+	}
+
+	override updateMetadata(_local: ILocalMcpServer, _server: IGalleryMcpServer): Promise<ILocalMcpServer> {
+		throw new Error('Not supported');
+	}
+}
+
 suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 	let service: TestMcpManagementService;
 
@@ -60,7 +106,6 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
-					registryBaseUrl: 'https://registry.npmjs.org',
 					identifier: '@modelcontextprotocol/server-brave-search',
 					transport: { type: TransportType.STDIO },
 					version: '1.0.2',
@@ -82,11 +127,33 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			assert.strictEqual(result.mcpServerConfiguration.inputs, undefined);
 		});
 
+		test('NPM package with custom registry URL', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.NODE,
+					registryBaseUrl: 'https://custom-registry.example.com',
+					identifier: '@company/internal-package',
+					transport: { type: TransportType.STDIO },
+					version: '2.1.0'
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'npx');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
+					'--registry', 'https://custom-registry.example.com',
+					'@company/internal-package@2.1.0'
+				]);
+			}
+		});
+
 		test('NPM package without version', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
-					registryBaseUrl: 'https://registry.npmjs.org',
 					identifier: '@modelcontextprotocol/everything',
 					version: '',
 					transport: { type: TransportType.STDIO }
@@ -237,7 +304,6 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.PYTHON,
 					transport: { type: TransportType.STDIO },
-					registryBaseUrl: 'https://pypi.org',
 					identifier: 'weather-mcp-server',
 					version: '0.5.0',
 					environmentVariables: [{
@@ -255,11 +321,34 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
 			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
 				assert.strictEqual(result.mcpServerConfiguration.config.command, 'uvx');
-				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['weather-mcp-server==0.5.0']);
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['weather-mcp-server@0.5.0']);
 				assert.deepStrictEqual(result.mcpServerConfiguration.config.env, {
 					'WEATHER_API_KEY': 'test-key',
 					'WEATHER_UNITS': 'celsius'
 				});
+			}
+		});
+
+		test('Python package with custom registry URL', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.PYTHON,
+					registryBaseUrl: 'https://custom-pypi.example.com/simple',
+					transport: { type: TransportType.STDIO },
+					identifier: 'internal-python-server',
+					version: '1.2.3'
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.PYTHON);
+
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'uvx');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
+					'--index-url', 'https://custom-pypi.example.com/simple',
+					'internal-python-server@1.2.3'
+				]);
 			}
 		});
 
@@ -287,7 +376,6 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.DOCKER,
 					transport: { type: TransportType.STDIO },
-					registryBaseUrl: 'https://docker.io',
 					identifier: 'mcp/filesystem',
 					version: '1.0.2',
 					runtimeArguments: [{
@@ -322,6 +410,29 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 					'/project'
 				]);
 				assert.deepStrictEqual(result.mcpServerConfiguration.config.env, { 'LOG_LEVEL': 'info' });
+			}
+		});
+
+		test('Docker package with custom registry URL', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.DOCKER,
+					registryBaseUrl: 'registry.company.com',
+					transport: { type: TransportType.STDIO },
+					identifier: 'internal/mcp-server',
+					version: '3.2.1'
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.DOCKER);
+
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'docker');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
+					'run', '-i', '--rm',
+					'registry.company.com/internal/mcp-server:3.2.1'
+				]);
 			}
 		});
 
@@ -445,7 +556,6 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NUGET,
 					transport: { type: TransportType.STDIO },
-					registryBaseUrl: 'https://api.nuget.org',
 					identifier: 'Knapcode.SampleMcpServer',
 					version: '0.5.0',
 					environmentVariables: [{
@@ -462,6 +572,30 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				assert.strictEqual(result.mcpServerConfiguration.config.command, 'dnx');
 				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['Knapcode.SampleMcpServer@0.5.0', '--yes']);
 				assert.deepStrictEqual(result.mcpServerConfiguration.config.env, { 'WEATHER_CHOICES': 'sunny,cloudy,rainy' });
+			}
+		});
+
+		test('NuGet package with custom registry URL', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.NUGET,
+					registryBaseUrl: 'https://nuget.company.com/v3/index.json',
+					transport: { type: TransportType.STDIO },
+					identifier: 'Company.Internal.McpServer',
+					version: '4.5.6'
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NUGET);
+
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'dnx');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
+					'Company.Internal.McpServer@4.5.6',
+					'--yes',
+					'--source', 'https://nuget.company.com/v3/index.json'
+				]);
 			}
 		});
 
@@ -806,7 +940,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
 			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
 				assert.strictEqual(result.mcpServerConfiguration.config.command, 'uvx'); // Python command since that's the package type
-				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['python-server==1.0.0']);
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['python-server@1.0.0']);
 			}
 		});
 
@@ -983,5 +1117,76 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				assert.strictEqual(result.mcpServerConfiguration.config.env?.['API_KEY'], 'Bearer ${input:api_key}');
 			}
 		});
+	});
+});
+
+suite('McpResourceManagementService', () => {
+	const mcpResource = URI.from({ scheme: Schemas.inMemory, path: '/mcp.json' });
+	let disposables: DisposableStore;
+	let fileService: FileService;
+	let service: TestMcpResourceManagementService;
+
+	setup(async () => {
+		disposables = new DisposableStore();
+		fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const scannerService = disposables.add(new McpResourceScannerService(fileService, uriIdentityService));
+		service = disposables.add(new TestMcpResourceManagementService(mcpResource, fileService, uriIdentityService, scannerService));
+
+		await fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify({
+			sandbox: {
+				network: { allowedDomains: ['example.com'] }
+			},
+			servers: {
+				test: {
+					type: 'stdio',
+					command: 'node',
+					sandboxEnabled: true
+				}
+			}
+		}, null, '\t')));
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('fires update when root sandbox changes', async () => {
+		const initial = await service.getInstalled();
+		assert.strictEqual(initial.length, 1);
+		assert.deepStrictEqual(initial[0].rootSandbox, {
+			network: { allowedDomains: ['example.com'] }
+		});
+
+		let updateCount = 0;
+		const updatePromise = new Promise<void>(resolve => disposables.add(service.onDidUpdateMcpServers(e => {
+			assert.strictEqual(e.length, 1);
+			updateCount++;
+			resolve();
+		})));
+
+		const updatedSandbox: IMcpSandboxConfiguration = {
+			network: { allowedDomains: ['changed.example.com'] }
+		};
+
+		await fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify({
+			sandbox: updatedSandbox,
+			servers: {
+				test: {
+					type: 'stdio',
+					command: 'node',
+					sandboxEnabled: true
+				}
+			}
+		}, null, '\t')));
+		await service.reload();
+		await updatePromise;
+		const updated = await service.getInstalled();
+
+		assert.strictEqual(updateCount, 1);
+		assert.deepStrictEqual(updated[0].rootSandbox, updatedSandbox);
 	});
 });

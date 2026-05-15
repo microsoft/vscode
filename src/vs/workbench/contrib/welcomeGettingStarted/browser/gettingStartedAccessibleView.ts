@@ -92,7 +92,7 @@ class GettingStartedAccessibleProvider extends Disposable implements IAccessible
 				if (isCommand) {
 					const commandURI = URI.parse(command);
 
-					let args: any = [];
+					let args: unknown[] = [];
 					try {
 						args = parse(decodeURIComponent(commandURI.query));
 					} catch {

@@ -315,7 +315,7 @@ class ResourceEditStack {
 			const element = this._past[i];
 			if (isOK && (snapshotIndex >= snapshotLength || element.id !== snapshot.elements[snapshotIndex])) {
 				isOK = false;
-				removePastAfter = 0;
+				removePastAfter = i;
 			}
 			if (!isOK && element.type === UndoRedoElementType.Workspace) {
 				element.removeResource(this.resourceLabel, this.strResource, RemovedResourceReason.ExternalRemoval);

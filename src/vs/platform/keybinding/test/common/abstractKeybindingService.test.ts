@@ -134,7 +134,15 @@ suite('AbstractKeybindingService', () => {
 				onDidChangeContext: undefined!,
 				bufferChangeEvents() { },
 				createKey: undefined!,
-				contextMatchesRules: undefined!,
+				contextMatchesRules: (rules: ContextKeyExpression | null | undefined) => {
+					if (!rules) {
+						return true;
+					}
+					if (!currentContextValue) {
+						return false;
+					}
+					return rules.evaluate(currentContextValue);
+				},
 				getContextKeyValue: undefined!,
 				createScoped: undefined!,
 				createOverlay: undefined!,
@@ -612,5 +620,111 @@ suite('AbstractKeybindingService', () => {
 		statusMessageCallsDisposed = [];
 
 		kbService.dispose();
+	});
+
+	suite('appendKeybinding', () => {
+		test('appends keybinding label when command has a keybinding', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand'),
+			]);
+
+			const result = kbService.appendKeybinding('My Label', 'myCommand');
+			const expectedLabel = toUsLabel(KeyMod.CtrlCmd | KeyCode.KeyK);
+			assert.strictEqual(result, `My Label (${expectedLabel})`);
+
+			kbService.dispose();
+		});
+
+		test('returns only label when command has no keybinding', () => {
+			const kbService = createTestKeybindingService([]);
+
+			const result = kbService.appendKeybinding('My Label', 'myCommand');
+			assert.strictEqual(result, 'My Label');
+
+			kbService.dispose();
+		});
+
+		test('returns only label when commandId is null', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand'),
+			]);
+
+			const result = kbService.appendKeybinding('My Label', null);
+			assert.strictEqual(result, 'My Label');
+
+			kbService.dispose();
+		});
+
+		test('returns only label when commandId is undefined', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand'),
+			]);
+
+			const result = kbService.appendKeybinding('My Label', undefined);
+			assert.strictEqual(result, 'My Label');
+
+			kbService.dispose();
+		});
+
+		test('returns only label when commandId is empty string', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand'),
+			]);
+
+			const result = kbService.appendKeybinding('My Label', '');
+			assert.strictEqual(result, 'My Label');
+
+			kbService.dispose();
+		});
+
+		test('appends keybinding for command with context when context matches', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand', ContextKeyExpr.has('key1')),
+			]);
+
+			currentContextValue = createContext({ key1: true });
+			const result = kbService.appendKeybinding('My Label', 'myCommand');
+			const expectedLabel = toUsLabel(KeyMod.CtrlCmd | KeyCode.KeyK);
+			assert.strictEqual(result, `My Label (${expectedLabel})`);
+
+			kbService.dispose();
+		});
+
+		test('returns only label when context does not match and enforceContextCheck is true', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand', ContextKeyExpr.has('key1')),
+			]);
+
+			currentContextValue = createContext({});
+			const result = kbService.appendKeybinding('My Label', 'myCommand', undefined, true);
+			assert.strictEqual(result, 'My Label');
+
+			kbService.dispose();
+		});
+
+		test('appends keybinding when context does not match but enforceContextCheck is false', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand', ContextKeyExpr.has('key1')),
+			]);
+
+			currentContextValue = createContext({});
+			const result = kbService.appendKeybinding('My Label', 'myCommand', undefined, false);
+			const expectedLabel = toUsLabel(KeyMod.CtrlCmd | KeyCode.KeyK);
+			assert.strictEqual(result, `My Label (${expectedLabel})`);
+
+			kbService.dispose();
+		});
+
+		test('appends keybinding even when label is empty string', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand'),
+			]);
+
+			const result = kbService.appendKeybinding('', 'myCommand');
+			const expectedLabel = toUsLabel(KeyMod.CtrlCmd | KeyCode.KeyK);
+			assert.strictEqual(result, ` (${expectedLabel})`);
+
+			kbService.dispose();
+		});
 	});
 });

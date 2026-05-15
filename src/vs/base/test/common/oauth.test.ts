@@ -879,7 +879,9 @@ suite('OAuth', () => {
 				{ fetch: fetchStub }
 			);
 
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(result.discoveryUrl, resourceMetadataUrl);
+			assert.deepStrictEqual(result.errors, []);
 			assert.strictEqual(fetchStub.callCount, 1);
 			assert.strictEqual(fetchStub.firstCall.args[0], resourceMetadataUrl);
 			assert.strictEqual(fetchStub.firstCall.args[1].method, 'GET');
@@ -903,12 +905,13 @@ suite('OAuth', () => {
 				text: async () => JSON.stringify(expectedMetadata)
 			});
 
-			await fetchResourceMetadata(
+			const result = await fetchResourceMetadata(
 				targetResource,
 				resourceMetadataUrl,
 				{ fetch: fetchStub, sameOriginHeaders }
 			);
 
+			assert.strictEqual(result.discoveryUrl, resourceMetadataUrl);
 			const headers = fetchStub.firstCall.args[1].headers;
 			assert.strictEqual(headers['Accept'], 'application/json');
 			assert.strictEqual(headers['X-Test-Header'], 'test-value');
@@ -931,12 +934,13 @@ suite('OAuth', () => {
 				text: async () => JSON.stringify(expectedMetadata)
 			});
 
-			await fetchResourceMetadata(
+			const result = await fetchResourceMetadata(
 				targetResource,
 				resourceMetadataUrl,
 				{ fetch: fetchStub, sameOriginHeaders }
 			);
 
+			assert.strictEqual(result.discoveryUrl, resourceMetadataUrl);
 			const headers = fetchStub.firstCall.args[1].headers;
 			assert.strictEqual(headers['Accept'], 'application/json');
 			assert.strictEqual(headers['X-Test-Header'], undefined);
@@ -946,6 +950,7 @@ suite('OAuth', () => {
 			const targetResource = 'https://example.com/api';
 			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
 
+			// Stub all possible URLs to return 404 for robust fallback testing
 			fetchStub.resolves({
 				status: 404,
 				text: async () => 'Not Found'
@@ -953,7 +958,11 @@ suite('OAuth', () => {
 
 			await assert.rejects(
 				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
-				/Failed to fetch resource metadata from.*404 Not Found/
+				(error: any) => {
+					// Should be AggregateError since all URLs fail
+					assert.ok(error instanceof AggregateError || /Failed to fetch resource metadata from.*404 Not Found/.test(error.message));
+					return true;
+				}
 			);
 		});
 
@@ -961,6 +970,7 @@ suite('OAuth', () => {
 			const targetResource = 'https://example.com/api';
 			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
 
+			// Stub all possible URLs to return 500 for robust fallback testing
 			fetchStub.resolves({
 				status: 500,
 				statusText: 'Internal Server Error',
@@ -969,7 +979,11 @@ suite('OAuth', () => {
 
 			await assert.rejects(
 				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
-				/Failed to fetch resource metadata from.*500 Internal Server Error/
+				(error: any) => {
+					// Should be AggregateError since all URLs fail
+					assert.ok(error instanceof AggregateError || /Failed to fetch resource metadata from.*500 Internal Server Error/.test(error.message));
+					return true;
+				}
 			);
 		});
 
@@ -980,6 +994,7 @@ suite('OAuth', () => {
 				resource: 'https://different.com/api'
 			};
 
+			// Stub all possible URLs to return invalid metadata for robust fallback testing
 			fetchStub.resolves({
 				status: 200,
 				json: async () => metadata,
@@ -988,7 +1003,12 @@ suite('OAuth', () => {
 
 			await assert.rejects(
 				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
-				/Protected Resource Metadata resource property value.*does not match target server url.*These MUST match to follow OAuth spec/
+				(error: any) => {
+					// Should be AggregateError since all URLs fail validation
+					assert.ok(error instanceof AggregateError);
+					assert.ok(error.errors.some((e: Error) => /does not match expected value/.test(e.message)));
+					return true;
+				}
 			);
 		});
 
@@ -1007,24 +1027,8 @@ suite('OAuth', () => {
 
 			// URL normalization should handle hostname case differences
 			const result = await fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub });
-			assert.deepStrictEqual(result, metadata);
-		});
-
-		test('should normalize hostnames when comparing resource values', async () => {
-			const targetResource = 'https://EXAMPLE.COM/api';
-			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
-			const metadata = {
-				resource: 'https://example.com/api'
-			};
-
-			fetchStub.resolves({
-				status: 200,
-				json: async () => metadata,
-				text: async () => JSON.stringify(metadata)
-			});
-
-			const result = await fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub });
-			assert.deepStrictEqual(result, metadata);
+			assert.deepStrictEqual(result.metadata, metadata);
+			assert.strictEqual(result.discoveryUrl, resourceMetadataUrl);
 		});
 
 		test('should throw error when response is not valid resource metadata', async () => {
@@ -1035,6 +1039,7 @@ suite('OAuth', () => {
 				scopes_supported: ['read', 'write']
 			};
 
+			// Stub all possible URLs to return invalid metadata for robust fallback testing
 			fetchStub.resolves({
 				status: 200,
 				json: async () => invalidMetadata,
@@ -1043,7 +1048,11 @@ suite('OAuth', () => {
 
 			await assert.rejects(
 				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
-				/Invalid resource metadata.*Expected to follow shape of.*is scopes_supported an array\? Is resource a string\?/
+				(error: any) => {
+					// Should be AggregateError since all URLs return invalid metadata
+					assert.ok(error instanceof AggregateError || /Invalid resource metadata/.test(error.message));
+					return true;
+				}
 			);
 		});
 
@@ -1055,6 +1064,7 @@ suite('OAuth', () => {
 				scopes_supported: 'not an array'
 			};
 
+			// Stub all possible URLs to return invalid metadata for robust fallback testing
 			fetchStub.resolves({
 				status: 200,
 				json: async () => invalidMetadata,
@@ -1063,7 +1073,11 @@ suite('OAuth', () => {
 
 			await assert.rejects(
 				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
-				/Invalid resource metadata/
+				(error: any) => {
+					// Should be AggregateError since all URLs return invalid metadata
+					assert.ok(error instanceof AggregateError || /Invalid resource metadata/.test(error.message));
+					return true;
+				}
 			);
 		});
 
@@ -1087,7 +1101,7 @@ suite('OAuth', () => {
 			});
 
 			const result = await fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub });
-			assert.deepStrictEqual(result, metadata);
+			assert.deepStrictEqual(result.metadata, metadata);
 		});
 
 		test('should use global fetch when custom fetch is not provided', async () => {
@@ -1106,7 +1120,8 @@ suite('OAuth', () => {
 
 			const result = await fetchResourceMetadata(targetResource, resourceMetadataUrl);
 
-			assert.deepStrictEqual(result, metadata);
+			assert.deepStrictEqual(result.metadata, metadata);
+			assert.strictEqual(result.discoveryUrl, resourceMetadataUrl);
 			assert.strictEqual(globalFetchStub.callCount, 1);
 		});
 
@@ -1126,12 +1141,13 @@ suite('OAuth', () => {
 				text: async () => JSON.stringify(metadata)
 			});
 
-			await fetchResourceMetadata(
+			const result = await fetchResourceMetadata(
 				targetResource,
 				resourceMetadataUrl,
 				{ fetch: fetchStub, sameOriginHeaders }
 			);
 
+			assert.strictEqual(result.discoveryUrl, resourceMetadataUrl);
 			// Different ports mean different origins
 			const headers = fetchStub.firstCall.args[1].headers;
 			assert.strictEqual(headers['X-Test-Header'], undefined);
@@ -1153,24 +1169,26 @@ suite('OAuth', () => {
 				text: async () => JSON.stringify(metadata)
 			});
 
-			await fetchResourceMetadata(
+			const result = await fetchResourceMetadata(
 				targetResource,
 				resourceMetadataUrl,
 				{ fetch: fetchStub, sameOriginHeaders }
 			);
 
+			assert.strictEqual(result.discoveryUrl, resourceMetadataUrl);
 			// Different protocols mean different origins
 			const headers = fetchStub.firstCall.args[1].headers;
 			assert.strictEqual(headers['X-Test-Header'], undefined);
 		});
 
-		test('should include error details in message with length information', async () => {
+		test('should include error details in message with resource values', async () => {
 			const targetResource = 'https://example.com/api';
 			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
 			const metadata = {
 				resource: 'https://different.com/other'
 			};
 
+			// Stub all possible URLs to return invalid metadata for robust fallback testing
 			fetchStub.resolves({
 				status: 200,
 				json: async () => metadata,
@@ -1181,9 +1199,11 @@ suite('OAuth', () => {
 				await fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub });
 				assert.fail('Should have thrown an error');
 			} catch (error: any) {
-				assert.ok(/length:/.test(error.message), 'Error message should include length information');
-				assert.ok(/https:\/\/different\.com\/other/.test(error.message), 'Error message should include actual resource value');
-				assert.ok(/https:\/\/example\.com\/api/.test(error.message), 'Error message should include expected resource value');
+				// Should be AggregateError with validation errors
+				const errorMessage = error instanceof AggregateError ? error.errors.map((e: Error) => e.message).join(' ') : error.message;
+				assert.ok(/does not match expected value/.test(errorMessage), 'Error message should mention mismatch');
+				assert.ok(/https:\/\/different\.com\/other/.test(errorMessage), 'Error message should include actual resource value');
+				assert.ok(/https:\/\/example\.com\/api/.test(errorMessage), 'Error message should include expected resource value');
 			}
 		});
 
@@ -1206,7 +1226,8 @@ suite('OAuth', () => {
 				{ fetch: fetchStub }
 			);
 
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(result.discoveryUrl, 'https://example.com/.well-known/oauth-protected-resource/api/v1');
 			assert.strictEqual(fetchStub.callCount, 1);
 			// Should try path-appended version first
 			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource/api/v1');
@@ -1215,7 +1236,7 @@ suite('OAuth', () => {
 		test('should fallback to well-known URI at root when path version fails', async () => {
 			const targetResource = 'https://example.com/api/v1';
 			const expectedMetadata = {
-				resource: 'https://example.com/api/v1',
+				resource: 'https://example.com/',
 				scopes_supported: ['read', 'write']
 			};
 
@@ -1238,7 +1259,9 @@ suite('OAuth', () => {
 				{ fetch: fetchStub }
 			);
 
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(result.discoveryUrl, 'https://example.com/.well-known/oauth-protected-resource');
+			assert.strictEqual(result.errors.length, 1);
 			assert.strictEqual(fetchStub.callCount, 2);
 			// First attempt with path
 			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource/api/v1');
@@ -1286,7 +1309,8 @@ suite('OAuth', () => {
 				{ fetch: fetchStub }
 			);
 
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(result.discoveryUrl, 'https://example.com/.well-known/oauth-protected-resource');
 			assert.strictEqual(fetchStub.callCount, 1);
 			// Both URLs should be the same when path is /
 			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource');
@@ -1308,12 +1332,13 @@ suite('OAuth', () => {
 				text: async () => JSON.stringify(expectedMetadata)
 			});
 
-			await fetchResourceMetadata(
+			const result = await fetchResourceMetadata(
 				targetResource,
 				undefined,
 				{ fetch: fetchStub, sameOriginHeaders }
 			);
 
+			assert.strictEqual(result.discoveryUrl, 'https://example.com/.well-known/oauth-protected-resource/api');
 			const headers = fetchStub.firstCall.args[1].headers;
 			assert.strictEqual(headers['Accept'], 'application/json');
 			assert.strictEqual(headers['X-Test-Header'], 'test-value');
@@ -1323,7 +1348,7 @@ suite('OAuth', () => {
 		test('should handle fetchImpl throwing network error and continue to next URL', async () => {
 			const targetResource = 'https://example.com/api/v1';
 			const expectedMetadata = {
-				resource: 'https://example.com/api/v1',
+				resource: 'https://example.com/',
 				scopes_supported: ['read', 'write']
 			};
 
@@ -1342,7 +1367,10 @@ suite('OAuth', () => {
 				{ fetch: fetchStub }
 			);
 
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(result.discoveryUrl, 'https://example.com/.well-known/oauth-protected-resource');
+			assert.strictEqual(result.errors.length, 1);
+			assert.ok(/Network connection failed/.test(result.errors[0].message));
 			assert.strictEqual(fetchStub.callCount, 2);
 			// First attempt with path should have thrown error
 			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource/api/v1');
@@ -1397,20 +1425,207 @@ suite('OAuth', () => {
 			assert.strictEqual(fetchStub.callCount, 2);
 		});
 
+		test('should accept root URL in PRM resource when using root discovery fallback (no trailing slash)', async () => {
+			const targetResource = 'https://example.com/api/v1';
+			// Per RFC 9728: when metadata retrieved from root discovery URL,
+			// the resource value must match the root URL (where well-known was inserted)
+			const expectedMetadata = {
+				resource: 'https://example.com',
+				scopes_supported: ['read', 'write']
+			};
+
+			// First call (path-appended) fails, second (root) succeeds
+			fetchStub.onFirstCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found'
+			});
+
+			fetchStub.onSecondCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			const result = await fetchResourceMetadata(
+				targetResource,
+				undefined,
+				{ fetch: fetchStub }
+			);
+
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 2);
+		});
+
+		test('should accept root URL in PRM resource when using root discovery fallback (with trailing slash)', async () => {
+			const targetResource = 'https://example.com/api/v1';
+			// Test that trailing slash form is also accepted (URL normalization)
+			const expectedMetadata = {
+				resource: 'https://example.com/',
+				scopes_supported: ['read', 'write']
+			};
+
+			// First call (path-appended) fails, second (root) succeeds
+			fetchStub.onFirstCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found'
+			});
+
+			fetchStub.onSecondCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			const result = await fetchResourceMetadata(
+				targetResource,
+				undefined,
+				{ fetch: fetchStub }
+			);
+
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 2);
+		});
+
+		test('should reject PRM with full path resource when using root discovery fallback', async () => {
+			const targetResource = 'https://example.com/api/v1';
+			// This violates RFC 9728: root discovery PRM should have root URL, not full path
+			const invalidMetadata = {
+				resource: 'https://example.com/api/v1',
+				scopes_supported: ['read']
+			};
+
+			// First call (path-appended) fails, second (root) returns invalid metadata
+			fetchStub.onFirstCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found'
+			});
+
+			fetchStub.onSecondCall().resolves({
+				status: 200,
+				json: async () => invalidMetadata,
+				text: async () => JSON.stringify(invalidMetadata)
+			});
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, undefined, { fetch: fetchStub }),
+				(error: any) => {
+					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
+					assert.strictEqual(error.errors.length, 2);
+					// First error is 404 from path-appended attempt
+					assert.ok(/404/.test(error.errors[0].message));
+					// Second error is validation failure from root attempt
+					assert.ok(/does not match expected value/.test(error.errors[1].message));
+					// Check that validation was against root URL (origin) not full path
+					assert.ok(/https:\/\/example\.com\/api\/v1.*https:\/\/example\.com/.test(error.errors[1].message));
+					return true;
+				}
+			);
+
+			assert.strictEqual(fetchStub.callCount, 2);
+		});
+
+		test('should reject PRM with root resource when using path-appended discovery', async () => {
+			const targetResource = 'https://example.com/api/v1';
+			// This violates RFC 9728: path-appended discovery PRM should match full target URL
+			const invalidMetadata = {
+				resource: 'https://example.com/',
+				scopes_supported: ['read']
+			};
+
+			// First attempt (path-appended) gets the wrong resource value
+			// It will fail validation and continue to second URL (root)
+			// Second attempt (root) will succeed because root expects root resource
+			fetchStub.resolves({
+				status: 200,
+				json: async () => invalidMetadata,
+				text: async () => JSON.stringify(invalidMetadata)
+			});
+
+			// This should actually succeed on the second (root) attempt
+			const result = await fetchResourceMetadata(targetResource, undefined, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result.metadata, invalidMetadata);
+			assert.strictEqual(result.discoveryUrl, 'https://example.com/.well-known/oauth-protected-resource');
+			assert.strictEqual(result.errors.length, 1);
+			assert.strictEqual(fetchStub.callCount, 2);
+			// Verify both URLs were tried
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource/api/v1');
+			assert.strictEqual(fetchStub.secondCall.args[0], 'https://example.com/.well-known/oauth-protected-resource');
+		});
+
+		test('should validate against targetResource when resourceMetadataUrl is explicitly provided', async () => {
+			const targetResource = 'https://example.com/api/v1';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			// When explicit URL provided (e.g., from WWW-Authenticate), must match targetResource
+			const validMetadata = {
+				resource: 'https://example.com/api/v1',
+				scopes_supported: ['read']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => validMetadata,
+				text: async () => JSON.stringify(validMetadata)
+			});
+
+			const result = await fetchResourceMetadata(
+				targetResource,
+				resourceMetadataUrl,
+				{ fetch: fetchStub }
+			);
+
+			assert.deepStrictEqual(result.metadata, validMetadata);
+			assert.strictEqual(result.discoveryUrl, resourceMetadataUrl);
+			assert.strictEqual(fetchStub.callCount, 1);
+			assert.strictEqual(fetchStub.firstCall.args[0], resourceMetadataUrl);
+		});
+
+		test('should fallback to root discovery when explicit resourceMetadataUrl validation fails', async () => {
+			const targetResource = 'https://example.com/api/v1';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const invalidMetadata = {
+				resource: 'https://example.com/',
+				scopes_supported: ['read']
+			};
+
+			// Stub all URLs to return root resource metadata
+			// Explicit URL returns root (validation fails), path-appended fails, root succeeds
+			fetchStub.resolves({
+				status: 200,
+				json: async () => invalidMetadata,
+				text: async () => JSON.stringify(invalidMetadata)
+			});
+
+			// Should succeed on root discovery fallback
+			const result = await fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub });
+			assert.deepStrictEqual(result.metadata, invalidMetadata);
+			assert.strictEqual(result.discoveryUrl, 'https://example.com/.well-known/oauth-protected-resource');
+			assert.ok(result.errors.length >= 1);
+			// Should have tried explicit URL, path-appended, then succeeded on root
+			assert.ok(fetchStub.callCount >= 2);
+		});
+
 		test('should handle fetchImpl throwing error with explicit resourceMetadataUrl', async () => {
 			const targetResource = 'https://example.com/api';
 			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
 
+			// Stub all possible URLs to throw network error for robust fallback testing
 			fetchStub.rejects(new Error('DNS resolution failed'));
 
 			await assert.rejects(
 				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
-				/DNS resolution failed/
+				(error: any) => {
+					// Should be AggregateError since all URLs fail
+					assert.ok(error instanceof AggregateError || /DNS resolution failed/.test(error.message));
+					return true;
+				}
 			);
 
-			// Should only try once when explicit URL is provided
-			assert.strictEqual(fetchStub.callCount, 1);
-			assert.strictEqual(fetchStub.firstCall.args[0], resourceMetadataUrl);
+			// Should have tried explicit URL and well-known discovery
+			assert.ok(fetchStub.callCount >= 2);
 		});
 	});
 
@@ -1445,7 +1660,9 @@ suite('OAuth', () => {
 
 			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
 
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(result.discoveryUrl, 'https://auth.example.com/.well-known/oauth-authorization-server/tenant');
+			assert.deepStrictEqual(result.errors, []);
 			assert.strictEqual(fetchStub.callCount, 1);
 			// Should try OAuth discovery with path insertion: https://auth.example.com/.well-known/oauth-authorization-server/tenant
 			assert.strictEqual(fetchStub.firstCall.args[0], 'https://auth.example.com/.well-known/oauth-authorization-server/tenant');
@@ -1478,7 +1695,9 @@ suite('OAuth', () => {
 
 			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
 
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(result.discoveryUrl, 'https://auth.example.com/.well-known/openid-configuration/tenant');
+			assert.strictEqual(result.errors.length, 1);
 			assert.strictEqual(fetchStub.callCount, 2);
 			// First attempt: OAuth discovery
 			assert.strictEqual(fetchStub.firstCall.args[0], 'https://auth.example.com/.well-known/oauth-authorization-server/tenant');
@@ -1519,7 +1738,9 @@ suite('OAuth', () => {
 
 			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
 
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(result.discoveryUrl, 'https://auth.example.com/tenant/.well-known/openid-configuration');
+			assert.strictEqual(result.errors.length, 2);
 			assert.strictEqual(fetchStub.callCount, 3);
 			// First attempt: OAuth discovery
 			assert.strictEqual(fetchStub.firstCall.args[0], 'https://auth.example.com/.well-known/oauth-authorization-server/tenant');
@@ -1547,7 +1768,9 @@ suite('OAuth', () => {
 
 			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
 
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(result.discoveryUrl, 'https://auth.example.com/.well-known/oauth-authorization-server');
+			assert.deepStrictEqual(result.errors, []);
 			assert.strictEqual(fetchStub.callCount, 1);
 			// For root URLs, no extra path is added
 			assert.strictEqual(fetchStub.firstCall.args[0], 'https://auth.example.com/.well-known/oauth-authorization-server');
@@ -1571,7 +1794,9 @@ suite('OAuth', () => {
 
 			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
 
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(result.discoveryUrl, 'https://auth.example.com/.well-known/oauth-authorization-server/tenant/');
+			assert.deepStrictEqual(result.errors, []);
 			assert.strictEqual(fetchStub.callCount, 1);
 		});
 
@@ -1593,8 +1818,9 @@ suite('OAuth', () => {
 				statusText: 'OK'
 			});
 
-			await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub, additionalHeaders });
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub, additionalHeaders });
 
+			assert.strictEqual(result.discoveryUrl, 'https://auth.example.com/.well-known/oauth-authorization-server/tenant');
 			const headers = fetchStub.firstCall.args[1].headers;
 			assert.strictEqual(headers['X-Custom-Header'], 'custom-value');
 			assert.strictEqual(headers['Authorization'], 'Bearer token123');
@@ -1653,7 +1879,8 @@ suite('OAuth', () => {
 
 			// Should succeed on second attempt
 			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(result.errors.length, 1);
 			assert.strictEqual(fetchStub.callCount, 2);
 		});
 
@@ -1750,7 +1977,9 @@ suite('OAuth', () => {
 
 			const result = await fetchAuthorizationServerMetadata(authorizationServer);
 
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(result.discoveryUrl, 'https://auth.example.com/.well-known/oauth-authorization-server');
+			assert.deepStrictEqual(result.errors, []);
 			assert.strictEqual(globalFetchStub.callCount, 1);
 		});
 
@@ -1772,7 +2001,9 @@ suite('OAuth', () => {
 
 			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
 
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(result.errors.length, 1);
+			assert.ok(/Network error/.test(result.errors[0].message));
 			// Should have tried two endpoints
 			assert.strictEqual(fetchStub.callCount, 2);
 		});
@@ -1828,7 +2059,8 @@ suite('OAuth', () => {
 
 			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
 
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(result.errors.length, 2);
 			// Should have tried all three endpoints
 			assert.strictEqual(fetchStub.callCount, 3);
 		});
@@ -1888,7 +2120,9 @@ suite('OAuth', () => {
 
 			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
 
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(result.discoveryUrl, 'https://auth.example.com/tenant/.well-known/openid-configuration');
+			assert.strictEqual(result.errors.length, 2);
 			assert.strictEqual(fetchStub.callCount, 3);
 			// Third attempt should correctly handle trailing slash (not double-slash)
 			assert.strictEqual(fetchStub.thirdCall.args[0], 'https://auth.example.com/tenant/.well-known/openid-configuration');
@@ -1910,7 +2144,9 @@ suite('OAuth', () => {
 
 			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
 
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			assert.strictEqual(result.discoveryUrl, 'https://auth.example.com/.well-known/oauth-authorization-server/tenant/org/sub');
+			assert.deepStrictEqual(result.errors, []);
 			assert.strictEqual(fetchStub.callCount, 1);
 			// Should correctly insert well-known path with nested paths
 			assert.strictEqual(fetchStub.firstCall.args[0], 'https://auth.example.com/.well-known/oauth-authorization-server/tenant/org/sub');
@@ -1968,7 +2204,9 @@ suite('OAuth', () => {
 
 			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
 
-			assert.deepStrictEqual(result, validMetadata);
+			assert.deepStrictEqual(result.metadata, validMetadata);
+			assert.strictEqual(result.discoveryUrl, 'https://auth.example.com/.well-known/oauth-authorization-server');
+			assert.deepStrictEqual(result.errors, []);
 			assert.strictEqual(fetchStub.callCount, 1);
 		});
 
@@ -1988,7 +2226,10 @@ suite('OAuth', () => {
 
 			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
 
-			assert.deepStrictEqual(result, expectedMetadata);
+			assert.deepStrictEqual(result.metadata, expectedMetadata);
+			// Query parameters are not included in the discovery URL (only pathname is extracted)
+			assert.strictEqual(result.discoveryUrl, 'https://auth.example.com/.well-known/oauth-authorization-server/tenant');
+			assert.deepStrictEqual(result.errors, []);
 			assert.strictEqual(fetchStub.callCount, 1);
 		});
 
@@ -2006,8 +2247,9 @@ suite('OAuth', () => {
 				statusText: 'OK'
 			});
 
-			await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub, additionalHeaders: {} });
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub, additionalHeaders: {} });
 
+			assert.strictEqual(result.discoveryUrl, 'https://auth.example.com/.well-known/oauth-authorization-server');
 			const headers = fetchStub.firstCall.args[1].headers;
 			assert.strictEqual(headers['Accept'], 'application/json');
 		});

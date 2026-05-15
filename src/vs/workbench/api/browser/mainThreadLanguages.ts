@@ -13,15 +13,14 @@ import { IRange, Range } from '../../../editor/common/core/range.js';
 import { StandardTokenType } from '../../../editor/common/encodedTokenAttributes.js';
 import { ITextModelService } from '../../../editor/common/services/resolverService.js';
 import { ILanguageStatus, ILanguageStatusService } from '../../services/languageStatus/common/languageStatusService.js';
-import { DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguages)
-export class MainThreadLanguages implements MainThreadLanguagesShape {
+export class MainThreadLanguages extends Disposable implements MainThreadLanguagesShape {
 
-	private readonly _disposables = new DisposableStore();
 	private readonly _proxy: ExtHostLanguagesShape;
 
-	private readonly _status = new DisposableMap<number>();
+	private readonly _status = this._register(new DisposableMap<number>());
 
 	constructor(
 		_extHostContext: IExtHostContext,
@@ -30,17 +29,13 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 		@ITextModelService private _resolverService: ITextModelService,
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
 	) {
+		super();
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostLanguages);
 
 		this._proxy.$acceptLanguageIds(_languageService.getRegisteredLanguageIds());
-		this._disposables.add(_languageService.onDidChange(_ => {
+		this._register(_languageService.onDidChange(_ => {
 			this._proxy.$acceptLanguageIds(_languageService.getRegisteredLanguageIds());
 		}));
-	}
-
-	dispose(): void {
-		this._disposables.dispose();
-		this._status.dispose();
 	}
 
 	async $changeLanguage(resource: UriComponents, languageId: string): Promise<void> {
@@ -76,11 +71,10 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 	// --- language status
 
 	$setLanguageStatus(handle: number, status: ILanguageStatus): void {
-		this._status.get(handle)?.dispose();
 		this._status.set(handle, this._languageStatusService.addStatus(status));
 	}
 
 	$removeLanguageStatus(handle: number): void {
-		this._status.get(handle)?.dispose();
+		this._status.deleteAndDispose(handle);
 	}
 }

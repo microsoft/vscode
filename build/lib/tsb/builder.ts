@@ -6,11 +6,11 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import * as utils from './utils';
+import * as utils from './utils.ts';
 import colors from 'ansi-colors';
 import ts from 'typescript';
 import Vinyl from 'vinyl';
-import { RawSourceMap, SourceMapConsumer, SourceMapGenerator } from 'source-map';
+import { type RawSourceMap, SourceMapConsumer, SourceMapGenerator } from 'source-map';
 
 export interface IConfiguration {
 	logFn: (topic: string, message: string) => void;
@@ -21,11 +21,11 @@ export interface CancellationToken {
 	isCancellationRequested(): boolean;
 }
 
-export namespace CancellationToken {
-	export const None: CancellationToken = {
+export const CancellationToken = new class {
+	None: CancellationToken = {
 		isCancellationRequested() { return false; }
 	};
-}
+};
 
 export interface ITypeScriptBuilder {
 	build(out: (file: Vinyl) => void, onError: (err: ts.Diagnostic) => void, token?: CancellationToken): Promise<any>;
@@ -167,7 +167,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 								const dirname = path.dirname(vinyl.relative);
 								const tsname = (dirname === '.' ? '' : dirname + '/') + basename + '.ts';
 
-								let sourceMap = <RawSourceMap>JSON.parse(sourcemapFile.text);
+								let sourceMap = JSON.parse(sourcemapFile.text) as RawSourceMap;
 								sourceMap.sources[0] = tsname.replace(/\\/g, '/');
 
 								// check for an "input source" map and combine them
@@ -227,7 +227,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 										}
 
 										[tsSMC, inputSMC].forEach((consumer) => {
-											(<SourceMapConsumer & { sources: string[] }>consumer).sources.forEach((sourceFile: string) => {
+											(consumer as SourceMapConsumer & { sources: string[] }).sources.forEach((sourceFile: string) => {
 												(smg as SourceMapGeneratorWithSources)._sources.add(sourceFile);
 												const sourceContent = consumer.sourceContentFor(sourceFile);
 												if (sourceContent !== null) {
@@ -529,19 +529,25 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 	private readonly _snapshots: { [path: string]: ScriptSnapshot };
 	private readonly _filesInProject: Set<string>;
 	private readonly _filesAdded: Set<string>;
-	private readonly _dependencies: utils.graph.Graph<string>;
+	private readonly _dependencies: InstanceType<typeof utils.graph.Graph<string>>;
 	private readonly _dependenciesRecomputeList: string[];
 	private readonly _fileNameToDeclaredModule: { [path: string]: string[] };
 
 	private _projectVersion: number;
+	private readonly _cmdLine: ts.ParsedCommandLine;
+	private readonly _projectPath: string;
+	private readonly _log: (topic: string, message: string) => void;
 
 	constructor(
-		private readonly _cmdLine: ts.ParsedCommandLine,
-		private readonly _projectPath: string,
-		private readonly _log: (topic: string, message: string) => void
+		cmdLine: ts.ParsedCommandLine,
+		projectPath: string,
+		log: (topic: string, message: string) => void
 	) {
+		this._cmdLine = cmdLine;
+		this._projectPath = projectPath;
+		this._log = log;
 		this._snapshots = Object.create(null);
-		this._filesInProject = new Set(_cmdLine.fileNames);
+		this._filesInProject = new Set(this._cmdLine.fileNames);
 		this._filesAdded = new Set();
 		this._dependencies = new utils.graph.Graph<string>();
 		this._dependenciesRecomputeList = [];
@@ -665,7 +671,7 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		filename = normalize(filename);
 		const node = this._dependencies.lookup(filename);
 		if (node) {
-			node.incoming.forEach(entry => target.push(entry.data));
+			node.incoming.forEach((entry: any) => target.push(entry.data));
 		}
 	}
 

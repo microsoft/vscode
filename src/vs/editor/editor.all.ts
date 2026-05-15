@@ -30,6 +30,7 @@ import './contrib/inlineProgress/browser/inlineProgress.js';
 import './contrib/gotoSymbol/browser/goToCommands.js';
 import './contrib/gotoSymbol/browser/link/goToDefinitionAtPosition.js';
 import './contrib/gotoError/browser/gotoError.js';
+import './contrib/gotoError/browser/markerSelectionStatus.js';
 import './contrib/gpu/browser/gpuActions.js';
 import './contrib/hover/browser/hoverContribution.js';
 import './contrib/indentation/browser/indentation.js';
@@ -64,11 +65,9 @@ import './contrib/wordPartOperations/browser/wordPartOperations.js';
 import './contrib/readOnlyMessage/browser/contribution.js';
 import './contrib/diffEditorBreadcrumbs/browser/contribution.js';
 import './contrib/floatingMenu/browser/floatingMenu.contribution.js';
-import './browser/services/contribution.js';
 
 // Load up these strings even in VSCode, even if they are not used
 // in order to get them translated
 import './common/standaloneStrings.js';
 
 import '../base/browser/ui/codicons/codiconStyles.js'; // The codicons are defined here and must be loaded
-

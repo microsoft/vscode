@@ -1266,7 +1266,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 				// Editor change event
 				if (changed) {
-					this._onDidActiveEditorChange.fire({ editor });
+					this._onDidActiveEditorChange.fire({ editor, isExplicit: options?.isExplicit });
 				}
 
 				// Indicate error as an event but do not bubble them up
@@ -2099,7 +2099,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
 
 			actions = getActionBarActions(
-				editorTitleMenu.getActions({ arg: this.resourceContext.get(), shouldForwardArgs: true }),
+				editorTitleMenu.getActions({ arg: this.resourceContext.get(), shouldForwardArgs: true, renderShortTitle: true }),
 				'navigation',
 				shouldInlineGroup
 			);

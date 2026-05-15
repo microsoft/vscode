@@ -31,7 +31,7 @@ suite('Editor Model - Model Modes 1', () => {
 		tokenize: undefined!,
 		tokenizeEncoded: (line: string, hasEOL: boolean, state: languages.IState): languages.EncodedTokenizationResult => {
 			calledFor.push(line.charAt(0));
-			return new languages.EncodedTokenizationResult(new Uint32Array(0), state);
+			return new languages.EncodedTokenizationResult(new Uint32Array(0), [], state);
 		}
 	};
 
@@ -188,7 +188,7 @@ suite('Editor Model - Model Modes 2', () => {
 		tokenizeEncoded: (line: string, hasEOL: boolean, state: languages.IState): languages.EncodedTokenizationResult => {
 			calledFor.push(line);
 			(<ModelState2>state).prevLineContent = line;
-			return new languages.EncodedTokenizationResult(new Uint32Array(0), state);
+			return new languages.EncodedTokenizationResult(new Uint32Array(0), [], state);
 		}
 	};
 

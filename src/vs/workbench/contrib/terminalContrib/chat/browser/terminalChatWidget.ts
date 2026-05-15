@@ -8,7 +8,7 @@ import { Dimension, getActiveWindow, IFocusTracker, trackFocus } from '../../../
 import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue, type IObservable } from '../../../../../base/common/observable.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
 import { localize } from '../../../../../nls.js';
@@ -16,21 +16,31 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { IChatAcceptInputOptions, showChatView } from '../../../chat/browser/chat.js';
-import type { IChatViewState } from '../../../chat/browser/chatWidget.js';
-import { IChatAgentService } from '../../../chat/common/chatAgents.js';
-import { ChatModel, IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/chatModel.js';
+import { IChatAcceptInputOptions, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
+import { IChatModel, IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/model/chatModel.js';
 import { ChatMode } from '../../../chat/common/chatModes.js';
-import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
+import { IChatModelReference, IChatProgress, IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
-import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
+import { IInlineChatWidgetConstructionOptions, InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
 import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
 import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { TerminalStickyScrollContribution } from '../../stickyScroll/browser/terminalStickyScrollContribution.js';
 import './media/terminalChatWidget.css';
 import { MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { isResponseVM } from '../../../chat/common/model/chatViewModel.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChatWidgetLocationOptions } from '../../../chat/browser/widget/chatWidget.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -61,8 +71,8 @@ export class TerminalChatWidget extends Disposable {
 	private readonly _onDidHide = this._register(new Emitter<void>());
 	readonly onDidHide = this._onDidHide.event;
 
-	private readonly _inlineChatWidget: InlineChatWidget;
-	public get inlineChatWidget(): InlineChatWidget { return this._inlineChatWidget; }
+	private readonly _inlineChatWidget: TerminalInlineChatWidget;
+	public get inlineChatWidget(): TerminalInlineChatWidget { return this._inlineChatWidget; }
 
 	private readonly _focusTracker: IFocusTracker;
 
@@ -84,7 +94,8 @@ export class TerminalChatWidget extends Disposable {
 
 	private _terminalAgentName = 'terminal';
 
-	private readonly _model: MutableDisposable<ChatModel> = this._register(new MutableDisposable());
+	private readonly _model: MutableDisposable<IChatModelReference> = this._register(new MutableDisposable());
+	private readonly _sessionDisposables: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private _sessionCtor: CancelablePromise<void> | undefined;
 
@@ -101,10 +112,9 @@ export class TerminalChatWidget extends Disposable {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IViewsService private readonly _viewsService: IViewsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -119,7 +129,7 @@ export class TerminalChatWidget extends Disposable {
 		this._terminalElement.appendChild(this._container);
 
 		this._inlineChatWidget = instantiationService.createInstance(
-			InlineChatWidget,
+			TerminalInlineChatWidget,
 			{
 				location: ChatAgentLocation.Terminal,
 				resolveData: () => {
@@ -154,6 +164,7 @@ export class TerminalChatWidget extends Disposable {
 			this._inlineChatWidget.onDidChangeHeight,
 			this._instance.onDimensionsChanged,
 			this._inlineChatWidget.chatWidget.onDidChangeContentHeight,
+			Event.fromObservableLight(this._inlineChatWidget.chatWidget.input.selectedLanguageModel),
 			Event.debounce(this._xterm.raw.onCursorMove, () => void 0, MicrotaskDelay),
 		)(() => this._relayout()));
 
@@ -235,8 +246,8 @@ export class TerminalChatWidget extends Disposable {
 		this.inlineChatWidget.placeholder = defaultAgent?.description ?? localize('askAboutCommands', 'Ask about commands');
 	}
 
-	async reveal(viewState?: IChatViewState): Promise<void> {
-		await this._createSession(viewState);
+	async reveal(): Promise<void> {
+		await this._createSession();
 		this._doLayout();
 		this._container.classList.remove('hide');
 		this._visibleContextKey.set(true);
@@ -328,38 +339,24 @@ export class TerminalChatWidget extends Disposable {
 		return this._focusTracker;
 	}
 
-	private async _createSession(viewState?: IChatViewState): Promise<void> {
+	private async _createSession(): Promise<void> {
 		this._sessionCtor = createCancelablePromise<void>(async token => {
 			if (!this._model.value) {
-				this._model.value = this._chatService.startSession(ChatAgentLocation.Terminal, token);
-				const model = this._model.value;
-				if (model) {
-					this._inlineChatWidget.setChatModel(model, this._loadViewState());
-					this._resetPlaceholder();
-				}
-				if (!this._model.value) {
-					throw new Error('Failed to start chat session');
-				}
+				const modelRef = this._chatService.startNewLocalSession(ChatAgentLocation.Terminal);
+				this._model.value = modelRef;
+				const model = modelRef.object;
+				this._inlineChatWidget.setChatModel(model);
+				this._resetPlaceholder();
 			}
 		});
-		this._register(toDisposable(() => this._sessionCtor?.cancel()));
-	}
-
-	private _loadViewState() {
-		const rawViewState = this._storageService.get(this._viewStateStorageKey, StorageScope.PROFILE, undefined);
-		let viewState: IChatViewState | undefined;
-		if (rawViewState) {
-			try {
-				viewState = JSON.parse(rawViewState);
-			} catch {
-				viewState = undefined;
-			}
-		}
-		return viewState;
+		this._sessionDisposables.value = toDisposable(() => this._sessionCtor?.cancel());
 	}
 
 	private _saveViewState() {
-		this._storageService.store(this._viewStateStorageKey, JSON.stringify(this._inlineChatWidget.chatWidget.getViewState()), StorageScope.PROFILE, StorageTarget.USER);
+		const viewState = this._inlineChatWidget.chatWidget.getViewState();
+		if (viewState) {
+			this._storageService.store(this._viewStateStorageKey, JSON.stringify(viewState), StorageScope.PROFILE, StorageTarget.USER);
+		}
 	}
 
 	clear(): void {
@@ -428,11 +425,11 @@ export class TerminalChatWidget extends Disposable {
 		if (!model?.sessionResource) {
 			return;
 		}
-		this._chatService.cancelCurrentRequestForSession(model?.sessionResource);
+		void this._chatService.cancelCurrentRequestForSession(model?.sessionResource, 'terminalChat');
 	}
 
 	async viewInChat(): Promise<void> {
-		const widget = await showChatView(this._viewsService, this._layoutService);
+		const widget = await this._chatWidgetService.revealWidget();
 		const currentRequest = this._inlineChatWidget.chatWidget.viewModel?.model.getRequests().find(r => r.id === this._currentRequestId);
 		if (!widget || !currentRequest?.response) {
 			return;
@@ -480,5 +477,122 @@ export class TerminalChatWidget extends Disposable {
 			});
 		widget.focusResponseItem();
 		this.hide();
+	}
+}
+
+
+class TerminalInlineChatWidget extends InlineChatWidget {
+
+
+	constructor(
+		location: IChatWidgetLocationOptions,
+		options: IInlineChatWidgetConstructionOptions,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IAccessibleViewService accessibleViewService: IAccessibleViewService,
+		@ITextModelService textModelResolverService: ITextModelService,
+		@IChatService chatService: IChatService,
+		@IHoverService hoverService: IHoverService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
+		@IModelService private _modelService: IModelService,
+	) {
+		super(location, options, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService, chatEntitlementService, markdownRendererService);
+	}
+
+	get value(): string {
+		return this.chatWidget.getInput();
+	}
+
+	set value(value: string) {
+		this.chatWidget.setInput(value);
+	}
+
+	selectAll() {
+		this.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
+	}
+
+	set placeholder(value: string) {
+		this.chatWidget.setInputPlaceholder(value);
+	}
+
+	toggleStatus(show: boolean) {
+		this._elements.toolbar1.classList.toggle('hidden', !show);
+		this._elements.toolbar2.classList.toggle('hidden', !show);
+		this._elements.status.classList.toggle('hidden', !show);
+		this._elements.infoLabel.classList.toggle('hidden', !show);
+		this._onDidChangeHeight.fire();
+	}
+
+	updateToolbar(show: boolean) {
+		this._elements.root.classList.toggle('toolbar', show);
+		this._elements.toolbar1.classList.toggle('hidden', !show);
+		this._elements.toolbar2.classList.toggle('hidden', !show);
+		this._elements.status.classList.toggle('actions', show);
+		this._elements.infoLabel.classList.toggle('hidden', show);
+		this._onDidChangeHeight.fire();
+	}
+
+	get responseContent(): string | undefined {
+		const requests = this.chatWidget.viewModel?.model.getRequests();
+		return requests?.at(-1)?.response?.response.toString();
+	}
+
+	getChatModel(): IChatModel | undefined {
+		return this.chatWidget.viewModel?.model;
+	}
+
+	setChatModel(chatModel: IChatModel) {
+		chatModel.inputModel.setState({ inputText: '', selections: [] });
+		this.chatWidget.setModel(chatModel);
+	}
+
+	async getCodeBlockInfo(codeBlockIndex: number): Promise<ITextModel | undefined> {
+		const { viewModel } = this.chatWidget;
+		if (!viewModel) {
+			return undefined;
+		}
+		const items = viewModel.getItems().filter(i => isResponseVM(i));
+		const item = items.at(-1);
+		if (!item) {
+			return;
+		}
+
+		// Look for the code block in the rendered response
+		const codeBlocks = this.chatWidget.getCodeBlockInfosForResponse(item);
+		const info = codeBlocks[codeBlockIndex];
+		if (info?.uri) {
+			return this._modelService.getModel(info.uri) ?? undefined;
+		}
+
+		// Fallback: if the code block hasn't been rendered yet (e.g. due to
+		// timing between response completion and list rendering), parse the
+		// markdown directly and create a transient model.
+		const markdown = item.response.getMarkdown();
+		let currentCodeBlockIndex = 0;
+		let foundText: string | undefined;
+
+		for (const line of markdown.split('\n')) {
+			if (line.startsWith('```') && foundText === undefined) {
+				foundText = '';
+			} else if (line.startsWith('```') && foundText !== undefined) {
+				if (currentCodeBlockIndex === codeBlockIndex) {
+					break;
+				}
+				currentCodeBlockIndex++;
+				foundText = undefined;
+			} else if (foundText !== undefined) {
+				foundText += (foundText ? '\n' : '') + line;
+			}
+		}
+
+		if (foundText !== undefined && currentCodeBlockIndex === codeBlockIndex) {
+			return this._modelService.createModel(foundText, null, undefined, true);
+		}
+
+		return undefined;
 	}
 }

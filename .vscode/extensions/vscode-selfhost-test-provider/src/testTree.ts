@@ -31,16 +31,23 @@ export const guessWorkspaceFolder = async () => {
 	}
 
 	for (const folder of vscode.workspace.workspaceFolders) {
-		try {
-			await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder.uri, 'src/vs/loader.js'));
+		if (await isVsCodeWorkspaceFolder(folder)) {
 			return folder;
-		} catch {
-			// ignored
 		}
 	}
 
 	return undefined;
 };
+
+export async function isVsCodeWorkspaceFolder(folder: vscode.WorkspaceFolder): Promise<boolean> {
+	try {
+		const buffer = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(folder.uri, 'package.json'));
+		const pkg = JSON.parse(textDecoder.decode(buffer));
+		return pkg.name === 'code-oss-dev';
+	} catch {
+		return false;
+	}
+}
 
 export const getContentFromFilesystem: ContentGetter = async uri => {
 	try {
@@ -58,7 +65,7 @@ export class TestFile {
 	constructor(
 		public readonly uri: vscode.Uri,
 		public readonly workspaceFolder: vscode.WorkspaceFolder
-	) {}
+	) { }
 
 	public getId() {
 		return this.uri.toString().toLowerCase();
@@ -169,8 +176,8 @@ export abstract class TestConstruct {
 	}
 }
 
-export class TestSuite extends TestConstruct {}
+export class TestSuite extends TestConstruct { }
 
-export class TestCase extends TestConstruct {}
+export class TestCase extends TestConstruct { }
 
 export type VSCodeTest = TestFile | TestSuite | TestCase;

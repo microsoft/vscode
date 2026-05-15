@@ -126,7 +126,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	declare public _serviceBrand: undefined;
 
 	private generation = 0;
-	private readonly changeEmitter = new Emitter<void>();
+	private readonly changeEmitter = this._register(new Emitter<void>());
 	private readonly decorationCache = new ResourceMap<{
 		/** The document version at which ranges have been updated, requiring rerendering */
 		rangeUpdateVersionId?: number;
@@ -158,7 +158,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		@IModelService private readonly modelService: IModelService,
 	) {
 		super();
-		codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined);
+		this._register(codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined));
 
 		this._register(modelService.onModelRemoved(e => this.decorationCache.delete(e.uri)));
 
@@ -394,7 +394,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	) {
 		super();
 
-		codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined, editor);
+		this._register(codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined, editor));
 
 		this.attachModel(editor.getModel()?.uri);
 		this._register(decorations.onDidChange(() => {
@@ -459,7 +459,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				}
 			}
 		}));
-		this._register(Event.accumulate(this.editor.onDidChangeModelContent, 0, this._store)(evts => {
+		this._register(Event.accumulate(this.editor.onDidChangeModelContent, 0, undefined, this._store)(evts => {
 			const model = editor.getModel();
 			if (!this._currentUri || !model) {
 				return;
@@ -770,6 +770,7 @@ const createRunTestDecoration = (
 		glyphMarginClassName: `${ThemeIcon.asClassName(primaryIcon)} ${glyphMarginClassName}`,
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		zIndex: 10000,
+		overviewRuler: isFailedState(computedState) ? { color: themeColorFromId(overviewRulerError), position: OverviewRulerLane.Center } : undefined,
 	};
 
 	const alternateOptions: IModelDecorationOptions = {
@@ -1287,7 +1288,8 @@ class TestMessageDecoration implements ITestDecoration {
 		const message = testMessage.message;
 
 		const options = editorService.resolveDecorationOptions(TestMessageDecoration.decorationId, true);
-		options.hoverMessage = typeof message === 'string' ? new MarkdownString().appendText(message) : message;
+		const hoverText = renderTestMessageAsText(message);
+		options.hoverMessage = new MarkdownString().appendText(hoverText);
 		options.zIndex = 10; // todo: in spite of the z-index, this appears behind gitlens
 		options.className = `testing-inline-message-severity-${severity}`;
 		options.isWholeLine = true;

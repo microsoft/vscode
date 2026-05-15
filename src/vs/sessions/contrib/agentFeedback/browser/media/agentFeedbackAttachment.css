@@ -1,0 +1,52 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-feedback-hover {
+	width: 200px;
+}
+
+.agent-feedback-hover-container .hover-contents {
+	padding: 0 !important;
+}
+
+/* Tree container */
+.agent-feedback-hover-tree {
+	overflow: hidden;
+}
+
+/* Comment row inside tree */
+.agent-feedback-hover-comment-row {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	cursor: pointer;
+}
+
+.agent-feedback-hover-comment-text {
+	font-size: 12px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex: 1;
+}
+
+/* Action bar: hidden by default, shown on row hover */
+.agent-feedback-hover-action-bar {
+	display: none;
+	flex-shrink: 0;
+	margin-left: auto;
+	padding-right: 4px;
+}
+
+.agent-feedback-hover-tree .monaco-list-row:hover .agent-feedback-hover-action-bar {
+	display: flex;
+}
+
+/* Attachment widget pill styling */
+.agent-feedback-attachment .chat-attached-context-pill {
+	display: flex;
+	align-items: center;
+	padding: 0 4px;
+}

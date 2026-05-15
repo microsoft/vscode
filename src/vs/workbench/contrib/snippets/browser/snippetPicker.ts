@@ -12,8 +12,9 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Event } from '../../../../base/common/event.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 
-export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippets: string | Snippet[]): Promise<Snippet | undefined> {
+export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippets: string | Snippet[], resourceUri?: URI): Promise<Snippet | undefined> {
 
 	const snippetService = accessor.get(ISnippetsService);
 	const quickInputService = accessor.get(IQuickInputService);
@@ -26,7 +27,7 @@ export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippe
 	if (Array.isArray(languageIdOrSnippets)) {
 		snippets = languageIdOrSnippets;
 	} else {
-		snippets = (await snippetService.getSnippets(languageIdOrSnippets, { includeDisabledSnippets: true, includeNoPrefixSnippets: true }));
+		snippets = (await snippetService.getSnippets(languageIdOrSnippets, resourceUri, { includeDisabledSnippets: true, includeNoPrefixSnippets: true }));
 	}
 
 	snippets.sort((a, b) => a.snippetSource - b.snippetSource);

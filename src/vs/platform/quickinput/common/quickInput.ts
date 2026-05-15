@@ -12,6 +12,7 @@ import { IItemAccessor } from '../../../base/common/fuzzyScorer.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
+import { IObservable } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
@@ -115,9 +116,14 @@ export interface IQuickPickSeparator {
 export interface IKeyMods {
 	readonly ctrlCmd: boolean;
 	readonly alt: boolean;
+	readonly shift: boolean;
 }
 
-export const NO_KEY_MODS: IKeyMods = { ctrlCmd: false, alt: false };
+export function isKeyModified(keyMods: IKeyMods): boolean {
+	return keyMods.ctrlCmd || keyMods.alt || keyMods.shift;
+}
+
+export const NO_KEY_MODS: IKeyMods = { ctrlCmd: false, alt: false, shift: false };
 
 export interface IQuickNavigateConfiguration {
 	keybindings: readonly ResolvedKeybinding[];
@@ -196,6 +202,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 * an optional property for the item to focus initially.
 	 */
 	activeItem?: Promise<T> | T;
+
+	/**
+	 * an optional anchor for the picker
+	 */
+	anchor?: unknown /* HTMLElement */ | { x: number; y: number };
 
 	onKeyMods?: (keyMods: IKeyMods) => void;
 	onDidFocus?: (entry: T) => void;
@@ -314,12 +325,6 @@ export interface IQuickInput extends IDisposable {
 	description: string | undefined;
 
 	/**
-	 * An HTML widget rendered below the input.
-	 * @deprecated Use an IQuickWidget instead.
-	 */
-	widget: any | undefined;
-
-	/**
 	 * The current step of the quick input rendered in the titlebar.
 	 */
 	step: number | undefined;
@@ -360,9 +365,9 @@ export interface IQuickInput extends IDisposable {
 	ignoreFocusOut: boolean;
 
 	/**
-	 * The toggle buttons to be added to the input box.
+	 * An optional anchor for the quick input.
 	 */
-	toggles: IQuickInputToggle[] | undefined;
+	anchor?: unknown /* HTMLElement */ | { x: number; y: number };
 
 	/**
 	 * Shows the quick input.
@@ -395,10 +400,9 @@ export interface IQuickWidget extends IQuickInput {
 	readonly type: QuickInputType.QuickWidget;
 
 	/**
-	 * Should be an HTMLElement (TODO: move this entire file into browser)
-	 * @override
+	 * A HTML element that will be rendered inside the quick input.
 	 */
-	widget: any | undefined;
+	widget: unknown /* HTMLElement */ | undefined;
 }
 
 export interface IQuickPickWillAcceptEvent {
@@ -573,6 +577,11 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	customHover: string | undefined;
 
 	/**
+	 * Whether the custom button should be rendered as a secondary button.
+	 */
+	customButtonSecondary?: boolean;
+
+	/**
 	 * An event that is fired when an item button is triggered.
 	 */
 	readonly onDidTriggerItemButton: Event<IQuickPickItemButtonEvent<T>>;
@@ -713,17 +722,6 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 }
 
 /**
- * Represents a toggle for quick input.
- */
-export interface IQuickInputToggle {
-	/**
-	 * Event that is fired when the toggle value changes.
-	 * The boolean value indicates whether the change was triggered via keyboard.
-	 */
-	readonly onChange: Event<boolean>;
-}
-
-/**
  * Represents an input box in a quick input dialog.
  */
 export interface IInputBox extends IQuickInput {
@@ -831,6 +829,26 @@ export interface IQuickInputButton {
 	 * @note This property is ignored if the button was added to a QuickPickItem.
 	 */
 	location?: QuickInputButtonLocation;
+	/**
+	 * When present, indicates that the button is a toggle button that can be checked or unchecked.
+	 * The `checked` property indicates the current state of the toggle and will be updated
+	 * when the button is clicked.
+	 */
+	readonly toggle?: { checked: boolean };
+	/**
+	 * Optional label for the button. When used with secondary actions, this label appears in the overflow menu.
+	 */
+	label?: string;
+	/**
+	 * When true, the button will be rendered as a secondary action in the toolbar overflow menu.
+	 * By default, buttons are rendered as primary actions.
+	 * @note This does not currently apply to buttons in the Input location
+	 */
+	secondary?: boolean;
+}
+
+export interface IQuickInputButtonWithToggle extends IQuickInputButton {
+	readonly toggle: { checked: boolean };
 }
 
 /**
@@ -917,6 +935,8 @@ export const IQuickInputService = createDecorator<IQuickInputService>('quickInpu
 
 export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
+export type QuickInputAlignment = 'top' | 'center' | 'custom';
+
 export interface IQuickInputService {
 
 	readonly _serviceBrand: undefined;
@@ -940,6 +960,11 @@ export interface IQuickInputService {
 	 * Allows to register on the event that quick input is hiding.
 	 */
 	readonly onHide: Event<void>;
+
+	/**
+	 * The current alignment of the quick input widget.
+	 */
+	readonly alignment: IObservable<QuickInputAlignment>;
 
 	/**
 	 * Opens the quick input box for selecting items and returns a promise
@@ -1007,7 +1032,7 @@ export interface IQuickInputService {
 	/**
 	 * Cancels quick input and closes it.
 	 */
-	cancel(): Promise<void>;
+	cancel(reason?: QuickInputHideReason): Promise<void>;
 
 	/**
 	 * Toggles hover for the current quick input item
@@ -1137,13 +1162,6 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	setItemTree(itemTree: T[]): void;
 
 	/**
-	 * Sets the checkbox state of an item.
-	 * @param element The item to update.
-	 * @param checked The new checkbox state.
-	 */
-	setCheckboxState(element: T, checked: boolean | 'mixed'): void;
-
-	/**
 	 * Expands an item.
 	 * @param element The item to expand.
 	 */
@@ -1166,6 +1184,12 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	 * Focuses on the tree input.
 	 */
 	focusOnInput(): void;
+
+	/**
+	 * Reveals and focuses a specific item in the tree.
+	 * @param element The item to reveal and focus.
+	 */
+	reveal(element: T): void;
 
 	/**
 	 * Focus a particular item in the list. Used internally for keyboard navigation.

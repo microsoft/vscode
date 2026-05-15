@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../base/common/async.js';
 import { bufferToStream, readableToBuffer, VSBuffer, VSBufferReadable } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
 import { Schemas } from '../../../base/common/network.js';
 import { observableValue } from '../../../base/common/observable.js';
 import { join } from '../../../base/common/path.js';
@@ -27,15 +27,17 @@ import { IProgress, IProgressStep } from '../../../platform/progress/common/prog
 import { InMemoryStorageService, WillSaveStateReason } from '../../../platform/storage/common/storage.js';
 import { toUserDataProfile } from '../../../platform/userDataProfile/common/userDataProfile.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, WorkbenchState, Workspace } from '../../../platform/workspace/common/workspace.js';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from '../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, ResourceTrustRequestOptions, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from '../../../platform/workspace/common/workspaceTrust.js';
 import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 import { GroupIdentifier, IRevertOptions, ISaveOptions, SaveReason } from '../../common/editor.js';
 import { EditorInput } from '../../common/editor/editorInput.js';
 import { IActivity, IActivityService } from '../../services/activity/common/activity.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContext, IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
+import { Lazy } from '../../../base/common/lazy.js';
 import { NullExtensionService } from '../../services/extensions/common/extensions.js';
 import { IAutoSaveConfiguration, IAutoSaveMode, IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IHistoryService } from '../../services/history/common/history.js';
+import { BeforeShutdownErrorEvent, ILifecycleService, InternalBeforeShutdownEvent, LifecyclePhase, ShutdownReason, StartupKind, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
 import { IResourceEncoding } from '../../services/textfile/common/textfiles.js';
 import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
 import { IStoredFileWorkingCopySaveEvent } from '../../services/workingCopy/common/storedFileWorkingCopy.js';
@@ -117,6 +119,10 @@ export class TestContextService implements IWorkspaceContextService {
 		}
 
 		return WorkbenchState.EMPTY;
+	}
+
+	hasWorkspaceData(): boolean {
+		return this.getWorkbenchState() !== WorkbenchState.EMPTY;
 	}
 
 	getCompleteWorkspace(): Promise<IWorkspace> {
@@ -244,7 +250,7 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 	}
 }
 
-export function createFileStat(resource: URI, readonly = false, isFile?: boolean, isDirectory?: boolean, isSymbolicLink?: boolean, children?: { resource: URI; isFile?: boolean; isDirectory?: boolean; isSymbolicLink?: boolean }[] | undefined): IFileStatWithMetadata {
+export function createFileStat(resource: URI, readonly = false, isFile?: boolean, isDirectory?: boolean, isSymbolicLink?: boolean, children?: { resource: URI; isFile?: boolean; isDirectory?: boolean; isSymbolicLink?: boolean; executable?: boolean }[] | undefined, executable?: boolean): IFileStatWithMetadata {
 	return {
 		resource,
 		etag: Date.now().toString(),
@@ -256,8 +262,9 @@ export function createFileStat(resource: URI, readonly = false, isFile?: boolean
 		isSymbolicLink: isSymbolicLink ?? false,
 		readonly,
 		locked: false,
+		executable: executable ?? false,
 		name: basename(resource),
-		children: children?.map(c => createFileStat(c.resource, false, c.isFile, c.isDirectory, c.isSymbolicLink)),
+		children: children?.map(c => createFileStat(c.resource, false, c.isFile, c.isDirectory, c.isSymbolicLink, undefined, c.executable)),
 	};
 }
 
@@ -346,7 +353,7 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 	enableAutoSaveAfterShortDelay(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	disableAutoSave(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	isReadonly(resource: URI, stat?: IBaseFileStat | undefined): boolean { return false; }
-	async updateReadonly(resource: URI, readonly: boolean | 'toggle' | 'reset'): Promise<void> { }
+	async updateReadonly(_resource: URI | URI[], _readonly: boolean | 'toggle' | 'reset'): Promise<void> { }
 	preventSaveConflicts(resource: URI, language?: string | undefined): boolean { throw new Error('Method not implemented.'); }
 };
 
@@ -374,7 +381,8 @@ export class TestWorkspaceTrustManagementService extends Disposable implements I
 
 
 	constructor(
-		private trusted: boolean = true
+		private trusted: boolean = true,
+		private trustedUris: ResourceSet = new ResourceSet()
 	) {
 		super();
 	}
@@ -400,11 +408,11 @@ export class TestWorkspaceTrustManagementService extends Disposable implements I
 	}
 
 	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
-		throw new Error('Method not implemented.');
+		return Promise.resolve({ trusted: this.trustedUris.has(uri), uri });
 	}
 
 	async setTrustedUris(folders: URI[]): Promise<void> {
-		throw new Error('Method not implemented.');
+		this.trustedUris = new ResourceSet(folders);
 	}
 
 	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
@@ -449,6 +457,9 @@ export class TestWorkspaceTrustRequestService extends Disposable implements IWor
 	private readonly _onDidInitiateOpenFilesTrustRequest = this._register(new Emitter<void>());
 	readonly onDidInitiateOpenFilesTrustRequest = this._onDidInitiateOpenFilesTrustRequest.event;
 
+	private readonly _onDidInitiateResourcesTrustRequest = this._register(new Emitter<ResourceTrustRequestOptions>());
+	readonly onDidInitiateResourcesTrustRequest = this._onDidInitiateResourcesTrustRequest.event;
+
 	private readonly _onDidInitiateWorkspaceTrustRequest = this._register(new Emitter<WorkspaceTrustRequestOptions>());
 	readonly onDidInitiateWorkspaceTrustRequest = this._onDidInitiateWorkspaceTrustRequest.event;
 
@@ -469,6 +480,14 @@ export class TestWorkspaceTrustRequestService extends Disposable implements IWor
 
 	async completeOpenFilesTrustRequest(result: WorkspaceTrustUriResponse, saveResponse: boolean): Promise<void> {
 		throw new Error('Method not implemented.');
+	}
+
+	async completeResourcesTrustRequest(uri: URI, result: WorkspaceTrustUriResponse): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	async requestResourcesTrust(options: ResourceTrustRequestOptions): Promise<boolean | undefined> {
+		return this._trusted;
 	}
 
 	cancelWorkspaceTrustRequest(): void {
@@ -698,7 +717,7 @@ export class TestFileService implements IFileService {
  */
 export class InMemoryTestFileService extends TestFileService {
 
-	private files = new Map<string, VSBuffer>();
+	private files = new ResourceMap<VSBuffer>();
 
 	override clearTracking(): void {
 		super.clearTracking();
@@ -714,7 +733,7 @@ export class InMemoryTestFileService extends TestFileService {
 		this.readOperations.push({ resource });
 
 		// Check if we have content in our in-memory store
-		const content = this.files.get(resource.toString());
+		const content = this.files.get(resource);
 		if (content) {
 			return {
 				...createFileStat(resource, this.readonly),
@@ -743,10 +762,24 @@ export class InMemoryTestFileService extends TestFileService {
 		}
 
 		// Store in memory and track
-		this.files.set(resource.toString(), content);
+		this.files.set(resource, content);
 		this.writeOperations.push({ resource, content: content.toString() });
 
 		return createFileStat(resource, this.readonly);
+	}
+
+	override async del(resource: URI, _options?: { useTrash?: boolean; recursive?: boolean }): Promise<void> {
+		this.files.delete(resource);
+		this.notExistsSet.set(resource, true);
+	}
+
+	override async exists(resource: URI): Promise<boolean> {
+		const inMemory = this.files.has(resource);
+		if (inMemory) {
+			return true;
+		}
+
+		return super.exists(resource);
 	}
 }
 
@@ -754,12 +787,16 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 
 	_serviceBrand: undefined;
 
+	context: Lazy<ChatEntitlementContext> | undefined;
+
 	readonly organisations: undefined;
 	readonly isInternal = false;
 	readonly sku = undefined;
+	readonly copilotTrackingId = undefined;
 
 	readonly onDidChangeQuotaExceeded = Event.None;
 	readonly onDidChangeQuotaRemaining = Event.None;
+	readonly onDidChangeUsageBasedBilling = Event.None;
 	readonly quotas = {};
 
 	update(token: CancellationToken): Promise<void> {
@@ -777,5 +814,94 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	readonly anonymous = false;
 	onDidChangeAnonymous = Event.None;
 	readonly anonymousObs = observableValue({}, false);
+
+	markAnonymousRateLimited(): void { }
+	markSetupCompleted(): void { }
+	setForceHidden(_hidden: boolean): void { }
+
+	readonly previewFeaturesDisabled = false;
+	readonly clientByokEnabled = false;
+	readonly hasByokModels = false;
 }
 
+export class TestLifecycleService extends Disposable implements ILifecycleService {
+
+	declare readonly _serviceBrand: undefined;
+
+	usePhases = false;
+	_phase!: LifecyclePhase;
+	get phase(): LifecyclePhase { return this._phase; }
+	set phase(value: LifecyclePhase) {
+		this._phase = value;
+		if (value === LifecyclePhase.Starting) {
+			this.whenStarted.complete();
+		} else if (value === LifecyclePhase.Ready) {
+			this.whenReady.complete();
+		} else if (value === LifecyclePhase.Restored) {
+			this.whenRestored.complete();
+		} else if (value === LifecyclePhase.Eventually) {
+			this.whenEventually.complete();
+		}
+	}
+
+	private readonly whenStarted = new DeferredPromise<void>();
+	private readonly whenReady = new DeferredPromise<void>();
+	private readonly whenRestored = new DeferredPromise<void>();
+	private readonly whenEventually = new DeferredPromise<void>();
+	async when(phase: LifecyclePhase): Promise<void> {
+		if (!this.usePhases) {
+			return;
+		}
+		if (phase === LifecyclePhase.Starting) {
+			await this.whenStarted.p;
+		} else if (phase === LifecyclePhase.Ready) {
+			await this.whenReady.p;
+		} else if (phase === LifecyclePhase.Restored) {
+			await this.whenRestored.p;
+		} else if (phase === LifecyclePhase.Eventually) {
+			await this.whenEventually.p;
+		}
+	}
+
+	startupKind!: StartupKind;
+	willShutdown = false;
+
+	private readonly _onBeforeShutdown = this._register(new Emitter<InternalBeforeShutdownEvent>());
+	get onBeforeShutdown(): Event<InternalBeforeShutdownEvent> { return this._onBeforeShutdown.event; }
+
+	private readonly _onBeforeShutdownError = this._register(new Emitter<BeforeShutdownErrorEvent>());
+	get onBeforeShutdownError(): Event<BeforeShutdownErrorEvent> { return this._onBeforeShutdownError.event; }
+
+	private readonly _onShutdownVeto = this._register(new Emitter<void>());
+	get onShutdownVeto(): Event<void> { return this._onShutdownVeto.event; }
+
+	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
+	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
+
+	private readonly _onDidShutdown = this._register(new Emitter<void>());
+	get onDidShutdown(): Event<void> { return this._onDidShutdown.event; }
+
+	shutdownJoiners: Promise<void>[] = [];
+
+	fireShutdown(reason = ShutdownReason.QUIT): void {
+		this.shutdownJoiners = [];
+
+		this._onWillShutdown.fire({
+			join: p => {
+				this.shutdownJoiners.push(typeof p === 'function' ? p() : p);
+			},
+			joiners: () => [],
+			force: () => { /* No-Op in tests */ },
+			token: CancellationToken.None,
+			reason
+		});
+	}
+
+	fireBeforeShutdown(event: InternalBeforeShutdownEvent): void { this._onBeforeShutdown.fire(event); }
+
+	fireWillShutdown(event: WillShutdownEvent): void { this._onWillShutdown.fire(event); }
+
+	async shutdown(): Promise<void> {
+		this.fireShutdown();
+	}
+}

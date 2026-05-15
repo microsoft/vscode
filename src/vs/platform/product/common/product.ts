@@ -70,7 +70,24 @@ else {
 			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
 			licenseName: 'MIT',
 			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
-			serverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt'
+			serverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
+			defaultChatAgent: {
+				extensionId: 'GitHub.copilot',
+				chatExtensionId: 'GitHub.copilot-chat',
+				provider: {
+					default: {
+						id: 'github',
+						name: 'GitHub',
+					},
+					enterprise: {
+						id: 'github-enterprise',
+						name: 'GitHub Enterprise',
+					}
+				},
+				providerScopes: [],
+				tokenEntitlementUrl: 'https://api.github.com/copilot_internal/v2/token',
+				mcpRegistryDataUrl: 'https://api.github.com/copilot/mcp_registry',
+			}
 		});
 	}
 }

@@ -7,13 +7,18 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { isRemoteDiagnosticError, SystemInfo } from '../../../../platform/diagnostics/common/diagnostics.js';
 import { ISettingSearchResult, IssueReporterExtensionData, IssueType } from '../common/issue.js';
 
+interface VersionInfo {
+	vscodeVersion: string;
+	os: string;
+}
+
 export interface IssueReporterData {
 	issueType: IssueType;
 	issueDescription?: string;
 	issueTitle?: string;
 	extensionData?: string;
 
-	versionInfo?: any;
+	versionInfo?: VersionInfo;
 	systemInfo?: SystemInfo;
 	systemInfoWeb?: string;
 	processInfo?: string;
@@ -40,6 +45,7 @@ export interface IssueReporterData {
 	experimentInfo?: string;
 	restrictedMode?: boolean;
 	isUnsupported?: boolean;
+	isSessionsWindow?: boolean;
 }
 
 export class IssueReporterModel {
@@ -87,7 +93,7 @@ export class IssueReporterModel {
 		}
 		return `
 Type: <b>${this.getIssueTypeTitle()}</b>
-
+${this._data.isSessionsWindow ? '\nWindow: Agents\n' : ''}
 ${this._data.issueDescription}
 ${this.getExtensionVersion()}
 VS Code version: ${this._data.versionInfo && this._data.versionInfo.vscodeVersion}

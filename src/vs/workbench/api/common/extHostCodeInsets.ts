@@ -107,8 +107,7 @@ export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 			readonly onDidDispose: vscode.Event<void> = onDidDispose.event;
 
 			dispose(): void {
-				if (that._insets.has(handle)) {
-					that._insets.delete(handle);
+				if (that._insets.delete(handle)) {
 					that._proxy.$disposeEditorInset(handle);
 					onDidDispose.fire();
 
