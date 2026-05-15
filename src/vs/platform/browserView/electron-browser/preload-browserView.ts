@@ -225,7 +225,11 @@ function findCommonVisibleAncestor(candidates: readonly (Node | null | undefined
 	// Find the nearest visible ancestor of a single element.
 	const findVisible = (el: Element): Element => {
 		for (let cur: Element | null = el; cur; cur = cur.parentElement) {
-			if (cur.clientWidth > 0 && cur.clientHeight > 0) {
+			// eslint-disable-next-line no-restricted-syntax
+			const width = cur instanceof HTMLElement ? cur.offsetWidth : cur.clientWidth;
+			// eslint-disable-next-line no-restricted-syntax
+			const height = cur instanceof HTMLElement ? cur.offsetHeight : cur.clientHeight;
+			if (width > 0 && height > 0) {
 				return cur;
 			}
 		}
@@ -428,6 +432,7 @@ class ElementPicker {
 		e.preventDefault();
 		e.stopPropagation();
 		if (!this._dragStart) {
+			this._updateHighlight(this._pickElementAt(e.clientX, e.clientY));
 			return;
 		}
 		const dx = Math.abs(e.clientX - this._dragStart.x);
@@ -624,8 +629,8 @@ class ElementPicker {
 		if (!this._selectionActive) {
 			return;
 		}
-		// Put this in a microtask so any running event handlers can be completed in the selecting active state.
-		queueMicrotask(() => {
+		// Wait a frame so any pending event handlers can be completed in the selecting active state.
+		requestAnimationFrame(() => {
 			if (!this._continuous) {
 				// Tear down the overlay before notifying the host so any
 				// screenshot capture doesn't include our chrome.
