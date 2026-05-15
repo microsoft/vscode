@@ -275,7 +275,7 @@ impl Platform {
 	}
 
 	pub fn web(&self) -> Option<String> {
-		self.headless().map(|h| format!("{}-web", h))
+		self.headless().map(|h| format!("{h}-web"))
 	}
 
 	pub fn env_default() -> Option<Platform> {
