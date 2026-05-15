@@ -347,8 +347,6 @@
 	"github.copilot.config.responsesApi.promptCacheKey.enabled": "Enables prompt cache key being set for the Responses API.",
 	"github.copilot.config.updated53CodexPrompt.enabled": "Enables the updated prompt for gpt-5.3-codex model.",
 	"github.copilot.config.claude47OpusPrompt.enabled": "Enables the updated system prompt tuned for the Claude Opus 4.7 model.",
-	"github.copilot.config.gpt54ConcisePrompt.enabled": "Enables the concise prompt experiment for gpt-5.4 model.",
-	"github.copilot.config.gpt54LargePrompt.enabled": "Enables the large prompt experiment for gpt-5.4 model.",
 	"github.copilot.config.gpt55GetChangedFilesTool.enabled": "Enables the Get Changed Files tool for gpt-5.5 models.",
 	"github.copilot.config.gpt55ReadFileTool.enabled": "Enables the Read File tool for gpt-5.5 models.",
 	"github.copilot.config.gpt55EconomicalSearchAndEdit.enabled": "Enables economical search and edit instructions for gpt-5.5 models.",

@@ -24,6 +24,10 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { ChatConfiguration } from '../../chat/common/constants.js';
 import { AgentHostEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { focusBorder } from '../../../../platform/theme/common/colors/baseColors.js';
+import { buttonForeground } from '../../../../platform/theme/common/colors/inputColors.js';
+import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 
 /**
  * When enabled, integrated browser tools are exposed as client-provided tools
@@ -84,6 +88,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 		const channel = mainProcessService.getChannel(ipcBrowserViewChannelName);
@@ -92,6 +97,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 		this.sendKeybindings();
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.sendKeybindings()));
+
+		this.sendTheme();
+		this._register(this.themeService.onDidColorThemeChange(() => this.sendTheme()));
 
 		// Track sharing availability from context keys
 		this._isSharingAvailable = this.contextKeyService.contextMatchesRules(BrowserViewWorkbenchService._sharingAvailableContext);
@@ -269,5 +277,14 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 		}
 		void this._browserViewService.updateKeybindings(keybindings);
+	}
+
+	private sendTheme(): void {
+		const theme = this.themeService.getColorTheme();
+		void this._browserViewService.updateTheme({
+			accentColor: theme.getColor(focusBorder)?.toString(),
+			accentForegroundColor: theme.getColor(buttonForeground)?.toString(),
+			font: DEFAULT_FONT_FAMILY,
+		});
 	}
 }

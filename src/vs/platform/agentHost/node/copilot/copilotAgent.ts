@@ -34,6 +34,7 @@ import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProt
 import { CustomizationRef, CustomizationStatus, ResponsePartKind, SessionInputResponseKind, parseSubagentSessionUri, type MessageAttachment, type PendingMessage, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { CopilotAgentSession, SessionWrapperFactory, type CopilotSdkMode, type IActiveClientSnapshot } from './copilotAgentSession.js';
@@ -41,6 +42,9 @@ import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitP
 import { parsedPluginsEqual, toSdkCustomAgents, toSdkHooks, toSdkMcpServers, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools } from './copilotShellTools.js';
+import { SessionCustomizationDiscovery } from './sessionCustomizationDiscovery.js';
+import { SessionPluginBundler } from './sessionPluginBundler.js';
+import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 
 interface ICreatedWorktree {
 	readonly repositoryRoot: URI;
@@ -271,10 +275,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@IAgentHostCompletions completions: IAgentHostCompletions,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
+		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id, {
+			hasHistory: (sessionId) => !this._provisionalSessions.has(sessionId) && this._sessions.has(sessionId),
+		})));
 	}
 
 	protected _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -1688,6 +1696,80 @@ interface IResolvedCustomization {
 	readonly plugin?: IParsedPlugin;
 }
 
+/**
+ * A per-working-directory bundle of customizations the agent host
+ * discovered itself from disk (workspace + user-home conventions).
+ *
+ * Owns a {@link SessionCustomizationDiscovery} (filesystem scan +
+ * watchers) and a {@link SessionPluginBundler} (in-memory synthetic
+ * Open Plugin under the `vscode-synced-customization:` scheme).
+ *
+ * Refreshes itself when the discovery fires `onDidChange`. The owning
+ * {@link PluginController} is notified via the supplied `onDidRefresh`
+ * callback so it can re-fire its own change event and (indirectly) cause
+ * sessions to pick up the new bundle through the existing
+ * `isOutdated` snapshot path.
+ */
+class SessionDiscoveredEntry extends Disposable {
+
+	private readonly _discovery: SessionCustomizationDiscovery;
+	private readonly _bundler: SessionPluginBundler;
+
+	private _resolved: IResolvedCustomization | undefined;
+	private _settled: Promise<void>;
+
+	constructor(
+		workingDirectory: URI,
+		userHome: URI,
+		private readonly _resolvePlugin: (uri: URI) => Promise<IParsedPlugin | undefined>,
+		private readonly _onDidRefresh: () => void,
+		private readonly _logService: ILogService,
+		instantiationService: IInstantiationService,
+	) {
+		super();
+		this._discovery = this._register(instantiationService.createInstance(SessionCustomizationDiscovery, workingDirectory, userHome));
+		this._bundler = this._register(instantiationService.createInstance(SessionPluginBundler, workingDirectory));
+		this._settled = this._refresh();
+		this._register(this._discovery.onDidChange(() => {
+			this._settled = this._refresh().finally(() => this._onDidRefresh());
+		}));
+	}
+
+	whenSettled(): Promise<void> {
+		return this._settled;
+	}
+
+	currentResolved(): IResolvedCustomization | undefined {
+		return this._resolved;
+	}
+
+	private async _refresh(): Promise<void> {
+		try {
+			const files = await this._discovery.files();
+			const bundleResult = await this._bundler.bundle(files);
+			if (!bundleResult) {
+				this._resolved = undefined;
+				return;
+			}
+			const pluginDir = URI.parse(bundleResult.ref.uri);
+			const plugin = await this._resolvePlugin(pluginDir);
+			this._resolved = {
+				customization: {
+					customization: bundleResult.ref,
+					enabled: true,
+					status: plugin ? CustomizationStatus.Loaded : CustomizationStatus.Error,
+					statusMessage: plugin ? undefined : localize('copilotAgent.pluginParseError', "Error parsing plugin."),
+				},
+				pluginDir,
+				plugin,
+			};
+		} catch (err) {
+			this._logService.warn(`[Copilot:SessionDiscoveredEntry] Discovery/bundle failed: ${err instanceof Error ? err.message : String(err)}`);
+			this._resolved = undefined;
+		}
+	}
+}
+
 class PluginController extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -1701,11 +1783,19 @@ class PluginController extends Disposable {
 	private _hostRevision = 0;
 	private _lastAppliedRefs: readonly CustomizationRef[] = [];
 
+	/**
+	 * Per-working-directory bundles built from on-disk discovery
+	 * (workspace + user-home conventions). Lazily created on first access
+	 * by {@link _getOrCreateSessionEntry}; lifetime tied to this controller.
+	 */
+	private readonly _sessionDiscovered = new Map<string, SessionDiscoveredEntry>();
+
 	constructor(
 		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -1716,21 +1806,36 @@ class PluginController extends Disposable {
 		}));
 	}
 
+	override dispose(): void {
+		for (const entry of this._sessionDiscovered.values()) {
+			entry.dispose();
+		}
+		this._sessionDiscovered.clear();
+		super.dispose();
+	}
+
 	public getConfiguredHostCustomizations(): readonly CustomizationRef[] {
 		return this._hostCustomizations.map(item => item.customization.customization);
 	}
 
 	public getSessionCustomizations(directory: URI | undefined): readonly SessionCustomization[] {
-		return [
+		const result: SessionCustomization[] = [
 			...this._hostCustomizations.map(item => this._applyEnablement(item.customization)),
 			...this._clientCustomizations.map(item => this._applyEnablement(item.customization)),
 		];
+		const entry = directory ? this._getOrCreateSessionEntry(directory) : undefined;
+		const sessionResolved = entry?.currentResolved();
+		if (sessionResolved) {
+			result.push(this._applyEnablement(sessionResolved.customization));
+		}
+		return result;
 	}
 
 	/**
 	 * Returns the current parsed plugins, awaiting any pending sync.
 	 */
 	public async getAppliedPlugins(directory: URI | undefined): Promise<readonly IParsedPlugin[]> {
+		const entry = directory ? this._getOrCreateSessionEntry(directory) : undefined;
 		const [host, client] = await Promise.all([
 			this._hostSync.catch(err => {
 				this._logService.warn('[Copilot:PluginController] Host customization update failed', err);
@@ -1740,7 +1845,13 @@ class PluginController extends Disposable {
 				this._logService.warn('[Copilot:PluginController] Customization sync failed', err);
 				return this._clientCustomizations;
 			}),
+			entry?.whenSettled(),
 		]);
+
+		const sessionResolved = entry?.currentResolved();
+		const sessionPlugins: IParsedPlugin[] = sessionResolved?.plugin && this._isEnabled(sessionResolved.customization)
+			? [sessionResolved.plugin]
+			: [];
 
 		return [
 			...host.filter(item =>
@@ -1751,7 +1862,25 @@ class PluginController extends Disposable {
 				!!item.plugin
 				&& this._isEnabled(item.customization)
 			).map(item => item.plugin!),
+			...sessionPlugins,
 		];
+	}
+
+	private _getOrCreateSessionEntry(directory: URI): SessionDiscoveredEntry {
+		const key = directory.toString();
+		let entry = this._sessionDiscovered.get(key);
+		if (!entry) {
+			entry = new SessionDiscoveredEntry(
+				directory,
+				URI.file(this._getUserHome()),
+				uri => this._tryParsePlugin(uri),
+				() => this._onDidChange.fire(),
+				this._logService,
+				this._instantiationService,
+			);
+			this._sessionDiscovered.set(key, entry);
+		}
+		return entry;
 	}
 
 	public setEnabled(pluginProtocolUri: string, enabled: boolean) {

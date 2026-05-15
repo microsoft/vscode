@@ -4009,24 +4009,6 @@
 							"onExp"
 						]
 					},
-					"github.copilot.chat.gpt54ConcisePrompt.enabled": {
-						"type": "boolean",
-						"default": false,
-						"markdownDescription": "%github.copilot.config.gpt54ConcisePrompt.enabled%",
-						"tags": [
-							"experimental",
-							"onExp"
-						]
-					},
-					"github.copilot.chat.gpt54LargePrompt.enabled": {
-						"type": "boolean",
-						"default": false,
-						"markdownDescription": "%github.copilot.config.gpt54LargePrompt.enabled%",
-						"tags": [
-							"experimental",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.gpt55GetChangedFilesTool.enabled": {
 						"type": "boolean",
 						"default": true,
@@ -4272,7 +4254,7 @@
 					},
 					"github.copilot.chat.freezeCustomizationsIndex": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"tags": [
 							"advanced",
 							"experimental",
