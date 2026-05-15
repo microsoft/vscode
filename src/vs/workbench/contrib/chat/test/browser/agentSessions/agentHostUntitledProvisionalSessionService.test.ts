@@ -53,7 +53,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this.disposed.push(session);
 	}
 
-	override dispatch(action: any): void {
+	override dispatch(action: Parameters<IAgentHostService['dispatch']>[0]): void {
 		this.dispatched.push(action as IDispatchedAction);
 	}
 

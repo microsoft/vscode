@@ -440,9 +440,20 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					config: { ...current.config },
 				});
 				const stillCurrent = this._entries.get(sessionResource);
-				if (stillCurrent === current && !equals(stillCurrent.resolvedConfig, resolved)) {
-					stillCurrent.resolvedConfig = resolved;
-					this._onDidChange.fire(sessionResource);
+				if (stillCurrent === current) {
+					const resolvedValues = { ...resolved.values };
+					// Merge resolved values into entry.config so a later `tryRebind`
+					// materializes the backend session with the validated configuration
+					// the UI is displaying. Merge (not replace) so any keys the schema
+					// doesn't know about survive.
+					const mergedConfig = { ...stillCurrent.config, ...resolvedValues };
+					const configChanged = !equals(stillCurrent.config, mergedConfig);
+					const resolvedChanged = !equals(stillCurrent.resolvedConfig, resolved);
+					if (configChanged || resolvedChanged) {
+						stillCurrent.config = mergedConfig;
+						stillCurrent.resolvedConfig = resolved;
+						this._onDidChange.fire(sessionResource);
+					}
 				}
 			} catch (err) {
 				this._logService.warn(`[AgentHostProvisional] schema re-resolve failed: ${err instanceof Error ? err.message : String(err)}`);
