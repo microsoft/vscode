@@ -80,8 +80,16 @@ export async function getShellIntegrationInjection(
 		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedWindowsBuild };
 	}
 
-	const originalArgs = shellLaunchConfig.args;
-	const shell = process.platform === 'win32' ? path.basename(shellLaunchConfig.executable).toLowerCase() : path.basename(shellLaunchConfig.executable);
+		const originalArgs = shellLaunchConfig.args;
+	let shell = process.platform === 'win32' ? path.basename(shellLaunchConfig.executable).toLowerCase() : path.basename(shellLaunchConfig.executable);
+	if (shellLaunchConfig.shellType) {
+		shell = shellLaunchConfig.shellType.toLowerCase();
+	} else if (shell === "host-spawn" || shell === "flatpak-spawn") {
+		if (Array.isArray(originalArgs) && originalArgs.length > 0) {
+			shell = path.basename(originalArgs[0]).toLowerCase();
+		}
+	}
+
 	const appRoot = path.dirname(FileAccess.asFileUri('').fsPath);
 	const type = 'injection';
 	let newArgs: string[] | undefined;
@@ -112,7 +120,7 @@ export async function getShellIntegrationInjection(
 
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwsh);
-			} else if (arePwshLoginArgs(originalArgs)) {
+    } else if (arePwshLoginArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwshLogin);
 			}
 			if (!newArgs) {
@@ -122,10 +130,10 @@ export async function getShellIntegrationInjection(
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			return { type, newArgs, envMixin };
-		} else if (shell === 'bash.exe') {
+    } else if (shell === 'bash.exe') {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
-			} else if (areZshBashFishLoginArgs(originalArgs)) {
+    } else if (areZshBashFishLoginArgs(originalArgs)) {
 				envMixin['VSCODE_SHELL_LOGIN'] = '1';
 				addEnvMixinPathPrefix(options, envMixin, shell);
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
@@ -147,7 +155,7 @@ export async function getShellIntegrationInjection(
 		case 'bash': {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
-			} else if (areZshBashFishLoginArgs(originalArgs)) {
+    } else if (areZshBashFishLoginArgs(originalArgs)) {
 				envMixin['VSCODE_SHELL_LOGIN'] = '1';
 				addEnvMixinPathPrefix(options, envMixin, shell);
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
@@ -163,9 +171,9 @@ export async function getShellIntegrationInjection(
 		case 'fish': {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Fish);
-			} else if (areZshBashFishLoginArgs(originalArgs)) {
+    } else if (areZshBashFishLoginArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin);
-			} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Fish) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin)) {
+    } else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Fish) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin)) {
 				newArgs = originalArgs;
 			}
 			if (!newArgs) {
@@ -183,7 +191,7 @@ export async function getShellIntegrationInjection(
 		case 'pwsh': {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Pwsh);
-			} else if (arePwshLoginArgs(originalArgs)) {
+    } else if (arePwshLoginArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.PwshLogin);
 			}
 			if (!newArgs) {
@@ -197,10 +205,10 @@ export async function getShellIntegrationInjection(
 		case 'zsh': {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
-			} else if (areZshBashFishLoginArgs(originalArgs)) {
+    } else if (areZshBashFishLoginArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
 				addEnvMixinPathPrefix(options, envMixin, shell);
-			} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin)) {
+    } else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin)) {
 				newArgs = originalArgs;
 			}
 			if (!newArgs) {

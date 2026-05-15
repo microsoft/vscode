@@ -493,6 +493,7 @@ export interface IHeartbeatService {
 
 
 export interface IShellLaunchConfig {
+	shellType?: string;
 	/**
 	 * The name of the terminal, if this is not set the name of the process will be used.
 	 */
@@ -938,6 +939,7 @@ export interface ITerminalProfile {
 	overrideName?: boolean;
 	color?: string;
 	icon?: ThemeIcon | URI | { light: URI; dark: URI };
+	shellType?: string;
 }
 
 export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
@@ -960,6 +962,7 @@ export interface IBaseUnresolvedTerminalProfile {
 	color?: string;
 	env?: ITerminalEnvironment;
 	requiresPath?: string | ITerminalUnsafePath;
+	shellType?: string;
 }
 
 export interface ITerminalUnsafePath {
