@@ -71,6 +71,108 @@ export const AgentHostClaudeAgentSdkPathSettingId = 'chat.agentHost.claudeAgent.
  */
 export const AgentHostClaudeSdkPathEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_PATH';
 
+// -- OpenTelemetry settings ------------------------------------------------------
+//
+// The `chat.agentHost.otel.*` namespace surfaces the same exporter knobs the CLI
+// runtime documents in `extensions/copilot/docs/monitoring/agent_monitoring.md`,
+// but routes them through the agent host process so the user's settings stay in
+// VS Code instead of leaking via shell env.
+//
+// `chat.agentHost.otel.dbSpanExporter.enabled` switches on the in-process
+// loopback receiver + persistent SQLite span store; the other settings still
+// apply because the user's external sink (when configured) is then fed by an
+// outbound forwarder rather than by the SDK directly.
+
+/** Master toggle for agent-host OTel. Explicit opt-in; other settings imply this when set. */
+export const AgentHostOTelEnabledSettingId = 'chat.agentHost.otel.enabled';
+/** Exporter type for the SDK's OTel pipeline. One of: `otlp-http`, `otlp-grpc`, `console`, `file`. */
+export const AgentHostOTelExporterTypeSettingId = 'chat.agentHost.otel.exporterType';
+/** OTLP endpoint URL when `exporterType` is `otlp-http` or `otlp-grpc`. */
+export const AgentHostOTelOtlpEndpointSettingId = 'chat.agentHost.otel.otlpEndpoint';
+/** Whether to include prompt/response content in span attributes (privacy-sensitive). */
+export const AgentHostOTelCaptureContentSettingId = 'chat.agentHost.otel.captureContent';
+/** Output path when `exporterType` is `file`. */
+export const AgentHostOTelOutfileSettingId = 'chat.agentHost.otel.outfile';
+/** When true, ALL spans are persisted to a local SQLite store regardless of `exporterType`. */
+export const AgentHostOTelDbSpanExporterEnabledSettingId = 'chat.agentHost.otel.dbSpanExporter.enabled';
+
+/**
+ * Path of the local SQLite span database, relative to `INativeEnvironmentService.userDataPath`.
+ * Kept here so both the renderer-side export action and the agent-host-side service
+ * use the same on-disk location.
+ */
+export const AgentHostOTelSpansDbSubPath = 'agent-host/otel/agent-host-traces.db';
+
+/**
+ * Environment variables consumed by `AgentHostOTelService` inside the agent host
+ * process. The workbench-side agent-host starters translate the corresponding
+ * `chat.agentHost.otel.*` settings into these variables (settings → env), while
+ * any value already present on the parent process's env wins (developer override).
+ *
+ * These names match the conventions documented in
+ * `extensions/copilot/docs/monitoring/agent_monitoring.md` so the same external
+ * tooling and `OTEL_EXPORTER_OTLP_*` config recipes work unchanged.
+ */
+export const AgentHostOTelEnvVars = Object.freeze({
+	Enabled: 'COPILOT_OTEL_ENABLED',
+	ExporterType: 'COPILOT_OTEL_EXPORTER_TYPE',
+	OtlpEndpoint: 'OTEL_EXPORTER_OTLP_ENDPOINT',
+	OtlpEndpointAlt: 'COPILOT_OTEL_ENDPOINT',
+	OtlpProtocol: 'OTEL_EXPORTER_OTLP_PROTOCOL',
+	OtlpHeaders: 'OTEL_EXPORTER_OTLP_HEADERS',
+	CaptureContent: 'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
+	FilePath: 'COPILOT_OTEL_FILE_EXPORTER_PATH',
+	SourceName: 'COPILOT_OTEL_SOURCE_NAME',
+	DbSpanExporterEnabled: 'COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED',
+} as const);
+
+/**
+ * Snapshot of the `chat.agentHost.otel.*` settings; produced by the workbench-side
+ * starters and merged with the parent process's env (env wins on key collision).
+ */
+export interface IAgentHostOTelSettings {
+	readonly enabled?: boolean;
+	readonly exporterType?: string;
+	readonly otlpEndpoint?: string;
+	readonly captureContent?: boolean;
+	readonly outfile?: string;
+	readonly dbSpanExporterEnabled?: boolean;
+}
+
+/**
+ * Build the env-var overlay for the agent host process from user settings and
+ * inherited env. Settings are translated to env vars, but if the same env var is
+ * already present on `inheritedEnv` it wins (developer override).
+ *
+ * Only sets a key when the underlying setting was explicitly configured — empty
+ * string / undefined settings are dropped so they don't shadow inherited env.
+ */
+export function buildAgentHostOTelEnv(
+	settings: IAgentHostOTelSettings,
+	inheritedEnv: Readonly<Record<string, string | undefined>>,
+): Record<string, string> {
+	const out: Record<string, string> = {};
+	const setIfMissing = (key: string, value: string | undefined): void => {
+		if (value === undefined || value === '' || inheritedEnv[key] !== undefined) {
+			return;
+		}
+		out[key] = value;
+	};
+	if (settings.enabled) {
+		setIfMissing(AgentHostOTelEnvVars.Enabled, 'true');
+	}
+	setIfMissing(AgentHostOTelEnvVars.ExporterType, settings.exporterType);
+	setIfMissing(AgentHostOTelEnvVars.OtlpEndpoint, settings.otlpEndpoint);
+	setIfMissing(AgentHostOTelEnvVars.FilePath, settings.outfile);
+	if (settings.captureContent !== undefined) {
+		setIfMissing(AgentHostOTelEnvVars.CaptureContent, settings.captureContent ? 'true' : 'false');
+	}
+	if (settings.dbSpanExporterEnabled) {
+		setIfMissing(AgentHostOTelEnvVars.DbSpanExporterEnabled, 'true');
+	}
+	return out;
+}
+
 /** Result of starting the agent host WebSocket server on-demand. */
 export interface IAgentHostSocketInfo {
 	readonly socketPath: string;

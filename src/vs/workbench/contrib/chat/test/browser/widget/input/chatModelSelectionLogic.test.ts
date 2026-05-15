@@ -968,11 +968,11 @@ suite('ChatModelSelectionLogic', () => {
 			);
 		});
 
-		test('does NOT restore model with isUserSelectable=undefined (treated as falsy)', () => {
+		test('restores model with isUserSelectable=undefined (defaults to selectable)', () => {
 			const model = createModel('undef-sel', 'Undef-Sel', { isUserSelectable: undefined });
 			assert.strictEqual(
 				shouldRestoreLateArrivingModel('copilot/undef-sel', false, model, ChatAgentLocation.Chat),
-				false,
+				true,
 			);
 		});
 
@@ -1218,7 +1218,7 @@ suite('ChatModelSelectionLogic', () => {
 
 			// 3. findDefaultModel picks replacement from models filtered for Agent mode
 			const agentCompatibleModels = filterModelsForSession(
-				[askOnlyModel, agentModel], undefined, ChatModeKind.Agent, ChatAgentLocation.Chat
+				[askOnlyModel, agentModel], undefined, ChatModeKind.Agent, ChatAgentLocation.Chat,
 			);
 			const defaultModel = findDefaultModel(agentCompatibleModels, ChatAgentLocation.Chat);
 			assert.strictEqual(defaultModel?.metadata.id, 'agent-model');

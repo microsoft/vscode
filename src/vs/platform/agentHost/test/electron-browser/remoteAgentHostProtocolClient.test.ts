@@ -6,23 +6,24 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
+import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
 import { IAgentHostPermissionService } from '../../common/agentHostPermissionService.js';
+import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
-import { ContentEncoding } from '../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { ActionType, type SessionActiveClientChangedAction } from '../../common/state/sessionActions.js';
+import { ActionType, type SessionActiveClientChangedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { ROOT_STATE_URI, StateComponents } from '../../common/state/sessionState.js';
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
@@ -208,19 +209,19 @@ suite('RemoteAgentHostProtocolClient', () => {
 		assert.strictEqual(transport.sentMessages.length, 0);
 	});
 
-	test('liveness sends a ping every 5s and force-closes after 20s of silence', async () => {
+	test('liveness sends a ping when idle and force-closes after the ping ages out', async () => {
 		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 			const lowLoad = { hasHighLoad: () => false };
 			const { client, transport } = createClient(undefined, undefined, lowLoad);
 			let closeCount = 0;
 			disposables.add(client.onDidClose(() => closeCount++));
 
-			// Five-second tick: first ping at 5s, then close after another
-			// ~15s when no inbound has arrived.
+			// First idle tick (t=5s) sends a ping; that ping then ages out
+			// over the next ~20s and triggers a close at ~t=25s.
 			await timeout(30_000);
 
 			const pings = transport.sentMessages.filter(isPingRequest);
-			assert.ok(pings.length >= 4, `expected at least 4 pings, got ${pings.length}`);
+			assert.ok(pings.length >= 1, `expected at least 1 ping, got ${pings.length}`);
 			assert.strictEqual(closeCount, 1);
 			client.dispose();
 		});
@@ -701,6 +702,519 @@ suite('RemoteAgentHostProtocolClient', () => {
 				calls.map(c => c.uri.toString()),
 				['file:///plugins/foo'],
 			);
+		});
+	});
+
+	suite('soft reconnect (transport factory)', () => {
+
+		function findRequest(transport: TestProtocolTransport, method: string): JsonRpcRequest | undefined {
+			return transport.sentMessages.find(
+				(m): m is JsonRpcRequest => 'method' in m && (m as JsonRpcRequest).method === method && 'id' in m,
+			);
+		}
+
+		function findNotification(transport: TestProtocolTransport, method: string): JsonRpcNotification | undefined {
+			return transport.sentMessages.find(
+				(m): m is JsonRpcNotification => 'method' in m && (m as JsonRpcNotification).method === method && !('id' in m),
+			);
+		}
+
+		async function flushMicrotasks(): Promise<void> {
+			// `await Promise.resolve()` only advances one microtask; loop a few times to
+			// drain chained .then handlers without resorting to fake timers.
+			for (let i = 0; i < 10; i++) {
+				await Promise.resolve();
+			}
+		}
+
+		/** Wait until the client transitions into the {@link AgentHostClientState.Reconnecting} state. */
+		async function waitForReconnecting(client: RemoteAgentHostProtocolClient): Promise<void> {
+			if (client.connectionState === AgentHostClientState.Reconnecting) {
+				return;
+			}
+			await Event.toPromise(Event.filter(client.onDidChangeConnectionState, s => s === AgentHostClientState.Reconnecting));
+		}
+
+		/** Wait for the next time a method-named request appears in the transport's outbox. */
+		async function waitForRequest(transport: TestProtocolTransport, method: string): Promise<JsonRpcRequest> {
+			while (true) {
+				const req = findRequest(transport, method);
+				if (req) {
+					return req;
+				}
+				await Promise.resolve();
+			}
+		}
+
+		/** Wait for the next time the new transport is created by the factory. */
+		async function waitForTransport(transports: TestClientProtocolTransport[], index: number): Promise<TestClientProtocolTransport> {
+			while (transports.length <= index) {
+				await new Promise<void>(r => setTimeout(r, 25));
+			}
+			return transports[index];
+		}
+
+		/**
+		 * Build a client wired to a transport factory that hands out fresh
+		 * `TestClientProtocolTransport`s on each invocation. Returns the
+		 * client plus a `transports` array recording each transport handed
+		 * out, so tests can drive handshake/reconnect interactions.
+		 */
+		function createFactoryClient(): { client: RemoteAgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
+			const transports: TestClientProtocolTransport[] = [];
+			const factory = () => {
+				const t = disposables.add(new TestClientProtocolTransport());
+				transports.push(t);
+				return t;
+			};
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			const client = disposables.add(new RemoteAgentHostProtocolClient(
+				'test.example:1234', factory, undefined, new NullLogService(), fileService, createPermissionService(),
+			));
+			return { client, transports };
+		}
+
+		async function completeHandshake(transport: TestClientProtocolTransport, connectPromise: Promise<void>): Promise<void> {
+			transport.connectDeferred.complete();
+			while (findRequest(transport, 'initialize') === undefined) {
+				await Promise.resolve();
+			}
+			const init = findRequest(transport, 'initialize')!;
+			transport.fireMessage({
+				jsonrpc: '2.0', id: init.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 5, snapshots: [] },
+			});
+			await connectPromise;
+		}
+
+		test('reuses clientId across transport reconnects', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+				const originalClientId = client.clientId;
+
+				// Drop the transport; the client should attach a fresh one and
+				// reconnect with the same clientId rather than restart from scratch.
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const reconnectTransport = await waitForTransport(transports, 1);
+				reconnectTransport.connectDeferred.complete();
+				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+
+				const params = reconnect.params as { clientId: string; lastSeenServerSeq: number; subscriptions: unknown[] };
+				assert.strictEqual(params.clientId, originalClientId);
+				assert.strictEqual(params.lastSeenServerSeq, 5);
+				assert.ok(Array.isArray(params.subscriptions));
+
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0', id: reconnect.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await flushMicrotasks();
+				client.dispose();
+			});
+		});
+
+		test('replays pending optimistic actions after reconnect', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				// Establish a session subscription so dispatch() can apply optimistically.
+				const sessionUri = URI.parse('copilot:/test-session');
+				const subRef = client.getSubscription(StateComponents.Session, sessionUri);
+				const subscribeReq = await waitForRequest(transports[0], 'subscribe');
+				transports[0].fireMessage({
+					jsonrpc: '2.0', id: subscribeReq.id,
+					result: { snapshot: { resource: sessionUri.toString(), state: { turns: [] }, fromSeq: 5 } },
+				});
+				await Promise.resolve();
+
+				// Dispatch an optimistic action right before the transport drops.
+				const action: SessionTitleChangedAction = {
+					type: ActionType.SessionTitleChanged,
+					session: sessionUri.toString(),
+					title: 'Renamed by user',
+				};
+				client.dispatch(action);
+				const initialDispatch = findNotification(transports[0], 'dispatchAction');
+				assert.ok(initialDispatch, 'optimistic dispatch should reach the original transport');
+				const initialSeq = (initialDispatch.params as { clientSeq: number }).clientSeq;
+
+				// Drop the transport mid-flight. The new transport receives a
+				// reconnect RPC plus a replay of the unconfirmed dispatch.
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const reconnectTransport = await waitForTransport(transports, 1);
+				reconnectTransport.connectDeferred.complete();
+				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0', id: reconnect.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await flushMicrotasks();
+
+				const replayed = findNotification(reconnectTransport, 'dispatchAction');
+				assert.ok(replayed, 'pending optimistic action should be re-sent after reconnect');
+				assert.strictEqual((replayed.params as { clientSeq: number }).clientSeq, initialSeq, 'replayed dispatch must reuse the original clientSeq');
+
+				subRef.dispose();
+				client.dispose();
+			});
+		});
+
+		test('skips replay when server already echoed the action in the replay buffer', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				const sessionUri = URI.parse('copilot:/test-session');
+				const subRef = client.getSubscription(StateComponents.Session, sessionUri);
+				const subscribeReq = await waitForRequest(transports[0], 'subscribe');
+				transports[0].fireMessage({
+					jsonrpc: '2.0', id: subscribeReq.id,
+					result: { snapshot: { resource: sessionUri.toString(), state: { turns: [] }, fromSeq: 5 } },
+				});
+				await Promise.resolve();
+
+				const action: SessionTitleChangedAction = {
+					type: ActionType.SessionTitleChanged,
+					session: sessionUri.toString(),
+					title: 'Echoed back',
+				};
+				client.dispatch(action);
+				const initialDispatch = findNotification(transports[0], 'dispatchAction')!;
+				const initialSeq = (initialDispatch.params as { clientSeq: number }).clientSeq;
+
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const reconnectTransport = await waitForTransport(transports, 1);
+				reconnectTransport.connectDeferred.complete();
+				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+				// Reply with a replay buffer that already contains our action,
+				// echoed back with origin = { clientId, clientSeq }.
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0', id: reconnect.id,
+					result: {
+						type: ReconnectResultType.Replay,
+						actions: [{
+							action,
+							serverSeq: 6,
+							origin: { clientId: client.clientId, clientSeq: initialSeq },
+							rejectionReason: undefined,
+						}],
+						missing: [],
+					},
+				});
+				await flushMicrotasks();
+
+				assert.strictEqual(findNotification(reconnectTransport, 'dispatchAction'), undefined,
+					'action echoed back via replay buffer must not be re-sent');
+
+				subRef.dispose();
+				client.dispose();
+			});
+		});
+
+		test('outgoing requests wait for reconnect to complete', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				// Drop the transport, then issue a new request while the
+				// soft-reconnect is in flight. The request must land on the new
+				// transport rather than racing the dead one or being dropped.
+				transports[0].fireClose();
+				const inFlight = client.resourceList(URI.file('/workspace')).catch(err => err);
+
+				// Hold off the new transport's connect() so the request stays gated.
+				await waitForReconnecting(client);
+				const reconnectTransport = await waitForTransport(transports, 1);
+				assert.strictEqual(findRequest(reconnectTransport, 'resourceList'), undefined,
+					'request must NOT be sent before reconnect completes');
+
+				reconnectTransport.connectDeferred.complete();
+				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0', id: reconnect.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+
+				const resourceList = await waitForRequest(reconnectTransport, 'resourceList');
+				reconnectTransport.fireMessage({ jsonrpc: '2.0', id: resourceList.id, result: { entries: [] } });
+
+				const value = await inFlight;
+				assert.deepStrictEqual(value, { entries: [] });
+				client.dispose();
+			});
+		});
+
+		test('rejected action echoed in replay buffer is not applied to confirmed state', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				const sessionUri = URI.parse('copilot:/test-session');
+				const subRef = client.getSubscription<{ summary: { title: string } }>(StateComponents.Session, sessionUri);
+				const subscribeReq = await waitForRequest(transports[0], 'subscribe');
+				transports[0].fireMessage({
+					jsonrpc: '2.0', id: subscribeReq.id,
+					result: { snapshot: { resource: sessionUri.toString(), state: { summary: { title: 'Original' }, turns: [] }, fromSeq: 5 } },
+				});
+				await Promise.resolve();
+
+				const action: SessionTitleChangedAction = {
+					type: ActionType.SessionTitleChanged,
+					session: sessionUri.toString(),
+					title: 'Rejected change',
+				};
+				client.dispatch(action);
+				const initialDispatch = findNotification(transports[0], 'dispatchAction')!;
+				const initialSeq = (initialDispatch.params as { clientSeq: number }).clientSeq;
+
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const reconnectTransport = await waitForTransport(transports, 1);
+				reconnectTransport.connectDeferred.complete();
+				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+				// Server echoes back the action with a rejectionReason — the
+				// confirmed state must NOT advance to 'Rejected change'.
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0', id: reconnect.id,
+					result: {
+						type: ReconnectResultType.Replay,
+						actions: [{
+							action,
+							serverSeq: 6,
+							origin: { clientId: client.clientId, clientSeq: initialSeq },
+							rejectionReason: 'unauthorized',
+						}],
+						missing: [],
+					},
+				});
+				await flushMicrotasks();
+
+				const sessionState = subRef.object.verifiedValue;
+				assert.ok(sessionState, 'session state should be hydrated');
+				assert.strictEqual(sessionState.summary.title, 'Original',
+					'rejected action must not have been applied to confirmed state');
+				assert.strictEqual(findNotification(reconnectTransport, 'dispatchAction'), undefined,
+					'rejected action must not be re-dispatched');
+
+				subRef.dispose();
+				client.dispose();
+			});
+		});
+
+		test('snapshot reconnect result reseats the root state', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const reconnectTransport = await waitForTransport(transports, 1);
+				reconnectTransport.connectDeferred.complete();
+				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0', id: reconnect.id,
+					result: {
+						type: ReconnectResultType.Snapshot,
+						snapshots: [{
+							resource: ROOT_STATE_URI,
+							state: { agents: [{ provider: 'copilot', displayName: 'Copilot', models: [], tools: [] }], activeSessions: 0, terminals: [] },
+							fromSeq: 42,
+						}],
+					},
+				});
+				await flushMicrotasks();
+
+				const root = client.rootState.value;
+				assert.ok(root && !(root instanceof Error), 'root state should be hydrated from snapshot');
+				assert.strictEqual(root.agents[0]?.provider, 'copilot');
+				client.dispose();
+			});
+		});
+
+		test('transport drop during reconnect RPC re-schedules instead of hanging', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const attempt1 = await waitForTransport(transports, 1);
+				attempt1.connectDeferred.complete();
+				await waitForRequest(attempt1, 'reconnect');
+
+				// Second drop mid-handshake. The attempt's pending RPC must be rejected
+				// so the retry path fires; without that the await stays pending and
+				// every subsequent request deadlocks on the reconnect gate.
+				attempt1.fireClose();
+
+				const attempt2 = await waitForTransport(transports, 2);
+				attempt2.connectDeferred.complete();
+				const reconnect2 = await waitForRequest(attempt2, 'reconnect');
+				attempt2.fireMessage({
+					jsonrpc: '2.0', id: reconnect2.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await flushMicrotasks();
+
+				assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+					'client must recover to Connected after a mid-reconnect drop');
+				client.dispose();
+			});
+		});
+
+		test('non-session dispatch issued during reconnect rides retries until success', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				// Drop transport before any successful reconnect so the gate stays
+				// engaged across the failed attempt.
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+
+				// A terminal action dispatched while reconnecting. There is no
+				// optimistic replay path for terminal/root actions; the only way
+				// these reach the server is via the notification gate.
+				const terminalUri = URI.parse('agenthost-terminal:/term-1');
+				client.dispatch({
+					type: ActionType.TerminalInput,
+					terminal: terminalUri.toString(),
+					data: 'echo hello\n',
+				});
+
+				// First attempt fails. The notification must NOT be dropped; the
+				// rejection handler should re-queue it onto the new gate.
+				const attempt1 = await waitForTransport(transports, 1);
+				attempt1.connectDeferred.error(new Error('connect failed'));
+
+				const attempt2 = await waitForTransport(transports, 2);
+				attempt2.connectDeferred.complete();
+				const reconnect2 = await waitForRequest(attempt2, 'reconnect');
+				attempt2.fireMessage({
+					jsonrpc: '2.0', id: reconnect2.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await flushMicrotasks();
+
+				const dispatched = findNotification(attempt2, 'dispatchAction');
+				assert.ok(dispatched, 'terminal dispatch must ride the failed attempt through to the next successful one');
+				client.dispose();
+			});
+		});
+
+		test('request issued during reconnect rides retries until success', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+
+				// Issue a request while the gate is engaged. The first reconnect
+				// attempt will fail; the request must NOT surface the transient
+				// failure to its caller, it should stay gated until the next
+				// successful handshake.
+				const inFlight = client.resourceList(URI.file('/workspace')).catch(err => err);
+
+				const attempt1 = await waitForTransport(transports, 1);
+				attempt1.connectDeferred.error(new Error('connect failed'));
+
+				const attempt2 = await waitForTransport(transports, 2);
+				assert.strictEqual(findRequest(attempt2, 'resourceList'), undefined,
+					'request must not slip through to the new transport before its handshake completes');
+
+				attempt2.connectDeferred.complete();
+				const reconnect2 = await waitForRequest(attempt2, 'reconnect');
+				attempt2.fireMessage({
+					jsonrpc: '2.0', id: reconnect2.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+
+				const resourceList = await waitForRequest(attempt2, 'resourceList');
+				attempt2.fireMessage({ jsonrpc: '2.0', id: resourceList.id, result: { entries: [] } });
+
+				const value = await inFlight;
+				assert.deepStrictEqual(value, { entries: [] },
+					'request must resolve once a later reconnect attempt succeeds');
+				client.dispose();
+			});
+		});
+
+		test('_sendExtensionRequest waits for the reconnect gate', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const shutdown = client.shutdown().catch(err => err);
+
+				const reconnectTransport = await waitForTransport(transports, 1);
+				// Extension requests must not race the dead transport — nothing
+				// should be on the wire yet.
+				assert.strictEqual(findRequest(reconnectTransport, 'shutdown'), undefined,
+					'shutdown extension request must NOT be sent before reconnect completes');
+
+				reconnectTransport.connectDeferred.complete();
+				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0', id: reconnect.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+
+				const shutdownReq = await waitForRequest(reconnectTransport, 'shutdown');
+				reconnectTransport.fireMessage({ jsonrpc: '2.0', id: shutdownReq.id, result: null });
+				await shutdown;
+				client.dispose();
+			});
+		});
+
+		test('watchdog dead-transport detection triggers soft reconnect', async function () {
+			this.timeout(60_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				// Issue a request the server never answers. After WATCHDOG_TIMEOUT_MS
+				// of silence the watchdog must route through the soft-reconnect
+				// path — *not* rely on the transport's onClose firing (it never
+				// will for a silent dead socket, see WebSocketClientTransport.dispose).
+				const pending = client.resourceList(URI.file('/workspace')).catch(err => err);
+				await timeout(30_000);
+
+				assert.strictEqual(client.connectionState, AgentHostClientState.Reconnecting,
+					'watchdog must drive the client into Reconnecting via soft reconnect rather than firing onDidClose');
+
+				const err = await pending;
+				assert.ok(err instanceof ProtocolError);
+				assert.match((err as ProtocolError).message, /Connection appears dead/);
+			});
 		});
 	});
 });

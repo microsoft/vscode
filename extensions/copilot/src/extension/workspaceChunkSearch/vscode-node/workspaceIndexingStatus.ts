@@ -8,13 +8,14 @@ import * as vscode from 'vscode';
 import { ResolvedRepoRemoteInfo } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ICodeSearchAuthenticationService } from '../../../platform/remoteCodeSearch/node/codeSearchRepoAuth';
+import { ExternalIngestEnablement } from '../../../platform/workspaceChunkSearch/node/codeSearch/codeSearchChunkSearch';
 import { CodeSearchRepoStatus } from '../../../platform/workspaceChunkSearch/node/codeSearch/codeSearchRepo';
 import { IWorkspaceChunkSearchService, WorkspaceIndexState } from '../../../platform/workspaceChunkSearch/node/workspaceChunkSearchService';
 import { coalesce } from '../../../util/vs/base/common/arrays';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { commandUri } from '../../linkify/common/commands';
-import { buildRemoteIndexCommandId } from './commands';
+import { buildRemoteIndexCommandId, enableExternalIngestCommandId } from './commands';
 
 
 const reauthenticateCommandId = '_copilot.workspaceIndex.signInAgain';
@@ -127,6 +128,9 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 				});
 
 			case 'loaded': {
+				const externalIngestDisabledByPolicy = state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledByPolicy;
+				const externalIngestDisabledInWorkspace = state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledBySetting;
+
 				// See if any repos are still being resolved
 				if (state.remoteIndexState.repos.some(repo => repo.status === CodeSearchRepoStatus.Resolving)) {
 					return this._writeStatusItem({
@@ -159,6 +163,19 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 							icon: spinnerCodicon,
 						},
 						tooltip: t`Your codebase is currently being indexed. This may take a few minutes.`,
+					});
+				}
+
+				if (externalIngestDisabledInWorkspace && !state.remoteIndexState.hasPromptedForExternalIngest) {
+					return this._writeStatusItem({
+						primary: {
+							message: t`External ingest off`,
+						},
+						details: {
+							message: `[${t`Enable external ingest?`}](command:${enableExternalIngestCommandId} "${t('Enable External Ingest')}")`,
+							busy: false,
+						},
+						tooltip: t`Enable external ingest to improve semantic search for files not covered by the codebase index. Availability is controlled by your Copilot policy.`,
 					});
 				}
 
@@ -197,6 +214,20 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 							tooltip: t`You don't have permission to access the index for this repository.`,
 						});
 					}
+				}
+
+				if (externalIngestDisabledByPolicy && readyRepos.length > 0) {
+					return this._writeStatusItem({
+						primary: {
+							message: t`Available`,
+							icon: '$(check)',
+						},
+						details: {
+							message: t`May be incomplete or out of date`,
+							busy: false,
+						},
+						tooltip: t`Codebase semantic search is available from indexed repositories, but external ingest is disabled by your organization's policy. Results may be incomplete or out of date.`,
+					});
 				}
 
 				// Check if we have other errors
@@ -246,6 +277,15 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 					});
 				}
 
+				if (externalIngestDisabledInWorkspace) {
+					return this._writeStatusItem({
+						primary: {
+							message: t`External ingest off`,
+						},
+						tooltip: t`External ingest is disabled in this workspace. Availability is controlled by your Copilot policy.`,
+					});
+				}
+
 				// External indexing is enabled but not yet fully built
 				if (typeof state.remoteIndexState.externalIngestState !== 'undefined') {
 					return this._writeStatusItem({
@@ -270,11 +310,13 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 
 		this._writeStatusItem({
 			primary: {
-				message: t`Not available`,
+				message: state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledByPolicy ? t`Disabled by policy` : t`Not available`,
 				icon: '$(warning)',
 			},
 			details: undefined,
-			tooltip: t`This repository can't be indexed. It may be too large or not supported.`,
+			tooltip: state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledByPolicy
+				? t`External ingest is disabled by your organization's policy.`
+				: t`This repository can't be indexed. It may be too large or not supported.`,
 		});
 	}
 
