@@ -224,11 +224,11 @@ describe('SessionStoreSqlTool', () => {
 
 			const unsafe = [
 				// The originally reported bypass: VACUUM INTO copies the DB to a chosen path.
-				"VACUUM INTO '/tmp/copy.db'",
+				`VACUUM INTO '/tmp/copy.db'`,
 				'REINDEX',
 				'ANALYZE',
 				// load_extension would execute native code if SQLite is built with extensions enabled.
-				"SELECT load_extension('/tmp/lib.so')",
+				`SELECT load_extension('/tmp/lib.so')`,
 				'BEGIN',
 				'COMMIT',
 				'ROLLBACK',
@@ -249,7 +249,7 @@ describe('SessionStoreSqlTool', () => {
 
 			const nonQuery = [
 				'PRAGMA data_version', // not blocked by regex carve-out but still not a SELECT/WITH
-				"/* hide me */ VACUUM INTO '/tmp/copy.db'", // comment prefix must not smuggle
+				`/* hide me */ VACUUM INTO '/tmp/copy.db'`, // comment prefix must not smuggle
 				'-- comment\nDROP TABLE sessions', // blocklist also catches DROP, but allowlist is the anchor
 				'EXPLAIN SELECT * FROM sessions',
 			];
