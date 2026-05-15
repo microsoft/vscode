@@ -10,8 +10,9 @@ import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../../nls.js';
@@ -102,8 +103,8 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 			target = ChatViewPaneTarget;
 		}
 
-		const isLocalChatSession = session.resource.scheme === Schemas.vscodeChatEditor || session.resource.scheme === Schemas.vscodeLocalChatSession;
-		if (!isLocalChatSession && !(await chatSessionsService.canResolveChatSession(session.resource.scheme))) {
+		const isLocalChatSession = session.resource.scheme === Schemas.vscodeChatEditor || getChatSessionType(session.resource) === localChatSessionType;
+		if (!isLocalChatSession && !(await chatSessionsService.canResolveChatSession(getChatSessionType(session.resource)))) {
 			target = openOptions?.sideBySide ? SIDE_GROUP : ACTIVE_GROUP; // force to open in editor if session cannot be resolved in panel
 			options = { ...options, revealIfOpened: true };
 		}

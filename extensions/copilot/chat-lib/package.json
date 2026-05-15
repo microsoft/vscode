@@ -31,7 +31,7 @@
 		"yaml": "^2.8.0"
 	},
 	"devDependencies": {
-		"@anthropic-ai/sdk": "^0.82.0",
+		"@anthropic-ai/sdk": "^0.91.1",
 		"@octokit/types": "^14.1.0",
 		"@types/node": "^22.16.3",
 		"copyfiles": "^2.4.1",
