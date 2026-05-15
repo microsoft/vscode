@@ -24,6 +24,7 @@ import { FileEdit, ModelSelection, SessionStatus as ProtocolSessionStatus, RootC
 import { ActionType, isSessionAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionGitState, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -38,6 +39,7 @@ import { ISendRequestOptions, ISessionChangeEvent } from '../../../../services/s
 import { computePullRequestIcon } from '../../../github/common/types.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { diffsEqual, diffsToChanges, mapProtocolStatus } from './agentHostDiffs.js';
+import { createChangesets } from '../../copilotChatSessions/browser/copilotChatSessionsChangesets.js';
 
 // ============================================================================
 // AgentHostSessionAdapter — shared adapter for local and remote sessions
@@ -72,6 +74,12 @@ export interface IAgentHostAdapterOptions {
 	 * affordances simply stay dormant when absent.
 	 */
 	readonly gitHubService?: IGitHubService;
+	/**
+	 * Instantiation service used to construct the session's changeset
+	 * resolvers. Shared with the Copilot chat sessions provider so all
+	 * agent-host sessions surface the same set of changesets.
+	 */
+	readonly instantiationService: IInstantiationService;
 }
 
 /**
@@ -92,7 +100,7 @@ export class AgentHostSessionAdapter implements ISession {
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
 	readonly changes = observableValueOpts<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>({ debugName: 'changes', equalsFn: sessionFileChangesEqual }, []);
-	readonly changesets = observableValue<readonly ISessionChangeset[]>('changesets', []);
+	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	readonly modelId: ISettableObservable<string | undefined>;
 	modelSelection: ModelSelection | undefined;
 	readonly mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', undefined);
@@ -253,6 +261,7 @@ export class AgentHostSessionAdapter implements ISession {
 			lastTurnEnd: this.lastTurnEnd,
 		};
 		this.chats = constObservable([this.mainChat]);
+		this.changesets = createChangesets(this.sessionType, this.workspace, this.chats, _options.instantiationService);
 	}
 
 	/**
@@ -388,6 +397,12 @@ interface INewSessionConstructionContext {
 	 * the picker reflects the user's preference immediately.
 	 */
 	readonly initialConfigValues?: Record<string, unknown>;
+	/**
+	 * Instantiation service used to construct the session's changeset
+	 * resolvers, so the new-session skeleton surfaces the same changeset
+	 * list as the committed session that replaces it.
+	 */
+	readonly instantiationService: IInstantiationService;
 }
 
 /**
@@ -463,7 +478,7 @@ class NewSession extends Disposable {
 		this._status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
 		const title = observableValue<string>(this, '');
 		const updatedAt = observableValue(this, new Date());
-		const changesets = observableValue<readonly ISessionChangeset[]>(this, []);
+		const workspaceObs = observableValue<ISessionWorkspace | undefined>(this, ctx.workspace);
 		const changes = observableValueOpts<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
 		const checkpoints = observableValue(this, undefined);
 		this._modelId = observableValue<string | undefined>(this, undefined);
@@ -485,6 +500,8 @@ class NewSession extends Disposable {
 		};
 		const authPending = ctx.authenticationPending;
 		const loading = this._loading;
+		const chats = constObservable<readonly IChat[]>([mainChat]);
+		const changesets = createChangesets(ctx.sessionType.id, workspaceObs, chats, ctx.instantiationService);
 		this.session = {
 			sessionId: `${ctx.providerId}:${resource.toString()}`,
 			resource,
@@ -492,7 +509,7 @@ class NewSession extends Disposable {
 			sessionType: ctx.sessionType.id,
 			icon: ctx.icon,
 			createdAt,
-			workspace: observableValue(this, ctx.workspace),
+			workspace: workspaceObs,
 			title,
 			updatedAt,
 			status: this._status,
@@ -506,7 +523,7 @@ class NewSession extends Disposable {
 			description,
 			lastTurnEnd,
 			mainChat,
-			chats: constObservable([mainChat]),
+			chats,
 			capabilities: { supportsMultipleChats: false },
 		};
 		this.sessionId = this.session.sessionId;
@@ -785,6 +802,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IConfigurationService protected readonly _baseConfigurationService: IConfigurationService,
 		@ILogService protected readonly _logService: ILogService,
 		@IGitHubService protected readonly _gitHubService: IGitHubService,
+		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 	}
@@ -815,6 +833,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			loading: this.authenticationPending,
 			mapDiffUri: this._diffUriMapper(),
 			gitHubService: this._gitHubService,
+			instantiationService: this._instantiationService,
 			...this._adapterOptions(),
 		});
 	}
@@ -982,6 +1001,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			authenticationPending: this.authenticationPending,
 			logService: this._logService,
 			initialConfigValues: this._initialNewSessionConfig(),
+			instantiationService: this._instantiationService,
 		});
 		this._newSession = newSession;
 		this._onDidChangeSessionConfig.fire(newSession.sessionId);
