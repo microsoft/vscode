@@ -125,6 +125,10 @@ function createOpeningEditCodeBlock(uri: URI, isNotebook: boolean, undoStopId: s
 			isEdit: true,
 			undoStopId
 		},
+		{
+			kind: 'markdownContent',
+			content: new MarkdownString('\n````\n')
+		},
 		isNotebook
 			? {
 				kind: 'notebookEdit',
@@ -145,6 +149,7 @@ function createOpeningEditCodeBlock(uri: URI, isNotebook: boolean, undoStopId: s
 
 
 export class ChatEditingSession extends Disposable implements IChatEditingSession {
+	readonly supportsKeepUndo = false;
 	private readonly _state = observableValue<ChatEditingSessionState>(this, ChatEditingSessionState.Initial);
 	private readonly _timeline: IChatEditingCheckpointTimeline;
 
@@ -246,8 +251,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				});
 			},
 			deleteFile: async (uri) => {
+				const removedEntry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
 				const entries = this._entriesObs.get().filter(e => !isEqual(e.modifiedURI, uri));
 				this._entriesObs.set(entries, undefined);
+				removedEntry?.dispose();
 				await this._bulkEditService.apply({ edits: [{ oldResource: uri, options: { ignoreIfNotExists: true } }] });
 			},
 			renameFile: async (fromUri, toUri) => {
@@ -786,7 +793,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 					try {
 						const data = await this._fileService.readFile(contentSource);
 						afterSnapshot = data.value.toString();
-					} catch {
+					} catch (_e) {
 						afterSnapshot = '';
 					}
 				} else {
@@ -846,10 +853,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 		}
 
-		progress.push({
-			kind: 'markdownContent',
-			content: new MarkdownString('\n````\n'),
-		});
 
 		return progress;
 	}
@@ -1206,7 +1209,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			// this file does not exist yet, create it and try again
 			await this._bulkEditService.apply({ edits: [{ newResource: resource }] });
 			if (this.configurationService.getValue<boolean>('accessibility.openChatEditedFiles')) {
-				this._editorService.openEditor({ resource, options: { inactive: true, preserveFocus: true, pinned: true } });
+				this._editorService.openEditor({ resource, options: { inactive: true, preserveFocus: true, pinned: true, isExplicit: false } });
 			}
 
 			// Record file creation operation

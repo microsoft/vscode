@@ -4,10 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { agentHostRemotePath, agentHostUri } from '../../common/agentHostFileSystemProvider.js';
+import { FileSystemProviderErrorCode, FileType, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
+import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../common/agentHostUri.js';
+import { ContentEncoding, type ResourceListResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult } from '../../common/state/protocol/commands.js';
+import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
+import { ProtocolError } from '../../common/state/sessionProtocol.js';
 
 suite('AgentHostFileSystemProvider - URI helpers', () => {
 
@@ -174,5 +179,284 @@ suite('AGENT_HOST_LABEL_FORMATTER', () => {
 
 		const stripped = stripPath(encodedUri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
 		assert.strictEqual(stripped, '/snap/before');
+	});
+});
+
+suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * Stub connection that records the URIs it's asked about and returns
+	 * canned data, so we can assert on the URIs the provider passes through.
+	 */
+	class StubConnection implements IRemoteFilesystemConnection {
+		readonly readCalls: URI[] = [];
+		readonly listCalls: URI[] = [];
+		readResult: ResourceReadResult = { data: 'stub-content', encoding: ContentEncoding.Utf8, contentType: 'text/plain' };
+
+		async resourceRead(uri: URI): Promise<ResourceReadResult> {
+			this.readCalls.push(uri);
+			return this.readResult;
+		}
+		async resourceList(uri: URI): Promise<ResourceListResult> {
+			this.listCalls.push(uri);
+			return { entries: [] };
+		}
+		async resourceWrite(): Promise<{}> { return {}; }
+		async resourceDelete(): Promise<{}> { return {}; }
+		async resourceMove(): Promise<{}> { return {}; }
+	}
+
+	function setup() {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new StubConnection();
+		disposables.add(provider.registerAuthority('local', connection));
+		return { provider, connection };
+	}
+
+	// Regression: AHPFileSystemProvider.stat() used to fall through to
+	// _listDirectory(parent) for any URI whose decoded scheme wasn't
+	// session-db, which fails with "Directory not found" for synthetic
+	// content URIs that have no real parent directory. The diff editor
+	// stats every URI before reading it, so this broke "open diff of a
+	// modified file" entirely. The fix is the scheme allowlist in stat().
+
+	test('stat returns File for git-blob: URIs without listing the parent', async () => {
+		const { provider, connection } = setup();
+		const inner = URI.from({ scheme: 'git-blob', authority: 'sess1', path: '/sha/encoded/file.ts' });
+		const wrapped = toAgentHostUri(inner, 'local');
+
+		const stat = await provider.stat(wrapped);
+
+		assert.strictEqual(stat.type, FileType.File);
+		assert.deepStrictEqual(connection.listCalls, [], 'stat must not list a synthetic parent directory');
+	});
+
+	test('stat returns File for session-db: URIs (parity with git-blob)', async () => {
+		const { provider, connection } = setup();
+		const inner = URI.from({ scheme: 'session-db', authority: 'sess1', path: '/snap/some-blob' });
+		const wrapped = toAgentHostUri(inner, 'local');
+
+		const stat = await provider.stat(wrapped);
+
+		assert.strictEqual(stat.type, FileType.File);
+		assert.deepStrictEqual(connection.listCalls, []);
+	});
+
+	test('stat still lists parent for ordinary file: URIs', async () => {
+		// Use a non-local authority so the URI actually goes through the
+		// agent-host wrapping (toAgentHostUri short-circuits 'local'
+		// + file:// to return the URI unchanged).
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new StubConnection();
+		disposables.add(provider.registerAuthority('remote', connection));
+		const wrapped = agentHostUri('remote', '/some/file.ts');
+
+		try {
+			await provider.stat(wrapped);
+		} catch {
+			// Either FileNotFound or EntryNotFound is fine — we only
+			// care that the provider tried to list the parent (rather
+			// than treating this as a synthetic content URI).
+		}
+		assert.strictEqual(connection.listCalls.length, 1);
+	});
+
+	test('readFile passes the decoded synthetic URI through to the connection', async () => {
+		const { provider, connection } = setup();
+		const inner = URI.from({ scheme: 'git-blob', authority: 'sess1', path: '/sha/encoded/file.ts' });
+		const wrapped = toAgentHostUri(inner, 'local');
+
+		const bytes = await provider.readFile(wrapped);
+
+		assert.strictEqual(VSBuffer.wrap(bytes).toString(), 'stub-content');
+		assert.deepStrictEqual(connection.readCalls.map(u => u.toString()), [inner.toString()]);
+	});
+
+	test('full stat-then-read round-trip mirrors the diff editor flow', async () => {
+		// This is the exact sequence the workbench's TextFileEditorModel
+		// goes through when DiffEditorInput.createModel resolves: stat
+		// the URI, then read the file. Pre-fix this combo failed at the
+		// stat step before readFile was even called.
+		const { provider } = setup();
+		const inner = URI.from({ scheme: 'git-blob', authority: 'sess1', path: '/sha/encoded/file.ts' });
+		const wrapped = toAgentHostUri(inner, 'local');
+
+		const stat = await provider.stat(wrapped);
+		assert.strictEqual(stat.type, FileType.File);
+		const bytes = await provider.readFile(wrapped);
+		assert.strictEqual(VSBuffer.wrap(bytes).toString(), 'stub-content');
+	});
+});
+
+suite('AgentHostFileSystemProvider - permission errors and requestResourceAccess', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * Stub connection whose individual operations can be configured to throw.
+	 * Records every `resourceRequest` call so tests can assert URI translation
+	 * and the read/write flags forwarded to the receiver.
+	 */
+	class ConfigurableConnection implements IRemoteFilesystemConnection {
+		readError: unknown | undefined;
+		writeError: unknown | undefined;
+		listError: unknown | undefined;
+		deleteError: unknown | undefined;
+		moveError: unknown | undefined;
+		requestError: unknown | undefined;
+		readonly requestCalls: ResourceRequestParams[] = [];
+		hasResourceRequest = true;
+
+		async resourceRead(): Promise<ResourceReadResult> {
+			if (this.readError) { throw this.readError; }
+			return { data: '', encoding: ContentEncoding.Utf8 };
+		}
+		async resourceList(): Promise<ResourceListResult> {
+			if (this.listError) { throw this.listError; }
+			return { entries: [] };
+		}
+		async resourceWrite(): Promise<{}> {
+			if (this.writeError) { throw this.writeError; }
+			return {};
+		}
+		async resourceDelete(): Promise<{}> {
+			if (this.deleteError) { throw this.deleteError; }
+			return {};
+		}
+		async resourceMove(): Promise<{}> {
+			if (this.moveError) { throw this.moveError; }
+			return {};
+		}
+		// Defined as a property so we can `delete` it to simulate a connection
+		// without resourceRequest support (e.g. older protocol clients).
+		resourceRequest? = async (params: ResourceRequestParams): Promise<ResourceRequestResult> => {
+			this.requestCalls.push(params);
+			if (this.requestError) { throw this.requestError; }
+			return {};
+		};
+	}
+
+	function setup(opts: { withResourceRequest?: boolean } = {}) {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new ConfigurableConnection();
+		if (opts.withResourceRequest === false) {
+			connection.hasResourceRequest = false;
+			delete connection.resourceRequest;
+		}
+		// Use a non-`local` authority so file URIs actually go through the
+		// AHP wrapping; toAgentHostUri short-circuits 'local'+file:// to
+		// return the URI unchanged, which would bypass the provider entirely.
+		disposables.add(provider.registerAuthority('remote', connection));
+		return { provider, connection };
+	}
+
+	function permissionDenied(uri: string): ProtocolError {
+		return new ProtocolError(AhpErrorCodes.PermissionDenied, 'denied', { request: { uri, read: true } });
+	}
+
+	test('readFile maps PermissionDenied to NoPermissions (not FileNotFound)', async () => {
+		const { provider, connection } = setup();
+		const wrapped = agentHostUri('remote', '/secret');
+		connection.readError = permissionDenied(wrapped.toString());
+
+		try {
+			await provider.readFile(wrapped);
+			assert.fail('expected readFile to reject');
+		} catch (err) {
+			assert.strictEqual(
+				toFileSystemProviderErrorCode(err instanceof Error ? err : undefined),
+				FileSystemProviderErrorCode.NoPermissions,
+			);
+		}
+	});
+
+	test('readFile still maps generic errors to FileNotFound', async () => {
+		const { provider, connection } = setup();
+		const wrapped = agentHostUri('remote', '/missing');
+		connection.readError = new Error('boom');
+
+		try {
+			await provider.readFile(wrapped);
+			assert.fail('expected readFile to reject');
+		} catch (err) {
+			assert.strictEqual(
+				toFileSystemProviderErrorCode(err instanceof Error ? err : undefined),
+				FileSystemProviderErrorCode.FileNotFound,
+			);
+		}
+	});
+
+	test('writeFile / delete / rename / readdir all surface NoPermissions on PermissionDenied', async () => {
+		const { provider, connection } = setup();
+		const wrapped = agentHostUri('remote', '/no-write');
+		const denied = permissionDenied(wrapped.toString());
+		connection.writeError = denied;
+		connection.deleteError = denied;
+		connection.moveError = denied;
+		connection.listError = denied;
+
+		const codes: (FileSystemProviderErrorCode | undefined)[] = [];
+		const collect = async (op: () => Promise<unknown>) => {
+			try {
+				await op();
+			} catch (err) {
+				codes.push(toFileSystemProviderErrorCode(err instanceof Error ? err : undefined));
+			}
+		};
+		await collect(() => provider.writeFile(wrapped, new Uint8Array(), { create: true, overwrite: true, unlock: false, atomic: false }));
+		await collect(() => provider.delete(wrapped, { recursive: false, useTrash: false, atomic: false }));
+		await collect(() => provider.rename(wrapped, agentHostUri('remote', '/dst'), { overwrite: true }));
+		await collect(() => provider.readdir(wrapped));
+
+		assert.deepStrictEqual(codes, [
+			FileSystemProviderErrorCode.NoPermissions,
+			FileSystemProviderErrorCode.NoPermissions,
+			FileSystemProviderErrorCode.NoPermissions,
+			FileSystemProviderErrorCode.NoPermissions,
+		]);
+	});
+
+	test('requestResourceAccess forwards the decoded URI and access flags', async () => {
+		const { provider, connection } = setup();
+		const wrapped = agentHostUri('remote', '/etc/foo');
+
+		await provider.requestResourceAccess(wrapped, { read: true, write: true });
+
+		assert.deepStrictEqual(connection.requestCalls, [
+			{ uri: URI.file('/etc/foo').toString(), read: true, write: true },
+		]);
+	});
+
+	test('requestResourceAccess throws Unavailable when the connection has no resourceRequest', async () => {
+		const { provider } = setup({ withResourceRequest: false });
+		const wrapped = agentHostUri('remote', '/etc/foo');
+
+		try {
+			await provider.requestResourceAccess(wrapped, { read: true });
+			assert.fail('expected requestResourceAccess to reject');
+		} catch (err) {
+			assert.strictEqual(
+				toFileSystemProviderErrorCode(err instanceof Error ? err : undefined),
+				FileSystemProviderErrorCode.Unavailable,
+			);
+		}
+	});
+
+	test('requestResourceAccess maps PermissionDenied to NoPermissions', async () => {
+		const { provider, connection } = setup();
+		const wrapped = agentHostUri('remote', '/etc/foo');
+		connection.requestError = permissionDenied(wrapped.toString());
+
+		try {
+			await provider.requestResourceAccess(wrapped, { read: true });
+			assert.fail('expected requestResourceAccess to reject');
+		} catch (err) {
+			assert.strictEqual(
+				toFileSystemProviderErrorCode(err instanceof Error ? err : undefined),
+				FileSystemProviderErrorCode.NoPermissions,
+			);
+		}
 	});
 });

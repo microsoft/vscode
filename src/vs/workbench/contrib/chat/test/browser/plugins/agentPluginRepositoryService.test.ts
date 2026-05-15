@@ -14,11 +14,27 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { AgentPluginRepositoryService } from '../../../browser/agentPluginRepositoryService.js';
 import { IMarketplacePlugin, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IPluginGitService } from '../../../common/plugins/pluginGitService.js';
 
 suite('AgentPluginRepositoryService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function stubPluginGit(overrides?: Partial<IPluginGitService>): IPluginGitService {
+		return {
+			_serviceBrand: undefined,
+			cloneRepository: async () => { },
+			pull: async () => false,
+			checkout: async () => { },
+			revParse: async () => '',
+			fetch: async () => { },
+			fetchRepository: async () => { },
+			revListCount: async () => 0,
+			...overrides,
+		} as IPluginGitService;
+	}
 
 	function createPlugin(marketplace: string, source: string): IMarketplacePlugin {
 		const marketplaceReference = parseMarketplaceReference(marketplace);
@@ -42,6 +58,7 @@ suite('AgentPluginRepositoryService', () => {
 	function createService(
 		onExists?: (resource: URI) => Promise<boolean>,
 		onExecuteCommand?: (id: string, ...args: unknown[]) => void,
+		pluginGitStub?: Partial<IPluginGitService>,
 	): AgentPluginRepositoryService {
 		const instantiationService = store.add(new TestInstantiationService());
 
@@ -60,9 +77,13 @@ suite('AgentPluginRepositoryService', () => {
 			},
 		} as unknown as ICommandService);
 		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+		instantiationService.stub(IUserDataProfileService, { currentProfile: { agentPluginsHome: URI.file('/cache/agentPlugins') } } as unknown as IUserDataProfileService);
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(INotificationService, { notify: () => undefined } as unknown as INotificationService);
+		instantiationService.stub(IPluginGitService, stubPluginGit({
+			...pluginGitStub,
+		}));
 		instantiationService.stub(IProgressService, progressService);
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
 
@@ -126,17 +147,18 @@ suite('AgentPluginRepositoryService', () => {
 		} as unknown as IProgressService;
 
 		instantiationService.stub(ICommandService, {
-			executeCommand: async (id: string) => {
-				if (id === '_git.cloneRepository') {
-					cloneCount++;
-					// Simulate async clone by yielding, then mark repo as existing
-					await new Promise<void>(r => setTimeout(r, 0));
-					repoExists = true;
-				}
-				return undefined;
-			},
+			executeCommand: async () => undefined,
 		} as unknown as ICommandService);
+		instantiationService.stub(IPluginGitService, stubPluginGit({
+			cloneRepository: async () => {
+				cloneCount++;
+				// Simulate async clone by yielding, then mark repo as existing
+				await new Promise<void>(r => setTimeout(r, 0));
+				repoExists = true;
+			},
+		}));
 		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+		instantiationService.stub(IUserDataProfileService, { currentProfile: { agentPluginsHome: URI.file('/cache/agentPlugins') } } as unknown as IUserDataProfileService);
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(INotificationService, { notify: () => undefined } as unknown as INotificationService);
@@ -176,7 +198,9 @@ suite('AgentPluginRepositoryService', () => {
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ICommandService, { executeCommand: async () => undefined } as unknown as ICommandService);
+		instantiationService.stub(IPluginGitService, stubPluginGit());
 		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+		instantiationService.stub(IUserDataProfileService, { currentProfile: { agentPluginsHome: URI.file('/cache/agentPlugins') } } as unknown as IUserDataProfileService);
 		instantiationService.stub(IFileService, { exists: async () => true } as unknown as IFileService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(INotificationService, { notify: () => undefined } as unknown as INotificationService);
@@ -231,9 +255,12 @@ suite('AgentPluginRepositoryService', () => {
 	});
 
 	test('updates git plugin source by pulling and checking out requested revision', async () => {
-		const commands: string[] = [];
-		const service = createService(async () => true, (id: string) => {
-			commands.push(id);
+		const calls: string[] = [];
+		const service = createService(async () => true, undefined, {
+			revParse: async () => { calls.push('revParse'); return ''; },
+			fetch: async () => { calls.push('fetch'); },
+			checkout: async () => { calls.push('checkout'); },
+			pull: async () => { calls.push('pull'); return false; },
 		});
 
 		await service.updatePluginSource({
@@ -255,7 +282,7 @@ suite('AgentPluginRepositoryService', () => {
 			marketplaceType: MarketplaceType.Copilot,
 		});
 
-		assert.deepStrictEqual(commands, ['git.openRepository', '_git.revParse', 'git.fetch', '_git.checkout', '_git.revParse']);
+		assert.deepStrictEqual(calls, ['revParse', 'fetch', 'checkout', 'revParse']);
 	});
 
 	// =========================================================================
@@ -270,7 +297,9 @@ suite('AgentPluginRepositoryService', () => {
 		) {
 			const instantiationService = store.add(new TestInstantiationService());
 			instantiationService.stub(ICommandService, { executeCommand: async () => undefined } as unknown as ICommandService);
+			instantiationService.stub(IPluginGitService, stubPluginGit());
 			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+			instantiationService.stub(IUserDataProfileService, { currentProfile: { agentPluginsHome: URI.file('/cache/agentPlugins') } } as unknown as IUserDataProfileService);
 			instantiationService.stub(IFileService, {
 				exists: async () => true,
 				del: async (resource: URI) => { onDel(resource); },
@@ -363,7 +392,9 @@ suite('AgentPluginRepositoryService', () => {
 		test('does not throw when delete fails', async () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			instantiationService.stub(ICommandService, { executeCommand: async () => undefined } as unknown as ICommandService);
+			instantiationService.stub(IPluginGitService, stubPluginGit());
 			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+			instantiationService.stub(IUserDataProfileService, { currentProfile: { agentPluginsHome: URI.file('/cache/agentPlugins') } } as unknown as IUserDataProfileService);
 			instantiationService.stub(IFileService, {
 				exists: async () => true,
 				del: async () => { throw new Error('permission denied'); },

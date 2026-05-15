@@ -44,6 +44,13 @@ export interface IAgentPluginRepositoryService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Root directory where agent plugins are stored on disk.
+	 * On native this is `~/{dataFolderName}/agent-plugins/`; on web it
+	 * falls back to `{cacheHome}/agentPlugins/`.
+	 */
+	readonly agentPluginsHome: URI;
+
+	/**
 	 * Returns the local cache URI for a marketplace repository reference.
 	 * Uses a storage-backed marketplace index when available.
 	 */

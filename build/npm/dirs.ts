@@ -11,9 +11,11 @@ import { existsSync } from 'fs';
 export const dirs = [
 	'',
 	'build',
+	'build/rspack',
 	'build/vite',
 	'extensions',
 	'extensions/configuration-editing',
+	'extensions/copilot',
 	'extensions/css-language-features',
 	'extensions/css-language-features/server',
 	'extensions/debug-auto-launch',
@@ -61,6 +63,7 @@ export const dirs = [
 	'.vscode/extensions/vscode-selfhost-import-aid',
 	'.vscode/extensions/vscode-selfhost-test-provider',
 	'.vscode/extensions/vscode-extras',
+	'.vscode/extensions/vscode-pr-pinger',
 ];
 
 if (existsSync(`${import.meta.dirname}/../../.build/distro/npm`)) {
