@@ -430,6 +430,7 @@ function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean,
 			.filter(({ name }) => builtInExtensions.every(b => b.name !== name))
 			.filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true))
 	);
+
 	const localExtensionsStream = minifyExtensionResources(
 		es.merge(
 			...localExtensionsDescriptions.map(extension => {
@@ -447,11 +448,15 @@ function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean,
 		const productionDependencies = getProductionDependencies('extensions/');
 		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
 
-		result = es.merge(
-			localExtensionsStream,
-			gulp.src(dependenciesSrc, { base: '.' })
-				.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
-				.pipe(util2.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`))));
+		if (dependenciesSrc.length) {
+			result = es.merge(
+				localExtensionsStream,
+				gulp.src(dependenciesSrc, { base: '.' })
+					.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
+					.pipe(util2.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`))));
+		} else {
+			result = localExtensionsStream;
+		}
 	}
 
 	return (
@@ -627,7 +632,7 @@ const esbuildMediaScripts = [
 	'markdown-language-features/esbuild.notebook.mts',
 	'markdown-language-features/esbuild.webview.mts',
 	'markdown-math/esbuild.notebook.mts',
-	'mermaid-chat-features/esbuild.webview.mts',
+	'mermaid-markdown-features/esbuild.webview.mts',
 	'notebook-renderers/esbuild.notebook.mts',
 	'simple-browser/esbuild.webview.mts',
 ];

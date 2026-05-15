@@ -84,6 +84,8 @@ export interface IEndpointBody {
 	snippy?: { enabled: boolean };
 	stream_options?: { include_usage?: boolean };
 	prompt?: string;
+	/** OpenAI Chat Completions API top-level reasoning effort (BYOK chat-completions shape). Mirrors the nested `reasoning.effort` used by the Responses API. */
+	reasoning_effort?: string;
 	/** Embeddings endpoints only: */
 	dimensions?: number;
 	embed?: boolean;
@@ -130,7 +132,7 @@ export interface IEndpointFetchOptions {
 
 export interface IEndpoint {
 	readonly urlOrRequestMetadata: string | RequestMetadata;
-	getExtraHeaders?(location?: ChatLocation): Record<string, string>;
+	getExtraHeaders?(location?: ChatLocation, interactionTypeOverride?: InteractionTypeOverride): Record<string, string>;
 	getEndpointFetchOptions?(): IEndpointFetchOptions;
 	interceptBody?(body: IEndpointBody | undefined): void;
 	acquireTokenizer(): ITokenizer;
@@ -210,6 +212,10 @@ export interface IMakeChatRequestOptions {
 	canRetryOnceWithoutRollback?: boolean;
 	/** Custom metadata to be displayed in the log document */
 	customMetadata?: Record<string, string | number | boolean | undefined>;
+	/** Top-level turn ID for credit accumulation. When set, copilot_usage costs
+	 *  are attributed to this ID instead of turnId. Used so that all LLM calls
+	 *  in a turn (including subagents) aggregate under one key. */
+	topLevelTurnId?: string;
 	/**
 	 * Override for the `X-Interaction-Type` header (and matching `requestKind`
 	 * telemetry value). When unset, the value is derived from {@link ChatLocation}
@@ -268,7 +274,7 @@ export interface IChatEndpointTokenPricing {
 
 export interface IChatEndpoint extends IEndpoint {
 	readonly maxOutputTokens: number;
-	/** The model ID- this may change and will be `copilot-base` for the base model. Use `family` to switch behavior based on model type. */
+	/** The model ID- this may change and will be `copilot-utility` for the utility (fallback) model. Use `family` to switch behavior based on model type. */
 	readonly model: string;
 	readonly modelProvider: string;
 	readonly apiType?: string;
@@ -294,6 +300,7 @@ export interface IChatEndpoint extends IEndpoint {
 	 * and normalizing to per-million-token rates based on batch_size.
 	 */
 	readonly tokenPricing?: IChatEndpointTokenPricing;
+	readonly priceCategory?: string;
 	readonly isFallback: boolean;
 	readonly customModel?: CustomModel;
 	readonly isExtensionContributed?: boolean;
@@ -433,7 +440,7 @@ function networkRequest(
 		'OpenAI-Intent': intent, // Tells CAPI who flighted this request. Helps find buggy features
 		'X-GitHub-Api-Version': '2026-01-09',
 		...additionalHeaders,
-		...(endpoint.getExtraHeaders ? endpoint.getExtraHeaders(location) : {}),
+		...(endpoint.getExtraHeaders ? endpoint.getExtraHeaders(location, options.interactionTypeOverride) : {}),
 	};
 	headers['X-Interaction-Type'] = agentInteractionType;
 	headers['X-Agent-Task-Id'] = requestId;

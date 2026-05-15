@@ -6,18 +6,14 @@
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { NewChatViewPane, SessionsViewId } from '../browser/newChatViewPane.js';
-import { DebugAgentHostInDevToolsAction } from '../../../../workbench/contrib/chat/electron-browser/actions/debugAgentHostAction.js';
-import { CollectAgentHostDebugLogsAction } from '../../agentHost/electron-browser/collectDebugLogsAction.js';
-
-registerAction2(DebugAgentHostInDevToolsAction);
-registerAction2(CollectAgentHostDebugLogsAction);
+import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
+import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -28,6 +24,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ISessionsSetUpService private readonly sessionsSetUpService: ISessionsSetUpService,
 	) {
 		super();
 		ipcRenderer.on('vscode:selectAgentsFolder', (_: unknown, ...args: unknown[]) => {
@@ -37,7 +34,16 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private async selectFolder(folderUri: URI): Promise<void> {
+		// Wait for the welcome/setup flow to complete before selecting the folder
+		await this.sessionsSetUpService.whenWelcomeDone();
+
 		this.sessionsManagementService.openNewSessionView();
+
+		// Tell the sessions list this folder is the open-window source folder
+		// so it ranks the matching folder section first. Get the view if it
+		// already exists — do not open it just for this side-effect.
+		const sessionsView = this.viewsService.getViewWithId<SessionsView>(SessionsListViewId);
+		sessionsView?.sessionsControl?.setOpenWindowSourceFolder(folderUri);
 
 		if (this.tryResolveAndSelect(folderUri)) {
 			return;

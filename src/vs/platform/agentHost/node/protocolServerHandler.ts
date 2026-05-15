@@ -61,10 +61,11 @@ function jsonRpcErrorFrom(id: number, err: unknown): JsonRpcResponse {
 }
 
 /**
- * Methods handled by the request dispatcher. Excludes `initialize` and
- * `reconnect` which are handled during the handshake phase.
+ * Methods handled by the request dispatcher. Excludes `initialize`,
+ * `reconnect`, and `ping`, which are handled directly during message
+ * dispatch without requiring an established client context.
  */
-type RequestMethod = Exclude<keyof CommandMap, 'initialize' | 'reconnect'>;
+type RequestMethod = Exclude<keyof CommandMap, 'initialize' | 'reconnect' | 'ping'>;
 
 /**
  * Typed handler map: each key is a request method, each value is a handler
@@ -92,6 +93,12 @@ interface IConnectedClient {
 export interface IProtocolServerConfig {
 	/** Default directory returned to clients during the initialize handshake. */
 	readonly defaultDirectory?: string;
+	/**
+	 * Characters that, when typed in a {@link UserMessage} input, SHOULD
+	 * cause the client to issue a `completions` request. Announced to
+	 * clients in the `initialize` response.
+	 */
+	readonly completionTriggerCharacters?: readonly string[];
 }
 
 /**
@@ -146,6 +153,14 @@ export class ProtocolServerHandler extends Disposable {
 		disposables.add(transport.onMessage(msg => {
 			if (isJsonRpcRequest(msg)) {
 				this._logService.trace(`[ProtocolServer] request: method=${msg.method} id=${msg.id}`);
+
+				// Ping is stateless and MUST be answerable regardless of whether
+				// the connection has been initialized. Carries no payload — the
+				// round-trip itself is the liveness signal.
+				if (msg.method === 'ping') {
+					transport.send(jsonRpcSuccess(msg.id, null));
+					return;
+				}
 
 				// Handle initialize/reconnect as requests that set up the client
 				if (!client && msg.method === 'initialize') {
@@ -299,6 +314,7 @@ export class ProtocolServerHandler extends Disposable {
 				serverSeq: this._stateManager.serverSeq,
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
+				completionTriggerCharacters: this._config.completionTriggerCharacters,
 			},
 		};
 	}
@@ -633,7 +649,7 @@ export class ProtocolServerHandler extends Disposable {
 		authenticate: async (_client, params) => {
 			const result = await this._agentService.authenticate(params);
 			if (!result.authenticated) {
-				throw new ProtocolError(AHP_AUTH_REQUIRED, 'Authentication failed for resource: ' + params.resource);
+				throw new ProtocolError(AHP_AUTH_REQUIRED, `Authentication failed for resource: ${params.resource}`);
 			}
 			return {};
 		},

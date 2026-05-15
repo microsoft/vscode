@@ -338,6 +338,38 @@ describe('XtabNextCursorPredictor', () => {
 				expect(result.val).toEqual({ kind: 'differentFile', filePath: 'src/file.ts', lineNumber: 0 });
 			}
 		});
+
+		it('should strip empty think tags before a same-file line number', () => {
+			const result = predictor.parseResponse('<think>\n\n</think>\n\n10', keptRange);
+			expect(result.isOk()).toBe(true);
+			if (result.isOk()) {
+				expect(result.val).toEqual({ kind: 'sameFile', lineNumber: 10 });
+			}
+		});
+
+		it('should strip think tags with reasoning content before a same-file line number', () => {
+			const result = predictor.parseResponse('<think>some reasoning\nacross lines</think>\n42', keptRange);
+			expect(result.isOk()).toBe(true);
+			if (result.isOk()) {
+				expect(result.val).toEqual({ kind: 'sameFile', lineNumber: 42 });
+			}
+		});
+
+		it('should strip think tags before a cross-file path', () => {
+			const result = predictor.parseResponse('<think>\n\n</think>\nsrc/utils/helpers.ts:42', keptRange);
+			expect(result.isOk()).toBe(true);
+			if (result.isOk()) {
+				expect(result.val).toEqual({ kind: 'differentFile', filePath: 'src/utils/helpers.ts', lineNumber: 42 });
+			}
+		});
+
+		it('should not strip an unterminated leading think tag and should fail to parse', () => {
+			const result = predictor.parseResponse('<think>truncated reasoning never closed', keptRange);
+			expect(result.isError()).toBe(true);
+			if (result.isError()) {
+				expect(result.err.message).toContain('gotNaN');
+			}
+		});
 	});
 
 	describe('supportsNextCursorLinePrediction', () => {

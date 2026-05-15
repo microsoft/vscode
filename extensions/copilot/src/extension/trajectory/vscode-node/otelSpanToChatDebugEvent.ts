@@ -360,6 +360,7 @@ function spanToModelTurnEvent(span: ICompletedSpanData): vscode.ChatDebugModelTu
 	evt.requestName = asString(span.attributes[CopilotChatAttr.DEBUG_NAME])
 		?? asString(span.attributes[GenAiAttr.AGENT_NAME]);
 	evt.status = spanStatusToString(span.status.code as SpanStatusCode);
+	evt.copilotUsageNanoAiu = asNumber(span.attributes[CopilotChatAttr.COPILOT_USAGE_NANO_AIU]);
 	return evt;
 }
 
@@ -688,6 +689,7 @@ function entryToModelTurnEvent(entry: IDebugLogEntry): vscode.ChatDebugModelTurn
 	evt.maxOutputTokens = entry.attrs.maxTokens as number | undefined;
 	evt.requestName = (entry.attrs.debugName as string | undefined) ?? entry.name;
 	evt.status = entry.status === 'error' ? 'error' : 'success';
+	evt.copilotUsageNanoAiu = entry.attrs.copilotUsageNanoAiu as number | undefined;
 	return evt;
 }
 

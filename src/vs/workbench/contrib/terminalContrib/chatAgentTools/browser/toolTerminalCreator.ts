@@ -148,6 +148,11 @@ export class ToolTerminalCreator {
 		const shellPath = isString(shellOrProfile) ? shellOrProfile : shellOrProfile.path;
 
 		const env: Record<string, string> = {
+			// Let CLI tools detect that they are running inside an AI agent.
+			// This allows programs to adapt their output (e.g. JSON instead of
+			// ANSI, disable interactive prompts, skip animations).
+			// See https://github.com/microsoft/vscode/issues/311734
+			COPILOT_AGENT: '1',
 			// Avoid making `git diff` interactive when called from copilot
 			GIT_PAGER: 'cat',
 			// Prevent git from opening an editor for merge commits
@@ -169,6 +174,13 @@ export class ToolTerminalCreator {
 			) {
 				env['VSCODE_PREVENT_SHELL_HISTORY'] = '1';
 			}
+		}
+
+		// Zsh-specific fixups for agent terminals: disable bang history
+		// expansion (prevents ! in double quotes from hanging on dquote>)
+		// and enable inline # comments (lets the agent annotate commands).
+		if (isZsh(shellPath, os)) {
+			env['VSCODE_AGENT_ZSH_FIXUPS'] = '1';
 		}
 
 		const config: IShellLaunchConfig = {

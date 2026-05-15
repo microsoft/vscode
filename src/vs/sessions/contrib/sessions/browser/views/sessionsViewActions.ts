@@ -32,6 +32,7 @@ import { ActiveSessionSupportsMultiChatContext, ISessionsManagementService } fro
 import { ISessionsListModelService } from './sessionsListModelService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
+import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
 
 //  Constants
 
@@ -388,7 +389,7 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 		super({
 			id: 'sessionsView.sectionArchive',
 			title: localize2('archiveSection', "Mark All as Done"),
-			icon: Codicon.check,
+			icon: Codicon.checkAll,
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
@@ -791,16 +792,34 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 			icon: Codicon.check,
 			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
-				id: MenuId.ChatEditingSessionChangesToolbar,
+				id: MenuId.AgentsChangesToolbar,
 				group: 'navigation',
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
 					IsActiveSessionArchivedContext.negate(),
 					ActiveSessionContextKeys.HasGitRepository.isEqualTo(true),
-					ActiveSessionContextKeys.HasIncomingChanges.isEqualTo(false),
-					ActiveSessionContextKeys.HasOutgoingChanges.isEqualTo(false),
-					ActiveSessionContextKeys.HasUncommittedChanges.isEqualTo(false)
+					ActiveSessionContextKeys.HasGitOperationInProgress.negate(),
+					hasActiveSessionFailedCIChecks.negate(),
+					ContextKeyExpr.or(
+						// No changes
+						ActiveSessionContextKeys.HasBranchChanges.negate(),
+						// Merge changes (base branch is not protected)
+						ContextKeyExpr.and(
+							ActiveSessionContextKeys.IsMergeBaseBranchProtected.isEqualTo(false),
+							ActiveSessionContextKeys.HasIncomingChanges.isEqualTo(false),
+							ActiveSessionContextKeys.HasOutgoingChanges.isEqualTo(false),
+							ActiveSessionContextKeys.HasUncommittedChanges.isEqualTo(false)
+						),
+						// Pull-request (base branch is protected)
+						ContextKeyExpr.and(
+							ActiveSessionContextKeys.IsMergeBaseBranchProtected.isEqualTo(true),
+							ActiveSessionContextKeys.HasPullRequest.isEqualTo(true),
+							ActiveSessionContextKeys.HasIncomingChanges.isEqualTo(false),
+							ActiveSessionContextKeys.HasOutgoingChanges.isEqualTo(false),
+							ActiveSessionContextKeys.HasUncommittedChanges.isEqualTo(false)
+						)
+					)
 				)
 			}]
 		});
@@ -824,7 +843,7 @@ registerAction2(class RestoreSessionAction extends Action2 {
 			title: localize2('restore', "Restore"),
 			icon: Codicon.discard,
 			menu: [{
-				id: MenuId.ChatEditingSessionChangesToolbar,
+				id: MenuId.AgentsChangesToolbar,
 				group: 'navigation',
 				order: 1,
 				when: ContextKeyExpr.and(

@@ -159,3 +159,19 @@ steps:
       testResultsFiles: "*-results.xml"
       searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
     condition: succeededOrFailed()
+
+  # Force-kill any lingering test processes that still hold smoke-test log
+  # files open and would otherwise break the 1ES "Publish Log Files" output.
+  - powershell: |
+      $ErrorActionPreference = "Continue"
+      $testRoot = "$(agent.builddirectory)\test"
+      Get-CimInstance Win32_Process -Filter "ExecutablePath IS NOT NULL" -ErrorAction SilentlyContinue |
+        Where-Object { $_.ExecutablePath -like "$testRoot\*" } |
+        ForEach-Object {
+          Write-Host "Killing lingering test process: pid=$($_.ProcessId), name=$($_.Name), path=$($_.ExecutablePath)"
+          try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop }
+          catch { Write-Host "  failed: $($_.Exception.Message)" }
+        }
+    displayName: Kill lingering test processes
+    continueOnError: true
+    condition: succeededOrFailed()

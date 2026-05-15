@@ -23,7 +23,7 @@ import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { isContributionDisabled } from '../../common/enablement.js';
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
-import { autorun, derived } from '../../../../../base/common/observable.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
@@ -40,10 +40,8 @@ import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWid
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
-import { SessionType } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
 
@@ -121,7 +119,6 @@ interface IMcpServerItemTemplateData {
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
 	readonly status: HTMLElement;
-	readonly bridgedBadge: HTMLElement;
 	readonly disposables: DisposableStore;
 }
 
@@ -135,7 +132,6 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		@IMcpService private readonly mcpService: IMcpService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
-		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) { }
 
@@ -149,29 +145,15 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		const nameRow = DOM.append(details, $('.mcp-server-name-row'));
 		const name = DOM.append(nameRow, $('.mcp-server-name'));
 
-		const bridgedBadge = DOM.append(nameRow, $('.inline-badge.mcp-bridged-badge'));
-		bridgedBadge.textContent = localize('bridged', "Bridged");
-
 		const description = DOM.append(details, $('.mcp-server-description'));
 
 		const status = DOM.append(container, $('.mcp-server-status'));
 
-		return { container, typeIcon, name, description, status, bridgedBadge, disposables: new DisposableStore() };
+		return { container, typeIcon, name, description, status, disposables: new DisposableStore() };
 	}
 
 	renderElement(element: IMcpServerItemEntry | IMcpBuiltinItemEntry, index: number, templateData: IMcpServerItemTemplateData): void {
 		templateData.disposables.clear();
-
-		// Show/hide the "Bridged" badge based on active harness
-		templateData.disposables.add(autorun(reader => {
-			const activeId = this.harnessService.activeHarness.read(reader);
-			templateData.bridgedBadge.style.display = activeId !== SessionType.Local ? '' : 'none';
-		}));
-		templateData.disposables.add(this.hoverService.setupManagedHover(
-			getDefaultHoverDelegate('mouse'),
-			templateData.bridgedBadge,
-			localize('bridgedHover', "This server is managed by VS Code and forwarded to all compatible agent sessions."),
-		));
 
 		if (element.type === 'builtin-item') {
 			templateData.container.classList.add('builtin');
@@ -364,8 +346,7 @@ export class McpListWidget extends Disposable {
 	private readonly _onDidRequestShowPlugin = this._register(new Emitter<IAgentPluginItem>());
 	readonly onDidRequestShowPlugin = this._onDidRequestShowPlugin.event;
 
-	private sectionHeader!: HTMLElement;
-	private sectionDescription!: HTMLElement;
+	private sectionTitleHeader!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
 	private searchAndButtonContainer!: HTMLElement;
 	private searchInput!: InputBox;
@@ -389,6 +370,7 @@ export class McpListWidget extends Disposable {
 	private browseMode: boolean = false;
 	private lastHeight: number = 0;
 	private lastWidth: number = 0;
+	private lastHeaderHeight = 0;
 	private _layoutDeferred = false;
 	private readonly collapsedGroups = new Set<string>();
 	private galleryCts: CancellationTokenSource | undefined;
@@ -408,7 +390,6 @@ export class McpListWidget extends Disposable {
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget');
@@ -427,6 +408,49 @@ export class McpListWidget extends Disposable {
 	}
 
 	private create(): void {
+		// Section title header (title + description with inline learn more) at the top.
+		this.sectionTitleHeader = DOM.append(this.element, $('.section-title-header'));
+		const titleRow = DOM.append(this.sectionTitleHeader, $('.section-title-row'));
+		const sectionTitle = DOM.append(titleRow, $('h2.section-title'));
+		sectionTitle.textContent = localize('mcpServers', "MCP Servers");
+		const sectionTitleDescription = DOM.append(this.sectionTitleHeader, $('p.section-title-description'));
+		const sectionTitleDescriptionText = DOM.append(sectionTitleDescription, $('span.section-title-description-text'));
+		sectionTitleDescriptionText.textContent = localize('mcpServersDescription', "An open standard that lets AI use external tools and services. MCP servers provide tools for file operations, databases, APIs, and more.");
+		// Real whitespace text node between description and link so the gap collapses
+		// when the link wraps to a new line (a CSS margin-left would push it inward).
+		sectionTitleDescription.appendChild(document.createTextNode(' '));
+		this.sectionLink = DOM.append(sectionTitleDescription, $('a.section-title-link')) as HTMLAnchorElement;
+		this.sectionLink.textContent = localize('learnMoreMcp', "Learn more about MCP servers");
+		this.sectionLink.href = 'https://code.visualstudio.com/docs/copilot/chat/mcp-servers';
+		this._register(DOM.addDisposableListener(this.sectionLink, 'click', (e) => {
+			e.preventDefault();
+			const href = this.sectionLink.href;
+			if (href) {
+				this.openerService.open(URI.parse(href));
+			}
+		}));
+
+		// Re-layout when the header height changes so the list's allotted
+		// height stays in sync with the actual on-screen header size. Only
+		// relayout when the header height actually changed to avoid redundant
+		// work on DPR changes or width-only resizes.
+		const targetWindow = DOM.getWindow(this.element);
+		const headerObserver = this._register(new DOM.DisposableResizeObserver(
+			'McpListWidget.sectionTitleHeader',
+			() => {
+				if (this.lastWidth <= 0 || this.lastHeight <= 0) {
+					return;
+				}
+				const headerHeight = this.sectionTitleHeader.offsetHeight;
+				if (headerHeight === this.lastHeaderHeight) {
+					return;
+				}
+				this.layout(this.lastHeight, this.lastWidth);
+			},
+			targetWindow,
+		));
+		this._register(headerObserver.observe(this.sectionTitleHeader));
+
 		// Search and button container
 		this.searchAndButtonContainer = DOM.append(this.element, $('.list-search-and-button-container'));
 
@@ -492,21 +516,6 @@ export class McpListWidget extends Disposable {
 		// List container
 		this.listContainer = DOM.append(this.element, $('.mcp-list-container'));
 
-		// Section footer at bottom with description and link
-		this.sectionHeader = DOM.append(this.element, $('.section-footer'));
-		this.sectionDescription = DOM.append(this.sectionHeader, $('p.section-footer-description'));
-		this.sectionDescription.textContent = localize('mcpServersDescription', "An open standard that lets AI use external tools and services. MCP servers provide tools for file operations, databases, APIs, and more.");
-		this.sectionLink = DOM.append(this.sectionHeader, $('a.section-footer-link')) as HTMLAnchorElement;
-		this.sectionLink.textContent = localize('learnMoreMcp', "Learn more about MCP servers");
-		this.sectionLink.href = 'https://code.visualstudio.com/docs/copilot/chat/mcp-servers';
-		this._register(DOM.addDisposableListener(this.sectionLink, 'click', (e) => {
-			e.preventDefault();
-			const href = this.sectionLink.href;
-			if (href) {
-				this.openerService.open(URI.parse(href));
-			}
-		}));
-
 		// Create list
 		const delegate = new McpServerItemDelegate();
 		const groupHeaderRenderer = new CustomizationGroupHeaderRenderer<IMcpGroupHeaderEntry>('mcpGroupHeader', this.hoverService);
@@ -528,11 +537,7 @@ export class McpListWidget extends Disposable {
 						if (element.type === 'group-header') {
 							return localize('mcpGroupAriaLabel', "{0}, {1} items, {2}", element.label, element.count, element.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
-						const label = element.type === 'builtin-item' ? element.label : element.server.label;
-						return derived(reader => {
-							const isBridged = this.harnessService.activeHarness.read(reader) !== SessionType.Local;
-							return isBridged ? localize('mcpServerBridgedAriaLabel', "{0}. {1}", label, localize('bridged', "Bridged")) : label;
-						});
+						return element.type === 'builtin-item' ? element.label : element.server.label;
 					},
 					getWidgetAriaLabel() {
 						return localize('mcpServersListAriaLabel', "MCP Servers");
@@ -925,13 +930,6 @@ export class McpListWidget extends Disposable {
 	}
 
 	/**
-	 * Prepends an element to the search row (left of the search input).
-	 */
-	prependToSearchRow(element: HTMLElement): void {
-		this.searchAndButtonContainer.insertBefore(element, this.searchAndButtonContainer.firstChild);
-	}
-
-	/**
 	 * Whether the widget is currently in marketplace browse mode.
 	 */
 	isInBrowseMode(): boolean {
@@ -973,8 +971,9 @@ export class McpListWidget extends Disposable {
 			});
 			return;
 		}
-		const footerHeight = this.sectionHeader.offsetHeight;
-		const listHeight = Math.max(0, height - searchBarHeight - footerHeight);
+		const headerHeight = this.sectionTitleHeader.offsetHeight;
+		this.lastHeaderHeight = headerHeight;
+		const listHeight = Math.max(0, height - searchBarHeight - headerHeight);
 
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight, width);

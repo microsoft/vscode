@@ -8,13 +8,14 @@ import * as vscode from 'vscode';
 import { ResolvedRepoRemoteInfo } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ICodeSearchAuthenticationService } from '../../../platform/remoteCodeSearch/node/codeSearchRepoAuth';
+import { ExternalIngestEnablement } from '../../../platform/workspaceChunkSearch/node/codeSearch/codeSearchChunkSearch';
 import { CodeSearchRepoStatus } from '../../../platform/workspaceChunkSearch/node/codeSearch/codeSearchRepo';
 import { IWorkspaceChunkSearchService, WorkspaceIndexState } from '../../../platform/workspaceChunkSearch/node/workspaceChunkSearchService';
 import { coalesce } from '../../../util/vs/base/common/arrays';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { commandUri } from '../../linkify/common/commands';
-import { buildRemoteIndexCommandId } from './commands';
+import { buildRemoteIndexCommandId, enableExternalIngestCommandId } from './commands';
 
 
 const reauthenticateCommandId = '_copilot.workspaceIndex.signInAgain';
@@ -59,6 +60,7 @@ interface ChatStatusItemState {
 		readonly message: string;
 		readonly busy: boolean;
 	};
+	readonly tooltip?: string;
 }
 
 const spinnerCodicon = '$(loading~spin)';
@@ -89,10 +91,11 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 		// Write an initial status
 		this._writeStatusItem({
 			primary: {
-				message: t`Checking index status`,
-				busy: true
+				message: t`Checking...`,
+				icon: spinnerCodicon,
 			},
-			details: undefined
+			details: undefined,
+			tooltip: t`Checking the current index status...`,
 		});
 
 		// And kick off async update to get the real status
@@ -118,19 +121,35 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 			case 'initializing':
 				return this._writeStatusItem({
 					primary: {
-						message: t('Checking index status'),
-						busy: true,
+						message: t`Checking...`,
+						icon: spinnerCodicon,
 					},
+					tooltip: t`Checking the current index status...`,
 				});
 
 			case 'loaded': {
-				// See if any repos are still being checked/resolved
-				if (state.remoteIndexState.repos.some(repo => repo.status === CodeSearchRepoStatus.CheckingStatus || repo.status === CodeSearchRepoStatus.Resolving)) {
+				const externalIngestDisabledByPolicy = state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledByPolicy;
+				const externalIngestDisabledInWorkspace = state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledBySetting;
+
+				// See if any repos are still being resolved
+				if (state.remoteIndexState.repos.some(repo => repo.status === CodeSearchRepoStatus.Resolving)) {
 					return this._writeStatusItem({
 						primary: {
-							message: t('Checking repo statuses'),
-							busy: true,
+							message: t`Resolving...`,
+							icon: spinnerCodicon,
 						},
+						tooltip: t`Resolving repository information...`,
+					});
+				}
+
+				// See if any repos are still being checked
+				if (state.remoteIndexState.repos.some(repo => repo.status === CodeSearchRepoStatus.CheckingStatus)) {
+					return this._writeStatusItem({
+						primary: {
+							message: t`Checking...`,
+							icon: spinnerCodicon,
+						},
+						tooltip: t`Checking the current index status...`,
 					});
 				}
 
@@ -140,59 +159,100 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 				) {
 					return this._writeStatusItem({
 						primary: {
-							message: t('Building Index'),
-							busy: true,
+							message: t`Indexing...`,
+							icon: spinnerCodicon,
 						},
+						tooltip: t`Your codebase is currently being indexed. This may take a few minutes.`,
 					});
 				}
 
-				// Check if we have any errors
+				if (externalIngestDisabledInWorkspace && !state.remoteIndexState.hasPromptedForExternalIngest) {
+					return this._writeStatusItem({
+						primary: {
+							message: t`External ingest off`,
+						},
+						details: {
+							message: `[${t`Enable external ingest?`}](command:${enableExternalIngestCommandId} "${t('Enable External Ingest')}")`,
+							busy: false,
+						},
+						tooltip: t`Enable external ingest to improve semantic search for files not covered by the codebase index. Availability is controlled by your Copilot policy.`,
+					});
+				}
+
+				// Check if we have any authorization errors
 				const readyRepos = state.remoteIndexState.repos.filter(repo => repo.status === CodeSearchRepoStatus.Ready);
-				const errorRepos = state.remoteIndexState.repos.filter(repo => repo.status === CodeSearchRepoStatus.CouldNotCheckIndexStatus || repo.status === CodeSearchRepoStatus.NotAuthorized);
-				if (errorRepos.length > 0) {
-					const inaccessibleRepo = errorRepos[0].remoteInfo;
-					if (readyRepos.length) {
+				const notAuthorizedRepos = state.remoteIndexState.repos.filter(repo => repo.status === CodeSearchRepoStatus.NotAuthorized);
+				if (notAuthorizedRepos.length > 0) {
+					const inaccessibleRepo = notAuthorizedRepos[0].remoteInfo;
+					if (readyRepos.length > 0) {
+						// Some repos are ready, some need re-auth
 						return this._writeStatusItem({
 							primary: {
 								message: readyRepos.length === 1
-									? t('1 repo with index')
-									: t('{0} repos with indexes', readyRepos.length),
+									? t`1 repo with index`
+									: t`${readyRepos.length} repos with indexes`,
 								icon: '$(warning)',
 							},
 							details: {
-								message: errorRepos.length === 1
-									? t(`[Try re-authenticating for 1 additional repo](${commandUri(reauthenticateCommandId, [inaccessibleRepo])} "${t('Try signing in again to use the codebase index')}")`)
-									: t(`[Try re-authenticating for {0} additional repos](${commandUri(reauthenticateCommandId, [inaccessibleRepo])} "${t('Try signing in again to use the codebase index')}")`, errorRepos.length),
+								message: `[${t`Sign in?`}](${commandUri(reauthenticateCommandId, [inaccessibleRepo])} "${t('Try signing in again to use the codebase index')}")`,
 								busy: false,
 							},
+							tooltip: notAuthorizedRepos.length === 1
+								? t`1 additional repo needs re-authentication.`
+								: t`${notAuthorizedRepos.length} additional repos need re-authentication.`,
 						});
 					} else {
 						return this._writeStatusItem({
 							primary: {
-								message: t('Index unavailable'),
-								icon: '$(error)',
+								message: t`Not authorized`,
+								icon: '$(lock)',
 							},
 							details: {
-								message: t(`[Try re-authenticating](${commandUri(reauthenticateCommandId, [inaccessibleRepo])} "${t('Try signing in again to use the codebase index')}")`),
+								message: `[${t`Sign in?`}](${commandUri(reauthenticateCommandId, [inaccessibleRepo])} "${t('Try signing in again to use the codebase index')}")`,
 								busy: false,
 							},
+							tooltip: t`You don't have permission to access the index for this repository.`,
 						});
 					}
+				}
+
+				if (externalIngestDisabledByPolicy && readyRepos.length > 0) {
+					return this._writeStatusItem({
+						primary: {
+							message: t`Available`,
+							icon: '$(check)',
+						},
+						details: {
+							message: t`May be incomplete or out of date`,
+							busy: false,
+						},
+						tooltip: t`Codebase semantic search is available from indexed repositories, but external ingest is disabled by your organization's policy. Results may be incomplete or out of date.`,
+					});
+				}
+
+				// Check if we have other errors
+				const errorRepos = state.remoteIndexState.repos.filter(repo => repo.status === CodeSearchRepoStatus.CouldNotCheckIndexStatus);
+				if (errorRepos.length > 0) {
+					return this._writeStatusItem({
+						primary: {
+							message: t`Not available`,
+							icon: '$(warning)',
+						},
+						tooltip: t`This repository can't be indexed. It may be too large or not supported.`,
+					});
 				}
 
 				// See if we have any unindexed repos
 				if (state.remoteIndexState.repos.some(repo => repo.status === CodeSearchRepoStatus.NotYetIndexed)) {
 					return this._writeStatusItem({
 						primary: {
-							message: state.remoteIndexState.repos.every(repo => repo.status === CodeSearchRepoStatus.NotYetIndexed)
-								? t('Index not yet built')
-								: t('Index not yet built for a repo in the workspace'),
-							icon: '$(warning)',
+							message: t`Not indexed`,
 						},
 						details: {
-							message: `[${t`Build index`}](command:${buildRemoteIndexCommandId} "${t('Build Codebase Index')}")`,
+							message: `[${t`Index?`}](command:${buildRemoteIndexCommandId} "${t('Build Codebase Index')}")`,
 							busy: false,
-						}
+						},
+						tooltip: t`This repository hasn't been indexed yet. Trigger indexing to enable semantic search.`,
 					});
 				}
 
@@ -210,9 +270,19 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 				) {
 					return this._writeStatusItem({
 						primary: {
-							message: t('Index ready'),
+							message: t`Ready`,
 							icon: '$(check)',
 						},
+						tooltip: t`Your index is up to date and being used to improve suggestions.`,
+					});
+				}
+
+				if (externalIngestDisabledInWorkspace) {
+					return this._writeStatusItem({
+						primary: {
+							message: t`External ingest off`,
+						},
+						tooltip: t`External ingest is disabled in this workspace. Availability is controlled by your Copilot policy.`,
 					});
 				}
 
@@ -220,13 +290,13 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 				if (typeof state.remoteIndexState.externalIngestState !== 'undefined') {
 					return this._writeStatusItem({
 						primary: {
-							message: t('Out of date'),
-							icon: '$(warning)',
+							message: t`Out of date`,
 						},
 						details: {
-							message: `[${t`Update index`}](command:${buildRemoteIndexCommandId} "${t('Update Codebase Index')}")`,
+							message: `[${t`Update?`}](command:${buildRemoteIndexCommandId} "${t('Update Codebase Index')}")`,
 							busy: false,
-						}
+						},
+						tooltip: t`Your index is out of date. Recent changes haven't been indexed yet.`,
 					});
 				}
 
@@ -240,10 +310,13 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 
 		this._writeStatusItem({
 			primary: {
-				message: t('Codebase index not available'),
-				icon: '$(circle-slash)',
+				message: state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledByPolicy ? t`Disabled by policy` : t`Not available`,
+				icon: '$(warning)',
 			},
-			details: undefined
+			details: undefined,
+			tooltip: state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledByPolicy
+				? t`External ingest is disabled by your organization's policy.`
+				: t`This repository can't be indexed. It may be too large or not supported.`,
 		});
 	}
 
@@ -277,6 +350,8 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 		} else {
 			this._statusItem.detail = '';
 		}
+
+		this._statusItem.tooltip = values.tooltip;
 	}
 
 	private registerCommands(): IDisposable {

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.120.0",
-  "distro": "adf5d4ef5d36b1829d04e2a6f5255c5344cb0316",
+  "version": "1.121.0",
+  "distro": "9897f32f1899b7b2c8e5d0701c5d99458bb8de9e",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -99,7 +99,7 @@
     "@microsoft/dev-tunnels-ssh-tcp": "^3.12.22",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
-    "@vscode/codicons": "^0.0.46-6",
+    "@vscode/codicons": "^0.0.46-10",
     "@vscode/copilot-api": "^0.3.0",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.1",
@@ -135,7 +135,7 @@
     "minimist": "^1.2.8",
     "native-is-elevated": "0.9.0",
     "native-keymap": "^3.3.5",
-    "node-pty": "^1.2.0-beta.12",
+    "node-pty": "^1.2.0-beta.13",
     "open": "^10.1.2",
     "playwright-core": "1.59.1",
     "ssh2": "^1.16.0",
@@ -149,6 +149,7 @@
     "yazl": "^2.4.3"
   },
   "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.2.128",
     "@playwright/cli": "^0.1.9",
     "@playwright/test": "^1.56.1",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
@@ -176,9 +177,9 @@
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "^8.45.0",
     "@typescript/native-preview": "^7.0.0-dev.20260429",
-    "@vscode/component-explorer": "^0.2.1-26",
-    "@vscode/component-explorer-cli": "^0.2.1-26",
-    "@vscode/gulp-electron": "1.41.2",
+    "@vscode/component-explorer": "^0.2.1-27",
+    "@vscode/component-explorer-cli": "^0.2.1-27",
+    "@vscode/gulp-electron": "1.41.3",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.20.2",
     "@vscode/test-cli": "^0.0.6",

@@ -111,6 +111,7 @@ class MockAgentService implements IAgentService {
 	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
+	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async disposeSession(_session: URI): Promise<void> { }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return this.listedSessions; }
 	async subscribe(resource: URI, _clientId: string): Promise<IStateSnapshot> {
@@ -274,6 +275,30 @@ suite('ProtocolServerHandler', () => {
 		const result = (resp as { result: InitializeResult }).result;
 		assert.strictEqual(result.snapshots.length, 1);
 		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
+	});
+
+	test('ping responds before initialize', async () => {
+		const transport = new MockProtocolTransport();
+		disposables.add(transport);
+		server.simulateConnection(transport);
+		const responsePromise = waitForResponse(transport, 7);
+		transport.simulateMessage(request(7, 'ping', {}));
+		const resp = await responsePromise as { id: number; result: null };
+
+		assert.strictEqual(resp.id, 7);
+		assert.strictEqual(resp.result, null);
+		transport.simulateClose();
+	});
+
+	test('ping responds after initialize', async () => {
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 9);
+		transport.simulateMessage(request(9, 'ping', {}));
+		const resp = await responsePromise as { id: number; result: null };
+
+		assert.strictEqual(resp.id, 9);
+		assert.strictEqual(resp.result, null);
 	});
 
 	test('subscribe request returns snapshot', async () => {
