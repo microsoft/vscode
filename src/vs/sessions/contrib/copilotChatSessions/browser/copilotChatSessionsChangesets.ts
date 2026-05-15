@@ -109,27 +109,25 @@ class GitHubRepositoryChangesetResolver implements IChangesetResolver {
 	}
 }
 
-export class ChangesetFactory {
-	static create(
-		sessionType: string,
-		workspaceObs: IObservable<ISessionWorkspace | undefined>,
-		chatsObs: IObservable<readonly IChat[]>,
-		instantiationService: IInstantiationService,
-	): IObservable<readonly ISessionChangeset[]> {
-		const changesetResolver = sessionType === AgentSessionProviders.Cloud
-			? instantiationService.createInstance(GitHubRepositoryChangesetResolver, workspaceObs)
-			: instantiationService.createInstance(GitRepositoryChangesetResolver, workspaceObs);
+export function createChangesets(
+	sessionType: string,
+	workspaceObs: IObservable<ISessionWorkspace | undefined>,
+	chatsObs: IObservable<readonly IChat[]>,
+	instantiationService: IInstantiationService,
+): IObservable<readonly ISessionChangeset[]> {
+	const changesetResolver = sessionType === AgentSessionProviders.Cloud
+		? instantiationService.createInstance(GitHubRepositoryChangesetResolver, workspaceObs)
+		: instantiationService.createInstance(GitRepositoryChangesetResolver, workspaceObs);
 
-		const changesets: ISessionChangeset[] = [new BranchChangesChangeset(workspaceObs, chatsObs)];
-		if (sessionType !== AgentSessionProviders.Cloud) {
-			changesets.push(new UncommittedChangesChangeset(workspaceObs, chatsObs, changesetResolver));
-		}
-
-		changesets.push(new AllChangesChangeset(chatsObs, changesetResolver));
-		changesets.push(new LastTurnChangesChangeset(chatsObs, changesetResolver));
-
-		return constObservable(changesets);
+	const changesets: ISessionChangeset[] = [new BranchChangesChangeset(workspaceObs, chatsObs)];
+	if (sessionType !== AgentSessionProviders.Cloud) {
+		changesets.push(new UncommittedChangesChangeset(workspaceObs, chatsObs, changesetResolver));
 	}
+
+	changesets.push(new AllChangesChangeset(chatsObs, changesetResolver));
+	changesets.push(new LastTurnChangesChangeset(chatsObs, changesetResolver));
+
+	return constObservable(changesets);
 }
 
 /**
@@ -186,7 +184,7 @@ export class BranchChangesChangeset extends AbstractChangeset {
 	) {
 		super(chatsObs);
 
-		const gitRepository = workspaceObs?.get()?.folders[0].gitRepository;
+		const gitRepository = workspaceObs.get()?.folders[0].gitRepository;
 		const branchName = gitRepository?.branchName;
 		const baseBranchName = gitRepository?.baseBranchName;
 

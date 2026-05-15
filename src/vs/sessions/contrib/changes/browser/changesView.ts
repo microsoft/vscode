@@ -1347,9 +1347,6 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 					run: async () => {
 						viewModel.setChangesetId(changeset.id);
 						logChangesViewVersionModeChange(this.telemetryService, changeset.id);
-						// if (this.element) {
-						// 	this.renderLabel(this.element);
-						// }
 					}
 				} satisfies IActionWidgetDropdownAction));
 			},

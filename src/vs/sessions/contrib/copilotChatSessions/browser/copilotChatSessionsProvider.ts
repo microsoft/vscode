@@ -47,7 +47,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../github/common/types.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { ChangesetFactory } from './copilotChatSessionsChangesets.js';
+import { createChangesets } from './copilotChatSessionsChangesets.js';
 
 const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
 const STORAGE_KEY_ISOLATION_MODE = 'sessions.isolationPicker.selectedMode';
@@ -3144,7 +3144,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private _createChangesets(sessionType: string, workspaceObs: IObservable<ISessionWorkspace | undefined>, chatsObs: IObservable<readonly IChat[]>): IObservable<readonly ISessionChangeset[]> {
-		return ChangesetFactory.create(sessionType, workspaceObs, chatsObs, this.instantiationService);
+		return createChangesets(sessionType, workspaceObs, chatsObs, this.instantiationService);
 	}
 
 	private _latestDate(chats: readonly IChat[], getter: (chat: IChat) => Date | undefined): Date | undefined {

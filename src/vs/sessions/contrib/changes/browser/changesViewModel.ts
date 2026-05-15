@@ -112,11 +112,13 @@ export class ChangesViewModel extends Disposable {
 			const selectedChangesetId = this._selectedChangesetId.read(reader);
 			const activeSessionChangesets = this.activeSessionChangesetsObs.read(reader) ?? [];
 
+			// Honor an explicit selection only while it is still enabled; otherwise fall
+			// back to the default changeset so the picker never shows a disabled selection.
 			const selectedChangeset = selectedChangesetId
-				? activeSessionChangesets.find(c => c.id === selectedChangesetId)
+				? activeSessionChangesets
+					.find(c => c.id === selectedChangesetId && c.isEnabled.read(reader))
 				: undefined;
 
-			// Selected, or default changeset
 			return selectedChangeset ?? activeSessionChangesets.find(c => c.isDefault.read(reader));
 		});
 
