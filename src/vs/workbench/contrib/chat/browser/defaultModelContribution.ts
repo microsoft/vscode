@@ -27,6 +27,15 @@ export interface DefaultModelContributionOptions {
 	readonly logPrefix: string;
 	/** Additional filter beyond `isUserSelectable`. Return `true` to include the model. */
 	readonly filter?: (metadata: ILanguageModelChatMetadata) => boolean;
+	/**
+	 * How model identifiers are encoded in the stored setting value.
+	 * - `'qualifiedName'` (default): `${name} (${vendor})` — matches
+	 *   {@link ILanguageModelChatMetadata.asQualifiedName}. Kept for backward
+	 *   compatibility with existing settings (plan/explore agent).
+	 * - `'vendorAndId'`: `${vendor}/${id}` — stable composite of API-stable
+	 *   fields, directly usable with `vscode.lm.selectChatModels`.
+	 */
+	readonly storageFormat?: 'qualifiedName' | 'vendorAndId';
 }
 
 /**
@@ -55,12 +64,34 @@ export abstract class DefaultModelContribution extends Disposable {
 	) {
 		super();
 		this._register(_languageModelsService.onDidChangeLanguageModels(() => this._updateModelValues()));
+		// New vendors (e.g. BYOK Anthropic) may register after this contribution
+		// has already started. Re-trigger resolution so their models surface in
+		// the picker too — `selectLanguageModels({})` only resolves vendors that
+		// were registered at call time.
+		this._register(_languageModelsService.onDidChangeLanguageModelVendors(() => this._resolveAllVendors()));
 		this._updateModelValues();
+		this._resolveAllVendors();
+	}
+
+	private _resolveAllVendors(): void {
+		// Trigger resolution of every registered vendor so models from providers that
+		// haven't yet been touched by another consumer (e.g. BYOK Anthropic / OpenAI)
+		// also surface in the picker. Each vendor's resolution will fire
+		// `onDidChangeLanguageModels`, which re-runs `_updateModelValues` above.
+		// We additionally re-run `_updateModelValues` once everything resolves so that
+		// providers which add no new models (and therefore don't fire the change event)
+		// still get reflected in the picker.
+		const vendors = this._languageModelsService.getVendors().map(v => v.vendor);
+		this._logService.trace(`${this._options.logPrefix} Resolving all vendors: [${vendors.join(', ')}]`);
+		this._languageModelsService.selectLanguageModels({}).then(
+			() => this._updateModelValues(),
+			e => this._logService.error(`${this._options.logPrefix} Error resolving language models:`, e),
+		);
 	}
 
 	private _updateModelValues(): void {
 		const { modelIds, modelLabels, modelDescriptions } = this._arrays;
-		const { configKey, configSectionId, logPrefix, filter } = this._options;
+		const { configKey, configSectionId, logPrefix, filter, storageFormat } = this._options;
 
 		try {
 			// Clear arrays
@@ -90,7 +121,7 @@ export abstract class DefaultModelContribution extends Disposable {
 			}
 
 			const supportedModels = models.filter(model => {
-				if (!model.metadata?.isUserSelectable) {
+				if (model.metadata?.isUserSelectable === false) {
 					return false;
 				}
 				if (filter && !filter(model.metadata)) {
@@ -101,11 +132,27 @@ export abstract class DefaultModelContribution extends Disposable {
 
 			supportedModels.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 
+			// Build a vendor id -> display name lookup so labels can show the
+			// human-readable provider name (e.g. "Copilot") instead of the
+			// vendor id (e.g. "copilot") which is what gets stored.
+			const vendorDisplayNames = new Map<string, string>();
+			for (const vendor of this._languageModelsService.getVendors()) {
+				vendorDisplayNames.set(vendor.vendor, vendor.displayName);
+			}
+
+			this._logService.trace(`${logPrefix} Picker rebuilt: ${models.length} model(s) considered, ${supportedModels.length} included; vendors: [${Array.from(vendorDisplayNames.keys()).join(', ')}]`);
+
 			for (const model of supportedModels) {
 				try {
-					const qualifiedName = ILanguageModelChatMetadata.asQualifiedName(model.metadata);
-					modelIds.push(qualifiedName);
-					modelLabels.push(model.metadata.name);
+					const storedId = storageFormat === 'vendorAndId'
+						? `${model.metadata.vendor}/${model.metadata.id}`
+						: ILanguageModelChatMetadata.asQualifiedName(model.metadata);
+					const vendorDisplayName = vendorDisplayNames.get(model.metadata.vendor);
+					if (!vendorDisplayName) {
+						this._logService.trace(`${logPrefix} No vendor descriptor for '${model.metadata.vendor}' (model '${model.metadata.id}'); falling back to vendor id in label.`);
+					}
+					modelIds.push(storedId);
+					modelLabels.push(localize('modelLabelWithVendor', "{0} ({1})", model.metadata.name, vendorDisplayName ?? model.metadata.vendor));
 					modelDescriptions.push(model.metadata.tooltip ?? model.metadata.detail ?? '');
 				} catch (e) {
 					this._logService.error(`${logPrefix} Error adding model ${model.metadata.name}:`, e);
