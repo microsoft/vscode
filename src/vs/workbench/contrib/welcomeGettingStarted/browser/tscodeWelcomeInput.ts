@@ -80,7 +80,7 @@ export class TscodeWelcomeInput extends EditorInput {
 	}
 
 	override getName() {
-		return this.walkthroughPageTitle ? localize('tscodeWalkthroughPageTitle', 'Walkthrough: {0}', this.walkthroughPageTitle) : localize('tscodeWelcome', "TSCode Welcome");
+		return this.walkthroughPageTitle ? localize('tscodeWalkthroughPageTitle', 'Walkthrough: {0}', this.walkthroughPageTitle) : localize('tscodeWelcome', "TestAgent Welcome");
 	}
 
 	get selectedCategory() {

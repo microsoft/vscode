@@ -257,6 +257,11 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	// Read argv config
 	const argvConfig = readArgvConfigSync();
 
+	// test-workbench_change start
+	// Set default Chinese locale on first launch
+	checkAndSetDefaultLocale(argvConfig, getArgvConfigPath());
+	// test-workbench_change end
+
 	Object.keys(argvConfig).forEach(argvKey => {
 		const argvValue = argvConfig[argvKey];
 
@@ -445,6 +450,80 @@ function getArgvConfigPath(): string {
 
 	return path.join(os.homedir(), dataFolderName!, 'argv.json');
 }
+
+// test-workbench_change start
+/**
+ * Checks if this is the first launch by detecting if locale is not set in argv.json
+ * @param argvConfig The argv configuration object
+ * @returns true if locale is undefined or empty string, false otherwise
+ */
+function isFirstLaunchForLocale(argvConfig: IArgvConfig): boolean {
+	return argvConfig.locale === undefined || argvConfig.locale === '';
+}
+
+/**
+ * Synchronously writes the locale setting to argv.json while preserving existing properties
+ * @param argvConfigPath Path to the argv.json file
+ * @param locale The locale string to write (e.g., "zh-cn")
+ */
+function writeLocaleSyncToArgv(argvConfigPath: string, locale: string): void {
+	try {
+		// Read current argv.json content
+		const content = fs.readFileSync(argvConfigPath, 'utf8');
+
+		// Parse JSON (with comments support)
+		const config = parse(content) as Record<string, unknown>;
+
+		// Add locale property
+		config.locale = locale;
+
+		// Write back to file with proper formatting (tabs for VS Code style)
+		const updatedContent = JSON.stringify(config, null, '\t');
+		fs.writeFileSync(argvConfigPath, updatedContent, 'utf8');
+	} catch (error) {
+		// Log error but don't crash the application
+		console.error(`[Default Locale] Failed to write locale to argv.json: ${error}`);
+		throw error;
+	}
+}
+
+/**
+ * Checks and sets the default locale to Chinese (Simplified) on first launch
+ * This function is called during main process startup, before app('ready')
+ * @param argvConfig The argv configuration object (will be modified if first launch)
+ * @param argvConfigPath Path to the argv.json file
+ */
+function checkAndSetDefaultLocale(argvConfig: IArgvConfig, argvConfigPath: string): void {
+	// Step 1: Check if locale is already set
+	if (argvConfig.locale !== undefined && argvConfig.locale !== '') {
+		// User has already configured a locale, respect their choice
+		return;
+	}
+
+	// Step 2: Detect first launch (no locale means first launch)
+	const isFirstLaunch = isFirstLaunchForLocale(argvConfig);
+
+	if (!isFirstLaunch) {
+		return;
+	}
+
+	// Step 3: Set default locale to Chinese (Simplified)
+	const defaultLocale = 'zh-cn';
+
+	try {
+		// Step 4: Write locale to argv.json synchronously
+		writeLocaleSyncToArgv(argvConfigPath, defaultLocale);
+
+		// Step 5: Update in-memory config for current launch
+		(argvConfig as { locale?: string }).locale = defaultLocale;
+
+		console.log(`[Default Locale] Set default locale to ${defaultLocale} on first launch`);
+	} catch (error) {
+		console.error(`[Default Locale] Failed to set default locale: ${error}`);
+		// Don't crash the application, just log the error
+	}
+}
+// test-workbench_change end
 
 function configureCrashReporter(): void {
 	let crashReporterDirectory = args['crash-reporter-directory'];

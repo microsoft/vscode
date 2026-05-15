@@ -426,7 +426,10 @@ function copyCodiconsImpl() {
 	try {
 		if (fs.existsSync(codiconSource)) {
 			fs.mkdirSync(path.dirname(codiconDest), { recursive: true });
-			fs.copyFileSync(codiconSource, codiconDest);
+			// test-workbench_change: skip copy if dest already exists (it's tracked in git with custom glyphs)
+			if (!fs.existsSync(codiconDest)) {
+				fs.copyFileSync(codiconSource, codiconDest);
+			}
 		} else {
 			fancyLog(ansiColors.red('[codicons]'), `codicon.ttf not found in node_modules. Please run 'npm install' to install dependencies.`);
 		}

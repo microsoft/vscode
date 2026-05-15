@@ -135,7 +135,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		TscodeWelcomePage,
 		'tscodeWelcomePage', // Use string constant instead of class static property
-		localize('tscodeWelcome', "TSCode Welcome")
+		localize('tscodeWelcome', "TestAgent Welcome")
 	),
 	[
 		new SyncDescriptor(TscodeWelcomeInput)
@@ -344,7 +344,7 @@ configurationRegistry.registerConfiguration({
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.terminal' }, "Open a new terminal in the editor area."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.agentSessionsWelcomePage' }, "Open the Agent Sessions Welcome page. Will override the workbench secondary side bar visibility settings."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.tscodeWelcomePage' }, "Open the TSCode Welcome page."), // test-workbench_change
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.tscodeWelcomePage' }, "Open the TestAgent Welcome page."), // test-workbench_change
 			],
 			'default': 'tscodeWelcomePage', // test-workbench_change - Set TSCode Welcome as default
 			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session."),

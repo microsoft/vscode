@@ -34,8 +34,6 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { getActiveElement } from '../../../../base/browser/dom.js';
-import { IOnboardingService } from '../../welcomeOnboarding/common/onboardingService.js';
-import { ONBOARDING_STORAGE_KEY } from '../../welcomeOnboarding/common/onboardingTypes.js';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
@@ -83,7 +81,7 @@ export class StartupPageEditorResolverContribution extends Disposable implements
 			`${TscodeWelcomeInput.RESOURCE.scheme}://tscode_welcome_page/**`,
 			{
 				id: TscodeWelcomeInput.ID,
-				label: localize('tscodeWelcome.displayName', "TSCode Welcome Page"),
+				label: localize('tscodeWelcome.displayName', "TestAgent Welcome Page"),
 				priority: RegisteredEditorPriority.builtin,
 			},
 			{
@@ -122,7 +120,6 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IOnboardingService private readonly onboardingService: IOnboardingService,
 	) {
 		super();
 
@@ -172,10 +169,10 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 					await this.openReadme();
 				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
 					await this.openGettingStarted(true);
-				// test-workbench_change start
+					// test-workbench_change start
 				} else if (startupEditorSetting.value === 'tscodeWelcomePage') {
 					await this.openTscodeWelcome();
-				// test-workbench_change end
+					// test-workbench_change end
 				} else if (startupEditorSetting.value === 'terminal') {
 					this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);
 				}
@@ -284,7 +281,10 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	}
 
 	private tryShowOnboarding(): void {
-		return; // test-workbench_change - disable initialization wizard
+		// test-workbench_change start - disable initialization wizard
+		return;
+		// test-workbench_change end
+		/* Original implementation disabled:
 		if (this.environmentService.skipWelcome) {
 			return; // skip welcome flag is set
 		}
@@ -308,6 +308,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		this._register(this.onboardingService.onDidDismiss(() => {
 			this.storageService.store(ONBOARDING_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
 		}));
+		*/
 	}
 }
 

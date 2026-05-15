@@ -138,7 +138,7 @@ export class TsCodeWelcomePage extends Disposable {
 		].join('; ');
 
 		const brandTitle = h('div').root;
-		brandTitle.textContent = 'TSCode';
+		brandTitle.textContent = 'TestAgent工作台';
 		brandTitle.style.cssText = [
 			'font-size: 72px',
 			'font-weight: 800',
@@ -148,7 +148,7 @@ export class TsCodeWelcomePage extends Disposable {
 		].join('; ');
 
 		const welcomeText = h('div').root;
-		welcomeText.textContent = '欢迎使用 TSCode';
+		welcomeText.textContent = '欢迎使用TestAgent工作台';
 		welcomeText.style.cssText = 'font-size: 20px; color: #ccc; margin-bottom: 12px; font-weight: 500;';
 
 		const subtitle = h('div').root;

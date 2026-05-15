@@ -32,7 +32,7 @@ const server = http.createServer((req, res) => {
 		if (commit !== '9c521649abc582aa7064480374c5b04e3449da6e') {
 			// Return update information
 			const updateInfo = {
-				url: `http://localhost:${PORT}/download/TSCodeSetup.exe`,
+				url: `http://localhost:${PORT}/download/TestAgentStudio.exe`,
 				name: '1.116.1',
 				version: '9c521649abc582aa7064480374c5b04e3449da6e',  // New version commit
 				productVersion: '1.116.1',

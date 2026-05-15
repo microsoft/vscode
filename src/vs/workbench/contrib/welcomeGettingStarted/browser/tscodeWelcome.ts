@@ -556,7 +556,7 @@ export class TscodeWelcomePage extends GettingStartedPage {
 			this.iconAdded = true;
 
 			// Randomly select a face type with timestamp-based seed for better randomness
-			const faceTypes = ['default', 'happy', 'surprised', 'shy', 'confused', 'smug', 'thinking', 'bounce', 'love'];
+			const faceTypes = ['default', 'happy', 'surprised', 'shy', 'confused', 'smug', 'bounce', 'love']; // test-workbench_change
 			const randomIndex = Math.floor((Math.random() * Date.now()) % faceTypes.length);
 			let currentFaceIndex = randomIndex;
 			const randomFace = faceTypes[currentFaceIndex];
@@ -572,19 +572,8 @@ export class TscodeWelcomePage extends GettingStartedPage {
 			iconWrapper.style.userSelect = 'none';
 			iconWrapper.style.overflow = 'visible'; // Allow glow to overflow
 
-			// Special filter for thinking face (stronger glow effect)
-			// allow-any-unicode-next-line
-			// Reference: face-test.html line with "思考中"
-			// Use padding + content-box to increase container size while keeping SVG at 80px
-			if (randomFace === 'thinking') {
-				iconWrapper.style.filter = 'drop-shadow(0 0 8px rgba(41,121,255,0.7)) drop-shadow(0 0 16px rgba(79,195,247,0.5))';
-				iconWrapper.style.padding = '12px'; // Increase padding to give more space for glow
-				iconWrapper.style.boxSizing = 'content-box'; // Important: padding adds to size (80px + 12px*2 = 104px container)
-			} else {
-				iconWrapper.style.filter = 'drop-shadow(0 4px 12px rgba(30, 100, 220, 0.2))';
-				iconWrapper.style.padding = '0';
-				iconWrapper.style.boxSizing = 'border-box';
-			}
+			iconWrapper.style.padding = '0';
+			iconWrapper.style.boxSizing = 'border-box';
 
 			iconWrapper.style.animation = 'float-tscode 3.2s ease-in-out infinite';
 
@@ -607,17 +596,9 @@ export class TscodeWelcomePage extends GettingStartedPage {
 					iconWrapper.removeChild(iconWrapper.firstChild);
 				}
 
-				// Update filter for thinking face
-				// Use padding + content-box to increase container size while keeping SVG at 80px
-				if (newFace === 'thinking') {
-					iconWrapper.style.filter = 'drop-shadow(0 0 8px rgba(41,121,255,0.7)) drop-shadow(0 0 16px rgba(79,195,247,0.5))';
-					iconWrapper.style.padding = '12px'; // Increase padding to give more space for glow
-					iconWrapper.style.boxSizing = 'content-box'; // Important: padding adds to size (80px + 12px*2 = 104px container)
-				} else {
-					iconWrapper.style.filter = 'drop-shadow(0 4px 12px rgba(30, 100, 220, 0.2))';
-					iconWrapper.style.padding = '0';
-					iconWrapper.style.boxSizing = 'border-box';
-				}
+				// Update filter for thinking face // test-workbench_changes
+				iconWrapper.style.padding = '0';
+				iconWrapper.style.boxSizing = 'border-box';
 
 				// Create new SVG
 				const newSvg = this.createRandomFaceSVG(newFace);
@@ -810,102 +791,7 @@ export class TscodeWelcomePage extends GettingStartedPage {
 				svg.appendChild(rightHighlight);
 				break;
 
-			case 'thinking':
-				// allow-any-unicode-next-line
-				// Thinking: eyes shift left and right with glowing ring (思考中)
-				// Update viewBox for this special case
-				svg.setAttribute('viewBox', '-4 -4 32 32');
-
-				// Add glow filter
-				const glowFilter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
-				glowFilter.setAttribute('id', 'glow-tscode-thinking');
-				const feGaussianBlur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
-				feGaussianBlur.setAttribute('stdDeviation', '0.8');
-				feGaussianBlur.setAttribute('result', 'blur');
-				glowFilter.appendChild(feGaussianBlur);
-				const feMerge = document.createElementNS('http://www.w3.org/2000/svg', 'feMerge');
-				const feMergeNode1 = document.createElementNS('http://www.w3.org/2000/svg', 'feMergeNode');
-				feMergeNode1.setAttribute('in', 'blur');
-				const feMergeNode2 = document.createElementNS('http://www.w3.org/2000/svg', 'feMergeNode');
-				feMergeNode2.setAttribute('in', 'SourceGraphic');
-				feMerge.appendChild(feMergeNode1);
-				feMerge.appendChild(feMergeNode2);
-				glowFilter.appendChild(feMerge);
-				defs.appendChild(glowFilter);
-
-				// Add animations
-				const thinkingStyle = document.createElementNS('http://www.w3.org/2000/svg', 'style');
-				thinkingStyle.textContent = `
-					@keyframes eye-shift-tscode {
-						0% { transform: translateX(-3px); }
-						30% { transform: translateX(-3px); }
-						50% { transform: translateX(3px); }
-						80% { transform: translateX(3px); }
-						100% { transform: translateX(-3px); }
-					}
-					@keyframes ring-pulse-tscode {
-						0%, 100% { r: 12.75; opacity: 0.6; stroke-width: 1.5; }
-						50% { r: 14; opacity: 1; stroke-width: 1.5; }
-					}
-					@keyframes ring-pulse-bg-tscode {
-						0%, 100% { r: 12.75; opacity: 0.2; stroke-width: 3; }
-						50% { r: 14.5; opacity: 0.5; stroke-width: 3; }
-					}
-					.thinking-eye-tscode { animation: eye-shift-tscode 2.0s ease-in-out infinite; }
-					.glow-ring-tscode { animation: ring-pulse-tscode 2.0s ease-in-out infinite; filter: url(#glow-tscode-thinking); }
-					.glow-ring-bg-tscode { animation: ring-pulse-bg-tscode 2.0s ease-in-out infinite; }
-				`;
-				defs.appendChild(thinkingStyle);
-
-				// allow-any-unicode-next-line
-				// Glow ring background (多层叠加)
-				const glowRingBg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-				glowRingBg.setAttribute('class', 'glow-ring-bg-tscode');
-				glowRingBg.setAttribute('cx', '12');
-				glowRingBg.setAttribute('cy', '12');
-				glowRingBg.setAttribute('r', '12.75');
-				glowRingBg.setAttribute('fill', 'none');
-				glowRingBg.setAttribute('stroke', 'url(#bg-tscode-' + faceType + ')');
-				glowRingBg.setAttribute('stroke-width', '2');
-				glowRingBg.setAttribute('opacity', '0.2');
-				svg.appendChild(glowRingBg);
-
-				// Glow ring
-				const glowRing = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-				glowRing.setAttribute('class', 'glow-ring-tscode');
-				glowRing.setAttribute('cx', '12');
-				glowRing.setAttribute('cy', '12');
-				glowRing.setAttribute('r', '12.75');
-				glowRing.setAttribute('fill', 'none');
-				glowRing.setAttribute('stroke', 'url(#bg-tscode-' + faceType + ')');
-				glowRing.setAttribute('stroke-width', '1.5');
-				svg.appendChild(glowRing);
-
-				// allow-any-unicode-next-line
-				// 左右移动的眼睛
-				const eyesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-				eyesGroup.setAttribute('class', 'thinking-eye-tscode');
-
-				const leftEyeThinking = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
-				leftEyeThinking.setAttribute('cx', '9');
-				leftEyeThinking.setAttribute('cy', '9.33');
-				leftEyeThinking.setAttribute('rx', '1.63');
-				leftEyeThinking.setAttribute('ry', '2.62');
-				leftEyeThinking.setAttribute('fill', '#2979ff');
-				eyesGroup.appendChild(leftEyeThinking);
-
-				const rightEyeThinking = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
-				rightEyeThinking.setAttribute('cx', '15');
-				rightEyeThinking.setAttribute('cy', '9.33');
-				rightEyeThinking.setAttribute('rx', '1.63');
-				rightEyeThinking.setAttribute('ry', '2.62');
-				rightEyeThinking.setAttribute('fill', '#2979ff');
-				eyesGroup.appendChild(rightEyeThinking);
-
-				svg.appendChild(eyesGroup);
-				break;
-
-			case 'bounce':
+			case 'bounce': // test-workbench_change
 				// allow-any-unicode-next-line
 				// Bounce: happy face (欢跳表情)
 				const leftArcBounce = document.createElementNS('http://www.w3.org/2000/svg', 'path');

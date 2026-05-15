@@ -1,1 +1,65 @@
-<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><style>.st0{fill:#f6f6f6;fill-opacity:0}.st1{fill:#fff}.st2{fill:#167abf}</style><path class="st0" d="M1024 1024H0V0h1024v1024z"/><path class="st1" d="M1024 85.333v853.333H0V85.333h1024z"/><path class="st2" d="M0 85.333h298.667v853.333H0V85.333zm1024 0v853.333H384V85.333h640zm-554.667 160h341.333v-64H469.333v64zm341.334 533.334H469.333v64h341.333l.001-64zm128-149.334H597.333v64h341.333l.001-64zm0-149.333H597.333v64h341.333l.001-64zm0-149.333H597.333v64h341.333l.001-64z"/></svg>
+<svg width="1024" height="1024" viewBox="220 280 600 480" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 定义裁剪路径：仅显示与编辑器重叠的部分 -->
+  <defs>
+    <clipPath id="overlap-clip">
+      <path d="M 320 300 Q 240 300 240 380 L 240 600 Q 240 680 320 680 L 320 740 L 380 680 L 620 680 Q 700 680 700 600 L 700 380 Q 700 300 620 300 Z"/>
+    </clipPath>
+    
+    <!-- 遮罩：在笑脸边缘创建镂空效果 -->
+    <mask id="cutout-mask">
+      <!-- 白色区域显示，黑色区域隐藏 -->
+      <rect x="0" y="0" width="1024" height="1024" fill="white"/>
+      <!-- 在笑脸边缘创建黑色圆环（镂空区域，宽度30px） -->
+      <circle cx="630" cy="560" r="170" fill="black"/>
+      <circle cx="630" cy="560" r="140" fill="white"/>
+    </mask>
+  </defs>
+  
+  <!-- 代码窗口/对话气泡 -->
+  <g id="code-window" mask="url(#cutout-mask)">
+    <!-- 主体气泡 -->
+    <path d="M 320 300 Q 240 300 240 380 L 240 600 Q 240 680 320 680 L 320 740 L 380 680 L 620 680 Q 700 680 700 600 L 700 380 Q 700 300 620 300 Z" 
+          fill="#e8f4ff" stroke="#0080FF" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- 顶部装饰线 -->
+    <line x1="280" y1="370" x2="660" y2="370" stroke="#D0E8FF" stroke-width="10" stroke-linecap="round"/>
+    
+    <!-- 窗口控制按钮 -->
+    <circle cx="295" cy="335" r="11" fill="#A855F7"/>
+    <circle cx="333" cy="335" r="11" fill="#FB923C"/>
+    <circle cx="371" cy="335" r="11" fill="#22D3EE"/>
+    
+    <!-- 代码标签 <> -->
+    <g id="code-tag">
+      <!-- < -->
+      <path d="M 330 420 L 295 450 L 330 480" stroke="#0080FF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <!-- / -->
+      <line x1="360" y1="490" x2="390" y2="410" stroke="#0080FF" stroke-width="16" stroke-linecap="round"/>
+      <!-- > -->
+      <path d="M 410 420 L 445 450 L 410 480" stroke="#0080FF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </g>
+    
+    <!-- 代码行 -->
+    <line x1="290" y1="535" x2="430" y2="535" stroke="#B8D4F1" stroke-width="14" stroke-linecap="round"/>
+    <line x1="290" y1="570" x2="375" y2="570" stroke="#B8D4F1" stroke-width="14" stroke-linecap="round"/>
+    <line x1="290" y1="605" x2="410" y2="605" stroke="#B8D4F1" stroke-width="14" stroke-linecap="round"/>
+  </g>
+  
+  <!-- AI 笑脸 -->
+  <g id="ai-face">
+    <!-- 脸部圆形 -->
+    <circle cx="630" cy="560" r="155" fill="#e8f4ff"/>
+    <circle cx="630" cy="560" r="155" fill="none" stroke="#0080FF" stroke-width="20"/>
+    
+    <!-- 眼睛 (竖椭圆) - 按照参考比例缩放 -->
+    <!-- 缩放比例：155/12 = 12.917 -->
+    <!-- 左眼：中心-4*12.917=-51.67, 中心-2.67*12.917=-34.49 -->
+    <ellipse cx="578.33" cy="525.51" rx="21.04" ry="33.83" fill="#2979ff"/>
+    <!-- 右眼：中心+4*12.917=+51.67, 中心-2.67*12.917=-34.49 -->
+    <ellipse cx="681.67" cy="525.51" rx="21.04" ry="33.83" fill="#2979ff"/>
+    
+    <!-- 嘴巴 (可选，可以不加) -->
+    <!-- <path d="M 550 560 Q 600 590 650 560" stroke="#0080FF" stroke-width="12" stroke-linecap="round" fill="none"/> -->
+  </g>
+  
+</svg>

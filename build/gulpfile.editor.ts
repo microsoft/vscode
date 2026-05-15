@@ -41,7 +41,10 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 	const codiconDest = path.join(root, 'src', 'vs', 'base', 'browser', 'ui', 'codicons', 'codicon', 'codicon.ttf');
 	if (fs.existsSync(codiconSource)) {
 		fs.mkdirSync(path.dirname(codiconDest), { recursive: true });
-		fs.copyFileSync(codiconSource, codiconDest);
+		// test-workbench_change: skip copy if dest already exists (it's tracked in git with custom glyphs)
+		if (!fs.existsSync(codiconDest)) {
+			fs.copyFileSync(codiconSource, codiconDest);
+		}
 	}
 
 	const apiusages = monacoapi.execute().usageContent;

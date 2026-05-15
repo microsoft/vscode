@@ -155,6 +155,7 @@ curl -X POST http://localhost:8070 \
 curl http://localhost:8071
 ```
 
+
 ## 第四步：导入 Kibana 仪表板
 
 Kibana 登录地址：http://localhost:8088（经 Nginx 转发）
@@ -167,7 +168,7 @@ Kibana 登录地址：http://localhost:8088（经 Nginx 转发）
 curl -X POST "http://localhost:8088/api/saved_objects/_import?overwrite=true" \
   -u elastic:Admin@123456 \
   -H "kbn-xsrf: true" \
-  -F "file=@tscode-telemetry-dashboard.ndjson"
+  -F "file=@tscode-telemetry-overview-dashboard.ndjson"
 
 # 导入扩展分析仪表板
 curl -X POST "http://localhost:8088/api/saved_objects/_import?overwrite=true" \
@@ -263,22 +264,30 @@ VS Code 发送的原始数据结构：
 
 ### VS Code 遥测总览
 
-文件：`vscode-telemetry-dashboard.ndjson`
+文件：`tscode-telemetry-overview-dashboard.ndjson`
 
 | 面板 | 说明 |
 |---|---|
-| 活跃用户数 | 按 `machine_id` 去重计数 |
-| 活跃会话数 | 按 `session_id` 去重计数 |
-| 总事件数 | 所有事件总量 |
-| 事件趋势 | 按时间分组的事件数量折线图 |
-| 事件类型分布 | `event_type` 饼图 |
-| 最常用命令 Top 20 | `workbenchActionExecuted` 事件中的 `id` 字段 |
-| 扩展激活 Top 20 | `activatePlugin` 事件，含平均激活耗时 |
-| 平台分布 | Mac / Windows / Linux 占比 |
-| 版本分布 | 各 VS Code 版本占比 |
-| 用户活跃度排行 | 按用户统计事件数和会话数 |
-| 错误事件列表 | `UnhandledError` 事件 |
-| 最近事件 | Discover 原始数据视图 |
+| 事件总数 | 所有事件总量 |
+| 活跃设备数 | 按 `common.machineId` 去重计数 |
+| 活跃会话数 | 按 `sessionID` 去重计数 |
+| 事件时间趋势 | 按时间分组的事件数量柱状图 |
+| 启动时间统计 | 平均 / 最大 / 最小启动耗时 |
+| 事件类型分布 | `name` 字段饼图 |
+| 执行命令 Top 10 | `workbenchActionExecuted` 事件中的 `id` 字段 |
+| 命令触发来源分布 | `from` 字段饼图 |
+| 平台与架构分布 | 平台 / 架构 / 版本交叉表格 |
+| 各版本用户数统计 | 按 `tscode.version`（gitVersion）分组，统计去重用户数（基于 `common.userId`） |
+| 各版本用户账号明细 | 按 `tscode.version` 分组，展开列出每个版本下的用户账号（`common.userId`）和事件数 |
+
+#### 各版本用户账号明细（tscode-version-user-detail）表格列说明
+
+| 列 | 字段 | 说明 |
+|---|---|---|
+| TSCode 版本 (gitVersion) | `tscode.version` | 第一层分组，按版本名升序 |
+| 用户账号 (userId) | `common.userId` | 第二层分组，每个版本下的账号列表 |
+| 事件数 | `count` | 该用户在该版本下的事件总数 |
+
 
 ### VS Code 扩展分析
 

@@ -23,7 +23,7 @@ export function resolveWorkbenchCommonProperties(
 	remoteAuthority?: string,
 ): ICommonProperties {
 	const { commit, version, date: releaseDate, telemetryAppName } = productService ?? {};
-	const result = resolveCommonProperties(release, hostname, process.arch, commit, version, machineId, sqmId, devDeviceId, isInternalTelemetry, releaseDate, telemetryAppName);
+	const result = resolveCommonProperties(release, hostname, process.arch, commit, version, machineId, sqmId, devDeviceId, isInternalTelemetry, releaseDate, telemetryAppName, productService?.gitVersion); // test-workbench_change - pass gitVersion
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.APPLICATION)!;
 

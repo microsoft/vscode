@@ -657,4 +657,5 @@ export const codiconsLibrary = {
 	openInWindow: register('open-in-window', 0xec83),
 	newSession: register('new-session', 0xec84),
 	terminalSecure: register('terminal-secure', 0xec85),
+	commentOpen: register('comment-open', 0xec86), // test-workbench_change - new icon: filled speech bubble for active state
 } as const;

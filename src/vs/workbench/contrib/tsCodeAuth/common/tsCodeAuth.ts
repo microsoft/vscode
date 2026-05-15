@@ -9,8 +9,8 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 
 // --- Constants ---
 
-export const TSCODE_BASE_URL = 'https://testhub-dev.paas.cmbchina.cn';
-export const TSCODE_GATEWAY_BASE_URL = 'https://testhub-gateway-dev.paas.cmbchina.cn'; // test-workbench_change
+export const TSCODE_BASE_URL = 'https://testhub.paas.cmbchina.cn';
+export const TSCODE_GATEWAY_BASE_URL = 'https://testhub-gateway.paas.cmbchina.cn'; // test-workbench_change
 export const TSCODE_SECRET_STORAGE_KEY = 'tscode-oauth.accessToken';
 
 // test-workbench_change start

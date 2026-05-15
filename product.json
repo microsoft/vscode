@@ -1,6 +1,6 @@
 {
 	"nameShort": "tscode",
-	"nameLong": "Test Studio Code",
+	"nameLong": "TestAgent工作台",
 	"applicationName": "tscode",
 	"dataFolderName": ".tscode",
 	"win32MutexName": "tscode",
@@ -13,8 +13,8 @@
 	"serverApplicationName": "tscode-server",
 	"serverDataFolderName": ".tscode-server",
 	"tunnelApplicationName": "tscode-tunnel",
-	"win32DirName": "Test Studio Code",
-	"win32NameVersion": "Test Studio Code",
+	"win32DirName": "TestAgent Studio",
+	"win32NameVersion": "TestAgent工作台",
 	"win32RegValueName": "TSCode",
 	"win32x64AppId": "{{D77B7E06-80BA-4137-BCF4-654B95CCEBC5}",
 	"win32arm64AppId": "{{D1ACE434-89C5-48D1-88D3-E2991DF85475}",
@@ -42,7 +42,7 @@
 	"urlProtocol": "tscode",
 	"enableTelemetry": true,
 	"updateUrl": "http://tscode-update-service.paasuat.cmbchina.cn",
-	"quality": "test",
+	"quality": "stable",
 	"version": "1.116.0",
 	"aiConfig": {
 		"ariaKey": "tscode-telemetry-key"
@@ -164,7 +164,7 @@
 		"mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry"
 	},
 	"linkProtectionTrustedDomains": [
-		"https://testhub-dev.paas.cmbchina.cn"
+		"https://testhub.paas.cmbchina.cn"
 	],
 	"trustedExtensionAuthAccess": {
 		"github": [
@@ -297,9 +297,10 @@
 		"GitHub.copilot-chat"
 	],
 	"tsCodeAuthMockEnabled": false,
-	"gitVersion": "v1.0.2",
-	"commit": "9c521649abc582aa7064480374c5b04e3449da6e",
-	"date": "2026-04-21T15:19:02+08:00",
+	"defaultColorTheme": "Light 2026",
+	"gitVersion": "v1.0.3",
+	"commit": "12934b91e86ec2d0537879d544ee923f6a8e1b75",
+	"date": "2026-05-08T15:23:12+08:00",
 	"extensionsGallery": {
 		"serviceUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/gallery",
 		"itemUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/item",
