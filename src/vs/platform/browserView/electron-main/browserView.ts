@@ -109,6 +109,8 @@ export class BrowserView extends Disposable {
 
 			webviewTag: false,
 			session: this.session.electronSession,
+
+			focusOnNavigation: false
 		};
 
 		this._view = new WebContentsView({
@@ -544,8 +546,10 @@ export class BrowserView extends Disposable {
 	/**
 	 * Load a URL in this view
 	 */
-	async loadURL(url: string): Promise<void> {
-		await this._view.webContents.loadURL(url);
+	loadURL(url: string): Promise<void> {
+		const p = this._view.webContents.loadURL(url);
+		p.catch(() => { });
+		return p;
 	}
 
 	/**
