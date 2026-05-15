@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewOpenOptions, IBrowserViewCreateOptions, IBrowserViewTheme } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewOpenOptions, IBrowserViewCreateOptions, IBrowserViewTheme, IBrowserViewConfiguration } from '../common/browserView.js';
 import { clipboard, Menu, MenuItem } from 'electron';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -47,6 +47,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	private readonly browserViews = this._register(new DisposableMap<string, BrowserView>());
 	private _keybindings: { [commandId: string]: string } = Object.create(null);
 	private _theme: IBrowserViewTheme | undefined;
+	private _configuration: IBrowserViewConfiguration = {};
 
 	private readonly _onDidCreateBrowserView = this._register(new Emitter<IBrowserViewCreatedEvent>());
 	readonly onDidCreateBrowserView: Event<IBrowserViewCreatedEvent> = this._onDidCreateBrowserView.event;
@@ -304,6 +305,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		this._keybindings = keybindings;
 	}
 
+	async updateConfiguration(config: IBrowserViewConfiguration): Promise<void> {
+		this._configuration = config;
+	}
+
 	/**
 	 * Create a browser view backed by the given {@link BrowserSession}.
 	 */
@@ -393,7 +398,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			return;
 		}
 
-		const inspectTarget = await view.inspector.getElementHandle(BrowserViewInspectElementId.ContextMenuTarget);
+		const inspectTarget = this._configuration.aiFeaturesDisabled
+			? undefined
+			: await view.inspector.getElementHandle(BrowserViewInspectElementId.ContextMenuTarget);
 		const menu = new Menu();
 
 		if (params.linkURL) {
