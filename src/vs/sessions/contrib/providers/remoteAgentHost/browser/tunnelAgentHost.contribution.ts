@@ -110,6 +110,13 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			this._pruneReconnectState();
 		}));
 
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
+				this._reconcileProviders();
+				this._pruneReconnectState();
+			}
+		}));
+
 		// Re-run discovery when a GitHub session becomes available,
 		// and tear down tunnel state bound to that provider if its session
 		// is removed.

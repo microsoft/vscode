@@ -21,7 +21,7 @@ import {
 	ITunnelAgentHostService,
 	TUNNEL_ADDRESS_PREFIX,
 } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -149,7 +149,7 @@ suite('TunnelAgentHostContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('newly-cached tunnel binds to subsequent live connection', () => {
+	test('newly-cached tunnel binds to subsequent live connection', async () => {
 		// Regression guard for the picker flow: `tunnelService.connect()` is
 		// contractually obligated to cache the tunnel BEFORE announcing the
 		// live connection via `addManagedConnection`. That ordering lets the
@@ -159,12 +159,13 @@ suite('TunnelAgentHostContribution', () => {
 		const tunnelService = store.add(new StubTunnelService());
 		const remoteService = store.add(new StubRemoteAgentHostService());
 		const providersService = store.add(new StubSessionsProvidersService());
+		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ITunnelAgentHostService, tunnelService as unknown as ITunnelAgentHostService);
 		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
 		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
+		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
@@ -192,5 +193,15 @@ suite('TunnelAgentHostContribution', () => {
 		}, fakeConnection);
 
 		assert.deepStrictEqual(provider!.setConnectionCalls.map(c => c.connection), [fakeConnection]);
+
+		await configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === RemoteAgentHostsEnabledSettingId,
+			affectedKeys: new Set([RemoteAgentHostsEnabledSettingId]),
+			change: { keys: [RemoteAgentHostsEnabledSettingId], overrides: [] },
+			source: ConfigurationTarget.USER,
+		});
+
+		assert.deepStrictEqual(providersService.getProviders(), []);
 	});
 });

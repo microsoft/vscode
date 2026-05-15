@@ -13,7 +13,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { IRemoteAgentHostService, RemoteAgentHostEntryType } from '../common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../common/remoteAgentHostService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../quickinput/common/quickInput.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
@@ -118,6 +118,10 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	async connect(config: ISSHAgentHostConfig): Promise<ISSHAgentHostConnection> {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			throw new Error('Remote agent host connections are not enabled.');
+		}
+
 		const augmentedConfig = this._augmentConfig(config);
 		this._logService.info(`[SSHRemoteAgentHost] Connecting to ${config.host}`);
 		const result = await this._mainService.connect(augmentedConfig);
@@ -146,6 +150,10 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	async reconnect(sshConfigHost: string, name: string): Promise<ISSHAgentHostConnection> {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			throw new Error('Remote agent host connections are not enabled.');
+		}
+
 		const commandOverride = this._getRemoteAgentHostCommand();
 		const agentForward = this._isSSHAgentForwardingEnabled();
 		this._logService.info(`[SSHRemoteAgentHost] Reconnecting to ${sshConfigHost}`);

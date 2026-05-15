@@ -232,6 +232,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	async addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable): Promise<IRemoteAgentHostConnectionInfo> {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			throw new Error('Remote agent host connections are not enabled.');
+		}
+
 		const address = getEntryAddress(entry);
 
 		// Dispose any existing entry for this address to avoid leaking
@@ -392,6 +396,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	private _connectTo(address: string, connectionToken?: string): void {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			return;
+		}
+
 		// Dispose any existing entry for this address before creating a new one
 		// to avoid leaking disposables on reconnect.
 		const existingEntry = this._entries.get(address);

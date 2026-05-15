@@ -18,7 +18,7 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
 import { ITabDescriptor, TabbedActionListWidget } from '../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -158,7 +158,7 @@ export class WorkspacePicker extends Disposable {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ISessionsProvidersService protected readonly sessionsProvidersService: ISessionsProvidersService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
-		@IConfigurationService _configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IMenuService private readonly menuService: IMenuService,
@@ -319,16 +319,22 @@ export class WorkspacePicker extends Disposable {
 
 	protected _getAvailableTabs(): ITabDescriptor[] {
 		const byLabel = new Map<string, ITabDescriptor>();
-		byLabel.set(SESSION_WORKSPACE_GROUP_REMOTE, {
-			id: SESSION_WORKSPACE_GROUP_REMOTE,
-			icon: Codicon.beaker,
-			tooltip: `${SESSION_WORKSPACE_GROUP_REMOTE} (${localize('workspacePicker.experimental', "Experimental")})`,
-		});
+		const remoteAgentHostsEnabled = this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
+		if (remoteAgentHostsEnabled) {
+			byLabel.set(SESSION_WORKSPACE_GROUP_REMOTE, {
+				id: SESSION_WORKSPACE_GROUP_REMOTE,
+				icon: Codicon.beaker,
+				tooltip: `${SESSION_WORKSPACE_GROUP_REMOTE} (${localize('workspacePicker.experimental', "Experimental")})`,
+			});
+		}
 		for (const provider of this.sessionsProvidersService.getProviders()) {
 			if (provider.supportsLocalWorkspaces && !byLabel.has(SESSION_WORKSPACE_GROUP_LOCAL)) {
 				byLabel.set(SESSION_WORKSPACE_GROUP_LOCAL, { id: SESSION_WORKSPACE_GROUP_LOCAL });
 			}
 			for (const action of provider.browseActions) {
+				if (action.group === SESSION_WORKSPACE_GROUP_REMOTE && !remoteAgentHostsEnabled) {
+					continue;
+				}
 				if (action.group && !byLabel.has(action.group)) {
 					byLabel.set(action.group, { id: action.group });
 				}
