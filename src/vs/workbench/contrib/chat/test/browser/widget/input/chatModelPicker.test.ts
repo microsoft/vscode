@@ -12,6 +12,8 @@ import { ActionListItemKind, IActionListItem } from '../../../../../../../platfo
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { buildModelPickerItems, formatTokenCount, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
+import { filterModelsForSession } from '../../../../browser/widget/input/chatModelSelectionLogic.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
@@ -1077,6 +1079,253 @@ suite('formatTokenCount', () => {
 	test('returns raw number for counts below 1000', () => {
 		assert.strictEqual(formatTokenCount(500), '500');
 		assert.strictEqual(formatTokenCount(0), '0');
+	});
+});
+
+/**
+ * Regression coverage for the chat model picker.
+ *
+ * Guards the end-to-end picker pipeline (`filterModelsForSession` →
+ * `buildModelPickerItems`) against regressions where models contributed by a
+ * `languageModelChatProvider` extension stop appearing in the picker even
+ * though they remain visible in the model configuration view.
+ *
+ * Behavior under test: `metadata.isUserSelectable` defaults to `true`. Only an
+ * explicit `false` hides a model from the picker; both `undefined` and `true`
+ * make the model visible. This rule applies uniformly to the copilot vendor
+ * and to third-party `languageModelChatProvider` vendors, and matches what
+ * the model configuration view surfaces.
+ */
+suite('chat model picker - languageModelChatProvider visibility regression', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createCopilotModel(
+		id: string,
+		name: string,
+		overrides: Partial<ILanguageModelChatMetadata> = {},
+	): ILanguageModelChatMetadataAndIdentifier {
+		return {
+			identifier: `copilot/${id}`,
+			metadata: {
+				id,
+				name,
+				vendor: 'copilot',
+				version: '1.0.0',
+				family: 'copilot',
+				maxInputTokens: 128_000,
+				maxOutputTokens: 4_096,
+				isDefaultForLocation: {},
+				isUserSelectable: true,
+				capabilities: { toolCalling: true, agentMode: true },
+				...overrides,
+			} as ILanguageModelChatMetadata,
+		};
+	}
+
+	function createThirdPartyModel(
+		id: string,
+		name: string,
+		overrides: Partial<ILanguageModelChatMetadata> = {},
+	): ILanguageModelChatMetadataAndIdentifier {
+		return {
+			identifier: `my-vendor/${id}`,
+			metadata: {
+				id,
+				name,
+				vendor: 'my-vendor',
+				version: '1.0.0',
+				family: 'my-family',
+				maxInputTokens: 128_000,
+				maxOutputTokens: 4_096,
+				isDefaultForLocation: {},
+				capabilities: { toolCalling: true, agentMode: true },
+				...overrides,
+			} as ILanguageModelChatMetadata,
+		};
+	}
+
+	/**
+	 * Runs the full picker pipeline (`filterModelsForSession` →
+	 * `buildModelPickerItems`) for an Ask-mode/Chat-location session and
+	 * returns the actionable model entries (excluding the auto entry, the
+	 * "Other Models" toggle, separators, and the "Manage Models..." entry).
+	 */
+	function runPickerPipeline(
+		models: ILanguageModelChatMetadataAndIdentifier[],
+		languageModelsService: ILanguageModelsService,
+	): IActionListItem<IActionWidgetDropdownAction>[] {
+		const filtered = filterModelsForSession(
+			models,
+			undefined,
+			ChatModeKind.Ask,
+			ChatAgentLocation.Chat,
+		);
+		const items = callBuild(filtered, { languageModelsService });
+		return items.filter(i =>
+			i.kind === ActionListItemKind.Action &&
+			!i.isSectionToggle &&
+			i.label !== 'Auto' &&
+			i.item?.id !== 'manageModels'
+		);
+	}
+
+	/**
+	 * Builds a one-group-per-vendor `ILanguageModelsService` stub on top of
+	 * the file-level `createLanguageModelsServiceStub` helper.
+	 */
+	function buildLmService(
+		vendors: { vendor: string; displayName: string; modelIdentifiers: string[] }[],
+	): ILanguageModelsService {
+		return createLanguageModelsServiceStub(
+			vendors.map(v => ({
+				vendor: v.vendor,
+				displayName: v.displayName,
+				groups: [{ name: v.displayName, modelIdentifiers: v.modelIdentifiers }],
+			})),
+		);
+	}
+
+	test('regression: third-party model with isUserSelectable omitted is shown in the picker', () => {
+		// Original bug: a `languageModelChatProvider` model that omits
+		// `isUserSelectable` was treated as falsy and dropped from the picker
+		// even though the model configuration view kept showing it.
+		const tp = createThirdPartyModel('tp', 'TP', { isUserSelectable: undefined });
+		const lmService = buildLmService([
+			{ vendor: 'my-vendor', displayName: 'My Vendor', modelIdentifiers: [tp.identifier] },
+		]);
+
+		const labels = runPickerPipeline([tp], lmService).map(i => i.label);
+		assert.deepStrictEqual(
+			labels,
+			['TP'],
+			'A third-party `languageModelChatProvider` model that omits isUserSelectable must still appear in the picker.',
+		);
+	});
+
+	test('regression: third-party model with isUserSelectable: true is shown in the picker', () => {
+		const tp = createThirdPartyModel('tp', 'TP', { isUserSelectable: true });
+		const lmService = buildLmService([
+			{ vendor: 'my-vendor', displayName: 'My Vendor', modelIdentifiers: [tp.identifier] },
+		]);
+
+		const labels = runPickerPipeline([tp], lmService).map(i => i.label);
+		assert.deepStrictEqual(labels, ['TP']);
+	});
+
+	test('regression: third-party model with isUserSelectable: false is hidden from the picker', () => {
+		// The default-to-true rule: only an explicit `false` hides a model.
+		// This applies uniformly to copilot and third-party vendors.
+		const tp = createThirdPartyModel('tp', 'TP', { isUserSelectable: false });
+		const lmService = buildLmService([
+			{ vendor: 'my-vendor', displayName: 'My Vendor', modelIdentifiers: [tp.identifier] },
+		]);
+
+		const labels = runPickerPipeline([tp], lmService).map(i => i.label);
+		assert.deepStrictEqual(
+			labels,
+			[],
+			'An explicit `isUserSelectable: false` must hide the model regardless of vendor.',
+		);
+	});
+
+	test('regression: copilot internal model (isUserSelectable: false) is hidden from the picker', () => {
+		const internal = createCopilotModel('internal', 'Internal', { isUserSelectable: false });
+		const lmService = buildLmService([
+			{ vendor: 'copilot', displayName: 'GitHub Copilot', modelIdentifiers: [internal.identifier] },
+		]);
+
+		const labels = runPickerPipeline([internal], lmService).map(i => i.label);
+		assert.deepStrictEqual(
+			labels,
+			[],
+			'Internal copilot models marked isUserSelectable: false must remain hidden from the picker.',
+		);
+	});
+
+	test('regression: copilot model with omitted isUserSelectable defaults to visible', () => {
+		// `isUserSelectable` defaults to `true` for every vendor, so a copilot
+		// model that omits the flag is now treated as user-selectable.
+		const model = createCopilotModel('public', 'Public', { isUserSelectable: undefined });
+		const lmService = buildLmService([
+			{ vendor: 'copilot', displayName: 'GitHub Copilot', modelIdentifiers: [model.identifier] },
+		]);
+
+		const labels = runPickerPipeline([model], lmService).map(i => i.label);
+		assert.deepStrictEqual(labels, ['Public']);
+	});
+
+	test('regression: copilot public model (isUserSelectable: true) is shown in the picker', () => {
+		const pub = createCopilotModel('gpt-4o', 'GPT-4o', { isUserSelectable: true });
+		const lmService = buildLmService([
+			{ vendor: 'copilot', displayName: 'GitHub Copilot', modelIdentifiers: [pub.identifier] },
+		]);
+
+		const labels = runPickerPipeline([pub], lmService).map(i => i.label);
+		assert.deepStrictEqual(labels, ['GPT-4o']);
+	});
+
+	test('regression: mixed vendors - only explicit isUserSelectable: false models are hidden', () => {
+		const copilotPublic = createCopilotModel('gpt-4o', 'GPT-4o', { isUserSelectable: true });
+		const copilotInternal = createCopilotModel('internal', 'Internal', { isUserSelectable: false });
+		const tpTrue = createThirdPartyModel('tp-true', 'TP True', { isUserSelectable: true });
+		const tpFalse = createThirdPartyModel('tp-false', 'TP False', { isUserSelectable: false });
+		const tpUndefined = createThirdPartyModel('tp-undef', 'TP Undef', { isUserSelectable: undefined });
+
+		const lmService = buildLmService([
+			{
+				vendor: 'copilot',
+				displayName: 'GitHub Copilot',
+				modelIdentifiers: [copilotPublic.identifier, copilotInternal.identifier],
+			},
+			{
+				vendor: 'my-vendor',
+				displayName: 'My Vendor',
+				modelIdentifiers: [tpTrue.identifier, tpFalse.identifier, tpUndefined.identifier],
+			},
+		]);
+
+		const labels = runPickerPipeline(
+			[copilotPublic, copilotInternal, tpTrue, tpFalse, tpUndefined],
+			lmService,
+		).map(i => i.label).sort();
+
+		assert.deepStrictEqual(
+			labels,
+			['GPT-4o', 'TP True', 'TP Undef'],
+			'Picker must show every model except those with an explicit isUserSelectable: false.',
+		);
+	});
+
+	test('regression: third-party models without explicit opt-out match the configuration view', () => {
+		// What the model configuration view shows: every model from
+		// `getLanguageModelGroups`, regardless of `isUserSelectable`.
+		// What the picker shows: the same set, minus models that the
+		// extension explicitly opted out via `isUserSelectable: false`.
+		const tpTrue = createThirdPartyModel('tp-true', 'TP True', { isUserSelectable: true });
+		const tpUndefined = createThirdPartyModel('tp-undef', 'TP Undef', { isUserSelectable: undefined });
+		const allThirdParty = [tpTrue, tpUndefined];
+
+		const lmService = buildLmService([
+			{
+				vendor: 'my-vendor',
+				displayName: 'My Vendor',
+				modelIdentifiers: allThirdParty.map(m => m.identifier),
+			},
+		]);
+
+		const configurationView = lmService.getLanguageModelGroups('my-vendor')
+			.flatMap(g => g.modelIdentifiers)
+			.sort();
+		const picker = runPickerPipeline(allThirdParty, lmService)
+			.map(i => allThirdParty.find(m => m.metadata.name === i.label)!.identifier)
+			.sort();
+
+		assert.deepStrictEqual(
+			picker,
+			configurationView,
+			'When no third-party model opts out, the picker must show exactly the same models as the configuration view.',
+		);
 	});
 });
 

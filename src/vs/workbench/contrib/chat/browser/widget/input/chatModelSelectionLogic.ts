@@ -19,6 +19,9 @@ interface IModelSelectionContext {
  * Filter models based on session type.
  * When a session has a specific type (and it's not 'local'), only models targeting that
  * session type are returned. Otherwise, general-purpose models are returned.
+ *
+ * `isUserSelectable` defaults to `true` when omitted: only an explicit `false` hides
+ * the model from the picker and this model-selection flow.
  */
 export function filterModelsForSession(
 	models: ILanguageModelChatMetadataAndIdentifier[],
@@ -29,13 +32,13 @@ export function filterModelsForSession(
 	if (sessionType && sessionType !== 'local' && hasModelsTargetingSession(models, sessionType)) {
 		return models.filter(entry =>
 			entry.metadata?.targetChatSessionType === sessionType &&
-			entry.metadata?.isUserSelectable
+			entry.metadata?.isUserSelectable !== false
 		);
 	}
 
 	return models.filter(entry =>
 		!entry.metadata?.targetChatSessionType &&
-		entry.metadata?.isUserSelectable &&
+		entry.metadata?.isUserSelectable !== false &&
 		isModelSupportedForMode(entry, currentModeKind) &&
 		isModelSupportedForInlineChat(entry, location)
 	);
@@ -272,7 +275,9 @@ export function shouldResetOnModelListChange(
  * This handles the startup race where the model wasn't available during
  * `initSelectedModel` but arrives later via `onDidChangeLanguageModels`.
  *
- * The model must pass both the persisted-default check and the `isUserSelectable` check.
+ * The model must pass both the persisted-default check and the user-selectable
+ * check. `isUserSelectable` defaults to `true`; only an explicit `false` blocks
+ * restoration.
  */
 export function shouldRestoreLateArrivingModel(
 	persistedModelId: string,
@@ -280,7 +285,7 @@ export function shouldRestoreLateArrivingModel(
 	model: ILanguageModelChatMetadataAndIdentifier,
 	location: ChatAgentLocation,
 ): boolean {
-	if (!model.metadata.isUserSelectable) {
+	if (model.metadata.isUserSelectable === false) {
 		return false;
 	}
 	const result = shouldRestorePersistedModel(

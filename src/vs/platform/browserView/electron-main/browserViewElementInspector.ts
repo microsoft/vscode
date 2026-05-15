@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
-import { IElementData, IElementAncestor } from '../common/browserView.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { browserViewIsolatedWorldId, IElementData, IElementAncestor, IBrowserViewTheme } from '../common/browserView.js';
 import { collapseToShorthands, formatMatchedStyles, keyComputedProperties, type IMatchedStyles } from '../common/cssHelpers.js';
 import { ICDPConnection } from '../common/cdp/types.js';
 import type { BrowserView } from './browserView.js';
@@ -37,8 +37,14 @@ interface ILayoutMetricsResult {
 	};
 }
 
-export interface IElementHandle {
+interface IActiveSelection extends IDisposable {
+	readonly isCDP: boolean;
+}
+
+export interface IElementHandle extends IDisposable {
 	addToChat(): Promise<void>;
+	highlight(): Promise<void>;
+	hideHighlight(): Promise<void>;
 }
 
 /**
@@ -78,62 +84,77 @@ export class BrowserViewElementInspector extends Disposable {
 	private _elementSelectionActive = false;
 	get isElementSelectionActive(): boolean { return this._elementSelectionActive; }
 
-	private _selectionStore: DisposableStore | undefined;
+	private readonly _activeSelection = this._register(new MutableDisposable<IActiveSelection>());
+	private _theme: IBrowserViewTheme = {};
 
 	constructor(private readonly browser: BrowserView) {
 		super();
-
-		this._connectionPromise = browser.debugger.attach().then(
-			async conn => {
-				try {
-					// Important: don't use `Runtime.*` commands so we can support inspection during debugging.
-					// We also initialize here rather than during selection as CSS.enable will hang if debugging is paused, but works if enabled beforehand.
-					await conn.sendCommand('DOM.enable');
-					await conn.sendCommand('Overlay.enable');
-					await conn.sendCommand('CSS.enable');
-
-					if (this._store.isDisposed) {
-						conn.dispose();
-						throw new Error('Inspector disposed before connection was ready');
-					}
-					this._register(conn);
-					return conn;
-				} catch (error) {
-					conn.dispose();
-					throw error;
-				}
-			}
-		);
+		this._connectionPromise = this._createConnection();
+		this._registerListeners().catch(() => { });
 	}
 
-	/**
-	 * Toggle element selection mode on the browser view.
-	 *
-	 * When enabled, sets up a CDP overlay that highlights elements on hover.
-	 * When the user picks an element, its data is fired via {@link onDidSelectElement}.
-	 *
-	 * @param enabled Whether to enable or disable selection. Omit to toggle.
-	 */
-	async toggleElementSelection(enabled?: boolean): Promise<void> {
-		const newEnabled = enabled ?? !this._elementSelectionActive;
-		if (newEnabled === this._elementSelectionActive) {
-			return;
+	private async _createConnection(): Promise<ICDPConnection> {
+		const conn = await this.browser.debugger.attach();
+
+		try {
+			// Initialize CDP domains up-front rather than during selection:
+			// some (e.g. CSS.enable) hang if sent while the debugger is paused,
+			// but succeed when enabled before any pause.
+			await conn.sendCommand('DOM.enable');
+			await conn.sendCommand('Overlay.enable');
+			await conn.sendCommand('CSS.enable');
+			await conn.sendCommand('Runtime.enable');
+		} catch (error) {
+			conn.dispose();
+			throw error;
 		}
 
-		if (!newEnabled) {
-			await this._stopElementSelection();
-			return;
+		if (this._store.isDisposed) {
+			conn.dispose();
+			throw new Error('Inspector disposed before connection was ready');
 		}
+		this._register(conn);
 
-		// Start selection
+		return conn;
+	}
+
+	private async _registerListeners(): Promise<void> {
+		const webContents = this.browser.webContents;
+		const onPicked = async (_event: unknown, pickId: string) => {
+			if (!pickId) {
+				return;
+			}
+
+			this._activeSelection.clear();
+
+			try {
+				const handle = await this.getElementHandle(pickId);
+				await handle?.addToChat();
+			} catch {
+				// Best effort; user can re-pick.
+			}
+		};
+		webContents.ipc.on('vscode:browserView:elementPicked', onPicked);
+		this._register({
+			dispose: () => webContents.ipc.removeListener('vscode:browserView:elementPicked', onPicked)
+		});
+
+		// Navigation to a new document destroys the preload's page-side overlay
+		// and resets the CDP inspect mode. Clear the active selection so the
+		// workbench reflects the actual state.
+		const onNavigated = () => this._activeSelection.clear();
+		webContents.on('did-navigate', onNavigated);
+		this._register({
+			dispose: () => webContents.removeListener('did-navigate', onNavigated)
+		});
+
 		const connection = await this._connectionPromise;
-
-		// Clean up any prior selection state
-		this._selectionStore?.dispose();
-		const store = this._selectionStore = new DisposableStore();
-
-		store.add(connection.onEvent(async (event) => {
+		this._register(connection.onEvent(async (event) => {
 			if (event.method !== 'Overlay.inspectNodeRequested') {
+				return;
+			}
+
+			if (!this._activeSelection.value?.isCDP) {
 				return;
 			}
 
@@ -142,66 +163,124 @@ export class BrowserViewElementInspector extends Disposable {
 				return;
 			}
 
+			this._activeSelection.clear();
+
 			try {
 				const nodeData = await extractNodeData(connection, { backendNodeId: params.backendNodeId });
 				this._onDidSelectElement.fire({
 					...nodeData,
 					url: this.browser.getURL()
 				});
-				await this._stopElementSelection();
-			} catch {
-				// Best effort - selection continues
+			} catch (err) {
+				// Best effort; ignore errors and let the user try again if they want.
 			}
 		}));
 
-		await connection.sendCommand('Overlay.setInspectMode', {
-			mode: 'searchForNode',
-			highlightConfig: inspectHighlightConfig,
+		webContents.on('ipc-message', async (event, channel) => {
+			if (channel === 'vscode:browserView:preloadReady' && event.senderFrame === webContents.mainFrame) {
+				this.setTheme(this._theme);
+			}
 		});
-
-		this._elementSelectionActive = true;
-		this._onDidChangeElementSelectionActive.fire(true);
+		this._register({
+			dispose: () => webContents.removeAllListeners('ipc-message')
+		});
 	}
 
-	private async _stopElementSelection(): Promise<void> {
-		if (!this._elementSelectionActive) {
+	setTheme(theme: IBrowserViewTheme): void {
+		this._theme = theme;
+		const webContents = this.browser.webContents;
+		const themeJson = JSON.stringify(theme);
+		webContents.executeJavaScriptInIsolatedWorld(browserViewIsolatedWorldId, [
+			{ code: `window.browserViewAPI?.setTheme?.(${themeJson})` }
+		]).catch(() => { /* best effort — page may not be loaded yet */ });
+	}
+
+	/**
+	 * Toggle element selection mode on the browser view.
+	 *
+	 * When enabled, mounts a page-side overlay (see `preload-browserView.ts`) that
+	 * lets the user click an element or drag a region (region → deepest common
+	 * ancestor). When the debugger is paused, falls back to Chromium's built-in
+	 * `Overlay.setInspectMode`.
+	 *
+	 * Each pick fires {@link onDidSelectElement}; state changes are delivered via
+	 * {@link onDidChangeElementSelectionActive}.
+	 *
+	 * @param enabled Whether to enable or disable. Omit to toggle.
+	 */
+	async toggleElementSelection(enabled?: boolean): Promise<void> {
+		const newEnabled = enabled ?? !this._elementSelectionActive;
+		if (newEnabled === this._elementSelectionActive) {
 			return;
 		}
 
-		this._elementSelectionActive = false;
-		this._selectionStore?.dispose();
-		this._selectionStore = undefined;
-		this._onDidChangeElementSelectionActive.fire(false);
+		if (!newEnabled) {
+			this._activeSelection.clear();
+			return;
+		}
 
-		try {
+		const useCDP = this.browser.debugger.isPaused;
+		const start = useCDP ? async () => {
+			const connection = await this._connectionPromise;
+			await connection.sendCommand('Overlay.setInspectMode', {
+				mode: 'searchForNode',
+				highlightConfig: inspectHighlightConfig,
+			});
+		} : async () => {
+			const webContents = this.browser.webContents;
+			const started = await webContents.executeJavaScriptInIsolatedWorld(browserViewIsolatedWorldId, [
+				{ code: `window.browserViewAPI?.pickElement?.start?.() ?? false` }
+			]);
+			if (!started) {
+				throw new Error('Preload element picker not available');
+			}
+		};
+		const stop = useCDP ? async () => {
 			const connection = await this._connectionPromise;
 			await connection.sendCommand('Overlay.setInspectMode', {
 				mode: 'none',
 				highlightConfig: { showInfo: false, showStyles: false }
 			});
 			await connection.sendCommand('Overlay.hideHighlight');
+		} : async () => {
+			const webContents = this.browser.webContents;
+			await webContents.executeJavaScriptInIsolatedWorld(browserViewIsolatedWorldId, [
+				{ code: 'window.browserViewAPI?.pickElement?.stop?.()' }
+			]);
+		};
+
+		this._activeSelection.value = {
+			isCDP: useCDP,
+			dispose: () => {
+				if (this._elementSelectionActive) {
+					this._elementSelectionActive = false;
+					this._onDidChangeElementSelectionActive.fire(false);
+					void stop().catch(() => { /* best-effort cleanup */ });
+				}
+			}
+		};
+
+		try {
+			await start();
+			this._elementSelectionActive = true;
+			this._onDidChangeElementSelectionActive.fire(true);
 		} catch {
-			// Best effort cleanup
+			this._activeSelection.clear();
 		}
 	}
 
 	/**
 	 * Resolve a handle to the element identified by `id`.
 	 *
-	 * `id` is interpreted by `__vscode_helpers.getElement(id, clear)`
-	 * in the page preload (see {@link BrowserViewSelectedElementId} for
-	 * well-known values). Returns `undefined` if no element is found.
-	 *
-	 * @param clear When true (default) the preload also clears any underlying
-	 * tracking ref it held for this id, so subsequent calls won't return the
-	 * same element. Pass `false` for a non-consuming peek.
+	 * `id` is interpreted by `__vscode_helpers.getElement(id)` in the page
+	 * preload (see {@link BrowserViewSelectedElementId} for well-known values).
+	 * Returns `undefined` if no element is found.
 	 */
-	async getElementHandle(id: string, clear: boolean = true): Promise<IElementHandle | undefined> {
+	async getElementHandle(id: string): Promise<IElementHandle | undefined> {
 		const connection = await this._connectionPromise;
 
-		await connection.sendCommand('Runtime.enable');
 		const { result } = await connection.sendCommand('Runtime.evaluate', {
-			expression: `window.__vscode_helpers?.getElement(${JSON.stringify(id)}, ${clear})`,
+			expression: `window.__vscode_helpers?.getElement(${JSON.stringify(id)})`,
 			returnByValue: false,
 		}) as { result: { objectId?: string } };
 
@@ -210,6 +289,9 @@ export class BrowserViewElementInspector extends Disposable {
 		}
 
 		const objectId = result.objectId;
+		const elementId = id;
+		let disposed = false;
+
 		return {
 			addToChat: async () => {
 				const nodeData = await extractNodeData(connection, { objectId });
@@ -217,6 +299,28 @@ export class BrowserViewElementInspector extends Disposable {
 					...nodeData,
 					url: this.browser.getURL()
 				});
+			},
+			highlight: async () => {
+				const webContents = this.browser.webContents;
+				await webContents.executeJavaScriptInIsolatedWorld(browserViewIsolatedWorldId, [
+					{ code: `window.browserViewAPI?.highlightElement?.(${JSON.stringify(elementId)})` }
+				]);
+			},
+			hideHighlight: async () => {
+				const webContents = this.browser.webContents;
+				await webContents.executeJavaScriptInIsolatedWorld(browserViewIsolatedWorldId, [
+					{ code: 'window.browserViewAPI?.hideHighlight?.()' }
+				]);
+			},
+			dispose: () => {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				const webContents = this.browser.webContents;
+				void webContents.executeJavaScriptInIsolatedWorld(browserViewIsolatedWorldId, [
+					{ code: 'window.browserViewAPI?.hideHighlight?.()' }
+				]).catch(() => { /* best effort */ });
 			}
 		};
 	}
