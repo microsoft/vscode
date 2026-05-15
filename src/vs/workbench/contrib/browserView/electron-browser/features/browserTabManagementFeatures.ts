@@ -506,8 +506,8 @@ registerWorkbenchContribution2(BrowserEditorOpenContextKeyContribution.ID, Brows
 /**
  * Opens links in the Integrated Browser when the corresponding opener setting is enabled.
  */
-class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IExternalOpener {
-	static readonly ID = 'workbench.contrib.localhostLinkOpener';
+class BrowserLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IExternalOpener {
+	static readonly ID = 'workbench.contrib.browserLinkOpener';
 
 	constructor(
 		@IOpenerService openerService: IOpenerService,
@@ -542,7 +542,7 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 	}
 }
 
-registerWorkbenchContribution2(LocalhostLinkOpenerContribution.ID, LocalhostLinkOpenerContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(BrowserLinkOpenerContribution.ID, BrowserLinkOpenerContribution, WorkbenchPhase.BlockStartup);
 
 // ---- Link opened hint pill (URL bar widget) --------------------------------
 
