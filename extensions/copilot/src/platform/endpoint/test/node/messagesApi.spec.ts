@@ -610,23 +610,11 @@ suite('isExtendedCacheTtlEnabled', function () {
 		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, true)).toBe(false);
 	});
 
-	test('returns false for ineligible Claude variants even when all other gates pass', function () {
+	test('delegates model gate to modelSupportsExtendedCacheTtl', function () {
+		// Full model boundaries are covered by the `modelSupportsExtendedCacheTtl` suite.
+		// Here we only verify the delegation is wired up.
 		enableConfig();
-		expect({
-			'claude-opus-4-6': isExtendedCacheTtlEnabled('claude-opus-4-6', configurationService, experimentationService, ChatLocation.Agent, false),
-			'claude-opus-4.7': isExtendedCacheTtlEnabled('claude-opus-4.7', configurationService, experimentationService, ChatLocation.Agent, false),
-			'claude-sonnet-4-5': isExtendedCacheTtlEnabled('claude-sonnet-4-5', configurationService, experimentationService, ChatLocation.Agent, false),
-			'claude-opus-4-1': isExtendedCacheTtlEnabled('claude-opus-4-1', configurationService, experimentationService, ChatLocation.Agent, false),
-			'claude-haiku-4-5': isExtendedCacheTtlEnabled('claude-haiku-4-5', configurationService, experimentationService, ChatLocation.Agent, false),
-			'gpt-5': isExtendedCacheTtlEnabled('gpt-5', configurationService, experimentationService, ChatLocation.Agent, false),
-		}).toEqual({
-			'claude-opus-4-6': true,
-			'claude-opus-4.7': true,
-			'claude-sonnet-4-5': true,
-			'claude-opus-4-1': false,
-			'claude-haiku-4-5': false,
-			'gpt-5': false,
-		});
+		expect(isExtendedCacheTtlEnabled('gpt-5', configurationService, experimentationService, ChatLocation.Agent, false)).toBe(false);
 	});
 
 	test('returns false for non-Agent chat locations', function () {
@@ -684,26 +672,8 @@ suite('isExtendedCacheTtlMessagesEnabled', function () {
 		setFlags(true, true); const onOn = probe();
 
 		// Only "both on" produces true — sub is a strict sub-toggle of parent.
+		// Model/location/subagent gates are inherited via the parent and covered in its suite.
 		expect({ offOff, onOff, offOn, onOn }).toEqual({ offOff: false, onOff: false, offOn: false, onOn: true });
-	});
-
-	test('inherits model/location/subagent gates from parent', function () {
-		configurationService.setConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtl, true);
-		configurationService.setConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtlMessages, true);
-
-		expect({
-			ineligibleModel: isExtendedCacheTtlMessagesEnabled('gpt-5', configurationService, experimentationService, ChatLocation.Agent, false),
-			nonAgentLocation: isExtendedCacheTtlMessagesEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Panel, false),
-			undefinedLocation: isExtendedCacheTtlMessagesEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, undefined, false),
-			subagent: isExtendedCacheTtlMessagesEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, true),
-			allPass: isExtendedCacheTtlMessagesEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, false),
-		}).toEqual({
-			ineligibleModel: false,
-			nonAgentLocation: false,
-			undefinedLocation: false,
-			subagent: false,
-			allPass: true,
-		});
 	});
 });
 
@@ -868,51 +838,31 @@ suite('addMessagesApiCacheControl', function () {
 	});
 
 	test('propagates cacheTtl to the emitted cache_control blocks', function () {
-		const messages: MessageParam[] = [
+		const makeMessages = (): MessageParam[] => [
 			{ role: 'user', content: [{ type: 'text', text: 'hello' }] },
 			{ role: 'assistant', content: [{ type: 'text', text: 'response' }] },
 		];
 
-		addMessagesApiCacheControl({ messages }, '1h');
+		const collect = (messages: MessageParam[]): unknown[] => {
+			const out: unknown[] = [];
+			messages.forEach(m => Array.isArray(m.content) && m.content.forEach(b => {
+				if (typeof b === 'object' && 'cache_control' in b && b.cache_control) {
+					out.push(b.cache_control);
+				}
+			}));
+			return out;
+		};
 
-		const ccBlocks: unknown[] = [];
-		messages.forEach(m => {
-			if (Array.isArray(m.content)) {
-				m.content.forEach(b => {
-					if (typeof b === 'object' && 'cache_control' in b && b.cache_control) {
-						ccBlocks.push(b.cache_control);
-					}
-				});
-			}
+		const withTtl = makeMessages();
+		addMessagesApiCacheControl({ messages: withTtl }, '1h');
+
+		const withoutTtl = makeMessages();
+		addMessagesApiCacheControl({ messages: withoutTtl });
+
+		expect({ withTtl: collect(withTtl), withoutTtl: collect(withoutTtl) }).toEqual({
+			withTtl: [{ type: 'ephemeral', ttl: '1h' }, { type: 'ephemeral', ttl: '1h' }],
+			withoutTtl: [{ type: 'ephemeral' }, { type: 'ephemeral' }],
 		});
-		expect(ccBlocks).toEqual([
-			{ type: 'ephemeral', ttl: '1h' },
-			{ type: 'ephemeral', ttl: '1h' },
-		]);
-	});
-
-	test('omits ttl when cacheTtl is undefined (default 5m)', function () {
-		const messages: MessageParam[] = [
-			{ role: 'user', content: [{ type: 'text', text: 'hello' }] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'response' }] },
-		];
-
-		addMessagesApiCacheControl({ messages });
-
-		const ccBlocks: unknown[] = [];
-		messages.forEach(m => {
-			if (Array.isArray(m.content)) {
-				m.content.forEach(b => {
-					if (typeof b === 'object' && 'cache_control' in b && b.cache_control) {
-						ccBlocks.push(b.cache_control);
-					}
-				});
-			}
-		});
-		expect(ccBlocks).toEqual([
-			{ type: 'ephemeral' },
-			{ type: 'ephemeral' },
-		]);
 	});
 });
 
