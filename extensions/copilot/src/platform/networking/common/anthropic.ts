@@ -142,11 +142,7 @@ export function isAnthropicContextEditingEnabled(
 
 /**
  * The extended (1 hour) prompt cache TTL is available on all active Claude
- * models via `cache_control: { type: 'ephemeral', ttl: '1h' }` (see
- * https://platform.claude.com/docs/en/build-with-claude/prompt-caching#1-hour-cache-duration).
- * We only enable it for models where long-lived agent prefixes are worth the 2x
- * cache-write cost:
- *
+ * models via `cache_control: { type: 'ephemeral', ttl: '1h' }`
  * - Claude Opus 4.7 (incl. `claude-opus-4.7-1m-internal` and similar variants)
  * - Claude Opus 4.6 (incl. `claude-opus-4.6-1m`)
  * - Claude Opus 4.5
