@@ -238,6 +238,10 @@ export class CopilotToken {
 		return this.getTokenValue('editor_preview_features') !== '0';
 	}
 
+	isBlackbirdExternalIndexingEnabled(): boolean {
+		return this.getTokenValue('blackbird_external_indexing') === '1';
+	}
+
 	isMcpEnabled(): boolean {
 		// MCP is disabled if the flag is present and set to 0
 		return this.getTokenValue('mcp') !== '0';

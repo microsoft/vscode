@@ -114,7 +114,10 @@ function init() {
 		});
 	});
 
-	const elementPicker = new ElementPicker(el => ipcRenderer.send('vscode:browserView:elementPicked', track(el)));
+	const elementPicker = new ElementPicker(
+		el => ipcRenderer.send('vscode:browserView:elementPicked', track(el)),
+		() => ipcRenderer.send('vscode:browserView:elementPickStopped')
+	);
 
 	const trackedElementsById = new Map<string, WeakRef<Element>>();
 	const finalizationRegistry = new FinalizationRegistry<string>(id => {
@@ -294,6 +297,7 @@ class ElementPicker {
 	private _dragStart: { x: number; y: number } | undefined;
 	private _dragStartTarget: Element | undefined;
 	private _highlightTarget: Element | undefined;
+	private _cursorStylesheet: HTMLStyleElement | undefined;
 
 	readonly api = {
 		start: (): boolean => this.start(),
@@ -302,7 +306,8 @@ class ElementPicker {
 	};
 
 	constructor(
-		private readonly _onPicked: (element: Element) => void
+		private readonly _onPicked: (element: Element) => void,
+		private readonly _onStopped: () => void
 	) {
 		// Build the shadow DOM tree once. The host is appended/removed from the
 		// document on start/stop so the overlay only captures events when active.
@@ -356,8 +361,15 @@ class ElementPicker {
 		this._continuous = false; // for now
 		// eslint-disable-next-line no-restricted-syntax
 		document.documentElement.appendChild(this._shadowHost);
-		this._shadowHost.classList.add('selecting');
 		this._selectionActive = true;
+
+		// Inject a stylesheet into the page to override all cursors while element selection is active,
+		// so the cursor always appears as a normal pointer even when over e.g. links.
+		const cursorStyle = document.createElement('style');
+		cursorStyle.textContent = '/* VS Code injected style */ * { cursor: default !important; }';
+		// eslint-disable-next-line no-restricted-syntax
+		document.head.appendChild(cursorStyle);
+		this._cursorStylesheet = cursorStyle;
 
 		// Register high-frequency listeners only while selection is active.
 		window.addEventListener('pointermove', this._onPointerMove, true);
@@ -365,8 +377,39 @@ class ElementPicker {
 		window.addEventListener('pointerdown', this._onPointerDown, true);
 		window.addEventListener('pointerup', this._onPointerUp, true);
 		window.addEventListener('click', this._onClick, true);
+		window.addEventListener('contextmenu', this._onClick, true);
+		window.addEventListener('keydown', this._onKeyDown, true);
 
 		return true;
+	}
+
+	stop(): void {
+		if (!this._selectionActive) {
+			return;
+		}
+		this._selectionActive = false;
+		this._shadowHost.remove();
+
+		this._cursorStylesheet?.remove();
+		this._cursorStylesheet = undefined;
+
+		// Remove high-frequency listeners.
+		window.removeEventListener('pointermove', this._onPointerMove, true);
+		window.removeEventListener('pointerleave', this._onPointerLeave, true);
+		window.removeEventListener('pointerdown', this._onPointerDown, true);
+		window.removeEventListener('pointerup', this._onPointerUp, true);
+		window.removeEventListener('click', this._onClick, true);
+		window.removeEventListener('contextmenu', this._onClick, true);
+		window.removeEventListener('keydown', this._onKeyDown, true);
+
+		this._highlight.style.display = 'none';
+		this._label.style.display = 'none';
+		this._dragbox.style.display = 'none';
+		this._dragStart = undefined;
+		this._dragStartTarget = undefined;
+		this._highlightTarget = undefined;
+
+		this._onStopped();
 	}
 
 	/**
@@ -398,29 +441,6 @@ class ElementPicker {
 		if (!this._selectionActive && this._shadowHost.parentNode) {
 			this._shadowHost.remove();
 		}
-	}
-
-	stop(): void {
-		if (!this._selectionActive) {
-			return;
-		}
-		this._selectionActive = false;
-		this._shadowHost.classList.remove('selecting');
-		this._shadowHost.remove();
-
-		// Remove high-frequency listeners.
-		window.removeEventListener('pointermove', this._onPointerMove, true);
-		window.removeEventListener('pointerleave', this._onPointerLeave, true);
-		window.removeEventListener('pointerdown', this._onPointerDown, true);
-		window.removeEventListener('pointerup', this._onPointerUp, true);
-		window.removeEventListener('click', this._onClick, true);
-
-		this._highlight.style.display = 'none';
-		this._label.style.display = 'none';
-		this._dragbox.style.display = 'none';
-		this._dragStart = undefined;
-		this._dragStartTarget = undefined;
-		this._highlightTarget = undefined;
 	}
 
 	// --- Event handlers ---
@@ -466,9 +486,6 @@ class ElementPicker {
 
 	private _onPointerDown = (e: PointerEvent): void => {
 		if (!this._selectionActive) {
-			return;
-		}
-		if (e.button !== 0) {
 			return;
 		}
 		this._dragStart = { x: e.clientX, y: e.clientY };
@@ -520,6 +537,17 @@ class ElementPicker {
 		}
 		e.preventDefault();
 		e.stopPropagation();
+	};
+
+	private _onKeyDown = (e: KeyboardEvent): void => {
+		if (!this._selectionActive) {
+			return;
+		}
+		if (e.key === 'Escape') {
+			this.stop();
+			e.preventDefault();
+			e.stopPropagation();
+		}
 	};
 
 	private _onScrollOrResize(): void {
@@ -670,9 +698,6 @@ class ElementPicker {
 				position: fixed; inset: 0;
 				background: transparent; box-sizing: border-box;
 				z-index: 1;
-			}
-			:host(.selecting) .overlay {
-				cursor: crosshair;
 			}
 			.label {
 				position: fixed; box-sizing: border-box;

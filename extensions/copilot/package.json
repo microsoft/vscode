@@ -2744,7 +2744,7 @@
 				"command": "github.copilot.deleteExternalIngestWorkspaceIndex",
 				"title": "%github.copilot.command.deleteExternalIngestWorkspaceIndex%",
 				"category": "Developer",
-				"enablement": "github.copilot-chat.activated"
+				"enablement": "github.copilot-chat.activated && !github.copilot.blackbirdExternalIndexingDisabled"
 			},
 			{
 				"command": "github.copilot.report",
