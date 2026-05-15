@@ -492,7 +492,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker<IOutline<unknown
 		const tree = this._tree as WorkbenchDataTree<IOutline<unknown>, unknown, FuzzyScore>;
 
 		tree.setInput(input.outline);
-		if (input.element !== input.outline) {
+		if (input.element !== input.outline && tree.hasElement(input.element)) {
 			tree.reveal(input.element, 0.5);
 			tree.setFocus([input.element], this._fakeEvent);
 		}
