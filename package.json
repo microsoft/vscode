@@ -167,7 +167,7 @@
     "@types/kerberos": "^1.1.2",
     "@types/minimist": "^1.2.1",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^22.18.10",
+    "@types/node": "24.x",
     "@types/sinon": "^10.0.2",
     "@types/sinon-test": "^2.4.2",
     "@types/source-map-support": "^0.5.10",
