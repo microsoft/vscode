@@ -28,7 +28,7 @@ class TestSearchSubagentToolCallingLoop extends SearchSubagentToolCallingLoop {
 	public makeChatRequestCalls = 0;
 	public readonly responseQueue: ChatResponse[] = [];
 
-	private readonly fakeEndpoint = {
+	public readonly fakeEndpoint = {
 		modelMaxPromptTokens: 100_000,
 		acquireTokenizer: () => ({ countToolTokens: async () => 0 }),
 		cloneWithTokenOverride: () => this.fakeEndpoint,
@@ -41,10 +41,6 @@ class TestSearchSubagentToolCallingLoop extends SearchSubagentToolCallingLoop {
 			return next;
 		},
 	};
-
-	protected override async getEndpoint(): Promise<any> {
-		return this.fakeEndpoint;
-	}
 
 	protected override async buildPrompt(buildPromptContext: IBuildPromptContext) {
 		this.buildPromptCalls++;
@@ -206,6 +202,7 @@ describe('SearchSubagentToolCallingLoop.fetch context-overflow retry', () => {
 			promptText: 'find things',
 		};
 		const loop = instantiationService.createInstance(TestSearchSubagentToolCallingLoop, options);
+		(loop as any).getEndpoint = async () => loop.fakeEndpoint;
 		loop.primeBuildPromptContext();
 		disposables.add(loop);
 		return loop;
