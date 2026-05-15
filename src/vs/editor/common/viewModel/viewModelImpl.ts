@@ -358,7 +358,7 @@ export class ViewModel extends Disposable implements IViewModel {
 						this._lines.onModelFlushed();
 						eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 						this._decorations.reset();
-						shouldFlushViewLayout = false;
+						shouldFlushViewLayout = true;
 						hadOtherModelChange = true;
 						break;
 					}
