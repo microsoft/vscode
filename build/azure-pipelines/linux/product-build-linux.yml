@@ -68,20 +68,21 @@ jobs:
           sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)
           sbomPackageName: "VS Code Linux $(VSCODE_ARCH) (unsigned)"
           sbomPackageVersion: $(Build.SourceVersion)
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz
-          artifactName: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
-          displayName: Publish server archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
-          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Server"
-          sbomPackageVersion: $(Build.SourceVersion)
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
-          artifactName: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
-          displayName: Publish web server archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
-          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
-          sbomPackageVersion: $(Build.SourceVersion)
+        - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz
+            artifactName: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
+            displayName: Publish server archive
+            sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
+            sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Server"
+            sbomPackageVersion: $(Build.SourceVersion)
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
+            artifactName: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+            displayName: Publish web server archive
+            sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
+            sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
+            sbomPackageVersion: $(Build.SourceVersion)
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/out/deb/$(DEB_PACKAGE_NAME)
           artifactName: vscode_client_linux_$(VSCODE_ARCH)_deb-package
