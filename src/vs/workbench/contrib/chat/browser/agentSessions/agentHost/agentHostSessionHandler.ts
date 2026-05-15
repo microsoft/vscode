@@ -41,7 +41,7 @@ import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, ICh
 import { isImageVariableEntry, type IChatRequestVariableEntry, type IImageVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -53,9 +53,8 @@ import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, To
 import { getAgentHostIcon } from '../agentSessions.js';
 import { AgentHostEditingSession } from './agentHostEditingSession.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, userMessageToVariableData, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
-import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 
 // =============================================================================
 // AgentHostSessionHandler - renderer-side handler for a single agent host
@@ -405,11 +404,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
+		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalService: IAgentHostUntitledProvisionalSessionService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super();
@@ -529,24 +528,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return this._config.connection.getCompletionTriggerCharacters();
 	}
 
-	private _toChatInputCompletionItem(raw: AhpCompletionItem, text: string): IChatInputCompletionItem | undefined {
-		const attachment = raw.attachment;
-		// Currently only resource attachments are surfaced as chat-input
-		// attachments; embedded resources and simple attachments will be
-		// added when the workbench grows first-class support for them.
-		if (attachment.type !== MessageAttachmentKind.Resource) {
-			return undefined;
-		}
-		const uri = typeof attachment.uri === 'string' ? URI.parse(attachment.uri) : URI.from(attachment.uri);
+	private _createCompletionItem(raw: AhpCompletionItem, text: string, attachment: IChatInputCompletionItem['attachment']): IChatInputCompletionItem {
 		const item: Mutable<IChatInputCompletionItem> = {
 			insertText: raw.insertText,
-			attachment: {
-				kind: 'resource',
-				uri,
-				displayName: attachment.label,
-				isDirectory: attachment.displayKind === 'directory',
-				...(attachment._meta !== undefined && { _meta: attachment._meta }),
-			},
+			attachment
 		};
 		if (raw.rangeStart !== undefined) {
 			item.start = offsetToPosition(text, raw.rangeStart);
@@ -555,6 +540,45 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			item.end = offsetToPosition(text, raw.rangeEnd);
 		}
 		return item;
+	}
+
+	private _toChatInputCompletionItem(raw: AhpCompletionItem, text: string): IChatInputCompletionItem | undefined {
+		const attachment = raw.attachment;
+		switch (attachment.type) {
+			case MessageAttachmentKind.Simple: {
+				if (typeof attachment._meta?.command === 'string') {
+					return this._createCompletionItem(raw, text, {
+						kind: 'command',
+						command: attachment._meta.command,
+						description: typeof attachment._meta.description === 'string' ? attachment._meta.description : '',
+						...(attachment._meta !== undefined && { _meta: attachment._meta }),
+					});
+				}
+				if (typeof attachment._meta?.uri === 'string') {
+					return this._createCompletionItem(raw, text, {
+						kind: 'skill',
+						uri: URI.parse(attachment._meta.uri),
+						...(typeof attachment._meta.displayName === 'string' ? { displayName: attachment._meta.displayName } : {}),
+						...(typeof attachment._meta.description === 'string' ? { description: attachment._meta.description } : {}),
+						...(attachment._meta !== undefined && { _meta: attachment._meta }),
+					});
+				}
+				return undefined;
+			}
+			case MessageAttachmentKind.Resource: {
+				const uri = typeof attachment.uri === 'string' ? URI.parse(attachment.uri) : URI.from(attachment.uri);
+				return this._createCompletionItem(raw, text, {
+					kind: 'resource',
+					uri,
+					displayName: attachment.label,
+					isDirectory: attachment.displayKind === 'directory',
+					...(attachment._meta !== undefined && { _meta: attachment._meta }),
+				});
+			}
+			default:
+				// Embedded resources will be added when the workbench grows first-class support for them.
+				return undefined; // unknown attachment type
+		}
 	}
 
 	async provideChatSessionContent(sessionResource: URI, _token: CancellationToken): Promise<IChatSession> {
@@ -742,6 +766,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const resolvedSession = this._resolveSessionUri(request.sessionResource);
 		const sessionKey = resolvedSession.toString();
 
+		// The chat-input picker may have pre-created a provisional session
+		// against this resource (`IAgentHostUntitledProvisionalSessionService.getOrCreate`).
+		// In that case the agent already has the session + the user's chip
+		// selections in `state.config.values`; ensure we hold a refcounted
+		// subscription on it so the rest of the handler observes those.
+		const provisionalBackend = this._provisionalService.get(request.sessionResource);
+		if (provisionalBackend) {
+			this._ensureSessionSubscription(sessionKey);
+		}
+
 		// The sessions provider may have eagerly created this session at
 		// folder-pick time and is holding the connection-level subscription
 		// open with hydrated state. Use the unmanaged accessor to peek
@@ -765,19 +799,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._ensurePendingMessageSubscription(request.sessionResource, resolvedSession);
 			this._watchForServerInitiatedTurns(resolvedSession, request.sessionResource);
 
-			// Push the user-selected session config (e.g. isolation = worktree)
-			// to the agent so its provisional record materializes with the
-			// latest values. The picker doesn't dispatch this for new
-			// sessions, so this is the first time the agent sees them. Use
-			// `replace: true` so the agent's view exactly matches the
-			// resolved values the picker computed.
-			const config = this._mergeDefaultSessionConfig(request.agentHostSessionConfig);
-			if (config && Object.keys(config).length > 0) {
+			// In the Agents window, the sessions provider supplies per-request
+			// config via `request.agentHostSessionConfig` (e.g. the user's
+			// permission level). Push it to the agent so its provisional record
+			// materializes with those values. Workbench defaults (`isolation`,
+			// `autoApprove`) are seeded upstream at provisional `createSession`
+			// time, so we don't need to merge them here. Picker selections
+			// already live in `existingState.config?.values` and don't need to
+			// be re-dispatched.
+			if (request.agentHostSessionConfig && Object.keys(request.agentHostSessionConfig).length > 0) {
 				this._dispatchAction({
 					type: ActionType.SessionConfigChanged,
 					session: sessionKey,
-					config,
-					replace: true,
+					config: request.agentHostSessionConfig,
 				});
 			}
 
@@ -2419,8 +2453,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** Creates a new backend session and subscribes to its state. */
 	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, config?: Record<string, unknown>): Promise<URI> {
-		config = this._mergeDefaultSessionConfig(config);
-
 		const workingDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
 		const requestedSession = fork ? undefined : this._resolveSessionUri(sessionResource);
 
@@ -2488,9 +2520,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Subscribe to the new session's state
 		const newSub = this._ensureSessionSubscription(session.toString());
 		if (!this._getSessionState(session.toString())) {
-			// Wait for the subscription to hydrate
+			// Wait for the subscription to hydrate. Attach the listener
+			// before re-checking the value to close a race where another
+			// consumer (e.g. the chat-input picker) acquires the same
+			// subscription concurrently and triggers `handleSnapshot`
+			// between our `_getSessionState` check and the listener
+			// attachment.
 			await new Promise<void>(resolve => {
 				const d = newSub.onDidChange(() => { d.dispose(); resolve(); });
+				if (this._getSessionState(session.toString())) {
+					d.dispose();
+					resolve();
+				}
 			});
 		}
 
@@ -2501,34 +2542,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._watchForServerInitiatedTurns(session, sessionResource);
 
 		return session;
-	}
-
-	/**
-	 * HACK to enable auto-approve in vscode for AH evals when the picker has not been implemented yet.
-	 */
-	private _mergeDefaultSessionConfig(sessionConfig: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
-		const defaults = this._getWorkbenchDefaultSessionConfig();
-		if (!defaults || Object.keys(defaults).length === 0) {
-			return sessionConfig;
-		}
-		return { ...defaults, ...sessionConfig };
-	}
-
-	private _getWorkbenchDefaultSessionConfig(): Record<string, unknown> | undefined {
-		if (this._environmentService.isSessionsWindow) {
-			return undefined;
-		}
-		const result = {
-			[SessionConfigKey.Isolation]: 'folder'
-		};
-		const defaultPermissionLevel = this._configurationService.getValue<ChatPermissionLevel>(ChatConfiguration.DefaultPermissionLevel);
-		if (!isChatPermissionLevel(defaultPermissionLevel) || defaultPermissionLevel === ChatPermissionLevel.Default) {
-			return result;
-		}
-		return {
-			...result,
-			[SessionConfigKey.AutoApprove]: defaultPermissionLevel,
-		};
 	}
 
 	/**
@@ -2844,6 +2857,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private _ensureSessionSubscription(sessionUri: string): IAgentSubscription<SessionState> {
 		let ref = this._sessionSubscriptions.get(sessionUri);
+		if (ref?.object.value instanceof Error) {
+			this._sessionSubscriptions.delete(sessionUri);
+			ref.dispose();
+			ref = undefined;
+		}
 		if (!ref) {
 			ref = this._config.connection.getSubscription(StateComponents.Session, URI.parse(sessionUri));
 			this._sessionSubscriptions.set(sessionUri, ref);

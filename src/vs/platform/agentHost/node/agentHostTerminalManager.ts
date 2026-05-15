@@ -23,6 +23,7 @@ import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, Termin
 import { isTerminalAction } from '../common/state/sessionActions.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostHeadlessTerminal } from './agentHostHeadlessTerminal.js';
+import { isZsh } from './agentHostShellUtils.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from './osc633Parser.js';
 
@@ -43,6 +44,20 @@ export interface ICommandFinishedEvent {
 
 export interface ITerminalQueryFilterState {
 	pendingData: string;
+}
+
+export interface ISendTextOptions {
+	shouldExecute: boolean;
+	/**
+	 * Match workbench terminal sendText: wrap in bracketed paste markers only
+	 * when requested by the caller and enabled by the terminal.
+	 */
+	bracketedPasteMode?: boolean;
+}
+
+export interface IFormatTerminalTextOptions {
+	shouldExecute: boolean;
+	forceBracketedPasteMode?: boolean;
 }
 
 export function removeServerHandledTerminalQueries(data: string, state: ITerminalQueryFilterState): string {
@@ -76,6 +91,17 @@ function getServerHandledTerminalQueryPrefix(data: string): string {
 	return '';
 }
 
+export function formatTerminalText(data: string, options: IFormatTerminalTextOptions): string {
+	if (options.forceBracketedPasteMode) {
+		data = `\x1b[200~${data}\x1b[201~`;
+	}
+	data = data.replace(/\r?\n/g, '\r');
+	if (options.shouldExecute && !data.endsWith('\r')) {
+		data += '\r';
+	}
+	return data;
+}
+
 /**
  * Service interface for terminal management in the agent host.
  */
@@ -83,10 +109,12 @@ export interface IAgentHostTerminalManager {
 	readonly _serviceBrand: undefined;
 	createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void>;
 	writeInput(uri: string, data: string): void;
+	sendText(uri: string, data: string, options: ISendTextOptions): Promise<void>;
 	onData(uri: string, cb: (data: string) => void): IDisposable;
 	onExit(uri: string, cb: (exitCode: number) => void): IDisposable;
 	onClaimChanged(uri: string, cb: (claim: TerminalClaim) => void): IDisposable;
 	onCommandFinished(uri: string, cb: (event: ICommandFinishedEvent) => void): IDisposable;
+	createAltBufferPromise(uri: string, store: DisposableStore): Promise<void>;
 	getContent(uri: string): string | undefined;
 	getClaim(uri: string): TerminalClaim | undefined;
 	hasTerminal(uri: string): boolean;
@@ -243,6 +271,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			// Combined with the leading-space prefix applied at command-write time, this
 			// prevents agent-executed commands from polluting the user's shell history.
 			env['VSCODE_PREVENT_SHELL_HISTORY'] = '1';
+		}
+		// Zsh-specific fixups for agent tool terminals: disable bang history
+		// expansion and enable inline # comments.
+		if (params.claim?.kind === TerminalClaimKind.Session && isZsh(shell)) {
+			env['VSCODE_AGENT_ZSH_FIXUPS'] = '1';
 		}
 		if (options?.nonInteractive) {
 			// Suppress paging and interactive prompts so that tool-spawned
@@ -430,6 +463,17 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		}
 	}
 
+	/** Send formatted text to a terminal's PTY process. */
+	async sendText(uri: string, data: string, options: ISendTextOptions): Promise<void> {
+		const terminal = this._terminals.get(uri);
+		let forceBracketedPasteMode = false;
+		if (options.bracketedPasteMode) {
+			await terminal?.headlessTerminal?.whenPtyDataFlushed();
+			forceBracketedPasteMode = !!terminal?.headlessTerminal?.isBracketedPasteMode();
+		}
+		this.writeInput(uri, formatTerminalText(data, { shouldExecute: options.shouldExecute, forceBracketedPasteMode }));
+	}
+
 	/** Register a callback for PTY data events on a terminal. */
 	onData(uri: string, cb: (data: string) => void): IDisposable {
 		const terminal = this._terminals.get(uri);
@@ -464,6 +508,14 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			return toDisposable(() => { });
 		}
 		return terminal.onCommandFinishedEmitter.event(cb);
+	}
+
+	createAltBufferPromise(uri: string, store: DisposableStore): Promise<void> {
+		const terminal = this._terminals.get(uri);
+		if (!terminal?.headlessTerminal) {
+			return new Promise(() => { });
+		}
+		return terminal.headlessTerminal.createAltBufferPromise(store);
 	}
 
 	/** Get accumulated scrollback content for a terminal as raw text. */

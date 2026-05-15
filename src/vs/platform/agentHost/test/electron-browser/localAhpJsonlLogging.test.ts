@@ -10,8 +10,10 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
+import { AgentHostClientResourceChannel } from '../../common/agentHostClientResourceChannel.js';
 import { wrapAgentServiceWithAhpLogging } from '../../electron-browser/localAhpJsonlLogging.js';
 import type { IAgentService } from '../../common/agentService.js';
+import { ContentEncoding } from '../../common/state/protocol/commands.js';
 
 suite('localAhpJsonlLogging', () => {
 
@@ -85,5 +87,35 @@ suite('localAhpJsonlLogging', () => {
 
 		assert.deepStrictEqual(entries[0].params, [{ resource: 'https://example.com', token: '<redacted>' }]);
 		assert.strictEqual(entries[7].result, null);
+	});
+
+	test('logs reverse resource channel requests and responses', async () => {
+		const { fileService, logger } = makeLogger();
+		const channel = new AgentHostClientResourceChannel(fileService, logger);
+		const uri = URI.file('/from-client.txt').toString();
+
+		await channel.call(undefined, 'resourceWrite', { uri, data: 'hello', encoding: ContentEncoding.Utf8, createOnly: true });
+		await channel.call(undefined, 'resourceRead', { uri });
+		await assert.rejects(() => channel.call(undefined, 'resourceRead', { uri: URI.file('/missing.txt').toString() }));
+
+		const entries = await readEntries(fileService, logger);
+		const summary = entries.map(e => ({
+			dir: e._ahpLog.dir,
+			id: e.id,
+			method: e.method,
+			hasResult: Object.hasOwn(e, 'result'),
+			hasError: Object.hasOwn(e, 'error'),
+		}));
+
+		assert.deepStrictEqual(summary, [
+			{ dir: 's2c', id: undefined, method: 'resourceWrite', hasResult: false, hasError: false },
+			{ dir: 'c2s', id: undefined, method: 'resourceWrite', hasResult: true, hasError: false },
+			{ dir: 's2c', id: undefined, method: 'resourceRead', hasResult: false, hasError: false },
+			{ dir: 'c2s', id: undefined, method: 'resourceRead', hasResult: true, hasError: false },
+			{ dir: 's2c', id: undefined, method: 'resourceRead', hasResult: false, hasError: false },
+			{ dir: 'c2s', id: undefined, method: 'resourceRead', hasResult: false, hasError: true },
+		]);
+		assert.deepStrictEqual(entries[0].params, { uri, data: 'hello', encoding: ContentEncoding.Utf8, createOnly: true });
+		assert.deepStrictEqual(entries[1].result, {});
 	});
 });
