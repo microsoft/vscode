@@ -7,7 +7,7 @@ import * as l10n from '@vscode/l10n';
 import { BasePromptElementProps, PrioritizedList, PromptElement, PromptMetadata, PromptSizing, Raw, SystemMessage, UserMessage } from '@vscode/prompt-tsx';
 import { BudgetExceededError } from '@vscode/prompt-tsx/dist/base/materialized';
 import { ChatMessage } from '@vscode/prompt-tsx/dist/base/output/rawTypes';
-import type { ChatResponsePart, ChatResultPromptTokenDetail, LanguageModelToolInformation, NotebookDocument, Progress } from 'vscode';
+import type { ChatLanguageModelToolReference, ChatResponsePart, ChatResultPromptTokenDetail, LanguageModelToolInformation, NotebookDocument, Progress } from 'vscode';
 import { IChatHookService, PreCompactHookInput } from '../../../../platform/chat/common/chatHookService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse, FetchSuccess } from '../../../../platform/chat/common/commonTypes';
 import { getTextPart } from '../../../../platform/chat/common/globalStringUtils';
@@ -263,7 +263,7 @@ class ConversationHistory extends PromptElement<SummarizedAgentHistoryProps> {
 				userQueryTagName: this.props.userQueryTagName,
 				ReminderInstructionsClass: this.props.ReminderInstructionsClass,
 				ToolReferencesHintClass: this.props.ToolReferencesHintClass,
-			})} />);
+			})} customizationsIndexUpdate={this.props.customizationsIndexUpdate} />);
 		}
 
 		// We may have a summary from earlier in the conversation, but skip history if we have a new summary
@@ -408,6 +408,11 @@ export interface SummarizedAgentHistoryProps extends BasePromptElementProps, Age
 	readonly summarizationInstructions?: string;
 	/** Skip Full mode and go straight to Simple mode for foreground budget-exceeded recovery. */
 	readonly forceSimpleSummary?: boolean;
+	/**
+	 * Forwarded to the latest user message when the customizations-index has
+	 * drifted from its frozen snapshot. See {@link AgentUserMessageProps.customizationsIndexUpdate}.
+	 */
+	readonly customizationsIndexUpdate?: { value: string; toolReferences: readonly ChatLanguageModelToolReference[] | undefined };
 }
 
 /**
@@ -556,12 +561,16 @@ class ConversationHistorySummarizer {
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
 	) { }
 
-	async summarizeHistory(): Promise<{ summary: string; toolCallRoundId: string; thinking?: ThinkingData; usage?: APIUsage; promptTokenDetails?: readonly ChatResultPromptTokenDetail[]; model?: string; summarizationMode?: string; numRounds?: number; numRoundsSinceLastSummarization?: number; durationMs?: number }> {
+	async summarizeHistory(): Promise<{ summary: string; toolCallRoundId: string; thinking?: ThinkingData; usage?: APIUsage; promptTokenDetails?: readonly ChatResultPromptTokenDetail[]; model?: string; summarizationMode?: string; numRounds?: number; numRoundsSinceLastSummarization?: number; durationMs?: number } | undefined> {
 		// Execute pre-compact hook before summarization to allow hooks to archive transcripts or perform cleanup
 		await this.executePreCompactHook();
 
 		// Just a function for test to create props and call this
 		const propsInfo = this.instantiationService.createInstance(SummarizedConversationHistoryPropsBuilder).getProps(this.props);
+		if (!propsInfo) {
+			this.logService.info('[ConversationHistorySummarizer] no prior content to summarize, skipping');
+			return undefined;
+		}
 
 		const summaryPromise = this.getSummaryWithFallback(propsInfo);
 		this.progress?.report(new ChatResponseProgressPart2(l10n.t('Compacting conversation...'), async () => {
@@ -742,14 +751,15 @@ class ConversationHistorySummarizer {
 				debugName: `summarizeConversationHistory-${mode}`,
 				messages,
 				finishedCb: undefined,
-				location: ChatLocation.Other,
+				location: ChatLocation.Agent,
 				requestOptions: {
 					temperature: 0,
 					stream: false,
 					...toolOpts
 				},
 				telemetryProperties: associatedRequestId ? { associatedRequestId } : undefined,
-				enableRetryOnFilter: true
+				enableRetryOnFilter: true,
+				interactionTypeOverride: 'conversation-compaction',
 			}, this.token ?? CancellationToken.None);
 		} catch (e) {
 			this.logInfo(`Error from summarization request. ${e.message}`, mode);
@@ -904,11 +914,10 @@ function replaceImageContentWithPlaceholders(messages: ChatMessage[]): void {
  * Bake a stable transcript pointer into a freshly-produced summary text.
  *
  * Shared by both the full/simple summarization path
- * ({@link ConversationHistorySummarizer}) and the inline background
- * summarization path in `agentIntent.ts`. The hint is appended exactly once,
- * at summary creation time, so the resulting string is frozen from then on
- * and replayed verbatim — preserving Anthropic prompt cache hits across
- * subsequent renders.
+ * ({@link ConversationHistorySummarizer}) and the background summarization
+ * path in `agentIntent.ts`. The hint is appended exactly once, at summary
+ * creation time, so the resulting string is frozen from then on and replayed
+ * verbatim — preserving Anthropic prompt cache hits across subsequent renders.
  *
  * Returns the input unchanged when there is no transcript on disk for the
  * session.
@@ -1009,7 +1018,7 @@ export class SummarizedConversationHistoryPropsBuilder {
 
 	getProps(
 		props: SummarizedAgentHistoryProps
-	): ISummarizedConversationHistoryInfo {
+	): ISummarizedConversationHistoryInfo | undefined {
 		let toolCallRounds = props.promptContext.toolCallRounds;
 		let isContinuation = props.promptContext.isContinuation;
 		let summarizedToolCallRoundId = '';
@@ -1026,7 +1035,7 @@ export class SummarizedConversationHistoryPropsBuilder {
 			toolCallRounds = [];
 			summarizedToolCallRoundId = props.promptContext.history.at(-1)!.rounds.at(-1)!.id;
 		} else {
-			throw new Error('Nothing to summarize');
+			return undefined;
 		}
 
 		// For Anthropic models with thinking enabled, find the last assistant message with thinking
@@ -1101,17 +1110,17 @@ class SummaryMessageElement extends PromptElement<SummaryMessageProps> {
 	}
 }
 
-export interface InlineSummarizationUserMessageProps extends BasePromptElementProps {
+export interface SummarizationUserMessageProps extends BasePromptElementProps {
 	readonly endpoint: IChatEndpoint;
 }
 
 /**
- * User message appended to the agent prompt when inline summarization is triggered.
- * Instructs the model to output ONLY a summary wrapped in `<summary>` tags, with
- * no tool calls. The summary is extracted from the response and stored on the round
- * for the next iteration.
+ * User message appended to the agent prompt when background summarization is
+ * triggered. Instructs the model to output ONLY a summary wrapped in
+ * `<summary>` tags, with no tool calls. The summary is extracted from the
+ * response and stored on the round for the next iteration.
  */
-export class InlineSummarizationUserMessage extends PromptElement<InlineSummarizationUserMessageProps> {
+export class SummarizationUserMessage extends PromptElement<SummarizationUserMessageProps> {
 	override async render(state: void, sizing: PromptSizing) {
 		const isOpus = this.props.endpoint.model.startsWith('claude-opus');
 		return <UserMessage priority={1000}>
@@ -1130,7 +1139,7 @@ export class InlineSummarizationUserMessage extends PromptElement<InlineSummariz
 }
 
 /**
- * Extracts an inline summary from the model's response text.
+ * Extracts a summary from the model's response text.
  *
  * Parsing strategy (multi-level fallback):
  * 1. Clean `<summary>...</summary>` tags → extracts content between them
@@ -1139,7 +1148,7 @@ export class InlineSummarizationUserMessage extends PromptElement<InlineSummariz
  *
  * @returns The extracted summary text, or `undefined` if no summary could be found.
  */
-export function extractInlineSummary(responseText: string): string | undefined {
+export function extractSummary(responseText: string): string | undefined {
 	// 1. Try clean <summary>...</summary> extraction
 	const openTag = '<summary>';
 	const closeTag = '</summary>';

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Standalone agent host server with WebSocket protocol transport.
-// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--host <host>] [--connection-token <token>] [--connection-token-file <path>] [--without-connection-token] [--enable-mock-agent] [--quiet] [--log <level>]
+// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--host <host>] [--connection-token <token>] [--connection-token-file <path>] [--without-connection-token] [--enable-mock-agent] [--claude-sdk-path <path>] [--quiet] [--log <level>]
 
 import { fileURLToPath } from 'url';
 
@@ -17,6 +17,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { raceTimeout } from '../../../base/common/async.js';
+import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
@@ -31,7 +32,16 @@ import { IProductService } from '../../product/common/productService.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
+import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
+import { ClaudeAgent } from './claude/claudeAgent.js';
+import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
+import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
+import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
+import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { AgentService } from './agentService.js';
+import { AgentHostClaudeSdkPathEnvVar } from '../common/agentService.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
@@ -64,6 +74,8 @@ interface IServerOptions {
 	readonly port: number;
 	readonly host: string | undefined;
 	readonly enableMockAgent: boolean;
+	/** Absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package, or empty to disable the Claude agent. */
+	readonly claudeSdkPath: string;
 	readonly quiet: boolean;
 	/** Connection token string, or `undefined` when `--without-connection-token`. */
 	readonly connectionToken: string | undefined;
@@ -77,6 +89,13 @@ function parseServerOptions(): IServerOptions {
 	const hostIdx = argv.indexOf('--host');
 	const host = hostIdx >= 0 ? argv[hostIdx + 1] : undefined;
 	const enableMockAgent = argv.includes('--enable-mock-agent');
+	// Claude agent registration is opt-in: enable by passing a path to a
+	// locally-installed `@anthropic-ai/claude-agent-sdk` package via the CLI
+	// flag or the shared env var (the env var is what the agent host starters
+	// use when the `chat.agentHost.claudeAgent.path` workbench setting is set).
+	// The SDK is intentionally not bundled with VS Code.
+	const sdkPathIdx = argv.indexOf('--claude-sdk-path');
+	const claudeSdkPath = (sdkPathIdx >= 0 ? argv[sdkPathIdx + 1] : process.env[AgentHostClaudeSdkPathEnvVar]) ?? '';
 	const quiet = argv.includes('--quiet');
 
 	// Connection token
@@ -119,7 +138,7 @@ function parseServerOptions(): IServerOptions {
 		connectionToken = generateUuid();
 	}
 
-	return { port, host, enableMockAgent, quiet, connectionToken };
+	return { port, host, enableMockAgent, claudeSdkPath, quiet, connectionToken };
 }
 
 // ---- Main -------------------------------------------------------------------
@@ -161,6 +180,7 @@ async function main(): Promise<void> {
 
 	// Session data service
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
+	const rootConfigResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json');
 
 	// Build the DI container early so the git service can be created via
 	// `createInstance` (it needs IFileService + INativeEnvironmentService).
@@ -176,7 +196,7 @@ async function main(): Promise<void> {
 	const gitService = instantiationService.createInstance(AgentHostGitService);
 
 	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
-	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService);
+	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource);
 	disposables.add(agentService);
 
 	// Register agents
@@ -186,10 +206,30 @@ async function main(): Promise<void> {
 		diServices.set(IAgentPluginManager, pluginManager);
 		diServices.set(IDiffComputeService, disposables.add(new NodeWorkerDiffComputeService(logService)));
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
+		diServices.set(IAgentConfigurationService, agentService.configurationService);
+		diServices.set(IAgentHostCompletions, agentService.completionsService);
 		diServices.set(IAgentHostGitService, gitService);
+		// Register `ICopilotApiService` BEFORE `IClaudeProxyService` —
+		// the proxy service constructor requires it.
+		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
+		diServices.set(ICopilotApiService, copilotApiService);
+		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
+		diServices.set(IClaudeProxyService, claudeProxyService);
+		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
+		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
+		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
+		diServices.set(IAgentHostOTelService, agentHostOTelService);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);
 		log('CopilotAgent registered');
+		if (options.claudeSdkPath) {
+			// `ClaudeAgentSdkService` reads `AgentHostClaudeSdkPathEnvVar` directly,
+			// so make sure it is set even if the path was provided via CLI flag.
+			process.env[AgentHostClaudeSdkPathEnvVar] = options.claudeSdkPath;
+			const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+			agentService.registerProvider(claudeAgent);
+			log('ClaudeAgent registered');
+		}
 	}
 
 	if (options.enableMockAgent) {
@@ -209,7 +249,7 @@ async function main(): Promise<void> {
 		connectionTokenValidate: options.connectionToken
 			? token => token === options.connectionToken
 			: undefined,
-	}, logService));
+	}, logService, { instantiationService, logsHome: environmentService.logsHome }));
 
 
 	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
@@ -220,7 +260,10 @@ async function main(): Promise<void> {
 		agentService,
 		agentService.stateManager,
 		wsServer,
-		{ defaultDirectory: URI.file(os.homedir()).toString() },
+		{
+			defaultDirectory: URI.file(os.homedir()).toString(),
+			completionTriggerCharacters: agentService.completionTriggerCharacters,
+		},
 		clientFileSystemProvider,
 		logService,
 	));

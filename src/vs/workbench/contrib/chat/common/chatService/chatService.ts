@@ -33,6 +33,7 @@ import { HookTypeValue } from '../promptSyntax/hookTypes.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
+import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 export interface IChatRequest {
 	message: string;
@@ -59,6 +60,12 @@ export interface IChatResponseErrorDetails {
 	responseIsRedacted?: boolean;
 	isQuotaExceeded?: boolean;
 	isRateLimited?: boolean;
+	/**
+	 * If true, the error is an expected operational condition (e.g. user-actionable
+	 * configuration, network connectivity, missing dependency) and should not be
+	 * logged as a `chatAgentError` telemetry event.
+	 */
+	isExpectedError?: boolean;
 	level?: ChatErrorLevel;
 	confirmationButtons?: IChatResponseErrorDetailsConfirmationButton[];
 	code?: string;
@@ -452,6 +459,7 @@ export interface IChatElicitationRequest {
 	state: IObservable<ElicitationState>;
 	acceptedResult?: Record<string, unknown>;
 	moreActions?: IAction[];
+	riskAssessment?: { toolId: string; parameters: unknown };
 	accept(value: IAction | true): Promise<void>;
 	reject?: () => Promise<void>;
 	isHidden?: IObservable<boolean>;
@@ -617,12 +625,12 @@ export type ConfirmedReason =
 	| { type: ToolConfirmKind.ConfirmationNotNeeded; reason?: string | IMarkdownString }
 	| { type: ToolConfirmKind.Setting; id: string }
 	| { type: ToolConfirmKind.LmServicePerTool; scope: 'session' | 'workspace' | 'profile' }
-	| { type: ToolConfirmKind.UserAction; selectedButton?: string }
+	| { type: ToolConfirmKind.UserAction; selectedButton?: string; selectedButtonKind?: ConfirmationOptionKind }
 	| { type: ToolConfirmKind.Skipped };
 
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData;
 	/**
 	 * Observable that tracks the `kind` of `toolSpecificData`. Used by the
 	 * tool invocation part to re-render when the kind changes (e.g. from
@@ -900,7 +908,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -978,6 +986,10 @@ export interface IChatSimpleToolInvocationData {
 	output: string;
 }
 
+export interface IChatSearchToolInvocationData {
+	readonly kind: 'search';
+}
+
 export interface IChatToolResourcesInvocationData {
 	readonly kind: 'resources';
 	readonly values: Array<URI | Location>;
@@ -1025,6 +1037,14 @@ export interface IChatDisabledClaudeHooksPart {
 
 /** A single approval option shown in the plan review dropdown button. */
 export interface IChatPlanApprovalAction {
+	/**
+	 * Stable identifier for matching the chosen action programmatically.
+	 * Unlike `label` this is not localized, so callers should compare
+	 * against `IChatPlanReviewResult.actionId` rather than `action`.
+	 * Optional for backwards-compatibility; omit for one-off actions
+	 * where the localized label is the only intended identifier.
+	 */
+	id?: string;
 	label: string;
 	description?: string;
 	default?: boolean;
@@ -1034,9 +1054,22 @@ export interface IChatPlanApprovalAction {
 
 /** The result of reviewing a plan. */
 export interface IChatPlanReviewResult {
+	/** The chosen action's localized `label`. */
 	action?: string;
+	/** The chosen action's stable `id`, if it had one. Prefer this over
+	 * `action` for programmatic comparisons. */
+	actionId?: string;
 	rejected: boolean;
+	/** Combined feedback string sent to the agent (overall comment + inline
+	 * comments, joined and formatted as markdown). */
 	feedback?: string;
+	/** Display-only: the overall textarea comment, kept separate from
+	 * `feedbackInlineMarkdown` so the chat transcript can render the two
+	 * parts differently. Falls back to `feedback` when unset. */
+	feedbackOverall?: string;
+	/** Display-only: pre-formatted markdown listing the inline comments
+	 * (heading + bullets). See `feedbackOverall`. */
+	feedbackInlineMarkdown?: string;
 }
 
 /**
@@ -1343,6 +1376,11 @@ export interface IChatDetail {
 	isActive: boolean;
 	stats?: IChatSessionStats;
 	lastResponseState: ResponseModelState;
+	/**
+	 * The working directory URI associated with this session.
+	 * Only populated in the sessions/agents window context.
+	 */
+	workingDirectory?: URI;
 }
 
 export interface IChatProviderInfo {

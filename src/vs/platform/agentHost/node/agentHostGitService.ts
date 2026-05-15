@@ -24,7 +24,27 @@ export interface IAgentHostGitService {
 	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void>;
+	/**
+	 * Adds a worktree for an existing branch (no `-b`). Used when restoring
+	 * a worktree whose branch was preserved (e.g. unarchiving a session
+	 * whose worktree was previously cleaned up on archive).
+	 */
+	addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void>;
 	removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void>;
+	/**
+	 * Returns true when the named branch exists in the repository
+	 * (`refs/heads/<branchName>` resolves). Used by archive cleanup to
+	 * confirm the branch is preserved before deleting the worktree, and by
+	 * the unarchive path to confirm the branch is still around before
+	 * recreating the worktree.
+	 */
+	branchExists(repositoryRoot: URI, branchName: string): Promise<boolean>;
+	/**
+	 * Returns true when the working tree has any tracked, staged, or
+	 * untracked changes. Used by archive cleanup to skip removing a
+	 * worktree that still contains uncommitted work.
+	 */
+	hasUncommittedChanges(workingDirectory: URI): Promise<boolean>;
 	/**
 	 * Computes the {@link ISessionGitState} for the working directory by
 	 * shelling out to `git`. Returns undefined if the directory is not a
@@ -131,10 +151,19 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 
 			const branch = remoteRef.substring('refs/remotes/origin/'.length);
-			// Check whether a local branch exists; if not, use the remote-tracking ref
-			// so that 'git worktree add ... <startPoint>' resolves correctly.
+			// Prefer the remote-tracking ref ('origin/<branch>') over the local
+			// branch when both exist, so worktrees are based on the most
+			// up-to-date commit rather than a possibly stale local branch.
+			// This mirrors the extension-host CLI which resolves a branch's
+			// upstream and uses that as the worktree start point. Falls back
+			// to the local branch when the remote-tracking ref is missing
+			// (e.g. fresh clone with no remote-tracking refs yet).
+			const hasRemoteRef = (await this._runGit(workingDirectory, ['show-ref', '--verify', '--quiet', `refs/remotes/origin/${branch}`])) !== undefined;
+			if (hasRemoteRef) {
+				return `origin/${branch}`;
+			}
 			const hasLocalBranch = (await this._runGit(workingDirectory, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`])) !== undefined;
-			return hasLocalBranch ? branch : `origin/${branch}`;
+			return hasLocalBranch ? branch : undefined;
 		}
 		return undefined;
 	}
@@ -167,11 +196,32 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void> {
-		await this._runGit(repositoryRoot, ['worktree', 'add', '-b', branchName, worktree.fsPath, startPoint], { timeout: 30_000, throwOnError: true });
+		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint) ?? startPoint;
+		// Pass --no-track so the new agent branch never picks up upstream
+		// tracking from the start point (e.g. when starting from
+		// 'origin/main', without --no-track git would set the new branch's
+		// upstream to origin/main, which would mis-attribute pushes/pulls).
+		await this._runGit(repositoryRoot, ['worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, resolvedStartPoint], { timeout: 30_000, throwOnError: true });
+	}
+
+	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
+		await this._runGit(repositoryRoot, ['worktree', 'add', worktree.fsPath, branchName], { timeout: 30_000, throwOnError: true });
 	}
 
 	async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
 		await this._runGit(repositoryRoot, ['worktree', 'remove', '--force', worktree.fsPath], { timeout: 30_000, throwOnError: true });
+	}
+
+	async branchExists(repositoryRoot: URI, branchName: string): Promise<boolean> {
+		// `show-ref --verify --quiet` exits 0 when the ref exists and 1 otherwise.
+		// `_runGit` returns undefined on non-zero exit, so `!== undefined` is the existence signal.
+		const output = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', `refs/heads/${branchName}`]);
+		return output !== undefined;
+	}
+
+	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
+		const output = await this._runGit(workingDirectory, ['status', '--porcelain']);
+		return !!output && output.trim().length > 0;
 	}
 
 	async computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined> {
@@ -191,15 +241,17 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 		const repositoryRoot = URI.file(repositoryRootPath);
 
-		// Resolve the merge-base commit. With a base branch, this is
-		// `merge-base HEAD <base>` so the diff stays anchored even when the
-		// base branch advances. Without one, fall back to HEAD itself, which
-		// surfaces uncommitted work but no committed-on-branch work — the
-		// best we can do without context. For empty repos with no HEAD, fall
-		// back to the well-known empty-tree object.
+		// Resolve the merge-base commit. With a base branch, prefer the
+		// corresponding origin/<base> remote-tracking ref when it exists so
+		// branch changes match a PR-style comparison even if the local base
+		// branch is stale. Without a usable base, fall back to HEAD itself,
+		// which surfaces uncommitted work but no committed-on-branch work -
+		// the best we can do without context. For empty repos with no HEAD,
+		// fall back to the well-known empty-tree object.
 		let mergeBaseCommit: string | undefined;
 		if (options.baseBranch) {
-			mergeBaseCommit = (await this._runGit(repositoryRoot, ['merge-base', 'HEAD', options.baseBranch]))?.trim();
+			const baseBranch = await this._resolveRemoteTrackingBranch(repositoryRoot, options.baseBranch) ?? options.baseBranch;
+			mergeBaseCommit = (await this._runGit(repositoryRoot, ['merge-base', 'HEAD', baseBranch]))?.trim();
 		}
 		if (!mergeBaseCommit) {
 			mergeBaseCommit = (await this._runGit(repositoryRoot, ['rev-parse', 'HEAD']))?.trim();
@@ -261,6 +313,12 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 	}
 
+	private async _resolveRemoteTrackingBranch(repositoryRoot: URI, branch: string): Promise<string | undefined> {
+		const remoteBranch = `origin/${branch}`;
+		const output = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', `refs/remotes/${remoteBranch}`]);
+		return output !== undefined ? remoteBranch : undefined;
+	}
+
 	async showBlob(workingDirectory: URI, sha: string, repoRelativePath: string): Promise<VSBuffer | undefined> {
 		// Validate sha before passing it to git. `git show <sha>:<path>` parses
 		// its argument as a revision, so an attacker-controlled sha that starts
@@ -313,6 +371,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const status = parseGitStatusV2(statusOutput);
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
 		const baseBranchName = parseDefaultBranchRef(defaultBranchRef);
+		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
 
 		// `git status -b --porcelain=v2` only emits ahead/behind counts when the
 		// branch has an upstream tracking ref. For agent-host worktrees the
@@ -338,6 +397,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 			incomingChanges: status.incomingChanges,
 			outgoingChanges,
 			uncommittedChanges: status.uncommittedChanges,
+			githubOwner: githubRepo?.owner,
+			githubRepo: githubRepo?.repo,
 		};
 		// Strip undefined fields so the resulting object is the same regardless
 		// of which probes succeeded — easier to compare in tests.
@@ -551,6 +612,64 @@ export function parseHasGitHubRemote(remotesOutput: string | undefined): boolean
 		return false;
 	}
 	return /github\.com[:\/]/i.test(remotesOutput);
+}
+
+/**
+ * Parse `owner` and `repo` from `git remote -v` output. Prefers the `origin`
+ * remote; falls back to the first GitHub remote so worktrees that renamed
+ * the remote still surface PR state. Returns `undefined` if no GitHub
+ * remote is present or the URL doesn't match a GitHub repo shape.
+ *
+ * Exported for tests.
+ */
+export function parseGitHubRepoFromRemote(remotesOutput: string | undefined): { owner: string; repo: string } | undefined {
+	if (!remotesOutput) {
+		return undefined;
+	}
+	// Each line: `<name>\t<url> (<fetch|push>)`. Take fetch URLs only so we
+	// don't double-count the same remote.
+	const candidates: { name: string; url: string }[] = [];
+	for (const rawLine of remotesOutput.split(/\r?\n/)) {
+		const line = rawLine.trim();
+		if (!line) { continue; }
+		const m = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(line);
+		if (!m) { continue; }
+		candidates.push({ name: m[1], url: m[2] });
+	}
+	if (candidates.length === 0) {
+		return undefined;
+	}
+	// Prefer `origin`, otherwise first matching remote.
+	const ordered = [
+		...candidates.filter(c => c.name === 'origin'),
+		...candidates.filter(c => c.name !== 'origin'),
+	];
+	for (const { url } of ordered) {
+		const parsed = parseGitHubOwnerRepoFromUrl(url);
+		if (parsed) {
+			return parsed;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Extract `{owner, repo}` from a GitHub remote URL. Handles the common
+ * forms: `git@github.com:owner/repo(.git)?`, `https://github.com/owner/repo(.git)?`,
+ * `ssh://git@github.com/owner/repo(.git)?`, `git://github.com/owner/repo(.git)?`.
+ */
+function parseGitHubOwnerRepoFromUrl(url: string): { owner: string; repo: string } | undefined {
+	// SCP-like: git@github.com:owner/repo(.git)?
+	let m = /^[^@\s]+@github\.com:([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i.exec(url);
+	if (m) {
+		return { owner: m[1], repo: m[2] };
+	}
+	// URL-form: <scheme>://[user@]github.com[:port]/owner/repo(.git)?
+	m = /^[a-z+]+:\/\/(?:[^@\/\s]+@)?github\.com(?::\d+)?\/([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i.exec(url);
+	if (m) {
+		return { owner: m[1], repo: m[2] };
+	}
+	return undefined;
 }
 
 /** Exported for tests. */

@@ -12,7 +12,6 @@ import xml2js from 'xml2js';
 import gulp from 'gulp';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
-import iconv from '@vscode/iconv-lite-umd';
 import { type l10nJsonFormat, getL10nXlf, type l10nJsonDetails, getL10nFilesFromXlf, getL10nJson } from '@vscode/l10n-dev';
 
 const REPO_ROOT_PATH = path.join(import.meta.dirname, '../..');
@@ -25,10 +24,6 @@ export interface Language {
 	id: string; // language id, e.g. zh-tw, de
 	translationId?: string; // language id used in translation tools, e.g. zh-hant, de (optional, if not set, the id is used)
 	folderName?: string; // language specific folder name, e.g. cht, deu  (optional, if not set, the id is used)
-}
-
-export interface InnoSetup {
-	codePage: string; //code page for encoding (http://www.jrsoftware.org/ishelp/index.php?topic=langoptionssection)
 }
 
 export const defaultLanguages: Language[] = [
@@ -128,6 +123,11 @@ class TextModel {
 	private _lines: string[];
 
 	constructor(contents: string) {
+		// Strip a leading UTF-8 BOM (U+FEFF) so callers can match on the
+		// first character of the first line without having to special-case it.
+		if (contents.charCodeAt(0) === 0xFEFF) {
+			contents = contents.slice(1);
+		}
 		this._lines = contents.split(/\r\n|\r|\n/);
 	}
 
@@ -798,7 +798,7 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 	});
 }
 
-export function prepareIslFiles(language: Language, innoSetupConfig: InnoSetup): eventStream.ThroughStream {
+export function prepareIslFiles(language: Language): eventStream.ThroughStream {
 	const parsePromises: Promise<l10nJsonDetails[]>[] = [];
 
 	return eventStream.through(function (this: eventStream.ThroughStream, xlf: File) {
@@ -808,7 +808,7 @@ export function prepareIslFiles(language: Language, innoSetupConfig: InnoSetup):
 		parsePromise.then(
 			resolvedFiles => {
 				resolvedFiles.forEach(file => {
-					const translatedFile = createIslFile(file.name, file.messages, language, innoSetupConfig);
+					const translatedFile = createIslFile(file.name, file.messages, language);
 					stream.queue(translatedFile);
 				});
 			}
@@ -824,7 +824,7 @@ export function prepareIslFiles(language: Language, innoSetupConfig: InnoSetup):
 	});
 }
 
-function createIslFile(name: string, messages: l10nJsonFormat, language: Language, innoSetup: InnoSetup): File {
+function createIslFile(name: string, messages: l10nJsonFormat, language: Language): File {
 	const content: string[] = [];
 	let originalContent: TextModel;
 	if (path.basename(name) === 'Default') {
@@ -855,11 +855,13 @@ function createIslFile(name: string, messages: l10nJsonFormat, language: Languag
 
 	const basename = path.basename(name);
 	const filePath = `${basename}.${language.id}.isl`;
-	const encoded = iconv.encode(Buffer.from(content.join('\r\n'), 'utf8').toString(), innoSetup.codePage);
+	const utf8BOM = Buffer.from([0xEF, 0xBB, 0xBF]);
+	const contentBuffer = Buffer.from(content.join('\r\n'), 'utf8');
+	const encoded = Buffer.concat([utf8BOM, contentBuffer]);
 
 	return new File({
 		path: filePath,
-		contents: Buffer.from(encoded),
+		contents: encoded,
 	});
 }
 
