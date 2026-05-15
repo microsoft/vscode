@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v6
+        with:
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v6

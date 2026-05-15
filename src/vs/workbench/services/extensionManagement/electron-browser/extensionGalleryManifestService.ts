@@ -180,6 +180,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				type: 'GET',
 				url,
 				headers,
+				callSite: 'extensionGalleryManifestService.fetchManifest'
 			}, CancellationToken.None);
 
 			const extensionGalleryManifest = await asJson<IExtensionGalleryManifest>(context);

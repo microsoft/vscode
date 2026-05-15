@@ -9,11 +9,14 @@ import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable, disposeAll } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { MdLinkOpener } from '../util/openDocumentLink';
+import { generateUuid } from '../util/uuid';
 import { MdDocumentRenderer } from './documentRenderer';
+import { MarkdownPreviewLineDiffProvider } from './lineDiff';
 import { DynamicMarkdownPreview, IManagedMarkdownPreview, StaticMarkdownPreview } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
-import { scrollEditorToLine, StartingScrollFragment } from './scrolling';
-import { TopmostLineMonitor } from './topmostLineMonitor';
+import { scrollEditorToLine, StartingScrollFragment, StartingScrollLine, StartingScrollLocation } from './scrolling';
+import { getVisibleLine, TopmostLineMonitor } from './topmostLineMonitor';
+import type { DiffScrollSyncData, MarkdownPreviewLineChanges } from '../../types/previewMessaging';
 
 
 export interface DynamicPreviewSettings {
@@ -24,23 +27,23 @@ export interface DynamicPreviewSettings {
 
 class PreviewStore<T extends IManagedMarkdownPreview> extends Disposable {
 
-	private readonly _previews = new Set<T>();
+	readonly #previews = new Set<T>();
 
 	public override dispose(): void {
 		super.dispose();
-		for (const preview of this._previews) {
+		for (const preview of this.#previews) {
 			preview.dispose();
 		}
-		this._previews.clear();
+		this.#previews.clear();
 	}
 
 	[Symbol.iterator](): Iterator<T> {
-		return this._previews[Symbol.iterator]();
+		return this.#previews[Symbol.iterator]();
 	}
 
 	public get(resource: vscode.Uri, previewSettings: DynamicPreviewSettings): T | undefined {
-		const previewColumn = this._resolvePreviewColumn(previewSettings);
-		for (const preview of this._previews) {
+		const previewColumn = this.#resolvePreviewColumn(previewSettings);
+		for (const preview of this.#previews) {
 			if (preview.matchesResource(resource, previewColumn, previewSettings.locked)) {
 				return preview;
 			}
@@ -49,14 +52,14 @@ class PreviewStore<T extends IManagedMarkdownPreview> extends Disposable {
 	}
 
 	public add(preview: T) {
-		this._previews.add(preview);
+		this.#previews.add(preview);
 	}
 
 	public delete(preview: T) {
-		this._previews.delete(preview);
+		this.#previews.delete(preview);
 	}
 
-	private _resolvePreviewColumn(previewSettings: DynamicPreviewSettings): vscode.ViewColumn | undefined {
+	#resolvePreviewColumn(previewSettings: DynamicPreviewSettings): vscode.ViewColumn | undefined {
 		if (previewSettings.previewColumn === vscode.ViewColumn.Active) {
 			return vscode.window.tabGroups.activeTabGroup.viewColumn;
 		}
@@ -71,21 +74,31 @@ class PreviewStore<T extends IManagedMarkdownPreview> extends Disposable {
 
 export class MarkdownPreviewManager extends Disposable implements vscode.WebviewPanelSerializer, vscode.CustomTextEditorProvider {
 
-	private readonly _topmostLineMonitor = new TopmostLineMonitor();
-	private readonly _previewConfigurations = new MarkdownPreviewConfigurationManager();
+	readonly #topmostLineMonitor = new TopmostLineMonitor();
+	readonly #previewConfigurations = new MarkdownPreviewConfigurationManager();
 
-	private readonly _dynamicPreviews = this._register(new PreviewStore<DynamicMarkdownPreview>());
-	private readonly _staticPreviews = this._register(new PreviewStore<StaticMarkdownPreview>());
+	readonly #dynamicPreviews = this._register(new PreviewStore<DynamicMarkdownPreview>());
+	readonly #staticPreviews = this._register(new PreviewStore<StaticMarkdownPreview>());
 
-	private _activePreview: IManagedMarkdownPreview | undefined = undefined;
+	#activePreview: IManagedMarkdownPreview | undefined = undefined;
+
+	readonly #contentProvider: MdDocumentRenderer;
+	readonly #logger: ILogger;
+	readonly #contributions: MarkdownContributionProvider;
+	readonly #opener: MdLinkOpener;
 
 	public constructor(
-		private readonly _contentProvider: MdDocumentRenderer,
-		private readonly _logger: ILogger,
-		private readonly _contributions: MarkdownContributionProvider,
-		private readonly _opener: MdLinkOpener,
+		contentProvider: MdDocumentRenderer,
+		logger: ILogger,
+		contributions: MarkdownContributionProvider,
+		opener: MdLinkOpener,
 	) {
 		super();
+
+		this.#contentProvider = contentProvider;
+		this.#logger = logger;
+		this.#contributions = contributions;
+		this.#opener = opener;
 
 		this._register(vscode.window.registerWebviewPanelSerializer(DynamicMarkdownPreview.viewType, this));
 
@@ -96,7 +109,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		this._register(vscode.window.onDidChangeActiveTextEditor(textEditor => {
 			// When at a markdown file, apply existing scroll settings
 			if (textEditor?.document && isMarkdownFile(textEditor.document)) {
-				const line = this._topmostLineMonitor.getPreviousStaticEditorLineByUri(textEditor.document.uri);
+				const line = this.#topmostLineMonitor.getPreviousStaticEditorLineByUri(textEditor.document.uri);
 				if (typeof line === 'number') {
 					scrollEditorToLine(line, textEditor);
 				}
@@ -105,19 +118,19 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	}
 
 	public refresh() {
-		for (const preview of this._dynamicPreviews) {
+		for (const preview of this.#dynamicPreviews) {
 			preview.refresh();
 		}
-		for (const preview of this._staticPreviews) {
+		for (const preview of this.#staticPreviews) {
 			preview.refresh();
 		}
 	}
 
 	public updateConfiguration() {
-		for (const preview of this._dynamicPreviews) {
+		for (const preview of this.#dynamicPreviews) {
 			preview.updateConfiguration();
 		}
-		for (const preview of this._staticPreviews) {
+		for (const preview of this.#staticPreviews) {
 			preview.updateConfiguration();
 		}
 	}
@@ -126,29 +139,30 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		resource: vscode.Uri,
 		settings: DynamicPreviewSettings
 	): void {
-		let preview = this._dynamicPreviews.get(resource, settings);
+		const scrollLocation = resource.fragment ? new StartingScrollFragment(resource.fragment) : this.#getActiveTextEditorScrollLocation(resource);
+		let preview = this.#dynamicPreviews.get(resource, settings);
 		if (preview) {
 			preview.reveal(settings.previewColumn);
 		} else {
-			preview = this._createNewDynamicPreview(resource, settings);
+			preview = this.#createNewDynamicPreview(resource, settings, scrollLocation);
 		}
 
 		preview.update(
 			resource,
-			resource.fragment ? new StartingScrollFragment(resource.fragment) : undefined
+			scrollLocation
 		);
 	}
 
 	public get activePreviewResource() {
-		return this._activePreview?.resource;
+		return this.#activePreview?.resource;
 	}
 
 	public get activePreviewResourceColumn() {
-		return this._activePreview?.resourceColumn;
+		return this.#activePreview?.resourceColumn;
 	}
 
 	public findPreview(resource: vscode.Uri): IManagedMarkdownPreview | undefined {
-		for (const preview of [...this._dynamicPreviews, ...this._staticPreviews]) {
+		for (const preview of [...this.#dynamicPreviews, ...this.#staticPreviews]) {
 			if (preview.resource.fsPath === resource.fsPath) {
 				return preview;
 			}
@@ -157,12 +171,12 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	}
 
 	public toggleLock() {
-		const preview = this._activePreview;
+		const preview = this.#activePreview;
 		if (preview instanceof DynamicMarkdownPreview) {
 			preview.toggleLock();
 
 			// Close any previews that are now redundant, such as having two dynamic previews in the same editor group
-			for (const otherPreview of this._dynamicPreviews) {
+			for (const otherPreview of this.#dynamicPreviews) {
 				if (otherPreview !== preview && preview.matches(otherPreview)) {
 					otherPreview.dispose();
 				}
@@ -172,7 +186,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 
 	public openDocumentLink(linkText: string, fromResource: vscode.Uri) {
 		const viewColumn = this.findPreview(fromResource)?.resourceColumn;
-		return this._opener.openDocumentLink(linkText, fromResource, viewColumn);
+		return this.#opener.openDocumentLink(linkText, fromResource, viewColumn);
 	}
 
 	public async deserializeWebviewPanel(
@@ -188,14 +202,14 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			const preview = DynamicMarkdownPreview.revive(
 				{ resource, locked, line, resourceColumn },
 				webview,
-				this._contentProvider,
-				this._previewConfigurations,
-				this._logger,
-				this._topmostLineMonitor,
-				this._contributions,
-				this._opener);
+				this.#contentProvider,
+				this.#previewConfigurations,
+				this.#logger,
+				this.#topmostLineMonitor,
+				this.#contributions,
+				this.#opener);
 
-			this._registerDynamicPreview(preview);
+			this.#registerDynamicPreview(preview);
 		} catch (e) {
 			console.error(e);
 
@@ -237,82 +251,147 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		document: vscode.TextDocument,
 		webview: vscode.WebviewPanel
 	): Promise<void> {
-		const lineNumber = this._topmostLineMonitor.getPreviousStaticTextEditorLineByUri(document.uri);
+		this.#resolveCustomTextEditor(document, webview);
+	}
+
+	public async resolveCustomTextEditorInlineDiff(
+		documents: vscode.CustomEditorDiffDocuments<vscode.TextDocument>,
+		webview: vscode.WebviewPanel
+	): Promise<void> {
+		const lineDiffProvider = new MarkdownPreviewLineDiffProvider(documents.original, documents.modified);
+		const preview = this.#resolveCustomTextEditor(documents.modified, webview, () => lineDiffProvider.getModifiedLineChanges());
+		this.#refreshPreviewWhenDocumentChanges(preview, documents.original);
+	}
+
+	public async resolveCustomTextEditorSideBySideDiff(
+		documents: vscode.CustomEditorDiffDocuments<vscode.TextDocument>,
+		webviewPanels: vscode.CustomEditorDiffWebviewPanels
+	): Promise<void> {
+		const lineDiffProvider = new MarkdownPreviewLineDiffProvider(documents.original, documents.modified);
+		const channelName = `md-diff-scroll-${generateUuid()}`;
+		const originalPreview = this.#resolveCustomTextEditor(
+			documents.original, webviewPanels.original,
+			() => lineDiffProvider.getOriginalLineChanges(),
+			async () => ({
+				channelName,
+				role: 'original' as const,
+				lineMappings: [...await lineDiffProvider.getModifiedToOriginalMappings()],
+			}));
+		const modifiedPreview = this.#resolveCustomTextEditor(
+			documents.modified, webviewPanels.modified,
+			() => lineDiffProvider.getModifiedLineChanges(),
+			async () => ({
+				channelName,
+				role: 'modified' as const,
+				lineMappings: [...await lineDiffProvider.getOriginalToModifiedMappings()],
+			}));
+		this.#refreshPreviewWhenDocumentChanges(originalPreview, documents.modified);
+		this.#refreshPreviewWhenDocumentChanges(modifiedPreview, documents.original);
+	}
+
+	#resolveCustomTextEditor(
+		document: vscode.TextDocument,
+		webview: vscode.WebviewPanel,
+		getLineChanges?: () => MarkdownPreviewLineChanges | Promise<MarkdownPreviewLineChanges | undefined> | undefined,
+		getDiffScrollSync?: () => DiffScrollSyncData | Promise<DiffScrollSyncData | undefined> | undefined,
+	): StaticMarkdownPreview {
+		const lineNumber = this.#topmostLineMonitor.getPreviousTextEditorLineByUri(document.uri);
 		const preview = StaticMarkdownPreview.revive(
 			document.uri,
 			webview,
-			this._contentProvider,
-			this._previewConfigurations,
-			this._topmostLineMonitor,
-			this._logger,
-			this._contributions,
-			this._opener,
-			lineNumber
+			this.#contentProvider,
+			this.#previewConfigurations,
+			this.#topmostLineMonitor,
+			this.#logger,
+			this.#contributions,
+			this.#opener,
+			lineNumber,
+			getLineChanges,
+			getDiffScrollSync
 		);
-		this._registerStaticPreview(preview);
-		this._activePreview = preview;
+		this.#registerStaticPreview(preview);
+		this.#activePreview = preview;
+		return preview;
 	}
 
-	private _createNewDynamicPreview(
+	#refreshPreviewWhenDocumentChanges(preview: StaticMarkdownPreview, document: vscode.TextDocument): void {
+		const listener = vscode.workspace.onDidChangeTextDocument(event => {
+			if (event.document.uri.toString() === document.uri.toString()) {
+				preview.refresh();
+			}
+		});
+		preview.onDispose(() => listener.dispose());
+	}
+
+	#createNewDynamicPreview(
 		resource: vscode.Uri,
-		previewSettings: DynamicPreviewSettings
+		previewSettings: DynamicPreviewSettings,
+		scrollLocation: StartingScrollLocation | undefined,
 	): DynamicMarkdownPreview {
-		const activeTextEditorURI = vscode.window.activeTextEditor?.document.uri;
-		const scrollLine = (activeTextEditorURI?.toString() === resource.toString()) ? vscode.window.activeTextEditor?.visibleRanges[0].start.line : undefined;
 		const preview = DynamicMarkdownPreview.create(
 			{
 				resource,
 				resourceColumn: previewSettings.resourceColumn,
 				locked: previewSettings.locked,
-				line: scrollLine,
+				line: scrollLocation?.type === 'line' ? scrollLocation.line : undefined,
 			},
 			previewSettings.previewColumn,
-			this._contentProvider,
-			this._previewConfigurations,
-			this._logger,
-			this._topmostLineMonitor,
-			this._contributions,
-			this._opener);
+			this.#contentProvider,
+			this.#previewConfigurations,
+			this.#logger,
+			this.#topmostLineMonitor,
+			this.#contributions,
+			this.#opener);
 
-		this._activePreview = preview;
-		return this._registerDynamicPreview(preview);
+		this.#activePreview = preview;
+		return this.#registerDynamicPreview(preview);
 	}
 
-	private _registerDynamicPreview(preview: DynamicMarkdownPreview): DynamicMarkdownPreview {
-		this._dynamicPreviews.add(preview);
+	#getActiveTextEditorScrollLocation(resource: vscode.Uri): StartingScrollLine | undefined {
+		const editor = vscode.window.activeTextEditor;
+		if (editor?.document.uri.toString() !== resource.toString()) {
+			return undefined;
+		}
+
+		const line = getVisibleLine(editor);
+		return typeof line === 'number' ? new StartingScrollLine(line) : undefined;
+	}
+
+	#registerDynamicPreview(preview: DynamicMarkdownPreview): DynamicMarkdownPreview {
+		this.#dynamicPreviews.add(preview);
 
 		preview.onDispose(() => {
-			this._dynamicPreviews.delete(preview);
+			this.#dynamicPreviews.delete(preview);
 		});
 
-		this._trackActive(preview);
+		this.#trackActive(preview);
 
 		preview.onDidChangeViewState(() => {
 			// Remove other dynamic previews in our column
-			disposeAll(Array.from(this._dynamicPreviews).filter(otherPreview => preview !== otherPreview && preview.matches(otherPreview)));
+			disposeAll(Array.from(this.#dynamicPreviews).filter(otherPreview => preview !== otherPreview && preview.matches(otherPreview)));
 		});
 		return preview;
 	}
 
-	private _registerStaticPreview(preview: StaticMarkdownPreview): StaticMarkdownPreview {
-		this._staticPreviews.add(preview);
+	#registerStaticPreview(preview: StaticMarkdownPreview): StaticMarkdownPreview {
+		this.#staticPreviews.add(preview);
 
 		preview.onDispose(() => {
-			this._staticPreviews.delete(preview);
+			this.#staticPreviews.delete(preview);
 		});
 
-		this._trackActive(preview);
+		this.#trackActive(preview);
 		return preview;
 	}
 
-	private _trackActive(preview: IManagedMarkdownPreview): void {
+	#trackActive(preview: IManagedMarkdownPreview): void {
 		preview.onDidChangeViewState(({ webviewPanel }) => {
-			this._activePreview = webviewPanel.active ? preview : undefined;
+			this.#activePreview = webviewPanel.active ? preview : undefined;
 		});
 
 		preview.onDispose(() => {
-			if (this._activePreview === preview) {
-				this._activePreview = undefined;
+			if (this.#activePreview === preview) {
+				this.#activePreview = undefined;
 			}
 		});
 	}
