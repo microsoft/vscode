@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, derivedOpts, IObservable, ISettableObservable, observableValue, observableSignalFromEvent, derivedObservableWithCache } from '../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, ISettableObservable, observableValue, observableSignalFromEvent, derivedObservableWithCache, autorun } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -36,7 +36,6 @@ export interface ActiveSessionState {
 export class ChangesViewModel extends Disposable {
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
-	readonly activeSessionIsArchivedObs: IObservable<boolean>;
 	readonly activeSessionChangesObs: IObservable<readonly ISessionFileChange[]>;
 	readonly activeSessionChangesetsObs: IObservable<readonly ISessionChangeset[] | undefined>;
 	readonly activeSessionChangesetObs: IObservable<ISessionChangeset | undefined>;
@@ -71,7 +70,6 @@ export class ChangesViewModel extends Disposable {
 		// Active session resource
 		this.activeSessionResourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			this.setChangesetId(undefined);
 			return activeSession?.resource;
 		});
 
@@ -79,12 +77,6 @@ export class ChangesViewModel extends Disposable {
 		this.activeSessionTypeObs = derived(reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
 			return activeSession?.sessionType;
-		});
-
-		// Active session is archived
-		this.activeSessionIsArchivedObs = derived(reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			return activeSession?.isArchived.read(reader) === true;
 		});
 
 		// Active session has git repository
@@ -138,6 +130,12 @@ export class ChangesViewModel extends Disposable {
 		const storedMode = this.storageService.get('changesView.viewMode', StorageScope.WORKSPACE);
 		const initialMode = storedMode === ChangesViewMode.Tree ? ChangesViewMode.Tree : ChangesViewMode.List;
 		this.viewModeObs = observableValue<ChangesViewMode>(this, initialMode);
+
+		// Reset changeset selection
+		this._register(autorun(reader => {
+			this.activeSessionResourceObs.read(reader);
+			this.setChangesetId(undefined);
+		}));
 	}
 
 	private _getActiveSessionState(): { isLoading: IObservable<boolean>; state: IObservable<ActiveSessionState | undefined> } {
