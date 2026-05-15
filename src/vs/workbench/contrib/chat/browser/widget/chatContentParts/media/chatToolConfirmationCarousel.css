@@ -151,6 +151,29 @@
 		opacity: 0.4;
 	}
 
+	.monaco-button.chat-tool-carousel-header-button {
+		min-width: 22px;
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		border: none !important;
+		box-shadow: none !important;
+		background: transparent !important;
+		color: var(--vscode-icon-foreground) !important;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.monaco-button.chat-tool-carousel-header-button:hover:not(.disabled) {
+		background: var(--vscode-toolbar-hoverBackground) !important;
+	}
+
+	&.chat-tool-carousel-content-expanded {
+		max-height: min(650px, 70vh);
+	}
+
 	.monaco-list:focus {
 		outline: none !important;
 	}
@@ -209,6 +232,12 @@
 			flex: 1;
 			min-height: 0;
 			max-height: min(200px, 30vh);
+		}
+
+		.chat-tool-carousel-content-expanded & {
+			.chat-confirmation-widget-message {
+				max-height: min(500px, 55vh);
+			}
 		}
 
 		.chat-confirmation-message-terminal-editor .interactive-result-code-block {

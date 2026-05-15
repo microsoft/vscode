@@ -6,6 +6,8 @@
 import { Color, RGBA } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
 import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { buttonBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
+import { darken, lighten } from '../../../../../platform/theme/common/colorUtils.js';
 
 // This color intentionally matches commandCenter.background but is separate so that it
 // doesn't get overridden when debugging (the debug toolbar overrides commandCenter.background).
@@ -90,15 +92,15 @@ export const chatThinkingShimmer = registerColor(
 
 export const chatInputWorkingBorderColor1 = registerColor(
 	'chat.inputWorkingBorderColor1',
-	{ dark: '#b44aff', light: '#b44aff', hcDark: '#b44aff', hcLight: '#b44aff' },
+	{ dark: buttonBackground, light: buttonBackground, hcDark: '#FFFFFF', hcLight: '#000000' },
 	localize('chat.inputWorkingBorderColor1', 'First color stop of the animated chat input border shown while a request is in flight.'), true);
 
 export const chatInputWorkingBorderColor2 = registerColor(
 	'chat.inputWorkingBorderColor2',
-	{ dark: '#4af0c0', light: '#4af0c0', hcDark: '#4af0c0', hcLight: '#4af0c0' },
-	localize('chat.inputWorkingBorderColor2', 'Second color stop of the animated chat input border shown while a request is in flight.'), true);
+	{ dark: darken(buttonBackground, 0.5), light: darken(buttonBackground, 0.3), hcDark: '#A0A0A0', hcLight: '#555555' },
+	localize('chat.inputWorkingBorderColor2', 'Secondary accent color used by other animated chat input affordances. Not used by the in-flight chat input border.'), true);
 
 export const chatInputWorkingBorderColor3 = registerColor(
 	'chat.inputWorkingBorderColor3',
-	{ dark: '#51a2ff', light: '#51a2ff', hcDark: '#51a2ff', hcLight: '#51a2ff' },
-	localize('chat.inputWorkingBorderColor3', 'Third color stop of the animated chat input border shown while a request is in flight.'), true);
+	{ dark: lighten(buttonBackground, 0.5), light: lighten(buttonBackground, 0.3), hcDark: '#000000', hcLight: '#000000' },
+	localize('chat.inputWorkingBorderColor3', 'Tertiary accent color used by other animated chat input affordances. Not used by the in-flight chat input border.'), true);

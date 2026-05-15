@@ -81,7 +81,7 @@ export class SemanticSearchTextSearchProvider implements vscode.AITextSearchProv
 	) { }
 
 	private async getEndpoint() {
-		this._endpoint = this._endpoint ?? await this._endpointProvider.getChatEndpoint('copilot-fast');
+		this._endpoint = this._endpoint ?? await this._endpointProvider.getChatEndpoint('copilot-utility-small');
 		return this._endpoint;
 	}
 

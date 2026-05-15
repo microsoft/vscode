@@ -67,8 +67,14 @@ const HIDDEN_MODEL_J_HASHES: string[] = [
 	'5a81e6aa7556585ba7c569881d1103683adc9e0124ff7952df423afba2f167b5',
 ];
 
+const HIDDEN_MODEL_K_HASH = 'a62e299160a1075d9973c28a7aa77f446c21c09887c7aa65c11022918cf83eda';
+
 const HIDDEN_FAMILY_H_HASHES: string[] = [
 	'70fcded3f255d368e868cc807d8838a62108bfa5c86ce7d37966f58cda229e33',
+];
+
+const HIDDEN_FAMILY_M_HASHES: string[] = [
+	'0902565c0c0fe145633a1f246ae551acc0f621249ef050428eba357fbd4655ee',
 ];
 
 function getModelId(model: LanguageModelChat | IChatEndpoint): string {
@@ -96,14 +102,19 @@ export function isHiddenModelF(model: LanguageModelChat | IChatEndpoint) {
 	return HIDDEN_MODEL_F_HASHES.includes(h);
 }
 
-export function isHiddenModelG(model: LanguageModelChat | IChatEndpoint) {
-	const family_hash = getCachedSha256Hash(model.family);
+export function isHiddenModelG(model: LanguageModelChat | IChatEndpoint | string) {
+	const family_hash = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
 	return family_hash === '3ae755cc6122a54cc873e3ba2bd8703883b4a711d1af2707ef00f2c2c963ee8d';
 }
 
 export function isHiddenFamilyH(model: LanguageModelChat | IChatEndpoint) {
 	const family_hash = getCachedSha256Hash(model.family);
 	return HIDDEN_FAMILY_H_HASHES.includes(family_hash);
+}
+
+export function isHiddenModelK(model: LanguageModelChat | IChatEndpoint) {
+	const h = getCachedSha256Hash(model.family);
+	return h === HIDDEN_MODEL_K_HASH;
 }
 
 
@@ -113,24 +124,34 @@ export function isGpt54(model: LanguageModelChat | IChatEndpoint | string) {
 	return family.startsWith('gpt-5.4') || HIDDEN_MODEL_J_HASHES.includes(h);
 }
 
-export function isGpt54ConcisePromptExp(
+export function isGpt55(model: LanguageModelChat | IChatEndpoint | string) {
+	const h = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
+	const family = typeof model === 'string' ? model : model.family;
+	return family.startsWith('gpt-5.5') || HIDDEN_MODEL_B_HASHES.includes(h);
+}
+
+export function isGpt55EconomicalSearchAndEditExp(
 	accessor: ServicesAccessor,
 	model: LanguageModelChat | IChatEndpoint | string,
 ) {
 	const configurationService = accessor.get(IConfigurationService);
 	const experimentationService = accessor.get(IExperimentationService);
-	return isGpt54(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt54ConcisePromptExp, experimentationService);
+	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55EconomicalSearchAndEdit, experimentationService);
 }
 
-export function isGpt54LargePromptExp(
+export function isGpt55LargePromptSectionsExp(
 	accessor: ServicesAccessor,
 	model: LanguageModelChat | IChatEndpoint | string,
 ) {
 	const configurationService = accessor.get(IConfigurationService);
 	const experimentationService = accessor.get(IExperimentationService);
-	return isGpt54(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt54LargePromptExp, experimentationService);
+	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55LargePromptSections, experimentationService);
 }
 
+export function isHiddenModelM(model: LanguageModelChat | IChatEndpoint | string) {
+	const family_hash = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
+	return HIDDEN_FAMILY_M_HASHES.includes(family_hash);
+}
 
 export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) {
 	const family = typeof model === 'string' ? model : model.family;
@@ -210,7 +231,8 @@ export function modelSupportsApplyPatch(model: LanguageModelChat | IChatEndpoint
 		|| isVSCModelB(model)
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
-		|| isHiddenModelB(model);
+		|| isHiddenModelB(model)
+		|| isHiddenModelM(model);
 }
 
 /**
@@ -223,14 +245,15 @@ export function modelPrefersJsonNotebookRepresentation(model: LanguageModelChat 
 		|| isGpt53Codex(model.family)
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
-		|| isHiddenModelB(model);
+		|| isHiddenModelB(model)
+		|| isHiddenModelM(model);
 }
 
 /**
  * Model supports replace_string_in_file as an edit tool.
  */
 export function modelSupportsReplaceString(model: LanguageModelChat | IChatEndpoint): boolean {
-	return model.family.toLowerCase().includes('gemini') || model.family.includes('grok-code') || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isGeminiFamily(model) || model.family.includes('grok-code') || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
 }
 
 /**
@@ -295,7 +318,7 @@ export function modelCanUseApplyPatchExclusively(model: LanguageModelChat | ICha
  * replace_string.
  */
 export function modelNeedsStrongReplaceStringHint(model: LanguageModelChat | IChatEndpoint): boolean {
-	return model.family.toLowerCase().includes('gemini') || isHiddenModelF(model);
+	return isGeminiFamily(model) || isHiddenModelF(model);
 }
 
 /**
@@ -309,8 +332,9 @@ export function isAnthropicFamily(model: LanguageModelChat | IChatEndpoint): boo
 	return model.family.startsWith('claude') || model.family.startsWith('Anthropic') || isHiddenModelG(model);
 }
 
-export function isGeminiFamily(model: LanguageModelChat | IChatEndpoint): boolean {
-	return model.family.toLowerCase().startsWith('gemini');
+export function isGeminiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const family = typeof model === 'string' ? model : model.family;
+	return family.toLowerCase().startsWith('gemini') || getCachedSha256Hash(family) === HIDDEN_MODEL_K_HASH;
 }
 
 export function isMinimaxFamily(model: LanguageModelChat | IChatEndpoint): boolean {
@@ -383,20 +407,24 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
 }
 
 /**
- * Returns true if the model supports the tool search tool.
- * Matches any Claude Sonnet or Opus model with version >= 4.5. The minor
- * version is bounded to 1–2 digits so date suffixes like `-20250514`
- * cannot be misread as a minor version.
+ * Tool search is supported by:
+ * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
+ * - Claude Sonnet 4.6 (claude-sonnet-4-6-* or claude-sonnet-4.6-*)
+ * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
+ * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
+ * - Claude Opus 4.7 (claude-opus-4-7-* or claude-opus-4.7-*)
+ * - OpenAI gpt-5.4 and gpt-5.5 (via Responses API client-side tool search)
  */
 export function modelSupportsToolSearch(modelId: string): boolean {
 	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	const match = normalized.match(/^claude-(?:sonnet|opus)-(\d+)(?:-(\d{1,2}))?(?:-|$)/);
-	if (!match) {
-		return false;
-	}
-	const major = parseInt(match[1], 10);
-	const minor = match[2] !== undefined ? parseInt(match[2], 10) : 0;
-	return major > 4 || (major === 4 && minor >= 5);
+	return normalized === 'gpt-5-4' ||
+		normalized === 'gpt-5-5' ||
+		normalized.startsWith('claude-sonnet-4-5') ||
+		normalized.startsWith('claude-sonnet-4-6') ||
+		normalized.startsWith('claude-opus-4-5') ||
+		normalized.startsWith('claude-opus-4-6') ||
+		normalized.startsWith('claude-opus-4-7') ||
+		isHiddenModelG(modelId) || isHiddenModelM(modelId);
 }
 
 /**

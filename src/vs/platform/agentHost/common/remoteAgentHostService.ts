@@ -4,16 +4,80 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentConnection } from './agentService.js';
+import type { UnsupportedProtocolVersionErrorData } from './state/protocol/errors.js';
+import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from './state/sessionProtocol.js';
 import { TUNNEL_ADDRESS_PREFIX } from './tunnelAgentHost.js';
 
-/** Connection status for a remote agent host. */
-export const enum RemoteAgentHostConnectionStatus {
-	Connected = 'connected',
-	Connecting = 'connecting',
-	Disconnected = 'disconnected',
+/**
+ * Connection status for a remote agent host.
+ *
+ * Discriminated by `kind`. The `incompatible` variant carries the rejection
+ * message returned by the host (typically when its protocol version is not
+ * compatible with anything the client offered) so the UI can surface it.
+ */
+export type RemoteAgentHostConnectionStatus =
+	| { readonly kind: 'connected' }
+	| { readonly kind: 'connecting' }
+	| { readonly kind: 'disconnected' }
+	| {
+		readonly kind: 'incompatible';
+		/** Human-readable reason from the host (or a synthesised one when the host did not send one). */
+		readonly message: string;
+		/** Protocol versions the client offered. */
+		readonly supportedByClient: readonly string[];
+		/** Protocol versions the server reported it can speak, if available. */
+		readonly offeredByServer?: readonly string[];
+	};
+
+export namespace RemoteAgentHostConnectionStatus {
+	/** Singleton "connected" status. */
+	export const connected: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'connected' });
+	/** Singleton "connecting" status. */
+	export const connecting: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'connecting' });
+	/** Singleton "disconnected" status. */
+	export const disconnected: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'disconnected' });
+	/** Build an "incompatible" status from a host-supplied message and the versions involved. */
+	export function incompatible(message: string, supportedByClient: readonly string[], offeredByServer?: readonly string[]): RemoteAgentHostConnectionStatus {
+		return Object.freeze({ kind: 'incompatible', message, supportedByClient, offeredByServer });
+	}
+	/** Whether the connection is fully established and ready for traffic. */
+	export function isConnected(status: RemoteAgentHostConnectionStatus | undefined): boolean {
+		return status?.kind === 'connected';
+	}
+	/** Whether the connection is mid-handshake. */
+	export function isConnecting(status: RemoteAgentHostConnectionStatus | undefined): boolean {
+		return status?.kind === 'connecting';
+	}
+	/** Whether the connection is in the plain disconnected state. */
+	export function isDisconnected(status: RemoteAgentHostConnectionStatus | undefined): boolean {
+		return status?.kind === 'disconnected';
+	}
+	/** Whether the connection rejected our protocol version. */
+	export function isIncompatible(status: RemoteAgentHostConnectionStatus | undefined): status is RemoteAgentHostConnectionStatus & { kind: 'incompatible' } {
+		return status?.kind === 'incompatible';
+	}
+	/** Whether the connection is anything except `connected`. */
+	export function isUnavailable(status: RemoteAgentHostConnectionStatus | undefined): boolean {
+		return status?.kind !== 'connected';
+	}
+	/**
+	 * If `err` is a protocol-version mismatch reported by an agent host
+	 * during the `initialize` handshake, returns an `incompatible` status
+	 * carrying the host's message. Returns `undefined` otherwise so callers
+	 * can fall back to their existing failure handling.
+	 */
+	export function fromConnectError(err: unknown, supportedByClient: readonly string[]): RemoteAgentHostConnectionStatus | undefined {
+		if (err instanceof ProtocolError && err.code === AHP_UNSUPPORTED_PROTOCOL_VERSION) {
+			const data = err.data as Partial<UnsupportedProtocolVersionErrorData> | undefined;
+			const offeredByServer = Array.isArray(data?.supportedVersions) ? data.supportedVersions : undefined;
+			return incompatible(err.message, supportedByClient, offeredByServer);
+		}
+		return undefined;
+	}
 }
 
 /** Configuration key for the list of remote agent host addresses. */
@@ -169,8 +233,18 @@ export interface IRemoteAgentHostService {
 	 * Register a pre-connected agent connection.
 	 * Used by the SSH and tunnel services to inject relay-backed connections
 	 * without going through the WebSocket connect flow.
+	 *
+	 * The optional `transportDisposable` represents the underlying transport
+	 * (e.g. an SSH tunnel relay or tunnel-relay session) and is owned by this
+	 * service for the lifetime of the entry. It will be disposed when:
+	 *   - the entry is removed via {@link removeRemoteAgentHost}
+	 *   - the entry is reconciled away (config-driven removal)
+	 *   - this service itself is disposed
+	 * Callers should put any teardown that needs to happen on entry removal
+	 * (e.g. closing the shared-process tunnel, dropping renderer-side handles)
+	 * into this disposable, so a single removal path tears down the whole stack.
 	 */
-	addSSHConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection): Promise<IRemoteAgentHostConnectionInfo>;
+	addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable): Promise<IRemoteAgentHostConnectionInfo>;
 
 	/**
 	 * Look up the {@link IRemoteAgentHostEntry} for a given address.
@@ -200,7 +274,7 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	}
 	async removeRemoteAgentHost(_address: string): Promise<void> { }
 	reconnect(_address: string): void { }
-	async addSSHConnection(): Promise<IRemoteAgentHostConnectionInfo> {
+	async addManagedConnection(): Promise<IRemoteAgentHostConnectionInfo> {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}
 	getEntryByAddress(): IRemoteAgentHostEntry | undefined { return undefined; }

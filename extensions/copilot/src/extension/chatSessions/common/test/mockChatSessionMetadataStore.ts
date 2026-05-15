@@ -54,11 +54,8 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		return undefined;
 	}
 
-	async getWorktreeProperties(sessionIdOrFolder: string | vscode.Uri): Promise<ChatSessionWorktreeProperties | undefined> {
-		if (typeof sessionIdOrFolder === 'string') {
-			return this._worktreeProperties.get(sessionIdOrFolder);
-		}
-		return undefined;
+	async getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined> {
+		return this._worktreeProperties.get(sessionId);
 	}
 
 	async getSessionWorkspaceFolder(_sessionId: string): Promise<vscode.Uri | undefined> {
@@ -152,7 +149,48 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		return Promise.resolve();
 	}
 
-	getSessionParentId(_sessionId: string): Promise<string | undefined> {
+	getSessionParentId(_sessionId: string): Promise<{ parentSessionId: string; kind: 'forked' | 'sub-session' } | undefined> {
 		return Promise.resolve(undefined);
+	}
+
+	private readonly _archived = new Set<string>();
+
+	async setSessionArchived(sessionId: string, archived: boolean): Promise<void> {
+		if (archived) {
+			this._archived.add(sessionId);
+		} else {
+			this._archived.delete(sessionId);
+		}
+	}
+
+	async getSessionArchived(sessionId: string): Promise<boolean> {
+		return this._archived.has(sessionId);
+	}
+
+	getSessionIdsForFolder(folder: vscode.Uri): string[] {
+		const folderPath = folder.fsPath;
+		const sessionIds: string[] = [];
+		for (const [sessionId, props] of this._worktreeProperties) {
+			if (props.worktreePath === folderPath) {
+				sessionIds.push(sessionId);
+			}
+		}
+		for (const [sessionId, entry] of this._workspaceFolders) {
+			if (entry.folderPath === folderPath && !sessionIds.includes(sessionId)) {
+				sessionIds.push(sessionId);
+			}
+		}
+		return sessionIds;
+	}
+
+	getWorktreeSessions(folder: vscode.Uri): string[] {
+		const folderPath = folder.fsPath;
+		const sessionIds: string[] = [];
+		for (const [sessionId, props] of this._worktreeProperties) {
+			if (props.worktreePath === folderPath) {
+				sessionIds.push(sessionId);
+			}
+		}
+		return sessionIds;
 	}
 }

@@ -8,13 +8,15 @@
 // and maintains connections, reconnecting as the setting changes.
 
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { ConfigurationTarget, IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { ILabelService } from '../../label/common/label.js';
 import { ILogService } from '../../log/common/log.js';
 
-import type { IAgentConnection } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, type IAgentConnection } from '../common/agentService.js';
 import {
 	IRemoteAgentHostService,
 	RemoteAgentHostConnectionStatus,
@@ -28,18 +30,32 @@ import {
 	type IRemoteAgentHostConnectionInfo,
 	type IRemoteAgentHostEntry,
 } from '../common/remoteAgentHostService.js';
-import { RemoteAgentHostProtocolClient } from './remoteAgentHostProtocolClient.js';
+import { RemoteAgentHostProtocolClient, AgentHostClientState } from './remoteAgentHostProtocolClient.js';
 import { WebSocketClientTransport } from './webSocketClientTransport.js';
-import { normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
 import { isDefined } from '../../../base/common/types.js';
+import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 
 /** Tracks a single remote connection through its lifecycle. */
 interface IConnectionEntry {
 	readonly store: DisposableStore;
 	readonly client: RemoteAgentHostProtocolClient;
+	/**
+	 * Optional teardown for the shared-process tunnel that this entry's
+	 * transport is using (SSH or dev-tunnels). Tracked separately from
+	 * {@link store} because on reconnect the new entry takes ownership of
+	 * the same underlying connectionId — running the old teardown would
+	 * disconnect the freshly-established tunnel as a side effect.
+	 */
+	readonly transportDisposable?: IDisposable;
 	connected: boolean;
 	/** Current connection status for UI display. */
 	status: RemoteAgentHostConnectionStatus;
+}
+
+function disposeEntry(entry: IConnectionEntry): void {
+	entry.store.dispose();
+	entry.transportDisposable?.dispose();
 }
 
 export class RemoteAgentHostService extends Disposable implements IRemoteAgentHostService {
@@ -59,7 +75,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	private readonly _tokens = new Map<string, string | undefined>();
 	/**
 	 * Stores the original {@link IRemoteAgentHostEntry} for connections
-	 * registered via {@link addSSHConnection}. This is needed because
+	 * registered via {@link addManagedConnection}. This is needed because
 	 * tunnel entries are not persisted to settings and therefore don't
 	 * appear in {@link configuredEntries}.
 	 */
@@ -69,11 +85,20 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	private readonly _reconnectTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 	/** Current reconnect attempt count per address for exponential backoff. */
 	private readonly _reconnectAttempts = new Map<string, number>();
+	/**
+	 * Per-address {@link ILabelService} formatter handles for the
+	 * {@link AGENT_HOST_SCHEME}. The formatter advertises the entry's
+	 * human-readable name as the host label so any UI looking up the host
+	 * label for an agent host URI gets the friendly name.
+	 */
+	private readonly _labelFormatters = new Map<string, IDisposable>();
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
+		@ILabelService private readonly _labelService: ILabelService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 	) {
 		super();
 
@@ -186,7 +211,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				address,
 				name: entry.name,
 				clientId: '',
-				status: RemoteAgentHostConnectionStatus.Disconnected,
+				status: RemoteAgentHostConnectionStatus.disconnected,
 			};
 		}
 
@@ -206,11 +231,18 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		return connection;
 	}
 
-	async addSSHConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection): Promise<IRemoteAgentHostConnectionInfo> {
+	async addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable): Promise<IRemoteAgentHostConnectionInfo> {
 		const address = getEntryAddress(entry);
 
 		// Dispose any existing entry for this address to avoid leaking
 		// old protocol clients and relay transports on reconnect.
+		//
+		// CRITICAL: we deliberately do NOT run the existing entry's
+		// transportDisposable. On a reconnect to the same address, the
+		// shared-process tunnel keyed by connectionId is already owned by
+		// the new connection we just established. Running the old teardown
+		// would call _mainService.disconnect(connectionId) and immediately
+		// kill the brand-new tunnel.
 		const existingEntry = this._entries.get(address);
 		if (existingEntry) {
 			this._entries.delete(address);
@@ -222,10 +254,11 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// Create a connection entry wrapping the pre-connected client
 		const protocolClient = connection as RemoteAgentHostProtocolClient;
 		store.add(protocolClient);
-		const connEntry: IConnectionEntry = { store, client: protocolClient, connected: true, status: RemoteAgentHostConnectionStatus.Connected };
+		const connEntry: IConnectionEntry = { store, client: protocolClient, transportDisposable, connected: true, status: RemoteAgentHostConnectionStatus.connected };
 		this._entries.set(address, connEntry);
 		this._names.set(address, entry.name);
 		this._registeredEntries.set(address, entry);
+		this._updateHostLabelFormatter(address, entry.name);
 		if (entry.connectionToken) {
 			this._tokens.set(address, entry.connectionToken);
 		}
@@ -233,7 +266,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		store.add(protocolClient.onDidClose(() => {
 			if (this._entries.get(address) === connEntry) {
 				connEntry.connected = false;
-				connEntry.status = RemoteAgentHostConnectionStatus.Disconnected;
+				connEntry.status = RemoteAgentHostConnectionStatus.disconnected;
 				this._onDidChangeConnections.fire();
 			}
 		}));
@@ -250,7 +283,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			name: entry.name,
 			clientId: protocolClient.clientId,
 			defaultDirectory: protocolClient.defaultDirectory,
-			status: RemoteAgentHostConnectionStatus.Connected,
+			status: RemoteAgentHostConnectionStatus.connected,
 		};
 	}
 
@@ -268,6 +301,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		this._names.delete(normalized);
 		this._tokens.delete(normalized);
 		this._registeredEntries.delete(normalized);
+		this._clearHostLabelFormatter(normalized);
 		this._cancelReconnect(normalized);
 		this._reconnectAttempts.delete(normalized);
 		this._removeConnection(normalized);
@@ -277,7 +311,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const entry = this._entries.get(address);
 		if (entry) {
 			this._entries.delete(address);
-			entry.store.dispose();
+			disposeEntry(entry);
 			this._rejectPendingConnectionWait(address, new Error(`Connection closed: ${address}`));
 			this._onDidChangeConnections.fire();
 		}
@@ -293,6 +327,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._names.clear();
 			this._tokens.clear();
 			this._reconnectAttempts.clear();
+			// Drop label formatters for entries no longer represented by an
+			// active connection or a dynamically registered entry. Connections
+			// added via {@link addManagedConnection} (e.g. tunnels) live outside
+			// the configured-entries set and must keep their formatter.
+			for (const address of [...this._labelFormatters.keys()]) {
+				if (!this._registeredEntries.has(address)) {
+					this._clearHostLabelFormatter(address);
+				}
+			}
 			return;
 		}
 
@@ -310,8 +353,17 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		for (const { entry, address } of entriesWithAddress) {
 			this._names.set(address, entry.name);
 			this._tokens.set(address, entry.connectionToken);
+			this._updateHostLabelFormatter(address, entry.name);
 			if (this._entries.has(address) && oldNames.get(address) !== entry.name) {
 				namesChanged = true;
+			}
+		}
+
+		// Drop formatters for addresses that are no longer configured and
+		// not dynamically registered.
+		for (const address of [...this._labelFormatters.keys()]) {
+			if (!desired.has(address) && !this._registeredEntries.has(address)) {
+				this._clearHostLabelFormatter(address);
 			}
 		}
 
@@ -349,9 +401,21 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 
 		const store = new DisposableStore();
-		const transport = store.add(new WebSocketClientTransport(address, connectionToken));
-		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport));
-		const entry: IConnectionEntry = { store, client, connected: false, status: RemoteAgentHostConnectionStatus.Connecting };
+		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
+		// Factory so the protocol client can replace the underlying transport
+		// across transient drops and use the `reconnect` RPC to resume — see
+		// {@link RemoteAgentHostProtocolClient}. The store owns only the client;
+		// individual transports are owned by the client itself.
+		const transportFactory = () => this._instantiationService.createInstance(
+			WebSocketClientTransport,
+			address,
+			connectionToken,
+			ahpLoggingEnabled
+				? { logsHome: this._environmentService.logsHome, connectionId: address, transport: 'websocket' }
+				: undefined,
+		);
+		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transportFactory));
+		const entry: IConnectionEntry = { store, client, connected: false, status: RemoteAgentHostConnectionStatus.connecting };
 		this._entries.set(address, entry);
 
 		// Guard against stale callbacks: only act if the
@@ -364,10 +428,36 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 			this._logService.warn(`[RemoteAgentHost] Connection closed: ${address}`);
 			entry.connected = false;
-			entry.status = RemoteAgentHostConnectionStatus.Disconnected;
+			entry.status = RemoteAgentHostConnectionStatus.disconnected;
 			this._onDidChangeConnections.fire();
-			// Schedule reconnect if the address is still configured
+			// Schedule reconnect if the address is still configured. This is
+			// the "fatal" path — the protocol client already gave up its own
+			// soft-reconnect attempts (or it was never enabled), so we rebuild
+			// from scratch.
 			this._scheduleReconnect(address, connectionToken);
+		}));
+
+		// Reflect transient transport drops as `connecting` status (rather
+		// than `disconnected`) so the UI doesn't flicker session lists into
+		// an empty state during a soft reconnect.
+		store.add(client.onDidChangeConnectionState(state => {
+			if (!isCurrentEntry()) {
+				return;
+			}
+			switch (state) {
+				case AgentHostClientState.Reconnecting:
+					entry.connected = false;
+					entry.status = RemoteAgentHostConnectionStatus.connecting;
+					this._onDidChangeConnections.fire();
+					break;
+				case AgentHostClientState.Connected:
+					entry.connected = true;
+					entry.status = RemoteAgentHostConnectionStatus.connected;
+					this._onDidChangeConnections.fire();
+					break;
+				default:
+					break;
+			}
 		}));
 
 		this._logService.info(`[RemoteAgentHost] Connecting to ${address}`);
@@ -378,7 +468,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 			this._logService.info(`[RemoteAgentHost] Connected to ${address}`);
 			entry.connected = true;
-			entry.status = RemoteAgentHostConnectionStatus.Connected;
+			entry.status = RemoteAgentHostConnectionStatus.connected;
 			this._reconnectAttempts.delete(address);
 			this._resolvePendingConnectionWait(address);
 			this._onDidChangeConnections.fire();
@@ -386,8 +476,26 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			if (!isCurrentEntry()) {
 				return;
 			}
+
+			// Protocol version mismatch is a deterministic, user-visible
+			// failure: the host explicitly told us it cannot speak our
+			// version. Surface it as `incompatible` (so the workspace picker
+			// can show the message) and keep the entry around — futile
+			// reconnect attempts would just spin until the user upgrades
+			// either side, so leave recovery to the manual `Reconnect`
+			// action in the picker.
+			const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
+			if (incompatible) {
+				this._logService.warn(`[RemoteAgentHost] Incompatible with ${address}: ${incompatible.kind === 'incompatible' ? incompatible.message : ''}`);
+				entry.status = incompatible;
+				this._reconnectAttempts.delete(address);
+				this._rejectPendingConnectionWait(address, err);
+				this._onDidChangeConnections.fire();
+				return;
+			}
+
 			this._logService.error(`[RemoteAgentHost] Failed to connect to ${address}. Verify address and connectionToken`, err);
-			entry.status = RemoteAgentHostConnectionStatus.Disconnected;
+			entry.status = RemoteAgentHostConnectionStatus.disconnected;
 			// Clean up the failed entry
 			this._entries.delete(address);
 			entry.store.dispose();
@@ -444,7 +552,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	private _getConnectionInfo(address: string): IRemoteAgentHostConnectionInfo | undefined {
-		return this.connections.find(connection => connection.address === address && connection.status === RemoteAgentHostConnectionStatus.Connected);
+		return this.connections.find(connection => connection.address === address && RemoteAgentHostConnectionStatus.isConnected(connection.status));
 	}
 
 	private _getConfiguredEntries(): IRemoteAgentHostEntry[] {
@@ -540,6 +648,34 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		void wait.error(err);
 	}
 
+	/**
+	 * Register (or re-register) the {@link AGENT_HOST_SCHEME} label formatter
+	 * for the given address so that {@link ILabelService.getHostLabel} resolves
+	 * to the entry's human-readable name. Called when an entry is added or its
+	 * name changes.
+	 */
+	private _updateHostLabelFormatter(address: string, name: string): void {
+		this._clearHostLabelFormatter(address);
+		const handle = this._labelService.registerFormatter({
+			scheme: AGENT_HOST_SCHEME,
+			authority: agentHostAuthority(address),
+			priority: true,
+			formatting: {
+				...AGENT_HOST_LABEL_FORMATTER.formatting,
+				workspaceSuffix: name,
+			},
+		});
+		this._labelFormatters.set(address, handle);
+	}
+
+	private _clearHostLabelFormatter(address: string): void {
+		const existing = this._labelFormatters.get(address);
+		if (existing) {
+			existing.dispose();
+			this._labelFormatters.delete(address);
+		}
+	}
+
 	override dispose(): void {
 		for (const timeout of this._reconnectTimeouts.values()) {
 			clearTimeout(timeout);
@@ -551,9 +687,13 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 		this._pendingConnectionWaits.clear();
 		for (const entry of this._entries.values()) {
-			entry.store.dispose();
+			disposeEntry(entry);
 		}
 		this._entries.clear();
+		for (const handle of this._labelFormatters.values()) {
+			handle.dispose();
+		}
+		this._labelFormatters.clear();
 		super.dispose();
 	}
 }
