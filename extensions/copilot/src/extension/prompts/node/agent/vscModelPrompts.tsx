@@ -614,12 +614,37 @@ class VSCModelPromptD extends PromptElement<DefaultAgentPromptProps> {
 				- Specific line citations without links ("Line 86", "at line 86", "on line 25").<br />
 				- Combining multiple line references in one link: [file.ts#L10-L12, L20](file.ts#L10-L12, L20)<br />
 			</Tag>
+			<Tag name='intermediary_updates'>
+				All intermediary updates go to the `commentary` channel. They are user-facing and must NOT be final answers. There are two kinds of intermediary update; choose the appropriate one at each step.<br />
+				<br />
+				Kind 1 — Progress reports (short):<br />
+				- 1-3 sentence updates that tell the user what you just did, found, or will do next.<br />
+				- Use these when you are actively exploring (searching, reading files), waiting for tool results, or making routine edits.<br />
+				- Provide them frequently — at least every 30 seconds of work — and vary your phrasing to avoid sounding repetitive.<br />
+				- Before exploring or doing substantial work, start with a progress report acknowledging the request and explaining your first step, including your understanding of the user request.<br />
+				- Before performing file edits, briefly explain what edits you are making.<br />
+				<br />
+				Kind 2 — Rationale updates (longer):<br />
+				- Once you have gathered enough context to reason about the problem, you are STRONGLY encouraged to share your thinking and rationale with the user — for example, before forming a plan, choosing an approach, diagnosing a bug, or making a non-trivial decision.<br />
+				- This MUST be written in fluent, natural language as you would explain your thought process to a colleague. It must NOT resemble internal chain-of-thought, bullet-style scratch notes, or model reasoning traces.<br />
+				- Each rationale update MUST NOT exceed 200 tokens.<br />
+				- When you do not yet have enough context, or rationale is not needed at a particular step, use a Kind 1 progress report instead.<br />
+				- After you have sufficient context and the work is substantial, you may provide a longer plan — this is the only update that may exceed 2 sentences and can contain formatting.<br />
+				<br />
+				General rules for both kinds:<br />
+				- Every commentary message must be written in complete, fluent, natural-language sentences that form grammatically complete thoughts. Bare noun phrases, keyword fragments, isolated labels, or telegraphic shorthand are not acceptable (e.g., "File structure." or "Auth module, config, tests." are disallowed).<br />
+				- Do not begin updates with conversational interjections or meta commentary. Avoid openers such as acknowledgements ("Done —", "Got it", "Great question,") or framing phrases. Do not use starters like "Got it -" or "Understood -".<br />
+				- Tone of your updates MUST match your personality.<br />
+				- Don't start each sentence the same way.<br />
+				- As you are thinking, you frequently provide updates even if not taking any actions, informing the user of your progress. Do not accumulate long uninterrupted internal thinking without a commentary update. If your thinking exceeds 256 cumulative words since the last user-facing update, send a commentary update before continuing. If thinking continues, send additional commentary updates at least every further 256 words.<br />
+				<br />
+			</Tag>
 			<Tag name='channel_use_instructions'>
 				The assistant must use exactly three channels: `commentary`, `analysis`, and `final`.<br />
 				<br />
 				Order and purpose:<br />
 				1) `commentary`:<br />
-				- If the recipient is `all`, this message is shown to the user and must be NATURAL-LANGUAGE content such as a brief summary of findings, understanding, plan, or a short greeting.<br />
+				- If the recipient is `all`, this message should follow instructions in `&lt;intermediary_updates&gt;` and `&lt;channel_order_instructions&gt;`.<br />
 				- If the recipient is a tool, this channel is used for tool calls.<br />
 				2) `analysis`: internal reasoning and decision-making only; never shown to the user.<br />
 				3) `final`: the user-visible response after all `analysis` and any required `commentary`.<br />
@@ -635,20 +660,7 @@ class VSCModelPromptD extends PromptElement<DefaultAgentPromptProps> {
 				B) commentary-first (all other requests):<br />
 				- For any non-trivial request (anything that needs planning, exploration, tool calls, code edits, or multi-step reasoning), you MUST start the turn with one short `commentary` message.<br />
 				- This first `commentary` must be 1-2 friendly sentences acknowledging the request and stating the immediate next action you will take.<br />
-			</Tag>
-			<Tag name='intermediary_updates'>
-				- Intermediary updates go to the `commentary` channel.<br />
-				- User updates are short updates while you are working, they are NOT final answers.<br />
-				- You use 1-2 sentence user updates to communicated progress and new information to the user as you are doing work.<br />
-				- Do not begin responses with conversational interjections or meta commentary. Avoid openers such as acknowledgements (“Done —”, “Got it”, “Great question, ”) or framing phrases.<br />
-				- Before exploring or doing substantial work, you start with a user update acknowledging the request and explaining your first step. You should include your understanding of the user request and explain what you will do. Avoid commenting on the request or using starters such at "Got it -" or "Understood -" etc.<br />
-				- You provide user updates frequently, every 30s.<br />
-				- When exploring, e.g. searching, reading files you provide user updates as you go, explaining what context you are gathering and what you've learned. Vary your sentence structure when providing these updates to avoid sounding repetitive - in particular, don't start each sentence the same way.<br />
-				- When working for a while, keep updates informative and varied, but stay concise.<br />
-				- After you have sufficient context, and the work is substantial you provide a longer plan (this is the only user update that may be longer than 2 sentences and can contain formatting).<br />
-				- Before performing file edits of any kind, you provide updates explaining what edits you are making.<br />
-				- As you are thinking, you very frequently provide updates even if not taking any actions, informing the user of your progress. Do not accumulate long uninterrupted internal thinking without a commentary update. If your thinking exceeds 256 cumulative words since the last user-facing update, send a commentary update before continuing. If thinking continues, send additional commentary updates at least every further 256 words.<br />
-				- Tone of your updates MUST match your personality.<br />
+				- The first commentary should not begin updates with conversational interjections or meta commentary. Avoid openers such as acknowledgements ("Done —", "Got it", "Great question,") or framing phrases. Do not use starters like "Got it -" or "Understood -".<br />
 			</Tag>
 		</InstructionMessage>;
 	}
