@@ -405,13 +405,21 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		super.renderElement(entry, index, templateData);
 	}
 
+	private resetStatusIcon(templateData: IModelNameColumnTemplateData): void {
+		templateData.statusIcon.className = 'status-icon';
+		templateData.statusIcon.removeAttribute('title');
+		templateData.statusIcon.removeAttribute('aria-label');
+	}
+
 	override renderVendorElement(entry: ILanguageModelProviderEntry, index: number, templateData: IModelNameColumnTemplateData): void {
-		templateData.statusIcon.style.display = entry.collapsed ? 'none' : '';
+		this.resetStatusIcon(templateData);
+		templateData.statusIcon.style.display = entry.collapsed ? 'none' : 'block';
 		templateData.nameLabel.set(entry.vendorEntry.group.name, undefined);
 	}
 
 	override renderGroupElement(entry: ILanguageModelGroupEntry, index: number, templateData: IModelNameColumnTemplateData): void {
-		templateData.statusIcon.style.display = entry.collapsed ? 'none' : '';
+		this.resetStatusIcon(templateData);
+		templateData.statusIcon.style.display = entry.collapsed ? 'none' : 'block';
 		templateData.nameLabel.set(entry.label, undefined);
 	}
 
