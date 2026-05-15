@@ -526,7 +526,7 @@ class BrowserLinkOpenerContribution extends Disposable implements IWorkbenchCont
 			this.configurationService.getValue<boolean>(BrowserLinkOpenerSettingKey.OpenLocalhostLinks),
 			this.configurationService.getValue<boolean>(BrowserLinkOpenerSettingKey.OpenExternalLinks)
 		);
-		if (!openerSetting) {
+		if (openerSetting === undefined) {
 			return false;
 		}
 

@@ -10,6 +10,11 @@ export const enum BrowserLinkOpenerSettingKey {
 	OpenExternalLinks = 'workbench.browser.openExternalLinks',
 }
 
+/**
+ * Returns the matching Integrated Browser opener setting key for an HTTP(S) link.
+ * Returns `undefined` when the href is invalid, non-HTTP(S), or when the corresponding
+ * setting for the classified link type (localhost/all-interfaces vs non-localhost) is disabled.
+ */
 export function getIntegratedBrowserLinkOpenerSetting(
 	href: string,
 	openLocalhostLinks: boolean,
