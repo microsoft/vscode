@@ -530,7 +530,7 @@ suite('WorkspacePicker - Connection Status', () => {
 /** Minimal subclass that exposes the protected `_getAvailableTabs` for testing. */
 class TestablePicker extends WorkspacePicker {
 	getAvailableTabs(): string[] {
-		return this._getAvailableGroups();
+		return this._getAvailableTabs().map(t => t.id);
 	}
 }
 

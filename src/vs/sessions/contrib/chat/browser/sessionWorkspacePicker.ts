@@ -16,7 +16,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
-import { TabbedActionListWidget } from '../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
+import { ITabDescriptor, TabbedActionListWidget } from '../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -284,7 +284,7 @@ export class WorkspacePicker extends Disposable {
 			return;
 		}
 
-		const tabs = this._showTabs() ? this._getAvailableGroups() : [];
+		const tabs = this._showTabs() ? this._getAvailableTabs() : [];
 
 		// Default the active tab to the group of the currently selected
 		// workspace. The user-pick latch is reset on every selection change,
@@ -292,11 +292,11 @@ export class WorkspacePicker extends Disposable {
 		// override auto-tab.
 		if (tabs.length > 0) {
 			const selectedGroup = this._selectedWorkspace?.workspace.group;
-			if (!this._userPickedTab && selectedGroup && tabs.includes(selectedGroup)) {
+			if (!this._userPickedTab && selectedGroup && tabs.some(t => t.id === selectedGroup)) {
 				this._activeTab = selectedGroup;
 			}
-			if (!this._activeTab || !tabs.includes(this._activeTab)) {
-				this._activeTab = tabs[0];
+			if (!this._activeTab || !tabs.some(t => t.id === this._activeTab)) {
+				this._activeTab = tabs[0].id;
 			}
 		}
 
@@ -317,23 +317,27 @@ export class WorkspacePicker extends Disposable {
 		return true;
 	}
 
-	protected _getAvailableGroups(): string[] {
-		const groups = new Set<string>();
-		groups.add(SESSION_WORKSPACE_GROUP_REMOTE);
+	protected _getAvailableTabs(): ITabDescriptor[] {
+		const byLabel = new Map<string, ITabDescriptor>();
+		byLabel.set(SESSION_WORKSPACE_GROUP_REMOTE, {
+			id: SESSION_WORKSPACE_GROUP_REMOTE,
+			icon: Codicon.beaker,
+			tooltip: `${SESSION_WORKSPACE_GROUP_REMOTE} (${localize('workspacePicker.experimental', "Experimental")})`,
+		});
 		for (const provider of this.sessionsProvidersService.getProviders()) {
-			if (provider.supportsLocalWorkspaces) {
-				groups.add(SESSION_WORKSPACE_GROUP_LOCAL);
+			if (provider.supportsLocalWorkspaces && !byLabel.has(SESSION_WORKSPACE_GROUP_LOCAL)) {
+				byLabel.set(SESSION_WORKSPACE_GROUP_LOCAL, { id: SESSION_WORKSPACE_GROUP_LOCAL });
 			}
 			for (const action of provider.browseActions) {
-				if (action.group) {
-					groups.add(action.group);
+				if (action.group && !byLabel.has(action.group)) {
+					byLabel.set(action.group, { id: action.group });
 				}
 			}
 		}
-		return Array.from(groups).sort((a, b) =>
-			a === SESSION_WORKSPACE_GROUP_LOCAL ? -1
-				: b === SESSION_WORKSPACE_GROUP_LOCAL ? 1
-					: a.localeCompare(b));
+		return Array.from(byLabel.values()).sort((a, b) =>
+			a.id === SESSION_WORKSPACE_GROUP_LOCAL ? -1
+				: b.id === SESSION_WORKSPACE_GROUP_LOCAL ? 1
+					: a.id.localeCompare(b.id));
 	}
 
 	/**
@@ -395,7 +399,7 @@ export class WorkspacePicker extends Disposable {
 	 * platform `TabbedActionListWidget`; this picker only owns the data
 	 * and selection logic.
 	 */
-	private _showTabbedPicker(tabs: readonly string[]): void {
+	private _showTabbedPicker(tabs: readonly ITabDescriptor[]): void {
 		const triggerElement = this._triggerElement!;
 		// Hide the flat picker if it's visible — the two presentations
 		// don't co-exist.
@@ -410,12 +414,12 @@ export class WorkspacePicker extends Disposable {
 		};
 
 		triggerElement.setAttribute('aria-expanded', 'true');
-		this._pickerGroupContext.set(this._activeTab ?? tabs[0]);
+		this._pickerGroupContext.set(this._activeTab ?? tabs[0].id);
 		this._tabbedWidget.show<IWorkspacePickerItem>({
 			user: 'workspacePicker',
 			anchor: triggerElement,
 			tabs,
-			initialTab: this._activeTab ?? tabs[0],
+			initialTab: this._activeTab ?? tabs[0].id,
 			createActionList: (tab) => {
 				this._activeTab = tab;
 				const items = this._buildItems();
@@ -619,7 +623,7 @@ export class WorkspacePicker extends Disposable {
 
 	/** True when the picker is currently scoped to a single tab. */
 	protected _isTabFiltered(): boolean {
-		return this._showTabs() && !!this._activeTab && this._getAvailableGroups().length > 1;
+		return this._showTabs() && !!this._activeTab && this._getAvailableTabs().length > 1;
 	}
 
 	/**
