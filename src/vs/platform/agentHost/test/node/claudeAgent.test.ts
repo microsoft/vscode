@@ -86,11 +86,6 @@ class FakeCopilotApiService implements ICopilotApiService {
 	countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used in ClaudeAgent tests'); }
 }
 
-/**
- * Phase 12 test fake. Records the `noteLiveAgentId` calls the canUseTool
- * bridge makes when an inner-tool confirmation arrives with
- * `options.agentID`; `getTranscript` defaults to returning `[]`.
- */
 // FakeClaudeSubagentResolver removed in the Phase 12 refactor (the
 // IClaudeSubagentResolver service no longer exists). Per-session
 // subagent state lives on `ClaudeAgentSession.subagents`
@@ -3979,16 +3974,16 @@ suite('ClaudeAgent (Phase 13 — getSessionMessages)', () => {
 		});
 	});
 
-	test('getSessionMessages on subagent URI delegates to the subagent resolver (Phase 12 step 8)', async () => {
+	test('getSessionMessages on subagent URI returns [] when parent session is not materialized', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		const parentUri = AgentSession.uri(agent.id, 'parent');
 		const subagentUri = URI.parse(`${parentUri.toString()}/subagent/tool-call-1`);
 
 		const turns = await agent.getSessionMessages(subagentUri);
 
-		// FakeClaudeSubagentResolver.getTranscript returns [], so the
-		// fall-through into parent SDK path must NOT fire — assertion
-		// pins the seam: subagent URIs short-circuit to the resolver.
+		// Parent session was never materialized, so the per-session
+		// SubagentRegistry is unreachable — early-return branch must
+		// fire and the parent SDK path must NOT.
 		assert.deepStrictEqual({
 			turns,
 			sdkParentCalls: sdk.getSessionMessagesCalls.length,
