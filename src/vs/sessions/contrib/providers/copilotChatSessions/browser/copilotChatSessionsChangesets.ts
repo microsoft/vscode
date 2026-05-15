@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedOpts, IObservable, ObservablePromise } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -139,7 +138,7 @@ export function createChangesets(
  * `IChat` (e.g. workspace / git repository info) take those as additional
  * constructor parameters.
  */
-abstract class AbstractChangeset extends Disposable implements ISessionChangeset {
+abstract class AbstractChangeset implements ISessionChangeset {
 	abstract readonly id: string;
 	abstract readonly label: string;
 	abstract readonly description?: string;
@@ -152,9 +151,7 @@ abstract class AbstractChangeset extends Disposable implements ISessionChangeset
 	abstract readonly originalCheckpointRef: IObservable<string | undefined>;
 	abstract readonly modifiedCheckpointRef: IObservable<string | undefined>;
 
-	constructor(protected readonly _chats: IObservable<readonly IChat[]>) {
-		super();
-	}
+	constructor(protected readonly _chats: IObservable<readonly IChat[]>) { }
 }
 
 /**
