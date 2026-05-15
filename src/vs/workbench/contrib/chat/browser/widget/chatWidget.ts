@@ -974,8 +974,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.unlockFromCodingAgent();
 		}
 
-		this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
-		this.inputPart.clearArtifactsWidget();
+		this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, true);
+		this.inputPart?.clearArtifactsWidget();
 		this.chatSuggestNextWidget.hide();
 		await this.viewOptions.clear?.();
 	}
@@ -2033,8 +2033,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 
 	setModel(model: IChatModel | undefined): void {
-		if (!this.container) {
-			throw new Error('Call render() before setModel()');
+		if (!this.container || !this.inputPart) {
+			// Widget hasn't finished rendering yet; skip rather than crash and
+			// break the session view. Caller will re-invoke once rendered.
+			this.logService.warn('ChatWidget#setModel called before render() completed');
+			return;
 		}
 
 		if (!model) {
@@ -2058,8 +2061,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewModel?.editing) {
 			this.finishedEditing();
 		}
-		this.inputPart.clearTodoListWidget(model.sessionResource, false);
-		this.inputPart.clearArtifactsWidget();
+		this.inputPart?.clearTodoListWidget(model.sessionResource, false);
+		this.inputPart?.clearArtifactsWidget();
 		this.chatSuggestNextWidget.hide();
 		this.chatTipService.resetSession();
 
@@ -2154,13 +2157,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._updateAgentCapabilitiesContextKeys(e.agent);
 			}
 			if (e.kind === 'addRequest') {
-				this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, false);
+				this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, false);
 				this._sessionIsEmptyContextKey.set(false);
 				this.chatSuggestNextWidget.hide();
 			}
 			// Hide widget on request removal
 			if (e.kind === 'removeRequest') {
-				this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
+				this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, true);
 				this.chatSuggestNextWidget.hide();
 				this._sessionIsEmptyContextKey.set((this.viewModel?.model.getRequests().length ?? 0) === 0);
 			}
@@ -2170,7 +2173,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const wasCancelled = lastRequest?.response?.isCanceled ?? false;
 				if (wasCancelled) {
 					// Clear todo list when request is cancelled
-					this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
+					this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, true);
 				}
 				// Only show if response wasn't canceled
 				this.renderChatSuggestNextWidget();

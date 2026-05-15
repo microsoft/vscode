@@ -508,6 +508,15 @@ suite('RemoteAgentHostService', () => {
 			assert.strictEqual(service.getConnection('ws://managed:1234'), undefined);
 		});
 
+		test('throws when disabled', async () => {
+			configService.setEnabled(false);
+
+			await assert.rejects(
+				() => addManaged('Managed', 'managed:1234'),
+				/not enabled/,
+			);
+		});
+
 		test('does NOT dispose previous transportDisposable when entry is replaced', async () => {
 			// When the entry is replaced (e.g. on reconnect to the same address),
 			// the new entry takes ownership of the same underlying connectionId.

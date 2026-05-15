@@ -41,7 +41,7 @@ const mochaOptions: MochaOptions = {
 	slow: 3 * 60 * 1000,
 	grep: options.grep,
 	fgrep: options.fgrep,
-	retries: 3,
+	retries: 1,
 };
 
 if (testResults) {

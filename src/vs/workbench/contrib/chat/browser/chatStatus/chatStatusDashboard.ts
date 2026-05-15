@@ -42,6 +42,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { isNewUser } from './chatStatus.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
+import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import product from '../../../../../platform/product/common/product.js';
 import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
 
@@ -125,6 +126,7 @@ export class ChatStatusDashboard extends DomWidget {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
@@ -161,7 +163,7 @@ export class ChatStatusDashboard extends DomWidget {
 				label: localize('quotaLabel', "Manage Copilot Settings"),
 				tooltip: localize('quotaTooltip', "Manage Copilot Settings"),
 				class: ThemeIcon.asClassName(Codicon.settings),
-				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
+				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(this.defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings)))),
 			}));
 
 			// Add Additional Spend / Upgrade buttons to the header
@@ -176,7 +178,7 @@ export class ChatStatusDashboard extends DomWidget {
 				headerAdditionalSpendButton.label = localize('manageBudget', "Manage Budget");
 				this._store.add(headerAdditionalSpendButton.onDidClick(() => {
 					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.manageAdditionalSpend', from: 'chat-status' });
-					this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)));
+					this.runCommandAndClose(() => this.openerService.open(URI.parse(this.defaultAccountService.resolveGitHubUrl(GitHubPaths.billingBudgets))));
 				}));
 				if (actionBarElement) {
 					header.insertBefore(headerAdditionalSpendButton.element, actionBarElement);
@@ -205,7 +207,7 @@ export class ChatStatusDashboard extends DomWidget {
 				headerAdditionalSpendButton.label = localize('manageBudget', "Manage Budget");
 				this._store.add(headerAdditionalSpendButton.onDidClick(() => {
 					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.manageAdditionalSpend', from: 'chat-status' });
-					this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)));
+					this.runCommandAndClose(() => this.openerService.open(URI.parse(this.defaultAccountService.resolveGitHubUrl(GitHubPaths.billingBudgets))));
 				}));
 			}
 

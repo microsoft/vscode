@@ -9,7 +9,6 @@ import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
-import { CopilotSessionSearchPolicy } from '../../../../base/common/defaultAccount.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentSdkPathSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
@@ -194,6 +193,7 @@ import { ChatTipService, IChatTipService } from './chatTipService.js';
 import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionItem.js';
 import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
+import { UtilityModelContribution, UtilitySmallModelContribution } from './utilityModelContribution.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
 import { browserChatToolReferenceNames } from '../../browserView/common/browserChatToolReferenceNames.js';
 
@@ -504,8 +504,8 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'CopilotSessionSync',
 				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.119',
-				value: (policyData) => policyData.session_search === CopilotSessionSearchPolicy.Disabled ? false : undefined,
+				minimumVersion: '1.121',
+				value: (policyData) => policyData.cloud_session_storage_enabled === false ? false : undefined,
 				localization: {
 					description: {
 						key: 'chat.sessionSync.enabled.policy',
@@ -1111,6 +1111,22 @@ configurationRegistry.registerConfiguration({
 			enum: ExploreAgentDefaultModel.modelIds,
 			enumItemLabels: ExploreAgentDefaultModel.modelLabels,
 			markdownEnumDescriptions: ExploreAgentDefaultModel.modelDescriptions
+		},
+		[ChatConfiguration.UtilityModel]: {
+			type: 'string',
+			description: nls.localize('chat.utilityModel.description', "Override the language model used by built-in utility flows (titles, summaries, fallback responses, etc.). Leave empty to use the default model."),
+			default: '',
+			enum: UtilityModelContribution.modelIds,
+			enumItemLabels: UtilityModelContribution.modelLabels,
+			markdownEnumDescriptions: UtilityModelContribution.modelDescriptions
+		},
+		[ChatConfiguration.UtilitySmallModel]: {
+			type: 'string',
+			description: nls.localize('chat.utilitySmallModel.description', "Override the language model used by built-in small/fast utility flows (commit messages, intent detection, inline-chat progress, etc.). A fast and inexpensive model is recommended. Leave empty to use the default model."),
+			default: '',
+			enum: UtilitySmallModelContribution.modelIds,
+			enumItemLabels: UtilitySmallModelContribution.modelLabels,
+			markdownEnumDescriptions: UtilitySmallModelContribution.modelDescriptions
 		},
 		[ChatConfiguration.RequestQueueingDefaultAction]: {
 			type: 'string',

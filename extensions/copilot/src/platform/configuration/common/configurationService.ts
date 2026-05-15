@@ -122,7 +122,7 @@ export interface IConfigurationService {
 	/**
 	 * Sets user configuration for a key in vscode.
 	 */
-	setConfig<T>(key: BaseConfig<T>, value: T): Thenable<void>;
+	setConfig<T>(key: BaseConfig<T>, value: T, target?: ConfigTarget): Thenable<void>;
 
 	/**
 	 * Gets user configuration for a key from vscode (which if not defined, pulls default value from package.json).
@@ -262,7 +262,7 @@ export abstract class AbstractConfigurationService extends Disposable implements
 	abstract getConfig<T>(key: Config<T>, scope?: ConfigurationScope): T;
 	abstract inspectConfig<T>(key: BaseConfig<T>, scope?: ConfigurationScope): InspectConfigResult<T> | undefined;
 	abstract getNonExtensionConfig<T>(configKey: string): T | undefined;
-	abstract setConfig<T>(key: BaseConfig<T>, value: T): Thenable<void>;
+	abstract setConfig<T>(key: BaseConfig<T>, value: T, target?: ConfigTarget): Thenable<void>;
 	abstract getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T;
 	abstract dumpConfig(): { [key: string]: string };
 	public updateExperimentBasedConfiguration(treatments: string[]): void {
@@ -375,6 +375,12 @@ export const enum ConfigType {
 export interface ConfigOptions {
 	readonly oldKey?: string;
 	readonly valueIgnoredForExternals?: boolean;
+}
+
+export const enum ConfigTarget {
+	Global = 'global',
+	Workspace = 'workspace',
+	WorkspaceFolder = 'workspaceFolder',
 }
 
 export interface Config<T> extends BaseConfig<T> {
@@ -727,8 +733,11 @@ export namespace ConfigKey {
 		/** Internal: override reasoning/thinking effort sent to model APIs (e.g. Responses API, Messages API). Used by evals. */
 		export const ReasoningEffortOverride = defineSetting<string | null>('chat.reasoningEffortOverride', ConfigType.Simple, null);
 
-		/** Enable extended (1 hour) prompt cache TTL on tools and system blocks for the Anthropic Messages API. Only applied to 1M context Claude variants. */
+		/** Enable extended (1 hour) prompt cache TTL on tools and system blocks for the Anthropic Messages API. Applied to Claude Opus 4.5/4.6/4.7 and Sonnet 4.5/4.6 variants. */
 		export const AnthropicExtendedCacheTtl = defineSetting<boolean>('chat.anthropic.promptCaching.extendedTtl', ConfigType.ExperimentBased, false);
+
+		/** Enable extended (1 hour) prompt cache TTL on the rolling message-level breakpoints (last cacheable user/tool-result blocks) for the Anthropic Messages API. Same model/location/subagent gating as {@link AnthropicExtendedCacheTtl}. */
+		export const AnthropicExtendedCacheTtlMessages = defineSetting<boolean>('chat.anthropic.promptCaching.extendedTtlMessages', ConfigType.ExperimentBased, false);
 
 		/** Freeze the customizations-index variable (the `<instructions>`/`<skills>`/`<agents>` block) at the first turn of a conversation and reuse it on subsequent turns. Prevents the system prompt cache from being invalidated by per-turn churn — e.g. the active mode swapping which subagent entry appears in `<agents>`, or async experimentation flipping a `when`-gated skill. */
 		export const FreezeCustomizationsIndex = defineSetting<boolean>('chat.freezeCustomizationsIndex', ConfigType.ExperimentBased, true);

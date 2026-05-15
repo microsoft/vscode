@@ -132,6 +132,7 @@ class MockDefaultAccountService implements IDefaultAccountService {
 
 	async getDefaultAccount(): Promise<IDefaultAccount | null> { return MOCK_ACCOUNT; }
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider { return MOCK_ACCOUNT.authenticationProvider; }
+	resolveGitHubUrl(path: string): string { return `https://github.com/${path}`; }
 	setDefaultAccountProvider(): void { }
 	async refresh(): Promise<IDefaultAccount | null> { return MOCK_ACCOUNT; }
 	async signIn(): Promise<IDefaultAccount | null> { return MOCK_ACCOUNT; }

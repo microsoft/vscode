@@ -277,6 +277,30 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
 	});
 
+	test('ping responds before initialize', async () => {
+		const transport = new MockProtocolTransport();
+		disposables.add(transport);
+		server.simulateConnection(transport);
+		const responsePromise = waitForResponse(transport, 7);
+		transport.simulateMessage(request(7, 'ping', {}));
+		const resp = await responsePromise as { id: number; result: null };
+
+		assert.strictEqual(resp.id, 7);
+		assert.strictEqual(resp.result, null);
+		transport.simulateClose();
+	});
+
+	test('ping responds after initialize', async () => {
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 9);
+		transport.simulateMessage(request(9, 'ping', {}));
+		const resp = await responsePromise as { id: number; result: null };
+
+		assert.strictEqual(resp.id, 9);
+		assert.strictEqual(resp.result, null);
+	});
+
 	test('subscribe request returns snapshot', async () => {
 		stateManager.createSession(makeSessionSummary());
 

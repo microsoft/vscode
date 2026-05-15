@@ -31,6 +31,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
+import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
@@ -60,7 +61,6 @@ import { ChatSetup } from './chatSetupRunner.js';
 
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
-	manageOverageUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 };
@@ -541,8 +541,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			override async run(accessor: ServicesAccessor): Promise<void> {
 				const openerService = accessor.get(IOpenerService);
 				const telemetryService = accessor.get(ITelemetryService);
+				const defaultAccountService = accessor.get(IDefaultAccountService);
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.manageAdditionalSpend', from: 'command' });
-				openerService.open(URI.parse(defaultChat.manageOverageUrl));
+				openerService.open(URI.parse(defaultAccountService.resolveGitHubUrl(GitHubPaths.billingBudgets)));
 			}
 		}
 
