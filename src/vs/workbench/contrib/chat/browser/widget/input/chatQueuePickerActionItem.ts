@@ -50,8 +50,8 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(undefined, action);
@@ -63,13 +63,13 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 			'chat.queuePickerPrimary',
 			isSteerDefault ? localize('chat.steerWithMessage', "Steer with Message") : localize('chat.queueMessage', "Add to Queue"),
 			ThemeIcon.asClassName(isSteerDefault ? Codicon.arrowUp : Codicon.add),
-			!!contextKeyService.getContextKeyValue(ChatContextKeys.inputHasText.key),
+			!!this.contextKeyService.getContextKeyValue(ChatContextKeys.inputHasText.key),
 			() => this._runDefaultAction()
 		));
 		this._primaryAction = this._register(new ActionViewItem(undefined, this._primaryActionAction, { icon: true, label: false }));
 
-		this._register(contextKeyService.onDidChangeContext(e => {
-			this._primaryActionAction.enabled = !!contextKeyService.getContextKeyValue(ChatContextKeys.inputHasText.key);
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			this._primaryActionAction.enabled = !!this.contextKeyService.getContextKeyValue(ChatContextKeys.inputHasText.key);
 		}));
 
 		// Dropdown - action widget with hover descriptions and chevron-down icon
@@ -81,8 +81,8 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 				showItemKeybindings: true,
 			},
 			actionWidgetService,
-			keybindingService,
-			contextKeyService,
+			this.keybindingService,
+			this.contextKeyService,
 			telemetryService,
 		));
 
@@ -176,6 +176,24 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 	private _getDropdownActions(): IActionWidgetDropdownAction[] {
 		const isSteerDefault = this._isSteerDefault();
 
+		// Resolve display keybindings against an overlay context that simulates the chat input
+		// being focused with a request in progress. The injected `contextKeyService` may be the
+		// chat widget's outer scope (which has `requestInProgress` but lacks `inChatInput`) or
+		// even the global scope; either way, the queue/steer keybindings' `when` clauses would
+		// not match and the resolver would fall back to the last-registered binding for each
+		// command, producing labels that contradict actual behavior. Overlaying the scope keys
+		// the bindings expect ensures we look up the binding that would actually fire.
+		// Other context keys (e.g. `editingRequestType`, `config.chat.requestQueuing.defaultAction`)
+		// are read from the parent context, so user customizations and scoped overrides like
+		// editing a queued/steer request are still respected.
+		const lookupContext = this.contextKeyService.createOverlay([
+			[ChatContextKeys.inputHasText.key, true],
+			[ChatContextKeys.inChatInput.key, true],
+			[ChatContextKeys.requestInProgress.key, true],
+		]);
+		const queueKeybinding = this.keybindingService.lookupKeybinding(ChatQueueMessageAction.ID, lookupContext, true);
+		const steerKeybinding = this.keybindingService.lookupKeybinding(ChatSteerWithMessageAction.ID, lookupContext, true);
+
 		const queueAction: IActionWidgetDropdownAction = {
 			id: ChatQueueMessageAction.ID,
 			label: localize('chat.queueMessage', "Add to Queue"),
@@ -184,6 +202,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 			checked: !isSteerDefault,
 			icon: Codicon.add,
 			class: undefined,
+			keybinding: queueKeybinding,
 			hover: {
 				content: localize('chat.queueMessage.hover', "Queue this message to send after the current request completes. The current response will finish uninterrupted before the queued message is sent."),
 			},
@@ -200,6 +219,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 			checked: isSteerDefault,
 			icon: Codicon.arrowUp,
 			class: undefined,
+			keybinding: steerKeybinding,
 			hover: {
 				content: localize('chat.steerWithMessage.hover', "Send this message at the next opportunity, signaling the current request to yield. The current response will stop and the new message will be sent immediately."),
 			},

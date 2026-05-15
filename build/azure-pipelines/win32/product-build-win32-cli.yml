@@ -120,6 +120,9 @@ jobs:
             SYSTEM_ACCESSTOKEN: $(System.AccessToken)
           displayName: ✍️ Codesign
 
+        - powershell: Remove-Item -Path "$(Build.ArtifactStagingDirectory)/sign/CodeSignSummary*.md" -Force -ErrorAction SilentlyContinue
+          displayName: Remove CodeSignSummary
+
         - task: ArchiveFiles@2
           displayName: Archive signed CLI
           inputs:
