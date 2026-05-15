@@ -363,8 +363,8 @@ class ElementPicker {
 		document.documentElement.appendChild(this._shadowHost);
 		this._selectionActive = true;
 
-		// Inject a stylesheet into the page to override all cursors while
-		// element selection is active, so the crosshair is always visible.
+		// Inject a stylesheet into the page to override all cursors while element selection is active,
+		// so the cursor always appears as a normal pointer even when over e.g. links.
 		const cursorStyle = document.createElement('style');
 		cursorStyle.textContent = '/* VS Code injected style */ * { cursor: default !important; }';
 		// eslint-disable-next-line no-restricted-syntax
