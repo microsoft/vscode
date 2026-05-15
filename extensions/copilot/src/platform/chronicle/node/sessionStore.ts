@@ -490,9 +490,7 @@ export class SessionStore implements ISessionStore {
 	}
 
 	/**
-	 * Execute SQL without validation or authorizer enforcement.
-	 * INTERNAL USE ONLY — for hard-coded, trusted SQL composed inside the extension.
-	 * MUST NOT be called with user- or model-supplied SQL.
+	 * Execute SQL, used for hard-coded, trusted SQL composed inside the extension.
 	 */
 	executeReadOnlyFallback(sql: string): Record<string, unknown>[] {
 		const db = this.ensureDb();
