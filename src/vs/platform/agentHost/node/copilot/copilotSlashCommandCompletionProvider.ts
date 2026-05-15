@@ -8,7 +8,8 @@ import { localize } from '../../../../nls.js';
 import { AgentSession } from '../../common/agentService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../../common/state/protocol/state.js';
-import { IAgentHostCompletionItemProvider } from '../agentHostCompletions.js';
+import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from '../agentHostCompletions.js';
+import { extractLeadingSlashToken } from '../agentHostSlashCompletion.js';
 
 /**
  * Slash-command name and the token we surface to the user / round-trip on
@@ -62,29 +63,6 @@ export function parseLeadingSlashCommand(prompt: string): IParsedLeadingSlashCom
 }
 
 /**
- * Extracts the leading `/word` token from the input — the run of
- * non-whitespace characters starting at offset 0. Returns `undefined` if
- * the input does not start with `/` or the cursor is past the token.
- */
-function leadingSlashToken(text: string, offset: number): { token: string; end: number } | undefined {
-	if (text.length === 0 || text.charCodeAt(0) !== 0x2f /* '/' */) {
-		return undefined;
-	}
-	let end = 1;
-	while (end < text.length) {
-		const ch = text.charCodeAt(end);
-		if (ch === 0x20 || ch === 0x09 || ch === 0x0a || ch === 0x0d) {
-			break;
-		}
-		end++;
-	}
-	if (offset < 0 || offset > end) {
-		return undefined;
-	}
-	return { token: text.slice(0, end), end };
-}
-
-/**
  * Completion provider for Copilot CLI slash commands. Only fires for
  * sessions whose URI scheme is `copilotcli` and only when the input begins
  * with `/`.
@@ -97,7 +75,7 @@ function leadingSlashToken(text: string, offset: number): { token: string; end: 
  */
 export class CopilotSlashCommandCompletionProvider implements IAgentHostCompletionItemProvider {
 	readonly kinds: ReadonlySet<CompletionItemKind> = new Set([CompletionItemKind.UserMessage]);
-	readonly triggerCharacters = ['/'] as const;
+	readonly triggerCharacters = [CompletionTriggerCharacter.Slash] as const;
 
 	constructor(private readonly copilotcliId: string, private readonly _sessionInfo?: ICopilotSlashCommandSessionInfo) { }
 
@@ -105,7 +83,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		if (AgentSession.provider(params.session) !== this.copilotcliId) {
 			return [];
 		}
-		const leading = leadingSlashToken(params.text, params.offset);
+		const leading = extractLeadingSlashToken(params.text, params.offset);
 		if (!leading) {
 			return [];
 		}
@@ -115,7 +93,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		const hasHistory = this._sessionInfo?.hasHistory(sessionId) ?? true;
 
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
-		const typed = leading.token.slice(1);
+		const typed = leading.typed;
 		const items: CompletionItem[] = [];
 		for (const command of COMMANDS) {
 			if (typed.length > 0 && !command.startsWith(typed)) {
@@ -132,7 +110,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			items.push({
 				insertText: command === 'plan' ? '/' + command + ' ' : '/' + command,
 				rangeStart: 0,
-				rangeEnd: leading.end,
+				rangeEnd: leading.rangeEnd,
 				attachment: {
 					type: MessageAttachmentKind.Simple,
 					label: '/' + command,

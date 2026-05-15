@@ -558,6 +558,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return this._createCompletionItem(raw, text, {
 						kind: 'skill',
 						uri: URI.parse(attachment._meta.uri),
+						...(typeof attachment._meta.displayName === 'string' ? { displayName: attachment._meta.displayName } : {}),
+						...(typeof attachment._meta.description === 'string' ? { description: attachment._meta.description } : {}),
 						...(attachment._meta !== undefined && { _meta: attachment._meta }),
 					});
 				}

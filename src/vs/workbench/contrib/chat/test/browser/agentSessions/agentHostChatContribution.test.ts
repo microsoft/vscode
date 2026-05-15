@@ -4501,6 +4501,57 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(result?.items[0].attachment?.uri.toString(), 'file:///workspace/dir');
 		});
 
+		test('preserves skill completion metadata', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			(agentHostService as unknown as { completions: (p: CompletionsParams) => Promise<CompletionsResult> }).completions = async () => ({
+				items: [
+					{
+						insertText: '/agent-host-docs ',
+						rangeStart: 0,
+						rangeEnd: 1,
+						attachment: {
+							type: MessageAttachmentKind.Simple,
+							label: '/agent-host-docs',
+							_meta: {
+								uri: 'file:///skills/agent-host-docs/SKILL.md',
+								displayName: 'Agent Host Docs',
+								description: 'Use this skill when working on Agent Host code',
+							},
+						},
+					},
+				],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/abc' });
+			const result = await sessionHandler.provideChatInputCompletions(
+				sessionResource,
+				{ text: '/', offset: 1 },
+				CancellationToken.None,
+			);
+
+			assert.deepStrictEqual(result, {
+				items: [
+					{
+						insertText: '/agent-host-docs ',
+						start: { lineNumber: 1, column: 1 },
+						end: { lineNumber: 1, column: 2 },
+						attachment: {
+							kind: 'skill',
+							uri: URI.parse('file:///skills/agent-host-docs/SKILL.md'),
+							displayName: 'Agent Host Docs',
+							description: 'Use this skill when working on Agent Host code',
+							_meta: {
+								uri: 'file:///skills/agent-host-docs/SKILL.md',
+								displayName: 'Agent Host Docs',
+								description: 'Use this skill when working on Agent Host code',
+							},
+						},
+					},
+				],
+			});
+		});
+
 		test('returns undefined when the request is cancelled', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 

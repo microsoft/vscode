@@ -372,6 +372,8 @@ export interface IChatInputCompletionCommandAttachment {
 export interface IChatInputCompletionSkillAttachment {
 	readonly kind: 'skill';
 	readonly uri: URI;
+	readonly displayName?: string;
+	readonly description?: string;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the
 	 * workbench when the accepted completion is sent back as part of a

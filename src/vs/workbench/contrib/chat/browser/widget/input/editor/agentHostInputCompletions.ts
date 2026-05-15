@@ -133,12 +133,14 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 				};
 			}
 			case 'skill': {
+				const label = item.insertText.trimEnd();
 				return {
-					label: item.insertText,
+					label: attachment.displayName ? { label, description: attachment.displayName } : label,
 					insertText: item.insertText,
 					filterText: item.insertText,
 					range: replaceRange,
 					kind: CompletionItemKind.Text,
+					detail: attachment.description,
 				};
 			}
 			default: {
