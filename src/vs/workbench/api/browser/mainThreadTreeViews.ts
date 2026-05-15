@@ -31,6 +31,8 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	private readonly _dataProviders: DisposableMap<string, { dataProvider: TreeViewDataProvider; dispose: () => void }> = this._register(new DisposableMap<string, { dataProvider: TreeViewDataProvider; dispose: () => void }>());
 	private readonly _dndControllers = new Map<string, TreeViewDragAndDropController>();
 
+	private _lastFocusedTreeView: string | undefined;
+
 	constructor(
 		extHostContext: IExtHostContext,
 		@IViewsService private readonly viewsService: IViewsService,
@@ -41,6 +43,8 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
+
+		this._register(this.viewsService.onDidChangeFocusedView(() => this.updateFocusedTreeView()));
 	}
 
 	async $registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: string[]; dragMimeTypes: string[]; hasHandleDrag: boolean; hasHandleDrop: boolean; manuallyManageCheckboxes: boolean }): Promise<void> {
@@ -154,6 +158,24 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this.telemetryService.publicLog2<TreeViewResolveFailureEvent, TreeViewResolveFailureClassification>('treeView.resolveFailure', {
 			extensionId
 		});
+	}
+
+	private updateFocusedTreeView() {
+		let next: string | undefined;
+
+		const focusedView = this.viewsService.getFocusedView();
+
+		if (focusedView) {
+			const viewId = focusedView.id;
+			if (this._dataProviders.has(viewId)) {
+				next = viewId;
+			}
+		}
+
+		if (next !== this._lastFocusedTreeView) {
+			this._lastFocusedTreeView = next;
+			this._proxy.$setFocusedTreeView(next);
+		}
 	}
 
 	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, itemIn: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
