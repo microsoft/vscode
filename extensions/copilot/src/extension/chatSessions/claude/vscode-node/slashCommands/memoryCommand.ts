@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { INativeEnvService } from '../../../../../platform/env/common/envService';
 import { createDirectoryIfNotExists, IFileSystemService } from '../../../../../platform/filesystem/common/fileSystemService';
 import { ILogService } from '../../../../../platform/log/common/logService';
@@ -64,7 +63,6 @@ export class MemorySlashCommand implements IClaudeSlashCommandHandler {
 	readonly commandId = 'copilot.claude.memory';
 
 	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
 		@INativeEnvService private readonly envService: INativeEnvService,
@@ -76,11 +74,6 @@ export class MemorySlashCommand implements IClaudeSlashCommandHandler {
 		stream: vscode.ChatResponseStream | undefined,
 		_token: CancellationToken
 	): Promise<vscode.ChatResult> {
-		if (!this.configurationService.getConfig(ConfigKey.Advanced.MemoryEnabled)) {
-			stream?.markdown(vscode.l10n.t('Memory is currently disabled.'));
-			return {};
-		}
-
 		stream?.markdown(vscode.l10n.t('Opening memory file picker...'));
 
 		// Fire and forget - picker runs in background
