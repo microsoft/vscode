@@ -8,15 +8,15 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISessionData, SessionStatus } from '../../common/sessionData.js';
-import { groupByWorkspace, sortSessions, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { groupByWorkspace, groupSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
 	createdAt?: Date;
 	updatedAt?: Date;
 	isArchived?: boolean;
-}): ISessionData {
+}): ISession {
 	const createdAt = opts.createdAt ?? new Date();
 	const updatedAt = opts.updatedAt ?? createdAt;
 	return {
@@ -26,15 +26,18 @@ function createSession(id: string, opts: {
 		sessionType: 'test',
 		icon: Codicon.account,
 		createdAt,
-		workspace: observableValue(`workspace-${id}`, opts.workspaceLabel ? {
+		workspace: observableValue(`workspace-${id}`, opts.workspaceLabel !== undefined ? {
+			uri: URI.parse(`session://workspace/${id}`),
 			label: opts.workspaceLabel,
 			icon: Codicon.folder,
-			repositories: [],
+			folders: [],
 			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
 		} : undefined),
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, updatedAt),
 		status: observableValue(`status-${id}`, SessionStatus.Completed),
+		changesets: observableValue(`changesets-${id}`, []),
 		changes: observableValue(`changes-${id}`, []),
 		modelId: observableValue(`modelId-${id}`, undefined),
 		mode: observableValue(`mode-${id}`, undefined),
@@ -43,7 +46,9 @@ function createSession(id: string, opts: {
 		isRead: observableValue(`isRead-${id}`, true),
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
-		pullRequest: observableValue(`pullRequest-${id}`, undefined),
+		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
+		mainChat: undefined!,
+		capabilities: { supportsMultipleChats: false },
 	};
 }
 
@@ -65,7 +70,7 @@ suite('Sessions - SessionsList Helpers', () => {
 			assert.deepStrictEqual(groups.map(g => g.label), ['Apple', 'Mango', 'Zebra']);
 		});
 
-		test('sessions without workspace are grouped under "No Workspace"', () => {
+		test('sessions without workspace are grouped under "Unknown"', () => {
 			const sessions = [
 				createSession('1', { workspaceLabel: 'Beta' }),
 				createSession('2', {}),
@@ -74,7 +79,7 @@ suite('Sessions - SessionsList Helpers', () => {
 
 			const groups = groupByWorkspace(sessions);
 
-			assert.deepStrictEqual(groups.map(g => g.label), ['Alpha', 'Beta', 'No Workspace']);
+			assert.deepStrictEqual(groups.map(g => g.label), ['Alpha', 'Beta', 'Unknown']);
 		});
 
 		test('multiple sessions in same workspace are grouped together', () => {
@@ -89,6 +94,30 @@ suite('Sessions - SessionsList Helpers', () => {
 			assert.deepStrictEqual(groups.map(g => g.label), ['Repo-A', 'Repo-B']);
 			assert.strictEqual(groups[0].sessions.length, 1);
 			assert.strictEqual(groups[1].sessions.length, 2);
+		});
+
+		test('"No Workspace" appears after workspaces that sort alphabetically later', () => {
+			const sessions = [
+				createSession('1', {}),
+				createSession('2', { workspaceLabel: 'Zulu' }),
+				createSession('3', { workspaceLabel: 'Alpha' }),
+			];
+
+			const groups = groupByWorkspace(sessions);
+
+			assert.deepStrictEqual(groups.map(g => g.label), ['Alpha', 'Zulu', 'Unknown']);
+		});
+
+		test('empty workspace label is treated as "Unknown"', () => {
+			const sessions = [
+				createSession('1', { workspaceLabel: 'Zulu' }),
+				createSession('2', { workspaceLabel: '' }),
+			];
+
+			const groups = groupByWorkspace(sessions);
+
+			assert.deepStrictEqual(groups.map(g => g.label), ['Zulu', 'Unknown']);
+			assert.strictEqual(groups[1].sessions.length, 1);
 		});
 
 		test('group ids are prefixed with workspace:', () => {
@@ -126,6 +155,36 @@ suite('Sessions - SessionsList Helpers', () => {
 			const sorted = sortSessions(sessions, SessionsSorting.Updated);
 
 			assert.deepStrictEqual(sorted.map(s => s.sessionId), ['b', 'c', 'a']);
+		});
+	});
+
+	suite('groupSessionsForList', () => {
+
+		test('shows pinned sessions in a dedicated top section', () => {
+			const pinned = createSession('pinned', { workspaceLabel: 'Alpha', createdAt: new Date('2024-06-01') });
+			const regular = createSession('regular', { workspaceLabel: 'Beta', createdAt: new Date('2024-05-01') });
+			const sections = groupSessionsForList(
+				[pinned, regular],
+				SessionsGrouping.Workspace,
+				SessionsSorting.Created,
+				session => session.sessionId === pinned.sessionId,
+			);
+
+			assert.deepStrictEqual(sections.map(section => section.id), ['pinned', 'workspace:Beta']);
+			assert.deepStrictEqual(sections[0].sessions.map(session => session.sessionId), ['pinned']);
+		});
+
+		test('keeps archived sessions in Done even when pinned', () => {
+			const archivedPinned = createSession('archived-pinned', { workspaceLabel: 'Alpha', isArchived: true, createdAt: new Date('2024-06-01') });
+			const sections = groupSessionsForList(
+				[archivedPinned],
+				SessionsGrouping.Workspace,
+				SessionsSorting.Created,
+				() => true,
+			);
+
+			assert.deepStrictEqual(sections.map(section => section.id), ['archived']);
+			assert.deepStrictEqual(sections[0].sessions.map(session => session.sessionId), ['archived-pinned']);
 		});
 	});
 });

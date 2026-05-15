@@ -14,10 +14,10 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { IsPhoneLayoutContext, ActiveSessionWorkspaceIsVirtualContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { getSessionEditorComments } from '../../agentFeedback/browser/sessionEditorComments.js';
@@ -41,16 +41,18 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 				tooltip,
 				category: CHAT_CATEGORY,
 				icon,
-				precondition: canRunSessionCodeReviewContextKey,
+				precondition: ContextKeyExpr.and(
+					ChatContextKeys.hasAgentSessionChanges,
+					canRunSessionCodeReviewContextKey),
 				menu: [
 					{
-						id: MenuId.ChatEditingSessionChangesToolbar,
+						id: MenuId.AgentsChangesToolbar,
 						group: 'navigation',
 						order: 7,
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
-							ChatContextKeys.hasAgentSessionChanges,
-							ChatContextKeys.agentSessionType.notEqualsTo(AgentSessionProviders.Cloud),
+							ActiveSessionWorkspaceIsVirtualContext.toNegated(),
+							IsPhoneLayoutContext.negate(),
 						),
 					},
 				],
@@ -69,7 +71,7 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 				return;
 			}
 
-			// Get changes from ISessionData
+			// Get changes from ISession
 			const sessionData = sessionManagementService.getSession(resource);
 			const changes = sessionData?.changes.get();
 			if (!changes || changes.length === 0) {

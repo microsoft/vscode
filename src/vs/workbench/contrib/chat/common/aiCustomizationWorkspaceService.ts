@@ -58,6 +58,15 @@ export interface IStorageSourceFilter {
 }
 
 /**
+ * Controls which features are shown on the welcome page of the
+ * AI Customization Management Editor.
+ */
+export interface IWelcomePageFeatures {
+	/** Show the "Configure Your AI" getting-started banner. */
+	readonly showGettingStartedBanner: boolean;
+}
+
+/**
  * Applies a storage source filter to an array of items that have uri and storage.
  * Removes items whose storage is not in the filter's source list,
  * and for user-storage items, removes those not under an allowed root.
@@ -108,6 +117,11 @@ export interface IAICustomizationWorkspaceService {
 	readonly isSessionsWindow: boolean;
 
 	/**
+	 * Controls which features are displayed on the welcome page.
+	 */
+	readonly welcomePageFeatures: IWelcomePageFeatures;
+
+	/**
 	 * Commits files in the active project.
 	 */
 	commitFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
@@ -150,4 +164,13 @@ export interface IAICustomizationWorkspaceService {
 	 * customizations visible in the AI Customization views.
 	 */
 	getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]>;
+
+	/**
+	 * Returns a map of built-in skill names that have direct UI integrations
+	 * (toolbar buttons, menu items, etc.) to a tooltip describing the
+	 * integration. Used to display a 'UI Integration' badge in the
+	 * customizations editor, especially important when users override a
+	 * built-in skill that drives a UI surface.
+	 */
+	getSkillUIIntegrations(): ReadonlyMap<string, string>;
 }

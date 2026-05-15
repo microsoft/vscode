@@ -376,9 +376,9 @@ export interface IConfigurationProperties {
 	hide?: boolean;
 
 	/**
-	 * Show this task in the Agent Sessions run action dropdown
+	 * Show this task in the Agents run action dropdown
 	 */
-	inSessions?: boolean;
+	inAgents?: boolean;
 }
 
 export interface ICustomTask extends ICommandProperties, IConfigurationProperties {
@@ -1371,7 +1371,7 @@ namespace ConfigurationProperties {
 		{ property: 'options' },
 		{ property: 'icon' },
 		{ property: 'hide' },
-		{ property: 'inSessions' }
+		{ property: 'inAgents' }
 	];
 
 	export function from(this: void, external: IConfigurationProperties & { [key: string]: unknown }, context: IParseContext,
@@ -1400,7 +1400,7 @@ namespace ConfigurationProperties {
 		}
 		result.icon = external.icon;
 		result.hide = external.hide;
-		result.inSessions = external.inSessions;
+		result.inAgents = external.inAgents;
 		if (external.isBackground !== undefined) {
 			result.isBackground = !!external.isBackground;
 		}
@@ -1534,7 +1534,7 @@ namespace ConfiguringTask {
 			type,
 			taskIdentifier,
 			RunOptions.fromConfiguration(external.runOptions),
-			{ hide: external.hide, inSessions: external.inSessions }
+			{ hide: external.hide, inAgents: external.inAgents }
 		);
 		const configuration = ConfigurationProperties.from(external as IConfigurationProperties & { [key: string]: unknown }, context, true, source, typeDeclaration.properties);
 		result.addTaskLoadMessages(configuration.errors);
@@ -1688,7 +1688,7 @@ namespace CustomTask {
 				identifier: configuredProps.configurationProperties.identifier || contributedTask.configurationProperties.identifier,
 				icon: configuredProps.configurationProperties.icon,
 				hide: configuredProps.configurationProperties.hide,
-				inSessions: configuredProps.configurationProperties.inSessions
+				inAgents: configuredProps.configurationProperties.inAgents
 			},
 
 		);
