@@ -19,16 +19,11 @@
 
 .monaco-workbench.mac:not(.fullscreen) .part.statusbar:focus {
 	/* Rounded corners to make focus outline appear properly (unless fullscreen) */
-	border-bottom-right-radius: 5px;
-	border-bottom-left-radius: 5px;
-}
-.monaco-workbench.mac:not(.fullscreen).macos-rounded-default .part.statusbar:focus {
-	/* macOS Big Sur increased rounded corners size */
 	border-bottom-right-radius: 10px;
 	border-bottom-left-radius: 10px;
 }
-.monaco-workbench.mac:not(.fullscreen).macos-rounded-tahoe .part.statusbar:focus {
-	/* macOS Tahoe increased rounded corners size even more */
+.monaco-workbench.mac.macos-tahoe:not(.fullscreen) .part.statusbar:focus {
+	/* macOS Tahoe increased rounded corners size */
 	border-bottom-right-radius: 16px;
 	border-bottom-left-radius: 16px;
 }
@@ -57,8 +52,7 @@
 }
 
 .monaco-workbench .part.statusbar > .left-items {
-	flex-grow: 1; /* left items push right items to the far right end */
-}
+	flex-grow: 1; /* left items push right items to the far right end */}
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item {
 	display: inline-block;
@@ -90,9 +84,13 @@
 	border-right: 5px solid transparent;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.left.first-visible-item,
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.right.last-visible-item {
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.left.first-visible-item {
 	padding-right: 0;
+	padding-left: 2px;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.right.last-visible-item {
+	padding-right: 2px;
 	padding-left: 0;
 }
 

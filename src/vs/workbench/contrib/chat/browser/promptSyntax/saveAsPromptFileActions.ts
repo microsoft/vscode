@@ -15,7 +15,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
-import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { AGENT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
@@ -101,4 +101,3 @@ export class SaveAsInstructionsFileAction extends BaseSaveAsPromptFileAction {
 		super(createOptions(SAVE_AS_INSTRUCTIONS_FILE_ACTION_ID, localize2('promptfile.saveInstructionsFile', "Save As Instructions File"), localize2('promptfile.saveInstructionsFile.description', "Save as instructions file"), INSTRUCTIONS_LANGUAGE_ID), PromptsType.instructions);
 	}
 }
-

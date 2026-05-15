@@ -22,7 +22,8 @@ const createStdioLaunch = (): McpServerTransportStdio => ({
 	command: 'cmd',
 	args: [],
 	env: {},
-	envFile: undefined
+	envFile: undefined,
+	sandbox: undefined
 });
 
 suite('MCP Icons', () => {
@@ -36,8 +37,8 @@ suite('MCP Icons', () => {
 			const result = parseAndValidateMcpIcon({
 				icons: [
 					{ src: 'ftp://example.com/ignored.png', mimeType: 'image/png' },
-					{ src: 'data:image/png;base64,AAA', mimeType: 'image/png', sizes: '64x64 16x16' },
-					{ src: 'https://example.com/icon.png', mimeType: 'image/png', sizes: '128x128' }
+					{ src: 'data:image/png;base64,AAA', mimeType: 'image/png', sizes: ['64x64', '16x16'] },
+					{ src: 'https://example.com/icon.png', mimeType: 'image/png', sizes: ['128x128'] }
 				]
 			}, launch, logger);
 
@@ -55,8 +56,8 @@ suite('MCP Icons', () => {
 
 			const icons = {
 				icons: [
-					{ src: 'https://example.com/icon.png', mimeType: 'image/png', sizes: '64x64' },
-					{ src: 'https://other.com/icon.png', mimeType: 'image/png', sizes: '64x64' }
+					{ src: 'https://example.com/icon.png', mimeType: 'image/png', sizes: ['64x64'] },
+					{ src: 'https://other.com/icon.png', mimeType: 'image/png', sizes: ['64x64'] }
 				]
 			};
 
@@ -74,7 +75,7 @@ suite('MCP Icons', () => {
 
 			const icons = {
 				icons: [
-					{ src: 'file:///tmp/icon.png', mimeType: 'image/png', sizes: '32x32' }
+					{ src: 'file:///tmp/icon.png', mimeType: 'image/png', sizes: ['32x32'] }
 				]
 			};
 
@@ -100,9 +101,9 @@ suite('MCP Icons', () => {
 			const launch = createHttpLaunch('https://example.com');
 			const parsed = parseAndValidateMcpIcon({
 				icons: [
-					{ src: 'https://example.com/dark.png', mimeType: 'image/png', sizes: '16x16 48x48', theme: 'dark' },
-					{ src: 'https://example.com/any.png', mimeType: 'image/png', sizes: '24x24' },
-					{ src: 'https://example.com/light.png', mimeType: 'image/png', sizes: '64x64', theme: 'light' }
+					{ src: 'https://example.com/dark.png', mimeType: 'image/png', sizes: ['16x16', '48x48'], theme: 'dark' },
+					{ src: 'https://example.com/any.png', mimeType: 'image/png', sizes: ['24x24'] },
+					{ src: 'https://example.com/light.png', mimeType: 'image/png', sizes: ['64x64'], theme: 'light' }
 				]
 			}, launch, logger);
 			const icons = McpIcons.fromParsed(parsed);
@@ -118,8 +119,8 @@ suite('MCP Icons', () => {
 			const launch = createHttpLaunch('https://example.com');
 			const parsed = parseAndValidateMcpIcon({
 				icons: [
-					{ src: 'https://example.com/dark.png', mimeType: 'image/png', sizes: '16x16', theme: 'dark' },
-					{ src: 'https://example.com/any.png', mimeType: 'image/png', sizes: '64x64' }
+					{ src: 'https://example.com/dark.png', mimeType: 'image/png', sizes: ['16x16'], theme: 'dark' },
+					{ src: 'https://example.com/any.png', mimeType: 'image/png', sizes: ['64x64'] }
 				]
 			}, launch, logger);
 			const icons = McpIcons.fromParsed(parsed);
@@ -135,7 +136,7 @@ suite('MCP Icons', () => {
 			const launch = createHttpLaunch('https://example.com');
 			const parsed = parseAndValidateMcpIcon({
 				icons: [
-					{ src: 'https://example.com/light.png', mimeType: 'image/png', sizes: '32x32', theme: 'light' }
+					{ src: 'https://example.com/light.png', mimeType: 'image/png', sizes: ['32x32'], theme: 'light' }
 				]
 			}, launch, logger);
 			const icons = McpIcons.fromParsed(parsed);

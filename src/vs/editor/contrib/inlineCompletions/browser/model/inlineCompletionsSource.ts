@@ -7,9 +7,10 @@ import { booleanComparator, compareBy, compareUndefinedSmallest, numberComparato
 import { findLastMax } from '../../../../../base/common/arraysFind.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.js';
+import { equalsIfDefined, thisEqualsC } from '../../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { derived, IObservable, IObservableWithChange, ITransaction, observableValue, recordChangesLazy, transaction } from '../../../../../base/common/observable.js';
+import { cloneAndChange } from '../../../../../base/common/objects.js';
+import { derived, IObservable, IObservableWithChange, ITransaction, observableValue, recordChangesLazy, runOnChange, transaction } from '../../../../../base/common/observable.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { observableReducerSettable } from '../../../../../base/common/observableInternal/experimental/reducer.js';
 import { isDefined, isObject } from '../../../../../base/common/types.js';
@@ -22,17 +23,22 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import product from '../../../../../platform/product/common/product.js';
 import { StringEdit } from '../../../../common/core/edits/stringEdit.js';
 import { Position } from '../../../../common/core/position.js';
-import { InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { Range } from '../../../../common/core/range.js';
+import { Command, InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { offsetEditFromContentChanges } from '../../../../common/model/textModelStringEdit.js';
+import { isCompletionsEnabledFromObject } from '../../../../common/services/completionsEnablement.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
+import { ITextModelService } from '../../../../common/services/resolverService.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { formatRecordableLogEntry, IRecordableEditorLogEntry, IRecordableLogEntry, StructuredLogger } from '../structuredLogger.js';
 import { InlineCompletionEndOfLifeEvent, sendInlineCompletionsEndOfLifeTelemetry } from '../telemetry.js';
 import { wait } from '../utils.js';
 import { InlineSuggestionIdentity, InlineSuggestionItem } from './inlineSuggestionItem.js';
 import { InlineCompletionContextWithoutUuid, InlineSuggestRequestInfo, provideInlineCompletions, runWhenCancelled } from './provideInlineCompletions.js';
+import { RenameSymbolProcessor } from './renameSymbolProcessor.js';
+import { TextModelValueReference } from './textModelValueReference.js';
 
 export class InlineCompletionsSource extends Disposable {
 	private static _requestId = 0;
@@ -75,6 +81,8 @@ export class InlineCompletionsSource extends Disposable {
 	public readonly inlineCompletions = this._state.map(this, v => v.inlineCompletions);
 	public readonly suggestWidgetInlineCompletions = this._state.map(this, v => v.suggestWidgetInlineCompletions);
 
+	private readonly _renameProcessor: RenameSymbolProcessor;
+
 	private _completionsEnabled: Record<string, boolean> | undefined = undefined;
 
 	constructor(
@@ -87,6 +95,7 @@ export class InlineCompletionsSource extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
 	) {
 		super();
 		this._loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
@@ -97,6 +106,8 @@ export class InlineCompletionsSource extends Disposable {
 		>(),
 			'editor.inlineSuggest.logFetch.commandId'
 		));
+
+		this._renameProcessor = this._store.add(this._instantiationService.createInstance(RenameSymbolProcessor));
 
 		this.clearOperationOnTextModelChange.recomputeInitiallyAndOnChange(this._store);
 
@@ -225,7 +236,7 @@ export class InlineCompletionsSource extends Disposable {
 				let shouldStopEarly = false;
 				let producedSuggestion = false;
 
-				const suggestions: InlineSuggestionItem[] = [];
+				const providerSuggestions: InlineSuggestionItem[] = [];
 				for await (const list of providerResult.lists) {
 					if (!list) {
 						continue;
@@ -244,8 +255,33 @@ export class InlineCompletionsSource extends Disposable {
 							continue;
 						}
 
-						const i = InlineSuggestionItem.create(item, this._textModel);
-						suggestions.push(i);
+						item.addPerformanceMarker('providerReturned');
+
+						const targetUri = item.action?.uri;
+						let targetModel: ITextModel;
+						let disposable: IDisposable | undefined;
+
+						if (targetUri && targetUri.toString() !== this._textModel.uri.toString()) {
+							const modelRef = await this._textModelService.createModelReference(targetUri);
+							targetModel = modelRef.object.textEditorModel;
+							disposable = modelRef;
+						} else {
+							targetModel = this._textModel;
+							disposable = undefined;
+						}
+
+						const ref = TextModelValueReference.snapshot(targetModel);
+
+						const i = InlineSuggestionItem.create(item, ref);
+						if (disposable) {
+							const s = runOnChange(i.identity.onDispose, () => {
+								disposable?.dispose();
+								s.dispose();
+							});
+						}
+
+						item.addPerformanceMarker('itemCreated');
+						providerSuggestions.push(i);
 						// Stop after first visible inline completion
 						if (!i.isInlineEdit && !i.showInlineEditMenu && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
 							if (i.isVisible(this._textModel, this._cursorPosition.get())) {
@@ -259,6 +295,14 @@ export class InlineCompletionsSource extends Disposable {
 					}
 				}
 
+				providerSuggestions.forEach(s => s.addPerformanceMarker('providersResolved'));
+
+				const suggestions: InlineSuggestionItem[] = await Promise.all(providerSuggestions.map(async s => {
+					return this._renameProcessor.proposeRenameRefactoring(this._textModel, s, context);
+				}));
+
+				suggestions.forEach(s => s.addPerformanceMarker('renameProcessed'));
+
 				providerResult.cancelAndDispose({ kind: 'lostRace' });
 
 				if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
@@ -267,14 +311,46 @@ export class InlineCompletionsSource extends Disposable {
 					if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
 						error = 'canceled';
 					}
-					const result = suggestions.map(c => ({
-						range: c.editRange.toString(),
-						text: c.insertText,
-						hint: c.hint,
-						isInlineEdit: c.isInlineEdit,
-						showInlineEditMenu: c.showInlineEditMenu,
-						providerId: c.source.provider.providerId?.toString(),
-					}));
+					const result = suggestions.map(c => {
+						const comp = c.getSourceCompletion();
+						if (comp.doNotLog) {
+							return undefined;
+						}
+						const obj = {
+							insertText: comp.insertText,
+							range: comp.range,
+							additionalTextEdits: comp.additionalTextEdits,
+							uri: comp.uri,
+							command: comp.command,
+							gutterMenuLinkAction: comp.gutterMenuLinkAction,
+							shownCommand: comp.shownCommand,
+							completeBracketPairs: comp.completeBracketPairs,
+							isInlineEdit: comp.isInlineEdit,
+							showInlineEditMenu: comp.showInlineEditMenu,
+							showRange: comp.showRange,
+							warning: comp.warning,
+							hint: comp.hint,
+							supportsRename: comp.supportsRename,
+							correlationId: comp.correlationId,
+							jumpToPosition: comp.jumpToPosition,
+						};
+						return {
+							...(cloneAndChange(obj, v => {
+								if (Range.isIRange(v)) {
+									return Range.lift(v).toString();
+								}
+								if (Position.isIPosition(v)) {
+									return Position.lift(v).toString();
+								}
+								if (Command.is(v)) {
+									return { $commandId: v.id };
+								}
+								return v;
+							}) as object),
+							$providerId: c.source.provider.providerId?.toString(),
+						};
+					}).filter(result => result !== undefined);
+
 					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now(), didAllProvidersReturn });
 				}
 
@@ -297,6 +373,8 @@ export class InlineCompletionsSource extends Disposable {
 				if (remainingTimeToWait > 0) {
 					await wait(remainingTimeToWait, source.token);
 				}
+
+				suggestions.forEach(s => s.addPerformanceMarker('minShowDelayPassed'));
 
 				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId
 					|| userJumpedToActiveCompletion.get()  /* In the meantime the user showed interest for the active completion so dont hide it */) {
@@ -337,7 +415,7 @@ export class InlineCompletionsSource extends Disposable {
 			} finally {
 				store.dispose();
 				decreaseLoadingCount();
-				this.sendInlineCompletionsRequestTelemetry(requestResponseInfo);
+				this._sendInlineCompletionsRequestTelemetry(requestResponseInfo);
 			}
 
 			return true;
@@ -350,6 +428,9 @@ export class InlineCompletionsSource extends Disposable {
 	}
 
 	public clear(tx: ITransaction): void {
+		if (this._store.isDisposed) {
+			return;
+		}
 		this._updateOperation.clear();
 		const v = this._state.get();
 		this._state.set({
@@ -382,7 +463,21 @@ export class InlineCompletionsSource extends Disposable {
 		});
 	}
 
-	private sendInlineCompletionsRequestTelemetry(
+	/**
+	 * Seeds the inline completions with an external inline completion item.
+	 * Used when transplanting a completion from one model to another (cross-file edits).
+	 */
+	public seedWithCompletion(item: InlineSuggestionItem, tx: ITransaction): void {
+		const s = this._state.get();
+		this._state.set({
+			inlineCompletions: new InlineCompletionsState([item], undefined),
+			suggestWidgetInlineCompletions: InlineCompletionsState.createEmpty(),
+		}, tx);
+		s.inlineCompletions.dispose();
+		s.suggestWidgetInlineCompletions.dispose();
+	}
+
+	private _sendInlineCompletionsRequestTelemetry(
 		requestResponseInfo: RequestResponseData
 	): void {
 		if (!this._sendRequestData.get() && !this._contextKeyService.getContextKeyValue<boolean>('isRunningUnificationExperiment')) {
@@ -394,7 +489,7 @@ export class InlineCompletionsSource extends Disposable {
 		}
 
 
-		if (!isCompletionsEnabled(this._completionsEnabled, this._textModel.getLanguageId())) {
+		if (!isCompletionsEnabledFromObject(this._completionsEnabled, this._textModel.getLanguageId())) {
 			return;
 		}
 
@@ -409,6 +504,8 @@ export class InlineCompletionsSource extends Disposable {
 			extensionVersion: '0.0.0',
 			groupId: 'empty',
 			shown: false,
+			skuPlan: requestResponseInfo.requestInfo.sku?.plan,
+			skuType: requestResponseInfo.requestInfo.sku?.type,
 			editorType: requestResponseInfo.requestInfo.editorType,
 			requestReason: requestResponseInfo.requestInfo.reason,
 			typingInterval: requestResponseInfo.requestInfo.typingInterval,
@@ -423,6 +520,7 @@ export class InlineCompletionsSource extends Disposable {
 			preceeded: undefined,
 			superseded: undefined,
 			reason: undefined,
+			acceptedAlternativeAction: undefined,
 			correlationId: undefined,
 			shownDuration: undefined,
 			shownDurationUncollapsed: undefined,
@@ -439,7 +537,16 @@ export class InlineCompletionsSource extends Disposable {
 			characterCountModified: undefined,
 			disjointReplacements: undefined,
 			sameShapeReplacements: undefined,
+			longDistanceHintVisible: undefined,
+			longDistanceHintDistance: undefined,
 			notShownReason: undefined,
+			renameCreated: false,
+			renameDuration: undefined,
+			renameTimedOut: false,
+			renameDroppedOtherEdits: undefined,
+			renameDroppedRenameEdits: undefined,
+			performanceMarkers: undefined,
+			editKind: undefined,
 		};
 
 		const dataChannel = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
@@ -468,7 +575,7 @@ class UpdateRequest {
 
 	public satisfies(other: UpdateRequest): boolean {
 		return this.position.equals(other.position)
-			&& equalsIfDefined(this.context.selectedSuggestionInfo, other.context.selectedSuggestionInfo, itemEquals())
+			&& equalsIfDefined(this.context.selectedSuggestionInfo, other.context.selectedSuggestionInfo, thisEqualsC())
 			&& (other.context.triggerKind === InlineCompletionTriggerKind.Automatic
 				|| this.context.triggerKind === InlineCompletionTriggerKind.Explicit)
 			&& this.versionId === other.versionId
@@ -508,18 +615,6 @@ function isSubset<T>(set1: Set<T>, set2: Set<T>): boolean {
 	return [...set1].every(item => set2.has(item));
 }
 
-function isCompletionsEnabled(completionsEnablementObject: Record<string, boolean> | undefined, modeId: string = '*'): boolean {
-	if (completionsEnablementObject === undefined) {
-		return false; // default to disabled if setting is not available
-	}
-
-	if (typeof completionsEnablementObject[modeId] !== 'undefined') {
-		return Boolean(completionsEnablementObject[modeId]); // go with setting if explicitly defined
-	}
-
-	return Boolean(completionsEnablementObject['*']); // fallback to global setting otherwise
-}
-
 class UpdateOperation implements IDisposable {
 	constructor(
 		public readonly request: UpdateRequest,
@@ -533,7 +628,7 @@ class UpdateOperation implements IDisposable {
 	}
 }
 
-class InlineCompletionsState extends Disposable {
+export class InlineCompletionsState extends Disposable {
 	public static createEmpty(): InlineCompletionsState {
 		return new InlineCompletionsState([], undefined);
 	}
@@ -542,11 +637,11 @@ class InlineCompletionsState extends Disposable {
 		public readonly inlineCompletions: readonly InlineSuggestionItem[],
 		public readonly request: UpdateRequest | undefined,
 	) {
-		for (const inlineCompletion of inlineCompletions) {
+		super();
+
+		for (const inlineCompletion of this.inlineCompletions) {
 			inlineCompletion.addRef();
 		}
-
-		super();
 
 		this._register({
 			dispose: () => {

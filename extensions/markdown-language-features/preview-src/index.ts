@@ -6,32 +6,55 @@
 import { ActiveLineMarker } from './activeLineMarker';
 import { onceDocumentLoaded } from './events';
 import { createPosterForVsCode } from './messaging';
-import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine, getLineElementForFragment } from './scroll-sync';
+import { getEditorLineNumberForPageOffset, getElementsForSourceLine, getLineElementForFragment, scrollToRevealSourceLine } from './scroll-sync';
 import { SettingsManager, getData, getRawData } from './settings';
 import throttle = require('lodash.throttle');
 import morphdom from 'morphdom';
-import type { ToWebviewMessage } from '../types/previewMessaging';
+import type { MarkdownPreviewLineChanges, ToWebviewMessage } from '../types/previewMessaging';
 import { isOfScheme, Schemes } from '../src/util/schemes';
+import { DiffScrollSyncManager } from './diffScrollSync';
 
 let scrollDisabledCount = 0;
+let scrollDisabledTimer: number | undefined;
 
 const marker = new ActiveLineMarker();
 const settings = new SettingsManager();
 
 let documentVersion = 0;
 let documentResource = settings.settings.source;
+let lineChanges = settings.settings.lineChanges;
 
 const vscode = acquireVsCodeApi();
 
-// eslint-disable-next-line local/code-no-any-casts
-const originalState = vscode.getState() ?? {} as any;
-const state = {
+const onDiffScroll = (mappedLine: number) => {
+	scrollDisabledCount = 1;
+	if (scrollDisabledTimer) {
+		clearTimeout(scrollDisabledTimer);
+	}
+	scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 100);
+	doAfterImagesLoaded(() => scrollToRevealSourceLine(mappedLine, documentVersion, settings));
+};
+const diffScrollSyncManager = settings.settings.diffScrollSync
+	? new DiffScrollSyncManager(settings.settings.diffScrollSync, onDiffScroll)
+	: undefined;
+
+interface State {
+	scrollProgress?: number;
+	resource?: string;
+	line?: number;
+	fragment?: string;
+}
+
+const originalState: State = vscode.getState() ?? {};
+const state: State = {
 	...originalState,
-	...getData<any>('data-state')
+	...getData<Partial<State>>('data-state')
 };
 
-if (typeof originalState.scrollProgress !== 'undefined' && originalState?.resource !== state.resource) {
-	state.scrollProgress = 0;
+const hasStartingLine = typeof settings.settings.line === 'number' && !isNaN(settings.settings.line);
+if (typeof originalState.scrollProgress !== 'undefined'
+	&& (originalState?.resource !== state.resource || (hasStartingLine && originalState.line !== settings.settings.line))) {
+	state.scrollProgress = undefined;
 }
 
 // Make sure to sync VS Code state here
@@ -81,9 +104,12 @@ onceDocumentLoaded(() => {
 	// Restore
 	const scrollProgress = state.scrollProgress;
 	addImageContexts();
+	applyLineChanges(lineChanges);
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
-			scrollDisabledCount += 1;
+			scrollDisabledCount = 1;
+			if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+			scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 			// Always set scroll of at least 1 to prevent VS Code's webview code from auto scrolling us
 			const scrollToY = Math.max(1, scrollProgress * document.body.clientHeight);
 			window.scrollTo(0, scrollToY);
@@ -106,12 +132,16 @@ onceDocumentLoaded(() => {
 
 				const element = getLineElementForFragment(fragment, documentVersion);
 				if (element) {
-					scrollDisabledCount += 1;
+					scrollDisabledCount = 1;
+					if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+					scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 					scrollToRevealSourceLine(element.line, documentVersion, settings);
 				}
 			} else {
 				if (!isNaN(settings.settings.line!)) {
-					scrollDisabledCount += 1;
+					scrollDisabledCount = 1;
+					if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+					scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 					scrollToRevealSourceLine(settings.settings.line!, documentVersion, settings);
 				}
 			}
@@ -125,7 +155,13 @@ onceDocumentLoaded(() => {
 
 const onUpdateView = (() => {
 	const doScroll = throttle((line: number) => {
-		scrollDisabledCount += 1;
+		scrollDisabledCount = 1;
+		if (scrollDisabledTimer) {
+			clearTimeout(scrollDisabledTimer);
+		}
+		scrollDisabledTimer = window.setTimeout(() => {
+			scrollDisabledCount = 0;
+		}, 50);
 		doAfterImagesLoaded(() => scrollToRevealSourceLine(line, documentVersion, settings));
 	}, 50);
 
@@ -139,7 +175,9 @@ const onUpdateView = (() => {
 })();
 
 window.addEventListener('resize', () => {
-	scrollDisabledCount += 1;
+	scrollDisabledCount = 1;
+	if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+	scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 	updateScrollProgress();
 }, true);
 
@@ -222,6 +260,10 @@ window.addEventListener('message', async event => {
 			return;
 
 		case 'updateContent': {
+			lineChanges = data.lineChanges;
+			if (data.diffScrollSync) {
+				diffScrollSyncManager?.update(data.diffScrollSync);
+			}
 			const root = document.querySelector('.markdown-body')!;
 
 			const parser = new DOMParser();
@@ -250,7 +292,6 @@ window.addEventListener('message', async event => {
 				}
 				newRoot.prepend(...styles);
 
-				// eslint-disable-next-line local/code-no-any-casts
 				morphdom(root, newRoot, {
 					childrenOnly: true,
 					onBeforeElUpdated: (fromEl: Element, toEl: Element) => {
@@ -287,17 +328,363 @@ window.addEventListener('message', async event => {
 							domEval(childNode);
 						}
 					}
-				} as any);
+				});
 			}
 
 			++documentVersion;
 
 			window.dispatchEvent(new CustomEvent('vscode.markdown.updateContent'));
 			addImageContexts();
+			applyLineChanges(lineChanges);
 			break;
 		}
 	}
 }, false);
+
+function applyLineChanges(lineChanges: MarkdownPreviewLineChanges | undefined): void {
+	for (const element of document.querySelectorAll('.code-line-diff-added, .code-line-diff-deleted, .code-line-diff-modified')) {
+		element.classList.remove('code-line-diff', 'code-line-diff-added', 'code-line-diff-deleted', 'code-line-diff-modified');
+	}
+
+	// Remove previous change indicators
+	for (const element of document.querySelectorAll('.diff-change-indicator')) {
+		element.remove();
+	}
+
+	// Remove previous modification gutter bars
+	for (const element of document.querySelectorAll('.diff-modification-gutter')) {
+		element.remove();
+	}
+
+	markChangedLines(lineChanges?.added, 'code-line-diff-added');
+	markChangedLines(lineChanges?.deleted, 'code-line-diff-deleted');
+
+	applyChangeIndicators(lineChanges);
+	applyInnerChangeHighlights(lineChanges);
+}
+
+function markChangedLines(lines: readonly number[] | undefined, className: string): void {
+	if (!lines) {
+		return;
+	}
+
+	for (const line of lines) {
+		const { previous, next } = getElementsForSourceLine(line, documentVersion);
+		const lineElement = previous.line >= 0 ? previous : next;
+		const element = lineElement?.codeElement || lineElement?.element;
+		if (element) {
+			element.classList.add('code-line-diff', className);
+		}
+	}
+}
+
+
+function applyChangeIndicators(lineChanges: MarkdownPreviewLineChanges | undefined): void {
+	if (!lineChanges?.changeIndicators?.length) {
+		return;
+	}
+
+	for (const indicator of lineChanges.changeIndicators) {
+		const { previous, next } = getElementsForSourceLine(indicator.modifiedLine, documentVersion);
+
+		if (indicator.type === 'deletion') {
+			// For pure deletions, the indicator should appear just before the line at modifiedLine.
+			// Use `next` if previous doesn't exactly match the target line, since the deletion
+			// point is between two elements.
+			const targetElement = (previous.line === indicator.modifiedLine)
+				? (previous.codeElement || previous.element)
+				: (next?.codeElement || next?.element || previous.codeElement || previous.element);
+			if (!targetElement) {
+				continue;
+			}
+
+			const wrapper = createChangeIndicatorElement(indicator);
+			targetElement.parentElement?.insertBefore(wrapper, targetElement);
+		} else {
+			// For modifications, mark each modified line and add a gutter bar
+			const seen = new Set<HTMLElement>();
+			let isFirst = true;
+			for (let i = 0; i < indicator.modifiedLineCount; i++) {
+				const line = indicator.modifiedLine + i;
+				const { previous: p, next: n } = getElementsForSourceLine(line, documentVersion);
+				const lineElement = p.line >= 0 ? p : n;
+				const element = (lineElement?.codeElement || lineElement?.element) as HTMLElement | undefined;
+				if (element && !seen.has(element)) {
+					seen.add(element);
+					element.classList.add('code-line-diff-modified');
+					addModificationGutterBar(element, isFirst ? indicator : undefined);
+					isFirst = false;
+				}
+			}
+		}
+	}
+}
+
+function createChangeIndicatorElement(indicator: { type: string; originalLineCount: number; originalContent: string; modifiedContent: string }): HTMLDivElement {
+	const wrapper = document.createElement('div');
+	wrapper.className = `diff-change-indicator diff-change-indicator-${indicator.type}`;
+	wrapper.setAttribute('data-original-line-count', String(indicator.originalLineCount));
+
+	const arrowLine = document.createElement('span');
+	arrowLine.className = 'diff-change-indicator-arrow';
+	const tooltip = createDiffTooltip(indicator.originalContent, indicator.modifiedContent);
+	arrowLine.appendChild(tooltip);
+	wrapper.appendChild(arrowLine);
+
+	return wrapper;
+}
+
+function addModificationGutterBar(element: HTMLElement, indicator?: { originalContent: string; modifiedContent: string }): void {
+	const gutter = document.createElement('div');
+	gutter.className = 'diff-modification-gutter';
+
+	if (indicator) {
+		const tooltip = createDiffTooltip(indicator.originalContent, indicator.modifiedContent);
+		gutter.appendChild(tooltip);
+	}
+
+	element.style.position = 'relative';
+	element.appendChild(gutter);
+}
+
+function createDiffTooltip(originalContent: string, modifiedContent: string): HTMLDivElement {
+	const tooltip = document.createElement('div');
+	tooltip.className = 'diff-change-indicator-tooltip';
+
+	const originalLines = originalContent ? originalContent.split('\n') : [];
+	const modifiedLines = modifiedContent ? modifiedContent.split('\n') : [];
+	const lineDiff = computeLineLCS(originalLines, modifiedLines);
+
+	for (const entry of lineDiff) {
+		if (entry.type === 'equal') {
+			// Show unchanged lines in both sections with no highlight
+			const section = document.createElement('div');
+			section.className = 'diff-tooltip-unchanged';
+			const pre = document.createElement('pre');
+			pre.textContent = entry.text;
+			section.appendChild(pre);
+			tooltip.appendChild(section);
+		} else if (entry.type === 'delete') {
+			const section = document.createElement('div');
+			section.className = 'diff-tooltip-deleted';
+			const pre = document.createElement('pre');
+			pre.textContent = entry.text;
+			section.appendChild(pre);
+			tooltip.appendChild(section);
+		} else if (entry.type === 'insert') {
+			const section = document.createElement('div');
+			section.className = 'diff-tooltip-added';
+			const pre = document.createElement('pre');
+			pre.textContent = entry.text;
+			section.appendChild(pre);
+			tooltip.appendChild(section);
+		} else if (entry.type === 'modify') {
+			// Show old and new with word-level highlights
+			const delSection = document.createElement('div');
+			delSection.className = 'diff-tooltip-deleted';
+			const delPre = document.createElement('pre');
+			appendInlineHighlights(delPre, entry.oldTokens!, entry.newTokens!, 'delete');
+			delSection.appendChild(delPre);
+			tooltip.appendChild(delSection);
+
+			const addSection = document.createElement('div');
+			addSection.className = 'diff-tooltip-added';
+			const addPre = document.createElement('pre');
+			appendInlineHighlights(addPre, entry.oldTokens!, entry.newTokens!, 'insert');
+			addSection.appendChild(addPre);
+			tooltip.appendChild(addSection);
+		}
+	}
+
+	return tooltip;
+}
+
+interface DiffEntry {
+	type: 'equal' | 'delete' | 'insert' | 'modify';
+	text: string;
+	oldTokens?: string[];
+	newTokens?: string[];
+}
+
+/**
+ * Compute a line-level diff using LCS, grouping adjacent changed lines.
+ * When a block has both deletions and insertions, pairs them as 'modify' for inline highlighting.
+ */
+function computeLineLCS(oldLines: string[], newLines: string[]): DiffEntry[] {
+	const m = oldLines.length;
+	const n = newLines.length;
+
+	// Build LCS table
+	const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+	for (let i = 1; i <= m; i++) {
+		for (let j = 1; j <= n; j++) {
+			if (oldLines[i - 1] === newLines[j - 1]) {
+				dp[i][j] = dp[i - 1][j - 1] + 1;
+			} else {
+				dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+			}
+		}
+	}
+
+	// Backtrack to get diff operations
+	const rawDiff: Array<{ type: 'equal' | 'delete' | 'insert'; line: string }> = [];
+	let i = m, j = n;
+	while (i > 0 || j > 0) {
+		if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+			rawDiff.push({ type: 'equal', line: oldLines[i - 1] });
+			i--; j--;
+		} else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+			rawDiff.push({ type: 'insert', line: newLines[j - 1] });
+			j--;
+		} else {
+			rawDiff.push({ type: 'delete', line: oldLines[i - 1] });
+			i--;
+		}
+	}
+	rawDiff.reverse();
+
+	// Group into entries, pairing adjacent delete/insert blocks as 'modify'
+	const result: DiffEntry[] = [];
+	let idx = 0;
+	while (idx < rawDiff.length) {
+		const item = rawDiff[idx];
+		if (item.type === 'equal') {
+			result.push({ type: 'equal', text: item.line });
+			idx++;
+		} else {
+			// Collect contiguous changed block
+			const delLines: string[] = [];
+			const insLines: string[] = [];
+			while (idx < rawDiff.length && rawDiff[idx].type !== 'equal') {
+				if (rawDiff[idx].type === 'delete') {
+					delLines.push(rawDiff[idx].line);
+				} else {
+					insLines.push(rawDiff[idx].line);
+				}
+				idx++;
+			}
+
+			// Pair up lines for inline highlighting
+			const paired = Math.min(delLines.length, insLines.length);
+			for (let k = 0; k < paired; k++) {
+				result.push({
+					type: 'modify',
+					text: '',
+					oldTokens: tokenize(delLines[k]),
+					newTokens: tokenize(insLines[k]),
+				});
+			}
+			// Remaining unpaired lines
+			for (let k = paired; k < delLines.length; k++) {
+				result.push({ type: 'delete', text: delLines[k] });
+			}
+			for (let k = paired; k < insLines.length; k++) {
+				result.push({ type: 'insert', text: insLines[k] });
+			}
+		}
+	}
+
+	return result;
+}
+
+/** Split a line into alternating word and whitespace tokens */
+function tokenize(line: string): string[] {
+	return line.match(/\S+|\s+/g) || [''];
+}
+
+/** Compute LCS indices for two token arrays */
+function tokenLCS(a: string[], b: string[]): Set<number>[] {
+	const m = a.length, n = b.length;
+	const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+	for (let i = 1; i <= m; i++) {
+		for (let j = 1; j <= n; j++) {
+			if (a[i - 1] === b[j - 1]) {
+				dp[i][j] = dp[i - 1][j - 1] + 1;
+			} else {
+				dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+			}
+		}
+	}
+	const aMatch = new Set<number>();
+	const bMatch = new Set<number>();
+	let i = m, j = n;
+	while (i > 0 && j > 0) {
+		if (a[i - 1] === b[j - 1]) {
+			aMatch.add(i - 1);
+			bMatch.add(j - 1);
+			i--; j--;
+		} else if (dp[i][j - 1] >= dp[i - 1][j]) {
+			j--;
+		} else {
+			i--;
+		}
+	}
+	return [aMatch, bMatch];
+}
+
+/**
+ * Append tokens to a <pre> element with inline highlights for changed tokens.
+ * @param side 'delete' renders oldTokens highlighting removals; 'insert' renders newTokens highlighting additions
+ */
+function appendInlineHighlights(pre: HTMLPreElement, oldTokens: string[], newTokens: string[], side: 'delete' | 'insert'): void {
+	const [oldMatch, newMatch] = tokenLCS(oldTokens, newTokens);
+	const tokens = side === 'delete' ? oldTokens : newTokens;
+	const matchSet = side === 'delete' ? oldMatch : newMatch;
+	const highlightClass = side === 'delete' ? 'diff-inline-deleted' : 'diff-inline-added';
+
+	for (let i = 0; i < tokens.length; i++) {
+		if (matchSet.has(i)) {
+			pre.appendChild(document.createTextNode(tokens[i]));
+		} else {
+			const span = document.createElement('span');
+			span.className = highlightClass;
+			span.textContent = tokens[i];
+			pre.appendChild(span);
+		}
+	}
+}
+
+
+function applyInnerChangeHighlights(lineChanges: MarkdownPreviewLineChanges | undefined): void {
+	const diffHighlightAddedName = 'diff-inner-added';
+	const diffHighlightDeletedName = 'diff-inner-deleted';
+
+	// Clear previous highlights
+	CSS.highlights?.delete(diffHighlightAddedName);
+	CSS.highlights?.delete(diffHighlightDeletedName);
+
+	if (!lineChanges?.innerChanges?.length || !CSS.highlights) {
+		return;
+	}
+
+	const highlightName = lineChanges.added ? diffHighlightAddedName : diffHighlightDeletedName;
+	const ranges: Range[] = [];
+
+	// Find all marker pairs and create Range objects between them
+	const root = document.querySelector('.markdown-body');
+	if (!root) {
+		return;
+	}
+
+	let i = 0;
+	while (true) {
+		const startMarker = root.querySelector(`[data-diff-start="${i}"]`);
+		const endMarker = root.querySelector(`[data-diff-end="${i}"]`);
+		if (!startMarker || !endMarker) {
+			break;
+		}
+
+		const range = new Range();
+		range.setStartAfter(startMarker);
+		range.setEndBefore(endMarker);
+		ranges.push(range);
+		i++;
+	}
+
+	if (ranges.length > 0) {
+		CSS.highlights.set(highlightName, new Highlight(...ranges));
+	}
+}
 
 
 
@@ -332,10 +719,10 @@ document.addEventListener('click', event => {
 		return;
 	}
 
-	let node: any = event.target;
+	let node = event.target as Element | null;
 	while (node) {
-		if (node.tagName && node.tagName === 'A' && node.href) {
-			if (node.getAttribute('href').startsWith('#')) {
+		if (node.tagName && node.tagName === 'A' && (node as HTMLAnchorElement).href) {
+			if (node.getAttribute('href')?.startsWith('#')) {
 				return;
 			}
 
@@ -343,13 +730,13 @@ document.addEventListener('click', event => {
 			if (!hrefText) {
 				hrefText = node.getAttribute('href');
 				// Pass through known schemes
-				if (passThroughLinkSchemes.some(scheme => hrefText.startsWith(scheme))) {
+				if (hrefText && passThroughLinkSchemes.some(scheme => hrefText!.startsWith(scheme))) {
 					return;
 				}
 			}
 
 			// If original link doesn't look like a url, delegate back to VS Code to resolve
-			if (!/^[a-z\-]+:/i.test(hrefText)) {
+			if (hrefText && !/^[a-z\-]+:/i.test(hrefText)) {
 				messaging.postMessage('openLink', { href: hrefText });
 				event.preventDefault();
 				event.stopPropagation();
@@ -358,7 +745,7 @@ document.addEventListener('click', event => {
 
 			return;
 		}
-		node = node.parentNode;
+		node = node.parentElement;
 	}
 }, true);
 
@@ -366,12 +753,15 @@ window.addEventListener('scroll', throttle(() => {
 	updateScrollProgress();
 
 	if (scrollDisabledCount > 0) {
-		scrollDisabledCount -= 1;
-	} else {
-		const line = getEditorLineNumberForPageOffset(window.scrollY, documentVersion);
-		if (typeof line === 'number' && !isNaN(line)) {
-			messaging.postMessage('revealLine', { line });
-		}
+		return;
+	}
+
+	const line = getEditorLineNumberForPageOffset(window.scrollY, documentVersion);
+	if (typeof line === 'number' && !isNaN(line)) {
+		state.line = line;
+		vscode.setState(state);
+		messaging.postMessage('revealLine', { line });
+		diffScrollSyncManager?.broadcastScroll(line);
 	}
 }, 50));
 
@@ -441,8 +831,7 @@ function domEval(el: Element): void {
 		for (const key of preservedScriptAttributes) {
 			const val = node.getAttribute?.(key);
 			if (val) {
-				// eslint-disable-next-line local/code-no-any-casts
-				scriptTag.setAttribute(key, val as any);
+				scriptTag.setAttribute(key, val);
 			}
 		}
 

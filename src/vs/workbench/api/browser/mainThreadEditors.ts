@@ -153,13 +153,9 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 				return constObservable(undefined);
 			}
 
-			const editorModelUri = isITextModel(editorModel)
-				? editorModel.uri
-				: editorModel.modified.uri;
-
 			// TextEditor
 			if (isITextModel(editorModel)) {
-				const quickDiffModelRef = this._quickDiffModelService.createQuickDiffModelReference(editorModelUri);
+				const quickDiffModelRef = this._quickDiffModelService.createQuickDiffModelReference(editorModel.uri);
 				if (!quickDiffModelRef) {
 					return constObservable(undefined);
 				}
@@ -175,24 +171,17 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 				});
 			}
 
-			// DirtyDiffModel - we create a dirty diff model for diff editor so that
-			// we can provide multiple "original resources" to diff with the modified
-			// resource.
+			// DiffEditor - we create a quick diff model (using the diff algorithm used by the diff editor)
+			// even for diff editor so that we can provide multiple "original resources" to diff with the original
+			// and modified resources.
 			const diffAlgorithm = this._configurationService.getValue<DiffAlgorithmName>('diffEditor.diffAlgorithm');
-			const quickDiffModelRef = this._quickDiffModelService.createQuickDiffModelReference(editorModelUri, { algorithm: diffAlgorithm });
+			const quickDiffModelRef = this._quickDiffModelService.createQuickDiffModelReference(editorModel.modified.uri, { algorithm: diffAlgorithm });
 			if (!quickDiffModelRef) {
 				return constObservable(undefined);
 			}
 
 			toDispose.push(quickDiffModelRef);
 			return observableFromEvent(Event.any(quickDiffModelRef.object.onDidChange, diffEditor.onDidUpdateDiff), () => {
-				const quickDiffInformation = quickDiffModelRef.object.getQuickDiffResults()
-					.map(result => ({
-						original: result.original,
-						modified: result.modified,
-						changes: result.changes2
-					}));
-
 				const diffChanges = diffEditor.getDiffComputationResult()?.changes2 ?? [];
 				const diffInformation = [{
 					original: editorModel.original.uri,
@@ -200,13 +189,24 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 					changes: diffChanges.map(change => change as LineRangeMapping)
 				}];
 
-				return [...quickDiffInformation, ...diffInformation];
+				// Add quick diff information from secondary/contributed providers
+				const quickDiffInformation = quickDiffModelRef.object.getQuickDiffResults()
+					.filter(result => result.providerKind !== 'primary')
+					.map(result => ({
+						original: result.original,
+						modified: result.modified,
+						changes: result.changes2
+					}));
+
+				// Combine diff and quick diff information
+				return diffInformation.concat(quickDiffInformation);
 			});
 		});
 
 		return derivedOpts({
 			owner: this,
-			equalsFn: (diff1, diff2) => equals(diff1, diff2, (a, b) => isTextEditorDiffInformationEqual(this._uriIdentityService, a, b))
+			equalsFn: (diff1, diff2) => equals(diff1, diff2, (a, b) =>
+				isTextEditorDiffInformationEqual(this._uriIdentityService, a, b))
 		}, reader => {
 			const editorModel = editorModelObs.read(reader);
 			const editorChanges = editorChangesObs.read(reader).read(reader);

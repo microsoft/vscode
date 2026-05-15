@@ -29,11 +29,11 @@ jobs:
           KeyVaultName: vscode-build-secrets
           SecretsFilter: "github-distro-mixin-password"
 
-      - script: node build/setup-npm-registry.js $NPM_REGISTRY
+      - script: node build/setup-npm-registry.ts $NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
-      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js alpine $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts alpine $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
         displayName: Prepare node_modules cache key
 
       - task: Cache@2
@@ -68,6 +68,16 @@ jobs:
           containerCommand: uname
         displayName: "Pull image"
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - task: Docker@1
+        inputs:
+          azureSubscriptionEndpoint: vscode
+          azureContainerRegistry: vscodehub.azurecr.io
+          command: "Run an image"
+          imageName: "multiarch/qemu-user-static@sha256:fe60359c92e86a43cc87b3d906006245f77bfc0565676b80004cc666e4feb9f0"
+          containerCommand: uname
+        displayName: "Pull qemu-user-static image"
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['NPM_ARCH'], 'arm64'))
 
       - script: sudo apt-get update && sudo apt-get install -y libkrb5-dev
         displayName: Install build dependencies
@@ -108,13 +118,13 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - script: node build/azure-pipelines/distro/mixin-npm
+      - script: node build/azure-pipelines/distro/mixin-npm.ts
         displayName: Mixin distro node modules
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
       - script: |
           set -e
-          node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
           mkdir -p .build/node_modules_cache
           tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))

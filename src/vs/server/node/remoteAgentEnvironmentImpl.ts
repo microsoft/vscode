@@ -112,6 +112,8 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			pid: process.pid,
 			connectionToken: (this._connectionToken.type !== ServerConnectionTokenType.None ? this._connectionToken.value : ''),
 			appRoot: URI.file(this._environmentService.appRoot),
+			execPath: process.execPath,
+			tmpDir: this._environmentService.tmpDir,
 			settingsPath: this._environmentService.machineSettingsResource,
 			mcpResource: this._environmentService.mcpResource,
 			logsPath: this._environmentService.logsHome,

@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ChatConfiguration } from '../../../chat/common/constants.js';
 import type { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { ShellIntegrationQuality } from './toolTerminalCreator.js';
 
 export class RunInTerminalToolTelemetry {
 	constructor(
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 	}
 
@@ -65,7 +68,7 @@ export class RunInTerminalToolTelemetry {
 			autoApproveDefault: boolean | undefined;
 		};
 		type TelemetryClassification = {
-			owner: 'tyriar';
+			owner: 'meganrogge';
 			comment: 'Understanding the auto approve behavior of the runInTerminal tool';
 
 			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
@@ -94,6 +97,8 @@ export class RunInTerminalToolTelemetry {
 		error: string | undefined;
 		isBackground: boolean;
 		isNewSession: boolean;
+		isSandboxWrapped: boolean;
+		requestUnsandboxedExecutionReason: string | undefined;
 		shellIntegrationQuality: ShellIntegrationQuality;
 		outputLineCount: number;
 		timingConnectMs: number;
@@ -122,8 +127,11 @@ export class RunInTerminalToolTelemetry {
 			toolEditedCommand: 0 | 1;
 			isBackground: 0 | 1;
 			isNewSession: 0 | 1;
+			isSandbox: 0 | 1;
+			requestUnsandboxedExecutionReason: string | undefined;
 			outputLineCount: number;
 			nonZeroExitCode: -1 | 0 | 1;
+			exitCodeValue: number;
 			timingConnectMs: number;
 			pollDurationMs: number;
 			timingExecuteMs: number;
@@ -137,9 +145,11 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualShownCount: number;
 			inputToolFreeFormInputShownCount: number;
 			inputToolFreeFormInputCount: number;
+
+			compressOutputEnabled: boolean;
 		};
 		type TelemetryClassification = {
-			owner: 'tyriar';
+			owner: 'meganrogge';
 			comment: 'Understanding the usage of the runInTerminal tool';
 
 			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
@@ -151,8 +161,11 @@ export class RunInTerminalToolTelemetry {
 			toolEditedCommand: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool edited the command' };
 			isBackground: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command is a background command' };
 			isNewSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this was the first execution for the terminal session' };
+			isSandbox: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command was run inside the terminal sandbox' };
+			requestUnsandboxedExecutionReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason the model gave for requesting unsandboxed execution, if any' };
 			outputLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many lines of output were produced, this is -1 when isBackground is true or if there\'s an error' };
 			nonZeroExitCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command exited with a non-zero code (-1=error/unknown, 0=zero exit code, 1=non-zero)' };
+			exitCodeValue: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The actual exit code of the terminal command (-1 if unknown)' };
 			timingConnectMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to start up and connect to' };
 			timingExecuteMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to execute the command' };
 			pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the tool polled for output, this is undefined when isBackground is true or if there\'s an error' };
@@ -166,6 +179,8 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualShownCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user was prompted to manually accept an input suggestion' };
 			inputToolFreeFormInputShownCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user was prompted to provide free form input' };
 			inputToolFreeFormInputCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user entered free form input after prompting' };
+
+			compressOutputEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the chat.tools.compressOutput.enabled setting is on for this invocation.' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
@@ -177,8 +192,11 @@ export class RunInTerminalToolTelemetry {
 			toolEditedCommand: state.didToolEditCommand ? 1 : 0,
 			isBackground: state.isBackground ? 1 : 0,
 			isNewSession: state.isNewSession ? 1 : 0,
+			isSandbox: state.isSandboxWrapped ? 1 : 0,
+			requestUnsandboxedExecutionReason: state.requestUnsandboxedExecutionReason,
 			outputLineCount: state.outputLineCount,
 			nonZeroExitCode: state.exitCode === undefined ? -1 : state.exitCode === 0 ? 0 : 1,
+			exitCodeValue: state.exitCode ?? -1,
 			timingConnectMs: state.timingConnectMs,
 			timingExecuteMs: state.timingExecuteMs,
 			pollDurationMs: state.pollDurationMs ?? 0,
@@ -192,6 +210,8 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualShownCount: state.inputToolManualShownCount ?? 0,
 			inputToolFreeFormInputShownCount: state.inputToolFreeFormInputShownCount ?? 0,
 			inputToolFreeFormInputCount: state.inputToolFreeFormInputCount ?? 0,
+
+			compressOutputEnabled: this._configurationService.getValue<boolean>(ChatConfiguration.CompressOutputEnabled) === true,
 		});
 	}
 }

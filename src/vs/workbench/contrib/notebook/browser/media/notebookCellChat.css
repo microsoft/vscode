@@ -173,6 +173,7 @@
 	background-color: var(--vscode-textPreformat-background);
 	padding: 1px 3px;
 	border-radius: 4px;
+	border: 1px solid var(--vscode-textPreformat-border);
 }
 
 .monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .markdownMessage .message .interactive-result-code-block {

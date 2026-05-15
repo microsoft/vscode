@@ -294,6 +294,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	override dispose(): void {
 		this._callOnDispose.dispose();
+		this._onDidSelectRelatedInformation.dispose();
 		super.dispose();
 	}
 
@@ -358,7 +359,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		}
 		this._icon.className = `codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(this._severity))}`;
 
-		this.editor.revealPositionNearTop(position, ScrollType.Smooth);
+		this.editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Smooth);
 		this.editor.focus();
 	}
 

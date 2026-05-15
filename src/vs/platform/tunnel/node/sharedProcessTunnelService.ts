@@ -81,9 +81,8 @@ export class SharedProcessTunnelService extends Disposable implements ISharedPro
 			throw new Error(`Could not create tunnel`);
 		}
 
-		if (this._disposedTunnels.has(id)) {
+		if (this._disposedTunnels.delete(id)) {
 			// This tunnel was disposed in the meantime
-			this._disposedTunnels.delete(id);
 			tunnelData.dispose();
 			await tunnel.dispose();
 			throw canceled();

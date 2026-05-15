@@ -316,7 +316,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}));
 
 		// register comment decoration
-		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
+		this._register(this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {}));
 	}
 
 	// Add or remove the cell undo redo comparison key based on the user setting

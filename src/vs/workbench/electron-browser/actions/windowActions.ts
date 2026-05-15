@@ -29,7 +29,7 @@ import { isMacintosh } from '../../../base/common/platform.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from '../../../platform/window/common/window.js';
 import { IsAuxiliaryWindowContext, IsAuxiliaryWindowFocusedContext, IsWindowAlwaysOnTopContext } from '../../common/contextkeys.js';
-import { isAuxiliaryWindow } from '../../../base/browser/window.js';
+import { isAuxiliaryWindow, mainWindow } from '../../../base/browser/window.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 
 export class CloseWindowAction extends Action2 {
@@ -62,6 +62,32 @@ export class CloseWindowAction extends Action2 {
 		const nativeHostService = accessor.get(INativeHostService);
 
 		return nativeHostService.closeWindow({ targetWindowId: getActiveWindow().vscodeWindowId });
+	}
+}
+
+export class CloseOtherWindowsAction extends Action2 {
+
+	private static readonly ID = 'workbench.action.closeOtherWindows';
+
+	constructor() {
+		super({
+			id: CloseOtherWindowsAction.ID,
+			title: localize2('closeOtherWindows', "Close Other Windows"),
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+
+		const currentWindowId = getActiveWindow().vscodeWindowId;
+		const windows = await nativeHostService.getWindows({ includeAuxiliaryWindows: false });
+
+		for (const window of windows) {
+			if (window.id !== currentWindowId) {
+				nativeHostService.closeWindow({ targetWindowId: window.id });
+			}
+		}
 	}
 }
 
@@ -360,6 +386,23 @@ export class QuickSwitchWindowAction extends BaseSwitchWindow {
 
 	protected isQuickNavigate(): boolean {
 		return true;
+	}
+}
+
+export class SwitchToMainWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.switchToMainWindow',
+			title: localize2('switchToMainWindow', "Switch to Main Window"),
+			f1: true,
+			precondition: IsAuxiliaryWindowContext
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+		return nativeHostService.focusWindow({ targetWindowId: mainWindow.vscodeWindowId });
 	}
 }
 

@@ -12,10 +12,10 @@ function code() {
 
 	# Get electron, compile, built-in extensions
 	if [[ -z "${VSCODE_SKIP_PRELAUNCH}" ]]; then
-		node build/lib/preLaunch.js
+		node build/lib/preLaunch.ts
 	fi
 
-	NODE=$(node build/lib/node.js)
+	NODE=$(node build/lib/node.ts)
 	if [ ! -e $NODE ];then
 		# Load remote node
 		npm run gulp node

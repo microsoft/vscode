@@ -645,6 +645,9 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		container.style.color = foregroundColor;
 		const itemBorderColor = this.getColor(STATUS_BAR_ITEM_FOCUS_BORDER);
 
+		// Update compact entries to refresh hover colors based on current theme
+		this.updateCompactEntries();
+
 		// Border color
 		const borderColor = this.getColor(styleOverride?.border ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER)) || this.getColor(contrastBorder);
 		if (borderColor) {
@@ -660,7 +663,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		const statusBarFocusColor = this.getColor(STATUS_BAR_FOCUS_BORDER);
 
 		if (!this.styleElement) {
-			this.styleElement = createStyleSheet(container);
+			this.styleElement = createStyleSheet(container, undefined, this._store);
 		}
 
 		this.styleElement.textContent = `

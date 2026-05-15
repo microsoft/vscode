@@ -36,7 +36,7 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	// keyboard mapper
 	protected _initialized: boolean;
 	protected _keyboardMapper: IKeyboardMapper | null;
-	private readonly _onDidChangeKeyboardMapper = new Emitter<void>();
+	private readonly _onDidChangeKeyboardMapper = this._register(new Emitter<void>());
 	public readonly onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
 	// keymap infos
@@ -456,7 +456,7 @@ export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBa
 
 		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
 
-		import(FileAccess.asBrowserUri(`vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.${platform}.js` satisfies AppResourcePath).path).then((m) => {
+		import(/* webpackIgnore: true */FileAccess.asBrowserUri(`vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.${platform}.js` satisfies AppResourcePath).path).then((m) => {
 			const keymapInfos: IKeymapInfo[] = m.KeyboardLayoutContribution.INSTANCE.layoutInfos;
 			this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
 			this._mru = this._keymapInfos;
@@ -520,7 +520,7 @@ class UserKeyboardLayout extends Disposable {
 export class BrowserKeyboardLayoutService extends Disposable implements IKeyboardLayoutService {
 	public _serviceBrand: undefined;
 
-	private readonly _onDidChangeKeyboardLayout = new Emitter<void>();
+	private readonly _onDidChangeKeyboardLayout = this._register(new Emitter<void>());
 	public readonly onDidChangeKeyboardLayout: Event<void> = this._onDidChangeKeyboardLayout.event;
 
 	private _userKeyboardLayout: UserKeyboardLayout;

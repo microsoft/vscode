@@ -126,7 +126,7 @@ class ColumnHeader<TRow, TCell> extends Disposable implements IView {
 	get maximumSize() { return this.column.maximumWidth ?? Number.POSITIVE_INFINITY; }
 	get onDidChange() { return this.column.onDidChangeWidthConstraints ?? Event.None; }
 
-	private _onDidLayout = new Emitter<[number, number]>();
+	private _onDidLayout = this._register(new Emitter<[number, number]>());
 	readonly onDidLayout = this._onDidLayout.event;
 
 	constructor(readonly column: ITableColumn<TRow, TCell>, private index: number) {

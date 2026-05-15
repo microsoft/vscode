@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IModelService } from '../../../editor/common/services/model.js';
 import { ModelService } from '../../../editor/common/services/modelService.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
@@ -25,7 +25,7 @@ import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMem
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../platform/ipc/electron-browser/services.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
-import { INativeHostOptions, INativeHostService, IOSProperties, IOSStatistics } from '../../../platform/native/common/native.js';
+import { INativeHostOptions, INativeHostService, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -62,6 +62,7 @@ export class TestSharedProcessService implements ISharedProcessService {
 }
 
 export class TestNativeHostService implements INativeHostService {
+
 	declare readonly _serviceBrand: undefined;
 
 	readonly windowId = -1;
@@ -73,7 +74,14 @@ export class TestNativeHostService implements INativeHostService {
 	readonly onDidBlurMainWindow: Event<number> = Event.None;
 	readonly onDidFocusMainOrAuxiliaryWindow: Event<number> = Event.None;
 	readonly onDidBlurMainOrAuxiliaryWindow: Event<number> = Event.None;
+	readonly onDidSuspendOS: Event<void> = Event.None;
 	readonly onDidResumeOS: Event<unknown> = Event.None;
+	readonly onDidChangeOnBatteryPower: Event<boolean> = Event.None;
+	readonly onDidChangeThermalState: Event<ThermalState> = Event.None;
+	readonly onDidChangeSpeedLimit: Event<number> = Event.None;
+	readonly onWillShutdownOS: Event<void> = Event.None;
+	readonly onDidLockScreen: Event<void> = Event.None;
+	readonly onDidUnlockScreen: Event<void> = Event.None;
 	onDidChangeColorScheme = Event.None;
 	onDidChangePassword = Event.None;
 	readonly onDidTriggerWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
@@ -94,6 +102,8 @@ export class TestNativeHostService implements INativeHostService {
 	openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
+
+	async openAgentsWindow(_options?: { folderUri?: UriComponents }): Promise<void> { }
 
 	async toggleFullScreen(): Promise<void> { }
 	async isMaximized(): Promise<boolean> { return true; }
@@ -155,6 +165,7 @@ export class TestNativeHostService implements INativeHostService {
 	async stopTracing(): Promise<void> { }
 	async openDevToolsWindow(url: string): Promise<void> { }
 	async openGPUInfoWindow(): Promise<void> { }
+	async openContentTracingWindow(): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
 	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }
 	async lookupKerberosAuthorization(url: string): Promise<string | undefined> { return undefined; }
@@ -171,8 +182,22 @@ export class TestNativeHostService implements INativeHostService {
 	async readClipboardBuffer(format: string): Promise<VSBuffer> { return VSBuffer.wrap(Uint8Array.from([])); }
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
+	async createZipFile(zipPath: URI, files: { path: string; contents: string }[]): Promise<void> { }
 	async profileRenderer(): Promise<any> { throw new Error(); }
+	async startTracing(): Promise<void> { throw new Error(); }
 	async getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> { return undefined; }
+	async showToast(options: IToastOptions): Promise<IToastResult> { return { supported: false, clicked: false }; }
+	async clearToast(id: string): Promise<void> { }
+	async clearToasts(): Promise<void> { }
+
+	// Power APIs
+	async getSystemIdleState(idleThreshold: number): Promise<SystemIdleState> { return 'unknown'; }
+	async getSystemIdleTime(): Promise<number> { return 0; }
+	async getCurrentThermalState(): Promise<ThermalState> { return 'unknown'; }
+	async isOnBatteryPower(): Promise<boolean> { return false; }
+	async startPowerSaveBlocker(type: PowerSaveBlockerType): Promise<number> { return -1; }
+	async stopPowerSaveBlocker(id: number): Promise<boolean> { return false; }
+	async isPowerSaveBlockerStarted(id: number): Promise<boolean> { return false; }
 }
 
 export class TestExtensionTipsService extends AbstractNativeExtensionTipsService {

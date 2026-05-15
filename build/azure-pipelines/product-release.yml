@@ -10,6 +10,11 @@ steps:
       versionSource: fromFile
       versionFilePath: .nvmrc
 
+  - template: ./distro/download-distro.yml@self
+
+  - script: node build/azure-pipelines/distro/mixin-quality.ts
+    displayName: Mixin distro quality
+
   - task: AzureCLI@2
     displayName: Fetch secrets
     inputs:
@@ -27,7 +32,7 @@ steps:
     displayName: Install build dependencies
 
   - pwsh: |
-      $publishAuthTokens = (node build/azure-pipelines/common/getPublishAuthTokens)
+      $publishAuthTokens = (node build/azure-pipelines/common/getPublishAuthTokens.ts)
       Write-Host "##vso[task.setvariable variable=PUBLISH_AUTH_TOKENS;issecret=true]$publishAuthTokens"
     env:
       AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
@@ -35,7 +40,7 @@ steps:
       AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
     displayName: Get publish auth tokens
 
-  - script: node build/azure-pipelines/common/releaseBuild.js ${{ parameters.VSCODE_RELEASE }}
+  - script: node build/azure-pipelines/common/releaseBuild.ts ${{ parameters.VSCODE_RELEASE }}
     displayName: Release build
     env:
       PUBLISH_AUTH_TOKENS: "$(PUBLISH_AUTH_TOKENS)"

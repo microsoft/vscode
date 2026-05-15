@@ -27,7 +27,7 @@ export interface ISimpleScreenReaderContentState {
 	selectionEnd: number;
 
 	/** the editor range in the view coordinate system that matches the selection inside `value` */
-	selection: Range;
+	selection: Selection;
 
 	/** the position of the start of the `value` in the editor */
 	startPositionWithinEditor: Position;

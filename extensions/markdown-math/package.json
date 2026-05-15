@@ -2,7 +2,7 @@
   "name": "markdown-math",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "icon": "icon.png",
   "publisher": "vscode",
   "license": "MIT",
@@ -108,7 +108,7 @@
   "scripts": {
     "compile": "npm run build-notebook",
     "watch": "npm run build-notebook",
-    "build-notebook": "node ./esbuild.mjs"
+    "build-notebook": "node ./esbuild.notebook.mts"
   },
   "devDependencies": {
     "@types/markdown-it": "^0.0.0",

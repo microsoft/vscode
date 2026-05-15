@@ -12,7 +12,7 @@ import { Barrier, timeout } from '../../../../common/async.js';
 import { VSBuffer } from '../../../../common/buffer.js';
 import { Emitter, Event } from '../../../../common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../common/lifecycle.js';
-import { ILoadEstimator, PersistentProtocol, Protocol, ProtocolConstants, SocketCloseEvent, SocketDiagnosticsEventType } from '../../common/ipc.net.js';
+import { ILoadEstimator, PersistentProtocol, Protocol, ProtocolConstants, SocketCloseEvent, SocketDiagnosticsEventType, SocketTimeoutReason } from '../../common/ipc.net.js';
 import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket, WebSocketNodeSocket } from '../../node/ipc.net.js';
 import { flakySuite } from '../../../../test/common/testUtils.js';
 import { runWithFakedTimers } from '../../../../test/common/timeTravelScheduler.js';
@@ -506,6 +506,58 @@ suite('PersistentProtocol reconnection', () => {
 		);
 	});
 
+	test('keepalive detects dead connection when no regular messages are pending', async () => {
+		await runWithFakedTimers(
+			{
+				useFakeTimers: true,
+				useSetImmediate: true,
+				maxTaskCount: 1000
+			},
+			async () => {
+
+				const loadEstimator: ILoadEstimator = {
+					hasHighLoad: () => false
+				};
+				const ether = new Ether();
+				const aSocket = new NodeSocket(ether.a);
+				const a = new PersistentProtocol({ socket: aSocket, loadEstimator });
+				const aMessages = new MessageStream(a);
+				const bSocket = new NodeSocket(ether.b);
+				const b = new PersistentProtocol({ socket: bSocket, loadEstimator });
+				const bMessages = new MessageStream(b);
+
+				// exchange a message so both sides are in a good state
+				a.send(VSBuffer.fromString('a1'));
+				const a1 = await bMessages.waitForOne();
+				assert.strictEqual(a1.toString(), 'a1');
+
+				// wait for ack to arrive
+				await timeout(ProtocolConstants.AcknowledgeTime * 2);
+
+				// confirm no unacknowledged messages
+				assert.strictEqual(a.unacknowledgedCount, 0);
+
+				// now kill b's ability to send anything (simulates a dead connection
+				// where the remote side's keepalives stop arriving)
+				b.pauseSocketWriting();
+
+				// wait for timeout to be detected via keepalive
+				const socketTimeoutEvent = await Event.toPromise(a.onSocketTimeout);
+
+				assert.strictEqual(socketTimeoutEvent.reason, SocketTimeoutReason.KEEP_ALIVE);
+				assert.ok(socketTimeoutEvent.timeSinceLastReceivedSomeData >= ProtocolConstants.TimeoutTime);
+				// no regular messages were pending
+				assert.strictEqual(socketTimeoutEvent.unacknowledgedMsgCount, 0);
+				assert.strictEqual(socketTimeoutEvent.timeSinceOldestUnacknowledgedMsg, undefined);
+
+				aMessages.dispose();
+				bMessages.dispose();
+				a.dispose();
+				b.dispose();
+			}
+		);
+	});
+
 	test('writing can be paused', async () => {
 		await runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
 			const loadEstimator: ILoadEstimator = {
@@ -709,6 +761,47 @@ suite('WebSocketNodeSocket', () => {
 			];
 			const actual = await testReading(frames, true);
 			assert.deepStrictEqual(actual, 'Hello');
+		});
+
+		test('setRecordInflateBytes(false) clears and stops recording', async () => {
+			const disposables = new DisposableStore();
+			const socket = disposables.add(new FakeNodeSocket());
+			// eslint-disable-next-line local/code-no-any-casts
+			const webSocket = disposables.add(new WebSocketNodeSocket(<any>socket, true, null, true));
+
+			const compressedHelloFrame = [0xc1, 0x07, 0xf2, 0x48, 0xcd, 0xc9, 0xc9, 0x07, 0x00];
+			const waitForOneData = () => new Promise<VSBuffer>(resolve => {
+				const d = webSocket.onData(data => {
+					d.dispose();
+					resolve(data);
+				});
+			});
+
+			const firstPromise = waitForOneData();
+			socket.fireData(compressedHelloFrame);
+			const first = await firstPromise;
+			assert.strictEqual(fromCharCodeArray(fromUint8Array(first.buffer)), 'Hello');
+			assert.ok(webSocket.recordedInflateBytes.byteLength > 0);
+
+			webSocket.setRecordInflateBytes(false);
+			assert.strictEqual(webSocket.recordedInflateBytes.byteLength, 0);
+
+			const secondPromise = waitForOneData();
+			socket.fireData(compressedHelloFrame);
+			const second = await secondPromise;
+			assert.strictEqual(fromCharCodeArray(fromUint8Array(second.buffer)), 'Hello');
+			assert.strictEqual(webSocket.recordedInflateBytes.byteLength, 0);
+
+			webSocket.setRecordInflateBytes(true);
+			assert.strictEqual(webSocket.recordedInflateBytes.byteLength, 0);
+
+			const thirdPromise = waitForOneData();
+			socket.fireData(compressedHelloFrame);
+			const third = await thirdPromise;
+			assert.strictEqual(fromCharCodeArray(fromUint8Array(third.buffer)), 'Hello');
+			assert.ok(webSocket.recordedInflateBytes.byteLength > 0);
+
+			disposables.dispose();
 		});
 
 		test('A fragmented compressed text message', async () => {

@@ -36,6 +36,8 @@ class CodeActionOracle extends Disposable {
 
 	private readonly _autoTriggerTimer = this._register(new TimeoutTimer());
 
+	ignoreLightbulbOff = false;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _markerService: IMarkerService,
@@ -74,9 +76,9 @@ class CodeActionOracle extends Disposable {
 			return selection;
 		}
 		const enabled = this._editor.getOption(EditorOption.lightbulb).enabled;
-		if (enabled === ShowLightbulbIconMode.Off) {
+		if (enabled === ShowLightbulbIconMode.Off && !this.ignoreLightbulbOff) {
 			return undefined;
-		} else if (enabled === ShowLightbulbIconMode.On) {
+		} else if (enabled === ShowLightbulbIconMode.Off || enabled === ShowLightbulbIconMode.On) {
 			return selection;
 		} else if (enabled === ShowLightbulbIconMode.OnCode) {
 			const isSelectionEmpty = selection.isEmpty();
@@ -167,6 +169,22 @@ export class CodeActionModel extends Disposable {
 
 	private _disposed = false;
 
+	private _ignoreLightbulbOff = false;
+
+	set ignoreLightbulbOff(value: boolean) {
+		if (this._ignoreLightbulbOff === value) {
+			return;
+		}
+		this._ignoreLightbulbOff = value;
+		const oracle = this._codeActionOracle.value;
+		if (oracle) {
+			oracle.ignoreLightbulbOff = value;
+			if (value) {
+				oracle.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
+			}
+		}
+	}
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _registry: LanguageFeatureRegistry<CodeActionProvider>,
@@ -221,7 +239,7 @@ export class CodeActionModel extends Disposable {
 			const supportedActions: string[] = this._registry.all(model).flatMap(provider => provider.providedCodeActionKinds ?? []);
 			this._supportedCodeActions.set(supportedActions.join(' '));
 
-			this._codeActionOracle.value = new CodeActionOracle(this._editor, this._markerService, trigger => {
+			const oracle = new CodeActionOracle(this._editor, this._markerService, trigger => {
 				if (!trigger) {
 					this.setState(CodeActionsState.Empty);
 					return;
@@ -363,6 +381,8 @@ export class CodeActionModel extends Disposable {
 					}, 500);
 				}
 			}, undefined);
+			oracle.ignoreLightbulbOff = this._ignoreLightbulbOff;
+			this._codeActionOracle.value = oracle;
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		} else {
 			this._supportedCodeActions.reset();

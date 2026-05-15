@@ -69,7 +69,7 @@ pub async fn start_json_rpc<C: Send + Sync + 'static, S: Clone>(
 			n = read.read_line(&mut read_buf) => {
 				let r = match n {
 					Ok(0) => return Ok(None),
-					Ok(n) => dispatcher.dispatch(read_buf[..n].as_bytes()),
+					Ok(n) => dispatcher.dispatch(&read_buf.as_bytes()[..n]),
 					Err(e) => return Err(e)
 				};
 

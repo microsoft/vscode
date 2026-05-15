@@ -205,7 +205,7 @@ export class NotebookViewZones extends Disposable {
 	}
 }
 
-function safeInvoke1Arg(func: Function, arg1: any): void {
+function safeInvoke1Arg(func: Function, arg1: unknown): void {
 	try {
 		func(arg1);
 	} catch (e) {
