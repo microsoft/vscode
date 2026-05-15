@@ -70,7 +70,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private readonly _onDidChangeExtensionsStatus = this._register(new Emitter<ExtensionIdentifier[]>());
 	public readonly onDidChangeExtensionsStatus = this._onDidChangeExtensionsStatus.event;
 
-	private readonly _onDidChangeExtensions = this._register(new Emitter<{ readonly added: ReadonlyArray<IExtensionDescription>; readonly removed: ReadonlyArray<IExtensionDescription> }>({ leakWarningThreshold: 400 }));
+	private readonly _onDidChangeExtensions = this._register(new Emitter<{ readonly added: ReadonlyArray<IExtensionDescription>; readonly removed: ReadonlyArray<IExtensionDescription> }>({ leakWarningThreshold: 400, leakWarningName: 'ExtensionService._onDidChangeExtensions' }));
 	public readonly onDidChangeExtensions = this._onDidChangeExtensions.event;
 
 	private readonly _onWillActivateByEvent = this._register(new Emitter<IWillActivateEvent>());

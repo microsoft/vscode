@@ -341,7 +341,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private registerLayoutListeners(): void {
 
 		// Restore editor if hidden and an editor is to show
-		const showEditorIfHidden = () => {
+		const showEditorIfHidden = (explicitUserAction?: boolean) => {
 			if (
 				this.isVisible(Parts.EDITOR_PART, mainWindow) ||		// already visible
 				this.mainPartEditorService.visibleEditors.length === 0	// no editor to show
@@ -350,7 +350,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (this.isAuxiliaryBarMaximized()) {
-				this.toggleMaximizedAuxiliaryBar();
+				// Do not unmaximize the auxiliary side bar when the editor was
+				// opened automatically (e.g. by the chat agent applying edits).
+				// Only an explicit user action should disrupt the chosen layout.
+				if (explicitUserAction !== false) {
+					this.toggleMaximizedAuxiliaryBar();
+				}
 			} else {
 				this.toggleMaximizedPanel();
 			}
@@ -375,10 +380,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.editorGroupService.whenRestored.then(() => {
 
 			// Handle visible editors changing for parts visibility
-			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(() => {
+			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(e => {
 				const handled = maybeMaximizeAuxiliaryBar();
 				if (!handled) {
-					showEditorIfHidden();
+					showEditorIfHidden(e.isExplicit);
 				}
 			}));
 			this._register(this.editorGroupService.mainPart.onDidActivateGroup(e => {
@@ -2862,6 +2867,7 @@ class LayoutStateModel extends Disposable {
 		[StorageScope.WORKSPACE]: boolean;
 		[StorageScope.PROFILE]: boolean;
 		[StorageScope.APPLICATION]: boolean;
+		[StorageScope.APPLICATION_SHARED]: boolean;
 	};
 
 	constructor(
@@ -2875,7 +2881,8 @@ class LayoutStateModel extends Disposable {
 		this.isNew = {
 			[StorageScope.WORKSPACE]: this.storageService.isNew(StorageScope.WORKSPACE),
 			[StorageScope.PROFILE]: this.storageService.isNew(StorageScope.PROFILE),
-			[StorageScope.APPLICATION]: this.storageService.isNew(StorageScope.APPLICATION)
+			[StorageScope.APPLICATION]: this.storageService.isNew(StorageScope.APPLICATION),
+			[StorageScope.APPLICATION_SHARED]: this.storageService.isNew(StorageScope.APPLICATION_SHARED)
 		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(configurationChange => this.updateStateFromLegacySettings(configurationChange)));

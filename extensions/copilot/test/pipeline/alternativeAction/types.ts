@@ -18,7 +18,7 @@ export type IData = {
 		isInlineCompletion: boolean;
 	};
 	suggestionStatus: NextEditTelemetryStatus;
-}
+};
 
 export namespace NextUserEdit {
 	export type t = {
@@ -36,7 +36,7 @@ export namespace Recording {
 			relativePath: string;
 			originalOpIdx: number;
 		};
-	}
+	};
 }
 
 export namespace SuggestedEdit {
@@ -45,7 +45,7 @@ export namespace SuggestedEdit {
 		edit: ISerializedEdit;
 		scoreCategory: 'nextEdit';
 		score: number;
-	}
+	};
 }
 
 export namespace Scoring {

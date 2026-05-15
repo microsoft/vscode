@@ -5,7 +5,7 @@
 
 import { PromptElement, PromptSizing } from '@vscode/prompt-tsx';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
-import { isHiddenModelF } from '../../../../platform/endpoint/common/chatModelCapabilities';
+import { isHiddenModelF, isHiddenModelK } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { agenticBrowserTools, ToolName } from '../../../tools/common/toolNames';
@@ -47,7 +47,7 @@ export class DefaultGeminiAgentPrompt extends PromptElement<DefaultAgentPromptPr
 				When using a tool, follow the JSON schema very carefully and make sure to include ALL required properties.<br />
 				No need to ask permission before using a tool.<br />
 				NEVER say the name of a tool to a user. For example, instead of saying that you'll use the {ToolName.CoreRunInTerminal} tool, say "I'll run the command in a terminal".<br />
-				{tools[ToolName.SearchSubagent] && <>For codebase exploration, prefer {ToolName.SearchSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}.<br /></>}
+				{(tools[ToolName.SearchSubagent] || tools[ToolName.ExploreSubagent]) && <>For codebase exploration, prefer {tools[ToolName.SearchSubagent] ? ToolName.SearchSubagent : ToolName.ExploreSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}.<br /></>}
 				If you think running multiple tools can answer the user's question, prefer calling them in parallel whenever possible{tools[ToolName.Codebase] && <>, but do not call {ToolName.Codebase} in parallel.</>}<br />
 				{tools[ToolName.ReadFile] && <>When using the {ToolName.ReadFile} tool, prefer reading a large section over calling the {ToolName.ReadFile} tool many times in sequence. You can also think of all the pieces you may be interested in and read them in parallel. Read large enough context to ensure you get what you need.<br /></>}
 				{tools[ToolName.Codebase] && <>If {ToolName.Codebase} returns the full contents of the text files in the workspace, you have all the workspace context.<br /></>}
@@ -145,7 +145,7 @@ export class HiddenModelFGeminiAgentPrompt extends PromptElement<DefaultAgentPro
 				When using a tool, follow the JSON schema very carefully and make sure to include ALL required properties.<br />
 				No need to ask permission before using a tool.<br />
 				NEVER say the name of a tool to a user.<br />
-				{tools[ToolName.SearchSubagent] && <>For codebase exploration, prefer {ToolName.SearchSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}.<br /></>}
+				{(tools[ToolName.SearchSubagent] || tools[ToolName.ExploreSubagent]) && <>For codebase exploration, prefer {tools[ToolName.SearchSubagent] ? ToolName.SearchSubagent : ToolName.ExploreSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}.<br /></>}
 				If you think running multiple tools can answer the user's question, prefer calling them in parallel whenever possible{tools[ToolName.Codebase] && <>, but do not call {ToolName.Codebase} in parallel.</>}<br />
 				{tools[ToolName.ReadFile] && <>When using {ToolName.ReadFile}, prefer reading a large section over calling it many times. Read large enough context to ensure you get what you need.<br /></>}
 				{tools[ToolName.Codebase] && <>If {ToolName.Codebase} returns the full contents of the text files in the workspace, you have all the workspace context.<br /></>}
@@ -236,7 +236,7 @@ class GeminiPromptResolver implements IAgentPrompt {
 
 	static readonly familyPrefixes = ['gemini'];
 	static async matchesModel(endpoint: IChatEndpoint): Promise<boolean> {
-		return isHiddenModelF(endpoint);
+		return isHiddenModelF(endpoint) || isHiddenModelK(endpoint);
 	}
 
 	resolveSystemPrompt(endpoint: IChatEndpoint): SystemPrompt | undefined {

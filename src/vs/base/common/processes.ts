@@ -140,6 +140,11 @@ export function removeDangerousEnvVariables(env: IProcessEnvironment | undefined
 	// See https://github.com/microsoft/vscode/issues/130072
 	delete env['DEBUG'];
 
+	// Unset `NODE_OPTIONS`, as it can be used to inject arbitrary flags
+	// (e.g. `--require`, `--inspect`) into forked Node processes, which
+	// has caused crashes and unexpected behavior.
+	delete env['NODE_OPTIONS'];
+
 	if (isLinux) {
 		// Unset `LD_PRELOAD`, as it might lead to process crashes
 		// See https://github.com/microsoft/vscode/issues/134177

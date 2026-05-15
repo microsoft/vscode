@@ -51,6 +51,10 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 		return this.defaultAccount.authenticationProvider;
 	}
 
+	resolveGitHubUrl(path: string): string {
+		return `https://github.com/${path}`;
+	}
+
 	async refresh(): Promise<IDefaultAccount | null> {
 		return this.defaultAccount;
 	}
@@ -125,7 +129,18 @@ suite('MultiplexPolicyService', () => {
 			'setting.E': {
 				'type': 'boolean',
 				'default': true,
-			}
+			},
+			'setting.F': {
+				'type': 'boolean',
+				'default': true,
+				policy: {
+					name: 'PolicySettingF',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' } },
+					value: policyData => policyData.cloud_session_storage_enabled === false ? false : undefined,
+				}
+			},
 		}
 	};
 
@@ -311,5 +326,44 @@ suite('MultiplexPolicyService', () => {
 			assert.deepStrictEqual(C, ['policyValueC1', 'policyValueC2']);
 			assert.strictEqual(D, false);
 		}
+	});
+
+	test('cloud_session_storage_enabled policy disabled overrides setting', async () => {
+		await clear();
+
+		const policyData: IPolicyData = { cloud_session_storage_enabled: false };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), false);
+		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.F'), false);
+	});
+
+	test('cloud_session_storage_enabled policy enabled does not override setting', async () => {
+		await clear();
+
+		const policyData: IPolicyData = { cloud_session_storage_enabled: true };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), undefined);
+		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.F'), undefined);
+	});
+
+	test('cloud_session_storage_enabled policy unset does not override setting', async () => {
+		await clear();
+
+		const policyData: IPolicyData = {};
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), undefined);
+		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.F'), undefined);
 	});
 });

@@ -24,7 +24,7 @@ export interface NativeParsedArgs {
 		};
 	};
 	'serve-web'?: INativeCliOptions;
-	'agent-host'?: INativeCliOptions;
+	'agent'?: INativeCliOptions;
 	chat?: {
 		_: string[];
 		'add-file'?: string[];
@@ -75,7 +75,10 @@ export interface NativeParsedArgs {
 	'extensions-dir'?: string;
 	'extensions-download-dir'?: string;
 	'builtin-extensions-dir'?: string;
+	'shared-data-dir'?: string;
 	'agent-plugins-dir'?: string;
+	'agents-user-data-dir'?: string;
+	'agents-extensions-dir'?: string;
 	extensionDevelopmentPath?: string[]; // undefined or array of 1 or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI
 	extensionDevelopmentKind?: string[];
@@ -84,8 +87,6 @@ export interface NativeParsedArgs {
 	'inspect-brk-extensions'?: string;
 	debugId?: string;
 	debugRenderer?: boolean; // whether we expect a debugger (js-debug) to attach to the renderer, incl webviews+webworker
-	'inspect-search'?: string;
-	'inspect-brk-search'?: string;
 	'inspect-ptyhost'?: string;
 	'inspect-brk-ptyhost'?: string;
 	'inspect-agenthost'?: string;

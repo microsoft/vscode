@@ -632,6 +632,13 @@ export interface ITerminalConfigurationService {
 	setPanelContainer(panelContainer: HTMLElement): void;
 	configFontIsMonospace(): boolean;
 	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont;
+
+	/**
+	 * Whether a particular command should skip the shell and go to be handled like a regular
+	 * keybinding instead.
+	 * @param commandId The command ID to check.
+	 */
+	shouldCommandSkipShell(commandId: string): boolean;
 }
 
 export class TerminalLinkQuickPickEvent extends MouseEvent {

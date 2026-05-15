@@ -12,6 +12,14 @@ import { ISessionDatabase, ISessionDataService, SESSION_DB_FILENAME } from '../c
 import { SessionDatabase } from './sessionDatabase.js';
 
 class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
+
+	/**
+	 * The set of currently-open databases. Mirrors what's held by the
+	 * underlying ref-counted map, but exposed so {@link SessionDataService.whenIdle}
+	 * can iterate without reaching into private state.
+	 */
+	readonly liveDatabases = new Set<ISessionDatabase>();
+
 	constructor(
 		private readonly _getDbPath: (key: string) => string,
 		private readonly _logService: ILogService,
@@ -22,10 +30,13 @@ class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
 	protected createReferencedObject(key: string): ISessionDatabase {
 		const dbPath = this._getDbPath(key);
 		this._logService.trace(`[SessionDataService] Opening database: ${dbPath}`);
-		return new SessionDatabase(dbPath);
+		const db = new SessionDatabase(dbPath);
+		this.liveDatabases.add(db);
+		return db;
 	}
 
 	protected destroyReferencedObject(_key: string, object: ISessionDatabase): void {
+		this.liveDatabases.delete(object);
 		object.dispose();
 	}
 }
@@ -122,6 +133,24 @@ export class SessionDataService implements ISessionDataService {
 			await Promise.all(deletions);
 		} catch (err) {
 			this._logService.warn('[SessionDataService] Failed to run orphan cleanup', err);
+		}
+	}
+
+	async whenIdle(): Promise<void> {
+		// Each `SessionDatabase.whenIdle()` already loops internally until
+		// that DB is quiescent, so the outer loop only needs to handle the
+		// case where a new DB was opened (and writes queued against it)
+		// while we were awaiting an earlier pass.
+		while (true) {
+			const dbs = [...this._databases.liveDatabases];
+			if (dbs.length === 0) {
+				return;
+			}
+			await Promise.all(dbs.map(db => db.whenIdle()));
+			const newOnes = [...this._databases.liveDatabases].filter(db => !dbs.includes(db));
+			if (newOnes.length === 0) {
+				return;
+			}
 		}
 	}
 }
