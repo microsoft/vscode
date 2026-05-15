@@ -16,7 +16,7 @@ import { DiffService } from '../../browser/helpers/documentWithAnnotatedEdits.js
 import { computeStringDiff } from '../../../../../editor/common/services/editorWebWorker.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { MutableObservableWorkspace } from './editTelemetry.test.js';
+import { MutableObservableWorkspace } from './editTelemetryTestUtils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';

@@ -16,7 +16,7 @@ import { IDocumentDiff } from '../../../../../../editor/common/diff/documentDiff
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
 import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ToolCallState, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -32,7 +32,7 @@ import { ChatEditingSessionState, ModifiedFileEntryState } from '../../../common
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { AiContributionFeature } from '../../../../editTelemetry/browser/aiContributionFeature.js';
 import { AnnotatedDocuments } from '../../../../editTelemetry/browser/helpers/annotatedDocuments.js';
-import { MutableObservableWorkspace } from '../../../../editTelemetry/test/browser/editTelemetry.test.js';
+import { MutableObservableWorkspace } from '../../../../editTelemetry/test/browser/editTelemetryTestUtils.js';
 
 // ---- Test helpers -----------------------------------------------------------
 
@@ -122,7 +122,22 @@ function makeMockFileService(contentMap: Map<string, string>): IFileService {
 	};
 }
 
-function createSession(store: DisposableStore, contentMap: Map<string, string>, opts?: { computeDiffResult?: IDocumentDiff | null }): AgentHostEditingSession {
+type RecordedCommand = { id: string; args: unknown[] };
+
+function createCommandService(recordedCommands?: RecordedCommand[]): ICommandService {
+	return {
+		_serviceBrand: undefined,
+		onWillExecuteCommand: Event.None,
+		onDidExecuteCommand: Event.None,
+		executeCommand: async <T>(id: string, ...args: unknown[]): Promise<T | undefined> => {
+			recordedCommands?.push({ id, args });
+			const command = CommandsRegistry.getCommand(id);
+			return command ? command.handler(undefined!, ...args) as T : undefined;
+		},
+	};
+}
+
+function createSession(store: DisposableStore, contentMap: Map<string, string>, opts?: { computeDiffResult?: IDocumentDiff | null; recordedCommands?: RecordedCommand[] }): AgentHostEditingSession {
 	const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/test-session' });
 	const mockEditorService = new class extends mock<IEditorService>() {
 		override readonly onDidActiveEditorChange = Event.None;
@@ -152,6 +167,7 @@ function createSession(store: DisposableStore, contentMap: Map<string, string>, 
 		mockFileService,
 		mockTextModelService,
 		mockEditorWorkerService,
+		createCommandService(opts?.recordedCommands),
 	);
 	store.add(session);
 	return session;
@@ -301,6 +317,25 @@ suite('AgentHostEditingSession', () => {
 			},
 		});
 	}));
+
+	test('addToolCallEdits delegates ai contribution commands through command service', async () => {
+		const recordedCommands: RecordedCommand[] = [];
+		const session = createSession(store, new Map(), { recordedCommands });
+
+		session.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-1',
+			filePath: '/workspace/file.ts',
+			beforeURI: 'content://before-1',
+			afterURI: 'content://after-1',
+		}));
+		await session.undoInteraction();
+
+		assert.deepStrictEqual(recordedCommands.map(command => command.id), [
+			'_aiEdits.clearAiContributions',
+			'_aiEdits.markAiContributions',
+			'_aiEdits.clearAiContributions',
+		]);
+	});
 
 	test('addToolCallEdits ignores non-completed tool calls', () => {
 		const session = createSession(store, new Map());

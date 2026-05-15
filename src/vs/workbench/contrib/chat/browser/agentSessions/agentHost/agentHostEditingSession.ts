@@ -20,7 +20,7 @@ import { ITextModelService } from '../../../../../../editor/common/services/reso
 import { localize } from '../../../../../../nls.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { FileEditKind, ToolCallStatus, type ToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { EditorActivation } from '../../../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -157,6 +157,7 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 		@IFileService private readonly _fileService: IFileService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 	}
@@ -713,7 +714,7 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 			return;
 		}
 
-		CommandsRegistry.getCommand('_aiEdits.markAiContributions')?.handler(undefined!, activeResources.map(resource => ({
+		void this._commandService.executeCommand('_aiEdits.markAiContributions', activeResources.map(resource => ({
 			resource,
 			feature: 'chat' as const,
 		})));
@@ -725,7 +726,7 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 			return;
 		}
 
-		CommandsRegistry.getCommand('_aiEdits.clearAiContributions')?.handler(undefined!, resources);
+		void this._commandService.executeCommand('_aiEdits.clearAiContributions', resources);
 	}
 
 	private _collectAiContributionResources(lastCheckpointIndex: number): URI[] {
