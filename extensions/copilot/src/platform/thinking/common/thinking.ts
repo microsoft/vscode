@@ -46,7 +46,7 @@ export type EncryptedThinkingDelta = {
 	id: string;
 	text?: string;
 	encrypted: string;
-}
+};
 
 export function isEncryptedThinkingDelta(delta: ThinkingDelta | EncryptedThinkingDelta): delta is EncryptedThinkingDelta {
 	return (delta as EncryptedThinkingDelta).encrypted !== undefined;

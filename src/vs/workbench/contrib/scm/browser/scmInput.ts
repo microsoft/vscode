@@ -847,6 +847,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.SCMInputBox,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.Setup.hidden.negate(),
+					ChatContextKeys.Setup.disabledInWorkspace.negate(),
 					ChatContextKeys.Setup.completed.negate(),
 					ContextKeyExpr.equals('scmProvider', 'git')
 				)

@@ -705,7 +705,8 @@ export class McpHTTPHandle extends Disposable {
 					authorizationServer: this._authMetadata.authorizationServer.toJSON(),
 					authorizationServerMetadata: this._authMetadata.serverMetadata,
 					resourceMetadata: this._authMetadata.resourceMetadata,
-					scopes: this._authMetadata.scopes
+					scopes: this._authMetadata.scopes,
+					clientId: this._launch.oauth?.clientId,
 				};
 				const token = await this._proxy.$getTokenFromServerMetadata(
 					this._id,
@@ -734,7 +735,8 @@ export class McpHTTPHandle extends Disposable {
 					this._launch.authentication.scopes,
 					{
 						errorOnUserInteraction,
-						forceNewRegistration: options?.forceNewRegistration
+						forceNewRegistration: options?.forceNewRegistration,
+						clientId: this._launch.oauth?.clientId,
 					}
 				);
 				if (token) {

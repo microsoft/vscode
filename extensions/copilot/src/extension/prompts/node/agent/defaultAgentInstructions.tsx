@@ -11,7 +11,7 @@ import { IChatEndpoint } from '../../../../platform/networking/common/networking
 import { IPromptPathRepresentationService } from '../../../../platform/prompts/common/promptPathRepresentationService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { LanguageModelToolMCPSource } from '../../../../vscodeTypes';
-import { ToolName } from '../../../tools/common/toolNames';
+import { agenticBrowserTools, ToolName } from '../../../tools/common/toolNames';
 import { IToolsService } from '../../../tools/common/toolsService';
 import { InstructionMessage } from '../base/instructionMessage';
 import { ResponseTranslationRules } from '../base/responseTranslationRules';
@@ -22,6 +22,7 @@ import { MathIntegrationRules } from '../panel/editorIntegrationRules';
 // Types and interfaces for reusable components
 export interface ToolCapabilities extends Partial<Record<ToolName, boolean>> {
 	readonly hasSomeEditTool: boolean;
+	readonly hasAgenticBrowserTools: boolean;
 }
 
 // Utility function to detect available tools
@@ -35,7 +36,8 @@ export function detectToolCapabilities(availableTools: readonly LanguageModelToo
 
 	return {
 		...toolMap,
-		hasSomeEditTool: !!(toolMap[ToolName.EditFile] || toolMap[ToolName.ReplaceString] || toolMap[ToolName.ApplyPatch])
+		hasSomeEditTool: !!(toolMap[ToolName.EditFile] || toolMap[ToolName.ReplaceString] || toolMap[ToolName.ApplyPatch]),
+		hasAgenticBrowserTools: agenticBrowserTools.some(tool => toolMap[tool]),
 	};
 }
 
@@ -115,7 +117,7 @@ export class DefaultAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 			<Tag name='instructions'>
 				You are a highly sophisticated automated coding agent with expert-level knowledge across many different programming languages and frameworks.<br />
 				The user will ask a question, or ask you to perform a task, and it may require lots of research to answer correctly. There is a selection of tools that let you perform actions or retrieve helpful context to answer the user's question.<br />
-				{tools[ToolName.SearchSubagent] && <>For any context searching, use {ToolName.SearchSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}.<br /></>}
+				{(tools[ToolName.SearchSubagent] || tools[ToolName.ExploreSubagent]) && <>For any context searching, use {tools[ToolName.SearchSubagent] ? ToolName.SearchSubagent : ToolName.ExploreSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}.<br /></>}
 				{tools[ToolName.ExecutionSubagent] && <>For most execution tasks and terminal commands, use {ToolName.ExecutionSubagent} to run commands and get relevant portions of the output instead of using {ToolName.CoreRunInTerminal}. Use {ToolName.CoreRunInTerminal} in rare cases when you want the entire output of a single command without truncation.<br /></>}
 				You will be given some context and attachments along with the user prompt. You can use them if they are relevant to the task, and ignore them if not.{tools[ToolName.ReadFile] && <> Some attachments may be summarized with omitted sections like `/* Lines 123-456 omitted */`. You can use the {ToolName.ReadFile} tool to read more context if needed. Never pass this omitted line marker to an edit tool.</>}<br />
 				If you can infer the project type (languages, frameworks, and libraries) from the user's query or the context that you have, make sure to keep them in mind when making changes.<br />
@@ -126,7 +128,7 @@ export class DefaultAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 				{!this.props.codesearchMode && <>Think creatively and explore the workspace in order to make a complete fix.<br /></>}
 				Don't repeat yourself after a tool call, pick up where you left off.<br />
 				{!this.props.codesearchMode && tools.hasSomeEditTool && <>NEVER print out a codeblock with file changes unless the user asked for it. Use the appropriate edit tool instead.<br /></>}
-				{tools[ToolName.CoreRunInTerminal] && <>NEVER print out a codeblock with a terminal command to run unless the user asked for it. Use the {ToolName.ExecutionSubagent} or {ToolName.CoreRunInTerminal} tool instead.<br /></>}
+				{tools[ToolName.CoreRunInTerminal] && <>NEVER print out a codeblock with a terminal command to run unless the user asked for it. Use the {tools[ToolName.ExecutionSubagent] && <>{ToolName.ExecutionSubagent} or </>}{ToolName.CoreRunInTerminal} tool instead.<br /></>}
 				You don't need to read a file if it's already provided in context.
 			</Tag>
 			<Tag name='toolUseInstructions'>
@@ -134,7 +136,7 @@ export class DefaultAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 				When using a tool, follow the JSON schema very carefully and make sure to include ALL required properties.<br />
 				No need to ask permission before using a tool.<br />
 				NEVER say the name of a tool to a user. For example, instead of saying that you'll use the {ToolName.CoreRunInTerminal} tool, say "I'll run the command in a terminal".<br />
-				{tools[ToolName.SearchSubagent] && <>For any context searching, use {ToolName.SearchSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}.<br /></>}
+				{(tools[ToolName.SearchSubagent] || tools[ToolName.ExploreSubagent]) && <>For any context searching, use {tools[ToolName.SearchSubagent] ? ToolName.SearchSubagent : ToolName.ExploreSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}.<br /></>}
 				{tools[ToolName.ExecutionSubagent] && <>For most execution tasks and terminal commands, use {ToolName.ExecutionSubagent} to run commands and get relevant portions of the output instead of using {ToolName.CoreRunInTerminal}. Use {ToolName.CoreRunInTerminal} in rare cases when you want the entire output of a single command without truncation.<br /></>}
 				If you think running multiple tools can answer the user's question, prefer calling them in parallel whenever possible{tools[ToolName.Codebase] && <>, but do not call {ToolName.Codebase} in parallel.</>}<br />
 				{tools[ToolName.ReadFile] && <>When using the {ToolName.ReadFile} tool, prefer reading a large section over calling the {ToolName.ReadFile} tool many times in sequence. You can also think of all the pieces you may be interested in and read them in parallel. Read large enough context to ensure you get what you need.<br /></>}
@@ -148,6 +150,7 @@ export class DefaultAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 				{tools[ToolName.CoreRunInTerminal] && <>NEVER try to edit a file by running terminal commands unless the user specifically asks for it.<br /></>}
 				{!tools.hasSomeEditTool && <>You don't currently have any tools available for editing files. If the user asks you to edit a file, you can ask the user to enable editing tools or print a codeblock with the suggested changes.<br /></>}
 				{!tools[ToolName.CoreRunInTerminal] && <>You don't currently have any tools available for running terminal commands. If the user asks you to run a terminal command, you can ask the user to enable terminal tools or print a codeblock with the suggested command.<br /></>}
+				{tools[ToolName.CoreOpenBrowserPage] && tools.hasAgenticBrowserTools && <>Use the browser tools ({ToolName.CoreOpenBrowserPage}, {agenticBrowserTools.find(k => tools[k])}, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.<br /></>}
 				Tools can be disabled by the user. You may see tools used previously in the conversation that are not currently available. Be careful to only use the tools that are currently available to you.
 			</Tag>
 			{this.props.codesearchMode && <CodesearchModeInstructions {...this.props} />}
@@ -216,6 +219,7 @@ export class AlternateGPTPrompt extends PromptElement<DefaultAgentPromptProps> {
 	async render(state: void, sizing: PromptSizing) {
 		const tools = detectToolCapabilities(this.props.availableTools);
 		const isGpt5 = this.props.modelFamily?.startsWith('gpt-5') === true;
+		const hasTodoTool = !!tools[ToolName.CoreManageTodoList];
 
 		return <InstructionMessage>
 			<Tag name='gptAgentInstructions'>
@@ -231,15 +235,17 @@ export class AlternateGPTPrompt extends PromptElement<DefaultAgentPromptProps> {
 				# Workflow<br />
 				1. Understand the problem deeply. Carefully read the issue and think critically about what is required.<br />
 				2. Investigate the codebase. Explore relevant files, search for key functions, and gather context.<br />
-				3. Develop a clear, step-by-step plan. Break down the fix into manageable, incremental steps. Display those steps in a todo list ({tools[ToolName.CoreManageTodoList] ? `using the ${ToolName.CoreManageTodoList} tool` : 'using standard checkbox markdown syntax'}).<br />
+				3. Develop a clear, step-by-step plan. Break down the fix into manageable, incremental steps.{hasTodoTool && <> Display those steps in a todo list using the {ToolName.CoreManageTodoList} tool.</>}<br />
 				4. Implement the fix incrementally. Make small, testable code changes.<br />
 				5. Debug as needed. Use debugging techniques to isolate and resolve issues.<br />
 				6. Test frequently. Run tests after each change to verify correctness.<br />
 				7. Iterate until the root cause is fixed and all tests pass.<br />
 				8. Reflect and validate comprehensively. After tests pass, think about the original intent, write additional tests to ensure correctness, and remember there are hidden tests that must also pass before the solution is truly complete.<br />
+				{hasTodoTool && <>
 				**CRITICAL - Before ending your turn:**<br />
 				- Review and update the todo list, marking completed, skipped (with explanations), or blocked items.<br />
 				- Display the updated todo list. Never leave items unchecked, unmarked, or ambiguous.<br />
+				</>}
 				<br />
 				## 1. Deeply Understand the Problem<br />
 				- Carefully read the issue and think hard about a plan to solve it before coding.<br />
@@ -259,8 +265,10 @@ export class AlternateGPTPrompt extends PromptElement<DefaultAgentPromptProps> {
 				<br />
 				## 3. Develop a Detailed Plan<br />
 				- Outline a specific, simple, and verifiable sequence of steps to fix the problem.<br />
+				{hasTodoTool && <>
 				- Create a todo list to track your progress.<br />
 				- Each time you check off a step, update the todo list.<br />
+				</>}
 				- Make sure that you ACTUALLY continue on to the next step after checking off a step instead of ending your turn and asking the user what they want to do next.<br />
 				<br />
 				## 4. Making Code Changes<br />
@@ -291,7 +299,7 @@ export class AlternateGPTPrompt extends PromptElement<DefaultAgentPromptProps> {
 				No need to ask permission before using a tool.<br />
 				NEVER say the name of a tool to a user. For example, instead of saying that you'll use the {ToolName.CoreRunInTerminal} tool, say "I'll run the command in a terminal".<br />
 				If you think running multiple tools can answer the user's question, prefer calling them in parallel whenever possible{tools[ToolName.Codebase] && <>, but do not call {ToolName.Codebase} in parallel.</>}<br />
-				{tools[ToolName.SearchSubagent] && <>For efficient codebase exploration, prefer {ToolName.SearchSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}. Use this as a quick injection of context before beginning to solve the problem yourself.<br /></>}
+				{(tools[ToolName.SearchSubagent] || tools[ToolName.ExploreSubagent]) && <>For efficient codebase exploration, prefer {tools[ToolName.SearchSubagent] ? ToolName.SearchSubagent : ToolName.ExploreSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}. Use this as a quick injection of context before beginning to solve the problem yourself.<br /></>}
 				{tools[ToolName.ReadFile] && <>When using the {ToolName.ReadFile} tool, prefer reading a large section over calling the {ToolName.ReadFile} tool many times in sequence. You can also think of all the pieces you may be interested in and read them in parallel. Read large enough context to ensure you get what you need.<br /></>}
 				{tools[ToolName.Codebase] && <>If {ToolName.Codebase} returns the full contents of the text files in the workspace, you have all the workspace context.<br /></>}
 				{tools[ToolName.FindTextInFiles] && <>You can use the {ToolName.FindTextInFiles} to get an overview of a file by searching for a string within that one file, instead of using {ToolName.ReadFile} many times.<br /></>}
@@ -301,6 +309,7 @@ export class AlternateGPTPrompt extends PromptElement<DefaultAgentPromptProps> {
 				{tools[ToolName.CoreRunInTerminal] && <>NEVER try to edit a file by running terminal commands unless the user specifically asks for it.<br /></>}
 				{!tools.hasSomeEditTool && <>You don't currently have any tools available for editing files. If the user asks you to edit a file, you can ask the user to enable editing tools or print a codeblock with the suggested changes.<br /></>}
 				{!tools[ToolName.CoreRunInTerminal] && <>You don't currently have any tools available for running terminal commands. If the user asks you to run a terminal command, you can ask the user to enable terminal tools or print a codeblock with the suggested command.<br /></>}
+				{tools[ToolName.CoreOpenBrowserPage] && tools.hasAgenticBrowserTools && <>Use the browser tools ({ToolName.CoreOpenBrowserPage}, {agenticBrowserTools.find(k => tools[k])}, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.<br /></>}
 				Tools can be disabled by the user. You may see tools used previously in the conversation that are not currently available. Be careful to only use the tools that are currently available to you.<br />
 				{tools[ToolName.FetchWebPage] && <>If the user provides a URL, you MUST use the {ToolName.FetchWebPage} tool to retrieve the content from the web page. After fetching, review the content returned by {ToolName.FetchWebPage}. If you find any additional URL's or links that are relevant, use the {ToolName.FetchWebPage} tool again to retrieve those links. Recursively gather all relevant information by fetching additional links until you have all of the information that you need.</>}<br />
 			</Tag>

@@ -4,19 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
-import { IBrowserViewWorkbenchService, IBrowserViewCDPService, IBrowserViewModel } from '../common/browserView.js';
+import { IBrowserViewWorkbenchService, IBrowserViewCDPService, IBrowserViewModel, IBrowserEditorViewState } from '../common/browserView.js';
 import { Event } from '../../../../base/common/event.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
+import { BrowserEditorInput } from '../common/browserEditorInput.js';
 
 class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
 
-	async getOrCreateBrowserViewModel(_id: string): Promise<IBrowserViewModel> {
+	readonly onDidChangeBrowserViews = Event.None;
+	readonly onDidChangeSharingAvailable = Event.None;
+	readonly isSharingAvailable = false;
+
+	private readonly _known = new Map<string, BrowserEditorInput>();
+
+	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
+		return this._known;
+	}
+
+	getOrCreateLazy(_id: string, _state: IBrowserEditorViewState): BrowserEditorInput {
 		throw new Error('Integrated Browser is not available in web.');
 	}
 
-	async getBrowserViewModel(_id: string): Promise<IBrowserViewModel> {
-		throw new Error('Integrated Browser is not available in web.');
+	getBrowserViewModel(_id: string): IBrowserViewModel | undefined {
+		return undefined;
 	}
 
 	async clearGlobalStorage(): Promise<void> { }

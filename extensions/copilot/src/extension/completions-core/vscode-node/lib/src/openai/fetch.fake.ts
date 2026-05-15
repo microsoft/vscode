@@ -7,19 +7,16 @@ import type { CancellationToken } from 'vscode';
 import { generateUuid } from '../../../../../../util/vs/base/common/uuid';
 import { getTokenizer } from '../../../prompt/src/tokenization';
 import { ICompletionsCopilotTokenManager } from '../auth/copilotTokenManager';
-import { Response } from '../networking';
-import { TelemetryData, TelemetryWithExp } from '../telemetry';
+import { TelemetryWithExp } from '../telemetry';
 import {
 	CompletionError,
 	CompletionParams,
 	CompletionResults,
 	FinishedCallback,
-	LiveOpenAIFetcher,
 	OpenAIFetcher,
 	PostOptions,
 	postProcessChoices,
 	SolutionDecision,
-	SpeculationFetchParams
 } from './fetch';
 import { APIChoice } from './openai';
 
@@ -152,37 +149,5 @@ export class SyntheticCompletions extends OpenAIFetcher {
 			const emptyCompletions = this._completions.map(completion => '');
 			return fakeResponse(emptyCompletions, finishedCb, params.postOptions, baseTelemetryData);
 		}
-	}
-
-	async fetchAndStreamCompletions2(
-		params: CompletionParams,
-		baseTelemetryData: TelemetryWithExp,
-		finishedCb: FinishedCallback,
-		cancel?: CancellationToken
-	): Promise<CompletionResults | CompletionError> {
-		return this.fetchAndStreamCompletions(params, baseTelemetryData, finishedCb, cancel);
-	}
-}
-
-
-export class ErrorReturningFetcher extends LiveOpenAIFetcher {
-	lastSpeculationParams?: CompletionParams | SpeculationFetchParams;
-
-	private response: Response | 'not-sent' = 'not-sent';
-
-	setResponse(response: Response | 'not-sent') {
-		this.response = response;
-	}
-
-	override fetchWithParameters(
-		endpoint: string,
-		params: CompletionParams,
-		_copilotToken: unknown,
-		telemetryData: TelemetryData,
-		cancel?: CancellationToken
-	): Promise<Response | 'not-sent'> {
-		const response = this.response;
-		this.response = 'not-sent';
-		return Promise.resolve(response);
 	}
 }

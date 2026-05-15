@@ -280,8 +280,4 @@ export class ReplaceInput extends Widget {
 		this.inputBox.paddingRight = this.cachedOptionsWidth;
 		this.domNode.style.width = newWidth + 'px';
 	}
-
-	public override dispose(): void {
-		super.dispose();
-	}
 }

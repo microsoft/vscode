@@ -27,6 +27,12 @@ export interface CachedEditOpts {
 	 * in either the original location or the jump target location.
 	 */
 	originalEditWindow?: OffsetRange;
+	/**
+	 * The cursor offset at the time the edit was cached.
+	 * Used for cursor-distance filtering: if the user moves farther from the edit,
+	 * the cached entry is not served.
+	 */
+	cursorOffset?: number;
 }
 
 export interface CachedEdit {
@@ -52,9 +58,31 @@ export interface CachedEdit {
 	subsequentN?: number;
 	source: NextEditFetchRequest;
 	cacheTime: number;
+	/**
+	 * The cursor offset at the time the edit was cached.
+	 * @see CachedEditOpts.cursorOffset
+	 */
+	cursorOffsetAtCacheTime?: number;
+	/**
+	 * Set to `true` once this cached suggestion has been rendered as an inline
+	 * (ghost text at cursor) suggestion. Used by the "mimic ghost text behavior"
+	 * gating to suppress re-serving the same suggestion in a non-inline form.
+	 */
+	wasRenderedAsInlineSuggestion?: boolean;
 }
 
-export type CachedOrRebasedEdit = CachedEdit & { rebasedEdit?: StringReplacement; rebasedEditIndex?: number; isFromSpeculativeRequest?: boolean };
+export type CachedOrRebasedEdit = CachedEdit & {
+	rebasedEdit?: StringReplacement;
+	rebasedEditIndex?: number;
+	isFromSpeculativeRequest?: boolean;
+	/**
+	 * When this is a rebased view of a cached edit, points to the underlying
+	 * stored {@link CachedEdit} so that flags such as
+	 * {@link CachedEdit.wasRenderedAsInlineSuggestion} can be persisted on the
+	 * stable cache entry instead of the transient rebased view.
+	 */
+	baseCacheEntry?: CachedEdit;
+};
 
 export class NextEditCache extends Disposable {
 	private readonly _documentCaches = new Map<DocumentId, DocumentEditCache>();
@@ -114,8 +142,12 @@ export class NextEditCache extends Disposable {
 	}
 
 	private _getNesRebaseConfigs(): NesRebaseConfigs {
+		const maxImperfectAgreementLength = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsMaxImperfectAgreementLength, this._expService);
+
 		return {
 			absorbSubsequenceTyping: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAbsorbSubsequenceTyping, this._expService),
+			reverseAgreement: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsReverseAgreement, this._expService),
+			maxImperfectAgreementLength: typeof maxImperfectAgreementLength === 'number' ? Math.max(0, maxImperfectAgreementLength) : maxImperfectAgreementLength,
 		};
 	}
 
@@ -124,7 +156,8 @@ export class NextEditCache extends Disposable {
 		if (!docCache) {
 			return undefined;
 		}
-		return docCache.lookupNextEdit(currentDocumentContents, currentSelection, this._getNesRebaseConfigs());
+		const cacheCursorDistanceCheck = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsCacheCursorDistanceCheck, this._expService) ?? false;
+		return docCache.lookupNextEdit(currentDocumentContents, currentSelection, this._getNesRebaseConfigs(), cacheCursorDistanceCheck);
 	}
 
 	public tryRebaseCacheEntry(cachedEdit: CachedEdit, currentDocumentContents: StringText, currentSelection: readonly OffsetRange[]): RebaseResult {
@@ -203,7 +236,7 @@ class DocumentEditCache {
 
 	public setKthNextEdit(documentContents: StringText, editWindow: OffsetRange | undefined, nextEdit: StringReplacement, nextEdits: StringReplacement[] | undefined, userEditSince: StringEdit | undefined, subsequentN: number, source: NextEditFetchRequest, opts: CachedEditOpts): CachedEdit {
 		const key = this._getKey(documentContents.value);
-		const cachedEdit: CachedEdit = { docId: this.docId, edit: nextEdit, edits: nextEdits, detailedEdits: [], userEditSince, subsequentN, source, documentBeforeEdit: documentContents, editWindow, originalEditWindow: opts.originalEditWindow, cacheTime: Date.now(), isFromCursorJump: opts.isFromCursorJump };
+		const cachedEdit: CachedEdit = { docId: this.docId, edit: nextEdit, edits: nextEdits, detailedEdits: [], userEditSince, subsequentN, source, documentBeforeEdit: documentContents, editWindow, originalEditWindow: opts.originalEditWindow, cacheTime: Date.now(), isFromCursorJump: opts.isFromCursorJump, cursorOffsetAtCacheTime: opts.cursorOffset };
 		if (userEditSince) {
 			if (!checkEditConsistency(cachedEdit.documentBeforeEdit.value, userEditSince, this._doc.value.get().value, this._logger.createSubLogger('setKthNextEdit'))) {
 				cachedEdit.userEditSince = undefined;
@@ -235,7 +268,7 @@ class DocumentEditCache {
 		}
 	}
 
-	public lookupNextEdit(currentDocumentContents: StringText, currentSelection: readonly OffsetRange[], nesRebaseConfigs: NesRebaseConfigs): CachedOrRebasedEdit | undefined {
+	public lookupNextEdit(currentDocumentContents: StringText, currentSelection: readonly OffsetRange[], nesRebaseConfigs: NesRebaseConfigs, cacheCursorDistanceCheck: boolean = false): CachedOrRebasedEdit | undefined {
 		// TODO@chrmarti: Update entries i > 1 with user edits and edit window and start tracking.
 		const key = this._getKey(currentDocumentContents.value);
 		const cachedEdit = this._sharedCache.get(key);
@@ -249,6 +282,24 @@ class DocumentEditCache {
 			const inOriginalWindow = originalEditWindow?.containsRange(cursorRange);
 			if (editWindow && !inEditWindow && !inOriginalWindow) {
 				return undefined;
+			}
+			// If the cursor moved farther from the edit's start line than it was at cache time,
+			// reject the cached edit so the same suggestion is not shown again.
+			// Only applies to non-rebased, non-subsequent edits.
+			if (cacheCursorDistanceCheck
+				&& cachedEdit.edit
+				&& (cachedEdit.subsequentN === undefined || cachedEdit.subsequentN === 0)
+				&& cachedEdit.cursorOffsetAtCacheTime !== undefined
+				&& cursorRange
+			) {
+				const transformer = currentDocumentContents.getTransformer();
+				const editStartLine = transformer.getPosition(cachedEdit.edit.replaceRange.start).lineNumber;
+				const originalCursorLine = transformer.getPosition(cachedEdit.cursorOffsetAtCacheTime).lineNumber;
+				const currentCursorLine = transformer.getPosition(cursorRange.start).lineNumber;
+				if (Math.abs(currentCursorLine - editStartLine) > Math.abs(originalCursorLine - editStartLine)) {
+					cachedEdit.rejected = true;
+					return cachedEdit;
+				}
 			}
 			return cachedEdit;
 		}
@@ -291,7 +342,7 @@ class DocumentEditCache {
 					if (!cachedEdit.rejected && this.isRejectedNextEdit(currentDocumentContents, res[0].rebasedEdit)) {
 						cachedEdit.rejected = true;
 					}
-					return { edit: { ...cachedEdit, ...res[0] } };
+					return { edit: { ...cachedEdit, ...res[0], baseCacheEntry: cachedEdit } };
 				} else if (!originalEdits.length) {
 					return { edit: cachedEdit }; // cached 'no edits'
 				}

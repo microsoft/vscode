@@ -13,19 +13,20 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { IEnvService } from '../../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../../platform/log/common/logService';
-import { type ParsedPromptFile } from '../../../../platform/promptFiles/common/promptsService';
+import { IPromptsService } from '../../../../platform/promptFiles/common/promptsService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Lazy } from '../../../../util/vs/base/common/lazy';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
+import { ResourceSet } from '../../../../util/vs/base/common/map';
 import { basename } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { IChatPromptFileService } from '../../common/chatPromptFileService';
-import { getCopilotLogger } from './logger';
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { getModelCapabilitiesDescription } from '../../../conversation/common/languageModelAccess';
 
 export const COPILOT_CLI_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 const COPILOT_CLI_MODEL_MEMENTO_KEY = 'github.copilot.cli.sessionModel';
@@ -42,6 +43,10 @@ export interface CopilotCLIModelInfo {
 	readonly id: string;
 	readonly name: string;
 	readonly multiplier?: number;
+	readonly priceCategory?: string;
+	readonly inputCost?: number;
+	readonly outputCost?: number;
+	readonly cacheCost?: number;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
 	readonly maxContextWindowTokens: number;
@@ -60,14 +65,26 @@ export interface ICopilotCLIModels {
 	registerLanguageModelChatProvider(lm: typeof vscode['lm']): void;
 }
 
+export function formatModelDetails(model: CopilotCLIModelInfo): string {
+	return `${model.name}${model.multiplier ? ` • ${model.multiplier}x` : ''}`;
+}
+
+export function matchesCopilotCLIModel(model: Pick<CopilotCLIModelInfo, 'id' | 'name'>, modelId: string): boolean {
+	const normalizedModelId = modelId.trim().toLowerCase();
+	return model.id.trim().toLowerCase() === normalizedModelId || model.name.trim().toLowerCase() === normalizedModelId;
+}
+
 export const ICopilotCLISDK = createServiceIdentifier<ICopilotCLISDK>('ICopilotCLISDK');
 
 export const ICopilotCLIModels = createServiceIdentifier<ICopilotCLIModels>('ICopilotCLIModels');
 
 export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 	declare _serviceBrand: undefined;
-	private readonly _availableModels: Lazy<Promise<CopilotCLIModelInfo[]>>;
+	private _availableModels?: Promise<CopilotCLIModelInfo[]>;
+	/** Synchronously available model infos (includes `auto`). Set once the eager fetch completes. */
+	private _resolvedModelInfos?: vscode.LanguageModelChatInformation[];
 	private readonly _onDidChange = this._register(new Emitter<void>());
+
 	constructor(
 		@ICopilotCLISDK private readonly copilotCLISDK: ICopilotCLISDK,
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
@@ -76,22 +93,36 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
-		this._availableModels = new Lazy<Promise<CopilotCLIModelInfo[]>>(() => this._getAvailableModels());
-		// Eagerly fetch available models so that they're ready when needed.
-		this._availableModels.value
-			.then(() => this._onDidChange.fire())
-			.catch((error) => {
-				this.logService.error('[CopilotCLIModels] Failed to fetch available models', error);
-			});
+		this._fetchAndCacheModels();
 		this._register(this._authenticationService.onDidAuthenticationChange(() => {
-			// Auth changed which means models could've changed. Fire the event
+			// Auth changed which means models could've changed. Clear caches and re-fetch.
+			this._availableModels = undefined;
+			this._resolvedModelInfos = undefined;
 			this._onDidChange.fire();
+			this._fetchAndCacheModels();
 		}));
 	}
+
+	private _fetchAndCacheModels(): void {
+		const availableModels = this._availableModels = this._getAvailableModels();
+		availableModels.then(models => {
+			// Bail out if a newer fetch has superseded this one (e.g. auth changed mid-flight).
+			if (this._availableModels !== availableModels) {
+				return;
+			}
+			this._resolvedModelInfos = this._buildModelInfos(models);
+			this._onDidChange.fire();
+		}).catch((error) => {
+			this.logService.error('[CopilotCLIModels] Failed to fetch available models', error);
+		});
+	}
 	async resolveModel(modelId: string): Promise<string | undefined> {
+		if (modelId.toLowerCase() === 'auto' && this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled)) {
+			return modelId;
+		}
 		const models = await this.getModels();
 		modelId = modelId.trim().toLowerCase();
-		return models.find(m => m.id.toLowerCase() === modelId || m.name.toLowerCase() === modelId)?.id;
+		return models.find(m => matchesCopilotCLIModel(m, modelId))?.id;
 	}
 	public async getDefaultModel() {
 		// First item in the list is always the default model (SDK sends the list ordered based on default preference)
@@ -100,9 +131,9 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 			return;
 		}
 		const defaultModel = models[0];
-		const preferredModelId = this.extensionContext.globalState.get<string>(COPILOT_CLI_MODEL_MEMENTO_KEY, defaultModel.id)?.trim()?.toLowerCase();
+		const preferredModelId = this.extensionContext.globalState.get<string>(COPILOT_CLI_MODEL_MEMENTO_KEY, defaultModel.id)?.trim()?.toLowerCase() ?? defaultModel.id;
 
-		return models.find(m => m.id.toLowerCase() === preferredModelId)?.id ?? defaultModel.id;
+		return models.find(m => matchesCopilotCLIModel(m, preferredModelId))?.id ?? defaultModel.id;
 	}
 
 	public async setDefaultModel(modelId: string | undefined): Promise<void> {
@@ -115,25 +146,36 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		}
 
 		// No need to query sdk multiple times, cache the result, this cannot change during a vscode session.
-		return this._availableModels.value;
+		if (!this._availableModels) {
+			this._availableModels = this._getAvailableModels();
+		}
+		return this._availableModels;
 	}
 
 	private async _getAvailableModels(): Promise<CopilotCLIModelInfo[]> {
 		const [{ getAvailableModels }, authInfo] = await Promise.all([this.copilotCLISDK.getPackage(), this.copilotCLISDK.getAuthInfo()]);
 		try {
 			const models = await getAvailableModels(authInfo);
-			return models.map(model => ({
-				id: model.id,
-				name: model.name,
-				multiplier: model.billing?.multiplier,
-				maxInputTokens: model.capabilities.limits.max_prompt_tokens,
-				maxOutputTokens: model.capabilities.limits.max_output_tokens,
-				maxContextWindowTokens: model.capabilities.limits.max_context_window_tokens,
-				supportsVision: model.capabilities.supports.vision,
-				supportsReasoningEffort: model.capabilities.supports.reasoningEffort,
-				defaultReasoningEffort: model.defaultReasoningEffort,
-				supportedReasoningEfforts: model.supportedReasoningEfforts
-			} satisfies CopilotCLIModelInfo));
+			return models.map(model => {
+				const tokenPrices = model.billing?.token_prices;
+				const normalizedPricing = normalizeTokenPricing(tokenPrices);
+				return {
+					id: model.id,
+					name: model.name,
+					multiplier: model.billing?.multiplier,
+					priceCategory: model.model_picker_price_category,
+					inputCost: normalizedPricing?.inputPrice,
+					outputCost: normalizedPricing?.outputPrice,
+					cacheCost: normalizedPricing?.cachePrice,
+					maxInputTokens: model.capabilities.limits.max_prompt_tokens,
+					maxOutputTokens: model.capabilities.limits.max_output_tokens,
+					maxContextWindowTokens: model.capabilities.limits.max_context_window_tokens,
+					supportsVision: model.capabilities.supports.vision,
+					supportsReasoningEffort: model.capabilities.supports.reasoningEffort,
+					defaultReasoningEffort: model.defaultReasoningEffort,
+					supportedReasoningEfforts: model.supportedReasoningEfforts,
+				} satisfies CopilotCLIModelInfo;
+			});
 		} catch (ex) {
 			this.logService.error(`[CopilotCLISession] Failed to fetch models`, ex);
 			return [];
@@ -144,7 +186,11 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		const provider: vscode.LanguageModelChatProvider = {
 			onDidChangeLanguageModelChatInformation: this._onDidChange.event,
 			provideLanguageModelChatInformation: async (_options, _token) => {
-				return this._provideLanguageModelChatInfo();
+				const autoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
+				if (!this._authenticationService.anyGitHubSession || !this._resolvedModelInfos) {
+					return autoModelEnabled ? [buildAutoModel()] : [];
+				}
+				return this._resolvedModelInfos;
 			},
 			provideLanguageModelChatResponse: async (_model, _messages, _options, _progress, _token) => {
 				// Implemented via chat participants.
@@ -155,23 +201,26 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 			}
 		};
 		this._register(lm.registerLanguageModelChatProvider('copilotcli', provider));
-
-		void this._availableModels.value.then(() => this._onDidChange.fire());
+		this._onDidChange.fire();
 	}
 
-	private async _provideLanguageModelChatInfo(): Promise<vscode.LanguageModelChatInformation[]> {
-		const models = await this.getModels();
+	private _buildModelInfos(models: CopilotCLIModelInfo[]): vscode.LanguageModelChatInformation[] {
 		const isReasoningEffortEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled);
-		const modelsInfo = models.map((model, index) => {
+		const isAutoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
+		const modelsInfo: vscode.LanguageModelChatInformation[] = models.map((model, index) => {
 			const multiplier = model.multiplier === undefined ? undefined : `${model.multiplier}x`;
-			return {
+			const modelInfo: vscode.LanguageModelChatInformation = {
 				id: model.id,
 				name: model.name,
 				family: model.id,
 				version: '',
 				maxInputTokens: model.maxInputTokens ?? model.maxContextWindowTokens,
 				maxOutputTokens: model.maxOutputTokens ?? 0,
-				multiplier,
+				pricing: multiplier,
+				priceCategory: model.priceCategory,
+				inputCost: model.inputCost,
+				outputCost: model.outputCost,
+				cacheCost: model.cacheCost,
 				multiplierNumeric: model.multiplier,
 				isUserSelectable: true,
 				configurationSchema: isReasoningEffortEnabled ? buildConfigurationSchema(model) : undefined,
@@ -180,11 +229,38 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 					toolCalling: true
 				},
 				targetChatSessionType: 'copilotcli',
-				isDefault: index === 0 // SDK guarantees the first item is the default model
+				isDefault: !isAutoModelEnabled && index === 0 ? true : undefined,
+			};
+			const tooltip = getModelCapabilitiesDescription(modelInfo) ?? '';
+			return {
+				...modelInfo,
+				tooltip
 			};
 		});
+		if (isAutoModelEnabled) {
+			modelsInfo.unshift(buildAutoModel(models[0]));
+		}
 		return modelsInfo;
 	}
+}
+
+function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageModelChatInformation {
+	return {
+		id: 'auto',
+		name: 'Auto',
+		tooltip: l10n.t('Auto selects the best model based on your request complexity and model performance. Model use through Auto is billed at a 10% discount.'),
+		family: defaultModel?.id ?? '',
+		version: '',
+		maxInputTokens: defaultModel?.maxInputTokens ?? defaultModel?.maxContextWindowTokens ?? 0,
+		maxOutputTokens: defaultModel?.maxOutputTokens ?? 0,
+		isUserSelectable: true,
+		capabilities: {
+			imageInput: defaultModel?.supportsVision,
+			toolCalling: true,
+		},
+		targetChatSessionType: 'copilotcli',
+		isDefault: true,
+	};
 }
 
 function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo): vscode.LanguageModelConfigurationSchema | undefined {
@@ -224,6 +300,8 @@ export interface CLIAgentInfo {
 	readonly agent: Readonly<SweCustomAgent>;
 	/** File URI for prompt-file agents, synthetic `copilotcli:` URI for SDK-only agents. */
 	readonly sourceUri: URI;
+	readonly extensionId?: string;
+	readonly pluginUri?: URI;
 }
 
 export interface ICopilotCLIAgents {
@@ -243,15 +321,14 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 	private readonly _onDidChangeAgents = this._register(new Emitter<void>());
 	readonly onDidChangeAgents: Event<void> = this._onDidChangeAgents.event;
 	constructor(
-		@IChatPromptFileService private readonly chatPromptFileService: IChatPromptFileService,
-		@ICopilotCLISDK private readonly copilotCLISDK: ICopilotCLISDK,
+		@IPromptsService private readonly promptsService: IPromptsService,
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 	) {
 		super();
 		void this.getAgents();
-		this._register(this.chatPromptFileService.onDidChangeCustomAgents(() => {
+		this._register(this.promptsService.onDidChangeCustomAgents(() => {
 			this._refreshAgents();
 		}));
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => {
@@ -292,17 +369,13 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 		if (agentId === COPILOT_CLI_DEFAULT_AGENT_ID) {
 			return '';
 		}
-		if (typeof agentId === 'string') {
-			return agentId;
-		}
-		const agents = await this.getAgents();
-		return agents.find(a => a.agent.name.toLowerCase() === agentId)?.agent.name;
+		return agentId;
 	}
 
 	async resolveAgent(agentId: string): Promise<SweCustomAgent | undefined> {
-		for (const promptFile of this.chatPromptFileService.customAgentPromptFiles) {
-			if (agentId === promptFile.uri.toString()) {
-				return this.toCustomAgent(promptFile)?.agent;
+		for (const customAgent of await this.promptsService.getCustomAgents(CancellationToken.None)) {
+			if (customAgent.enabled && isEnabledForCopilotCLI(customAgent) && agentId === customAgent.uri.toString()) {
+				return this.toCustomAgent(customAgent)?.agent;
 			}
 		}
 		const customAgents = await this.getAgents();
@@ -326,19 +399,28 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 
 	async getAgentsImpl(): Promise<readonly CLIAgentInfo[]> {
 		const merged = new Map<string, CLIAgentInfo>();
-		for (const agent of await this.getSDKAgents()) {
-			merged.set(agent.name.toLowerCase(), {
-				agent: this.cloneAgent(agent),
-				sourceUri: URI.from({ scheme: 'copilotcli', path: `/agents/${agent.name}` }),
-			});
-		}
-		for (const promptFile of this.chatPromptFileService.customAgentPromptFiles) {
+		const knownAgents = new ResourceSet();
+		const customAgents = await this.promptsService.getCustomAgents(CancellationToken.None);
+		const hiddenOrInvalidAgentUris = new ResourceSet();
+		const validCustomAgents = customAgents.filter(customAgent => {
+			if (!customAgent.enabled || !isEnabledForCopilotCLI(customAgent)) {
+				hiddenOrInvalidAgentUris.add(customAgent.uri);
+				return false;
+			}
 			// Skip legacy .chatmode.md files — they are a deprecated format
 			// and should not appear in the Copilot CLI agent list.
-			if (promptFile.uri.path.toLowerCase().endsWith('.chatmode.md')) {
+			if (customAgent.uri.path.toLowerCase().endsWith('.chatmode.md')) {
+				hiddenOrInvalidAgentUris.add(customAgent.uri);
+				return false;
+			}
+			return true;
+		});
+
+		for (const customAgent of validCustomAgents) {
+			if (knownAgents.has(customAgent.uri)) {
 				continue;
 			}
-			const info = this.toCustomAgent(promptFile);
+			const info = this.toCustomAgent(customAgent);
 			if (!info) {
 				continue;
 			}
@@ -348,40 +430,31 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 		return [...merged.values()];
 	}
 
-	private async getSDKAgents(): Promise<Readonly<SweCustomAgent>[]> {
-		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
-		if (workspaceFolders.length === 0) {
-			return [];
-		}
-
-		const [auth, { getCustomAgents }] = await Promise.all([this.copilotCLISDK.getAuthInfo(), this.copilotCLISDK.getPackage()]);
-		const workingDirectory = workspaceFolders[0];
-		const agents = await getCustomAgents(auth, workingDirectory.fsPath, undefined, getCopilotLogger(this.logService));
-		return agents.map(agent => this.cloneAgent(agent));
-	}
-
-	private toCustomAgent(promptFile: ParsedPromptFile): CLIAgentInfo | undefined {
-		const agentName = getAgentFileNameFromFilePath(promptFile.uri);
-		const headerName = promptFile.header?.name?.trim();
+	private toCustomAgent(customAgent: vscode.ChatCustomAgent): CLIAgentInfo | undefined {
+		const agentName = getAgentFileNameFromFilePath(customAgent.uri);
+		const headerName = customAgent.name;
 		const name = headerName === undefined || headerName === '' ? agentName : headerName;
 		if (!name) {
 			return undefined;
 		}
 
-		const tools = promptFile.header?.tools?.filter(tool => !!tool) ?? [];
-		const model = promptFile.header?.model?.[0];
+		const tools = customAgent.tools?.filter(tool => !!tool) ?? [];
+		const model = customAgent.model?.[0];
 
 		return {
 			agent: {
 				name,
 				displayName: name,
-				description: promptFile.header?.description ?? '',
+				description: customAgent.description ?? '',
 				tools: tools.length > 0 ? tools : null,
-				prompt: async () => promptFile.body?.getContent() ?? '',
-				disableModelInvocation: promptFile.header?.disableModelInvocation ?? false,
+				prompt: async () => {
+					const pf = await this.promptsService.parseFile(customAgent.uri, CancellationToken.None);
+					return pf.body?.getContent() ?? '';
+				},
+				disableModelInvocation: customAgent.disableModelInvocation ?? false,
 				...(model ? { model } : {}),
 			},
-			sourceUri: promptFile.uri,
+			sourceUri: customAgent.uri,
 		};
 	}
 
@@ -452,7 +525,7 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 
 	public async getPackage(): Promise<typeof import('@github/copilot/sdk')> {
 		try {
-			// Ensure the node-pty shim exists before importing the SDK (required for CLI sessions)
+			// Ensure the node-pty and ripgrep shims exist before importing the SDK (required for CLI sessions)
 			await this._ensureShimsPromise;
 			return await import('@github/copilot/sdk');
 		} catch (error) {
@@ -490,8 +563,8 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 			return;
 		}
 		await Promise.all([
+			ensureRipgrepShim(this.extensionContext.extensionPath, this.envService.appRoot, this.logService),
 			ensureNodePtyShim(this.extensionContext.extensionPath, this.envService.appRoot, this.logService),
-			ensureRipgrepShim(this.extensionContext.extensionPath, this.envService.appRoot, this.logService)
 		]);
 		await fs.writeFile(successfulPlaceholder, 'Shims created successfully');
 	}
@@ -538,3 +611,30 @@ async function checkFileExists(filePath: string): Promise<boolean> {
 		return false;
 	}
 }
+
+export function isEnabledForCopilotCLI(customization: { sessionTypes?: readonly string[] }): boolean {
+	const sessionTypes = customization.sessionTypes;
+	return sessionTypes === undefined || sessionTypes.includes('copilotcli') || false;
+}
+
+const AIC_DIVISOR = 1_000_000_000;
+const TOKENS_PER_MILLION = 1_000_000;
+
+/**
+ * Converts raw billing token prices (nano-AICs with a batch_size) into
+ * normalized AICs per million tokens, matching the normalization in
+ * chatEndpoint.ts for non-CLI models.
+ */
+function normalizeTokenPricing(tokenPrices: { input_price?: number; output_price?: number; cache_price?: number; batch_size?: number } | undefined): { inputPrice: number; outputPrice: number; cachePrice: number | undefined } | undefined {
+	if (!tokenPrices || tokenPrices.input_price === undefined || tokenPrices.output_price === undefined) {
+		return undefined;
+	}
+	const batchSize = tokenPrices.batch_size ?? TOKENS_PER_MILLION;
+	const scale = TOKENS_PER_MILLION / batchSize;
+	return {
+		inputPrice: (tokenPrices.input_price / AIC_DIVISOR) * scale,
+		outputPrice: (tokenPrices.output_price / AIC_DIVISOR) * scale,
+		cachePrice: tokenPrices.cache_price !== undefined ? (tokenPrices.cache_price / AIC_DIVISOR) * scale : undefined,
+	};
+}
+

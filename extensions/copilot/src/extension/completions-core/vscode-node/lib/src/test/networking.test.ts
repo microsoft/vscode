@@ -5,42 +5,9 @@
 
 import * as assert from 'assert';
 
-import { ServicesAccessor } from '../../../../../../util/vs/platform/instantiation/common/instantiation';
-import {
-	ICompletionsFetcherService,
-	postRequest
-} from '../networking';
-import { createLibTestingContext } from './context';
-import { StaticFetcher, createFakeJsonResponse } from './fetcher';
+import { createFakeJsonResponse } from './fetcher';
 
 suite('Networking test Suite', function () {
-	let accessor: ServicesAccessor;
-	let fetcher: StaticFetcher;
-
-	setup(function () {
-		const serviceCollection = createLibTestingContext();
-		fetcher = new StaticFetcher();
-		serviceCollection.define(ICompletionsFetcherService, fetcher);
-		accessor = serviceCollection.createTestingAccessor();
-	});
-
-	test('each request contains editor info headers', async function () {
-		await postRequest(accessor, 'http://localhost:8080/', '', undefined, 'id');
-
-		assert.strictEqual(fetcher.headerBuffer!['VScode-SessionId'], 'test-session');
-		assert.strictEqual(fetcher.headerBuffer!['VScode-MachineId'], 'test-machine');
-		assert.strictEqual(fetcher.headerBuffer!['Editor-Version'], 'lib-tests-editor/1');
-		assert.strictEqual(fetcher.headerBuffer!['Editor-Plugin-Version'], 'lib-tests-plugin/2');
-		assert.match(fetcher.headerBuffer!['Copilot-Language-Server-Version'], /^\d+\.\d+\./);
-	});
-
-	test('additional headers can be specified per-request', async function () {
-		await postRequest(accessor, 'http://localhost:8080/', '', undefined, 'id', undefined, undefined, {
-			'X-Custom-Model': 'disable',
-		});
-
-		assert.strictEqual(fetcher.headerBuffer!['X-Custom-Model'], 'disable');
-	});
 
 	suite('JSON Parsing', function () {
 		async function getJsonError(json: string, headers?: { [key: string]: string }): Promise<Error | undefined> {

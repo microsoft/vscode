@@ -8,7 +8,7 @@
  * Entries are evicted lazily on access when their TTL has elapsed.
  */
 export class TtlCache<V> {
-	private readonly _entries = new Map<string, { value: V; timestamp: number }>();
+	private readonly _entries = new Map<string, { value: V; timestamp: number; ttlMs?: number }>();
 
 	/**
 	 * @param _ttlMs The time-to-live in milliseconds for cache entries.
@@ -23,7 +23,8 @@ export class TtlCache<V> {
 		if (!entry) {
 			return undefined;
 		}
-		if (Date.now() - entry.timestamp >= this._ttlMs) {
+		const ttl = entry.ttlMs ?? this._ttlMs;
+		if (Date.now() - entry.timestamp >= ttl) {
 			this._entries.delete(key);
 			return undefined;
 		}
@@ -32,9 +33,10 @@ export class TtlCache<V> {
 
 	/**
 	 * Stores a value in the cache with the current timestamp.
+	 * @param ttlMs Optional per-entry TTL override in milliseconds. If not provided, the cache-wide TTL is used.
 	 */
-	set(key: string, value: V): void {
-		this._entries.set(key, { value, timestamp: Date.now() });
+	set(key: string, value: V, ttlMs?: number): void {
+		this._entries.set(key, { value, timestamp: Date.now(), ttlMs });
 	}
 
 	/**

@@ -3,13 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface ParsedClaudeModelId {
-	readonly name: string;
-	readonly version: string;
-	readonly modifiers: string;
-	toSdkModelId(): string;
-	toEndpointModelId(): string;
-}
+import type { ParsedClaudeModelId } from '../common/claudeModelId';
 
 /**
  * Known model suffixes that are meaningful variants and should be preserved
@@ -100,6 +94,12 @@ function doParse(lower: string): ParsedClaudeModelId | undefined {
 		return makeResult(p5.groups.name, p5.groups.major, undefined, joinModifiers(p5.groups.mod, dateSuffix));
 	}
 
+	// Pattern 6: bare model name with no version (e.g. nectarine)
+	const p6 = base.match(/^(?<name>\w+)$/);
+	if (p6?.groups) {
+		return makeBareResult(p6.groups.name);
+	}
+
 	return undefined;
 }
 
@@ -115,6 +115,16 @@ function formatModelId(name: string, major: string, minor: string | undefined, v
 		? `claude-${name}-${major}${versionSep}${minor}`
 		: `claude-${name}-${major}`;
 	return validSuffix ? `${base}-${validSuffix}` : base;
+}
+
+function makeBareResult(name: string): ParsedClaudeModelId {
+	return {
+		name,
+		version: '',
+		modifiers: '',
+		toSdkModelId: () => name,
+		toEndpointModelId: () => name,
+	};
 }
 
 function makeResult(name: string, major: string, minor: string | undefined, modifiers: string): ParsedClaudeModelId {

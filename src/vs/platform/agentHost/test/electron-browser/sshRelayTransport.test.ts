@@ -6,7 +6,9 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { SSHRelayTransport } from '../../electron-browser/sshRelayTransport.js';
 import type { ISSHRelayMessage, ISSHRemoteAgentHostMainService, ISSHConnectProgress, ISSHConnectResult, ISSHAgentHostConfig, ISSHResolvedConfig } from '../../common/sshRemoteAgentHost.js';
 
@@ -35,6 +37,8 @@ class MockSSHMainService {
 	}
 	async disconnect(_host: string): Promise<void> { }
 	async listSSHConfigHosts(): Promise<string[]> { return []; }
+	async ensureUserSSHConfig(): Promise<URI> { return URI.file('/tmp/ssh-config'); }
+	async listSSHConfigFiles(): Promise<URI[]> { return [URI.file('/tmp/ssh-config')]; }
 	async resolveSSHConfig(_host: string): Promise<ISSHResolvedConfig> {
 		throw new Error('Not implemented');
 	}
@@ -71,7 +75,7 @@ suite('SSHRelayTransport', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('receives messages matching connectionId', () => {
-		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService));
+		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService, undefined, new NullLogService()));
 
 		const received: unknown[] = [];
 		disposables.add(transport.onMessage(msg => received.push(msg)));
@@ -83,7 +87,7 @@ suite('SSHRelayTransport', () => {
 	});
 
 	test('ignores messages for other connectionIds', () => {
-		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService));
+		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService, undefined, new NullLogService()));
 
 		const received: unknown[] = [];
 		disposables.add(transport.onMessage(msg => received.push(msg)));
@@ -94,7 +98,7 @@ suite('SSHRelayTransport', () => {
 	});
 
 	test('drops malformed JSON messages', () => {
-		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService));
+		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService, undefined, new NullLogService()));
 
 		const received: unknown[] = [];
 		disposables.add(transport.onMessage(msg => received.push(msg)));
@@ -106,7 +110,7 @@ suite('SSHRelayTransport', () => {
 	});
 
 	test('fires onClose when relay closes for matching connectionId', () => {
-		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService));
+		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService, undefined, new NullLogService()));
 
 		let closed = false;
 		disposables.add(transport.onClose(() => { closed = true; }));
@@ -117,7 +121,7 @@ suite('SSHRelayTransport', () => {
 	});
 
 	test('does not fire onClose for other connectionIds', () => {
-		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService));
+		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService, undefined, new NullLogService()));
 
 		let closed = false;
 		disposables.add(transport.onClose(() => { closed = true; }));
@@ -128,7 +132,7 @@ suite('SSHRelayTransport', () => {
 	});
 
 	test('send() calls relaySend with correct connectionId', async () => {
-		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService));
+		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService, undefined, new NullLogService()));
 
 		const msg = { jsonrpc: '2.0' as const, method: 'test', id: 42 };
 		transport.send(msg as never);
@@ -142,7 +146,7 @@ suite('SSHRelayTransport', () => {
 	});
 
 	test('receives multiple messages in order', () => {
-		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService));
+		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService, undefined, new NullLogService()));
 
 		const received: unknown[] = [];
 		disposables.add(transport.onMessage(msg => received.push(msg)));
@@ -156,7 +160,7 @@ suite('SSHRelayTransport', () => {
 	});
 
 	test('no events after dispose', () => {
-		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService));
+		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService, undefined, new NullLogService()));
 
 		const received: unknown[] = [];
 		let closed = false;

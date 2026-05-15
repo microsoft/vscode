@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/* eslint-disable local/no-unexternalized-strings */
+/* eslint-disable local/code-no-unexternalized-strings */
 import { LanguageInput } from 'shiki/core';
 
 // This file has been converted from https://github.com/jlelong/vscode-latex-basics/blob/master/syntaxes/markdown-latex-combined.tmLanguage.json

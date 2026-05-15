@@ -11,7 +11,7 @@ import { Emitter } from '../../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
-import { ClaudeCodeModels } from '../claudeCodeModels';
+import { ClaudeCodeModels, isEffortLevel } from '../claudeCodeModels';
 import { tryParseClaudeModelId } from '../claudeModelId';
 
 /**
@@ -24,9 +24,10 @@ function createMockEndpoint(overrides: {
 	showInModelPicker?: boolean;
 	multiplier?: number;
 	apiType?: string;
+	modelProvider?: string;
+	supportsReasoningEffort?: string[];
 }): IChatEndpoint {
-	// Default to Messages API for Claude models
-	const isClaude = overrides.family?.toLowerCase().includes('claude') || overrides.model?.toLowerCase().includes('claude');
+	const isAnthropic = overrides.modelProvider === undefined || overrides.modelProvider === 'Anthropic';
 	return {
 		model: overrides.model,
 		name: overrides.name,
@@ -34,12 +35,14 @@ function createMockEndpoint(overrides: {
 		version: '1.0',
 		showInModelPicker: overrides.showInModelPicker ?? true,
 		multiplier: overrides.multiplier,
-		apiType: overrides.apiType ?? (isClaude ? 'messages' : 'chatCompletions'),
+		modelProvider: overrides.modelProvider ?? 'Anthropic',
+		apiType: overrides.apiType ?? (isAnthropic ? 'messages' : 'chatCompletions'),
 		// Required properties with sensible defaults
 		maxOutputTokens: 4096,
 		supportsToolCalls: true,
 		supportsVision: false,
 		supportsPrediction: false,
+		supportsReasoningEffort: overrides.supportsReasoningEffort,
 		isDefault: false,
 		isFallback: false,
 		policy: 'enabled',
@@ -187,9 +190,9 @@ describe('ClaudeCodeModels', () => {
 			expect(endpoint?.model).toBe('claude-sonnet-4');
 		});
 
-		it('does not fall back to non-Claude models', async () => {
+		it('does not fall back to non-Anthropic models', async () => {
 			const { service } = createServiceWithRefreshableEndpoints([
-				createMockEndpoint({ model: 'gpt-4o', name: 'GPT-4o', family: 'gpt-4' }),
+				createMockEndpoint({ model: 'gpt-4o', name: 'GPT-4o', family: 'gpt-4', modelProvider: 'Azure OpenAI' }),
 			]);
 
 			const endpoint = await service.resolveEndpoint('unknown-model', undefined);
@@ -236,12 +239,12 @@ describe('ClaudeCodeModels', () => {
 			const sonnet = info.find(i => i.id === 'claude-sonnet-4-model')!;
 			expect(sonnet.name).toBe('Claude Sonnet 4');
 			expect(sonnet.family).toBe('claude-sonnet-4');
-			expect(sonnet.multiplier).toBe('1x');
+			expect(sonnet.pricing).toBe('1x');
 			expect(sonnet.targetChatSessionType).toBe('claude-code');
 			expect(sonnet.isUserSelectable).toBe(true);
 
 			const opus = info.find(i => i.id === 'claude-opus-4.5-model')!;
-			expect(opus.multiplier).toBe('5x');
+			expect(opus.pricing).toBe('5x');
 		});
 
 		it('returns undefined multiplier string when endpoint has no multiplier', async () => {
@@ -251,7 +254,7 @@ describe('ClaudeCodeModels', () => {
 			const { lm, getCapturedProvider } = createMockLm();
 
 			const info = await getProviderInfo(service, lm, getCapturedProvider);
-			expect(info[0].multiplier).toBeUndefined();
+			expect(info[0].pricing).toBeUndefined();
 		});
 
 		it('returns empty array when no endpoints are available', async () => {
@@ -271,6 +274,185 @@ describe('ClaudeCodeModels', () => {
 			expect(info[0].maxInputTokens).toBe(endpoint.modelMaxPromptTokens);
 			expect(info[0].maxOutputTokens).toBe(endpoint.maxOutputTokens);
 			expect(info[0].version).toBe(endpoint.version);
+		});
+		it('includes configurationSchema when endpoint supports multiple reasoning effort levels', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4-model',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+					supportsReasoningEffort: ['low', 'medium', 'high'],
+				}),
+			]);
+			const { lm, getCapturedProvider } = createMockLm();
+
+			const info = await getProviderInfo(service, lm, getCapturedProvider);
+			expect(info[0].configurationSchema).toBeDefined();
+			const schema = info[0].configurationSchema!;
+			expect(schema.properties?.['reasoningEffort']).toBeDefined();
+			expect(schema.properties!['reasoningEffort'].enum).toEqual(['low', 'medium', 'high']);
+			expect(schema.properties!['reasoningEffort'].default).toBe('high');
+		});
+
+		it('omits configurationSchema when endpoint has no reasoning effort support', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4-model',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+				}),
+			]);
+			const { lm, getCapturedProvider } = createMockLm();
+
+			const info = await getProviderInfo(service, lm, getCapturedProvider);
+			expect(info[0].configurationSchema).toBeUndefined();
+		});
+
+		it('includes configurationSchema when endpoint has only one reasoning effort level', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4-model',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+					supportsReasoningEffort: ['high'],
+				}),
+			]);
+			const { lm, getCapturedProvider } = createMockLm();
+
+			const info = await getProviderInfo(service, lm, getCapturedProvider);
+			expect(info[0].configurationSchema).toBeDefined();
+			const schema = info[0].configurationSchema!;
+			expect(schema.properties?.['reasoningEffort'].enum).toEqual(['high']);
+			expect(schema.properties!['reasoningEffort'].default).toBe('high');
+		});
+	});
+
+	describe('resolveEndpoint with ParsedClaudeModelId', () => {
+		it('resolves endpoint when given a ParsedClaudeModelId', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({ model: 'claude-sonnet-4', name: 'Claude Sonnet 4', family: 'claude-sonnet-4' }),
+			]);
+
+			const parsedId = tryParseClaudeModelId('claude-sonnet-4')!;
+			const endpoint = await service.resolveEndpoint(parsedId, undefined);
+			expect(endpoint?.model).toBe('claude-sonnet-4');
+		});
+
+		it('maps ParsedClaudeModelId to endpoint format', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({ model: 'claude-opus-4.5', name: 'Claude Opus 4.5', family: 'claude-opus-4.5' }),
+			]);
+
+			const parsedId = tryParseClaudeModelId('claude-opus-4-5')!;
+			const endpoint = await service.resolveEndpoint(parsedId, undefined);
+			expect(endpoint?.model).toBe('claude-opus-4.5');
+		});
+	});
+
+	describe('resolveReasoningEffort', () => {
+		it('returns requested effort level when endpoint supports it', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+					supportsReasoningEffort: ['low', 'medium', 'high'],
+				}),
+			]);
+
+			const result = await service.resolveReasoningEffort('claude-sonnet-4', 'high');
+			expect(result).toBe('high');
+		});
+
+		it('returns undefined when endpoint does not support reasoning effort', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+				}),
+			]);
+
+			const result = await service.resolveReasoningEffort('claude-sonnet-4', 'high');
+			expect(result).toBeUndefined();
+		});
+
+		it('returns undefined when endpoint has empty reasoning effort array', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+					supportsReasoningEffort: [],
+				}),
+			]);
+
+			const result = await service.resolveReasoningEffort('claude-sonnet-4', 'high');
+			expect(result).toBeUndefined();
+		});
+
+		it('returns the single supported level when endpoint supports exactly one', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+					supportsReasoningEffort: ['high'],
+				}),
+			]);
+
+			const result = await service.resolveReasoningEffort('claude-sonnet-4', undefined);
+			expect(result).toBe('high');
+		});
+
+		it('returns undefined when requested effort is not supported by the endpoint', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+					supportsReasoningEffort: ['low', 'medium'],
+				}),
+			]);
+
+			const result = await service.resolveReasoningEffort('claude-sonnet-4', 'high');
+			expect(result).toBeUndefined();
+		});
+
+		it('returns undefined when requested effort is not a valid EffortLevel', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+					supportsReasoningEffort: ['low', 'medium', 'high'],
+				}),
+			]);
+
+			const result = await service.resolveReasoningEffort('claude-sonnet-4', 'invalid-level');
+			expect(result).toBeUndefined();
+		});
+
+		it('returns undefined when no endpoints are available', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([]);
+
+			const result = await service.resolveReasoningEffort('claude-sonnet-4', 'high');
+			expect(result).toBeUndefined();
+		});
+
+		it('accepts a ParsedClaudeModelId for requestedModel', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+					supportsReasoningEffort: ['low', 'medium', 'high'],
+				}),
+			]);
+
+			const parsedId = tryParseClaudeModelId('claude-sonnet-4')!;
+			const result = await service.resolveReasoningEffort(parsedId, 'medium');
+			expect(result).toBe('medium');
 		});
 	});
 
@@ -318,5 +500,20 @@ describe('ClaudeCodeModels', () => {
 			// Should only have fetched once due to caching
 			expect(fetchCount).toBe(1);
 		});
+	});
+});
+
+describe('isEffortLevel', () => {
+	it('returns true for valid effort levels', () => {
+		expect(isEffortLevel('low')).toBe(true);
+		expect(isEffortLevel('medium')).toBe(true);
+		expect(isEffortLevel('high')).toBe(true);
+	});
+
+	it('returns false for invalid effort levels', () => {
+		expect(isEffortLevel('invalid')).toBe(false);
+		expect(isEffortLevel('')).toBe(false);
+		expect(isEffortLevel('HIGH')).toBe(false);
+		expect(isEffortLevel('Low')).toBe(false);
 	});
 });
