@@ -690,15 +690,27 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 	private _handleSpan(span: ICompletedSpanData): void {
 		try {
-			const sessionId = this._getSessionId(span);
+			// For sub-agent spans, fold events into the parent session so they
+			// appear as one continuous timeline in the cloud rather than
+			// surfacing each sub-agent invocation as its own standalone session.
+			const parentChatSessionId = span.attributes[CopilotChatAttr.PARENT_CHAT_SESSION_ID] as string | undefined;
+			const ownChatSessionId = (span.attributes[CopilotChatAttr.CHAT_SESSION_ID] as string | undefined)
+				?? (span.attributes[GenAiAttr.CONVERSATION_ID] as string | undefined)
+				?? (span.attributes[CopilotChatAttr.SESSION_ID] as string | undefined);
+			const sessionId = parentChatSessionId ?? ownChatSessionId;
+			const subagentId = parentChatSessionId ? ownChatSessionId : undefined;
 			const operationName = span.attributes[GenAiAttr.OPERATION_NAME] as string | undefined;
 			if (!sessionId || this._disabledSessions.has(sessionId)) {
 				return;
 			}
 
-			// Only start tracking on invoke_agent (real user interaction)
+			// Only start tracking on invoke_agent (real user interaction).
+			// Sub-agent invoke_agent spans must never initialize the parent: child spans
+			// typically complete before their parent, and using a sub-agent span as the
+			// init trigger would seed sessionSource/firstCloudWriteSessionSource and
+			// telemetry from the sub-agent's AGENT_NAME instead of the parent's.
 			if (!this._cloudSessions.has(sessionId) && !this._initializingSessions.has(sessionId)) {
-				if (operationName !== GenAiOperationName.INVOKE_AGENT) {
+				if (operationName !== GenAiOperationName.INVOKE_AGENT || subagentId) {
 					return;
 				}
 				// Trigger lazy initialization — don't await, buffer events in the meantime
@@ -708,7 +720,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			// Translate span to cloud events
 			const state = this._getOrCreateTranslationState(sessionId);
 			const context = this._extractContext(span);
-			const events = translateSpan(span, state, context);
+			const events = translateSpan(span, state, context, subagentId);
 
 			if (events.length > 0) {
 				this._bufferEvents(sessionId, events);
@@ -717,12 +729,6 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		} catch {
 			// Non-fatal — individual span processing failure
 		}
-	}
-
-	private _getSessionId(span: ICompletedSpanData): string | undefined {
-		return (span.attributes[CopilotChatAttr.CHAT_SESSION_ID] as string | undefined)
-			?? (span.attributes[GenAiAttr.CONVERSATION_ID] as string | undefined)
-			?? (span.attributes[CopilotChatAttr.SESSION_ID] as string | undefined);
 	}
 
 	private _getOrCreateTranslationState(sessionId: string): SessionTranslationState {

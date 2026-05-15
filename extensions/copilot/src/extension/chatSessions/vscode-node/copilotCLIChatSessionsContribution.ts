@@ -58,6 +58,7 @@ import { getCopilotCLIModelDetails, persistCopilotCLIResponseModelId } from './c
 import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotCLITerminalIntegration';
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 import { IPullRequestCreationService } from './pullRequestCreationService';
+import { getBlockingSiblingSessionsForFolder } from './worktreeSharing';
 import { convertReferenceToVariable } from '../copilotcli/vscode-node/copilotCLIPromptReferences';
 import { clearChangesCacheForAffectedSessions } from './chatSessionRepositoryTracker';
 
@@ -346,7 +347,10 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 
 		// Metadata
 		let metadata: { readonly [key: string]: unknown };
-		const sessionParentId = await raceCancellation(this.chatSessionMetadataStore.getSessionParentId(session.id), token);
+		const parentInfo = await raceCancellation(this.chatSessionMetadataStore.getSessionParentId(session.id), token);
+		// Only sub-sessions are surfaced as children of their parent in the UI; forked
+		// sessions keep their lineage internally but appear as top-level items.
+		const sessionParentId = parentInfo?.kind === 'sub-session' ? parentInfo.parentSessionId : undefined;
 
 		if (worktreeProperties) {
 			// Worktree
@@ -2139,17 +2143,27 @@ export function registerCLIChatCommands(
 	envService: INativeEnvService,
 	fileSystemService: IFileSystemService,
 	pullRequestCreationService: IPullRequestCreationService,
+	metadataStore: IChatSessionMetadataStore,
 	logService: ILogService
 ): IDisposable {
 	const disposableStore = new DisposableStore();
-	async function deleteSessionById(sessionId: string): Promise<void> {
+	async function shouldKeepWorktreeForOtherSessions(sessionId: string, worktreePath: vscode.Uri): Promise<boolean> {
+		const siblings = await getBlockingSiblingSessionsForFolder(
+			worktreePath,
+			sessionId,
+			metadataStore,
+			copilotCliWorkspaceSession,
+		);
+		return siblings.length > 0;
+	}
+	async function deleteSessionById(sessionId: string, options?: { keepWorktree?: boolean }): Promise<void> {
 		const worktree = await copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
 		const worktreePath = await copilotCLIWorktreeManagerService.getWorktreePath(sessionId);
 
 		await copilotCLISessionService.deleteSession(sessionId);
 		await copilotCliWorkspaceSession.deleteTrackedWorkspaceFolder(sessionId);
 
-		if (worktreePath) {
+		if (worktreePath && !options?.keepWorktree) {
 			const worktreeExists = await fileSystemService.stat(worktreePath).then(() => true, () => false);
 			if (worktreeExists) {
 				try {
@@ -2169,8 +2183,9 @@ export function registerCLIChatCommands(
 			const id = SessionIdForCLI.parse(sessionItem.resource);
 			const sessionId = copilotcliSessionItemProvider.untitledSessionIdMapping.get(id) ?? id;
 			const worktreePath = await copilotCLIWorktreeManagerService.getWorktreePath(sessionId);
+			const keepWorktree = !!worktreePath && await shouldKeepWorktreeForOtherSessions(sessionId, worktreePath);
 
-			const confirmMessage = worktreePath
+			const confirmMessage = (worktreePath && !keepWorktree)
 				? l10n.t('Are you sure you want to delete the session and its associated worktree?')
 				: l10n.t('Are you sure you want to delete the session?');
 
@@ -2182,7 +2197,7 @@ export function registerCLIChatCommands(
 			);
 
 			if (result === deleteLabel) {
-				await deleteSessionById(sessionId);
+				await deleteSessionById(sessionId, { keepWorktree });
 				copilotcliSessionItemProvider.notifySessionsChange();
 			}
 		}
@@ -2211,7 +2226,9 @@ export function registerCLIChatCommands(
 			if (sessionItem.resource) {
 				const id = SessionIdForCLI.parse(sessionItem.resource);
 				const sessionId = copilotcliSessionItemProvider.untitledSessionIdMapping.get(id) ?? id;
-				await deleteSessionById(sessionId);
+				const worktreePath = await copilotCLIWorktreeManagerService.getWorktreePath(sessionId);
+				const keepWorktree = !!worktreePath && await shouldKeepWorktreeForOtherSessions(sessionId, worktreePath);
+				await deleteSessionById(sessionId, { keepWorktree });
 			}
 		}
 
