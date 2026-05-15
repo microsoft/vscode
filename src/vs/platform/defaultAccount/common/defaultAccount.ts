@@ -7,6 +7,14 @@ import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvid
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
+/**
+ * Well-known GitHub URL paths used with {@link IDefaultAccountService.resolveGitHubUrl}.
+ */
+export const GitHubPaths = {
+	copilotSettings: 'settings/copilot/features',
+	billingBudgets: 'settings/billing/budgets?utm_source=vscode',
+} as const;
+
 export interface IDefaultAccountProvider {
 	readonly defaultAccount: IDefaultAccount | null;
 	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null>;
