@@ -10,6 +10,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IToolResult } from '../../common/tools/languageModelToolsService.js';
 import { createToolSimpleTextResult } from '../../common/tools/builtinTools/toolHelpers.js';
+import { WorkingDirectory } from '../../common/workingDirectory.js';
 
 export interface ISymbolToolInput {
 	symbol: string;
@@ -20,21 +21,16 @@ export interface ISymbolToolInput {
 
 /**
  * Resolves a URI from tool input. Accepts either a full URI string or a
- * workspace-relative file path.
+ * workspace-relative file path. When a {@link workingDirectory} is provided
+ * (agents window), relative paths are resolved against it first.
  */
-export function resolveToolUri(input: ISymbolToolInput, workspaceContextService: IWorkspaceContextService): URI | undefined {
+export function resolveToolUri(input: ISymbolToolInput, workspaceContextService: IWorkspaceContextService, workingDirectory?: URI): URI | undefined {
 	if (input.uri) {
 		return URI.parse(input.uri);
 	}
 	if (input.filePath) {
-		const folders = workspaceContextService.getWorkspace().folders;
-		if (folders.length === 1) {
-			return folders[0].toResource(input.filePath);
-		}
-		// try each folder, return the first
-		for (const folder of folders) {
-			return folder.toResource(input.filePath);
-		}
+		const workingDir = new WorkingDirectory(workspaceContextService, workingDirectory);
+		return workingDir.resolveRelativePath(input.filePath);
 	}
 	return undefined;
 }

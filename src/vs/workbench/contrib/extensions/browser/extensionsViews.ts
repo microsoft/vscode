@@ -1197,11 +1197,11 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
-		return /@installed$/i.test(query);
+		return /@installed$/i.test(query) && !/@mcp/i.test(query) && !/@agentPlugins/i.test(query);
 	}
 
 	static isSearchInstalledExtensionsQuery(query: string): boolean {
-		return /@installed\s./i.test(query) || this.isFeatureExtensionsQuery(query);
+		return (/@installed\s./i.test(query) && !/@mcp/i.test(query) && !/@agentPlugins/i.test(query)) || this.isFeatureExtensionsQuery(query);
 	}
 
 	static isOutdatedExtensionsQuery(query: string): boolean {
@@ -1630,7 +1630,8 @@ export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 
 		const indexInPagedModel = index - this.preferredExtensions.length + this.resolvedGalleryExtensionsFromQuery.length;
 		const pageIndex = Math.floor(indexInPagedModel / this.pager.pageSize);
-		const page = this.pages[pageIndex];
+		// pages array excludes page 0 (pre-resolved via firstPage), so adjust index
+		const page = this.pages[pageIndex - 1];
 
 		if (!page.promise) {
 			page.cts = new CancellationTokenSource();
