@@ -46,17 +46,19 @@ const CLAUDE_OPT_IN = process.env['AGENT_HOST_REAL_SDK_CLAUDE'] === '1';
  * (no `import.meta.resolve('pkg')`, no `require.resolve('pkg')`), so we
  * locate the package by joining `process.cwd()` with the well-known path.
  * Tests are always invoked from the repo root.
+ *
+ * Returns `undefined` silently when the directory is missing — only called
+ * once the suite has already opted in via env vars, so the suite's own
+ * skip-if-not-found path surfaces the missing dep.
  */
 function resolveClaudeSdkPath(): string | undefined {
 	const candidate = join(process.cwd(), 'node_modules', '@anthropic-ai', 'claude-agent-sdk');
-	if (existsSync(candidate)) {
-		return candidate;
-	}
-	console.error(`[claudeRealSdk] Could not find @anthropic-ai/claude-agent-sdk at ${candidate}. Run \`npm install\` and try again.`);
-	return undefined;
+	return existsSync(candidate) ? candidate : undefined;
 }
 
-const CLAUDE_SDK_PATH = resolveClaudeSdkPath();
+// Resolve lazily: if the suite isn't opted in, skip the filesystem probe so a
+// missing SDK directory can't trip a disabled run.
+const CLAUDE_SDK_PATH = (REAL_SDK_ENABLED && CLAUDE_OPT_IN) ? resolveClaudeSdkPath() : undefined;
 
 const CLAUDE_CONFIG: IRealSdkProviderConfig = {
 	suiteTitle: 'Protocol WebSocket — Real Claude SDK',
