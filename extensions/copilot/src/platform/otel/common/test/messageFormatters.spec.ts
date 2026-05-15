@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from 'vitest';
-import { normalizeProviderMessages, toInputMessages, toOutputMessages, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../messageFormatters';
+import { extractTextFromContent, normalizeProviderMessages, toInputMessages, toOutputMessages, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../messageFormatters';
 
 describe('toInputMessages', () => {
 	it('converts a simple text message', () => {
@@ -292,6 +292,60 @@ describe('toSystemInstructions', () => {
 
 	it('returns undefined for undefined input', () => {
 		expect(toSystemInstructions(undefined)).toBeUndefined();
+	});
+
+	it('returns multiple blocks for multiple system messages', () => {
+		expect(toSystemInstructions(['You are helpful', 'Always be concise'])).toEqual([
+			{ type: 'text', content: 'You are helpful' },
+			{ type: 'text', content: 'Always be concise' },
+		]);
+	});
+
+	it('filters empty strings from array input', () => {
+		expect(toSystemInstructions(['', 'real', ''])).toEqual([
+			{ type: 'text', content: 'real' },
+		]);
+	});
+
+	it('returns undefined for array containing only empty strings', () => {
+		expect(toSystemInstructions(['', ''])).toBeUndefined();
+	});
+
+	it('returns undefined for empty array', () => {
+		expect(toSystemInstructions([])).toBeUndefined();
+	});
+});
+
+describe('extractTextFromContent', () => {
+	it('returns string content as-is', () => {
+		expect(extractTextFromContent('hello world')).toBe('hello world');
+	});
+
+	it('returns empty string for undefined/null', () => {
+		expect(extractTextFromContent(undefined)).toBe('');
+		expect(extractTextFromContent(null)).toBe('');
+	});
+
+	it('joins text blocks from Anthropic-style content array', () => {
+		expect(extractTextFromContent([
+			{ type: 'text', text: 'first' },
+			{ type: 'text', text: 'second' },
+		])).toBe('first\nsecond');
+	});
+
+	it('handles cache_control and other metadata gracefully', () => {
+		expect(extractTextFromContent([
+			{ type: 'text', text: 'system prompt', cache_control: { type: 'ephemeral' } },
+		])).toBe('system prompt');
+	});
+
+	it('treats plain strings inside arrays as text', () => {
+		expect(extractTextFromContent(['a', 'b'])).toBe('a\nb');
+	});
+
+	it('returns empty string for unknown shapes', () => {
+		expect(extractTextFromContent(42)).toBe('');
+		expect(extractTextFromContent({ foo: 'bar' })).toBe('');
 	});
 });
 
