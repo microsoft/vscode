@@ -58,12 +58,19 @@ export interface IAgentPluginDiscovery extends IDisposable {
 	start(enablementModel: IEnablementModel): void;
 }
 
-export function getCanonicalPluginCommandId(plugin: IAgentPlugin, commandName: string): string {
+export function getCanonicalPluginCommandId(plugin: { readonly uri: URI }, commandName: string): string {
 	const pluginSegment = basename(plugin.uri);
 	const prefix = normalizePluginToken(pluginSegment);
 	const normalizedCommand = normalizePluginToken(commandName);
 	if (normalizedCommand.startsWith(`${prefix}:`)) {
 		return normalizedCommand;
+	}
+
+	// When the skill name matches the plugin name, use just the plugin
+	// name so the user can invoke `/plugin-name` instead of the redundant
+	// `/plugin-name:plugin-name`.
+	if (prefix === normalizedCommand) {
+		return prefix;
 	}
 
 	return `${prefix}:${normalizedCommand}`;

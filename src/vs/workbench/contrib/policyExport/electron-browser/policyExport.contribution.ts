@@ -99,6 +99,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 							type: schema.type,
 							default: schema.default,
 							enum: schema.enum,
+							included: schema.included !== false,
 						});
 					}
 				}
@@ -129,6 +130,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 							},
 							type: 'boolean',
 							default: true,
+							included: true,
 						});
 						added++;
 					}
