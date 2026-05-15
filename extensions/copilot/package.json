@@ -4252,6 +4252,16 @@
 						],
 						"description": "%github.copilot.config.anthropic.promptCaching.extendedTtl%"
 					},
+					"github.copilot.chat.anthropic.promptCaching.extendedTtlMessages": {
+						"type": "boolean",
+						"default": false,
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						],
+						"description": "%github.copilot.config.anthropic.promptCaching.extendedTtlMessages%"
+					},
 					"github.copilot.chat.freezeCustomizationsIndex": {
 						"type": "boolean",
 						"default": true,
