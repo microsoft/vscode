@@ -28,6 +28,21 @@ interface VinylFileWithLines extends VinylFile {
 }
 
 /**
+ * Checks that engines.vscode in extensions/copilot/package.json matches ^{version} from the root package.json.
+ * Returns an error message if mismatched, or undefined if OK.
+ */
+export function checkCopilotEnginesVersion(repoRoot: string): string | undefined {
+	const rootPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+	const copilotPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'extensions/copilot/package.json'), 'utf8'));
+	const expected = `^${rootPkg.version}`;
+	const actual = copilotPkg?.engines?.vscode;
+	if (actual !== expected) {
+		return `engines.vscode in 'extensions/copilot/package.json' must be "${expected}" (the version from the root package.json), but found "${actual ?? '<missing>'}"`;
+	}
+	return undefined;
+}
+
+/**
  * Main hygiene function that runs checks on files
  */
 export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, runEslint = true): NodeJS.ReadWriteStream {
@@ -121,11 +136,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const formatting = es.map(function (file: any, cb) {
 		try {
 			const rawInput = file.contents!.toString('utf8');
-			const rawOutput = formatter.format(file.path, rawInput);
-
-			const original = rawInput.replace(/\r\n/gm, '\n');
-			const formatted = rawOutput.replace(/\r\n/gm, '\n');
-			if (original !== formatted) {
+			if (!formatter.verifyFormatting(file.path, rawInput)) {
 				console.error(
 					`File not formatted. Run the 'Format Document' command to fix it:`,
 					file.relative
@@ -242,7 +253,7 @@ function createGitIndexVinyls(paths: string[]): Promise<VinylFile[]> {
 
 				cp.exec(
 					process.platform === 'win32' ? `git show :${relativePath}` : `git show ':${relativePath}'`,
-					{ maxBuffer: stat.size, encoding: 'buffer' },
+					{ maxBuffer: Math.max(stat.size * 2, 1024 * 1024), encoding: 'buffer' },
 					(err, out) => {
 						if (err) {
 							return e(err);
@@ -290,6 +301,15 @@ if (import.meta.main) {
 				const some = out.split(/\r?\n/).filter((l) => !!l);
 
 				if (some.length > 0) {
+					// Check copilot engines.vscode version if relevant files are staged
+					if (some.some(f => f === 'package.json' || f.startsWith('extensions/copilot/'))) {
+						const copilotError = checkCopilotEnginesVersion(process.cwd());
+						if (copilotError) {
+							console.error(copilotError);
+							process.exit(1);
+						}
+					}
+
 					console.log('Reading git index versions...');
 
 					createGitIndexVinyls(some)

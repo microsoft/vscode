@@ -44,20 +44,30 @@ export const ConfirmTerminalCommandToolData: IToolData = {
 				type: 'string',
 				description: 'A one-sentence description of what the command does. This will be shown to the user in the confirmation dialog.'
 			},
-			isBackground: {
-				type: 'boolean',
-				description: 'Whether the command would start a background process. This provides context for the confirmation.'
+			goal: {
+				type: 'string',
+				description: 'A short description of the goal or purpose of the command.'
+			},
+			mode: {
+				type: 'string',
+				enum: ['sync', 'async'],
+				description: 'Execution mode this command would use if run.'
 			},
 		},
 		required: [
 			'command',
 			'explanation',
-			'isBackground',
+			'goal',
+			'mode',
 		]
 	}
 };
 
 export class ConfirmTerminalCommandTool extends RunInTerminalTool {
+	protected override get _enableCommandLineSandboxRewriting() {
+		return false;
+	}
+
 	override async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const preparedInvocation = await super.prepareToolInvocation(context, token);
 		if (preparedInvocation) {

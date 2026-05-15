@@ -184,6 +184,17 @@ suite('platform - terminalEnvironment', async () => {
 				});
 			});
 			suite('bash', async () => {
+				suite('forceShellIntegration', async () => {
+					test('should inject when isFeatureTerminal is true but forceShellIntegration overrides it', async () => {
+						strictEqual((await getShellIntegrationInjection({ executable: 'bash', args: [], isFeatureTerminal: true, forceShellIntegration: true }, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'injection');
+					});
+					test('should not inject when isFeatureTerminal is true and forceShellIntegration is false', async () => {
+						strictEqual((await getShellIntegrationInjection({ executable: 'bash', args: [], isFeatureTerminal: true, forceShellIntegration: false }, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
+					});
+					test('should not inject when isFeatureTerminal is true and forceShellIntegration is not set', async () => {
+						strictEqual((await getShellIntegrationInjection({ executable: 'bash', args: [], isFeatureTerminal: true }, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
+					});
+				});
 				suite('should override args', async () => {
 					test('when undefined, [], empty string', async () => {
 						const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({

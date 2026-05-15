@@ -295,7 +295,7 @@
           "default": false,
           "scope": "resource",
           "deprecationMessage": "The NPM Script Explorer is now available in 'Views' menu in the Explorer in all folders.",
-          "description": "%config.npm.enableScriptExplorer%"
+          "markdownDescription": "%config.npm.enableScriptExplorer%"
         },
         "npm.enableRunFromFolder": {
           "type": "boolean",
@@ -333,7 +333,7 @@
         },
         "npm.scriptHover": {
           "type": "boolean",
-          "description": "%config.npm.scriptHover%",
+          "markdownDescription": "%config.npm.scriptHover%",
           "default": true,
           "scope": "window"
         }

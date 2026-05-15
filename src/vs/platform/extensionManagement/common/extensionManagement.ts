@@ -286,6 +286,7 @@ export interface ILocalExtension extends IExtension {
 	preRelease: boolean;
 	updated: boolean;
 	pinned: boolean;
+	forceAutoUpdate: boolean;
 	source: InstallSource;
 	size: number;
 }
@@ -381,6 +382,7 @@ export interface IExtensionInfo extends IExtensionIdentifier {
 	version?: string;
 	preRelease?: boolean;
 	hasPreRelease?: boolean;
+	currentVersion?: string;
 }
 
 export interface IExtensionQueryOptions {

@@ -113,7 +113,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	}
 
 	private updateSystemColorTheme(): void {
-		if (isLinux || Setting.DETECT_COLOR_SCHEME.getValue(this.configurationService)) {
+		if (isLinux || this.isAutoDetectColorScheme()) {
 			electron.nativeTheme.themeSource = 'system'; // only with `system` we can detect the system color scheme
 		} else {
 			switch (Setting.SYSTEM_COLOR_THEME.getValue(this.configurationService)) {
@@ -174,11 +174,18 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 			return colorScheme.dark ? ThemeTypeSelector.HC_BLACK : ThemeTypeSelector.HC_LIGHT;
 		}
 
-		if (Setting.DETECT_COLOR_SCHEME.getValue(this.configurationService)) {
+		if (this.isAutoDetectColorScheme()) {
 			return colorScheme.dark ? ThemeTypeSelector.VS_DARK : ThemeTypeSelector.VS;
 		}
 
 		return undefined;
+	}
+
+	isAutoDetectColorScheme(): boolean {
+		if (Setting.DETECT_COLOR_SCHEME.getValue(this.configurationService)) {
+			return true;
+		}
+		return false;
 	}
 
 	getBackgroundColor(): string {

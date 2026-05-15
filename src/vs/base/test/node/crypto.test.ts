@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as assert from 'assert';
 import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../common/path.js';
@@ -32,5 +33,15 @@ flakySuite('Crypto', () => {
 		await Promises.writeFile(testFile, 'Hello World');
 
 		await checksum(testFile, 'a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e');
+	});
+
+	test('checksum mismatch rejects', async () => {
+		const testFile = join(testDir, 'checksum-mismatch.txt');
+		await Promises.writeFile(testFile, 'Hello World');
+
+		await assert.rejects(
+			() => checksum(testFile, 'wrong-hash'),
+			/Hash mismatch/
+		);
 	});
 });
