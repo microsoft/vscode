@@ -205,8 +205,8 @@ describe('SessionStoreSqlTool', () => {
 				'DELETE FROM sessions WHERE 1=1',
 				'INSERT INTO sessions VALUES (1)',
 				'UPDATE sessions SET summary = "hacked"',
-				'CREATE TABLE evil (id INT)',
-				'ATTACH DATABASE "evil.db" AS evil',
+				'CREATE TABLE extra (id INT)',
+				'ATTACH DATABASE "other.db" AS other',
 			];
 
 			for (const sql of mutations) {
@@ -222,19 +222,19 @@ describe('SessionStoreSqlTool', () => {
 			const { tool } = createToolInstance();
 			const cts = new CancellationTokenSource();
 
-			const dangerous = [
+			const unsafe = [
 				// The originally reported bypass: VACUUM INTO copies the DB to a chosen path.
 				"VACUUM INTO '/tmp/copy.db'",
 				'REINDEX',
 				'ANALYZE',
 				// load_extension would execute native code if SQLite is built with extensions enabled.
-				"SELECT load_extension('/tmp/evil.so')",
+				"SELECT load_extension('/tmp/lib.so')",
 				'BEGIN',
 				'COMMIT',
 				'ROLLBACK',
 			];
 
-			for (const sql of dangerous) {
+			for (const sql of unsafe) {
 				const result = await tool.invoke(
 					makeOptions({ action: 'query', query: sql, description: 'test' }),
 					cts.token,
