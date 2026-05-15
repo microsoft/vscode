@@ -127,6 +127,9 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 				widget.appendChild(this._list.value.filterContainer);
 			}
 			widget.appendChild(this._list.value.domNode);
+			if (this._list.value.footerContainer) {
+				widget.appendChild(this._list.value.footerContainer);
+			}
 		} else {
 			throw new Error('List has no value');
 		}

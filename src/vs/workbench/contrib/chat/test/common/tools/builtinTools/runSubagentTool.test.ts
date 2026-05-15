@@ -60,7 +60,8 @@ suite('RunSubagentTool', () => {
 				agentInstructions: { content: 'Custom agent body', toolReferences: [] },
 				source: { storage: PromptsStorage.local },
 				target: Target.Undefined,
-				visibility: { userInvocable: true, agentInvocable: true }
+				visibility: { userInvocable: true, agentInvocable: true },
+				enabled: true
 			};
 			promptsService.setCustomModes([customMode]);
 
@@ -339,7 +340,6 @@ suite('RunSubagentTool', () => {
 				maxInputTokens: 128000,
 				maxOutputTokens: 8192,
 				isDefaultForLocation: {},
-				modelPickerCategory: undefined,
 				multiplierNumeric,
 				capabilities: { toolCalling: true },
 			};
@@ -393,7 +393,8 @@ suite('RunSubagentTool', () => {
 				agentInstructions: { content: 'test', toolReferences: [] },
 				source: { storage: PromptsStorage.local },
 				target: Target.Undefined,
-				visibility: { userInvocable: true, agentInvocable: true }
+				visibility: { userInvocable: true, agentInvocable: true },
+				enabled: true
 			};
 		}
 
@@ -614,7 +615,6 @@ suite('RunSubagentTool', () => {
 				maxInputTokens: 128000,
 				maxOutputTokens: 8192,
 				isDefaultForLocation: {},
-				modelPickerCategory: undefined,
 				multiplierNumeric,
 				capabilities: { toolCalling: true },
 			};
@@ -668,7 +668,8 @@ suite('RunSubagentTool', () => {
 				agentInstructions: { content: 'test', toolReferences: [] },
 				source: { storage: PromptsStorage.local },
 				target: Target.Undefined,
-				visibility: { userInvocable: true, agentInvocable: true }
+				visibility: { userInvocable: true, agentInvocable: true },
+				enabled: true
 			};
 		}
 

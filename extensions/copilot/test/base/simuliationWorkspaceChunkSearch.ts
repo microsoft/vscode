@@ -126,4 +126,8 @@ export class SimulationCodeSearchChunkSearchService extends Disposable implement
 	deleteExternalIngestWorkspaceIndex(): Promise<void> {
 		return Promise.resolve();
 	}
+
+	async *getDiagnosticsDump(): AsyncIterable<string> {
+		yield 'Simulation mode — no diagnostics available.';
+	}
 }

@@ -62,7 +62,7 @@ class ActiveSessionFeedbackContextContribution extends Disposable implements IWo
 			contextKey.set(count > 0);
 
 			if (count > 0) {
-				menuRegistration.value = MenuRegistry.appendMenuItem(MenuId.ChatEditingSessionApplySubmenu, {
+				menuRegistration.value = MenuRegistry.appendMenuItem(MenuId.AgentsChangesPrimaryActionSubMenu, {
 					command: {
 						id: submitActiveSessionFeedbackActionId,
 						icon: Codicon.comment,

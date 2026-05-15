@@ -5,12 +5,13 @@
 
 import { Codicon } from '../../base/common/codicons.js';
 import { match as matchGlob } from '../../base/common/glob.js';
+import { IObservable } from '../../base/common/observable.js';
 import { extUri, basename } from '../../base/common/resources.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import type { ISessionGitState } from '../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
-import { ISessionWorkspace } from '../services/sessions/common/session.js';
+import { IGitHubInfo, ISessionWorkspace } from '../services/sessions/common/session.js';
 
 export interface IAgentHostSessionProjectSummary {
 	readonly uri: URI;
@@ -22,6 +23,11 @@ export interface IAgentHostSessionWorkspaceOptions {
 	readonly fallbackIcon: ThemeIcon;
 	readonly requiresWorkspaceTrust: boolean;
 	readonly description?: string;
+	/**
+	 * Group label used by the workspace picker to bucket the produced
+	 * workspace into a top-level tab (e.g. `"Local"`, `"Remote"`).
+	 */
+	readonly group?: string;
 	/**
 	 * Configured `git.branchProtection` glob patterns. Used to compute
 	 * `baseBranchProtected` on the resulting repository.
@@ -49,9 +55,15 @@ export function matchesAnyBranchProtectionPattern(branchName: string, patterns: 
 /**
  * Reads `git.branchProtection` from configuration and normalizes the result
  * into an array of trimmed, non-empty pattern strings.
+ *
+ * The `git.branchProtection` setting is `resource`-scoped, so the value can
+ * differ between workspace folders. Pass the session's working directory (or
+ * project URI as a fallback) as `resource` so we read the setting in the
+ * scope of the folder VS Code actually has loaded rather than the host
+ * window's active workspace.
  */
-export function readBranchProtectionPatterns(configurationService: IConfigurationService): readonly string[] {
-	const raw = configurationService.getValue<unknown>('git.branchProtection') ?? [];
+export function readBranchProtectionPatterns(configurationService: IConfigurationService, resource?: URI): readonly string[] {
+	const raw = configurationService.getValue<unknown>('git.branchProtection', { resource }) ?? [];
 	const list = Array.isArray(raw) ? raw : [raw];
 	return list
 		.map(p => typeof p === 'string' ? p.trim() : '')
@@ -59,26 +71,27 @@ export function readBranchProtectionPatterns(configurationService: IConfiguratio
 }
 
 export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | undefined): string | undefined {
-	const repository = workspace?.repositories[0];
-	if (!workspace || !repository) {
+	const folder = workspace?.folders[0];
+	if (!workspace || !folder) {
 		return undefined;
 	}
+	const repo = folder.gitRepository;
 	return [
 		workspace.label,
-		extUri.getComparisonKey(repository.uri),
-		repository.workingDirectory ? extUri.getComparisonKey(repository.workingDirectory) : '',
-		repository.branchName ?? '',
-		repository.baseBranchName ?? '',
-		String(repository.baseBranchProtected ?? ''),
-		String(repository.hasGitHubRemote ?? ''),
-		repository.upstreamBranchName ?? '',
-		String(repository.incomingChanges ?? ''),
-		String(repository.outgoingChanges ?? ''),
-		String(repository.uncommittedChanges ?? ''),
+		extUri.getComparisonKey(folder.root),
+		folder.workingDirectory ? extUri.getComparisonKey(folder.workingDirectory) : '',
+		repo?.branchName ?? '',
+		repo?.baseBranchName ?? '',
+		String(repo?.baseBranchProtected ?? ''),
+		String(repo?.hasGitHubRemote ?? ''),
+		repo?.upstreamBranchName ?? '',
+		String(repo?.incomingChanges ?? ''),
+		String(repo?.outgoingChanges ?? ''),
+		String(repo?.uncommittedChanges ?? ''),
 	].join('\n');
 }
 
-export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProjectSummary | undefined, workingDirectory: URI | undefined, options: IAgentHostSessionWorkspaceOptions, gitState?: ISessionGitState): ISessionWorkspace | undefined {
+export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProjectSummary | undefined, workingDirectory: URI | undefined, options: IAgentHostSessionWorkspaceOptions, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState?: ISessionGitState): ISessionWorkspace | undefined {
 	const baseBranchName = gitState?.baseBranchName;
 	const baseBranchProtected = baseBranchName !== undefined
 		? matchesAnyBranchProtectionPattern(baseBranchName, options.branchProtectionPatterns)
@@ -91,13 +104,23 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 	const branchName = gitState?.branchName;
 	const gitFields = { branchName, baseBranchName, baseBranchProtected, hasGitHubRemote, upstreamBranchName, incomingChanges, outgoingChanges, uncommittedChanges };
 	if (project) {
-		const repositoryWorkingDirectory = extUri.isEqual(workingDirectory, project.uri) ? undefined : workingDirectory;
+		const workTreeUri = extUri.isEqual(workingDirectory, project.uri) ? undefined : workingDirectory;
+		const label = options.providerLabel ? `${project.displayName} [${options.providerLabel}]` : project.displayName;
 		return {
-			label: options.providerLabel ? `${project.displayName} [${options.providerLabel}]` : project.displayName,
+			uri: project.uri,
+			label,
 			description: options.description,
 			icon: Codicon.repo,
-			repositories: [{ uri: project.uri, workingDirectory: repositoryWorkingDirectory, detail: undefined, ...gitFields }],
+			group: options.group,
+			folders: [{
+				root: project.uri,
+				workingDirectory: workingDirectory ?? project.uri,
+				name: project.displayName,
+				description: options.description,
+				gitRepository: { uri: project.uri, workTreeUri, gitHubInfo, ...gitFields },
+			}],
 			requiresWorkspaceTrust: options.requiresWorkspaceTrust,
+			isVirtualWorkspace: false,
 		};
 	}
 
@@ -106,11 +129,21 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 	}
 
 	const folderName = basename(workingDirectory) || workingDirectory.path;
+	const label = options.providerLabel ? `${folderName} [${options.providerLabel}]` : folderName;
 	return {
-		label: options.providerLabel ? `${folderName} [${options.providerLabel}]` : folderName,
+		uri: workingDirectory,
+		label,
 		description: options.description,
 		icon: options.fallbackIcon,
-		repositories: [{ uri: workingDirectory, workingDirectory: undefined, detail: undefined, ...gitFields }],
+		group: options.group,
+		folders: [{
+			root: workingDirectory,
+			workingDirectory,
+			name: folderName,
+			description: options.description,
+			gitRepository: { uri: workingDirectory, workTreeUri: undefined, gitHubInfo, ...gitFields },
+		}],
 		requiresWorkspaceTrust: options.requiresWorkspaceTrust,
+		isVirtualWorkspace: false,
 	};
 }
