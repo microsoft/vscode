@@ -161,11 +161,11 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 
 	private readonly _entries = new ResourceMap<IEntry>();
 	private readonly _pending = new ResourceMap<Promise<URI | undefined>>();
-	// URIs that were the source of a successful `tryRebind`. The chat widget
-	// briefly reattaches to the old untitled URI before its viewModel switches
-	// to the new real URI; without this tombstone the picker would call
-	// `getOrCreate` again and spin up an orphan provisional session on the agent.
-	private readonly _rebound = new ResourceSet();
+	// Chat UI resources that have been rebound or disposed must not be recreated.
+	// The chat widget can briefly reattach to an old untitled URI before its
+	// viewModel switches to the new real URI; without this guard the picker would
+	// call `getOrCreate` again and spin up an orphan provisional session.
+	private readonly _closedSessionResources = new ResourceSet();
 	private readonly _sequencer = new SequencerByKey<string>();
 	private readonly _onDidChange = this._register(new Emitter<URI>());
 	readonly onDidChange = this._onDidChange.event;
@@ -214,7 +214,7 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 		if (existing) {
 			return Promise.resolve(existing);
 		}
-		if (this._rebound.has(sessionResource)) {
+		if (this._closedSessionResources.has(sessionResource)) {
 			return Promise.resolve(undefined);
 		}
 		const inflight = this._pending.get(sessionResource);
@@ -223,6 +223,9 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 		}
 
 		const work = this._sequencer.queue(sessionResource.toString(), async () => {
+			if (this._closedSessionResources.has(sessionResource)) {
+				return undefined;
+			}
 			// Re-check inside the sequencer — another caller may have raced
 			// us and populated the entry while we were queued.
 			const settled = this.get(sessionResource);
@@ -304,12 +307,9 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 		// the picker's `onDidChange` re-render reading the new entry.
 		this._entries.set(newSessionResource, { backendSession: created, config: { ...config } });
 		this._entries.delete(oldSessionResource);
-		this._rebound.add(oldSessionResource);
-		// Only notify for the new resource. Firing for `oldSessionResource`
-		// would race the chat widget's `onDidChangeViewModel`: the picker is
-		// still bound to the old URI and would re-enter `getOrCreate`,
-		// spinning up an orphan provisional session on the agent.
+		this._closedSessionResources.add(oldSessionResource);
 		this._onDidChange.fire(newSessionResource);
+		this._onDidChange.fire(oldSessionResource);
 
 		// Dispose the temporary provisional. Best-effort; the agent treats
 		// it as an in-memory drop (no SDK/worktree to tear down).
@@ -322,6 +322,7 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 
 	async disposeSession(sessionResource: URI): Promise<void> {
 		await this.waitForPending(sessionResource);
+		this._closedSessionResources.add(sessionResource);
 		const entry = this._entries.get(sessionResource);
 		if (!entry) {
 			return;
@@ -343,6 +344,7 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 		}
 		this._entries.clear();
 		this._pending.clear();
+		this._closedSessionResources.clear();
 		super.dispose();
 	}
 

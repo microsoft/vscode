@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -34,6 +34,7 @@ import { IChatSessionsService, type IChatSessionRequestHistoryItem } from '../..
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -497,6 +498,34 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService };
 }
 
+function createRealProvisionalService(disposables: DisposableStore) {
+	const instantiationService = disposables.add(new TestInstantiationService());
+	const agentHostService = new MockAgentHostService();
+	disposables.add(toDisposable(() => agentHostService.dispose()));
+	const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>());
+
+	instantiationService.stub(IAgentHostService, agentHostService);
+	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IChatService, { onDidDisposeSession: onDidDisposeSession.event });
+	instantiationService.stub(IConfigurationService, {
+		onDidChangeConfiguration: Event.None,
+		getValue: () => 'default',
+		inspect: () => ({ policyValue: undefined }),
+	} as Partial<IConfigurationService>);
+	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
+
+	const descriptor = getSingletonServiceDescriptors().find(([id]) => id === IAgentHostUntitledProvisionalSessionService)?.[1];
+	assert.ok(descriptor);
+	const service = instantiationService.createInstance(descriptor) as IAgentHostUntitledProvisionalSessionService & IDisposable;
+	disposables.add(service);
+
+	return {
+		agentHostService,
+		service,
+		fireDidDisposeSession: (sessionResources: readonly URI[]) => onDidDisposeSession.fire({ sessionResources, reason: 'cleared' }),
+	};
+}
+
 function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService> }) {
 	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride);
 
@@ -710,6 +739,70 @@ suite('AgentHostChatContribution', () => {
 			chatSession.dispose();
 
 			assert.strictEqual(fired, 1, 'onWillDispose should fire exactly once when the session is disposed');
+		});
+	});
+
+	// ---- Untitled provisional sessions -----------------------------------
+
+	suite('untitled provisional service', () => {
+
+		test('does not recreate old untitled provisional when rebind notifies old resource', async () => {
+			const { service, agentHostService } = createRealProvisionalService(disposables);
+			const untitledResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-rebind' });
+			const realResource = URI.from({ scheme: 'agent-host-copilot', path: '/real-rebind' });
+			const untitledBackend = AgentSession.uri('copilot', 'untitled-rebind');
+			const realBackend = AgentSession.uri('copilot', 'real-rebind');
+
+			const created = await service.applyConfigChange(untitledResource, 'copilot', undefined, { isolation: 'worktree' });
+			const reentrantCreates: Promise<URI | undefined>[] = [];
+			disposables.add(service.onDidChange(resource => {
+				if (resource.toString() === untitledResource.toString()) {
+					reentrantCreates.push(service.getOrCreate(untitledResource, 'copilot', undefined));
+				}
+			}));
+
+			const rebound = await service.tryRebind(untitledResource, realResource, 'copilot', undefined);
+			const reentrantResults = await Promise.all(reentrantCreates);
+			const recreated = await service.getOrCreate(untitledResource, 'copilot', undefined);
+
+			assert.deepStrictEqual({
+				created: created?.toString(),
+				rebound: rebound?.toString(),
+				reentrantResults: reentrantResults.map(uri => uri?.toString()),
+				recreated: recreated?.toString(),
+				createSessions: agentHostService.createSessionCalls.map(call => call.session?.toString()),
+				disposedSessions: agentHostService.disposedSessions.map(uri => uri.toString()),
+			}, {
+				created: untitledBackend.toString(),
+				rebound: realBackend.toString(),
+				reentrantResults: [undefined],
+				recreated: undefined,
+				createSessions: [untitledBackend.toString(), realBackend.toString()],
+				disposedSessions: [untitledBackend.toString()],
+			});
+		});
+
+		test('disposed untitled provisional cannot be recreated by late picker work', async () => {
+			const { service, agentHostService, fireDidDisposeSession } = createRealProvisionalService(disposables);
+			const untitledResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-disposed' });
+			const untitledBackend = AgentSession.uri('copilot', 'untitled-disposed');
+
+			const created = await service.getOrCreate(untitledResource, 'copilot', undefined);
+			fireDidDisposeSession([untitledResource]);
+			await timeout(0);
+			const recreated = await service.getOrCreate(untitledResource, 'copilot', undefined);
+
+			assert.deepStrictEqual({
+				created: created?.toString(),
+				recreated: recreated?.toString(),
+				createSessions: agentHostService.createSessionCalls.map(call => call.session?.toString()),
+				disposedSessions: agentHostService.disposedSessions.map(uri => uri.toString()),
+			}, {
+				created: untitledBackend.toString(),
+				recreated: undefined,
+				createSessions: [untitledBackend.toString()],
+				disposedSessions: [untitledBackend.toString()],
+			});
 		});
 	});
 
