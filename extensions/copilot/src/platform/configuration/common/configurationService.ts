@@ -122,7 +122,7 @@ export interface IConfigurationService {
 	/**
 	 * Sets user configuration for a key in vscode.
 	 */
-	setConfig<T>(key: BaseConfig<T>, value: T): Thenable<void>;
+	setConfig<T>(key: BaseConfig<T>, value: T, target?: ConfigTarget): Thenable<void>;
 
 	/**
 	 * Gets user configuration for a key from vscode (which if not defined, pulls default value from package.json).
@@ -262,7 +262,7 @@ export abstract class AbstractConfigurationService extends Disposable implements
 	abstract getConfig<T>(key: Config<T>, scope?: ConfigurationScope): T;
 	abstract inspectConfig<T>(key: BaseConfig<T>, scope?: ConfigurationScope): InspectConfigResult<T> | undefined;
 	abstract getNonExtensionConfig<T>(configKey: string): T | undefined;
-	abstract setConfig<T>(key: BaseConfig<T>, value: T): Thenable<void>;
+	abstract setConfig<T>(key: BaseConfig<T>, value: T, target?: ConfigTarget): Thenable<void>;
 	abstract getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T;
 	abstract dumpConfig(): { [key: string]: string };
 	public updateExperimentBasedConfiguration(treatments: string[]): void {
@@ -375,6 +375,12 @@ export const enum ConfigType {
 export interface ConfigOptions {
 	readonly oldKey?: string;
 	readonly valueIgnoredForExternals?: boolean;
+}
+
+export const enum ConfigTarget {
+	Global = 'global',
+	Workspace = 'workspace',
+	WorkspaceFolder = 'workspaceFolder',
 }
 
 export interface Config<T> extends BaseConfig<T> {
