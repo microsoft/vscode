@@ -136,7 +136,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		const transport = new TunnelConnectionTransport(connection, this._logService);
 		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
 		const protocolClient = this._instantiationService.createInstance(
-			RemoteAgentHostProtocolClient, address, transport,
+			RemoteAgentHostProtocolClient, address, transport, undefined,
 		);
 
 		try {

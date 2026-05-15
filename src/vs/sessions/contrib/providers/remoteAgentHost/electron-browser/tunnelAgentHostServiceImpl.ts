@@ -110,7 +110,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			) : undefined;
 			const transport = new TunnelRelayTransport(result.connectionId, this._mainService, logger);
 			const protocolClient = this._instantiationService.createInstance(
-				RemoteAgentHostProtocolClient, result.address, transport,
+				RemoteAgentHostProtocolClient, result.address, transport, undefined,
 			);
 
 			await protocolClient.connect();
