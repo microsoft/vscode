@@ -26,7 +26,7 @@ import { ChatConfiguration } from '../../chat/common/constants.js';
 import { AgentHostEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { focusBorder } from '../../../../platform/theme/common/colors/baseColors.js';
-import { buttonForeground } from '../../../../platform/theme/common/colors/inputColors.js';
+import { buttonForeground, buttonBackground } from '../../../../platform/theme/common/colors/inputColors.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 
 /**
@@ -282,8 +282,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	private sendTheme(): void {
 		const theme = this.themeService.getColorTheme();
 		void this._browserViewService.updateTheme({
-			accentColor: theme.getColor(focusBorder)?.toString(),
-			accentForegroundColor: theme.getColor(buttonForeground)?.toString(),
+			focusBorder: theme.getColor(focusBorder)?.toString(),
+			buttonBackground: theme.getColor(buttonBackground)?.toString(),
+			buttonForeground: theme.getColor(buttonForeground)?.toString(),
 			font: DEFAULT_FONT_FAMILY,
 		});
 	}

@@ -81,6 +81,11 @@ function init() {
 			}
 		}
 
+		// Allow Shift+F10 for context menu
+		if (event.key === 'F10' && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
+			return;
+		}
+
 		// Allow native shortcuts to be handled by the browser
 		const ctrlCmd = isMac ? event.metaKey : event.ctrlKey;
 		if (ctrlCmd && !event.altKey) {
@@ -662,8 +667,8 @@ class ElementPicker {
 			}
 			.highlight {
 				position: absolute; box-sizing: border-box;
-				border: 2px solid var(--pick-accent, #0078d4);
-				background: color-mix(in srgb, var(--pick-accent, #0078d4) 12%, transparent);
+				border: 2px solid var(--vscode-focusBorder, #0078d4);
+				background: color-mix(in srgb, var(--vscode-focusBorder, #0078d4) 12%, transparent);
 				border-radius: 2px;
 			}
 			.overlay {
@@ -678,8 +683,8 @@ class ElementPicker {
 				position: fixed; box-sizing: border-box;
 				display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 6px;
 				max-width: 80vw;
-				background: var(--pick-accent, #0078d4);
-				color: var(--pick-accent-fg, white);
+				background: var(--vscode-button-background, #0078d4);
+				color: var(--vscode-button-foreground, white);
 				font-family: inherit;
 				font-size: 11px; font-weight: 600; line-height: 20px;
 				white-space: nowrap;
@@ -695,7 +700,7 @@ class ElementPicker {
 			}
 			.dragbox {
 				position: fixed; box-sizing: border-box;
-				border: 1px dotted var(--pick-secondary, #a0aabe);
+				border: 1px dotted var(--vscode-focusBorder, #a0aabe);
 				background: transparent;
 				z-index: 2;
 			}
@@ -704,9 +709,9 @@ class ElementPicker {
 	}
 
 	private static _applyTheme(host: HTMLElement, theme: IBrowserViewTheme | undefined): void {
-		host.style.setProperty('--pick-accent', theme?.accentColor ?? null);
-		host.style.setProperty('--pick-accent-fg', theme?.accentForegroundColor ?? null);
-		host.style.setProperty('--pick-secondary', theme?.secondaryColor ?? null);
+		host.style.setProperty('--vscode-focusBorder', theme?.focusBorder ?? null);
+		host.style.setProperty('--vscode-button-background', theme?.buttonBackground ?? null);
+		host.style.setProperty('--vscode-button-foreground', theme?.buttonForeground ?? null);
 		host.style.setProperty('--pick-font', theme?.font ?? null);
 	}
 }

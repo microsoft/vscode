@@ -66,9 +66,9 @@ export interface IElementData {
 }
 
 export interface IBrowserViewTheme {
-	readonly accentColor?: string;
-	readonly accentForegroundColor?: string;
-	readonly secondaryColor?: string;
+	readonly focusBorder?: string;
+	readonly buttonBackground?: string;
+	readonly buttonForeground?: string;
 	readonly font?: string;
 }
 
