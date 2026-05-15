@@ -375,7 +375,7 @@ class SessionsSetUpWidget extends Disposable {
 		const termsUrl = defaultChatAgent?.termsStatementUrl ?? '';
 		const privacyUrl = defaultChatAgent?.privacyStatementUrl ?? '';
 		const publicCodeUrl = defaultChatAgent?.publicCodeMatchesUrl ?? '';
-		const settingsUrl = defaultChatAgent?.manageSettingsUrl ?? '';
+		const settingsUrl = this.defaultAccountService.resolveGitHubUrl('settings/copilot/features');
 
 		const footer = localize(
 			{ key: 'welcomeFooter', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}', '{Locked="]({4})"}', '{Locked="]({5})"}'] },
