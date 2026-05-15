@@ -587,9 +587,10 @@ class BrowserLinkOpenerContribution extends Disposable implements IWorkbenchCont
 
 		logBrowserOpen(this.telemetryService, openerSetting === BrowserLinkOpenerSettingKey.OpenExternalLinks ? 'externalLinkOpener' : 'localhostLinkOpener');
 
-		// Check whether the setting was explicitly set by the user or is still at its default value.
-		// When it is a default, tag the viewState so that the hint pill can be shown.
-		const isDefaultLinkOpen = !isConfigured(this.configurationService.inspect(openerSetting));
+		// Check whether the localhost setting was explicitly set by the user or is still at its default value.
+		// The existing hint pill is localhost-specific, so suppress it for external links.
+		const isDefaultLinkOpen = openerSetting !== BrowserLinkOpenerSettingKey.OpenExternalLinks
+			&& !isConfigured(this.configurationService.inspect(openerSetting));
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
 		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } });
