@@ -28,6 +28,8 @@ const dateFormatter = safeIntl.DateTimeFormat(undefined, {
 	second: '2-digit',
 });
 
+const numberFormatter = safeIntl.NumberFormat();
+
 export interface IChatDebugEventTemplate {
 	readonly container: HTMLElement;
 	readonly created: HTMLElement;
@@ -35,38 +37,42 @@ export interface IChatDebugEventTemplate {
 	readonly details: HTMLElement;
 }
 
-function renderEventToTemplate(element: IChatDebugEvent, templateData: IChatDebugEventTemplate): void {
-	templateData.created.textContent = dateFormatter.value.format(element.created);
+/** Returns the formatted creation timestamp for a debug event. */
+export function getEventCreatedText(element: IChatDebugEvent): string {
+	return dateFormatter.value.format(element.created);
+}
 
+/** Returns the display name for a debug event. */
+export function getEventNameText(element: IChatDebugEvent): string {
 	switch (element.kind) {
-		case 'toolCall':
-			templateData.name.textContent = safeStr(element.toolName, localize('chatDebug.unknownEvent', "(unknown)"));
-			templateData.details.textContent = safeStr(element.result);
-			break;
-		case 'modelTurn':
-			templateData.name.textContent = safeStr(element.model) || localize('chatDebug.modelTurn', "Model Turn");
-			templateData.details.textContent = [
-				safeStr(element.requestName),
-				element.totalTokens !== undefined ? localize('chatDebug.tokens', "{0} tokens", element.totalTokens) : '',
-			].filter(Boolean).join(' \u00b7 ');
-			break;
-		case 'generic':
-			templateData.name.textContent = safeStr(element.name, localize('chatDebug.unknownEvent', "(unknown)"));
-			templateData.details.textContent = safeStr(element.details);
-			break;
-		case 'subagentInvocation':
-			templateData.name.textContent = safeStr(element.agentName, localize('chatDebug.unknownEvent', "(unknown)"));
-			templateData.details.textContent = safeStr(element.description) || safeStr(element.status);
-			break;
-		case 'userMessage':
-			templateData.name.textContent = localize('chatDebug.userMessage', "User Message");
-			templateData.details.textContent = safeStr(element.message);
-			break;
-		case 'agentResponse':
-			templateData.name.textContent = localize('chatDebug.agentResponse', "Agent Response");
-			templateData.details.textContent = safeStr(element.message);
-			break;
+		case 'toolCall': return safeStr(element.toolName, localize('chatDebug.unknownEvent', "(unknown)"));
+		case 'modelTurn': return safeStr(element.model) || localize('chatDebug.modelTurn', "Model Turn");
+		case 'generic': return safeStr(element.name, localize('chatDebug.unknownEvent', "(unknown)"));
+		case 'subagentInvocation': return safeStr(element.agentName, localize('chatDebug.unknownEvent', "(unknown)"));
+		case 'userMessage': return localize('chatDebug.userMessage', "User Message");
+		case 'agentResponse': return localize('chatDebug.agentResponse', "Agent Response");
 	}
+}
+
+/** Returns the details text for a debug event. */
+export function getEventDetailsText(element: IChatDebugEvent): string {
+	switch (element.kind) {
+		case 'toolCall': return safeStr(element.result);
+		case 'modelTurn': return [
+			safeStr(element.requestName),
+			element.totalTokens !== undefined ? localize('chatDebug.tokens', "{0} tokens", numberFormatter.value.format(element.totalTokens)) : '',
+		].filter(Boolean).join(' \u00b7 ');
+		case 'generic': return safeStr(element.details);
+		case 'subagentInvocation': return safeStr(element.description) || safeStr(element.status);
+		case 'userMessage': return safeStr(element.message);
+		case 'agentResponse': return safeStr(element.message);
+	}
+}
+
+function renderEventToTemplate(element: IChatDebugEvent, templateData: IChatDebugEventTemplate): void {
+	templateData.created.textContent = getEventCreatedText(element);
+	templateData.name.textContent = getEventNameText(element);
+	templateData.details.textContent = getEventDetailsText(element);
 
 	const isError = element.kind === 'generic' && element.level === ChatDebugLogLevel.Error
 		|| element.kind === 'toolCall' && element.result === 'error';

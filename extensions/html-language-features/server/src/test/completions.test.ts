@@ -2,13 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import 'mocha';
-import * as assert from 'assert';
-import * as path from 'path';
+import { suite, test } from 'node:test';
+import assert from 'node:assert/strict';
+import * as path from 'node:path';
 import { URI } from 'vscode-uri';
-import { getLanguageModes, WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, ClientCapabilities, TextEdit } from '../modes/languageModes';
-import { getNodeFileFS } from '../node/nodeFs';
-import { getDocumentContext } from '../utils/documentContext';
+import { getLanguageModes, WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, ClientCapabilities, TextEdit } from '../modes/languageModes.js';
+import { getNodeFileFS } from '../node/nodeFs.js';
+import { getDocumentContext } from '../utils/documentContext.js';
 export interface ItemDescription {
 	label: string;
 	documentation?: string;
@@ -62,15 +62,19 @@ export async function testCompletionFor(value: string, expected: { count?: numbe
 	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
 	const mode = languageModes.getModeAtPosition(document, position)!;
 
-	const list = await mode.doComplete!(document, position, context);
+	try {
+		const list = await mode.doComplete!(document, position, context);
 
-	if (expected.count) {
-		assert.strictEqual(list.items.length, expected.count);
-	}
-	if (expected.items) {
-		for (const item of expected.items) {
-			assertCompletion(list, item, document);
+		if (expected.count) {
+			assert.strictEqual(list.items.length, expected.count);
 		}
+		if (expected.items) {
+			for (const item of expected.items) {
+				assertCompletion(list, item, document);
+			}
+		}
+	} finally {
+		languageModes.dispose();
 	}
 }
 
@@ -100,7 +104,7 @@ suite('HTML Path Completion', () => {
 		command: 'editor.action.triggerSuggest'
 	};
 
-	const fixtureRoot = path.resolve(__dirname, '../../src/test/pathCompletionFixtures');
+	const fixtureRoot = path.resolve(import.meta.dirname, '../../src/test/pathCompletionFixtures');
 	const fixtureWorkspace = { name: 'fixture', uri: URI.file(fixtureRoot).toString() };
 	const indexHtmlUri = URI.file(path.resolve(fixtureRoot, 'index.html')).toString();
 	const aboutHtmlUri = URI.file(path.resolve(fixtureRoot, 'about/about.html')).toString();

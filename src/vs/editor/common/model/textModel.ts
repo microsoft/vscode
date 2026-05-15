@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ArrayQueue, pushMany } from '../../../base/common/arrays.js';
+import { pushMany } from '../../../base/common/arrays.js';
 import { VSBuffer, VSBufferReadableStream } from '../../../base/common/buffer.js';
 import { CharCode } from '../../../base/common/charCode.js';
 import { SetWithKey } from '../../../base/common/collections.js';
@@ -1539,33 +1539,15 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				const changeLineCountDelta = (insertingLinesCnt - deletingLinesCnt);
 
 				const currentEditStartLineNumber = newLineCount - lineCount - changeLineCountDelta + startLineNumber;
-				const firstEditLineNumber = currentEditStartLineNumber;
-				const lastInsertedLineNumber = currentEditStartLineNumber + insertingLinesCnt;
-
-				const decorationsWithInjectedTextInEditedRange = this._decorationsTree.getInjectedTextInInterval(
-					this,
-					this.getOffsetAt(new Position(firstEditLineNumber, 1)),
-					this.getOffsetAt(new Position(lastInsertedLineNumber, this.getLineMaxColumn(lastInsertedLineNumber))),
-					0
-				);
-
-
-				const injectedTextInEditedRange = LineInjectedText.fromDecorations(decorationsWithInjectedTextInEditedRange);
-				const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
 
 				for (let j = editingLinesCnt; j >= 0; j--) {
 					const editLineNumber = startLineNumber + j;
 					const currentEditLineNumber = currentEditStartLineNumber + j;
 
-					injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber > currentEditLineNumber);
-					const decorationsInCurrentLine = injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber === currentEditLineNumber);
-
 					rawContentChanges.push(
 						new ModelRawLineChanged(
 							editLineNumber,
-							currentEditLineNumber,
-							this.getLineContent(currentEditLineNumber),
-							decorationsInCurrentLine
+							currentEditLineNumber
 						));
 				}
 
@@ -1578,28 +1560,15 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				}
 
 				if (editingLinesCnt < insertingLinesCnt) {
-					const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
 					// Must insert some lines
 					const spliceLineNumber = startLineNumber + editingLinesCnt;
 					const cnt = insertingLinesCnt - editingLinesCnt;
 					const fromLineNumber = newLineCount - lineCount - cnt + spliceLineNumber + 1;
-					const injectedTexts: (LineInjectedText[] | null)[] = [];
-					const newLines: string[] = [];
-					for (let i = 0; i < cnt; i++) {
-						const lineNumber = fromLineNumber + i;
-						newLines[i] = this.getLineContent(lineNumber);
-
-						injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber < lineNumber);
-						injectedTexts[i] = injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber === lineNumber);
-					}
-
 					rawContentChanges.push(
 						new ModelRawLinesInserted(
 							spliceLineNumber + 1,
 							fromLineNumber,
-							cnt,
-							newLines,
-							injectedTexts
+							cnt
 						)
 					);
 				}
@@ -1657,7 +1626,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		if (affectedInjectedTextLines && affectedInjectedTextLines.size > 0) {
 			const affectedLines = Array.from(affectedInjectedTextLines);
-			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber)));
+			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, lineNumber));
 			this._onDidChangeContentOrInjectedText(new ModelInjectedTextChangedEvent(lineChangeEvents));
 		}
 		this._fireOnDidChangeLineHeight(affectedLineHeights);
@@ -1883,11 +1852,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return decs;
 	}
 
-	private _getInjectedTextInLine(lineNumber: number): LineInjectedText[] {
+	public getLineInjectedText(lineNumber: number, ownerId: number = 0): LineInjectedText[] {
 		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
 		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
 
-		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, 0);
+		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, ownerId);
 		return LineInjectedText.fromDecorations(result).filter(t => t.lineNumber === lineNumber);
 	}
 

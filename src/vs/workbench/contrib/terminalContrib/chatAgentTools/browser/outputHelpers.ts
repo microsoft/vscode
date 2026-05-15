@@ -7,20 +7,47 @@ import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { truncateOutputKeepingTail } from './runInTerminalHelpers.js';
 
-const MAX_OUTPUT_LENGTH = 16000;
+const MAX_OUTPUT_LENGTH = 60000;
 
-export function getOutput(instance: ITerminalInstance, startMarker?: IXtermMarker): string {
+export interface IGetOutputOptions {
+	/** When set, only return the last N non-empty lines from the bottom of the buffer. */
+	lastNLines?: number;
+}
+
+export function getOutput(instance: ITerminalInstance, startMarker?: IXtermMarker, options?: IGetOutputOptions): string {
 	if (!instance.xterm || !instance.xterm.raw) {
 		return '';
 	}
+
 	const buffer = instance.xterm.raw.buffer.active;
-	const startLine = Math.max(startMarker?.line ?? 0, 0);
+	let startLine = Math.max(startMarker?.line ?? 0, 0);
+	while (startLine > 0 && buffer.getLine(startLine)?.isWrapped) {
+		startLine--;
+	}
 	const endLine = buffer.length;
-	const lines: string[] = new Array(endLine - startLine);
+	const lines: string[] = [];
+	let currentLine = '';
 
 	for (let y = startLine; y < endLine; y++) {
 		const line = buffer.getLine(y);
-		lines[y - startLine] = line ? line.translateToString(true) : '';
+		if (!line) {
+			continue;
+		}
+		// NOTE: xterm stores wrapping state on the *next* line, not the current one.
+		const isWrapped = !!buffer.getLine(y + 1)?.isWrapped;
+		currentLine += line.translateToString(!isWrapped);
+		if (!isWrapped) {
+			lines.push(currentLine);
+			currentLine = '';
+		}
+	}
+	if (currentLine) {
+		lines.push(currentLine);
+	}
+
+	if (options?.lastNLines !== undefined) {
+		const nonEmpty = lines.filter(l => l.trim().length > 0);
+		return nonEmpty.slice(-options.lastNLines).join('\n');
 	}
 
 	let output = lines.join('\n');

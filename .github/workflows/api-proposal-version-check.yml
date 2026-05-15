@@ -1,0 +1,298 @@
+name: API Proposal Version Check
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'release/*'
+    paths:
+      - 'src/vscode-dts/vscode.proposed.*.d.ts'
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: api-proposal-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  check-version-changes:
+    name: Check API Proposal Version Changes
+    # Run on PR events, or on issue_comment if it's on a PR and contains the override command
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       contains(github.event.comment.body, '/api-proposal-change-required') &&
+       (github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get PR info
+        id: pr_info
+        uses: actions/github-script@v9
+        with:
+          script: |
+            let prNumber, headSha, baseSha;
+
+            if (context.eventName === 'pull_request') {
+              prNumber = context.payload.pull_request.number;
+              headSha = context.payload.pull_request.head.sha;
+              baseSha = context.payload.pull_request.base.sha;
+            } else {
+              // issue_comment event - need to fetch PR details
+              prNumber = context.payload.issue.number;
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber
+              });
+              headSha = pr.head.sha;
+              baseSha = pr.base.sha;
+            }
+
+            core.setOutput('number', prNumber);
+            core.setOutput('head_sha', headSha);
+            core.setOutput('base_sha', baseSha);
+
+      - name: Check for override comment
+        id: check_override
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const prNumber = ${{ steps.pr_info.outputs.number }};
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber
+            });
+
+            // Only accept overrides from trusted users (repo members/collaborators)
+            const trustedAssociations = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+            let overrideComment = null;
+            const untrustedOverrides = [];
+
+            comments.forEach((comment, index) => {
+              const hasOverrideText = comment.body.includes('/api-proposal-change-required');
+              const isTrusted = trustedAssociations.includes(comment.author_association);
+              console.log(`Comment ${index + 1}:`);
+              console.log(`  Author: ${comment.user.login}`);
+              console.log(`  Author association: ${comment.author_association}`);
+              console.log(`  Created at: ${comment.created_at}`);
+              console.log(`  Contains override command: ${hasOverrideText}`);
+              console.log(`  Author is trusted: ${isTrusted}`);
+              console.log(`  Would be valid override: ${hasOverrideText && isTrusted}`);
+
+              if (hasOverrideText) {
+                if (isTrusted && !overrideComment) {
+                  overrideComment = comment;
+                } else if (!isTrusted) {
+                  untrustedOverrides.push(comment);
+                }
+              }
+            });
+
+            if (overrideComment) {
+              console.log(`✅ Override comment FOUND`);
+              console.log(`  Comment ID: ${overrideComment.id}`);
+              console.log(`  Author: ${overrideComment.user.login}`);
+              console.log(`  Association: ${overrideComment.author_association}`);
+              console.log(`  Created at: ${overrideComment.created_at}`);
+              core.setOutput('override_found', 'true');
+              core.setOutput('override_user', overrideComment.user.login);
+            } else {
+              if (untrustedOverrides.length > 0) {
+                console.log(`⚠️ Found ${untrustedOverrides.length} override comment(s) from UNTRUSTED user(s):`);
+                untrustedOverrides.forEach((comment, index) => {
+                  console.log(`  Untrusted override ${index + 1}:`);
+                  console.log(`    Author: ${comment.user.login}`);
+                  console.log(`    Association: ${comment.author_association}`);
+                  console.log(`    Created at: ${comment.created_at}`);
+                  console.log(`    Comment ID: ${comment.id}`);
+                });
+                console.log(`  Trusted associations are: ${trustedAssociations.join(', ')}`);
+              }
+              console.log('❌ No valid override comment found');
+              core.setOutput('override_found', 'false');
+            }
+
+      # If triggered by the override comment, re-run the failed workflow to update its status
+      # Only allow trusted users to trigger re-runs to prevent spam
+      - name: Re-run failed workflow on override
+        if: |
+          steps.check_override.outputs.override_found == 'true' &&
+          github.event_name == 'issue_comment' &&
+          (github.event.comment.author_association == 'OWNER' ||
+           github.event.comment.author_association == 'MEMBER' ||
+           github.event.comment.author_association == 'COLLABORATOR')
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const headSha = '${{ steps.pr_info.outputs.head_sha }}';
+            console.log(`Override comment found by ${{ steps.check_override.outputs.override_user }}`);
+            console.log('API proposal version change has been acknowledged.');
+
+            // Find the failed workflow run for this PR's head SHA
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'api-proposal-version-check.yml',
+              head_sha: headSha,
+              status: 'completed',
+              per_page: 10
+            });
+
+            // Find the most recent failed run
+            const failedRun = runs.workflow_runs.find(run =>
+              run.conclusion === 'failure' && run.event === 'pull_request'
+            );
+
+            if (failedRun) {
+              console.log(`Re-running failed workflow run ${failedRun.id}`);
+              await github.rest.actions.reRunWorkflow({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: failedRun.id
+              });
+              console.log('Workflow re-run triggered successfully');
+            } else {
+              console.log('No failed pull_request workflow run found to re-run');
+              // The check will pass on this run since override exists
+            }
+
+      - name: Pass on override comment
+        if: steps.check_override.outputs.override_found == 'true'
+        run: |
+          echo "Override comment found by ${{ steps.check_override.outputs.override_user }}"
+          echo "API proposal version change has been acknowledged."
+
+      # Only continue checking if no override found
+      - name: Checkout repository
+        if: steps.check_override.outputs.override_found != 'true'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check for version changes
+        if: steps.check_override.outputs.override_found != 'true'
+        id: version_check
+        env:
+          HEAD_SHA: ${{ steps.pr_info.outputs.head_sha }}
+          BASE_SHA: ${{ steps.pr_info.outputs.base_sha }}
+        run: |
+          set -e
+
+          # Use merge-base to get accurate diff of what the PR actually changes
+          MERGE_BASE=$(git merge-base "$BASE_SHA" "$HEAD_SHA")
+          echo "Merge base: $MERGE_BASE"
+
+          # Get the list of changed proposed API files (diff against merge-base)
+          CHANGED_FILES=$(git diff --name-only "$MERGE_BASE" "$HEAD_SHA" -- 'src/vscode-dts/vscode.proposed.*.d.ts' || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No proposed API files changed"
+            echo "version_changed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Changed proposed API files:"
+          echo "$CHANGED_FILES"
+
+          VERSION_CHANGED="false"
+          CHANGED_LIST=""
+
+          for FILE in $CHANGED_FILES; do
+            # Check if file exists in head
+            if ! git cat-file -e "$HEAD_SHA:$FILE" 2>/dev/null; then
+              echo "File $FILE was deleted, skipping version check"
+              continue
+            fi
+
+            # Get version from head (current PR)
+            HEAD_VERSION=$(git show "$HEAD_SHA:$FILE" | grep -E '^// version: [0-9]+' | sed 's/.*version: //' || echo "")
+
+            # Get version from merge-base (what the PR is based on)
+            BASE_VERSION=$(git show "$MERGE_BASE:$FILE" 2>/dev/null | grep -E '^// version: [0-9]+' | sed 's/.*version: //' || echo "")
+
+            echo "File: $FILE"
+            echo "  Base version: ${BASE_VERSION:-'(none)'}"
+            echo "  Head version: ${HEAD_VERSION:-'(none)'}"
+
+            # Check if version was added or changed
+            if [ -n "$HEAD_VERSION" ] && [ "$HEAD_VERSION" != "$BASE_VERSION" ]; then
+              echo "  -> Version changed!"
+              VERSION_CHANGED="true"
+              FILENAME=$(basename "$FILE")
+              if [ -n "$CHANGED_LIST" ]; then
+                CHANGED_LIST="$CHANGED_LIST, $FILENAME"
+              else
+                CHANGED_LIST="$FILENAME"
+              fi
+            fi
+          done
+
+          echo "version_changed=$VERSION_CHANGED" >> $GITHUB_OUTPUT
+          echo "changed_files=$CHANGED_LIST" >> $GITHUB_OUTPUT
+
+      - name: Post warning comment
+        if: steps.check_override.outputs.override_found != 'true' && steps.version_check.outputs.version_changed == 'true'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const prNumber = ${{ steps.pr_info.outputs.number }};
+            const changedFiles = '${{ steps.version_check.outputs.changed_files }}';
+
+            // Check if we already posted a warning comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber
+            });
+
+            const marker = '<!-- api-proposal-version-warning -->';
+            const existingComment = comments.find(comment =>
+              comment.body.includes(marker)
+            );
+
+            const body = `${marker}
+            ## ⚠️ API Proposal Version Change Detected
+
+            The following proposed API files have version changes: **${changedFiles}**
+
+            API proposal version changes should only be used when maintaining compatibility is not possible. Consider keeping the version as is and maintaining backward compatibility.
+
+            **Any version changes must be adopted by the consuming extensions before the next insiders for the extension to work.**
+
+            ---
+
+            If the version change is required, comment \`/api-proposal-change-required\` to unblock this check and acknowledge that you will update any critical consuming extensions (Copilot Chat).`;
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: body
+              });
+              console.log('Updated existing warning comment');
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: body
+              });
+              console.log('Posted new warning comment');
+            }
+
+      - name: Fail if version changed without override
+        if: steps.check_override.outputs.override_found != 'true' && steps.version_check.outputs.version_changed == 'true'
+        run: |
+          echo "::error::API proposal version changed in: ${{ steps.version_check.outputs.changed_files }}"
+          echo "To unblock, comment '/api-proposal-change-required' on the PR."
+          exit 1

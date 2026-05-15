@@ -556,7 +556,11 @@ class AzureDevOpsClient {
 
 	protected runAzCommand(args: string[]): Promise<string> {
 		return new Promise((resolve, reject) => {
-			const proc = spawn('az', args, { shell: true });
+			// Use shell: false so that argument values with spaces are passed verbatim
+			// to the process without shell word-splitting. On Windows, az is a .cmd
+			// file and cannot be executed directly, so we must use az.cmd.
+			const azBin = process.platform === 'win32' ? 'az.cmd' : 'az';
+			const proc = spawn(azBin, args, { shell: false });
 			let stdout = '';
 			let stderr = '';
 
@@ -778,8 +782,8 @@ function printQueueUsage(): void {
 	console.log('Options:');
 	console.log('  --branch <name>       Source branch to build (default: current git branch)');
 	console.log('  --definition <id>     Pipeline definition ID (default: 111)');
-	console.log('  --parameter <entry>   Pipeline parameter in "KEY=value" format (repeatable)');
-	console.log('  --parameters <list>   Space-separated parameter list in "KEY=value KEY2=value2" format');
+	console.log('  --parameter <entry>   Pipeline parameter in "KEY=value" format (repeatable); use this for values with spaces');
+	console.log('  --parameters <list>   Space-separated parameter list in "KEY=value KEY2=value2" format (values must not contain spaces)');
 	console.log('  --dry-run             Print the command without executing');
 	console.log('  --help                Show this help message');
 	console.log('');
@@ -887,7 +891,8 @@ async function runQueueCommand(args: string[]): Promise<void> {
 			cmdArgs.push('--parameters', ...parsedArgs.parameters);
 		}
 		cmdArgs.push('--output', 'json');
-		console.log(`az ${cmdArgs.join(' ')}`);
+		const displayArgs = cmdArgs.map(a => a.includes(' ') ? `"${a}"` : a);
+		console.log(`az ${displayArgs.join(' ')}`);
 		process.exit(0);
 	}
 
@@ -1537,6 +1542,15 @@ async function runAllTests(): Promise<void> {
 			assert.ok(cmd.includes('--parameters'));
 			assert.ok(cmd.includes('KEY=value'));
 			assert.ok(cmd.includes('OTHER=test'));
+		});
+
+		it('queueBuild passes parameter values with spaces verbatim', async () => {
+			const client = new TestableAzureDevOpsClient(ORGANIZATION, PROJECT);
+			await client.queueBuild('111', 'main', ['VSCODE_BUILD_TYPE=Product Build']);
+
+			const cmd = client.capturedCommands[0];
+			assert.ok(cmd.includes('--parameters'));
+			assert.deepStrictEqual(cmd[cmd.indexOf('--parameters') + 1], 'VSCODE_BUILD_TYPE=Product Build');
 		});
 
 		it('getBuild constructs correct az command', async () => {

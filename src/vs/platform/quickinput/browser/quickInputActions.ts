@@ -44,7 +44,7 @@ function registerQuickPickCommandAndKeybindingRule(rule: PartialExcept<ICommandA
 const ctrlKeyMod = isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd;
 
 // This function will generate all the combinations of keybindings for the given primary keybinding
-function getSecondary(primary: number, secondary: number[], options: { withAltMod?: boolean; withCtrlMod?: boolean; withCmdMod?: boolean } = {}): number[] {
+function getSecondary(primary: number, secondary: number[], options: { withAltMod?: boolean; withCtrlMod?: boolean; withCmdMod?: boolean; withShiftMod?: boolean } = {}): number[] {
 	if (options.withAltMod) {
 		secondary.push(KeyMod.Alt + primary);
 	}
@@ -52,6 +52,18 @@ function getSecondary(primary: number, secondary: number[], options: { withAltMo
 		secondary.push(ctrlKeyMod + primary);
 		if (options.withAltMod) {
 			secondary.push(KeyMod.Alt + ctrlKeyMod + primary);
+		}
+	}
+	if (options.withShiftMod) {
+		secondary.push(KeyMod.Shift + primary);
+		if (options.withAltMod) {
+			secondary.push(KeyMod.Alt + KeyMod.Shift + primary);
+		}
+		if (options.withCtrlMod) {
+			secondary.push(ctrlKeyMod + KeyMod.Shift + primary);
+			if (options.withAltMod) {
+				secondary.push(KeyMod.Alt + ctrlKeyMod + KeyMod.Shift + primary);
+			}
 		}
 	}
 
@@ -213,7 +225,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const currentQuickPick = accessor.get(IQuickInputService).currentQuickInput as IQuickPick<any> | IQuickTree<any> | IInputBox;
 		currentQuickPick?.accept();
 	},
-	secondary: getSecondary(KeyCode.Enter, [], { withAltMod: true, withCtrlMod: true, withCmdMod: true })
+	secondary: getSecondary(KeyCode.Enter, [], { withAltMod: true, withCtrlMod: true, withCmdMod: true, withShiftMod: true })
 });
 
 registerQuickPickCommandAndKeybindingRule(

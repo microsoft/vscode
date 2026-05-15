@@ -99,6 +99,7 @@ await Promise.all([
 	// Build server
 	run({
 		platform: 'browser',
+		format: 'esm',
 		entryPoints: {
 			'htmlServerMain': path.join(extensionRoot, 'server', 'src', 'browser', 'htmlServerWorkerMain.ts'),
 		},
