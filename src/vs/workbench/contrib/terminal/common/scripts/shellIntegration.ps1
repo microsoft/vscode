@@ -179,11 +179,13 @@ if ($Global:__VSCodeState.IsA11yMode -eq "1") {
 	# Check if the loaded PSReadLine already supports EnableScreenReaderMode
 	$hasScreenReaderParam = (Get-Module -Name PSReadLine) -and (Get-Command Set-PSReadLineOption).Parameters.ContainsKey('EnableScreenReaderMode')
 
-	if (-not $hasScreenReaderParam) {
+	if (-not $hasScreenReaderParam -and $PSVersionTable.PSVersion -ge "7.0") {
 		# The loaded PSReadLine lacks EnableScreenReaderMode (only available in 2.4.4-beta4+).
 		# PowerShell 7.0+ skips autoloading PSReadLine when the OS reports a screen reader active.
 		# When only VS Code's accessibility mode is enabled (no OS screen reader),
 		# it's still loaded and must be removed to load our bundled copy.
+		# Skip this on Windows PowerShell 5.1 where removing the built-in PSReadLine 2.0.0
+		# and replacing it can cause input handling issues (e.g. repeated Enter key presses).
 		if (Get-Module -Name PSReadLine) {
 			Remove-Module PSReadLine -Force
 		}

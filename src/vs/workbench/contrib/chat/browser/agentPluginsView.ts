@@ -21,7 +21,7 @@ import { dirname } from '../../../../base/common/resources.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -36,7 +36,7 @@ import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPan
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewDescriptorService, IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
-import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 import { manageExtensionIcon } from '../../extensions/browser/extensionsIcons.js';
 import { AbstractExtensionsListView } from '../../extensions/browser/extensionsViews.js';
@@ -49,9 +49,7 @@ import { hasSourceChanged, IMarketplacePlugin, IPluginMarketplaceService } from 
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
 import { getInstalledPluginContextMenuActions, InstallPluginAction, OpenPluginReadmeAction } from './agentPluginActions.js';
-
-export const HasInstalledAgentPluginsContext = new RawContextKey<boolean>('hasInstalledAgentPlugins', false);
-export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.installed';
+import { InstalledAgentPluginsViewId, HasInstalledAgentPluginsContext } from './chat.js';
 
 //#region Item model
 
@@ -358,8 +356,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		this._register(Event.debounce(Event.filter(this.list.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
 			this.editorService.openEditor(
 				this.instantiationService.createInstance(AgentPluginEditorInput, options.element!),
-				options.editorOptions,
-				MODAL_GROUP
+				options.editorOptions
 			);
 		}));
 	}
@@ -415,13 +412,15 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		this.currentQuery = query;
 		const stripped = query.replace(/@agentPlugins/i, '').trim();
 		const isRecommended = /^@recommended$/i.test(stripped);
-		const text = isRecommended ? '' : stripped.toLowerCase();
+		const isInstalled = /(?:^|\s)@installed(?:\s|$)/i.test(stripped);
+		const text = isRecommended ? '' : stripped.replace(/(?:^|\s)@installed(?:\s|$)/gi, ' ').trim().toLowerCase();
 
 		let installed = this.queryInstalled();
 		if (text) {
 			installed = installed.filter(p =>
 				p.name.toLowerCase().includes(text) ||
-				p.description.toLowerCase().includes(text)
+				p.description.toLowerCase().includes(text) ||
+				(p.marketplace ?? '').toLowerCase().includes(text)
 			);
 		}
 
@@ -440,7 +439,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 
 		let items: IAgentPluginItem[] = installed;
 
-		if (!this.listOptions.installedOnly) {
+		if (!this.listOptions.installedOnly && !isInstalled) {
 			const marketplacePlugins = await this.queryMarketplacePlugins();
 			let filteredMp = marketplacePlugins;
 
@@ -453,7 +452,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 				});
 			} else {
 				const lowerText = text.toLowerCase();
-				filteredMp = filteredMp.filter(p => p.name.toLowerCase().includes(lowerText) || p.description.toLowerCase().includes(lowerText));
+				filteredMp = filteredMp.filter(p => p.name.toLowerCase().includes(lowerText) || p.description.toLowerCase().includes(lowerText) || p.marketplace.toLowerCase().includes(lowerText));
 			}
 
 			const marketplace = filteredMp.map(marketplacePluginToItem);
@@ -564,15 +563,15 @@ class AgentPluginsBrowseCommand extends Action2 {
 			title: localize2('agentPlugins.browse', "Agent Plugins"),
 			tooltip: localize2('agentPlugins.browse.tooltip', "Browse Agent Plugins"),
 			icon: Codicon.search,
-			precondition: ChatContextKeys.Setup.hidden.negate(),
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			menu: [{
 				id: extensionsFilterSubMenu,
 				group: '1_predefined',
 				order: 2,
-				when: ChatContextKeys.Setup.hidden.negate(),
+				when: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			}, {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledAgentPluginsViewId), ChatContextKeys.Setup.hidden.negate()),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledAgentPluginsViewId), ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 				group: 'navigation',
 			}],
 		});
