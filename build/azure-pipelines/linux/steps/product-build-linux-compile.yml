@@ -284,20 +284,6 @@ steps:
         VSCODE_ARCH: $(VSCODE_ARCH)
       displayName: Check GLIBC and GLIBCXX dependencies in server archive
 
-  - ${{ else }}:
-    - script: |
-        set -e
-
-        EXPECTED_GLIBC_VERSION="2.28" \
-        EXPECTED_GLIBCXX_VERSION="3.4.26" \
-        VSCODE_SYSROOT_DIR="$(Build.SourcesDirectory)/.build/sysroots/glibc-2.28-gcc-8.5.0" \
-        ./build/azure-pipelines/linux/verify-glibc-requirements.sh
-      env:
-        SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
-        npm_config_arch: $(NPM_ARCH)
-        VSCODE_ARCH: $(VSCODE_ARCH)
-      displayName: Check GLIBC and GLIBCXX dependencies in server archive
-
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - script:  |
         set -e
@@ -424,11 +410,13 @@ steps:
         mkdir -p $(Build.ArtifactStagingDirectory)/out/client
         mv $(CLIENT_PATH) $(Build.ArtifactStagingDirectory)/out/client/$(CLIENT_ARCHIVE_NAME)
 
-        mkdir -p $(Build.ArtifactStagingDirectory)/out/server
-        mv $(SERVER_PATH) $(Build.ArtifactStagingDirectory)/out/server/$(basename $(SERVER_PATH))
+        if [ "$(VSCODE_ARCH)" != "armhf" ]; then
+          mkdir -p $(Build.ArtifactStagingDirectory)/out/server
+          mv $(SERVER_PATH) $(Build.ArtifactStagingDirectory)/out/server/$(basename $(SERVER_PATH))
 
-        mkdir -p $(Build.ArtifactStagingDirectory)/out/web
-        mv $(WEB_PATH) $(Build.ArtifactStagingDirectory)/out/web/$(basename $(WEB_PATH))
+          mkdir -p $(Build.ArtifactStagingDirectory)/out/web
+          mv $(WEB_PATH) $(Build.ArtifactStagingDirectory)/out/web/$(basename $(WEB_PATH))
+        fi
 
         mkdir -p $(Build.ArtifactStagingDirectory)/out/deb
         mv $(DEB_PATH) $(Build.ArtifactStagingDirectory)/out/deb/$(DEB_PACKAGE_NAME)
