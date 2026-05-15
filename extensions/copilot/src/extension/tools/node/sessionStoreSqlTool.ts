@@ -120,7 +120,7 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 			if (pattern.test(sql)) {
 				this._sendTelemetry('blocked', 0, 0, false, 'blocked_mutating_sql');
 				return new LanguageModelToolResult([
-					new LanguageModelTextPart('Error: Blocked SQL statement. Only SELECT queries are allowed.'),
+					new LanguageModelTextPart('Error: Blocked SQL statement. Only SELECT or WITH queries are allowed.'),
 				]);
 			}
 		}

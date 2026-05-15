@@ -28,6 +28,12 @@ const READ_ONLY_ACTION_CODES = new Set([
 	SQLITE_RECURSIVE, // recursive CTE
 ]);
 
+/**
+ * Functions denied at the authorizer layer for defense-in-depth, even though the tool
+ * layer also blocks them by regex. Names are compared case-insensitively.
+ */
+const DENIED_FUNCTIONS = new Set(['load_extension']);
+
 /** Schema version — bump when altering tables so existing DBs get migrated. */
 const SCHEMA_VERSION = 3;
 
@@ -469,6 +475,9 @@ export class SessionStore implements ISessionStore {
 
 		if (hasAuthorizer) {
 			(db as DatabaseSync & { setAuthorizer: (cb: ((actionCode: number, p1: string | null) => number) | null) => void }).setAuthorizer((actionCode: number, p1: string | null) => {
+				if (actionCode === SQLITE_FUNCTION && p1 && DENIED_FUNCTIONS.has(p1.toLowerCase())) {
+					return SQLITE_DENY;
+				}
 				if (READ_ONLY_ACTION_CODES.has(actionCode)) {
 					return SQLITE_OK;
 				}
