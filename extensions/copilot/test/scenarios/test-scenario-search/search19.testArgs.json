@@ -1,0 +1,9 @@
+{
+	"question": "ipv4 addresses",
+	"isRegex": true,
+	"queryShouldFind": [
+		[ "bar.html", [
+				"127.0.0.1"
+			] ]
+	]
+}

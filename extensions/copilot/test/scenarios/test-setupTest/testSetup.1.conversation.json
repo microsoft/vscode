@@ -1,0 +1,16 @@
+[
+  {
+    "name": "pythonFlaskApp",
+    "question": "/setupTests pytest",
+    "expectations": {
+      "filePatterns": [".*?test.*?"],
+      "installCommandPattern": "pip install pytest",
+      "runCommandPattern": "pytest"
+    },
+    "files": [
+      "app.py",
+      "requirements.txt",
+      "setup.py"
+    ]
+  }
+]

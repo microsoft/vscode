@@ -172,7 +172,11 @@ export class CommandAutoApprover extends Disposable {
 
 	private async _initTreeSitter(): Promise<void> {
 		try {
-			const TreeSitter = await import('@vscode/tree-sitter-wasm');
+			const { default: TreeSitter } = (await import('@vscode/tree-sitter-wasm'));
+
+			if (this._store.isDisposed) {
+				return;
+			}
 
 			// Resolve WASM files from node_modules
 			const moduleRoot = URI.joinPath(FileAccess.asFileUri(''), '..', 'node_modules', '@vscode', 'tree-sitter-wasm', 'wasm');
@@ -184,13 +188,32 @@ export class CommandAutoApprover extends Disposable {
 				}
 			});
 
+			if (this._store.isDisposed) {
+				return;
+			}
+
 			const parser = new TreeSitter.Parser();
-			this._register(toDisposable(() => parser.delete()));
+			this._register(toDisposable(() => {
+				try {
+					parser.delete();
+				} catch {
+					// WASM memory may already be freed
+				}
+			}));
 
 			// Load bash grammar
 			const bashWasmPath = URI.joinPath(moduleRoot, 'tree-sitter-bash.wasm').fsPath;
 			const bashWasm = await fs.promises.readFile(bashWasmPath);
+
+			if (this._store.isDisposed) {
+				return;
+			}
+
 			const bashLanguage = await TreeSitter.Language.load(new Uint8Array(bashWasm.buffer, bashWasm.byteOffset, bashWasm.byteLength));
+
+			if (this._store.isDisposed) {
+				return;
+			}
 
 			this._parser = parser;
 			this._bashLanguage = bashLanguage;
