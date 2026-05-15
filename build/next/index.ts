@@ -247,6 +247,7 @@ const commonResourcePatterns = [
 	'vs/workbench/browser/media/code-icon.svg',
 	'vs/workbench/browser/parts/editor/media/letterpress*.svg',
 	'vs/sessions/contrib/chat/browser/media/*.svg',
+	'vs/sessions/contrib/buddy/browser/media/sprites/*.png',
 	'vs/sessions/contrib/welcome/browser/media/themePreviews/*.svg'
 ];
 

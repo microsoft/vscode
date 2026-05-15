@@ -85,6 +85,7 @@ body.agents-buddy-resizing * {
 	height: 64px;
 	pointer-events: auto;
 	cursor: pointer;
+	touch-action: manipulation;
 	background-repeat: no-repeat;
 	background-position: 0 0;
 	background-size: auto 64px;
@@ -112,6 +113,21 @@ body.agents-buddy-resizing * {
 	animation:
 		agents-buddy-frames-4 0.5s steps(4) infinite,
 		agents-buddy-wiggle 0.4s ease-in-out infinite;
+}
+
+/*
+ * One-shot idle flavor animations. Layered on top of the persistent `state-*`
+ * class so they swap the sprite for the duration of a single cycle and revert
+ * on `animationend`. Authored as 4-frame strips matching the other states.
+ */
+.agents-buddy-sprite.oneshot-wave {
+	background-image: url('./sprites/wave.png');
+	animation: agents-buddy-frames-6 0.9s steps(6) 1 forwards;
+}
+
+.agents-buddy-sprite.oneshot-jump {
+	background-image: url('./sprites/jump.png');
+	animation: agents-buddy-frames-4 0.6s steps(4) 1 forwards;
 }
 
 @keyframes agents-buddy-frames-4 {
@@ -149,16 +165,16 @@ body.agents-buddy-resizing * {
 	opacity: 0;
 	transition: transform 180ms ease-out, opacity 180ms ease-out;
 	padding: 4px 10px;
-	max-width: 200px;
+	width: max-content;
+	max-width: 220px;
 	border-radius: 10px;
 	background: var(--vscode-editorWidget-background);
 	color: var(--vscode-editorWidget-foreground);
 	border: 1px solid var(--vscode-editorWidget-border, transparent);
 	font-size: 12px;
 	line-height: 1.3;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	white-space: normal;
+	overflow-wrap: break-word;
 	pointer-events: none;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
@@ -188,7 +204,9 @@ body.agents-buddy-resizing * {
 	.agents-buddy-sprite.state-idle,
 	.agents-buddy-sprite.state-thinking,
 	.agents-buddy-sprite.state-typing,
-	.agents-buddy-sprite.state-alert {
+	.agents-buddy-sprite.state-alert,
+	.agents-buddy-sprite.oneshot-wave,
+	.agents-buddy-sprite.oneshot-jump {
 		animation: none;
 	}
 	.agents-buddy {

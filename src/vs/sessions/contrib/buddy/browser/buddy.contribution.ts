@@ -23,9 +23,9 @@ import { SESSIONS_BUDDY_ENABLED_SETTING, SESSIONS_BUDDY_TIPS_SETTING } from './b
 export { SESSIONS_BUDDY_ENABLED_SETTING, SESSIONS_BUDDY_TIPS_SETTING };
 
 const DOCK_HEIGHT_STORAGE_KEY = 'sessions.buddy.dockHeight';
-const DOCK_HEIGHT_DEFAULT = 200;
-const DOCK_HEIGHT_MIN = 120;
-const DOCK_HEIGHT_MAX = 480;
+const DOCK_HEIGHT_DEFAULT = 260;
+const DOCK_HEIGHT_MIN = 160;
+const DOCK_HEIGHT_MAX = 520;
 const DOCK_TOP_GAP = 6;
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -108,8 +108,7 @@ class BuddyContribution extends Disposable implements IWorkbenchContribution {
 
 		const sash = doc.createElement('div');
 		sash.className = 'agents-buddy-dock-sash';
-		sash.setAttribute('role', 'separator');
-		sash.setAttribute('aria-orientation', 'horizontal');
+		// Decorative resize handle inside an aria-hidden dock — no role/keyboard semantics.
 		container.appendChild(sash);
 
 		const body = doc.createElement('div');
@@ -125,9 +124,10 @@ class BuddyContribution extends Disposable implements IWorkbenchContribution {
 			container.style.height = `${clamped}px`;
 			auxBar.style.setProperty('--agents-buddy-dock-height', `${clamped}px`);
 			// Reserve dock height + the visible top gap so the active composite
-			// ends above the dock card.
+			// ends above the dock card. AuxiliaryBarPart observes this attribute
+			// and re-runs its own layout, so we don't trigger a full workbench
+			// layout here as well.
 			auxBar.setAttribute('data-reserved-bottom', String(clamped + DOCK_TOP_GAP));
-			this.layoutService.layout();
 			return clamped;
 		};
 		applyHeight(storedHeight);
@@ -135,6 +135,7 @@ class BuddyContribution extends Disposable implements IWorkbenchContribution {
 		// Drag-to-resize. Tracks pointer movement and updates the dock height,
 		// re-running the workbench layout each frame so the active composite
 		// shrinks/grows in lockstep.
+		const activeDrag = store.add(new MutableDisposable());
 		store.add(addDisposableListener(sash, EventType.POINTER_DOWN, (e: PointerEvent) => {
 			if (e.button !== 0) {
 				return;
@@ -145,20 +146,32 @@ class BuddyContribution extends Disposable implements IWorkbenchContribution {
 			const startHeight = container.getBoundingClientRect().height;
 			doc.body.classList.add('agents-buddy-resizing');
 
-			const moveListener = addDisposableListener(targetWindow, EventType.POINTER_MOVE, (ev: PointerEvent) => {
-				applyHeight(startHeight + (startY - ev.clientY));
-			});
-			const finish = () => {
-				moveListener.dispose();
-				upListener.dispose();
-				cancelListener.dispose();
+			const dragListeners = new DisposableStore();
+			let released = false;
+			const releaseDrag = () => {
+				if (released) {
+					return;
+				}
+				released = true;
+				dragListeners.dispose();
 				doc.body.classList.remove('agents-buddy-resizing');
 				sash.releasePointerCapture?.(e.pointerId);
+			};
+			// Registering on the mount store ensures the cursor class and window
+			// listeners are released even if the contribution is disposed mid-drag.
+			activeDrag.value = { dispose: releaseDrag };
+
+			dragListeners.add(addDisposableListener(targetWindow, EventType.POINTER_MOVE, (ev: PointerEvent) => {
+				applyHeight(startHeight + (startY - ev.clientY));
+			}));
+			const finish = () => {
 				const finalHeight = container.getBoundingClientRect().height;
+				releaseDrag();
+				activeDrag.clear();
 				this.storageService.store(DOCK_HEIGHT_STORAGE_KEY, Math.round(finalHeight), StorageScope.PROFILE, StorageTarget.USER);
 			};
-			const upListener = addDisposableListener(targetWindow, EventType.POINTER_UP, finish);
-			const cancelListener = addDisposableListener(targetWindow, EventType.POINTER_CANCEL, finish);
+			dragListeners.add(addDisposableListener(targetWindow, EventType.POINTER_UP, finish));
+			dragListeners.add(addDisposableListener(targetWindow, 'pointercancel', finish));
 		}));
 
 		const widget = this.instantiationService.createInstance(BuddyWidget, body);
@@ -167,9 +180,10 @@ class BuddyContribution extends Disposable implements IWorkbenchContribution {
 			dispose: () => {
 				container.remove();
 				auxBar.classList.remove('has-agents-buddy');
+				// Clearing data-reserved-bottom notifies the AuxiliaryBarPart
+				// observer, which performs the relayout.
 				auxBar.removeAttribute('data-reserved-bottom');
 				auxBar.style.removeProperty('--agents-buddy-dock-height');
-				this.layoutService.layout();
 			}
 		});
 

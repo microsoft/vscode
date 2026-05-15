@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { EventType as TouchEventType, Gesture } from '../../../../base/browser/touch.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -27,8 +28,11 @@ const IDLE_TIP_MIN_MS = 30_000;
 const IDLE_TIP_MAX_MS = 90_000;
 const TIP_DURATION_MS = 4_000;
 const STATE_DEBOUNCE_MS = 150;
-const JUMP_MIN_MS = 6_000;
-const JUMP_MAX_MS = 18_000;
+const IDLE_ANIM_MIN_MS = 4_000;
+const IDLE_ANIM_MAX_MS = 10_000;
+const ONESHOT_FALLBACK_MS = 1_500;
+
+type OneShot = 'wave' | 'jump';
 
 /**
  * Decorative "buddy" mounted inside the chat bar during an existing session.
@@ -45,7 +49,10 @@ export class BuddyWidget extends Disposable {
 	private pendingStateTimer: number | undefined;
 	private bubbleTimer: number | undefined;
 	private idleTimer: number | undefined;
-	private jumpTimer: number | undefined;
+	private idleAnimTimer: number | undefined;
+	private oneShotCleanupTimer: number | undefined;
+	private clampRafHandle: number | undefined;
+	private activeOneShot: OneShot | undefined;
 	private disposed = false;
 
 	private readonly widgetSubscriptions = this._register(new MutableDisposable<DisposableStore>());
@@ -84,6 +91,12 @@ export class BuddyWidget extends Disposable {
 			e.stopPropagation();
 			this.onUserPoke();
 		}));
+		this._register(Gesture.addTarget(this.sprite));
+		this._register(addDisposableListener(this.sprite, TouchEventType.Tap, e => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.onUserPoke();
+		}));
 
 		this.attachToWidget(this.chatWidgetService.lastFocusedWidget);
 		this._register(this.chatWidgetService.onDidChangeFocusedWidget(w => this.attachToWidget(w)));
@@ -92,7 +105,7 @@ export class BuddyWidget extends Disposable {
 		this.host = host;
 
 		this.scheduleIdleTip();
-		this.scheduleJump();
+		this.scheduleIdleAnim();
 	}
 
 	override dispose(): void {
@@ -100,7 +113,9 @@ export class BuddyWidget extends Disposable {
 		this.clearTimer('pendingStateTimer');
 		this.clearTimer('bubbleTimer');
 		this.clearTimer('idleTimer');
-		this.clearTimer('jumpTimer');
+		this.clearTimer('idleAnimTimer');
+		this.clearTimer('oneShotCleanupTimer');
+		this.stopClampLoop();
 		super.dispose();
 	}
 
@@ -264,8 +279,9 @@ export class BuddyWidget extends Disposable {
 		this.clearTimer('bubbleTimer');
 		this.bubble.textContent = text;
 		this.bubble.classList.add('visible');
-		// Clamp once the text has been laid out so we can measure the real width.
-		this.targetWindow.requestAnimationFrame(() => this.clampBubble());
+		// Continuously re-clamp while the bubble is visible so it tracks the
+		// buddy's `left` transition, dock resizes, and idle jumps.
+		this.startClampLoop();
 		if (durationMs !== undefined) {
 			this.bubbleTimer = this.targetWindow.setTimeout(() => {
 				this.bubbleTimer = undefined;
@@ -274,24 +290,55 @@ export class BuddyWidget extends Disposable {
 		}
 	}
 
+	private startClampLoop(): void {
+		if (this.clampRafHandle !== undefined) {
+			return;
+		}
+		const tick = () => {
+			this.clampRafHandle = undefined;
+			if (this.disposed || !this.bubble.classList.contains('visible')) {
+				return;
+			}
+			this.clampBubble();
+			this.clampRafHandle = this.targetWindow.requestAnimationFrame(tick);
+		};
+		this.clampRafHandle = this.targetWindow.requestAnimationFrame(tick);
+	}
+
+	private stopClampLoop(): void {
+		if (this.clampRafHandle !== undefined) {
+			this.targetWindow.cancelAnimationFrame(this.clampRafHandle);
+			this.clampRafHandle = undefined;
+		}
+	}
+
 	private clampBubble(): void {
 		if (this.disposed || !this.bubble.classList.contains('visible')) {
 			return;
 		}
+		// Compute the bubble's natural (unscaled) width via `offsetWidth` and
+		// the buddy's current anchor via the root's live position, so we keep
+		// the bubble inside the dock even while it animates left/right.
 		const hostRect = this.host.getBoundingClientRect();
-		const bubbleRect = this.bubble.getBoundingClientRect();
+		const rootRect = this.root.getBoundingClientRect();
+		const bubbleWidth = this.bubble.offsetWidth;
+		const anchorX = rootRect.left;
 		const margin = 6;
+		const minLeft = hostRect.left + margin;
+		const maxRight = hostRect.right - margin;
+		const targetLeft = anchorX - bubbleWidth / 2;
 		let shift = 0;
-		if (bubbleRect.left < hostRect.left + margin) {
-			shift = (hostRect.left + margin) - bubbleRect.left;
-		} else if (bubbleRect.right > hostRect.right - margin) {
-			shift = (hostRect.right - margin) - bubbleRect.right;
+		if (targetLeft < minLeft) {
+			shift = minLeft - targetLeft;
+		} else if (targetLeft + bubbleWidth > maxRight) {
+			shift = maxRight - (targetLeft + bubbleWidth);
 		}
 		this.bubble.style.setProperty('--bubble-shift', `${shift}px`);
 	}
 
 	private hideBubble(): void {
 		this.clearTimer('bubbleTimer');
+		this.stopClampLoop();
 		this.bubble.classList.remove('visible');
 	}
 
@@ -320,20 +367,56 @@ export class BuddyWidget extends Disposable {
 		}, delay);
 	}
 
-	private scheduleJump(): void {
-		this.clearTimer('jumpTimer');
-		const delay = JUMP_MIN_MS + Math.random() * (JUMP_MAX_MS - JUMP_MIN_MS);
-		this.jumpTimer = this.targetWindow.setTimeout(() => {
-			this.jumpTimer = undefined;
+	private scheduleIdleAnim(): void {
+		this.clearTimer('idleAnimTimer');
+		const delay = IDLE_ANIM_MIN_MS + Math.random() * (IDLE_ANIM_MAX_MS - IDLE_ANIM_MIN_MS);
+		this.idleAnimTimer = this.targetWindow.setTimeout(() => {
+			this.idleAnimTimer = undefined;
 			if (this.currentState === 'idle') {
-				this.jump();
+				this.playOneShot(Math.random() < 0.5 ? 'wave' : 'jump');
 			}
-			this.scheduleJump();
+			this.scheduleIdleAnim();
 		}, delay);
 	}
 
+	private playOneShot(kind: OneShot): void {
+		if (this.prefersReducedMotion() || this.activeOneShot) {
+			return;
+		}
+		this.activeOneShot = kind;
+		const cls = `oneshot-${kind}`;
+		this.sprite.classList.add(cls);
+		if (kind === 'jump') {
+			// Keep the existing root-level bounce transform in sync with the
+			// jump sprite swap so the buddy actually leaves the floor.
+			this.jump();
+		}
+		const cleanup = () => {
+			this.clearTimer('oneShotCleanupTimer');
+			if (this.activeOneShot !== kind) {
+				return;
+			}
+			this.sprite.classList.remove(cls);
+			this.sprite.removeEventListener('animationend', onEnd);
+			this.activeOneShot = undefined;
+		};
+		const onEnd = (e: AnimationEvent) => {
+			// `agents-buddy-frames-4` runs for the persistent state too — only
+			// react to the one-shot's iteration ending.
+			if (e.target === this.sprite) {
+				cleanup();
+			}
+		};
+		this.sprite.addEventListener('animationend', onEnd);
+		this.oneShotCleanupTimer = this.targetWindow.setTimeout(cleanup, ONESHOT_FALLBACK_MS);
+	}
+
 	private onUserPoke(): void {
-		this.jump();
+		if (this.currentState === 'idle') {
+			this.playOneShot('wave');
+		} else {
+			this.jump();
+		}
 		if (this.tipsEnabled()) {
 			this.showBubble(this.pickTip(), TIP_DURATION_MS);
 		}
@@ -351,7 +434,7 @@ export class BuddyWidget extends Disposable {
 		return this.reducedMotionQuery?.matches === true;
 	}
 
-	private clearTimer(name: 'pendingStateTimer' | 'bubbleTimer' | 'idleTimer' | 'jumpTimer'): void {
+	private clearTimer(name: 'pendingStateTimer' | 'bubbleTimer' | 'idleTimer' | 'idleAnimTimer' | 'oneShotCleanupTimer'): void {
 		const id = this[name];
 		if (id !== undefined) {
 			this.targetWindow.clearTimeout(id);
