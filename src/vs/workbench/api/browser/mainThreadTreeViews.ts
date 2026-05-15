@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, CheckboxUpdate } from '../common/extHost.protocol.js';
-import { ITreeItem, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge, NoTreeViewError, ITreeViewDataProvider } from '../../common/views.js';
+import { ITreeItem, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge, NoTreeViewError, ITreeViewDataProvider, ICustomViewDescriptor } from '../../common/views.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { distinct } from '../../../base/common/arrays.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
@@ -167,11 +167,8 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 
 		const focusedView = this.viewsService.getFocusedView();
 
-		if (focusedView) {
-			const viewId = focusedView.id;
-			if (this._dataProviders.has(viewId)) {
-				next = viewId;
-			}
+		if (focusedView && (focusedView as ICustomViewDescriptor).extensionId) {
+			next = focusedView.id;
 		}
 
 		if (next !== this._lastFocusedTreeView) {
