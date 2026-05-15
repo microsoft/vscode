@@ -421,6 +421,9 @@
 	font-size: 12px;
 	max-width: 300px;
 	word-wrap: break-word;
+	-webkit-user-select: text;
+	user-select: text;
+	outline: none;
 }
 
 .action-list-submenu-hover-header a {

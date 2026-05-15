@@ -1457,11 +1457,10 @@ export class ActionListWidget<T> extends Disposable {
 			if (element.submenuActions?.length) {
 				hoverHeader.classList.add('has-submenu');
 			}
-			// Prevent mousedown from moving focus away from the action list,
-			// which would trigger the blur handler and dismiss the widget.
-			this._submenuDisposables.add(dom.addDisposableListener(hoverHeader, dom.EventType.MOUSE_DOWN, (e) => {
-				e.preventDefault();
-			}));
+			// Make focusable so clicking keeps focus inside the tracked element
+			// instead of moving it to document.body (which triggers the blur
+			// handler and dismisses the widget). Text selection still works.
+			hoverHeader.tabIndex = -1;
 			this._submenuContainer.appendChild(hoverHeader);
 		}
 
