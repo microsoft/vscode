@@ -52,7 +52,7 @@ where
 		zip::ZipArchive::new(file).map_err(|e| wrap(e, "failed to open zip archive"))?;
 
 	let skip_segments_no = usize::from(should_skip_first_segment(&mut archive));
-	let report_progress_every = archive.len() / 20;
+	let report_progress_every = (archive.len() / 20).max(1);
 
 	for i in 0..archive.len() {
 		if i % report_progress_every == 0 {

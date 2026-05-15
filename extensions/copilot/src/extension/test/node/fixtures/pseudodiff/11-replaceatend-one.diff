@@ -1,0 +1,16 @@
+from abc import ABC, abstractmethod
+from typing import Type
+
+class Base(ABC):
+    @abstractmethod
+    def foo(self, x: int) -> int:
+        pass
+
++class Concrete(Base):
++    def foo(self, x: int) -> int:
++        return x  # or any other implementation
+
+-def foo2():
+-    Base()
++def foo2():
++    Concrete()

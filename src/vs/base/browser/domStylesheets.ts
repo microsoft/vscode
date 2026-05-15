@@ -89,7 +89,7 @@ function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, globalStylesh
 	targetWindow.document.head.appendChild(clone);
 	disposables.add(toDisposable(() => clone.remove()));
 
-	for (const rule of getDynamicStyleSheetRules(globalStylesheet)) {
+	for (const rule of globalStylesheet.sheet?.cssRules ?? []) {
 		clone.sheet?.insertRule(rule.cssText, clone.sheet?.cssRules.length);
 	}
 
@@ -111,16 +111,6 @@ function getSharedStyleSheet(): HTMLStyleElement {
 	return _sharedStyleSheet;
 }
 
-function getDynamicStyleSheetRules(style: HTMLStyleElement) {
-	if (style?.sheet?.rules) {
-		return style.sheet.rules; // Chrome, IE
-	}
-	if (style?.sheet?.cssRules) {
-		return style.sheet.cssRules; // FF
-	}
-	return [];
-}
-
 export function createCSSRule(selector: string, cssText: string, style = getSharedStyleSheet()): void {
 	if (!style || !cssText) {
 		return;
@@ -139,7 +129,7 @@ export function removeCSSRulesContainingSelector(ruleName: string, style = getSh
 		return;
 	}
 
-	const rules = getDynamicStyleSheetRules(style);
+	const rules = style.sheet?.cssRules ?? [];
 	const toDelete: number[] = [];
 	for (let i = 0; i < rules.length; i++) {
 		const rule = rules[i];

@@ -29,6 +29,12 @@ while [ $i -le 30 ];do
   elif grep -q 'dpkg frontend is locked by another process' $err;then
     # dpkg process is busy by another process
     retry=true
+  elif grep -q 'Failed to fetch' $err;then
+    # transient network issue when downloading packages
+    retry=true
+  elif grep -q 'Unable to fetch some archives' $err;then
+    # transient network issue when downloading packages
+    retry=true
   fi
 
   rm $err
