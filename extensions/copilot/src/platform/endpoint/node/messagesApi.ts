@@ -191,7 +191,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const isSubagent = options.interactionTypeOverride === 'conversation-subagent';
 	const useExtendedCacheTtl = isExtendedCacheTtlEnabled(endpoint, configurationService, experimentationService, options.location, isSubagent);
 	const cacheTtl = useExtendedCacheTtl ? '1h' : undefined;
-	const useExtendedCacheTtlMessages = isExtendedCacheTtlMessagesEnabled(endpoint, configurationService, experimentationService, options.location, isSubagent);
+	const useExtendedCacheTtlMessages = isExtendedCacheTtlMessagesEnabled(useExtendedCacheTtl, configurationService, experimentationService);
 	const messageCacheTtl = useExtendedCacheTtlMessages ? '1h' : undefined;
 
 	clearAllCacheControl(messagesResult);
@@ -517,7 +517,7 @@ export function clearAllCacheControl(
 export function addToolsAndSystemCacheControl(
 	tools: AnthropicMessagesTool[],
 	messagesResult: { messages: MessageParam[]; system?: TextBlockParam[] },
-	cacheTtl?: '5m' | '1h',
+	cacheTtl?: '1h',
 ): void {
 	const cacheControl = cacheTtl
 		? { type: 'ephemeral' as const, ttl: cacheTtl }

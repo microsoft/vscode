@@ -196,15 +196,19 @@ export function isExtendedCacheTtlEnabled(
 	if (isSubagent) {
 		return false;
 	}
-	return !!configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtl, experimentationService);
+	return configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtl, experimentationService);
 }
 
 /**
- * Sub-toggle of {@link isExtendedCacheTtlEnabled}. When BOTH the parent
- * `extendedTtl` setting and this `extendedTtlMessages` setting are on, the
- * rolling message-level breakpoints (the ones {@link addMessagesApiCacheControl}
- * places on the last cacheable user/tool-result blocks) also use the 1h TTL
- * instead of the default 5m.
+ * Sub-toggle of {@link isExtendedCacheTtlEnabled}. When BOTH the parent gate
+ * passes (caller supplies its result as {@link parentEnabled}) and this
+ * `extendedTtlMessages` setting is on, the rolling message-level breakpoints
+ * (the ones {@link addMessagesApiCacheControl} places on the last cacheable
+ * user/tool-result blocks) also use the 1h TTL instead of the default 5m.
+ *
+ * Takes the resolved parent result rather than re-running the parent gate so
+ * callers that need both flags don't pay for the experiment-service lookup
+ * twice. The signature makes the "sub-toggle of" relationship explicit.
  *
  * Nested rather than orthogonal because:
  * - Anthropic requires longer-TTL breakpoints to appear before shorter ones
@@ -218,14 +222,14 @@ export function isExtendedCacheTtlEnabled(
  * conversations span large idle gaps (>5m) between turns.
  */
 export function isExtendedCacheTtlMessagesEnabled(
-	endpoint: IChatEndpoint | string,
+	parentEnabled: boolean,
 	configurationService: IConfigurationService,
 	experimentationService: IExperimentationService,
-	location: ChatLocation | undefined,
-	isSubagent: boolean | undefined,
 ): boolean {
-	return isExtendedCacheTtlEnabled(endpoint, configurationService, experimentationService, location, isSubagent)
-		&& !!configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtlMessages, experimentationService);
+	if (!parentEnabled) {
+		return false;
+	}
+	return configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtlMessages, experimentationService);
 }
 
 export type ContextEditingMode = 'off' | 'clear-thinking' | 'clear-tooluse' | 'clear-both';

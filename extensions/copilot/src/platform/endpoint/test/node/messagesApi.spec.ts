@@ -591,9 +591,24 @@ suite('isExtendedCacheTtlEnabled', function () {
 		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, false)).toBe(false);
 	});
 
-	test('returns true for eligible model + config + Agent location + non-subagent', function () {
+	test('composes all four gates: returns true only when model + config + Agent location + non-subagent all align', function () {
+		// Positive composition + negative on each axis. If a future refactor short-circuits
+		// before reading any single gate (e.g. drops the config check), one of these flips.
 		enableConfig();
-		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, false)).toBe(true);
+		const probe = (model: string, location: ChatLocation | undefined, sub: boolean) =>
+			isExtendedCacheTtlEnabled(model, configurationService, experimentationService, location, sub);
+
+		expect({
+			allPass: probe(ELIGIBLE_MODEL, ChatLocation.Agent, false),
+			badModel: probe('gpt-5', ChatLocation.Agent, false),
+			badLocation: probe(ELIGIBLE_MODEL, ChatLocation.Panel, false),
+			subagent: probe(ELIGIBLE_MODEL, ChatLocation.Agent, true),
+		}).toEqual({
+			allPass: true,
+			badModel: false,
+			badLocation: false,
+			subagent: false,
+		});
 	});
 
 	test('returns false when location is undefined', function () {
@@ -645,8 +660,6 @@ suite('isExtendedCacheTtlEnabled', function () {
 
 suite('isExtendedCacheTtlMessagesEnabled', function () {
 
-	const ELIGIBLE_MODEL = 'claude-opus-4-7-1m';
-
 	let disposables: DisposableStore;
 	let configurationService: InMemoryConfigurationService;
 	let experimentationService: IExperimentationService;
@@ -660,20 +673,20 @@ suite('isExtendedCacheTtlMessagesEnabled', function () {
 	});
 
 	test('parent on/off x sub on/off matrix', function () {
-		const setFlags = (parent: boolean, sub: boolean) => {
-			configurationService.setConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtl, parent);
+		// [parentEnabled, sub, expected]
+		const cases: ReadonlyArray<readonly [boolean, boolean, boolean]> = [
+			[false, false, false],
+			[true, false, false],
+			[false, true, false],
+			[true, true, true],
+		];
+		const actual = cases.map(([parent, sub]) => {
 			configurationService.setConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtlMessages, sub);
-		};
-		const probe = () => isExtendedCacheTtlMessagesEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, false);
-
-		setFlags(false, false); const offOff = probe();
-		setFlags(true, false); const onOff = probe();
-		setFlags(false, true); const offOn = probe();
-		setFlags(true, true); const onOn = probe();
-
+			return [parent, sub, isExtendedCacheTtlMessagesEnabled(parent, configurationService, experimentationService)] as const;
+		});
 		// Only "both on" produces true — sub is a strict sub-toggle of parent.
 		// Model/location/subagent gates are inherited via the parent and covered in its suite.
-		expect({ offOff, onOff, offOn, onOn }).toEqual({ offOff: false, onOff: false, offOn: false, onOn: true });
+		expect(actual).toEqual(cases);
 	});
 });
 
