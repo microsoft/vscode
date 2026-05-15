@@ -37,6 +37,10 @@ interface ILayoutMetricsResult {
 	};
 }
 
+interface IActiveSelection extends IDisposable {
+	readonly isCDP: boolean;
+}
+
 export interface IElementHandle extends IDisposable {
 	addToChat(): Promise<void>;
 	highlight(): Promise<void>;
@@ -80,7 +84,7 @@ export class BrowserViewElementInspector extends Disposable {
 	private _elementSelectionActive = false;
 	get isElementSelectionActive(): boolean { return this._elementSelectionActive; }
 
-	private readonly _activeSelection = this._register(new MutableDisposable());
+	private readonly _activeSelection = this._register(new MutableDisposable<IActiveSelection>());
 	private _theme: IBrowserViewTheme = {};
 
 	constructor(private readonly browser: BrowserView) {
@@ -147,6 +151,10 @@ export class BrowserViewElementInspector extends Disposable {
 		const connection = await this._connectionPromise;
 		this._register(connection.onEvent(async (event) => {
 			if (event.method !== 'Overlay.inspectNodeRequested') {
+				return;
+			}
+
+			if (!this._activeSelection.value?.isCDP) {
 				return;
 			}
 
@@ -242,6 +250,7 @@ export class BrowserViewElementInspector extends Disposable {
 		};
 
 		this._activeSelection.value = {
+			isCDP: useCDP,
 			dispose: () => {
 				if (this._elementSelectionActive) {
 					this._elementSelectionActive = false;
