@@ -5,6 +5,7 @@
 
 import { normalizeDriveLetter } from '../../../../base/common/labels.js';
 import * as path from '../../../../base/common/path.js';
+import { env } from '../../../../base/common/process.js';
 import { dirname } from '../../../../base/common/resources.js';
 import { commonPrefixLength, getLeadingWhitespace, isFalsyOrWhitespace, splitLines } from '../../../../base/common/strings.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -46,6 +47,8 @@ export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>(
 	'TM_DIRECTORY': true,
 	'TM_DIRECTORY_BASE': true,
 	'TM_FILEPATH': true,
+	'TM_FULLNAME': true,
+	'TM_EMAIL': true,
 	'CURSOR_INDEX': true, // 0-offset
 	'CURSOR_NUMBER': true, // 1-offset
 	'RELATIVE_FILEPATH': true,
@@ -373,6 +376,48 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 			folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
 		}
 		return (folderpath ? normalizeDriveLetter(folderpath) : '/');
+	}
+}
+
+export class UserBasedVariableResolver implements VariableResolver {
+
+	private static readonly _userNameEnvVariables = ['GIT_AUTHOR_NAME', 'GIT_COMMITTER_NAME', 'USER', 'USERNAME', 'LOGNAME'];
+	private static readonly _userEmailEnvVariables = ['GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_EMAIL', 'EMAIL'];
+
+	private readonly _fullName: string | undefined;
+	private readonly _email: string | undefined;
+
+	constructor(
+		private readonly _env: { [key: string]: string | undefined } = env
+	) {
+		this._fullName = this._resolveFromEnv(...UserBasedVariableResolver._userNameEnvVariables);
+		this._email = this._resolveFromEnv(...UserBasedVariableResolver._userEmailEnvVariables);
+	}
+
+	resolve(variable: Variable): string | undefined {
+		switch (variable.name) {
+			case 'TM_FULLNAME':
+				return this._fullName;
+			case 'TM_EMAIL':
+				return this._email;
+			default:
+				return undefined;
+		}
+	}
+
+	private _resolveFromEnv(...keys: string[]): string | undefined {
+		for (const key of keys) {
+			const exactValue = this._env[key];
+			if (!isFalsyOrWhitespace(exactValue)) {
+				return exactValue;
+			}
+
+			const lowercaseValue = this._env[key.toLowerCase()];
+			if (!isFalsyOrWhitespace(lowercaseValue)) {
+				return lowercaseValue;
+			}
+		}
+		return undefined;
 	}
 }
 

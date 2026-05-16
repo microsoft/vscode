@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Selection } from '../../../../common/core/selection.js';
 import { TextModel } from '../../../../common/model/textModel.js';
 import { SnippetParser, Variable, VariableResolver } from '../../browser/snippetParser.js';
-import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from '../../browser/snippetVariables.js';
+import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, UserBasedVariableResolver, WorkspaceBasedVariableResolver } from '../../browser/snippetVariables.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
@@ -427,6 +427,36 @@ suite('Snippet Variables Resolver', function () {
 		if (!isWindows) {
 			assertVariableResolve(resolver, 'WORKSPACE_FOLDER', '/');
 		}
+	});
+
+	test('Add current user variables for snippets', function () {
+		let resolver: VariableResolver;
+
+		resolver = new UserBasedVariableResolver({
+			GIT_AUTHOR_NAME: 'Git Author Name',
+			GIT_COMMITTER_NAME: 'Git Committer Name',
+			USER: 'Shell User',
+			GIT_AUTHOR_EMAIL: 'author@example.com',
+			GIT_COMMITTER_EMAIL: 'committer@example.com',
+			EMAIL: 'shell@example.com',
+		});
+		assertVariableResolve(resolver, 'TM_FULLNAME', 'Git Author Name');
+		assertVariableResolve(resolver, 'TM_EMAIL', 'author@example.com');
+
+		resolver = new UserBasedVariableResolver({
+			username: 'Windows User',
+			email: 'windows@example.com',
+		});
+		assertVariableResolve(resolver, 'TM_FULLNAME', 'Windows User');
+		assertVariableResolve(resolver, 'TM_EMAIL', 'windows@example.com');
+
+		resolver = new UserBasedVariableResolver({
+			GIT_AUTHOR_NAME: '   ',
+			USER: '',
+			EMAIL: '   '
+		});
+		assertVariableResolve(resolver, 'TM_FULLNAME', undefined);
+		assertVariableResolve(resolver, 'TM_EMAIL', undefined);
 	});
 
 	test('Add RELATIVE_FILEPATH snippet variable #114208', function () {
