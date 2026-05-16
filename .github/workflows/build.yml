@@ -18,6 +18,11 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Python (for native modules)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Diagnostics
         run: |
           echo "Node version: $(node -v)"
