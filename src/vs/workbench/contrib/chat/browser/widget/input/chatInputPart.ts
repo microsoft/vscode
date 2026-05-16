@@ -2695,6 +2695,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						if (this.permissionWidget === widget) {
 							this.permissionWidget = undefined;
 						}
+						this.permissionWidgetDisposeListener.clear();
 					});
 					return widget;
 				} else if (
