@@ -160,6 +160,17 @@ suite('AgentSideEffects', () => {
 
 		test('logs telemetry when sending a direct user message', () => {
 			setupSession();
+			const activeClientAction: SessionAction = {
+				type: ActionType.SessionActiveClientChanged,
+				session: sessionUri.toString(),
+				activeClient: {
+					clientId: 'test-client',
+					tools: [{ name: 'testTool', inputSchema: { type: 'object' } }],
+					customizations: [{ uri: 'file:///customizations/SKILL.md', displayName: 'Test Skill' }],
+				},
+			};
+			stateManager.dispatchClientAction(activeClientAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(activeClientAction);
 			const fileUri = URI.file('/workspace/direct.ts');
 			sideEffects.handleAction({
 				type: ActionType.SessionTurnStarted,
@@ -169,10 +180,18 @@ suite('AgentSideEffects', () => {
 			});
 
 			assert.deepStrictEqual(telemetryService.events, [{
-				eventName: 'agentHostUserMessageSent',
+				eventName: 'agentHost.userMessageSent',
 				data: {
 					provider: 'mock',
+					agentSessionId: 'session-1',
 					source: 'direct',
+					isSubagentSession: false,
+					isInitialTurn: true,
+					turnCount: 0,
+					hasActiveClient: true,
+					activeClientId: 'test-client',
+					activeClientToolCount: 1,
+					activeClientCustomizationCount: 1,
 					hasAttachments: true,
 					attachmentCount: 1,
 				},
@@ -640,10 +659,15 @@ suite('AgentSideEffects', () => {
 			sideEffects.handleAction(action);
 
 			assert.deepStrictEqual(telemetryService.events, [{
-				eventName: 'agentHostUserMessageSent',
+				eventName: 'agentHost.userMessageSent',
 				data: {
 					provider: 'mock',
+					agentSessionId: 'session-1',
 					source: 'queued',
+					isSubagentSession: false,
+					isInitialTurn: true,
+					turnCount: 0,
+					hasActiveClient: false,
 					hasAttachments: false,
 					attachmentCount: 0,
 				},

@@ -718,7 +718,7 @@ export class AgentSideEffects extends Disposable {
 					return;
 				}
 				const attachments = action.userMessage.attachments;
-				this._telemetryReporter.userMessageSent(agent.id, 'direct', attachments);
+				this._telemetryReporter.userMessageSent(agent.id, action.session, state, 'direct', attachments);
 				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments, action.turnId).catch(err => {
 					const errCode = (err as { code?: number })?.code;
 					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${action.session}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
@@ -951,7 +951,7 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		const attachments = msg.userMessage.attachments;
-		this._telemetryReporter.userMessageSent(agent.id, 'queued', attachments);
+		this._telemetryReporter.userMessageSent(agent.id, session, this._stateManager.getSessionState(session), 'queued', attachments);
 		agent.sendMessage(URI.parse(session), msg.userMessage.text, attachments, turnId).catch(err => {
 			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
 			this._stateManager.dispatchServerAction({
