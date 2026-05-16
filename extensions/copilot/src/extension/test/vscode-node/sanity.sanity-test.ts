@@ -6,12 +6,12 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { SpyChatResponseStream } from '../../../util/common/test/mockChatResponseStream';
 import { timeout } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Event } from '../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { Intent } from '../../common/constants';
 import { IConversationStore } from '../../conversationStore/node/conversationStore';
 import { activate } from '../../extension/vscode-node/extension';
@@ -48,12 +48,14 @@ suite('Copilot Chat Sanity Test', function () {
 		assert.strictEqual(typeof (activateResult as IInstantiationService).invokeFunction, 'function', 'invokeFunction is not a function');
 		realInstaAccessor = activateResult as IInstantiationService;
 
-		// Mint the Copilot token and let onDidAuthenticationChange listeners run so the
-		// global ConversationFeature is activated before tests start.
+		// The global ConversationFeature is constructed and activated by ContributionCollection
+		// during baseActivate; waitForActivationBlockers (awaited by activate() above) gates on
+		// its activationBlocker, so by the time we get here it has already registered. We still
+		// fetch a Copilot token so the first chat request does not pay that cost.
 		await realInstaAccessor.invokeFunction(async (accessor) => {
-			await accessor.get(IAuthenticationService).getCopilotToken();
+			const token = await accessor.get(IAuthenticationService).getCopilotToken();
+			assert.ok(token, 'Copilot token must be available before tests run');
 		});
-		await timeout(500);
 	});
 
 	suiteTeardown(async function () {
