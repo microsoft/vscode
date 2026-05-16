@@ -19,7 +19,7 @@ import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agen
 
 const _remoteImageDisallowed = () => false;
 
-const nonPlainTextMarkdownSyntax = /[\\`*[\]<>|&$~]/;
+const nonPlainTextMarkdownSyntax = /[\\`*_[\]<>|&$~]/;
 const gfmAutolink = /\b(?:https?:\/\/|www\.)/i;
 const blockMarkdownSyntax = /(^|\n)\s{0,3}(?:#{1,6}\s|>\s?|[-+]\s|\d+[.)]\s|---+\s*$)/;
 

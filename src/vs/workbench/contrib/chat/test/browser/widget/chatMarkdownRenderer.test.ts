@@ -26,15 +26,15 @@ suite('ChatMarkdownRenderer', () => {
 	});
 
 	test('plain text fast path preserves rendered markdown shape', () => {
-		const md = new MarkdownString('Hello, world. This_is_plain.', { isTrusted: true, supportHtml: true, supportThemeIcons: true });
+		const md = new MarkdownString('Hello, world. This is plain.', { isTrusted: true, supportHtml: true, supportThemeIcons: true });
 		const result = store.add(testRenderer.render(md));
 
 		assert.deepStrictEqual({
 			outerHTML: result.element.outerHTML,
 			textContent: result.element.textContent,
 		}, {
-			outerHTML: '<div class="rendered-markdown"><p>Hello, world. This_is_plain.</p></div>',
-			textContent: 'Hello, world. This_is_plain.',
+			outerHTML: '<div class="rendered-markdown"><p>Hello, world. This is plain.</p></div>',
+			textContent: 'Hello, world. This is plain.',
 		});
 	});
 
