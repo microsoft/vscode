@@ -8,6 +8,7 @@ import { AsyncIterableProducer, Barrier } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { AsyncEmitter, Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { Schemas } from '../../../base/common/network.js';
 import { Counter } from '../../../base/common/numbers.js';
@@ -31,7 +32,7 @@ import { IURITransformerService } from './extHostUriTransformerService.js';
 import { IFileQueryBuilderOptions, ISearchPatternBuilder, ITextQueryBuilderOptions } from '../../services/search/common/queryBuilder.js';
 import { IRawFileMatch2, ITextSearchResult, resultIsMatch } from '../../services/search/common/search.js';
 import type * as vscode from 'vscode';
-import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol.js';
+import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape } from './extHost.protocol.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 import { ExcludeSettingOptions, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
@@ -39,6 +40,8 @@ import { bufferToStream, readableToBuffer, VSBuffer } from '../../../base/common
 import { toDecodeStream, toEncodeReadable, UTF8 } from '../../services/textfile/common/encoding.js';
 import { consumeStream } from '../../../base/common/stream.js';
 import { stringToSnapshot } from '../../services/textfile/common/textfiles.js';
+// Type-only import to avoid a runtime cycle with extHostConfiguration.ts.
+import type { ExtHostConfigProvider } from './extHostConfiguration.js';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -86,6 +89,15 @@ interface MutableWorkspaceFolder extends vscode.WorkspaceFolder {
 interface QueryOptions<T> {
 	options: T;
 	folder: URI | undefined;
+}
+
+type FindFilesApiKind = 'findFiles' | 'findFiles2';
+
+interface FindFilesCallIntent {
+	/** Value the extension explicitly passed for `useIgnoreFiles.local` (findFiles2); `undefined` if not specified or N/A for legacy `findFiles`. */
+	readonly useIgnoreFilesLocal: boolean | undefined;
+	/** Whether the extension passed `null` as the `exclude` argument to legacy `findFiles` (the documented escape hatch). Always `false` for findFiles2. */
+	readonly excludeWasNull: boolean;
 }
 
 class ExtHostWorkspaceImpl extends Workspace {
@@ -201,6 +213,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	private readonly _proxy: MainThreadWorkspaceShape;
 	private readonly _messageService: MainThreadMessageServiceShape;
+	private readonly _telemetryProxy: MainThreadTelemetryShape;
 	private readonly _extHostFileSystemInfo: IExtHostFileSystemInfo;
 	private readonly _uriTransformerService: IURITransformerService;
 
@@ -209,6 +222,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private _trusted: boolean = false;
 
 	private readonly _editSessionIdentityProviders = new Map<string, vscode.EditSessionIdentityProvider>();
+
+	// Pushed in by ExtHostConfiguration after init (see `$setConfigProvider`).
+	private _configProvider?: ExtHostConfigProvider;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -225,8 +241,28 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadWorkspace);
 		this._messageService = extHostRpc.getProxy(MainContext.MainThreadMessageService);
+		this._telemetryProxy = extHostRpc.getProxy(MainContext.MainThreadTelemetry);
 		const data = initData.workspace;
 		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, [], !!data.transient, data.configuration ? URI.revive(data.configuration) : null, !!data.isUntitled, uri => ignorePathCasing(uri, extHostFileSystemInfo)) : undefined;
+	}
+
+	/**
+	 * Receives the configuration provider from ExtHostConfiguration after init. We cannot inject
+	 * IExtHostConfiguration directly because it creates a DI cycle (ExtHostConfiguration already
+	 * depends on IExtHostWorkspace). Once set, settings reads in findFiles become synchronous.
+	 */
+	$setConfigProvider(provider: ExtHostConfigProvider): void {
+		this._configProvider = provider;
+	}
+
+	private _useIgnoreFilesInFindFiles(): boolean {
+		return this._configProvider?.getConfiguration('search').get<boolean>('experimental.useIgnoreFilesInFindFiles') ?? false;
+	}
+
+	private _userIgnoreFilesSetting(): boolean {
+		// Default in `search.useIgnoreFiles` is `true`; mirror that here so telemetry computed against
+		// an unset config still reflects the fallback the query builder will apply.
+		return this._configProvider?.getConfiguration('search').get<boolean>('useIgnoreFiles') ?? true;
 	}
 
 	$initializeWorkspace(data: IWorkspaceData | null, trusted: boolean): void {
@@ -474,15 +510,22 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			}
 		}
 
+		const useIgnoreFilesOptIn = this._useIgnoreFilesInFindFiles();
+		// `useIgnoreFiles.local` semantics: `false` means "do not respect local .gitignore" (--no-ignore to rg).
+		// Default (PR #204845): hardcoded `false` for every legacy findFiles caller, regardless of `search.useIgnoreFiles`.
+		// Opt-in (`search.experimental.useIgnoreFilesInFindFiles: true`): honor the user's `search.useIgnoreFiles`,
+		// while keeping `exclude === null` as the documented escape hatch (no excludes => bypass .gitignore).
+		const localIgnoreFiles = useIgnoreFilesOptIn && exclude !== null ? undefined : false;
+
 		// todo: consider exclude baseURI if available
 		return this._findFilesImpl({ type: 'include', value: include }, {
 			exclude: [excludeString],
 			maxResults,
 			useExcludeSettings: useFileExcludes ? ExcludeSettingOptions.FilesExclude : ExcludeSettingOptions.None,
 			useIgnoreFiles: {
-				local: false
+				local: localIgnoreFiles
 			}
-		}, token);
+		}, extensionId, 'findFiles', { useIgnoreFilesLocal: undefined, excludeWasNull: exclude === null }, token);
 	}
 
 
@@ -491,7 +534,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		extensionId: ExtensionIdentifier,
 		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles2New: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles2New`);
-		return this._findFilesImpl({ type: 'filePatterns', value: filePatterns }, options, token);
+		return this._findFilesImpl({ type: 'filePatterns', value: filePatterns }, options, extensionId, 'findFiles2', { useIgnoreFilesLocal: options.useIgnoreFiles?.local, excludeWasNull: false }, token);
 	}
 
 	private async _findFilesImpl(
@@ -499,51 +542,97 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		// `filePattern` is the proper way to handle this, since it takes less precedence than the ignore files.
 		query: { readonly type: 'include'; readonly value: vscode.GlobPattern | undefined } | { readonly type: 'filePatterns'; readonly value: readonly vscode.GlobPattern[] },
 		options: vscode.FindFiles2Options,
+		extensionId: ExtensionIdentifier,
+		apiKind: FindFilesApiKind,
+		intent: FindFilesCallIntent,
 		token: vscode.CancellationToken
 	): Promise<vscode.Uri[]> {
-		if (token.isCancellationRequested) {
-			return Promise.resolve([]);
-		}
-
-		const filePatternsToUse = query.type === 'include' ? [query.value] : query.value ?? [];
-		if (!Array.isArray(filePatternsToUse)) {
-			console.error('Invalid file pattern provided', filePatternsToUse);
-			throw new Error(`Invalid file pattern provided ${JSON.stringify(filePatternsToUse)}`);
-		}
-
-		const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = filePatternsToUse.map(filePattern => {
-
-			const excludePatterns = globsToISearchPatternBuilder(options.exclude);
-
-			const fileQueries: IFileQueryBuilderOptions = {
-				ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
-				disregardIgnoreFiles: typeof options.useIgnoreFiles?.local === 'boolean' ? !options.useIgnoreFiles.local : undefined,
-				disregardGlobalIgnoreFiles: typeof options.useIgnoreFiles?.global === 'boolean' ? !options.useIgnoreFiles.global : undefined,
-				disregardParentIgnoreFiles: typeof options.useIgnoreFiles?.parent === 'boolean' ? !options.useIgnoreFiles.parent : undefined,
-				disregardExcludeSettings: options.useExcludeSettings !== undefined && options.useExcludeSettings === ExcludeSettingOptions.None,
-				disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== ExcludeSettingOptions.SearchAndFilesExclude),
-				maxResults: options.maxResults,
-				excludePattern: excludePatterns.length > 0 ? excludePatterns : undefined,
-				ignoreGlobCase: options.caseInsensitive,
-				_reason: 'startFileSearch',
-				shouldGlobSearch: query.type === 'include' ? undefined : true,
-			};
-
-			const parseInclude = parseSearchExcludeInclude(GlobPattern.from(filePattern));
-			const folderToUse = parseInclude?.folder;
-			if (query.type === 'include') {
-				fileQueries.includePattern = parseInclude?.pattern;
-			} else {
-				fileQueries.filePattern = parseInclude?.pattern;
+		const useIgnoreFilesLocalRequested: 'unspecified' | 'true' | 'false' =
+			intent.useIgnoreFilesLocal === true ? 'true'
+				: intent.useIgnoreFilesLocal === false ? 'false'
+					: 'unspecified';
+		const sw = new StopWatch(true);
+		let queryCount = 0;
+		let respectedIgnoreFiles = this._userIgnoreFilesSetting();
+		let resultCount = 0;
+		let cancelled = false;
+		let errored = false;
+		try {
+			if (token.isCancellationRequested) {
+				cancelled = true;
+				return [];
 			}
 
-			return {
-				folder: folderToUse,
-				options: fileQueries
-			};
-		});
+			const filePatternsToUse = query.type === 'include' ? [query.value] : query.value ?? [];
+			if (!Array.isArray(filePatternsToUse)) {
+				console.error('Invalid file pattern provided', filePatternsToUse);
+				throw new Error(`Invalid file pattern provided ${JSON.stringify(filePatternsToUse)}`);
+			}
 
-		return this._findFilesBase(queryOptions, token);
+			const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = filePatternsToUse.map(filePattern => {
+
+				const excludePatterns = globsToISearchPatternBuilder(options.exclude);
+
+				const fileQueries: IFileQueryBuilderOptions = {
+					ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
+					disregardIgnoreFiles: typeof options.useIgnoreFiles?.local === 'boolean' ? !options.useIgnoreFiles.local : undefined,
+					disregardGlobalIgnoreFiles: typeof options.useIgnoreFiles?.global === 'boolean' ? !options.useIgnoreFiles.global : undefined,
+					disregardParentIgnoreFiles: typeof options.useIgnoreFiles?.parent === 'boolean' ? !options.useIgnoreFiles.parent : undefined,
+					disregardExcludeSettings: options.useExcludeSettings !== undefined && options.useExcludeSettings === ExcludeSettingOptions.None,
+					disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== ExcludeSettingOptions.SearchAndFilesExclude),
+					maxResults: options.maxResults,
+					excludePattern: excludePatterns.length > 0 ? excludePatterns : undefined,
+					ignoreGlobCase: options.caseInsensitive,
+					_reason: 'startFileSearch',
+					shouldGlobSearch: query.type === 'include' ? undefined : true,
+				};
+
+				const parseInclude = parseSearchExcludeInclude(GlobPattern.from(filePattern));
+				const folderToUse = parseInclude?.folder;
+				if (query.type === 'include') {
+					fileQueries.includePattern = parseInclude?.pattern;
+				} else {
+					fileQueries.filePattern = parseInclude?.pattern;
+				}
+
+				return {
+					folder: folderToUse,
+					options: fileQueries
+				};
+			});
+
+			queryCount = queryOptions.length;
+			// Effective ignore-file behavior across all sub-queries: a call respected `.gitignore` only when every
+			// sub-query is either explicitly honoring it or falls back to a user setting that honors it. When
+			// `disregardIgnoreFiles` is `undefined` the query builder uses `search.useIgnoreFiles`, which we mirror here.
+			const userHonorsIgnore = this._userIgnoreFilesSetting();
+			respectedIgnoreFiles = queryOptions.every(q =>
+				q.options.disregardIgnoreFiles === true ? false
+					: q.options.disregardIgnoreFiles === false ? true
+						: userHonorsIgnore);
+
+			const result = await this._findFilesBase(queryOptions, token);
+			resultCount = result.length;
+			cancelled = token.isCancellationRequested;
+			return result;
+		} catch (err) {
+			errored = true;
+			cancelled = token.isCancellationRequested;
+			throw err;
+		} finally {
+			this._reportFindFilesTelemetry({
+				extensionId: extensionId.value,
+				apiKind,
+				respectedIgnoreFiles,
+				useIgnoreFilesLocalRequested,
+				excludeWasNull: intent.excludeWasNull,
+				resultCount,
+				durationMs: sw.elapsed(),
+				queryCount,
+				cancelled,
+				errored,
+			});
+		}
 	}
 
 	private async _findFilesBase(
@@ -570,6 +659,47 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		}
 
 		return Array.from(uriMap.values());
+	}
+
+	private _reportFindFilesTelemetry(event: {
+		extensionId: string;
+		apiKind: FindFilesApiKind;
+		respectedIgnoreFiles: boolean;
+		useIgnoreFilesLocalRequested: 'unspecified' | 'true' | 'false';
+		excludeWasNull: boolean;
+		resultCount: number;
+		durationMs: number;
+		queryCount: number;
+		cancelled: boolean;
+		errored: boolean;
+	}): void {
+		type FindFilesEvent = {
+			extensionId: string;
+			apiKind: string;
+			respectedIgnoreFiles: boolean;
+			useIgnoreFilesLocalRequested: string;
+			excludeWasNull: boolean;
+			resultCount: number;
+			durationMs: number;
+			queryCount: number;
+			cancelled: boolean;
+			errored: boolean;
+		};
+		type FindFilesEventClassification = {
+			owner: 'osortega';
+			comment: 'Telemetry for the extension API workspace.findFiles / findFiles2 calls. Used to assess the impact of flipping the default for search.experimental.useIgnoreFilesInFindFiles by comparing result counts and durations between calls that respected .gitignore and those that did not.';
+			extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Id of the extension that issued the findFiles call.' };
+			apiKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Which API entry point: findFiles (legacy) or findFiles2.' };
+			respectedIgnoreFiles: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the underlying search respected local .gitignore for this call (effective value after applying the experimental setting and any escape hatches).' };
+			useIgnoreFilesLocalRequested: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'What the extension explicitly passed for useIgnoreFiles.local (findFiles2 only): "true", "false", or "unspecified" (always "unspecified" for legacy findFiles since that API does not expose the option).' };
+			excludeWasNull: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the extension passed null as the exclude argument to legacy findFiles (the documented escape hatch for unfiltered results). Always false for findFiles2.' };
+			resultCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of unique results returned to the extension.' };
+			durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total wall-clock duration of the findFiles call in milliseconds.' };
+			queryCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of underlying file-search queries dispatched (one per workspace folder/file pattern).' };
+			cancelled: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the call was cancelled before completion.' };
+			errored: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the call threw an error.' };
+		};
+		this._telemetryProxy.$publicLog2<FindFilesEvent, FindFilesEventClassification>('extHostFindFiles', event);
 	}
 
 	findTextInFiles2(query: vscode.TextSearchQuery2, options: vscode.FindTextInFilesOptions2 | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): vscode.FindTextInFilesResponse {

@@ -13,17 +13,21 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
+
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
-import { IRemoteAgentHostService } from '../../common/remoteAgentHostService.js';
+import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
+import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../common/remoteAgentHostService.js';
 import type { IAgentConnection } from '../../common/agentService.js';
 import type {
 	ISSHAgentHostConfig,
 	ISSHConnectResult,
+	ISSHKeyboardInteractiveRequest,
 	ISSHRelayMessage,
 	ISSHResolvedConfig,
+	ISSHRemoteAgentHostMainService,
 } from '../../common/sshRemoteAgentHost.js';
-import { SSHRemoteAgentHostService } from '../../electron-browser/sshRemoteAgentHostServiceImpl.js';
+import { ISSHRelayClientFactory, SSHRemoteAgentHostService } from '../../electron-browser/sshRemoteAgentHostServiceImpl.js';
+import { RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
 
 /**
  * In-renderer mock of the shared-process SSH service. Exposes the same
@@ -46,12 +50,27 @@ class MockSSHMainService {
 	private readonly _onDidRelayClose = new Emitter<string>();
 	readonly onDidRelayClose = this._onDidRelayClose.event;
 
+	private readonly _onDidRequestKeyboardInteractive = new Emitter<ISSHKeyboardInteractiveRequest>();
+	readonly onDidRequestKeyboardInteractive = this._onDidRequestKeyboardInteractive.event;
+
+	private readonly _onDidCancelKeyboardInteractive = new Emitter<string>();
+	readonly onDidCancelKeyboardInteractive = this._onDidCancelKeyboardInteractive.event;
+
+	readonly kbiResponses: Array<{ requestId: string; responses: ReadonlyArray<string> | undefined }> = [];
+
+	async respondKeyboardInteractive(requestId: string, responses?: ReadonlyArray<string>): Promise<void> {
+		this.kbiResponses.push({ requestId, responses });
+	}
+
 	readonly disconnectCalls: string[] = [];
+	readonly connectCalls: ISSHAgentHostConfig[] = [];
+	readonly reconnectCalls: Array<{ sshConfigHost: string; name: string }> = [];
 	private _nextConnectionId = 1;
 
 	connectResult: Partial<ISSHConnectResult> | undefined;
 
 	async connect(config: ISSHAgentHostConfig): Promise<ISSHConnectResult> {
+		this.connectCalls.push(config);
 		const connectionId = this.connectResult?.connectionId ?? `conn-${this._nextConnectionId++}`;
 		return {
 			connectionId,
@@ -64,6 +83,7 @@ class MockSSHMainService {
 	}
 
 	async reconnect(sshConfigHost: string, name: string): Promise<ISSHConnectResult> {
+		this.reconnectCalls.push({ sshConfigHost, name });
 		return {
 			connectionId: `conn-${this._nextConnectionId++}`,
 			address: `ssh:${sshConfigHost}`,
@@ -93,6 +113,8 @@ class MockSSHMainService {
 		this._onDidReportConnectProgress.dispose();
 		this._onDidRelayMessage.dispose();
 		this._onDidRelayClose.dispose();
+		this._onDidRequestKeyboardInteractive.dispose();
+		this._onDidCancelKeyboardInteractive.dispose();
 	}
 }
 
@@ -163,7 +185,9 @@ class MockProtocolClient extends Disposable {
 
 class TestConfigurationService {
 	readonly onDidChangeConfiguration = Event.None;
-	getValue(): unknown { return undefined; }
+	constructor(private _remoteAgentHostsEnabled = true) { }
+	getValue(key?: string): unknown { return key === RemoteAgentHostsEnabledSettingId ? this._remoteAgentHostsEnabled : undefined; }
+	setRemoteAgentHostsEnabled(enabled: boolean): void { this._remoteAgentHostsEnabled = enabled; }
 }
 
 suite('SSHRemoteAgentHostService (renderer)', () => {
@@ -171,6 +195,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 	const disposables = new DisposableStore();
 	let mainService: MockSSHMainService;
 	let remoteAgentHostService: MockRemoteAgentHostService;
+	let configurationService: TestConfigurationService;
 	let createdClients: MockProtocolClient[];
 	let waitForClient: (index: number) => Promise<MockProtocolClient>;
 	let service: SSHRemoteAgentHostService;
@@ -187,7 +212,9 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
+		configurationService = new TestConfigurationService();
+		instantiationService.stub(IConfigurationService, configurationService as Partial<IConfigurationService>);
+		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService as Partial<IRemoteAgentHostService>);
 
@@ -199,23 +226,16 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 			return (clientWaiters[index] ??= new DeferredPromise<MockProtocolClient>()).p;
 		};
 
-		const inner: Partial<IInstantiationService> = {
-			createInstance: (_ctor: unknown, ...args: unknown[]) => {
+		instantiationService.stub(ISSHRelayClientFactory, {
+			createClient: (_mainService: ISSHRemoteAgentHostMainService, _connectionId: string, _address: string) => {
 				const c = new MockProtocolClient();
-				// The real RemoteAgentHostProtocolClient owns the transport disposable
-				// it's constructed with; mirror that here so SSHRelayTransport doesn't leak.
-				const transport = args[1] as IDisposable | undefined;
-				if (transport) {
-					c.registerOwned(transport);
-				}
 				disposables.add(c);
 				const index = createdClients.length;
 				createdClients.push(c);
 				clientWaiters[index]?.complete(c);
-				return c;
+				return c as unknown as RemoteAgentHostProtocolClient;
 			},
-		};
-		instantiationService.stub(IInstantiationService, inner as Partial<IInstantiationService>);
+		});
 
 		service = disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
 	});
@@ -247,6 +267,19 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		assert.ok(remoteAgentHostService.added[0].transport, 'a transport disposable is passed so removal can tear down the SSH tunnel');
 		assert.strictEqual(service.connections.length, 1);
 		assert.strictEqual(handle.localAddress, 'ssh:remote.example');
+	});
+
+	test('disabled setting prevents SSH tunnel connects and reconnects', async () => {
+		configurationService.setRemoteAgentHostsEnabled(false);
+
+		await assert.rejects(() => service.connect(sampleConfig), /not enabled/);
+		await assert.rejects(() => service.reconnect('remote.example', 'My Remote'), /not enabled/);
+
+		assert.deepStrictEqual({ connectCalls: mainService.connectCalls, reconnectCalls: mainService.reconnectCalls, added: remoteAgentHostService.added }, {
+			connectCalls: [],
+			reconnectCalls: [],
+			added: [],
+		});
 	});
 
 	test('removing the entry tears down the SSH tunnel and the renderer-side handle', async () => {

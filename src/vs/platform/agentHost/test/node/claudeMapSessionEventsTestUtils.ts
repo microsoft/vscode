@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { SDKAssistantMessage, SDKPartialAssistantMessage, SDKResultSuccess, SDKSystemMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { SDKAssistantMessage, SDKPartialAssistantMessage, SDKResultSuccess, SDKSystemMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 
 // Beta event-stream type aliases. The `Anthropic` namespace re-exports
 // these from `@anthropic-ai/sdk/resources/beta/messages.js`, but
@@ -108,11 +108,11 @@ export function makeStreamEvent(
 	};
 }
 
-export function makeMessageStart(): BetaRawMessageStartEvent {
+export function makeMessageStart(messageId: string = 'msg_test'): BetaRawMessageStartEvent {
 	return {
 		type: 'message_start',
 		message: {
-			id: 'msg_test',
+			id: messageId,
 			type: 'message',
 			role: 'assistant',
 			model: 'claude-test',
@@ -182,6 +182,18 @@ export function makeThinkingDelta(index: number, thinking: string): BetaRawConte
 	};
 }
 
+/**
+ * Phase 7 §3.3: `content_block_delta` with `input_json_delta` is the
+ * stream of partial parameter JSON for an open `tool_use` block.
+ */
+export function makeInputJsonDelta(index: number, partialJson: string): BetaRawContentBlockDeltaEvent {
+	return {
+		type: 'content_block_delta',
+		index,
+		delta: { type: 'input_json_delta', partial_json: partialJson },
+	};
+}
+
 export function makeContentBlockStop(index: number): BetaRawContentBlockStopEvent {
 	return {
 		type: 'content_block_stop',
@@ -232,6 +244,41 @@ export function makeAssistantMessage(
 			},
 		},
 		parent_tool_use_id: null,
+		uuid: TEST_UUID,
+		session_id: sessionId,
+	};
+}
+
+/**
+ * Builds the synthetic {@link SDKUserMessage} envelope (`type: 'user'`)
+ * the SDK delivers as the response to a previously-emitted `tool_use`.
+ * Phase 7 §3.3.4 — the mapper detects this by walking
+ * `message.content` for `tool_result` blocks and emits a
+ * `SessionToolCallComplete` per match. The `content` field is the SDK's
+ * `string | (TextBlockParam | ImageBlockParam | ...)[]` shape; the
+ * helper accepts a string or pre-built block array verbatim.
+ */
+export function makeUserToolResultMessage(
+	sessionId: string,
+	toolUseId: string,
+	content: string | Array<{ type: 'text'; text: string }>,
+	options?: { isError?: boolean },
+): SDKUserMessage {
+	return {
+		type: 'user',
+		message: {
+			role: 'user',
+			content: [
+				{
+					type: 'tool_result',
+					tool_use_id: toolUseId,
+					content,
+					...(options?.isError ? { is_error: true } : {}),
+				},
+			],
+		},
+		parent_tool_use_id: null,
+		isSynthetic: true,
 		uuid: TEST_UUID,
 		session_id: sessionId,
 	};

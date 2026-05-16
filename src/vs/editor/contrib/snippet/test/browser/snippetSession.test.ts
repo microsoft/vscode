@@ -469,6 +469,37 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 6, 1, 25));
 	});
 
+	test('snippets, next does not throw when placeholder decorations are missing', function () {
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		const session = new SnippetSession(editor, '${1:foo}$0', undefined, languageConfigurationService);
+		session.insert();
+
+		const decorationIds = editor.getModel().getAllDecorations().map(decoration => decoration.id);
+		assert.ok(decorationIds.length > 0);
+		editor.getModel().changeDecorations(accessor => {
+			for (const decorationId of decorationIds) {
+				accessor.removeDecoration(decorationId);
+			}
+		});
+
+		assert.doesNotThrow(() => session.next());
+	});
+
+	test('snippets, merge does not throw when placeholder occurrences collapse to same position', function () {
+		// $1$1 places two zero-width occurrences of the same placeholder at the same position;
+		// the editor's cursor normalization collapses these into one selection. Previously this
+		// caused merge() to crash because there were more placeholder occurrences than nested snippets.
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '$1$1$0', undefined, languageConfigurationService);
+		session.insert();
+
+		assert.doesNotThrow(() => session.merge('${1:nested}$0'));
+		assert.strictEqual(editor.getModel().getValue(), 'nested');
+	});
+
 	test('snippets, transform', function () {
 		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));

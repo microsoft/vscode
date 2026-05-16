@@ -97,7 +97,7 @@ suite('Microsoft Telemetry Sender', function () {
 	test('should send internal telemetry event', () => {
 		sender.sendInternalTelemetryEvent('testInternalEvent', { foo: 'bar' }, { 'testMeasure': 1 });
 
-		expect(mockInternalReporter.sendRawTelemetryEvent).toHaveBeenCalledTimes(2);
+		expect(mockInternalReporter.sendRawTelemetryEvent).toHaveBeenCalledOnce();
 		expect(mockInternalReporter.sendRawTelemetryEvent).toHaveBeenCalledWith(
 			'testInternalEvent',
 			{ foo: 'bar', 'common.tid': 'testTid', 'common.userName': 'testUser' },
