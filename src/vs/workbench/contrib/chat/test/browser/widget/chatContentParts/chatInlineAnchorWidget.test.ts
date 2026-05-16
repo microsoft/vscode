@@ -71,7 +71,7 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		titlePart.setOptions({ markdownRenderOptions: getChatMarkdownRenderOptions(), renderFileWidgets: true });
 
 		const widget = container.querySelector('.chat-inline-anchor-widget');
-		assert.ok(widget, 'Widget should be rendered for empty vscode-agent-host link in tool title');
+		assert.ok(widget, 'Widget should be rendered for empty vscode-agent-host link in chat query title');
 		assert.strictEqual(widget.querySelector('.icon-label')?.textContent, 'foo.ts');
 	});
 
