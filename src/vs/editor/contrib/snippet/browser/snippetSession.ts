@@ -13,7 +13,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
 import { IPosition } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
-import { Selection } from '../../../common/core/selection.js';
+import { Selection, SelectionDirection } from '../../../common/core/selection.js';
 import { TextChange } from '../../../common/core/textChange.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness } from '../../../common/model.js';
@@ -21,7 +21,7 @@ import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { OvertypingCapturer } from '../../suggest/browser/suggestOvertypingCapturer.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { Choice, Marker, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser.js';
+import { Choice, Marker, Placeholder, SnippetParser, Text, TextmateSnippet, Variable } from './snippetParser.js';
 import { ClipboardBasedVariableResolver, CommentBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, RandomBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables.js';
 import { EditSources, TextModelEditSource } from '../../../common/textModelEditSource.js';
 
@@ -571,37 +571,63 @@ export class SnippetSession {
 		const parser = new SnippetParser();
 		const snippet = new TextmateSnippet();
 
-		// snippet variables resolver
-		const resolver = new CompositeSnippetVariableResolver([
-			editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService), model)),
-			new ClipboardBasedVariableResolver(() => clipboardText, 0, editor.getSelections().length, editor.getOption(EditorOption.multiCursorPaste) === 'spread'),
-			new SelectionBasedVariableResolver(model, editor.getSelection(), 0, overtypingCapturer),
-			new CommentBasedVariableResolver(model, editor.getSelection(), languageConfigurationService),
-			new TimeBasedVariableResolver,
-			new WorkspaceBasedVariableResolver(editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService))),
-			new RandomBasedVariableResolver,
-		]);
+		const modelBasedVariableResolver = editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService), model));
+		const timeBasedVariableResolver = new TimeBasedVariableResolver;
+		const workspaceBasedVariableResolver = new WorkspaceBasedVariableResolver(editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService)));
+		const randomBasedVariableResolver = new RandomBasedVariableResolver;
+		const readClipboardText = () => clipboardText;
+		const clipboardSpread = editor.getOption(EditorOption.multiCursorPaste) === 'spread';
 
-		//
-		snippetEdits = snippetEdits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+		// keep caller's original index so $CURSOR_INDEX/$CURSOR_NUMBER reflect input order, not range-sorted order
+		const indexedSnippetEdits = snippetEdits
+			.map((edit, idx) => ({ edit, idx }))
+			.sort((a, b) => Range.compareRangesUsingStarts(a.edit.range, b.edit.range));
+
 		let offset = 0;
-		for (let i = 0; i < snippetEdits.length; i++) {
-
-			const { range, template, keepWhitespace } = snippetEdits[i];
+		for (let i = 0; i < indexedSnippetEdits.length; i++) {
+			const { edit: { range, template, keepWhitespace }, idx } = indexedSnippetEdits[i];
 
 			// gaps between snippet edits are appended as text nodes. this
 			// ensures placeholder-offsets are later correct
 			if (i > 0) {
-				const lastRange = snippetEdits[i - 1].range;
+				const lastRange = indexedSnippetEdits[i - 1].edit.range;
 				const textRange = Range.fromPositions(lastRange.getEndPosition(), range.getStartPosition());
 				const textNode = new Text(model.getValueInRange(textRange));
 				snippet.appendChild(textNode);
 				offset += textNode.value.length;
 			}
 
+			// snapshot already-resolved variables so this edit's resolver only touches
+			// (a) variables in the newly parsed fragment and (b) clones backfilled by
+			// parseFragment into earlier placeholders sharing the same index (#206121)
+			const preExistingVariables = new Set<Variable>();
+			snippet.walk(marker => {
+				if (marker instanceof Variable) {
+					preExistingVariables.add(marker);
+				}
+				return true;
+			});
+
 			const newNodes = parser.parseFragment(template, snippet);
 			SnippetSession.adjustWhitespace(model, range.getStartPosition(), keepWhitespace !== undefined ? !keepWhitespace : adjustWhitespace, snippet, new Set(newNodes));
-			snippet.resolveVariables(resolver);
+
+			const editSelection = Selection.fromRange(range, SelectionDirection.LTR);
+			const editResolver = new CompositeSnippetVariableResolver([
+				modelBasedVariableResolver,
+				new ClipboardBasedVariableResolver(readClipboardText, idx, indexedSnippetEdits.length, clipboardSpread),
+				new SelectionBasedVariableResolver(model, editSelection, idx, overtypingCapturer),
+				new CommentBasedVariableResolver(model, editSelection, languageConfigurationService),
+				timeBasedVariableResolver,
+				workspaceBasedVariableResolver,
+				randomBasedVariableResolver,
+			]);
+
+			snippet.walk(marker => {
+				if (marker instanceof Variable && !preExistingVariables.has(marker)) {
+					marker.resolve(editResolver);
+				}
+				return true;
+			});
 
 			const snippetText = snippet.toString();
 			const snippetFragmentText = snippetText.slice(offset);

@@ -617,9 +617,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const binaryResults = result.content
 			?.filter(c => c.type === ToolResultContentType.EmbeddedResource)
-			.map(c => {
-				return { data: c.data, mimeType: c.contentType, type: c.contentType };
-			});
+			.map(c => ({ data: c.data, mimeType: c.contentType, type: /^image(\/|$)/.test(c.contentType) ? 'image' : 'resource' }));
 
 		if (result.success) {
 			deferred.complete({

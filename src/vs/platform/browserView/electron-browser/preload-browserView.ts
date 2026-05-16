@@ -658,7 +658,6 @@ class ElementPicker {
 		const viewportWidth = document.documentElement.clientWidth;
 		// Position label at the element's left edge, but push it left if it
 		// would overflow the viewport. Clamp to 0 so it never goes off-screen.
-		label.style.maxWidth = `${viewportWidth}px`;
 		label.style.left = '0';
 		const naturalWidth = label.offsetWidth;
 		const idealLeft = rect.left;
@@ -728,7 +727,7 @@ class ElementPicker {
 			.label {
 				position: fixed; box-sizing: border-box;
 				display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 6px;
-				max-width: 80vw;
+				max-width: min(100%, 320px);
 				background: var(--vscode-button-background, #0078d4);
 				color: var(--vscode-button-foreground, white);
 				font-family: inherit;

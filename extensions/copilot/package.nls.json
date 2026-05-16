@@ -175,7 +175,7 @@
 	"github.copilot.config.localIndex.enabled": "Enable local session tracking. When enabled, session data is tracked locally for /chronicle commands.",
 	"github.copilot.config.sessionSearch.cloudSync.enabled": "Enable cloud sync for session data. When enabled, session data is synced to your Copilot account for cross-device access.",
 	"github.copilot.config.sessionSearch.cloudSync.excludeRepositories": "Repository patterns to exclude from cloud sync. Use exact `owner/repo` names or glob patterns like `my-org/*`. Sessions from matching repos will only be stored locally.",
-	"github.copilot.config.workspace.codeSearchExternalIngest.enabled": "Enable external ingest for semantic codebase search in this workspace. External ingest availability is controlled by your Copilot policy.",
+	"github.copilot.config.workspace.codeSearchExternalIngest.enabled": "Enable external ingest for semantic codebase search in this workspace. This setting can be used to enable/disable external ingest, but your Copilot Enterprise or Copilot subscription policies ultimately control availability. [Learn more about external ingest policies](https://aka.ms/vscode-external-ingest-policy).",
 	"copilot.workspace.explain.description": "Explain how the code in your active editor works",
 	"copilot.workspace.edit.description": "Edit files in your workspace",
 	"copilot.workspace.review.description": "Review the selected code in your active editor",

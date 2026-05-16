@@ -9,23 +9,18 @@
  * The cross-provider portion lives in {@link defineSharedRealSdkTests}; this
  * file would layer on Claude-specific assertions as the provider grows.
  *
- * Disabled by default. To run, set BOTH `AGENT_HOST_REAL_SDK=1` and
- * `AGENT_HOST_REAL_SDK_CLAUDE=1`. The Claude SDK is resolved automatically
- * from the dev dependency in `node_modules/@anthropic-ai/claude-agent-sdk`.
+ * Disabled by default. To run, set `AGENT_HOST_REAL_SDK=1`. The Claude SDK
+ * is resolved automatically from the dev dependency in
+ * `node_modules/@anthropic-ai/claude-agent-sdk`.
  *
- *   AGENT_HOST_REAL_SDK=1 AGENT_HOST_REAL_SDK_CLAUDE=1 \
- *     ./scripts/test-integration.sh --run \
+ *   AGENT_HOST_REAL_SDK=1 ./scripts/test-integration.sh --run \
  *     src/vs/platform/agentHost/test/node/protocol/claudeRealSdk.integrationTest.ts
  *
  * **Authentication:** token from `GITHUB_TOKEN` (preferred) or `gh auth
- * token`. Claude mints a Copilot session token via
- * `/copilot_internal/v2/token`, which requires an OAuth token issued from a
- * Copilot-enabled app — the default `gh auth login` token does NOT work.
- * Capture a token from VS Code's GitHub auth provider (e.g. by reading the
- * relevant secret from your keychain) and set `GITHUB_TOKEN` to it before
- * running. The opt-in env var exists so the suite isn't accidentally enabled
- * with an `AGENT_HOST_REAL_SDK=1`-only invocation that would fail for
- * everyone using a vanilla `gh auth token`.
+ * token`. Either works — the agent host's `CopilotApiService` discovers the
+ * user's CAPI endpoint via `GET /copilot_internal/user` and uses the GitHub
+ * token directly as a Bearer credential, the same pattern as the
+ * `@github/copilot` CLI.
  */
 
 import { existsSync } from 'fs';
@@ -33,7 +28,6 @@ import { join } from '../../../../../base/common/path.js';
 import { defineSharedRealSdkTests, type IRealSdkProviderConfig } from './realSdkTestHelpers.js';
 
 const REAL_SDK_ENABLED = process.env['AGENT_HOST_REAL_SDK'] === '1';
-const CLAUDE_OPT_IN = process.env['AGENT_HOST_REAL_SDK_CLAUDE'] === '1';
 
 /**
  * Resolve the path of the locally installed `@anthropic-ai/claude-agent-sdk`
@@ -58,7 +52,7 @@ function resolveClaudeSdkPath(): string | undefined {
 
 // Resolve lazily: if the suite isn't opted in, skip the filesystem probe so a
 // missing SDK directory can't trip a disabled run.
-const CLAUDE_SDK_PATH = (REAL_SDK_ENABLED && CLAUDE_OPT_IN) ? resolveClaudeSdkPath() : undefined;
+const CLAUDE_SDK_PATH = REAL_SDK_ENABLED ? resolveClaudeSdkPath() : undefined;
 
 const CLAUDE_CONFIG: IRealSdkProviderConfig = {
 	suiteTitle: 'Protocol WebSocket — Real Claude SDK',
@@ -67,7 +61,7 @@ const CLAUDE_CONFIG: IRealSdkProviderConfig = {
 	shellToolName: 'Bash',
 	subagentToolName: 'Task',
 	exitPlanModeToolName: 'ExitPlanMode',
-	enabled: REAL_SDK_ENABLED && CLAUDE_OPT_IN && !!CLAUDE_SDK_PATH,
+	enabled: REAL_SDK_ENABLED && !!CLAUDE_SDK_PATH,
 	claudeSdkPath: CLAUDE_SDK_PATH,
 	// Claude has not landed worktree isolation or subagents yet (deferred to
 	// Phase 12). The shared suite skips those tests when the flags are false.

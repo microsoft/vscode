@@ -21,6 +21,17 @@ import { buildRemoteIndexCommandId, enableExternalIngestCommandId } from './comm
 const reauthenticateCommandId = '_copilot.workspaceIndex.signInAgain';
 
 const codebaseSemanticSearchDocsLink = 'https://aka.ms/vscode-copilot-workspace-remote-index';
+const externalIngestPolicyLink = 'https://aka.ms/vscode-external-ingest-policy';
+const enableExternalIngestCommandLink = `command:${enableExternalIngestCommandId}`;
+
+const enableExternalIngestCommandTitle = t('Enable External Ingest');
+const externalIngestPolicyDetail = t('External ingest is disabled by your organization\'s policy. [Learn more]({0})', externalIngestPolicyLink);
+const externalIngestPolicyNoReposDetail = t('External ingest is disabled by your organization\'s policy, and no external repositories were found. [Learn more]({0})', externalIngestPolicyLink);
+const externalIngestPolicyAvailableDetail = t('External ingest is disabled by your organization\'s policy. Results may be incomplete or out of date. [Learn more]({0})', externalIngestPolicyLink);
+const externalIngestDisabledInWorkspaceDetail = t`External ingest is disabled in this workspace.`;
+const externalIngestDisabledInWorkspaceNoReposDetail = t`External ingest is disabled in this workspace, and no external repositories were found.`;
+const enableExternalIngestDetail = t('External ingest is disabled in this workspace. [Enable external ingest?]({0} "{1}")', enableExternalIngestCommandLink, enableExternalIngestCommandTitle);
+const enableExternalIngestNoReposDetail = t('External ingest is disabled in this workspace, and no external repositories were found. [Enable external ingest?]({0} "{1}")', enableExternalIngestCommandLink, enableExternalIngestCommandTitle);
 
 interface WorkspaceIndexStateReporter {
 	readonly onDidChangeIndexState: Event<void>;
@@ -64,6 +75,9 @@ interface ChatStatusItemState {
 }
 
 const spinnerCodicon = '$(loading~spin)';
+const warningCodicon = '$(warning)';
+const errorCodicon = '$(error)';
+const checkCodicon = '$(check)';
 const statusTitle = t`Codebase Semantic Index`;
 
 export class ChatStatusWorkspaceIndexingStatus extends Disposable {
@@ -130,6 +144,7 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 			case 'loaded': {
 				const externalIngestDisabledByPolicy = state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledByPolicy;
 				const externalIngestDisabledInWorkspace = state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledBySetting;
+				const noRepos = state.remoteIndexState.repos.length === 0;
 
 				// See if any repos are still being resolved
 				if (state.remoteIndexState.repos.some(repo => repo.status === CodeSearchRepoStatus.Resolving)) {
@@ -169,13 +184,14 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 				if (externalIngestDisabledInWorkspace && !state.remoteIndexState.hasPromptedForExternalIngest) {
 					return this._writeStatusItem({
 						primary: {
-							message: t`External ingest off`,
+							message: t`Disabled`,
+							icon: noRepos ? errorCodicon : warningCodicon,
 						},
 						details: {
-							message: `[${t`Enable external ingest?`}](command:${enableExternalIngestCommandId} "${t('Enable External Ingest')}")`,
+							message: noRepos ? enableExternalIngestNoReposDetail : enableExternalIngestDetail,
 							busy: false,
 						},
-						tooltip: t`Enable external ingest to improve semantic search for files not covered by the codebase index. Availability is controlled by your Copilot policy.`,
+						tooltip: t`External ingest is disabled in this workspace.`,
 					});
 				}
 
@@ -220,10 +236,10 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 					return this._writeStatusItem({
 						primary: {
 							message: t`Available`,
-							icon: '$(check)',
+							icon: warningCodicon,
 						},
 						details: {
-							message: t`May be incomplete or out of date`,
+							message: externalIngestPolicyAvailableDetail,
 							busy: false,
 						},
 						tooltip: t`Codebase semantic search is available from indexed repositories, but external ingest is disabled by your organization's policy. Results may be incomplete or out of date.`,
@@ -236,7 +252,7 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 					return this._writeStatusItem({
 						primary: {
 							message: t`Not available`,
-							icon: '$(warning)',
+							icon: errorCodicon,
 						},
 						tooltip: t`This repository can't be indexed. It may be too large or not supported.`,
 					});
@@ -271,8 +287,12 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 					return this._writeStatusItem({
 						primary: {
 							message: t`Ready`,
-							icon: '$(check)',
+							icon: externalIngestDisabledInWorkspace ? warningCodicon : checkCodicon,
 						},
+						details: externalIngestDisabledInWorkspace ? {
+							message: externalIngestDisabledInWorkspaceDetail,
+							busy: false,
+						} : undefined,
 						tooltip: t`Your index is up to date and being used to improve suggestions.`,
 					});
 				}
@@ -280,9 +300,14 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 				if (externalIngestDisabledInWorkspace) {
 					return this._writeStatusItem({
 						primary: {
-							message: t`External ingest off`,
+							message: t`Disabled`,
+							icon: noRepos ? errorCodicon : warningCodicon,
 						},
-						tooltip: t`External ingest is disabled in this workspace. Availability is controlled by your Copilot policy.`,
+						details: {
+							message: noRepos ? externalIngestDisabledInWorkspaceNoReposDetail : externalIngestDisabledInWorkspaceDetail,
+							busy: false,
+						},
+						tooltip: t`External ingest is disabled in this workspace.`,
 					});
 				}
 
@@ -308,15 +333,26 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 			}
 		}
 
+		const externalIngestDisabledByPolicy = state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledByPolicy;
+		const externalIngestDisabledInWorkspace = state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledBySetting;
+		const noRepos = state.remoteIndexState.repos.length === 0;
+
 		this._writeStatusItem({
 			primary: {
-				message: state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledByPolicy ? t`Disabled by policy` : t`Not available`,
-				icon: '$(warning)',
+				message: externalIngestDisabledByPolicy || externalIngestDisabledInWorkspace ? t`Disabled` : t`Not available`,
+				icon: (externalIngestDisabledByPolicy || externalIngestDisabledInWorkspace) && !noRepos ? warningCodicon : errorCodicon,
 			},
-			details: undefined,
-			tooltip: state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledByPolicy
+			details: externalIngestDisabledByPolicy || externalIngestDisabledInWorkspace ? {
+				message: externalIngestDisabledByPolicy
+					? noRepos ? externalIngestPolicyNoReposDetail : externalIngestPolicyDetail
+					: noRepos ? externalIngestDisabledInWorkspaceNoReposDetail : externalIngestDisabledInWorkspaceDetail,
+				busy: false,
+			} : undefined,
+			tooltip: externalIngestDisabledByPolicy
 				? t`External ingest is disabled by your organization's policy.`
-				: t`This repository can't be indexed. It may be too large or not supported.`,
+				: externalIngestDisabledInWorkspace
+					? t`External ingest is disabled in this workspace.`
+					: t`This repository can't be indexed. It may be too large or not supported.`,
 		});
 	}
 

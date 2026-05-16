@@ -399,6 +399,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
 	private permissionWidget: PermissionPickerActionItem | undefined;
+	private readonly permissionWidgetDisposeListener = this._register(new MutableDisposable<IDisposable>());
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
 	private delegationWidget: DelegationSessionPickerActionItem | undefined;
 	private readonly chatSessionPickerWidgets = this._register(new DisposableMap<string, ChatSessionPickerActionItem>());
@@ -2690,11 +2691,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					};
 					const widget = this.instantiationService.createInstance(PermissionPickerActionItem, action, delegate, secondaryPickerOptions);
 					this.permissionWidget = widget;
-					this._register(widget.onDidDispose(() => {
+					this.permissionWidgetDisposeListener.value = widget.onDidDispose(() => {
 						if (this.permissionWidget === widget) {
 							this.permissionWidget = undefined;
 						}
-					}));
+						this.permissionWidgetDisposeListener.clear();
+					});
 					return widget;
 				} else if (
 					(action.id === OpenAgentHostModePickerAction.ID
