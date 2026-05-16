@@ -1,0 +1,59 @@
+name: Build and Validate AI Studio
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'app-v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build & Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Diagnostics
+        run: |
+          echo "Node version: $(node -v)"
+          echo "npm version: $(npm -v)"
+          echo "Current directory: $(pwd)"
+          ls -R app/scripts
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            app/frontend/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install app dependencies
+        working-directory: app
+        run: npm install
+
+      - name: Install frontend dependencies
+        working-directory: app/frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: app/frontend
+        run: npx vite build
+
+      - name: Build Electron
+        working-directory: app
+        run: node scripts/build-electron.mjs
+
+      - name: Validation
+        run: |
+          echo "Build successful!"
+          ls -R app/dist
