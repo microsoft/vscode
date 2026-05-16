@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-q+WTr+fBXpLLE3++yWNaxT6BTWQtsKscoeIlynBRk4E=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-yhwuq2LP8/BUJqembteKZ0axqPHpoHv2xdUNofI7gIc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -904,6 +904,7 @@
 		// Also forward events before the contents of the webview have loaded
 		window.addEventListener('keydown', handleInnerKeydown);
 		window.addEventListener('keyup', handleInnerKeyup);
+		window.addEventListener('wheel', handleWheel);
 		window.addEventListener('dragenter', handleInnerDragStartEvent);
 		window.addEventListener('dragover', handleInnerDragEvent);
 		window.addEventListener('drag', handleInnerDragEvent);
@@ -1043,8 +1044,10 @@
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
 
-				newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
-				newFrame.contentWindow.addEventListener('keyup', handleInnerKeyup);
+				const newFrameContentWindow = assertIsDefined(newFrame.contentWindow);
+				newFrameContentWindow.addEventListener('keydown', handleInnerKeydown);
+				newFrameContentWindow.addEventListener('keyup', handleInnerKeyup);
+				newFrameContentWindow.addEventListener('wheel', handleWheel);
 
 				/**
 				 * @param {Document} contentDocument
@@ -1109,11 +1112,11 @@
 						if (initialStyleVersion !== styleVersion) {
 							applyStyles(newFrame.contentDocument, newFrame.contentDocument.body);
 						}
-						newFrame.setAttribute('id', 'active-frame');
-						newFrame.style.visibility = 'visible';
-
 						contentWindow.addEventListener('scroll', handleInnerScroll);
 						contentWindow.addEventListener('wheel', handleWheel);
+
+						newFrame.setAttribute('id', 'active-frame');
+						newFrame.style.visibility = 'visible';
 
 						if (wasFocused) {
 							contentWindow.focus();
