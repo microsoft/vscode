@@ -7,7 +7,7 @@
 // Wraps WebSocketClientTransport and SessionClientState to provide a
 // higher-level API matching IAgentService.
 
-import { DeferredPromise, IntervalTimer } from '../../../base/common/async.js';
+import { DeferredPromise, TimeoutTimer } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, IReference } from '../../../base/common/lifecycle.js';
@@ -42,32 +42,30 @@ const RECONNECT_INITIAL_DELAY_MS = 1_000;
 const RECONNECT_MAX_DELAY_MS = 30_000;
 
 /**
- * How often the connection liveness watchdog runs.
+ * After this much inbound silence, send an application-level `ping` to
+ * the remote so we have something to time out on. Reset on every received
+ * message — busy connections don't generate ping traffic.
  *
  * Mirrors {@link ProtocolConstants.KeepAliveSendTime} from the regular
- * remote extension host stack. Cheap because the check is just a couple
- * of timestamp comparisons.
+ * remote extension host stack.
  */
-const WATCHDOG_CHECK_INTERVAL_MS = 5_000;
+const PING_INTERVAL_MS = 5_000;
 
 /**
- * If a request has been outstanding for this long AND no message of any
- * kind has been received in the same window, declare the transport dead
- * and force-close it so the renderer's reconnect logic kicks in.
+ * Total inbound silence (ping interval + this) before the connection is
+ * declared dead and force-closed so the renderer's reconnect logic kicks
+ * in. Reset on every received message; the only way to reach this is for
+ * the ping to itself go unanswered.
  *
  * Matches {@link ProtocolConstants.TimeoutTime} from the regular remote
  * extension host stack.
- *
- * Idle connections are not probed — no ping traffic is sent. The first
- * user-driven request after the transport goes silent will surface the
- * timeout within {@link WATCHDOG_TIMEOUT_MS}ms.
  */
-const WATCHDOG_TIMEOUT_MS = 20_000;
+const LIVENESS_TIMEOUT_MS = 20_000;
 
-function connectionTimeoutError(address: string, sinceLastReadMs: number, oldestRequestAgeMs: number): ProtocolError {
+function connectionTimeoutError(address: string, silenceMs: number): ProtocolError {
 	return new ProtocolError(
 		AHP_CLIENT_CONNECTION_CLOSED,
-		`Connection appears dead: ${address}; no message received for ${sinceLastReadMs}ms, oldest pending request is ${oldestRequestAgeMs}ms old.`,
+		`Connection appears dead: ${address}; no message received for ${silenceMs}ms.`,
 	);
 }
 
@@ -190,19 +188,27 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	/**
 	 * Timestamp of the most recent message of any kind received from the
-	 * server. Updated in {@link _handleMessage}. Used by the watchdog to
-	 * decide if the transport has gone silent.
+	 * server. Used only for diagnostic logging when the close timer fires.
 	 */
 	private _lastReadTime = Date.now();
 
 	/**
-	 * Periodic check that fires {@link _handleClose} when there are
-	 * outstanding requests *and* nothing has been received for
-	 * {@link WATCHDOG_TIMEOUT_MS}ms. Detects silently-dead transports
-	 * (e.g. SSH/tunnel after laptop sleep + network change) that don't
-	 * produce a socket close event of their own. See {@link _watchdogTick}.
+	 * Liveness watchdog — see {@link _resetLivenessTimers}.
+	 *
+	 * {@link _pingTimer} fires after {@link PING_INTERVAL_MS} of inbound
+	 * silence and sends an application-level `ping` so we have something
+	 * to time out on. {@link _closeTimer} fires after another
+	 * {@link LIVENESS_TIMEOUT_MS} of continued silence and force-closes
+	 * the transport so the renderer's reconnect logic kicks in. Both are
+	 * reset on every received message, so busy connections generate no
+	 * ping traffic at all.
+	 *
+	 * Detects silently-dead transports (e.g. SSH/tunnel after laptop
+	 * sleep + network change) that don't produce a socket close event of
+	 * their own.
 	 */
-	private readonly _watchdog = this._register(new IntervalTimer());
+	private readonly _pingTimer = this._register(new TimeoutTimer());
+	private readonly _closeTimer = this._register(new TimeoutTimer());
 
 	/**
 	 * Used to suppress watchdog-triggered closes when our own JS event loop
@@ -269,8 +275,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			this._subscriptionManager.receiveEnvelope(envelope);
 		}));
 
-		// Detect silently-dead transports — see {@link _watchdogTick}.
-		this._watchdog.cancelAndSet(() => this._watchdogTick(), WATCHDOG_CHECK_INTERVAL_MS);
+		// Detect silently-dead transports — see {@link _resetLivenessTimers}.
+		this._resetLivenessTimers();
 	}
 
 	/**
@@ -383,7 +389,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				}
 				this._logService.info(`[RemoteAgentHostProtocol] Transport lost for ${this._address}; scheduling reconnect.`);
 				this._transitionTo({ kind: AgentHostClientState.Reconnecting, reconnect: this._newReconnectState() });
-				this._watchdog.cancel();
+				this._cancelLivenessTimers();
 				// In-flight requests can't be answered — the new transport has a
 				// separate request-id space. Reject them so callers can retry.
 				this._rejectPendingRequests(transportLostError(this._address));
@@ -398,7 +404,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				// Scheduling lives in the catch so we don't end up with two
 				// concurrent setTimeouts racing to install new transports.
 				this._logService.info(`[RemoteAgentHostProtocol] Transport lost for ${this._address} mid-reconnect; aborting the current attempt.`);
-				this._watchdog.cancel();
+				this._cancelLivenessTimers();
 				this._rejectPendingRequests(transportLostError(this._address));
 				return;
 		}
@@ -466,7 +472,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			this._drainAfterReconnect(reconnect.outbox);
 
 			this._lastReadTime = Date.now();
-			this._watchdog.cancelAndSet(() => this._watchdogTick(), WATCHDOG_CHECK_INTERVAL_MS);
+			this._resetLivenessTimers();
 			this._transitionTo({ kind: AgentHostClientState.Connected });
 			gate.complete();
 			this._logService.info(`[RemoteAgentHostProtocol] Reconnected to ${this._address}.`);
@@ -847,9 +853,11 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}
 
 		// Any inbound traffic — including this message — is evidence the
-		// transport is still alive. Update before dispatch so the watchdog
-		// is consistent even if a handler synchronously schedules work.
+		// transport is still alive. Reset the liveness timers before
+		// dispatch so they're consistent even if a handler synchronously
+		// schedules work.
 		this._lastReadTime = Date.now();
+		this._resetLivenessTimers();
 
 		if (isJsonRpcRequest(msg)) {
 			this._handleReverseRequest(msg.id, msg.method, msg.params);
@@ -894,9 +902,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		if (this._state.kind === AgentHostClientState.Closed) {
 			return;
 		}
-		// Stop the watchdog so it doesn't keep ticking on a dead connection
-		// (the client may outlive the close, waiting to be replaced).
-		this._watchdog.cancel();
+		// Stop the liveness timers so they don't keep ticking on a dead
+		// connection (the client may outlive the close, waiting to be replaced).
+		this._cancelLivenessTimers();
 		if (this._state.kind === AgentHostClientState.Reconnecting) {
 			const reconnect = this._state.reconnect;
 			if (reconnect.timeoutHandle !== undefined) {
@@ -1171,79 +1179,93 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	/**
-	 * Fired on a {@link WATCHDOG_CHECK_INTERVAL_MS} interval. If the
-	 * transport has at least one outstanding request that's been waiting
-	 * for more than {@link WATCHDOG_TIMEOUT_MS} and no inbound message has
-	 * arrived in the same window, declare the transport dead and trigger
-	 * the renderer's reconnect path.
+	 * Reset the liveness timers. Called once at construction (after the
+	 * initial transport is installed), once on every received message
+	 * (which is itself proof the remote is alive), and once after a
+	 * successful soft reconnect.
 	 *
-	 * Idle connections still get supervision: if there are no outstanding
-	 * requests, the tick fires off a {@link ping} so the next tick has
-	 * something to time out on. This catches silently-dead transports
-	 * (e.g. SSH/tunnel after laptop sleep + network change) even when
-	 * there's no user activity. Tolerates servers that don't implement
-	 * `ping` — the error response still updates `_lastReadTime`.
+	 * Two timers cooperate:
 	 *
-	 * The {@link ILoadEstimator} guards against the *local* side of the
-	 * confusion: if our own JS event loop has been pegged we suppress the
-	 * close — the silence is on our end, not the remote's, and tearing
-	 * down the transport would just abort in-flight requests.
+	 * 1. {@link _pingTimer} fires after {@link PING_INTERVAL_MS} of silence
+	 *    and sends an application-level `ping` so the close timer has
+	 *    something to time out on. Tolerates servers that don't implement
+	 *    `ping` — the error response still resets both timers.
 	 *
-	 * After laptop sleep + wake the JS event loop is paused, so the
-	 * interval fires only once after wake. The lookback comparison still
-	 * works — we're comparing wall-clock {@link Date.now()} values, not
-	 * counting ticks.
+	 * 2. {@link _closeTimer} fires after {@link PING_INTERVAL_MS}+
+	 *    {@link LIVENESS_TIMEOUT_MS} of continued silence and force-closes
+	 *    the transport so the renderer's reconnect logic kicks in. Catches
+	 *    silently-dead transports (e.g. SSH/tunnel after laptop sleep +
+	 *    network change) that don't emit a socket close event of their own.
+	 *
+	 * After laptop sleep + wake the JS event loop is paused, so a timer
+	 * armed before sleep fires immediately after wake. That's fine —
+	 * any inbound message processed during the wake catch-up resets it
+	 * before the close handler runs.
+	 *
+	 * No-op while {@link _state.kind} is {@link AgentHostClientState.Reconnecting}
+	 * or {@link AgentHostClientState.Closed}: the reconnect machinery
+	 * owns scheduling in those states, and we don't want a stray inbound
+	 * message during reconnect to re-arm the timers behind its back.
 	 */
-	private _watchdogTick(): void {
-		if (this._state.kind === AgentHostClientState.Closed) {
+	private _resetLivenessTimers(): void {
+		if (this._state.kind === AgentHostClientState.Reconnecting
+			|| this._state.kind === AgentHostClientState.Closed) {
 			return;
 		}
-		if (this._pendingRequests.size === 0) {
-			// Active liveness probe — keep idle connections under
-			// supervision. Fire-and-forget; the next tick checks for
-			// staleness via the normal pending-request path.
-			void this.ping().catch(() => undefined);
+		this._pingTimer.cancelAndSet(() => this._onPingTimer(), PING_INTERVAL_MS);
+		this._closeTimer.cancelAndSet(() => this._onCloseTimer(), PING_INTERVAL_MS + LIVENESS_TIMEOUT_MS);
+	}
+
+	private _cancelLivenessTimers(): void {
+		this._pingTimer.cancel();
+		this._closeTimer.cancel();
+	}
+
+	private _onPingTimer(): void {
+		if (this._state.kind === AgentHostClientState.Closed
+			|| this._state.kind === AgentHostClientState.Reconnecting) {
 			return;
 		}
-		const now = Date.now();
-		const sinceLastRead = now - this._lastReadTime;
-		if (sinceLastRead < WATCHDOG_TIMEOUT_MS) {
+		// Fire-and-forget. The reply (or any other inbound message that
+		// happens to arrive first) will reset both timers; if nothing
+		// arrives, {@link _onCloseTimer} fires.
+		void this.ping().catch(() => undefined);
+	}
+
+	private _onCloseTimer(): void {
+		if (this._state.kind === AgentHostClientState.Closed
+			|| this._state.kind === AgentHostClientState.Reconnecting) {
 			return;
 		}
-		// Find the oldest outstanding request; treat it as a proxy for
-		// "how long have we been waiting for *any* response from the
-		// remote". Iterating is cheap — _pendingRequests is at most a
-		// few dozen entries in practice.
-		let oldestSentAt = now;
-		for (const pending of this._pendingRequests.values()) {
-			if (pending.sentAt < oldestSentAt) {
-				oldestSentAt = pending.sentAt;
-			}
-		}
-		const oldestAge = now - oldestSentAt;
-		if (oldestAge < WATCHDOG_TIMEOUT_MS) {
-			return;
-		}
+		// {@link ILoadEstimator} guards against the *local* side of the
+		// confusion: if our own JS event loop has been pegged we suppress
+		// the close — the silence is on our end, not the remote's, and
+		// tearing down the transport would just abort in-flight requests.
+		// Re-arm only the close timer at {@link PING_INTERVAL_MS} so we
+		// re-evaluate promptly once load normalizes (rather than waiting a
+		// full PING_INTERVAL + LIVENESS_TIMEOUT window).
 		if (this._loadEstimator.hasHighLoad()) {
+			this._closeTimer.cancelAndSet(() => this._onCloseTimer(), PING_INTERVAL_MS);
 			return;
 		}
+		const silence = Date.now() - this._lastReadTime;
 		this._logService.info(
-			`[RemoteAgentHostProtocol] Watchdog: connection to ${this._address} appears dead — `
-			+ `${this._pendingRequests.size} request(s) outstanding, no message received for ${sinceLastRead}ms, `
-			+ `oldest request ${oldestAge}ms old. Forcing close to trigger reconnect.`,
+			`[RemoteAgentHostProtocol] Liveness: no message from ${this._address} for ${silence}ms; forcing close to trigger reconnect.`,
 		);
+		// Tear down the dead transport so it can't keep delivering messages
+		// to a Reconnecting/Closed client (and, on the non-factory path,
+		// so we don't leak a half-open socket waiting for client disposal).
+		// WebSocketClientTransport.dispose() disposes its emitters
+		// synchronously before the native close event arrives, so this
+		// won't re-enter {@link _handleTransportClose}.
+		this._transportListeners.clear();
 		if (this._transportFactory) {
 			// In factory mode, route directly through the soft-reconnect path.
-			// We can't rely on `_transport.dispose()` to fire the transport's
-			// `onClose` listener: WebSocketClientTransport.dispose() disposes
-			// its emitters synchronously before the native WebSocket close
-			// event arrives, so a watchdog-triggered dispose alone would never
-			// reach {@link _handleTransportClose} and the client would stall.
-			this._rejectPendingRequests(connectionTimeoutError(this._address, sinceLastRead, oldestAge));
+			this._rejectPendingRequests(connectionTimeoutError(this._address, silence));
 			this._handleTransportClose();
 			return;
 		}
-		this._handleClose(connectionTimeoutError(this._address, sinceLastRead, oldestAge));
+		this._handleClose(connectionTimeoutError(this._address, silence));
 	}
 
 	/**

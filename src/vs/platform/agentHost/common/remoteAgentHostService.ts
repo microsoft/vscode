@@ -89,7 +89,7 @@ export namespace RemoteAgentHostConnectionStatus {
 	}
 }
 
-/** Configuration key for the list of remote agent host addresses. */
+/** Configuration key for the list of WebSocket remote agent host addresses. */
 export const RemoteAgentHostsSettingId = 'chat.remoteAgentHosts';
 
 /** Configuration key to enable remote agent host connections. */
@@ -159,7 +159,7 @@ export interface IRemoteAgentHostTunnelConnection {
 
 export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostTunnelConnection;
 
-/** An entry in the {@link RemoteAgentHostsSettingId} setting. */
+/** A configured remote agent host entry. WebSocket entries are persisted in {@link RemoteAgentHostsSettingId}; SSH entries are persisted in storage. */
 export interface IRemoteAgentHostEntry {
 	readonly name: string;
 	readonly connectionToken?: string;
@@ -208,7 +208,7 @@ export interface IRemoteAgentHostService {
 	/** Currently connected remote addresses with metadata. */
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[];
 
-	/** All configured remote agent host entries from settings, regardless of connection status. */
+	/** All configured remote agent host entries, regardless of connection status. */
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[];
 
 	/**
@@ -379,7 +379,7 @@ function formatRemoteAgentHostAddress(url: URL, protocol: 'ws:' | 'wss:' | undef
 	return `${base}${path}${query}`;
 }
 
-/** Raw shape of entries persisted in the {@link RemoteAgentHostsSettingId} setting. */
+/** Raw shape of persisted remote agent host entries. */
 export interface IRawRemoteAgentHostEntry {
 	readonly address: string;
 	readonly name: string;

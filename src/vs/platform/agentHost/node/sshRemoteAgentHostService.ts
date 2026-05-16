@@ -12,6 +12,7 @@ import { dirname, join, isAbsolute, basename } from '../../../base/common/path.j
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
 import { raceTimeout } from '../../../base/common/async.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
@@ -505,10 +506,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	/**
 	 * Pending keyboard-interactive prompts awaiting a response from the renderer.
-	 * Keyed by `requestId`. Each entry is the ssh2 `finish` callback to invoke
-	 * with the user's responses (or empty array on cancel).
+	 * Keyed by `requestId`. Each entry can either finish the ssh2 prompt with
+	 * responses or cancel the owning connect attempt when the user dismisses it.
 	 */
-	private readonly _pendingKbiRequests = new Map<string, (responses: readonly string[]) => void>();
+	private readonly _pendingKbiRequests = new Map<string, { finish: (responses: readonly string[]) => void; cancelConnect: () => void }>();
 	private _kbiRequestCounter = 0;
 
 	private readonly _connections = this._register(new DisposableMap<string, SSHConnection>());
@@ -955,10 +956,6 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		config: ISSHAgentHostConfig,
 		connectionKey?: string,
 	): Promise<SSHClient> {
-		const nativeRequire = await this._getNativeRequire();
-		const ssh2Module = nativeRequire('ssh2') as { Client: new () => unknown };
-		const SSHClientCtor = ssh2Module.Client;
-
 		const connectConfig: ConnectConfig = {
 			host: config.host,
 			port: config.port ?? 22,
@@ -974,9 +971,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		// onDidCancelKeyboardInteractive for any still-pending prompts when
 		// the connect attempt fails or completes.
 		const liveKbiRequests = new Set<string>();
+		let cancelConnectFromKbi: (() => void) | undefined;
 		const kbiHandler: SSHKeyboardInteractivePromptHandler | undefined = attempts.some(a => a.type === 'keyboard-interactive')
 			? (name, instructions, prompts, finish) => {
-				const requestId = this._handleKeyboardInteractive(connectionKey ?? displayHost, displayHost, config.username, name, instructions, prompts, finish);
+				const requestId = this._handleKeyboardInteractive(connectionKey ?? displayHost, displayHost, config.username, name, instructions, prompts, finish, () => cancelConnectFromKbi?.());
 				liveKbiRequests.add(requestId);
 			}
 			: undefined;
@@ -992,10 +990,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// this, ssh2 hangs until `readyTimeout` elapses when a connect
 				// attempt is aborted mid-prompt. The renderer also gets notified
 				// so it can dismiss any open quick-input UI.
-				const finish = this._pendingKbiRequests.get(requestId);
+				const pending = this._pendingKbiRequests.get(requestId);
 				this._pendingKbiRequests.delete(requestId);
 				this._onDidCancelKeyboardInteractive.fire(requestId);
-				finish?.([]);
+				pending?.finish([]);
 			}
 			liveKbiRequests.clear();
 		};
@@ -1014,23 +1012,54 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			}
 		}
 
+		const client = await this._createSSHClient();
 		return new Promise<SSHClient>((resolve, reject) => {
-			const client = new SSHClientCtor() as SSHClient;
+			let settled = false;
 
-			client.on('ready', () => {
+			const resolveConnect = () => {
+				if (settled) {
+					return;
+				}
+				settled = true;
 				this._logService.info(`${LOG_PREFIX} SSH connection established to ${config.host}`);
 				cancelLiveKbiRequests();
 				resolve(client);
+			};
+
+			const rejectConnect = (err: Error, endClient: boolean) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				cancelLiveKbiRequests();
+				if (endClient) {
+					client.end();
+				}
+				reject(err);
+			};
+
+			cancelConnectFromKbi = () => {
+				this._logService.info(`${LOG_PREFIX} SSH keyboard-interactive prompt cancelled by user for ${displayHost}`);
+				rejectConnect(new CancellationError(), true);
+			};
+
+			client.on('ready', () => {
+				resolveConnect();
 			});
 
 			client.on('error', (err: Error) => {
 				this._logService.error(`${LOG_PREFIX} SSH connection error: ${err.message}`);
-				cancelLiveKbiRequests();
-				reject(err);
+				rejectConnect(err, false);
 			});
 
 			client.connect(connectConfig);
 		});
+	}
+
+	protected async _createSSHClient(): Promise<SSHClient> {
+		const nativeRequire = await this._getNativeRequire();
+		const ssh2Module = nativeRequire('ssh2') as { Client: new () => unknown };
+		return new ssh2Module.Client() as SSHClient;
 	}
 
 	/**
@@ -1121,7 +1150,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 * supply the user's responses when they arrive. Returns the generated
 	 * `requestId` so the caller can track in-flight prompts.
 	 */
-	private _handleKeyboardInteractive(
+	protected _handleKeyboardInteractive(
 		connectionKey: string,
 		displayHost: string,
 		username: string,
@@ -1129,6 +1158,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		instructions: string,
 		prompts: readonly ISSHKeyboardInteractivePrompt[],
 		finish: (responses: readonly string[]) => void,
+		cancelConnect: () => void,
 	): string {
 		const requestId = `kbi-${++this._kbiRequestCounter}`;
 		// Wrap finish so it can only fire once — ssh2 ignores duplicate calls,
@@ -1142,7 +1172,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			this._pendingKbiRequests.delete(requestId);
 			finish(responses);
 		};
-		this._pendingKbiRequests.set(requestId, finishOnce);
+		this._pendingKbiRequests.set(requestId, { finish: finishOnce, cancelConnect });
 		this._logService.info(`${LOG_PREFIX} keyboard-interactive challenge from ${displayHost}: ${prompts.length} prompt(s)`);
 		this._onDidRequestKeyboardInteractive.fire({
 			requestId,
@@ -1157,15 +1187,17 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	async respondKeyboardInteractive(requestId: string, responses: readonly string[] | undefined): Promise<void> {
-		const finish = this._pendingKbiRequests.get(requestId);
-		if (!finish) {
+		const pending = this._pendingKbiRequests.get(requestId);
+		if (!pending) {
 			this._logService.warn(`${LOG_PREFIX} respondKeyboardInteractive: no pending request for ${requestId}`);
 			return;
 		}
-		// Cancel and "no responses" are both surfaced as an empty answer array,
-		// which causes ssh2 to fail this auth attempt and move on (or surface
-		// the auth failure if no further attempts remain).
-		finish(responses ?? []);
+		if (responses === undefined) {
+			pending.cancelConnect();
+			pending.finish([]);
+			return;
+		}
+		pending.finish(responses);
 	}
 
 	/**
