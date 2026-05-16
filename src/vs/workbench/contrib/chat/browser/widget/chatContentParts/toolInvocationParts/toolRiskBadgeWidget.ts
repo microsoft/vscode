@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
@@ -55,6 +57,14 @@ export class ToolRiskBadgeWidget extends Disposable {
 			e.preventDefault();
 			e.stopPropagation();
 			this._hoverService.showManagedHover(this._detailsIconEl);
+		}));
+		this._register(dom.addDisposableListener(this._detailsIconEl, dom.EventType.KEY_DOWN, e => {
+			const ev = new StandardKeyboardEvent(e);
+			if (ev.keyCode === KeyCode.Enter || ev.keyCode === KeyCode.Space) {
+				ev.preventDefault();
+				ev.stopPropagation();
+				this._hoverService.showManagedHover(this._detailsIconEl);
+			}
 		}));
 	}
 
