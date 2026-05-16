@@ -1,7 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, shell, crashReporter } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { autoUpdater } from 'electron-updater';
+import { logger } from './logger.js';
 import { registerFileHandlers } from './ipc-handlers.js';
 import { createMenu } from './menu.js';
 import { createWindow } from './window.js';
@@ -20,14 +21,17 @@ function setupAutoUpdater(): void {
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('checking-for-update', () => {
+    logger.info('Checking for update...');
     mainWindow?.webContents.send('updater:checking');
   });
 
   autoUpdater.on('update-available', (info) => {
+    logger.info(`Update available: ${info.version}`);
     mainWindow?.webContents.send('updater:available', info);
   });
 
   autoUpdater.on('update-not-available', () => {
+    logger.info('Update not available.');
     mainWindow?.webContents.send('updater:not-available');
   });
 
@@ -36,10 +40,12 @@ function setupAutoUpdater(): void {
   });
 
   autoUpdater.on('update-downloaded', (info) => {
+    logger.info(`Update downloaded: ${info.version}`);
     mainWindow?.webContents.send('updater:downloaded', info);
   });
 
   autoUpdater.on('error', (err) => {
+    logger.error('Auto-updater error:', err);
     mainWindow?.webContents.send('updater:error', err.message);
   });
 
@@ -55,6 +61,15 @@ function setupAutoUpdater(): void {
 }
 
 async function init(): Promise<void> {
+  logger.info(`Starting AI Studio v${app.getVersion()}`);
+
+  // Configure crash reporter
+  if (!isDev) {
+    crashReporter.start({
+      uploadToServer: false, // For solo founder, keep it local-only or use a service like Sentry later
+    });
+  }
+
   mainWindow = createWindow(isDev);
 
   registerFileHandlers(mainWindow);
@@ -133,7 +148,25 @@ async function init(): Promise<void> {
     shell.openExternal(url);
     return { action: 'deny' };
   });
+
+  // Handle crashes
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    logger.error(`Render process gone: ${details.reason} (${details.exitCode})`);
+  });
 }
+
+// Global error handlers
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled Rejection:', reason);
+});
+
+app.on('child-process-gone', (event, details) => {
+  logger.error(`Child process gone: ${details.type} ${details.reason} (${details.exitCode})`);
+});
 
 app.whenReady().then(init);
 

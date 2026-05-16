@@ -68,40 +68,5 @@
     "xterm": "^5.3.0",
     "xterm-addon-fit": "^0.8.0",
     "zustand": "^5.0.1"
-  },
-  "build": {
-    "appId": "com.aistudio.ide",
-    "productName": "AI Studio",
-    "directories": {
-      "output": "dist",
-      "buildResources": "resources"
-    },
-    "files": [
-      "dist/**/*",
-      "package.json"
-    ],
-    "win": {
-      "target": ["nsis"],
-      "icon": "resources/icon.ico"
-    },
-    "mac": {
-      "target": ["dmg"],
-      "icon": "resources/icon.icns",
-      "category": "public.app-category.developer-tools"
-    },
-    "linux": {
-      "target": ["AppImage"],
-      "icon": "resources/icon.png",
-      "category": "Development"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "nathakumar",
-      "repo": "vscode"
-    }
   }
 }

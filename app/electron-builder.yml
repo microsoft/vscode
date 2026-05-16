@@ -65,3 +65,4 @@ publish:
   owner: nathakumar
   repo: vscode
   releaseType: release
+  # Default channel is latest (stable). For beta/nightly, use prerelease versions.
