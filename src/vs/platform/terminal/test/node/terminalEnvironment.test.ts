@@ -40,6 +40,10 @@ suite('platform - terminalEnvironment', async () => {
 			});
 		});
 
+                        test('when executable or shellType is "none"', async () => {
+                                strictEqual((await getShellIntegrationInjection({ executable: 'none', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
+                                strictEqual((await getShellIntegrationInjection({ executable: pwshExe, shellType: 'none', args: [] } as any, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
+                        });
 		// These tests are only expected to work on Windows 10 build 18309 and above
 		(getWindowsBuildNumberSync() < 18309 ? suite.skip : suite)('pwsh', async () => {
 			const expectedPs1 = process.platform === 'win32'
@@ -62,6 +66,9 @@ suite('platform - terminalEnvironment', async () => {
 					deepStrictEqualIgnoreStableVar(await getShellIntegrationInjection({ executable: pwshExe, args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService, true), enabledExpectedResult);
 					deepStrictEqualIgnoreStableVar(await getShellIntegrationInjection({ executable: pwshExe, args: undefined }, enabledProcessOptions, defaultEnvironment, logService, productService, true), enabledExpectedResult);
 				});
+                                test('executable should be normalized to remove .exe', async () => {
+                                        deepStrictEqualIgnoreStableVar(await getShellIntegrationInjection({ executable: 'pwsh.exe', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService, true), enabledExpectedResult);
+                                });
 				suite('when no logo', async () => {
 					test('array - case insensitive', async () => {
 						deepStrictEqualIgnoreStableVar(await getShellIntegrationInjection({ executable: pwshExe, args: ['-NoLogo'] }, enabledProcessOptions, defaultEnvironment, logService, productService, true), enabledExpectedResult);
