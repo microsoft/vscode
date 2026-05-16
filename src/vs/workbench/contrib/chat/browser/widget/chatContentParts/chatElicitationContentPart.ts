@@ -85,7 +85,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			subtitle: elicitation.subtitle,
 			buttons,
 			message: this.getMessageToRender(elicitation),
-			headerBanner: this._createRiskBadge(elicitation),
+			footerBanner: this._createRiskBadge(elicitation),
 			toolbarData: { partType: 'elicitation', partSource: elicitation.source?.type, arg: elicitation },
 		}));
 		this._confirmWidget = confirmationWidget;

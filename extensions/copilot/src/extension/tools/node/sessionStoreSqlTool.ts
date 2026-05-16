@@ -31,7 +31,28 @@ const BLOCKED_PATTERNS = [
 	/\bATTACH\b/i,
 	/\bDETACH\b/i,
 	/\bPRAGMA\b(?!\s+data_version)/i,
+	// File-system or maintenance side effects (e.g. VACUUM INTO copies the DB to a chosen path)
+	/\bVACUUM\b/i,
+	/\bREINDEX\b/i,
+	/\bANALYZE\b/i,
+	// Native-code load via SQL function — would be RCE if SQLite is built with extension loading
+	/\bLOAD_EXTENSION\b/i,
+	// Transaction control — meaningless via prepare().all() but reject for clarity
+	/\b(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE)\b/i,
 ];
+
+/** Strip leading SQL line and block comments plus whitespace, used by the allowlist check. */
+function stripLeadingCommentsAndWhitespace(sql: string): string {
+	let s = sql;
+	let prev: string;
+	do {
+		prev = s;
+		s = s.replace(/^\s+/, '');
+		s = s.replace(/^--[^\n]*\n?/, '');
+		s = s.replace(/^\/\*[\s\S]*?\*\//, '');
+	} while (s !== prev);
+	return s;
+}
 
 export interface SessionStoreSqlParams {
 	readonly action?: 'query' | 'standup' | 'reindex';
@@ -94,14 +115,24 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 			return new LanguageModelToolResult([new LanguageModelTextPart('Error: Empty query provided.')]);
 		}
 
-		// Security check: block mutating statements
+		// Security check: block mutating / side-effecting statements
 		for (const pattern of BLOCKED_PATTERNS) {
 			if (pattern.test(sql)) {
 				this._sendTelemetry('blocked', 0, 0, false, 'blocked_mutating_sql');
 				return new LanguageModelToolResult([
-					new LanguageModelTextPart('Error: Blocked SQL statement. Only SELECT queries are allowed.'),
+					new LanguageModelTextPart('Error: Blocked SQL statement. Only SELECT or WITH queries are allowed.'),
 				]);
 			}
+		}
+
+		// Allowlist: model-supplied SQL must be a SELECT or WITH (CTE) statement. Strip leading
+		// comments first so a comment prefix cannot smuggle a non-query past the check.
+		const firstKeywordSrc = stripLeadingCommentsAndWhitespace(sql);
+		if (!/^(SELECT|WITH)\b/i.test(firstKeywordSrc)) {
+			this._sendTelemetry('blocked', 0, 0, false, 'blocked_not_select_or_with');
+			return new LanguageModelToolResult([
+				new LanguageModelTextPart('Error: Blocked SQL statement. Only SELECT or WITH queries are allowed.'),
+			]);
 		}
 
 		// Block multiple statements — only one query per call
@@ -163,17 +194,12 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 	}
 
 	/**
-	 * Execute a read-only SQL query against the local SQLite session store.
+	 * Execute a model-supplied SQL query against the local SQLite session store.
+	 * The query has already been validated by the allowlist + blocklist in `_invokeQuery`.
+	 * `executeReadOnly` adds engine-level enforcement via `setAuthorizer` when available.
 	 */
 	private _executeLocal(sql: string): Record<string, unknown>[] {
-		try {
-			return this._sessionStore.executeReadOnly(sql);
-		} catch (authErr) {
-			if (authErr instanceof Error && authErr.message.includes('authorizer')) {
-				return this._sessionStore.executeReadOnlyFallback(sql);
-			}
-			throw authErr;
-		}
+		return this._sessionStore.executeReadOnly(sql);
 	}
 
 	/**

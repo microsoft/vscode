@@ -86,6 +86,7 @@ class MockChatEntitlementService implements IChatEntitlementService {
 	readonly onDidChangeEntitlement = Event.None;
 	readonly onDidChangeQuotaExceeded = Event.None;
 	readonly onDidChangeQuotaRemaining = Event.None;
+	readonly onDidChangeUsageBasedBilling = Event.None;
 	readonly onDidChangeSentiment = Event.None;
 	readonly onDidChangeAnonymous = Event.None;
 
@@ -94,6 +95,7 @@ class MockChatEntitlementService implements IChatEntitlementService {
 
 	readonly previewFeaturesDisabled = false;
 	readonly clientByokEnabled = false;
+	readonly hasByokModels = false;
 	readonly organisations: string[] | undefined = undefined;
 	readonly isInternal = false;
 	readonly sku = 'free';
@@ -130,6 +132,7 @@ class MockDefaultAccountService implements IDefaultAccountService {
 
 	async getDefaultAccount(): Promise<IDefaultAccount | null> { return MOCK_ACCOUNT; }
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider { return MOCK_ACCOUNT.authenticationProvider; }
+	resolveGitHubUrl(path: string): string { return `https://github.com/${path}`; }
 	setDefaultAccountProvider(): void { }
 	async refresh(): Promise<IDefaultAccount | null> { return MOCK_ACCOUNT; }
 	async signIn(): Promise<IDefaultAccount | null> { return MOCK_ACCOUNT; }

@@ -8,17 +8,21 @@ import type { TodoWriteInput } from '@anthropic-ai/claude-agent-sdk/sdk-tools';
 import type Anthropic from '@anthropic-ai/sdk';
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
+import type { ChatFetchError } from '../../../../platform/chat/common/commonTypes';
 import { vBoolean, vLiteral, vObj, vString, type ValidatorType } from '../../../../platform/configuration/common/validator';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, SpanKind, SpanStatusCode, truncateForOTel, type ISpanHandle, type TraceContext } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { ServicesAccessor } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseThinkingProgressPart, LanguageModelTextPart, type ChatHookType } from '../../../../vscodeTypes';
 import { ExternalEditTracker } from '../../../chatSessions/common/externalEditTracker';
 import { ToolName } from '../../../tools/common/toolNames';
 import { IToolsService } from '../../../tools/common/toolsService';
+import { ClaudeSessionUri } from './claudeSessionUri';
 import { ClaudeToolNames, claudeEditTools, getAffectedUrisForEditTool } from './claudeTools';
+import { IClaudePlanFileTracker } from './claudePlanFileTracker';
 import { IClaudeSessionStateService } from './claudeSessionStateService';
 import { completeToolInvocation, createFormattedToolInvocation } from './toolInvocationFormatter';
 
@@ -35,6 +39,7 @@ export interface MessageHandlerRequestContext {
 /** Mutable state shared across handlers within a single _processMessages loop */
 export interface MessageHandlerState {
 	readonly unprocessedToolCalls: Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>;
+	readonly toolStartTimes: Map<string, number>;
 	readonly otelToolSpans: Map<string, ISpanHandle>;
 	readonly otelHookSpans: Map<string, ISpanHandle>;
 	readonly parentTraceContext?: TraceContext;
@@ -117,7 +122,29 @@ export const ALL_KNOWN_MESSAGE_KEYS = new Set([
 
 export const DENY_TOOL_MESSAGE = 'The user declined to run the tool';
 
+/**
+ * Prefix embedded by the proxy in HTTP error messages so the dispatch layer
+ * can identify proxy-classified errors in SDK result text without depending
+ * on the SDK's own error classification.
+ *
+ * Format: `VSCODE_PROXY_ERROR:<base64>` where the base64 payload decodes to
+ * a JSON-serialized ChatFetchError. Base64 avoids double-encoding issues
+ * when the SDK nests our message inside its own JSON error response.
+ */
+export const PROXY_ERROR_PREFIX = 'VSCODE_PROXY_ERROR:';
+
 export class KnownClaudeError extends Error { }
+
+/**
+ * Thrown when the SDK result text contains a proxy-classified error.
+ * Carries the original ChatFetchError so callers can use
+ * `getErrorDetailsFromChatFetchError` for consistent error messages.
+ */
+export class ClaudeProxyError extends KnownClaudeError {
+	constructor(public readonly fetchError: ChatFetchError) {
+		super(fetchError.reason);
+	}
+}
 
 interface IManageTodoListToolInputParams {
 	readonly operation?: 'write' | 'read';
@@ -166,6 +193,7 @@ export function handleAssistantMessage(
 			stream.push(new ChatResponseThinkingProgressPart(item.thinking));
 		} else if (item.type === 'tool_use') {
 			unprocessedToolCalls.set(item.id, item);
+			state.toolStartTimes.set(item.id, Date.now());
 
 			const toolSpan = otelService.startSpan(`execute_tool ${item.name}`, {
 				kind: SpanKind.INTERNAL,
@@ -197,12 +225,32 @@ export function handleAssistantMessage(
 				}
 			}
 
-			if (request.editTracker && claudeEditTools.includes(item.name)) {
+			if (claudeEditTools.includes(item.name)) {
+				let uris: vscode.Uri[] = [];
 				try {
-					const uris = getAffectedUrisForEditTool(item.name, item.input);
-					void request.editTracker.trackEdit(item.id, uris, stream, request.token);
+					uris = getAffectedUrisForEditTool(item.name, item.input);
 				} catch (e) {
-					logService.warn(`[ClaudeMessageDispatch] Failed to track edit for ${item.name}: ${e}`);
+					logService.warn(`[ClaudeMessageDispatch] Failed to resolve affected URIs for ${item.name}: ${e}`);
+				}
+				if (request.editTracker) {
+					try {
+						void request.editTracker.trackEdit(item.id, uris, stream, request.token);
+					} catch (e) {
+						logService.warn(`[ClaudeMessageDispatch] Failed to track edit for ${item.name}: ${e}`);
+					}
+				}
+
+				// Record any plan-directory writes/edits so the
+				// ExitPlanMode permission handler can surface the plan
+				// file in the review widget. Hooked at the dispatch
+				// level (rather than inside the EditToolHandler) so we
+				// observe the call regardless of permission mode —
+				// `bypassPermissions` short-circuits `canUseTool`, and
+				// the SDK may write the plan file via internal paths
+				// that skip `canUseTool` entirely.
+				const planFileTracker = accessor.get(IClaudePlanFileTracker);
+				for (const uri of uris) {
+					planFileTracker.recordIfPlanFile(sessionId, uri.fsPath);
 				}
 			}
 
@@ -239,12 +287,17 @@ function logToolResult(
 	toolUseId: string,
 	toolUse: Anthropic.Beta.Messages.BetaToolUseBlock,
 	toolResult: Anthropic.Messages.ToolResultBlockParam,
+	sessionId: string,
 	logService: ILogService,
 	requestLogger: IRequestLogger,
+	telemetryService: ITelemetryService,
 	otelToolSpans: Map<string, ISpanHandle>,
+	toolStartTimes: Map<string, number>,
 	capturingToken: CapturingToken | undefined,
 	maxAttributeSizeChars: number,
 ): void {
+	sendToolInvokedTelemetry(toolUseId, toolUse, toolResult, sessionId, telemetryService, toolStartTimes);
+
 	// OTel span
 	const toolSpan = otelToolSpans.get(toolUseId);
 	if (toolSpan) {
@@ -295,9 +348,10 @@ function processToolResult(
 	const requestLogger = accessor.get(IRequestLogger);
 	const claudeSessionStateService = accessor.get(IClaudeSessionStateService);
 	const otelService = accessor.get(IOTelService);
+	const telemetryService = accessor.get(ITelemetryService);
 
 	const { stream } = request;
-	const { unprocessedToolCalls, otelToolSpans } = state;
+	const { unprocessedToolCalls, otelToolSpans, toolStartTimes } = state;
 
 	const toolUseId = toolResult.tool_use_id;
 	const toolUse = unprocessedToolCalls.get(toolUseId);
@@ -312,9 +366,12 @@ function processToolResult(
 		toolUseId,
 		toolUse,
 		toolResult,
+		sessionId,
 		logService,
 		requestLogger,
+		telemetryService,
 		otelToolSpans,
+		toolStartTimes,
 		claudeSessionStateService.getCapturingTokenForSession(sessionId),
 		otelService.config.maxAttributeSizeChars,
 	);
@@ -342,6 +399,45 @@ function processToolResult(
 		completeToolInvocation(toolUse, toolResult, invocation);
 		stream.push(invocation);
 	}
+}
+
+function sendToolInvokedTelemetry(
+	toolUseId: string,
+	toolUse: Anthropic.Beta.Messages.BetaToolUseBlock,
+	toolResult: Anthropic.Messages.ToolResultBlockParam,
+	sessionId: string,
+	telemetryService: ITelemetryService,
+	toolStartTimes: Map<string, number>,
+): void {
+	const startTime = toolStartTimes.get(toolUseId);
+	toolStartTimes.delete(toolUseId);
+	if (toolUse.name === ClaudeToolNames.TodoWrite) {
+		// Don't send telemetry for TodoWrite since it is passed into the workbench toolcall service and will be logged there.
+		return;
+	}
+	const invocationTimeMs = startTime !== undefined ? Date.now() - startTime : undefined;
+	const result = toolResult.content === DENY_TOOL_MESSAGE ? 'userCancelled' : toolResult.is_error ? 'error' : 'success';
+	const toolSourceKind = toolUse.name.startsWith('mcp__') ? 'mcp' : 'claudeCode';
+
+	/* __GDPR__
+		"languageModelToolInvoked" : {
+			"owner": "roblourens",
+			"comment": "Provides insight into the usage of language model tools (Claude Code agent).",
+			"result": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "success | error | userCancelled" },
+			"chatSessionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session resource id." },
+			"toolId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The Claude Code SDK tool name (e.g. Bash, Read, Edit, mcp__server__tool)." },
+			"toolExtensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Always undefined for Claude Code." },
+			"toolSourceKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "claudeCode | mcp" },
+			"invocationTimeMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time between tool_use and tool_result." }
+		}
+	*/
+	telemetryService.sendMSFTTelemetryEvent('languageModelToolInvoked', {
+		result,
+		chatSessionId: ClaudeSessionUri.forSessionId(sessionId).toString(),
+		toolId: toolUse.name,
+		toolExtensionId: undefined,
+		toolSourceKind,
+	}, invocationTimeMs !== undefined ? { invocationTimeMs } : undefined);
 }
 
 function processTodoWriteTool(
@@ -601,13 +697,66 @@ export function handleHookResponse(
 	}
 }
 
+/**
+ * Extracts the error text from an SDK result message, if any.
+ * - `success` with `is_error`: error text is in `result`
+ * - `error_during_execution`: error text is in `errors`
+ */
+function getResultErrorText(message: SDKResultMessage): string | undefined {
+	if (message.subtype === 'success' && message.is_error) {
+		return message.result;
+	}
+	if (message.subtype === 'error_during_execution') {
+		return message.errors?.join('\n');
+	}
+	return undefined;
+}
+
+/**
+ * Attempts to parse a proxy-classified error from the SDK result text.
+ * Returns the parsed ChatFetchError if the text contains the proxy error prefix,
+ * or undefined if no proxy error is embedded.
+ */
+function tryParseProxyError(errorText: string | undefined): ChatFetchError | undefined {
+	if (!errorText) {
+		return undefined;
+	}
+	const idx = errorText.indexOf(PROXY_ERROR_PREFIX);
+	if (idx === -1) {
+		return undefined;
+	}
+
+	// Extract the base64 payload after the prefix, stopping at whitespace or quotes.
+	const start = idx + PROXY_ERROR_PREFIX.length;
+	const end = errorText.slice(start).search(/[\s"']/);
+	const b64 = end === -1 ? errorText.slice(start) : errorText.slice(start, start + end);
+
+	try {
+		return JSON.parse(Buffer.from(b64, 'base64').toString()) as ChatFetchError;
+	} catch {
+		return undefined;
+	}
+}
+
 export function handleResultMessage(
 	message: SDKResultMessage,
 	request: MessageHandlerRequestContext,
 ): MessageHandlerResult {
+	const isExecutionError =
+		message.subtype === 'error_during_execution'
+		|| (message.subtype === 'success' && message.is_error === true);
+
 	if (message.subtype === 'error_max_turns') {
 		request.stream.progress(l10n.t('Maximum turns reached ({0})', message.num_turns));
-	} else if (message.subtype === 'error_during_execution') {
+	} else if (isExecutionError) {
+		// Check the result/error text for proxy-classified errors.
+		// The proxy embeds VSCODE_PROXY_ERROR:<json> in the HTTP error message,
+		// which the SDK forwards through to the result text.
+		const errorText = getResultErrorText(message);
+		const fetchError = tryParseProxyError(errorText);
+		if (fetchError) {
+			throw new ClaudeProxyError(fetchError);
+		}
 		throw new KnownClaudeError(l10n.t('Error during execution'));
 	}
 	return { requestComplete: true };

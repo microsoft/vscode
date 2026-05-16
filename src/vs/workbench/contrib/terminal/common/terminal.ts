@@ -60,12 +60,6 @@ export interface ITerminalProfileResolverService {
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
 }
 
-/*
- * When there were shell integration args injected
- * and createProcess returns an error, this exit code will be used.
- */
-export const ShellIntegrationExitCode = 633;
-
 export interface IRegisterContributedProfileArgs {
 	extensionIdentifier: string; id: string; title: string; options: ICreateContributedTerminalProfileOptions; titleTemplate?: string;
 }
