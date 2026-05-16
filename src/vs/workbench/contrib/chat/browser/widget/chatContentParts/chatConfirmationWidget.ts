@@ -27,6 +27,7 @@ import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart, IChatMarkdownContentPartOptions } from './chatMarkdownContentPart.js';
+import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 import './media/chatConfirmationWidget.css';
 
 export interface IChatConfirmationButton<T> {
@@ -61,6 +62,7 @@ export class ChatQueryTitlePart extends Disposable {
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 	private readonly _renderedTitle = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly _fileWidgetStore = this._register(new DisposableStore());
 
 	public get title() {
 		return this._title;
@@ -69,9 +71,7 @@ export class ChatQueryTitlePart extends Disposable {
 	public set title(value: string | IMarkdownString) {
 		this._title = value;
 
-		const next = this._renderer.render(this.toMdString(value), {
-			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-		});
+		const next = this.renderTitle(value);
 
 		const previousEl = this._renderedTitle.value?.element;
 		if (previousEl?.parentElement) {
@@ -88,20 +88,20 @@ export class ChatQueryTitlePart extends Disposable {
 		private _title: IMarkdownString | string,
 		subtitle: string | IMarkdownString | undefined,
 		@IMarkdownRendererService private readonly _renderer: IMarkdownRendererService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IChatMarkdownAnchorService private readonly _chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
 		super();
 
 		element.classList.add('chat-query-title-part');
 
-		this._renderedTitle.value = _renderer.render(this.toMdString(_title), {
-			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-		});
+		this._renderedTitle.value = this.renderTitle(_title);
 		element.append(this._renderedTitle.value.element);
 		if (subtitle) {
 			const str = this.toMdString(subtitle);
-			const renderedTitle = this._register(_renderer.render(str, {
+			const renderedTitle = this._register(_renderer.render(str, getChatMarkdownRenderOptions({
 				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-			}));
+			})));
 			const wrapper = document.createElement('small');
 			wrapper.appendChild(renderedTitle.element);
 			element.append(wrapper);
@@ -114,6 +114,15 @@ export class ChatQueryTitlePart extends Disposable {
 		} else {
 			return new MarkdownString(value.value, { supportThemeIcons: true, isTrusted: value.isTrusted });
 		}
+	}
+
+	private renderTitle(value: IMarkdownString | string): IRenderedMarkdown {
+		const renderedTitle = this._renderer.render(this.toMdString(value), getChatMarkdownRenderOptions({
+			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
+		}));
+		this._fileWidgetStore.clear();
+		renderFileWidgets(renderedTitle.element, this._instantiationService, this._chatMarkdownAnchorService, this._fileWidgetStore);
+		return renderedTitle;
 	}
 }
 

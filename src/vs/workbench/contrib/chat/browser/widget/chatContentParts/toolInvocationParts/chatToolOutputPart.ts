@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
-import { renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
@@ -14,6 +13,7 @@ import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from '../../../../common/chatService/chatService.js';
 import { IToolResultOutputDetails } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
@@ -22,6 +22,8 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatProgressSubPart } from '../chatProgressContentPart.js';
 import { IChatOutputPartStateCache, IOutputPartState } from '../chatOutputPartStateCache.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
+import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 
 // TODO: see if we can reuse existing types instead of adding ChatToolOutputSubPart
 export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
@@ -36,10 +38,12 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		private readonly context: IChatContentPartRenderContext,
 		private readonly onDidRemount: Event<void>,
+		private readonly renderer: IMarkdownRenderer,
 		@IChatOutputRendererService private readonly chatOutputItemRendererService: IChatOutputRendererService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatOutputPartStateCache private readonly stateCache: IChatOutputPartStateCache,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
 		super(toolInvocation);
 
@@ -61,8 +65,9 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 			if (typeof toolInvocation.invocationMessage === 'string') {
 				titleEl.textContent = toolInvocation.invocationMessage;
 			} else {
-				const md = this._register(renderMarkdown(toolInvocation.invocationMessage));
+				const md = this._register(this.renderer.render(toolInvocation.invocationMessage));
 				titleEl.appendChild(md.element);
+				renderFileWidgets(md.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 			}
 		}
 

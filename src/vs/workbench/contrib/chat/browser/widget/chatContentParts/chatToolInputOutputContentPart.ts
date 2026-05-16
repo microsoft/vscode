@@ -26,8 +26,6 @@ import { IDisposableReference } from './chatCollections.js';
 import { ChatQueryTitlePart } from './chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatToolOutputContentSubPart } from './chatToolOutputContentSubPart.js';
-import { renderFileWidgets } from './chatInlineAnchorWidget.js';
-import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 
 export interface IChatCollapsibleIOCodePart {
 	kind: 'code';
@@ -98,7 +96,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IHoverService hoverService: IHoverService,
-		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
@@ -115,7 +112,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			title,
 			subtitle,
 		));
-		renderFileWidgets(titleEl.root, this._instantiationService, this.chatMarkdownAnchorService, this._store);
 		const spacer = document.createElement('span');
 		spacer.style.flexGrow = '1';
 
