@@ -15,7 +15,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
-import type { AgentInfo } from '../common/state/protocol/state.js';
+import type { AgentInfo, MessageAttachment } from '../common/state/protocol/state.js';
 import { ActionType, isSessionAction, StateAction, type SessionToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentSessionUri,
@@ -35,6 +35,25 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, type IIncrementalDiffOptions } from './sessionDiffAggregator.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+
+type AgentHostUserMessageSentSource = 'direct' | 'queued';
+
+type AgentHostUserMessageSentEvent = {
+	provider: string;
+	source: AgentHostUserMessageSentSource;
+	hasAttachments: boolean;
+	attachmentCount: number;
+};
+
+type AgentHostUserMessageSentClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user message was sent directly or from the queued-message flow.' };
+	hasAttachments: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user message included attachments.' };
+	attachmentCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of attachments included with the user message.' };
+	owner: 'roblourens';
+	comment: 'Tracks user messages sent from the agent host process to an agent provider.';
+};
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -110,6 +129,7 @@ export class AgentSideEffects extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._diffComputeService = this._register(new NodeWorkerDiffComputeService(this._logService));
@@ -712,6 +732,7 @@ export class AgentSideEffects extends Disposable {
 					return;
 				}
 				const attachments = action.userMessage.attachments;
+				this._logUserMessageSent(agent.id, 'direct', attachments);
 				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments, action.turnId).catch(err => {
 					const errCode = (err as { code?: number })?.code;
 					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${action.session}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
@@ -943,6 +964,7 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		const attachments = msg.userMessage.attachments;
+		this._logUserMessageSent(agent.id, 'queued', attachments);
 		agent.sendMessage(URI.parse(session), msg.userMessage.text, attachments, turnId).catch(err => {
 			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
 			this._stateManager.dispatchServerAction({
@@ -951,6 +973,16 @@ export class AgentSideEffects extends Disposable {
 				turnId,
 				error: { errorType: 'sendFailed', message: String(err) },
 			});
+		});
+	}
+
+	private _logUserMessageSent(provider: string, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
+		const attachmentCount = attachments?.length ?? 0;
+		this._telemetryService.publicLog2<AgentHostUserMessageSentEvent, AgentHostUserMessageSentClassification>('agentHostUserMessageSent', {
+			provider,
+			source,
+			hasAttachments: attachmentCount > 0,
+			attachmentCount,
 		});
 	}
 

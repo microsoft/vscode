@@ -24,6 +24,8 @@ import { CustomizationStatus } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, SessionAction } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, MessageAttachmentKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -40,15 +42,37 @@ import { MockAgent } from './mockAgent.js';
  * scope that satisfies its {@link IAgentConfigurationService} /
  * {@link ILogService} / {@link IAgentHostGitService} dependencies.
  */
-function createTestSideEffects(disposables: DisposableStore, stateManager: AgentHostStateManager, options: IAgentSideEffectsOptions, gitService?: IAgentHostGitService): AgentSideEffects {
+function createTestSideEffects(disposables: DisposableStore, stateManager: AgentHostStateManager, options: IAgentSideEffectsOptions, gitService?: IAgentHostGitService, telemetryService: ITelemetryService = NullTelemetryService): AgentSideEffects {
 	const logService = new NullLogService();
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
 		[IAgentHostGitService, gitService ?? createNoopGitService()],
+		[ITelemetryService, telemetryService],
 	), /*strict*/ true));
 	return disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, options));
+}
+
+class TestTelemetryService implements ITelemetryService {
+	declare readonly _serviceBrand: undefined;
+	readonly telemetryLevel = TelemetryLevel.USAGE;
+	readonly sessionId = 'test-session';
+	readonly machineId = 'test-machine';
+	readonly sqmId = 'test-sqm';
+	readonly devDeviceId = 'test-dev-device';
+	readonly firstSessionDate = 'test-first-session-date';
+	readonly sendErrorTelemetry = false;
+	readonly events: { eventName: string; data: unknown }[] = [];
+
+	publicLog(): void { }
+	publicLog2(eventName: string, data?: unknown): void {
+		this.events.push({ eventName, data });
+	}
+	publicLogError(): void { }
+	publicLogError2(): void { }
+	setExperimentProperty(): void { }
+	setCommonProperty(): void { }
 }
 
 suite('AgentSideEffects', () => {
@@ -59,6 +83,7 @@ suite('AgentSideEffects', () => {
 	let agent: MockAgent;
 	let sideEffects: AgentSideEffects;
 	let agentList: ReturnType<typeof observableValue<readonly IAgent[]>>;
+	let telemetryService: TestTelemetryService;
 
 	const sessionUri = AgentSession.uri('mock', 'session-1');
 
@@ -97,12 +122,13 @@ suite('AgentSideEffects', () => {
 		disposables.add(toDisposable(() => agent.dispose()));
 		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		agentList = observableValue<readonly IAgent[]>('agents', [agent]);
+		telemetryService = new TestTelemetryService();
 		sideEffects = createTestSideEffects(disposables, stateManager, {
 			getAgent: () => agent,
 			agents: agentList,
 			sessionDataService: createNullSessionDataService(),
 			onTurnComplete: () => { },
-		});
+		}, undefined, telemetryService);
 	});
 
 	teardown(() => {
@@ -128,6 +154,27 @@ suite('AgentSideEffects', () => {
 			await new Promise(r => setTimeout(r, 10));
 
 			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world', attachments: undefined }]);
+		});
+
+		test('logs telemetry when sending a direct user message', () => {
+			setupSession();
+			const fileUri = URI.file('/workspace/direct.ts');
+			sideEffects.handleAction({
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				userMessage: { text: 'hello world', attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'direct.ts', displayKind: 'document' }] },
+			});
+
+			assert.deepStrictEqual(telemetryService.events, [{
+				eventName: 'agentHostUserMessageSent',
+				data: {
+					provider: 'mock',
+					source: 'direct',
+					hasAttachments: true,
+					attachmentCount: 1,
+				},
+			}]);
 		});
 
 		test('parses protocol attachment URI strings before passing them to the agent', () => {
@@ -574,6 +621,30 @@ suite('AgentSideEffects', () => {
 				session: URI.parse(sessionUri.toString()),
 				prompt: 'queued message',
 				attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'queued.ts', displayKind: 'document' }],
+			}]);
+		});
+
+		test('logs telemetry when sending a queued user message', () => {
+			setupSession();
+
+			const action = {
+				type: ActionType.SessionPendingMessageSet as const,
+				session: sessionUri.toString(),
+				kind: PendingMessageKind.Queued,
+				id: 'q-telemetry',
+				userMessage: { text: 'queued message' },
+			};
+			stateManager.dispatchClientAction(action, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(action);
+
+			assert.deepStrictEqual(telemetryService.events, [{
+				eventName: 'agentHostUserMessageSent',
+				data: {
+					provider: 'mock',
+					source: 'queued',
+					hasAttachments: false,
+					attachmentCount: 0,
+				},
 			}]);
 		});
 
