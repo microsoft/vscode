@@ -16,6 +16,9 @@ import { getClaudeConfirmationTitle, getClaudePermissionKind, getClaudeToolDispl
  * lookup callback (so the agent's `_sessions` map stays private) and
  * the configuration service for the one mutation point
  * (`ExitPlanMode` Approve persists `permissionMode = 'acceptEdits'`).
+ * Subagent correlation reads from `session.subagents` (the per-session
+ * {@link import('./claudeSubagentRegistry.js').SubagentRegistry}); the
+ * bridge no longer takes a host-singleton resolver dep.
  */
 export interface IClaudeCanUseToolDeps {
 	readonly getSession: (sessionId: string) => ClaudeAgentSession | undefined;
@@ -31,6 +34,14 @@ export interface IClaudeCanUseToolOptions {
 	readonly signal: AbortSignal;
 	readonly blockedPath?: string;
 	readonly toolUseID: string;
+	/**
+	 * Phase 12 step 5 — SDK-supplied subagent id for inner-tool
+	 * confirmations. When set, the bridge resolves the parent
+	 * `tool_use_id` via the mapper state and tags the resulting
+	 * `pending_confirmation` so the host can route it to the subagent
+	 * session and feed the resolver cache.
+	 */
+	readonly agentID?: string;
 }
 
 /**
@@ -106,7 +117,7 @@ async function dispatchCanUseTool(
 	// input (a question carousel) so it routes through
 	// `requestUserInput` / `SessionInputRequested`.
 	if (INTERACTIVE_CLAUDE_TOOLS.has(toolName)) {
-		return handleInteractiveTool(deps, session, toolName, input, options.toolUseID);
+		return handleInteractiveTool(deps, session, toolName, input, options);
 	}
 
 	const permissionKind = getClaudePermissionKind(toolName);
@@ -123,15 +134,45 @@ async function dispatchCanUseTool(
 		confirmationTitle: getClaudeConfirmationTitle(toolName),
 	};
 
+	const parentToolCallId = resolveSubagentParent(session, options);
+
 	const approved = await session.requestPermission({
 		toolUseID: options.toolUseID,
 		state,
 		permissionKind,
 		...(permissionPath !== undefined ? { permissionPath } : {}),
+		...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
 	});
 	return approved
 		? { behavior: 'allow', updatedInput: input }
 		: { behavior: 'deny', message: 'User declined' };
+}
+
+/**
+ * Phase 12 step 5 — shared subagent-context resolution for every
+ * `pending_confirmation` and `SessionInputRequested` emission. When the
+ * SDK delivers `options.agentID`, look up the parent spawn via the
+ * session's registry and write the agentId back to it. The write is
+ * **first-writer-wins** (a mismatched late agentID is silently dropped
+ * — see {@link SubagentSpawn.setAgentId}); all writers converge on the
+ * SDK's single identity for a given Task, so conflict is not expected.
+ * Returns the parent `tool_use_id` for top-level callers to spread
+ * onto the request payload, or `undefined` when this isn't an inner
+ * tool call (no subagent context).
+ */
+function resolveSubagentParent(
+	session: ClaudeAgentSession,
+	options: IClaudeCanUseToolOptions,
+): string | undefined {
+	if (!options.agentID) {
+		return undefined;
+	}
+	const parentSpawn = session.subagents.getParentSpawn(options.toolUseID);
+	if (parentSpawn) {
+		parentSpawn.setAgentId(options.agentID);
+		return parentSpawn.toolUseId;
+	}
+	return undefined;
 }
 
 /**
@@ -146,13 +187,13 @@ function handleInteractiveTool(
 	session: ClaudeAgentSession,
 	toolName: string,
 	input: Record<string, unknown>,
-	toolUseID: string,
+	options: IClaudeCanUseToolOptions,
 ): Promise<PermissionResult> {
 	switch (toolName) {
 		case 'ExitPlanMode':
-			return handleExitPlanMode(deps, session, input, toolUseID);
+			return handleExitPlanMode(deps, session, input, options);
 		case 'AskUserQuestion':
-			return handleAskUserQuestion(session, input, toolUseID);
+			return handleAskUserQuestion(deps, session, input, options);
 		default:
 			return Promise.resolve({ behavior: 'deny', message: `Unsupported interactive tool: ${toolName}` });
 	}
@@ -179,12 +220,15 @@ async function handleExitPlanMode(
 	deps: IClaudeCanUseToolDeps,
 	session: ClaudeAgentSession,
 	input: Record<string, unknown>,
-	toolUseID: string,
+	options: IClaudeCanUseToolOptions,
 ): Promise<PermissionResult> {
+	const toolUseID = options.toolUseID;
+	const parentToolCallId = resolveSubagentParent(session, options);
 	const approved = await session.requestPermission({
 		toolUseID,
 		state: buildExitPlanModeConfirmationState(input, toolUseID),
 		permissionKind: getClaudePermissionKind('ExitPlanMode'),
+		...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
 	});
 	if (approved) {
 		deps.configurationService.updateSessionConfig(session.sessionUri.toString(), {
@@ -202,19 +246,22 @@ async function handleExitPlanMode(
  * extension's `Record<question, value>` contract).
  */
 async function handleAskUserQuestion(
+	deps: IClaudeCanUseToolDeps,
 	session: ClaudeAgentSession,
 	input: Record<string, unknown>,
-	toolUseID: string,
+	options: IClaudeCanUseToolOptions,
 ): Promise<PermissionResult> {
+	const toolUseID = options.toolUseID;
 	const askInput = parseAskUserQuestionInput(input);
 	if (!askInput) {
 		return { behavior: 'deny', message: 'AskUserQuestion called without questions' };
 	}
 
+	const parentToolCallId = resolveSubagentParent(session, options);
 	const answer = await session.requestUserInput({
 		id: toolUseID,
 		questions: buildAskUserSessionInputQuestions(askInput),
-	});
+	}, parentToolCallId);
 	if (answer.response !== SessionInputResponseKind.Accept || !answer.answers) {
 		return { behavior: 'deny', message: 'The user cancelled the question' };
 	}

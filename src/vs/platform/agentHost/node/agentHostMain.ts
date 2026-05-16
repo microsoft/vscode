@@ -18,12 +18,15 @@ import * as inspector from 'inspector';
 import { AgentHostClaudeSdkPathEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
+import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
+import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
@@ -119,6 +122,8 @@ function startAgentHost(): void {
 		diServices.set(IClaudeProxyService, claudeProxyService);
 		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
+		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
+		diServices.set(IAgentHostOTelService, agentHostOTelService);
 		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
@@ -127,6 +132,7 @@ function startAgentHost(): void {
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
+		diServices.set(IAgentHostCompletions, agentService.completionsService);
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		// The Claude agent provider is opt-in. Gated on the
 		// `chat.agentHost.claudeAgent.path` workbench setting being non-empty,

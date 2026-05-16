@@ -34,6 +34,7 @@ import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../..
 import * as semver from '../../../../../../base/common/semver/semver.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IUpdateService, StateType } from '../../../../../../platform/update/common/update.js';
 
 function isVersionAtLeast(current: string, required: string): boolean {
@@ -252,11 +253,19 @@ function resolveConfigProperty(
  */
 function getPriceCategoryLabel(priceCategory: string | undefined): string | undefined {
 	switch (priceCategory) {
-		case 'low': return localize('chat.priceCategory.low', "Low cost");
-		case 'medium': return localize('chat.priceCategory.medium', "Medium cost");
-		case 'high': return localize('chat.priceCategory.high', "High cost");
-		case 'very_high': return localize('chat.priceCategory.veryHigh', "Very high cost");
-		default: return undefined;
+		case undefined:
+		case '':
+			return undefined;
+		case 'low':
+			return localize('chat.priceCategory.low', "Low cost");
+		case 'medium':
+			return localize('chat.priceCategory.medium', "Medium cost");
+		case 'high':
+			return localize('chat.priceCategory.high', "High cost");
+		case 'very_high':
+			return localize('chat.priceCategory.veryHigh', "Very high cost");
+		default:
+			return localize('chat.priceCategory.unknown', "{0} cost", priceCategory.charAt(0).toUpperCase() + priceCategory.slice(1));
 	}
 }
 
@@ -336,7 +345,8 @@ function createModelAction(
 }
 
 function shouldShowManageModelsAction(chatEntitlementService: IChatEntitlementService): boolean {
-	return chatEntitlementService.entitlement === ChatEntitlement.Free ||
+	return chatEntitlementService.hasByokModels ||
+		chatEntitlementService.entitlement === ChatEntitlement.Free ||
 		chatEntitlementService.entitlement === ChatEntitlement.EDU ||
 		chatEntitlementService.entitlement === ChatEntitlement.Pro ||
 		chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
@@ -863,6 +873,7 @@ export class ModelPickerWidget extends Disposable {
 		@IChatEntitlementService private readonly _entitlementService: IChatEntitlementService,
 		@IUpdateService private readonly _updateService: IUpdateService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
@@ -1005,7 +1016,7 @@ export class ModelPickerWidget extends Disposable {
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
 		};
-		const manageSettingsUrl = this._productService.defaultChatAgent?.manageSettingsUrl;
+		const manageSettingsUrl = this._defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings);
 		const onTogglePin = (modelIdentifier: string, pinned: boolean) => {
 			if (pinned) {
 				this._languageModelsService.pinModel(modelIdentifier);

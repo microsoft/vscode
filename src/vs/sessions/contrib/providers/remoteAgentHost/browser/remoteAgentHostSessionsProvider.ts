@@ -21,6 +21,7 @@ import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from 
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -204,8 +205,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
 		@IGitHubService gitHubService: IGitHubService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;

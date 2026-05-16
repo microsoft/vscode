@@ -9,8 +9,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
-import { CopilotSessionSearchPolicy } from '../../../../base/common/defaultAccount.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentSdkPathSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentSdkPathSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
@@ -147,6 +146,7 @@ import { QuickChatService } from './widgetHosts/chatQuick.js';
 import { ChatResponseAccessibleView } from './accessibility/chatResponseAccessibleView.js';
 import { ChatTerminalOutputAccessibleView } from './accessibility/chatTerminalOutputAccessibleView.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
+import { HasByokModelsContribution } from './hasByokModelsContribution.js';
 import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
 import { ChatVariablesService } from './attachments/chatVariables.js';
 import { ChatWidget } from './widget/chatWidget.js';
@@ -193,6 +193,7 @@ import { ChatTipService, IChatTipService } from './chatTipService.js';
 import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionItem.js';
 import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
+import { UtilityModelContribution, UtilitySmallModelContribution } from './utilityModelContribution.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
 import { browserChatToolReferenceNames } from '../../browserView/common/browserChatToolReferenceNames.js';
 
@@ -497,11 +498,14 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.sessionSync.enabled', "Enable session sync to GitHub.com. When enabled, Copilot session data is synced to your GitHub account for cross-device access and richer insights. Requires local session tracking to also be enabled."),
 			type: 'boolean',
 			tags: ['experimental', 'advanced'],
+			experiment: {
+				mode: 'auto'
+			},
 			policy: {
 				name: 'CopilotSessionSync',
 				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.119',
-				value: (policyData) => policyData.session_search === CopilotSessionSearchPolicy.Disabled ? false : undefined,
+				minimumVersion: '1.121',
+				value: (policyData) => policyData.cloud_session_storage_enabled === false ? false : undefined,
 				localization: {
 					description: {
 						key: 'chat.sessionSync.enabled.policy',
@@ -1013,6 +1017,49 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
+		[AgentHostOTelEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.otel.enabled', "When enabled, the agent host emits OpenTelemetry traces from the Copilot SDK. Requires `#chat.agentHost.enabled#`. Either configure `#chat.agentHost.otel.otlpEndpoint#` to ship traces to an external collector or enable `#chat.agentHost.otel.dbSpanExporter.enabled#` to capture them locally."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostOTelExporterTypeSettingId]: {
+			type: 'string',
+			enum: ['otlp-http', 'otlp-grpc', 'console', 'file'],
+			description: nls.localize('chat.agentHost.otel.exporterType', "Exporter backend used by the Copilot SDK when `#chat.agentHost.otel.enabled#` is on. `otlp-grpc` is downgraded to `otlp-http` transparently in the CLI runtime."),
+			default: 'otlp-http',
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostOTelOtlpEndpointSettingId]: {
+			type: 'string',
+			description: nls.localize('chat.agentHost.otel.otlpEndpoint', "OTLP endpoint URL when exporter type is `otlp-http` or `otlp-grpc`. Sets `OTEL_EXPORTER_OTLP_ENDPOINT` inside the agent host process."),
+			default: '',
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostOTelCaptureContentSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.otel.captureContent', "When enabled, includes prompt and response content in OTel span attributes. Sets `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`. Privacy-sensitive: do not enable in environments that ship spans to shared sinks."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostOTelOutfileSettingId]: {
+			type: 'string',
+			description: nls.localize('chat.agentHost.otel.outfile', "Output path for span JSON lines when exporter type is `file`. Sets `COPILOT_OTEL_FILE_EXPORTER_PATH`."),
+			default: '',
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostOTelDbSpanExporterEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.otel.dbSpanExporter.enabled', "When enabled, the agent host persists every emitted OTel span to a local SQLite database. Spans can be inspected via the `Export Agent Host Traces Database` command. Compatible with external exporters: spans are written to SQLite *and* forwarded to the user-configured sink."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
 		[ChatConfiguration.AgentHostClientTools]: {
 			type: 'array',
 			items: { type: 'string' },
@@ -1043,7 +1090,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ToolRiskAssessmentModel]: {
 			type: 'string',
 			description: nls.localize('chat.tools.riskAssessment.model', "The language model id used to generate tool risk assessments. Should be a small, fast model."),
-			default: 'copilot-fast',
+			default: 'copilot-utility-small',
 			tags: ['experimental', 'advanced'],
 			experiment: {
 				mode: 'auto'
@@ -1064,6 +1111,22 @@ configurationRegistry.registerConfiguration({
 			enum: ExploreAgentDefaultModel.modelIds,
 			enumItemLabels: ExploreAgentDefaultModel.modelLabels,
 			markdownEnumDescriptions: ExploreAgentDefaultModel.modelDescriptions
+		},
+		[ChatConfiguration.UtilityModel]: {
+			type: 'string',
+			description: nls.localize('chat.utilityModel.description', "Override the language model used by built-in utility flows (titles, summaries, fallback responses, etc.). Leave empty to use the default model."),
+			default: '',
+			enum: UtilityModelContribution.modelIds,
+			enumItemLabels: UtilityModelContribution.modelLabels,
+			markdownEnumDescriptions: UtilityModelContribution.modelDescriptions
+		},
+		[ChatConfiguration.UtilitySmallModel]: {
+			type: 'string',
+			description: nls.localize('chat.utilitySmallModel.description', "Override the language model used by built-in small/fast utility flows (commit messages, intent detection, inline-chat progress, etc.). A fast and inexpensive model is recommended. Leave empty to use the default model."),
+			default: '',
+			enum: UtilitySmallModelContribution.modelIds,
+			enumItemLabels: UtilitySmallModelContribution.modelLabels,
+			markdownEnumDescriptions: UtilitySmallModelContribution.modelDescriptions
 		},
 		[ChatConfiguration.RequestQueueingDefaultAction]: {
 			type: 'string',
@@ -1519,24 +1582,6 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		'chat.tools.usagesTool.enabled': {
-			type: 'boolean',
-			default: true,
-			markdownDescription: nls.localize('chat.tools.usagesTool.enabled', "Controls whether the usages tool is available for finding references, definitions, and implementations of code symbols."),
-			tags: ['preview'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
-		'chat.tools.renameTool.enabled': {
-			type: 'boolean',
-			default: true,
-			markdownDescription: nls.localize('chat.tools.renameTool.enabled', "Controls whether the rename tool is available for renaming code symbols across the workspace."),
-			tags: ['preview'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
 		[ChatConfiguration.ThinkingPhrases]: {
 			type: 'object',
 			default: {
@@ -1571,6 +1616,13 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
 			default: false,
 			scope: ConfigurationScope.WINDOW,
+		},
+		[ChatConfiguration.OfflineByok]: {
+			type: 'boolean',
+			description: nls.localize('chat.offlineByok', "Experimental: enable BYOK chat features without GitHub sign-in."),
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			included: false,
 		},
 		[ChatConfiguration.TitleBarSignInEnabled]: {
 			type: 'boolean',
@@ -2247,6 +2299,7 @@ registerWorkbenchContribution2(ChatImplicitContextContribution.ID, ChatImplicitC
 registerWorkbenchContribution2(ChatViewsWelcomeHandler.ID, ChatViewsWelcomeHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingStartedContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatSetupContribution.ID, ChatSetupContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(HasByokModelsContribution.ID, HasByokModelsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatTeardownContribution.ID, ChatTeardownContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);

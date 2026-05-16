@@ -223,6 +223,8 @@ extends:
           os: linux
         jobs:
           - template: build/azure-pipelines/product-copilot.yml@self
+            parameters:
+              VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
