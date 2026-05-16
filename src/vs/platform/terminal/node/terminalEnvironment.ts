@@ -283,9 +283,10 @@ export async function getShellIntegrationInjection(
 								logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
 								return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToSetStickyBit };
 							}
+						} else {
+							logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
+							return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToSetStickyBit };
 						}
-						logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
-						return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToSetStickyBit };
 					}
 				}
 				envMixin['ZDOTDIR'] = zdotdir;

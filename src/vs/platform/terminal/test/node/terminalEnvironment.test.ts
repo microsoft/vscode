@@ -42,7 +42,7 @@ suite('platform - terminalEnvironment', async () => {
 
                         test('when executable or shellType is "none"', async () => {
                                 strictEqual((await getShellIntegrationInjection({ executable: 'none', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
-                                strictEqual((await getShellIntegrationInjection({ executable: pwshExe, shellType: 'none', args: [] } as any, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
+                                strictEqual((await getShellIntegrationInjection({ executable: pwshExe, shellType: 'none', args: [] } as unknown as IShellLaunchConfig, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
                         });
 		// These tests are only expected to work on Windows 10 build 18309 and above
 		(getWindowsBuildNumberSync() < 18309 ? suite.skip : suite)('pwsh', async () => {
