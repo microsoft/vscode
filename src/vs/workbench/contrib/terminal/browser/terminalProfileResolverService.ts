@@ -133,7 +133,6 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 			shellLaunchConfig.shellType = resolvedProfile.shellType;
 		}
 
-
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
 		const resource = shellLaunchConfig === undefined || isString(shellLaunchConfig.cwd) ? undefined : shellLaunchConfig.cwd;

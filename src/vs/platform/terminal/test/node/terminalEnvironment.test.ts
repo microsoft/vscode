@@ -268,6 +268,28 @@ suite('platform - terminalEnvironment', async () => {
 				strictEqual(customProcessOptions.shellIntegration.nonce, 'custom-nonce-12345');
 			});
 		});
+
+		suite('shellType auto-detection and overrides', async () => {
+			test('should auto-detect host-spawn wrapper', async () => {
+				const result = await getShellIntegrationInjection({ executable: '/app/bin/host-spawn', args: ['bash'] }, enabledProcessOptions, defaultEnvironment, logService, productService, false);
+				strictEqual(result.type, 'injection');
+				const injection = result as IShellIntegrationConfigInjection;
+				strictEqual(injection.newArgs?.[0], 'bash'); // The wrapperArg
+			});
+			test('should auto-detect flatpak-spawn wrapper', async () => {
+				const result = await getShellIntegrationInjection({ executable: 'flatpak-spawn', args: ['--host', 'bash'] }, enabledProcessOptions, defaultEnvironment, logService, productService, false);
+				strictEqual(result.type, 'injection');
+				const injection = result as IShellIntegrationConfigInjection;
+				strictEqual(injection.newArgs?.[0], '--host'); // The wrapperArg
+				strictEqual(injection.newArgs?.[1], 'bash'); // The wrapperArg
+			});
+			test('should respect a shellType=bash override when executable=unknown-shell', async () => {
+				const result = await getShellIntegrationInjection({ executable: 'unknown-shell', shellType: 'bash', args: ['-l'] }, enabledProcessOptions, defaultEnvironment, logService, productService, false);
+				strictEqual(result.type, 'injection');
+				const injection = result as IShellIntegrationConfigInjection;
+				strictEqual(injection.envMixin?.['VSCODE_SHELL_LOGIN'], '1');
+			});
+		});
 	});
 
 	suite('sanitizeEnvForLogging', () => {

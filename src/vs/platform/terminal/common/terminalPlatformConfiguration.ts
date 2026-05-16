@@ -60,7 +60,7 @@ export const terminalProfileBaseProperties: IJSONSchemaMap = {
 	shellType: {
 		description: localize('terminalProfile.shellType', 'Override the automatically detected shell type. Useful when using wrappers like host-spawn or flatpak-spawn.'),
 		type: 'string',
-		enum: ['bash', 'sh', 'zsh', 'pwsh', 'powershell', 'cmd', 'fish']
+		enum: ['bash', 'zsh', 'pwsh', 'powershell', 'fish']
 	}
 };
 

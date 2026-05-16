@@ -732,6 +732,7 @@ export interface IShellLaunchConfigDto {
 	tabActions?: ITerminalTabAction[];
 	shellIntegrationEnvironmentReporting?: boolean;
 	titleTemplate?: string;
+	shellType?: string;
 }
 
 /**

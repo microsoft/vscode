@@ -80,14 +80,28 @@ export async function getShellIntegrationInjection(
 		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedWindowsBuild };
 	}
 
-		const originalArgs = shellLaunchConfig.args;
-	let shell = process.platform === 'win32' ? path.basename(shellLaunchConfig.executable).toLowerCase() : path.basename(shellLaunchConfig.executable);
+	let originalArgs = shellLaunchConfig.args;
+	let wrapperArgs: string[] | undefined;
+	const executableBasename = path.basename(shellLaunchConfig.executable).toLowerCase();
+	let shell = process.platform === 'win32' ? executableBasename : executableBasename;
+
+	if (Array.isArray(originalArgs) && originalArgs.length > 0) {
+		if (executableBasename === 'host-spawn') {
+			wrapperArgs = [originalArgs[0]];
+			originalArgs = originalArgs.slice(1);
+			shell = path.basename(wrapperArgs[0]).toLowerCase();
+		} else if (executableBasename === 'flatpak-spawn') {
+			const wrappedShellIndex = originalArgs.findIndex(arg => !arg.startsWith('-'));
+			if (wrappedShellIndex >= 0) {
+				wrapperArgs = originalArgs.slice(0, wrappedShellIndex + 1);
+				originalArgs = originalArgs.slice(wrappedShellIndex + 1);
+				shell = path.basename(wrapperArgs[wrappedShellIndex]).toLowerCase();
+			}
+		}
+	}
+
 	if (shellLaunchConfig.shellType) {
 		shell = shellLaunchConfig.shellType.toLowerCase();
-	} else if (shell === "host-spawn" || shell === "flatpak-spawn") {
-		if (Array.isArray(originalArgs) && originalArgs.length > 0) {
-			shell = path.basename(originalArgs[0]).toLowerCase();
-		}
 	}
 
 	const appRoot = path.dirname(FileAccess.asFileUri('').fsPath);
@@ -120,7 +134,7 @@ export async function getShellIntegrationInjection(
 
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwsh);
-    } else if (arePwshLoginArgs(originalArgs)) {
+			} else if (arePwshLoginArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwshLogin);
 			}
 			if (!newArgs) {
@@ -129,11 +143,12 @@ export async function getShellIntegrationInjection(
 			newArgs = [...newArgs];
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
+			if (wrapperArgs) { newArgs = [...wrapperArgs, ...newArgs]; }
 			return { type, newArgs, envMixin };
-    } else if (shell === 'bash.exe') {
+		} else if (shell === 'bash.exe') {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
-    } else if (areZshBashFishLoginArgs(originalArgs)) {
+			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				envMixin['VSCODE_SHELL_LOGIN'] = '1';
 				addEnvMixinPathPrefix(options, envMixin, shell);
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
@@ -144,6 +159,7 @@ export async function getShellIntegrationInjection(
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
+			if (wrapperArgs) { newArgs = [...wrapperArgs, ...newArgs]; }
 			return { type, newArgs, envMixin };
 		}
 		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
@@ -155,7 +171,7 @@ export async function getShellIntegrationInjection(
 		case 'bash': {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
-    } else if (areZshBashFishLoginArgs(originalArgs)) {
+			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				envMixin['VSCODE_SHELL_LOGIN'] = '1';
 				addEnvMixinPathPrefix(options, envMixin, shell);
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
@@ -166,14 +182,15 @@ export async function getShellIntegrationInjection(
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
+			if (wrapperArgs) { newArgs = [...wrapperArgs, ...newArgs]; }
 			return { type, newArgs, envMixin };
 		}
 		case 'fish': {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Fish);
-    } else if (areZshBashFishLoginArgs(originalArgs)) {
+			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin);
-    } else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Fish) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin)) {
+			} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Fish) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin)) {
 				newArgs = originalArgs;
 			}
 			if (!newArgs) {
@@ -186,12 +203,14 @@ export async function getShellIntegrationInjection(
 
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+			if (wrapperArgs) { newArgs = [...wrapperArgs, ...newArgs]; }
 			return { type, newArgs, envMixin };
 		}
-		case 'pwsh': {
+		case 'pwsh':
+		case 'powershell': {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Pwsh);
-    } else if (arePwshLoginArgs(originalArgs)) {
+			} else if (arePwshLoginArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.PwshLogin);
 			}
 			if (!newArgs) {
@@ -200,15 +219,16 @@ export async function getShellIntegrationInjection(
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
+			if (wrapperArgs) { newArgs = [...wrapperArgs, ...newArgs]; }
 			return { type, newArgs, envMixin };
 		}
 		case 'zsh': {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
-    } else if (areZshBashFishLoginArgs(originalArgs)) {
+			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
 				addEnvMixinPathPrefix(options, envMixin, shell);
-    } else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin)) {
+			} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin)) {
 				newArgs = originalArgs;
 			}
 			if (!newArgs) {
@@ -280,6 +300,7 @@ export async function getShellIntegrationInjection(
 				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh'),
 				dest: path.join(zdotdir, '.zlogin')
 			});
+			if (wrapperArgs) { newArgs = [...wrapperArgs, ...newArgs]; }
 			return { type, newArgs, envMixin, filesToCopy };
 		}
 	}
