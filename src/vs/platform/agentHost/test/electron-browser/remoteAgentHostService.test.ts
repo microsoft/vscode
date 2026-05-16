@@ -18,6 +18,7 @@ import { RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl
 import { parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, entryToRawEntry, type IRawRemoteAgentHostEntry, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 
 // ---- Mock transport ---------------------------------------------------------
 
@@ -127,6 +128,8 @@ suite('RemoteAgentHostService', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(IConfigurationService, configService as Partial<IConfigurationService>);
+		const storageService = disposables.add(new InMemoryStorageService());
+		instantiationService.stub(IStorageService, storageService);
 		registeredFormatters = [];
 		instantiationService.stub(ILabelService, {
 			registerFormatter(formatter: ResourceLabelFormatter) {
@@ -545,6 +548,44 @@ suite('RemoteAgentHostService', () => {
 			service.dispose();
 
 			assert.strictEqual(t.disposed(), true, 'transport disposable runs when service is disposed');
+		});
+
+		test('stores SSH connection details outside the remote hosts setting', async () => {
+			const mockClient = disposables.add(new MockProtocolClient('ssh:remote.example'));
+			await service.addManagedConnection(
+				{
+					name: 'SSH Host',
+					connectionToken: 'ssh-token',
+					connection: {
+						type: RemoteAgentHostEntryType.SSH,
+						address: 'ssh:remote.example',
+						sshConfigHost: 'remote',
+						hostName: 'remote.example',
+						user: 'me',
+						port: 2222,
+					},
+				},
+				mockClient as unknown as Parameters<typeof service.addManagedConnection>[1],
+			);
+
+			assert.deepStrictEqual({
+				settings: configService.entries,
+				configured: service.configuredEntries,
+			}, {
+				settings: [],
+				configured: [{
+					name: 'SSH Host',
+					connectionToken: 'ssh-token',
+					connection: {
+						type: RemoteAgentHostEntryType.SSH,
+						address: 'ssh:remote.example',
+						sshConfigHost: 'remote',
+						hostName: 'remote.example',
+						user: 'me',
+						port: 2222,
+					},
+				}],
+			});
 		});
 	});
 
