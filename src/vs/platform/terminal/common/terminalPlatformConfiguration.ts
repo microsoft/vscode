@@ -58,9 +58,9 @@ export const terminalProfileBaseProperties: IJSONSchemaMap = {
 		default: {}
 	},
 	shellType: {
-		description: localize('terminalProfile.shellType', 'Override the automatically detected shell type. Useful when using wrappers like host-spawn or flatpak-spawn.'),
+		description: localize('terminalProfile.shellType', 'Override the automatically detected shell executable basename. Both variants with and without the \'.exe\' extension are supported (e.g., \'bash\' and \'bash.exe\') for cross-platform profile sharing. Useful when using wrappers like host-spawn or flatpak-spawn.'),
 		type: 'string',
-		enum: ['bash', 'zsh', 'pwsh', 'powershell', 'fish']
+		enum: ['bash', 'bash.exe', 'zsh', 'zsh.exe', 'pwsh', 'pwsh.exe', 'powershell', 'powershell.exe', 'cmd', 'cmd.exe', 'fish', 'fish.exe']
 	}
 };
 
