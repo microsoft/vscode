@@ -108,11 +108,11 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 			if (this._authService.copilotToken === undefined) {
 				this._familyMap.clear();
 				this._copilotUtilityModel = undefined;
+				this._hasForcedUtilityModelRetry = false;
 			}
 
 			this._completionsFamilyMap.clear();
 			this._lastFetchTime = 0;
-			this._hasForcedUtilityModelRetry = false;
 		}));
 	}
 
@@ -176,10 +176,7 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 	public async getCopilotUtilityModel(): Promise<IChatModelInformation> {
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
 		if (!this._copilotUtilityModel && this._familyMap.size > 0 && !this._hasForcedUtilityModelRetry) {
-			// Server returned models but did not flag a chat fallback. Force one refresh
-			// before throwing; gated so a persistent server misconfiguration cannot storm CAPI.
-			// The flag is cleared on auth change and on fetch failure so a recovered server
-			// can be retried later.
+			// One-shot retry per auth epoch: avoids storming CAPI on persistent server misconfig.
 			this._hasForcedUtilityModelRetry = true;
 			this._logService.warn('Utility model unset after initial fetch; forcing one refresh');
 			await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, () => this._fetchModels(true));
