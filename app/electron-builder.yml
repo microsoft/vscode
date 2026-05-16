@@ -1,0 +1,67 @@
+appId: com.aistudio.ide
+productName: AI Studio
+copyright: Copyright © 2024 AI Studio
+
+directories:
+  output: dist
+  buildResources: resources
+
+files:
+  - dist/**/*
+  - package.json
+
+asar: true
+compression: maximum
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: resources/icon.ico
+  artifactName: "${productName}-${version}-Setup.${ext}"
+  publisherName: AI Studio
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: resources/icon.icns
+  category: public.app-category.developer-tools
+  artifactName: "${productName}-${version}-mac.${ext}"
+  hardenedRuntime: true
+  gatekeeperAssess: false
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  icon: resources/icon.png
+  category: Development
+  artifactName: "${productName}-${version}-linux.${ext}"
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  uninstallDisplayName: AI Studio
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+publish:
+  provider: github
+  owner: nathakumar
+  repo: vscode
+  releaseType: release
