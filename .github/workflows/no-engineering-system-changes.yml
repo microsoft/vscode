@@ -130,7 +130,7 @@ jobs:
         id: get_permissions
         if: ${{ steps.allowed.outputs.blocked == 'true' && github.event.pull_request.user.login != 'Copilot' }}
         with:
-          route: GET /repos/microsoft/vscode/collaborators/${{ github.event.pull_request.user.login }}/permission
+          route: GET /repos/${{ github.repository }}/collaborators/${{ github.event.pull_request.user.login }}/permission
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Set control output variable
