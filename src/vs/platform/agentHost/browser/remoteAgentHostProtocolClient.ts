@@ -1224,22 +1224,26 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		// confusion: if our own JS event loop has been pegged we suppress
 		// the close — the silence is on our end, not the remote's, and
 		// tearing down the transport would just abort in-flight requests.
-		// Re-arm so we re-evaluate one cycle later.
+		// Re-arm only the close timer at {@link PING_INTERVAL_MS} so we
+		// re-evaluate promptly once load normalizes (rather than waiting a
+		// full PING_INTERVAL + LIVENESS_TIMEOUT window).
 		if (this._loadEstimator.hasHighLoad()) {
-			this._resetLivenessTimers();
+			this._closeTimer.cancelAndSet(() => this._onCloseTimer(), PING_INTERVAL_MS);
 			return;
 		}
 		const silence = Date.now() - this._lastReadTime;
 		this._logService.info(
 			`[RemoteAgentHostProtocol] Liveness: no message from ${this._address} for ${silence}ms; forcing close to trigger reconnect.`,
 		);
+		// Tear down the dead transport so it can't keep delivering messages
+		// to a Reconnecting/Closed client (and, on the non-factory path,
+		// so we don't leak a half-open socket waiting for client disposal).
+		// WebSocketClientTransport.dispose() disposes its emitters
+		// synchronously before the native close event arrives, so this
+		// won't re-enter {@link _handleTransportClose}.
+		this._transportListeners.clear();
 		if (this._transportFactory) {
 			// In factory mode, route directly through the soft-reconnect path.
-			// We can't rely on `_transport.dispose()` to fire the transport's
-			// `onClose` listener: WebSocketClientTransport.dispose() disposes
-			// its emitters synchronously before the native WebSocket close
-			// event arrives, so dispose alone would never reach
-			// {@link _handleTransportClose} and the client would stall.
 			this._rejectPendingRequests(connectionTimeoutError(this._address, silence));
 			this._handleTransportClose();
 			return;
