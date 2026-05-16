@@ -956,10 +956,6 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		config: ISSHAgentHostConfig,
 		connectionKey?: string,
 	): Promise<SSHClient> {
-		const nativeRequire = await this._getNativeRequire();
-		const ssh2Module = nativeRequire('ssh2') as { Client: new () => unknown };
-		const SSHClientCtor = ssh2Module.Client;
-
 		const connectConfig: ConnectConfig = {
 			host: config.host,
 			port: config.port ?? 22,
@@ -1016,8 +1012,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			}
 		}
 
+		const client = await this._createSSHClient();
 		return new Promise<SSHClient>((resolve, reject) => {
-			const client = new SSHClientCtor() as SSHClient;
 			let settled = false;
 
 			const resolveConnect = () => {
@@ -1058,6 +1054,12 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 			client.connect(connectConfig);
 		});
+	}
+
+	protected async _createSSHClient(): Promise<SSHClient> {
+		const nativeRequire = await this._getNativeRequire();
+		const ssh2Module = nativeRequire('ssh2') as { Client: new () => unknown };
+		return new ssh2Module.Client() as SSHClient;
 	}
 
 	/**
@@ -1191,8 +1193,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			return;
 		}
 		if (responses === undefined) {
-			pending.finish([]);
 			pending.cancelConnect();
+			pending.finish([]);
 			return;
 		}
 		pending.finish(responses);
