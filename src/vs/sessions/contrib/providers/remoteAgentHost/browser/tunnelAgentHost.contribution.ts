@@ -21,6 +21,7 @@ import { logTunnelConnectAttempt, logTunnelConnectResolved, TunnelConnectErrorCa
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
+import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 
 /** Minimum interval between silent status checks (5 minutes). */
 const STATUS_CHECK_INTERVAL = 5 * 60 * 1000;
@@ -208,6 +209,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
 		store.add(provider);
 		store.add(this._sessionsProvidersService.registerProvider(provider));
+		store.add(watchForIncompatibleNotifications(provider, this._instantiationService, this._notificationService));
 		this._providerInstances.set(address, provider);
 		store.add(toDisposable(() => this._providerInstances.delete(address)));
 		this._providerStores.set(address, store);

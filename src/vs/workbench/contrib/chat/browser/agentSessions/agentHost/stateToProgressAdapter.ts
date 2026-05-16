@@ -12,7 +12,7 @@ import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolO
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange, type UserMessage } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
@@ -114,6 +114,17 @@ export interface TurnModelLookup {
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined): string | undefined;
 }
 
+export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage | undefined {
+	if (typeof usage?.inputTokens !== 'number' && typeof usage?.outputTokens !== 'number') {
+		return undefined;
+	}
+	return {
+		kind: 'usage',
+		promptTokens: usage.inputTokens ?? 0,
+		completionTokens: usage.outputTokens ?? 0,
+	};
+}
+
 /**
  * Converts completed turns from the protocol state into session history items.
  *
@@ -135,6 +146,10 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
+		const usage = usageInfoToChatUsage(turn.usage);
+		if (usage) {
+			parts.push(usage);
+		}
 
 		for (const rp of turn.responseParts) {
 			switch (rp.kind) {
@@ -286,6 +301,10 @@ function textRangeToIRange(range: TextRange): IRange {
  */
 export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string | undefined): IChatProgress[] {
 	const parts: IChatProgress[] = [];
+	const usage = usageInfoToChatUsage(activeTurn.usage);
+	if (usage) {
+		parts.push(usage);
+	}
 
 	for (const rp of activeTurn.responseParts) {
 		switch (rp.kind) {

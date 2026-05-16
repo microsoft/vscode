@@ -27,7 +27,7 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
-import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatSessionsService, type IChatSessionRequestHistoryItem } from '../../../common/chatSessionsService.js';
@@ -1134,6 +1134,23 @@ suite('AgentHostChatContribution', () => {
 			const result = await turnPromise;
 
 			assert.strictEqual(result.details, 'Opus 4.7 • 1.5 credits');
+		}));
+
+		test('live turn emits token usage as chat usage progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'session/usage', session, turnId, usage: { inputTokens: 1200, outputTokens: 300, model: 'gpt-5' } } as SessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+
+			await turnPromise;
+
+			const usageParts = collected.flat().filter((p): p is IChatUsage => p.kind === 'usage');
+			assert.deepStrictEqual(
+				usageParts.map(part => ({ kind: part.kind, promptTokens: part.promptTokens, completionTokens: part.completionTokens })),
+				[{ kind: 'usage', promptTokens: 1200, completionTokens: 300 }],
+			);
 		}));
 
 		test('tool_start events become toolInvocation progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

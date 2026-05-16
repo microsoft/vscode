@@ -1582,24 +1582,6 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		'chat.tools.usagesTool.enabled': {
-			type: 'boolean',
-			default: true,
-			markdownDescription: nls.localize('chat.tools.usagesTool.enabled', "Controls whether the usages tool is available for finding references, definitions, and implementations of code symbols."),
-			tags: ['preview'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
-		'chat.tools.renameTool.enabled': {
-			type: 'boolean',
-			default: true,
-			markdownDescription: nls.localize('chat.tools.renameTool.enabled', "Controls whether the rename tool is available for renaming code symbols across the workspace."),
-			tags: ['preview'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
 		[ChatConfiguration.ThinkingPhrases]: {
 			type: 'object',
 			default: {

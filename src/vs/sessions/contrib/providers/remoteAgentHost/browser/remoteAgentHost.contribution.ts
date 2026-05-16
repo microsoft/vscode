@@ -49,6 +49,7 @@ import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
 import { createRemoteAgentCustomizationItemProvider, createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
+import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
@@ -274,6 +275,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			RemoteAgentHostSessionsProvider, { address, name: entry.name });
 		store.add(provider);
 		store.add(this._sessionsProvidersService.registerProvider(provider));
+		store.add(watchForIncompatibleNotifications(provider, this._instantiationService, this._notificationService));
 		this._providerInstances.set(address, provider);
 		store.add(toDisposable(() => this._providerInstances.delete(address)));
 		this._providerStores.set(address, store);
@@ -795,14 +797,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			items: {
 				type: 'object',
 				properties: {
-					address: { type: 'string', description: nls.localize('chat.remoteAgentHosts.address', "The address of the remote agent host (e.g. \"localhost:3000\").") },
+					address: { type: 'string', description: nls.localize('chat.remoteAgentHosts.address', "The WebSocket address of the remote agent host (e.g. \"localhost:3000\").") },
 					name: { type: 'string', description: nls.localize('chat.remoteAgentHosts.name', "A display name for this remote agent host.") },
 					connectionToken: { type: 'string', description: nls.localize('chat.remoteAgentHosts.connectionToken', "An optional connection token for authenticating with the remote agent host.") },
-					sshConfigHost: { type: 'string', description: nls.localize('chat.remoteAgentHosts.sshConfigHost', "SSH config host alias for automatic reconnection via SSH tunnel.") },
 				},
 				required: ['address', 'name'],
 			},
-			description: nls.localize('chat.remoteAgentHosts', "A list of remote agent host addresses to connect to (e.g. \"localhost:3000\")."),
+			description: nls.localize('chat.remoteAgentHosts', "A list of WebSocket remote agent host addresses to connect to (e.g. \"localhost:3000\"). SSH remote agent host details are managed by VS Code."),
 			default: [],
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],

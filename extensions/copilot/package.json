@@ -994,7 +994,6 @@
 				"icon": "$(notebook-render-output)",
 				"modelDescription": "This tool will retrieve the output for a notebook cell from its most recent execution or restored from disk. The cell may have output even when it has not been run in the current kernel session. This tool has a higher token limit for output length than the runNotebookCell tool.",
 				"userDescription": "%copilot.tools.getNotebookCellOutput.description%",
-				"when": "userHasOpenedNotebook",
 				"tags": [],
 				"inputSchema": {
 					"type": "object",
