@@ -156,67 +156,6 @@ jobs:
           mkdir -p .build/node_modules_cache
           tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
 
-  macOS:
-    name: macOS
-    runs-on: macos-14-xlarge
-    env:
-      NPM_ARCH: arm64
-      VSCODE_ARCH: arm64
-    steps:
-      - name: Checkout microsoft/vscode
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: .nvmrc
-
-      - name: Prepare node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
-
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: actions/cache@v5
-        with:
-          path: .build/node_modules_cache
-          key: "node_modules-macos-${{ hashFiles('.build/packagelockhash') }}"
-
-      - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: |
-          set -e
-          c++ --version
-          xcode-select -print-path
-          python3 -m pip install --break-system-packages setuptools
-
-          for i in {1..5}; do # try 5 times
-            npm ci && break
-            if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
-              exit 1
-            fi
-            echo "Npm install failed $i, trying again..."
-          done
-        env:
-          npm_config_arch: ${{ env.NPM_ARCH }}
-          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
-          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
-          # Avoid using dlopen to load Kerberos on macOS which can cause missing libraries
-          # https://github.com/mongodb-js/kerberos/commit/04044d2814ad1d01e77f1ce87f26b03d86692cf2
-          # flipped the default to support legacy linux distros which shouldn't happen
-          # on macOS.
-          GYP_DEFINES: "kerberos_use_rtld=false"
-
-      - name: Create node_modules archive
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: |
-          set -e
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
-          mkdir -p .build/node_modules_cache
-          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-
   windows:
     name: Windows
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
