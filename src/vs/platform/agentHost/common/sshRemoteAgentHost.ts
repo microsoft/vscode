@@ -244,8 +244,8 @@ export interface ISSHRemoteAgentHostMainService {
 
 	/**
 	 * Provide responses for a previously fired keyboard-interactive request.
-	 * Pass `undefined` (e.g. when the user cancels the prompt) to submit empty
-	 * responses, which causes the server to fail this auth attempt.
+	 * Pass `undefined` when the user cancels the prompt; this aborts the
+	 * owning SSH connection attempt.
 	 */
 	respondKeyboardInteractive(requestId: string, responses: readonly string[] | undefined): Promise<void>;
 
