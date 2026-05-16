@@ -76,6 +76,7 @@ Decoupling these allows copilot sessions from different providers (local CLI, re
 - Handles session notifications (`notify/sessionAdded`, `notify/sessionRemoved`) and state changes
 - Fires `onDidChangeSessionTypes` when the host's agent list changes
 - SSH connection progress notifications are closed when the connect promise settles; keyboard-interactive prompt cancellation rejects the connect promise as cancellation and does not show an error notification.
+- Startup SSH auto-reconnect treats keyboard-interactive cancellation as an intentional pause and does not schedule another reconnect attempt.
 
 ## Stubbed Operations
 

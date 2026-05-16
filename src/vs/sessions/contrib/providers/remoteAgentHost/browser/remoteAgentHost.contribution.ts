@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -105,6 +106,10 @@ export class SSHReconnectState extends Disposable {
 		this.paused = false;
 		this._timer.clear();
 	}
+}
+
+export function shouldPauseSSHReconnectAfterFailure(err: unknown): boolean {
+	return isCancellationError(err);
 }
 
 /** Per-connection state bundle, disposed when a connection is removed. */
@@ -351,8 +356,15 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				this._sshReconnectStates.deleteAndDispose(sshConfigHost);
 				return;
 			}
-			this._logService.error(`[RemoteAgentHost] SSH reconnect failed for ${sshConfigHost}`, err);
 			const provider = this._providerInstances.get(address);
+			if (shouldPauseSSHReconnectAfterFailure(err)) {
+				this._logService.info(`[RemoteAgentHost] Pausing SSH auto-reconnect for ${sshConfigHost} after user cancellation`);
+				provider?.unpublishCachedSessions();
+				const liveState = this._getOrCreateSSHReconnectState(sshConfigHost);
+				liveState.paused = true;
+				return;
+			}
+			this._logService.error(`[RemoteAgentHost] SSH reconnect failed for ${sshConfigHost}`, err);
 			// Surface protocol-version mismatches on the provider so the
 			// workspace picker can show the host's message and the user
 			// can read it. Other errors stay as the existing disconnected
