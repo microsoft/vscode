@@ -25,7 +25,6 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import product from '../../../../../platform/product/common/product.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
@@ -50,6 +49,7 @@ import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
 import { createRemoteAgentCustomizationItemProvider, createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
+import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
@@ -275,6 +275,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			RemoteAgentHostSessionsProvider, { address, name: entry.name });
 		store.add(provider);
 		store.add(this._sessionsProvidersService.registerProvider(provider));
+		store.add(watchForIncompatibleNotifications(provider, this._instantiationService, this._notificationService));
 		this._providerInstances.set(address, provider);
 		store.add(toDisposable(() => this._providerInstances.delete(address)));
 		this._providerStores.set(address, store);
@@ -291,6 +292,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 * called.
 	 */
 	private _reconnectSSHEntries(): void {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			this._sshReconnectStates.clearAndDisposeAll();
+			return;
+		}
+
 		const autoConnect = this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId);
 		const entries = this._remoteAgentHostService.configuredEntries;
 		const stillConfigured = new Set<string>();
@@ -341,6 +347,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			this._logService.info(`[RemoteAgentHost] SSH tunnel re-established for ${sshConfigHost}`);
 		}).catch(err => {
 			this._pendingSSHReconnects.delete(sshConfigHost);
+			if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+				this._sshReconnectStates.deleteAndDispose(sshConfigHost);
+				return;
+			}
 			this._logService.error(`[RemoteAgentHost] SSH reconnect failed for ${sshConfigHost}`, err);
 			const provider = this._providerInstances.get(address);
 			// Surface protocol-version mismatches on the provider so the
@@ -379,6 +389,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		state.scheduleRetry(delay, () => {
 			// Re-check eligibility — config might have changed, or a manual
 			// connect might have succeeded while we were waiting.
+			if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+				this._sshReconnectStates.deleteAndDispose(sshConfigHost);
+				return;
+			}
 			const autoConnect = this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId);
 			if (!autoConnect) {
 				return;
@@ -753,7 +767,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[RemoteAgentHostsEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.remoteAgentHosts.enabled', "Enable connecting to remote agent hosts."),
-			default: product.quality !== 'stable',
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},

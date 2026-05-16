@@ -138,6 +138,17 @@ export class BrowserViewElementInspector extends Disposable {
 		this._register({
 			dispose: () => webContents.ipc.removeListener('vscode:browserView:elementPicked', onPicked)
 		});
+		const onPickStopped = () => {
+			if (this._activeSelection.value) {
+				this._elementSelectionActive = false;
+				this._onDidChangeElementSelectionActive.fire(false);
+				this._activeSelection.clearAndLeak();
+			}
+		};
+		webContents.ipc.on('vscode:browserView:elementPickStopped', onPickStopped);
+		this._register({
+			dispose: () => webContents.ipc.removeListener('vscode:browserView:elementPickStopped', onPickStopped)
+		});
 
 		// Navigation to a new document destroys the preload's page-side overlay
 		// and resets the CDP inspect mode. Clear the active selection so the
@@ -249,21 +260,25 @@ export class BrowserViewElementInspector extends Disposable {
 			]);
 		};
 
-		this._activeSelection.value = {
+		const selection: IActiveSelection = {
 			isCDP: useCDP,
 			dispose: () => {
-				if (this._elementSelectionActive) {
+				if (this._activeSelection.value === selection) {
 					this._elementSelectionActive = false;
 					this._onDidChangeElementSelectionActive.fire(false);
+					this._activeSelection.clearAndLeak();
 					void stop().catch(() => { /* best-effort cleanup */ });
 				}
 			}
 		};
+		this._activeSelection.value = selection;
 
 		try {
 			await start();
-			this._elementSelectionActive = true;
-			this._onDidChangeElementSelectionActive.fire(true);
+			if (this._activeSelection.value === selection) {
+				this._elementSelectionActive = true;
+				this._onDidChangeElementSelectionActive.fire(true);
+			}
 		} catch {
 			this._activeSelection.clear();
 		}

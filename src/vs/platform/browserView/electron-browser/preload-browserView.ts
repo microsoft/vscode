@@ -81,6 +81,11 @@ function init() {
 			}
 		}
 
+		// Allow Shift+F10 for context menu
+		if (event.key === 'F10' && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
+			return;
+		}
+
 		// Allow native shortcuts to be handled by the browser
 		const ctrlCmd = isMac ? event.metaKey : event.ctrlKey;
 		if (ctrlCmd && !event.altKey) {
@@ -114,7 +119,10 @@ function init() {
 		});
 	});
 
-	const elementPicker = new ElementPicker(el => ipcRenderer.send('vscode:browserView:elementPicked', track(el)));
+	const elementPicker = new ElementPicker(
+		el => ipcRenderer.send('vscode:browserView:elementPicked', track(el)),
+		() => ipcRenderer.send('vscode:browserView:elementPickStopped')
+	);
 
 	const trackedElementsById = new Map<string, WeakRef<Element>>();
 	const finalizationRegistry = new FinalizationRegistry<string>(id => {
@@ -277,7 +285,9 @@ function findCommonVisibleAncestor(candidates: readonly (Node | null | undefined
  * then torn down. `stop()` tears down without picking.
  */
 class ElementPicker {
-	static DRAG_THRESHOLD_PX = 4;
+	private static readonly _DRAG_THRESHOLD_PX = 4;
+	private static readonly _CURSOR_DEFAULT = '/* VS Code injected style */ * { cursor: default !important; }';
+	private static readonly _CURSOR_CROSSHAIR = '/* VS Code injected style */ * { cursor: crosshair !important; }';
 
 	private _selectionActive = false;
 	private _continuous = false;
@@ -287,6 +297,7 @@ class ElementPicker {
 	private readonly _highlight: HTMLDivElement;
 	private readonly _label: HTMLDivElement;
 	private readonly _labelSelector: HTMLSpanElement;
+	private readonly _labelClasses: HTMLSpanElement;
 	private readonly _labelDims: HTMLSpanElement;
 	private readonly _dragbox: HTMLDivElement;
 
@@ -294,6 +305,7 @@ class ElementPicker {
 	private _dragStart: { x: number; y: number } | undefined;
 	private _dragStartTarget: Element | undefined;
 	private _highlightTarget: Element | undefined;
+	private _cursorStylesheet: HTMLStyleElement | undefined;
 
 	readonly api = {
 		start: (): boolean => this.start(),
@@ -302,7 +314,8 @@ class ElementPicker {
 	};
 
 	constructor(
-		private readonly _onPicked: (element: Element) => void
+		private readonly _onPicked: (element: Element) => void,
+		private readonly _onStopped: () => void
 	) {
 		// Build the shadow DOM tree once. The host is appended/removed from the
 		// document on start/stop so the overlay only captures events when active.
@@ -329,10 +342,19 @@ class ElementPicker {
 		root.appendChild(label);
 		this._label = label;
 
+		const labelInfo = document.createElement('span');
+		labelInfo.className = 'label-info';
+		label.appendChild(labelInfo);
+
 		const labelSelector = document.createElement('span');
 		labelSelector.className = 'label-selector';
-		label.appendChild(labelSelector);
+		labelInfo.appendChild(labelSelector);
 		this._labelSelector = labelSelector;
+
+		const labelClasses = document.createElement('span');
+		labelClasses.className = 'label-classes';
+		labelInfo.appendChild(labelClasses);
+		this._labelClasses = labelClasses;
 
 		const labelDims = document.createElement('span');
 		labelDims.className = 'label-dims';
@@ -356,8 +378,16 @@ class ElementPicker {
 		this._continuous = false; // for now
 		// eslint-disable-next-line no-restricted-syntax
 		document.documentElement.appendChild(this._shadowHost);
-		this._shadowHost.classList.add('selecting');
 		this._selectionActive = true;
+
+		// Inject a stylesheet into the page to override all cursors while element selection is active,
+		// so the cursor always appears as a normal pointer even when over e.g. links.
+		// Updated to crosshair in _onPointerDown, reset in _onPointerUp.
+		const cursorStyle = document.createElement('style');
+		cursorStyle.textContent = ElementPicker._CURSOR_DEFAULT;
+		// eslint-disable-next-line no-restricted-syntax
+		document.head.appendChild(cursorStyle);
+		this._cursorStylesheet = cursorStyle;
 
 		// Register high-frequency listeners only while selection is active.
 		window.addEventListener('pointermove', this._onPointerMove, true);
@@ -365,8 +395,39 @@ class ElementPicker {
 		window.addEventListener('pointerdown', this._onPointerDown, true);
 		window.addEventListener('pointerup', this._onPointerUp, true);
 		window.addEventListener('click', this._onClick, true);
+		window.addEventListener('contextmenu', this._onClick, true);
+		window.addEventListener('keydown', this._onKeyDown, true);
 
 		return true;
+	}
+
+	stop(): void {
+		if (!this._selectionActive) {
+			return;
+		}
+		this._selectionActive = false;
+		this._shadowHost.remove();
+
+		this._cursorStylesheet?.remove();
+		this._cursorStylesheet = undefined;
+
+		// Remove high-frequency listeners.
+		window.removeEventListener('pointermove', this._onPointerMove, true);
+		window.removeEventListener('pointerleave', this._onPointerLeave, true);
+		window.removeEventListener('pointerdown', this._onPointerDown, true);
+		window.removeEventListener('pointerup', this._onPointerUp, true);
+		window.removeEventListener('click', this._onClick, true);
+		window.removeEventListener('contextmenu', this._onClick, true);
+		window.removeEventListener('keydown', this._onKeyDown, true);
+
+		this._highlight.style.display = 'none';
+		this._label.style.display = 'none';
+		this._dragbox.style.display = 'none';
+		this._dragStart = undefined;
+		this._dragStartTarget = undefined;
+		this._highlightTarget = undefined;
+
+		this._onStopped();
 	}
 
 	/**
@@ -400,29 +461,6 @@ class ElementPicker {
 		}
 	}
 
-	stop(): void {
-		if (!this._selectionActive) {
-			return;
-		}
-		this._selectionActive = false;
-		this._shadowHost.classList.remove('selecting');
-		this._shadowHost.remove();
-
-		// Remove high-frequency listeners.
-		window.removeEventListener('pointermove', this._onPointerMove, true);
-		window.removeEventListener('pointerleave', this._onPointerLeave, true);
-		window.removeEventListener('pointerdown', this._onPointerDown, true);
-		window.removeEventListener('pointerup', this._onPointerUp, true);
-		window.removeEventListener('click', this._onClick, true);
-
-		this._highlight.style.display = 'none';
-		this._label.style.display = 'none';
-		this._dragbox.style.display = 'none';
-		this._dragStart = undefined;
-		this._dragStartTarget = undefined;
-		this._highlightTarget = undefined;
-	}
-
 	// --- Event handlers ---
 
 	private _onPointerMove = (e: PointerEvent): void => {
@@ -437,7 +475,7 @@ class ElementPicker {
 		}
 		const dx = Math.abs(e.clientX - this._dragStart.x);
 		const dy = Math.abs(e.clientY - this._dragStart.y);
-		if (dx < ElementPicker.DRAG_THRESHOLD_PX && dy < ElementPicker.DRAG_THRESHOLD_PX) {
+		if (dx < ElementPicker._DRAG_THRESHOLD_PX && dy < ElementPicker._DRAG_THRESHOLD_PX) {
 			return;
 		}
 		const left = Math.min(this._dragStart.x, e.clientX);
@@ -468,11 +506,11 @@ class ElementPicker {
 		if (!this._selectionActive) {
 			return;
 		}
-		if (e.button !== 0) {
-			return;
-		}
 		this._dragStart = { x: e.clientX, y: e.clientY };
 		this._dragStartTarget = this._pickElementAt(e.clientX, e.clientY);
+		if (this._cursorStylesheet) {
+			this._cursorStylesheet.textContent = ElementPicker._CURSOR_CROSSHAIR;
+		}
 		e.preventDefault();
 		e.stopPropagation();
 	};
@@ -488,8 +526,11 @@ class ElementPicker {
 		const dy = Math.abs(e.clientY - this._dragStart.y);
 		const start = this._dragStart;
 		this._dragStart = undefined;
+		if (this._cursorStylesheet) {
+			this._cursorStylesheet.textContent = ElementPicker._CURSOR_DEFAULT;
+		}
 
-		if (dx < ElementPicker.DRAG_THRESHOLD_PX && dy < ElementPicker.DRAG_THRESHOLD_PX) {
+		if (dx < ElementPicker._DRAG_THRESHOLD_PX && dy < ElementPicker._DRAG_THRESHOLD_PX) {
 			// Click → pick the element under the pointer.
 			const target = this._dragStartTarget ?? this._pickElementAt(e.clientX, e.clientY);
 			this._dragStartTarget = undefined;
@@ -520,6 +561,17 @@ class ElementPicker {
 		}
 		e.preventDefault();
 		e.stopPropagation();
+	};
+
+	private _onKeyDown = (e: KeyboardEvent): void => {
+		if (!this._selectionActive) {
+			return;
+		}
+		if (e.key === 'Escape') {
+			this.stop();
+			e.preventDefault();
+			e.stopPropagation();
+		}
 	};
 
 	private _onScrollOrResize(): void {
@@ -588,28 +640,29 @@ class ElementPicker {
 		highlight.style.width = `${rect.width}px`;
 		highlight.style.height = `${rect.height}px`;
 
-		// Label is in *viewport* coordinates and sticky-clamped to the
-		// viewport so it stays visible while any part of the element is
-		// in view.
-		if (rect.bottom <= 0 || rect.top >= viewportHeight) {
-			label.style.display = 'none';
-			return;
-		}
+		// Label is in *viewport* coordinates and sticky-clamped to the viewport.
 		const tagName = String(target.tagName || '').toLowerCase();
 		const idPart = target.id ? `#${target.id}` : '';
 		const classPart = target.classList.length
 			? '.' + [...target.classList].join('.')
 			: '';
-		let selector = tagName + idPart + classPart;
-		if (selector.length > 60) {
-			selector = selector.slice(0, 59) + '\u2026';
-		}
-		this._labelSelector.textContent = selector;
+		this._labelSelector.textContent = tagName + idPart;
+		this._labelClasses.textContent = classPart;
 		this._labelDims.textContent = `${Math.round(rect.width)} \u00d7 ${Math.round(rect.height)}`;
 		label.style.display = 'inline-flex';
 		const idealTop = rect.top - labelHeight;
 		const labelTop = Math.max(0, Math.min(viewportHeight - labelHeight, idealTop));
-		label.style.left = `${Math.max(0, rect.left)}px`;
+		// Use clientWidth (excludes scrollbar) rather than innerWidth so the
+		// label doesn't extend behind the scrollbar on Windows/Linux.
+		// eslint-disable-next-line no-restricted-syntax
+		const viewportWidth = document.documentElement.clientWidth;
+		// Position label at the element's left edge, but push it left if it
+		// would overflow the viewport. Clamp to 0 so it never goes off-screen.
+		label.style.left = '0';
+		const naturalWidth = label.offsetWidth;
+		const idealLeft = rect.left;
+		const labelLeft = Math.max(0, Math.min(idealLeft, viewportWidth - naturalWidth));
+		label.style.left = `${labelLeft}px`;
 		label.style.top = `${labelTop}px`;
 	}
 
@@ -662,8 +715,8 @@ class ElementPicker {
 			}
 			.highlight {
 				position: absolute; box-sizing: border-box;
-				border: 2px solid var(--pick-accent, #0078d4);
-				background: color-mix(in srgb, var(--pick-accent, #0078d4) 12%, transparent);
+				border: 2px solid var(--vscode-focusBorder, #0078d4);
+				background: color-mix(in srgb, var(--vscode-focusBorder, #0078d4) 12%, transparent);
 				border-radius: 2px;
 			}
 			.overlay {
@@ -671,31 +724,31 @@ class ElementPicker {
 				background: transparent; box-sizing: border-box;
 				z-index: 1;
 			}
-			:host(.selecting) .overlay {
-				cursor: crosshair;
-			}
 			.label {
 				position: fixed; box-sizing: border-box;
 				display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 6px;
-				max-width: 80vw;
-				background: var(--pick-accent, #0078d4);
-				color: var(--pick-accent-fg, white);
+				max-width: min(100%, 320px);
+				background: var(--vscode-button-background, #0078d4);
+				color: var(--vscode-button-foreground, white);
 				font-family: inherit;
-				font-size: 11px; font-weight: 600; line-height: 20px;
+				font-size: 11px; line-height: 20px;
 				white-space: nowrap;
 				border-radius: 2px;
 				box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 				z-index: 3;
 			}
+			.label-info {
+				display: inline-block; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+			}
 			.label-selector {
-				overflow: hidden; text-overflow: ellipsis; min-width: 0;
+				font-weight: 600;
 			}
 			.label-dims {
-				flex-shrink: 0; opacity: 0.8; font-weight: normal;
+				flex-shrink: 0; opacity: 0.8;
 			}
 			.dragbox {
 				position: fixed; box-sizing: border-box;
-				border: 1px dotted var(--pick-secondary, #a0aabe);
+				border: 1px dotted var(--vscode-focusBorder, #a0aabe);
 				background: transparent;
 				z-index: 2;
 			}
@@ -704,9 +757,9 @@ class ElementPicker {
 	}
 
 	private static _applyTheme(host: HTMLElement, theme: IBrowserViewTheme | undefined): void {
-		host.style.setProperty('--pick-accent', theme?.accentColor ?? null);
-		host.style.setProperty('--pick-accent-fg', theme?.accentForegroundColor ?? null);
-		host.style.setProperty('--pick-secondary', theme?.secondaryColor ?? null);
+		host.style.setProperty('--vscode-focusBorder', theme?.focusBorder ?? null);
+		host.style.setProperty('--vscode-button-background', theme?.buttonBackground ?? null);
+		host.style.setProperty('--vscode-button-foreground', theme?.buttonForeground ?? null);
 		host.style.setProperty('--pick-font', theme?.font ?? null);
 	}
 }

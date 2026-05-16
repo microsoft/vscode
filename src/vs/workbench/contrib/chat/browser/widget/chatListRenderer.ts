@@ -21,7 +21,7 @@ import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
@@ -122,6 +122,13 @@ export interface IChatListItemTemplate {
 	 * they are disposed in a separate cycle after diffing with the next content to render.
 	 */
 	renderedParts?: IChatContentPart[];
+	/**
+	 * Tool parts that have been moved out of a thinking part into the row's value
+	 * container. Their lifecycle matches `renderedParts` (cleared by
+	 * `clearRenderedParts`), not `elementDisposables` which is cleared on
+	 * virtualization recycle.
+	 */
+	movedOutToolParts?: DisposableMap<string, IDisposable>;
 	/**
 	 * Element used to track whether the template is mounted in the DOM.
 	 */
@@ -670,6 +677,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else if (isPendingDividerVM(templateData.currentElement)) {
 			dom.clearNode(templateData.value);
 		}
+
+		templateData.movedOutToolParts?.dispose();
+		templateData.movedOutToolParts = undefined;
 
 		// This template item is no longer in use, or having another element rendered into it,
 		// clear the context on toolbars so it doesn't retain the viewmodel.
@@ -2557,12 +2567,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					wrapper.remove();
 				}
 				templateData.value.appendChild(createdPart.domNode);
-				// Decrement thinking part counters for the materialized item that was moved out
+				// Decrement thinking part counters for the materialized item that was moved out.
+				// removeMaterializedItem detaches the part from the thinking part's ownership
+				// without disposing it, so transfer ownership to the template's moved-out
+				// store which shares the lifecycle of `renderedParts`.
 				thinkingPart.removeMaterializedItem(toolInvocation.toolCallId);
+				(templateData.movedOutToolParts ??= new DisposableMap()).set(toolInvocation.toolCallId, createdPart);
 			} else {
 				thinkingPart.removeLazyItem(toolInvocation.toolId);
 				const { domNode, part: createdPart } = createToolPart();
 				part = createdPart;
+				(templateData.movedOutToolParts ??= new DisposableMap()).set(toolInvocation.toolCallId, createdPart);
 				templateData.value.appendChild(domNode);
 			}
 			this.finalizeCurrentThinkingPart(context, templateData);

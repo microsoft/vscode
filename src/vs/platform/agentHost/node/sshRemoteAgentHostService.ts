@@ -1188,7 +1188,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	private get _quality(): string {
-		return this._productService.quality || 'oss';
+		return this._productService.quality || 'insider';
 	}
 
 	private get _serverDataFolderName(): string {

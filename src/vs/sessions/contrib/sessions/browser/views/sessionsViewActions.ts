@@ -389,7 +389,7 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 		super({
 			id: 'sessionsView.sectionArchive',
 			title: localize2('archiveSection', "Mark All as Done"),
-			icon: Codicon.check,
+			icon: Codicon.checkAll,
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
