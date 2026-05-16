@@ -82,8 +82,8 @@ export async function getShellIntegrationInjection(
 
 	let originalArgs = shellLaunchConfig.args;
 	let wrapperArgs: string[] | undefined;
-	const executableBasename = path.basename(shellLaunchConfig.executable).toLowerCase();
-	let shell = process.platform === 'win32' ? executableBasename : executableBasename;
+	const executableBasename = path.basename(shellLaunchConfig.executable);
+	let shell = process.platform === 'win32' ? executableBasename.toLowerCase() : executableBasename;
 
 	if (Array.isArray(originalArgs) && originalArgs.length > 0) {
 		if (executableBasename === 'host-spawn') {
@@ -104,6 +104,9 @@ export async function getShellIntegrationInjection(
 		shell = shellLaunchConfig.shellType.toLowerCase();
 	}
 
+	// Normalize .exe to make matching cross-platform and settings-sync friendly
+	shell = shell.replace(/\.exe$/, '');
+
 	const appRoot = path.dirname(FileAccess.asFileUri('').fsPath);
 	const type = 'injection';
 	let newArgs: string[] | undefined;
@@ -120,7 +123,7 @@ export async function getShellIntegrationInjection(
 	const scopedDownShellEnvs = ['PATH', 'VIRTUAL_ENV', 'HOME', 'SHELL', 'PWD'];
 	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
 		if (isWindows) {
-			const enableWindowsEnvReporting = options.windowsUseConptyDll || windowsBuildNumber >= 22631 && shell !== 'bash.exe';
+			const enableWindowsEnvReporting = options.windowsUseConptyDll || windowsBuildNumber >= 22631 && shell !== 'bash';
 			if (enableWindowsEnvReporting) {
 				envMixin['VSCODE_SHELL_ENV_REPORTING'] = scopedDownShellEnvs.join(',');
 			}
@@ -131,7 +134,7 @@ export async function getShellIntegrationInjection(
 
 	// Windows
 	if (isWindows) {
-		if (shell === 'pwsh.exe' || shell === 'powershell.exe') {
+		if (shell === 'pwsh' || shell === 'powershell') {
 			envMixin['VSCODE_A11Y_MODE'] = options.isScreenReaderOptimized ? '1' : '0';
 
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
@@ -146,7 +149,7 @@ export async function getShellIntegrationInjection(
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			injectionResult = { type, newArgs, envMixin };
-		} else if (shell === 'bash.exe') {
+		} else if (shell === 'bash') {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			} else if (areZshBashFishLoginArgs(originalArgs)) {

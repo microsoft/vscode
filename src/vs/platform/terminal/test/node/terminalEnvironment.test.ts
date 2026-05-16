@@ -291,7 +291,7 @@ suite('platform - terminalEnvironment', async () => {
 				strictEqual(injection.envMixin?.['VSCODE_SHELL_LOGIN'], '1');
 			});
 			(isWindows ? test.skip : test)('should respect a shellType=powershell override when executable=unknown-shell', async () => {
-				const result = await getShellIntegrationInjection({ executable: 'unknown-shell', shellType: 'powershell', args: ['-Command', 'echo'] }, enabledProcessOptions, defaultEnvironment, logService, productService, false);
+				const result = await getShellIntegrationInjection({ executable: 'unknown-shell', shellType: 'powershell', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService, false);
 				strictEqual(result.type, 'injection');
 				const injection = result as IShellIntegrationConfigInjection;
 				strictEqual(injection.newArgs?.some(arg => arg.includes('shellIntegration')), true);
