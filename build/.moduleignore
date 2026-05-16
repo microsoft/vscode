@@ -223,6 +223,7 @@ zone.js/dist/**
 @github/copilot/foundry-local-sdk/**
 @github/copilot/pvrecorder/**
 @github/copilot/mxc-bin/**
+@github/copilot/sdk/prebuilds/**/computer.node
 
 # @github/copilot platform binaries - not needed
 @github/copilot-darwin-arm64/**
