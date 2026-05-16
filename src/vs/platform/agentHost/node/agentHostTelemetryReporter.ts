@@ -15,13 +15,10 @@ export interface IAgentHostUserMessageSentEvent {
 	agentSessionId: string;
 	source: AgentHostUserMessageSentSource;
 	isSubagentSession: boolean;
-	isInitialTurn: boolean;
 	turnCount: number;
-	hasActiveClient: boolean;
 	activeClientId?: string;
 	activeClientToolCount?: number;
 	activeClientCustomizationCount?: number;
-	hasAttachments: boolean;
 	attachmentCount: number;
 }
 
@@ -30,13 +27,10 @@ export type IAgentHostUserMessageSentClassification = {
 	agentSessionId: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user message was sent directly or from the queued-message flow.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the message was sent to a subagent session.' };
-	isInitialTurn: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this is the first user turn in the session.' };
 	turnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of completed turns in the session when the message was sent.' };
-	hasActiveClient: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session had an active client when the message was sent.' };
 	activeClientId?: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'The active client identifier for the session, if any.' };
 	activeClientToolCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tools provided by the active client, if any.' };
 	activeClientCustomizationCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations provided by the active client, if any.' };
-	hasAttachments: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user message included attachments.' };
 	attachmentCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of attachments included with the user message.' };
 	owner: 'roblourens';
 	comment: 'Tracks user messages sent from the agent host process to an agent provider.';
@@ -54,15 +48,12 @@ export class AgentHostTelemetryReporter {
 			agentSessionId: AgentSession.id(session),
 			source,
 			isSubagentSession: isSubagentSession(session),
-			isInitialTurn: (sessionState?.turns.length ?? 0) === 0,
 			turnCount: sessionState?.turns.length ?? 0,
-			hasActiveClient: !!activeClient,
 			...(activeClient ? {
 				activeClientId: activeClient.clientId,
 				activeClientToolCount: activeClient.tools.length,
 				activeClientCustomizationCount: activeClient.customizations?.length ?? 0,
 			} : {}),
-			hasAttachments: attachmentCount > 0,
 			attachmentCount,
 		});
 	}
