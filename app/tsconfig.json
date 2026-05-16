@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["shared/*"],
+      "@ai/*": ["ai/*"],
+      "@storage/*": ["storage/*"]
+    }
+  },
+  "include": [
+    "electron/**/*.ts",
+    "backend/**/*.ts",
+    "shared/**/*.ts",
+    "ai/**/*.ts",
+    "storage/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist", "out", "frontend"]
+}
