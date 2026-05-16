@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { type AgentProvider, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, type IRemoteAgentHostSSHConnection, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TunnelAgentHostsSettingId } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { AgentHostLocalFilePermissionsSettingId } from '../../../../../platform/agentHost/common/agentHostPermissionService.js';
@@ -52,7 +52,7 @@ import { createRemoteAgentCustomizationItemProvider, createRemoteAgentHarnessDes
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
-import { ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logTerminalRecovery } from '../../../../common/sessionsTelemetry.js';
@@ -275,12 +275,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 	private _createProvider(entry: IRemoteAgentHostEntry): void {
 		const address = getEntryAddress(entry);
-		const sshConfigHost = entry.connection.type === RemoteAgentHostEntryType.SSH ? entry.connection.sshConfigHost : undefined;
-		const connectOnDemand = sshConfigHost
-			? () => this._connectSSHOnDemand(sshConfigHost, entry.name, address)
+		const sshConnection = entry.connection.type === RemoteAgentHostEntryType.SSH ? entry.connection : undefined;
+		const connectOnDemand = sshConnection
+			? () => this._connectSSHOnDemand(sshConnection, entry.name, address)
 			: undefined;
-		const disconnectOnDemand = sshConfigHost
-			? () => this._disconnectSSHOnDemand(sshConfigHost)
+		const disconnectOnDemand = sshConnection
+			? () => this._disconnectSSHOnDemand(sshConnection)
 			: undefined;
 		const store = new DisposableStore();
 		const provider = this._instantiationService.createInstance(
@@ -348,7 +348,18 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 	}
 
-	private async _connectSSHOnDemand(sshConfigHost: string, name: string, address: string): Promise<void> {
+	private async _connectSSHOnDemand(connection: IRemoteAgentHostSSHConnection, name: string, address: string): Promise<void> {
+		const sshConfigHost = connection.sshConfigHost;
+		if (!sshConfigHost) {
+			await this._sshService.connect({
+				host: connection.hostName,
+				port: connection.port,
+				username: connection.user ?? connection.hostName,
+				authMethod: SSHAuthMethod.Agent,
+				name,
+			});
+			return;
+		}
 		if (this._pendingSSHReconnects.has(sshConfigHost)) {
 			return;
 		}
@@ -356,9 +367,14 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		await this._attemptSSHReconnect(sshConfigHost, name, address, { userInitiated: true });
 	}
 
-	private async _disconnectSSHOnDemand(sshConfigHost: string): Promise<void> {
-		this._sshReconnectStates.deleteAndDispose(sshConfigHost);
-		await this._sshService.disconnect(sshConfigHost);
+	private async _disconnectSSHOnDemand(connection: IRemoteAgentHostSSHConnection): Promise<void> {
+		const connectionKey = connection.sshConfigHost
+			? `ssh:${connection.sshConfigHost}`
+			: `${connection.user ?? connection.hostName}@${connection.hostName}:${connection.port ?? 22}`;
+		if (connection.sshConfigHost) {
+			this._sshReconnectStates.deleteAndDispose(connection.sshConfigHost);
+		}
+		await this._sshService.disconnect(connectionKey);
 	}
 
 	private async _attemptSSHReconnect(sshConfigHost: string, name: string, address: string, options: { userInitiated?: boolean } = {}): Promise<void> {
