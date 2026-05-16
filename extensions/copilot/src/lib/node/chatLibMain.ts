@@ -490,6 +490,7 @@ class NullEndpointProvider implements IEndpointProvider {
 	async getAllCompletionModels(): Promise<[]> { return []; }
 	async getAllChatEndpoints(): Promise<[]> { return []; }
 	async getChatEndpoint(): Promise<never> { throw new Error('not implemented'); }
+	async getChatEndpointDuringProviderResolution(): Promise<never> { throw new Error('not implemented'); }
 	async getEmbeddingsEndpoint(): Promise<never> { throw new Error('not implemented'); }
 }
 

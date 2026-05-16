@@ -73,6 +73,7 @@ class MockEndpointProvider implements IEndpointProvider {
 	constructor(private readonly endpoint: IChatEndpoint) { }
 	readonly onDidModelsRefresh = Event.None;
 	async getChatEndpoint(): Promise<IChatEndpoint> { return this.endpoint; }
+	async getChatEndpointDuringProviderResolution(): Promise<IChatEndpoint> { return this.endpoint; }
 	async getEmbeddingsEndpoint(): Promise<never> { throw new Error('not implemented'); }
 	async getAllChatEndpoints(): Promise<IChatEndpoint[]> { return [this.endpoint]; }
 	async getAllCompletionModels(): Promise<never[]> { return []; }

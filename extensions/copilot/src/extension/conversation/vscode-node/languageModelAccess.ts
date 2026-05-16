@@ -444,7 +444,16 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		}
 		const aliasEndpoint = this._utilityAliasEndpoints.get(model.id);
 		if (aliasEndpoint) {
-			return aliasEndpoint;
+			// Re-resolve via the full `getChatEndpoint` path so non-copilot
+			// overrides that were deferred during provider resolution (to avoid
+			// re-entering the language model service) are picked up on first
+			// use. Fall back to the cached endpoint if resolution fails.
+			try {
+				return await this._endpointProvider.getChatEndpoint(model.id as ChatEndpointFamily);
+			} catch (err) {
+				this._logService.warn(`[LanguageModelAccess] Failed to re-resolve utility alias '${model.id}'; using endpoint cached during provider resolution. Error: ${err}`);
+				return aliasEndpoint;
+			}
 		}
 		return this._chatEndpoints.find(e => e.model === model.id);
 	}

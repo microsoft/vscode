@@ -796,6 +796,10 @@ multiple lines.
 			return this._endpoint as unknown as IChatEndpoint;
 		}
 
+		async getChatEndpointDuringProviderResolution(): Promise<IChatEndpoint> {
+			return this._endpoint as unknown as IChatEndpoint;
+		}
+
 		async getEmbeddingsEndpoint(): Promise<any> {
 			throw new Error('Not implemented');
 		}

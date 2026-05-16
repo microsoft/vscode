@@ -295,4 +295,48 @@ suite('ProductionEndpointProvider — utility model overrides', () => {
 		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 		assert.strictEqual(endpoint.model, 'copilot-utility');
 	});
+
+	test('getChatEndpointDuringProviderResolution defers non-copilot override without calling lm.selectChatModels', async () => {
+		setFetcher([makeChatModel('copilot-utility')]);
+		const selectStub = sandbox.stub(lm, 'selectChatModels').resolves([
+			makeFakeLanguageModelChat({ vendor: 'anthropic', id: 'claude-haiku-4.5' }),
+		]);
+		await configService.setNonExtensionConfig('chat.utilityModel', 'anthropic/claude-haiku-4.5');
+
+		const endpoint = await endpointProvider.getChatEndpointDuringProviderResolution('copilot-utility');
+		assert.strictEqual(selectStub.callCount, 0, 'lm.selectChatModels must not be called during provider resolution');
+		// The deferred path returns the default copilot-utility endpoint;
+		// the non-copilot override is resolved lazily on first regular use.
+		assert.strictEqual(endpoint.model, 'copilot-utility');
+	});
+
+	test('getChatEndpointDuringProviderResolution still applies copilot-vendor overrides (no lm re-entry)', async () => {
+		setFetcher([makeChatModel('copilot-utility'), makeChatModel('gpt-4o-mini')]);
+		const selectStub = sandbox.stub(lm, 'selectChatModels').resolves([]);
+		await configService.setNonExtensionConfig('chat.utilityModel', 'copilot/gpt-4o-mini');
+
+		const endpoint = await endpointProvider.getChatEndpointDuringProviderResolution('copilot-utility');
+		assert.strictEqual(selectStub.callCount, 0, 'copilot-vendor overrides resolve via the model fetcher, not lm.selectChatModels');
+		assert.ok(endpoint instanceof CopilotChatEndpoint);
+		assert.strictEqual(endpoint.model, 'gpt-4o-mini');
+	});
+
+	test('non-copilot override deferred during provider resolution is resolved on subsequent getChatEndpoint call', async () => {
+		setFetcher([makeChatModel('copilot-utility')]);
+		const fakeModel = makeFakeLanguageModelChat({ vendor: 'anthropic', id: 'claude-haiku-4.5' });
+		const selectStub = sandbox.stub(lm, 'selectChatModels').resolves([fakeModel]);
+		await configService.setNonExtensionConfig('chat.utilityModel', 'anthropic/claude-haiku-4.5');
+
+		// First call simulates being invoked from inside `provideLanguageModelChatInfo`:
+		// it must not re-enter the language model service.
+		const deferred = await endpointProvider.getChatEndpointDuringProviderResolution('copilot-utility');
+		assert.strictEqual(selectStub.callCount, 0);
+		assert.strictEqual(deferred.model, 'copilot-utility');
+
+		// Subsequent regular resolution must apply the override.
+		const resolved = await endpointProvider.getChatEndpoint('copilot-utility');
+		assert.strictEqual(selectStub.callCount, 1);
+		assert.ok(resolved instanceof ExtensionContributedChatEndpoint);
+		assert.strictEqual(resolved.model, 'claude-haiku-4.5');
+	});
 });

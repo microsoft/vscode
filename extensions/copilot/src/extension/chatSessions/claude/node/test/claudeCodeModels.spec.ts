@@ -84,6 +84,9 @@ class RefreshableMockEndpointProvider implements IEndpointProvider {
 	getChatEndpoint(): Promise<IChatEndpoint> {
 		throw new Error('Not implemented');
 	}
+	getChatEndpointDuringProviderResolution(): Promise<IChatEndpoint> {
+		throw new Error('Not implemented');
+	}
 	getEmbeddingsEndpoint(): Promise<any> {
 		throw new Error('Not implemented');
 	}

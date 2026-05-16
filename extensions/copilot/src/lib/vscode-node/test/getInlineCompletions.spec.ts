@@ -162,6 +162,10 @@ class TestEndpointProvider implements IEndpointProvider {
 		throw new Error('Method not implemented.');
 	}
 
+	async getChatEndpointDuringProviderResolution(family: ChatEndpointFamily): Promise<IChatEndpoint> {
+		return this.getChatEndpoint(family);
+	}
+
 	async getEmbeddingsEndpoint(family?: EmbeddingsEndpointFamily): Promise<IEmbeddingsEndpoint> {
 		throw new Error('Method not implemented.');
 	}

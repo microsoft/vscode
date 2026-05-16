@@ -40,6 +40,15 @@ export function createMockEndpointProvider(modelFamily: string): IEndpointProvid
 			supportsPrediction: true,
 			showInModelPicker: true,
 		} as IChatEndpoint),
+		getChatEndpointDuringProviderResolution: async () => ({
+			family: modelFamily,
+			model: 'test-model',
+			maxOutputTokens: 1000,
+			supportsToolCalls: true,
+			supportsVision: true,
+			supportsPrediction: true,
+			showInModelPicker: true,
+		} as IChatEndpoint),
 		getAllChatEndpoints: async () => [],
 		getAllCompletionModels: async () => [],
 		getEmbeddingsEndpoint: async () => ({

@@ -199,6 +199,13 @@ export class TestEndpointProvider implements IEndpointProvider {
 			return await this.getChatEndpointInfo(this.gpt4oMiniModelToRunAgainst ?? CHAT_MODEL.GPT4OMINI, await this._modelLabChatModelMetadata, await this._prodChatModelMetadata);
 		}
 	}
+	async getChatEndpointDuringProviderResolution(family: ChatEndpointFamily): Promise<IChatEndpoint> {
+		const endpoint = await this.getChatEndpoint(family);
+		if (!endpoint) {
+			throw new Error(`Unrecognized chat endpoint family ${family}`);
+		}
+		return endpoint;
+	}
 	async getEmbeddingsEndpoint(family?: EmbeddingsEndpointFamily): Promise<IEmbeddingsEndpoint> {
 		const id = LEGACY_EMBEDDING_MODEL_ID.TEXT3SMALL;
 		const modelInformation: IEmbeddingModelInformation = {
