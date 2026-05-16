@@ -209,9 +209,8 @@ export interface ICustomizationItemProvider {
 	 *
 	 * @param sessionResource URI of the chat session whose
 	 *   customizations should be included. Providers that surface
-	 *   session-scoped state (e.g. an agent host) read from this
-	 *   session; when omitted, providers MAY fall back to a
-	 *   harness-default view (e.g. the most recently observed session).
+	 *   session-scoped state (e.g. an agent host) should read from
+	 *   this session.
 	 */
 	provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[] | undefined>;
 }
