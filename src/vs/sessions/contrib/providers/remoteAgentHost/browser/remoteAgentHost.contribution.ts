@@ -275,9 +275,16 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 	private _createProvider(entry: IRemoteAgentHostEntry): void {
 		const address = getEntryAddress(entry);
+		const sshConfigHost = entry.connection.type === RemoteAgentHostEntryType.SSH ? entry.connection.sshConfigHost : undefined;
+		const connectOnDemand = sshConfigHost
+			? () => this._connectSSHOnDemand(sshConfigHost, entry.name, address)
+			: undefined;
+		const disconnectOnDemand = sshConfigHost
+			? () => this._disconnectSSHOnDemand(sshConfigHost)
+			: undefined;
 		const store = new DisposableStore();
 		const provider = this._instantiationService.createInstance(
-			RemoteAgentHostSessionsProvider, { address, name: entry.name });
+			RemoteAgentHostSessionsProvider, { address, name: entry.name, connectOnDemand, disconnectOnDemand });
 		store.add(provider);
 		store.add(this._sessionsProvidersService.registerProvider(provider));
 		store.add(watchForIncompatibleNotifications(provider, this._instantiationService, this._notificationService));
@@ -330,7 +337,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			if (!autoConnect) {
 				continue;
 			}
-			this._attemptSSHReconnect(sshConfigHost, entry.name, address);
+			void this._attemptSSHReconnect(sshConfigHost, entry.name, address);
 		}
 
 		// Drop retry state for hosts that are no longer configured.
@@ -341,22 +348,42 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 	}
 
-	private _attemptSSHReconnect(sshConfigHost: string, name: string, address: string): void {
+	private async _connectSSHOnDemand(sshConfigHost: string, name: string, address: string): Promise<void> {
+		if (this._pendingSSHReconnects.has(sshConfigHost)) {
+			return;
+		}
+		this._sshReconnectStates.get(sshConfigHost)?.resetForResume();
+		await this._attemptSSHReconnect(sshConfigHost, name, address, { userInitiated: true });
+	}
+
+	private async _disconnectSSHOnDemand(sshConfigHost: string): Promise<void> {
+		this._sshReconnectStates.deleteAndDispose(sshConfigHost);
+		await this._sshService.disconnect(sshConfigHost);
+	}
+
+	private async _attemptSSHReconnect(sshConfigHost: string, name: string, address: string, options: { userInitiated?: boolean } = {}): Promise<void> {
 		this._pendingSSHReconnects.add(sshConfigHost);
 		const state = this._getOrCreateSSHReconnectState(sshConfigHost);
 		const attempt = state.attempts;
+		const provider = this._providerInstances.get(address);
+		if (options.userInitiated) {
+			provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
+		}
 		this._logService.info(`[RemoteAgentHost] Re-establishing SSH tunnel for ${sshConfigHost} (attempt ${attempt + 1})`);
-		this._sshService.reconnect(sshConfigHost, name).then(() => {
+		try {
+			await this._sshService.reconnect(sshConfigHost, name);
 			this._pendingSSHReconnects.delete(sshConfigHost);
 			this._sshReconnectStates.deleteAndDispose(sshConfigHost);
 			this._logService.info(`[RemoteAgentHost] SSH tunnel re-established for ${sshConfigHost}`);
-		}).catch(err => {
+		} catch (err) {
 			this._pendingSSHReconnects.delete(sshConfigHost);
 			if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 				this._sshReconnectStates.deleteAndDispose(sshConfigHost);
 				return;
 			}
-			const provider = this._providerInstances.get(address);
+			if (options.userInitiated) {
+				provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+			}
 			if (shouldPauseSSHReconnectAfterFailure(err)) {
 				this._logService.info(`[RemoteAgentHost] Pausing SSH auto-reconnect for ${sshConfigHost} after user cancellation`);
 				provider?.unpublishCachedSessions();
@@ -391,8 +418,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				liveState.paused = true;
 				return;
 			}
+			if (options.userInitiated) {
+				return;
+			}
 			this._scheduleSSHReconnect(sshConfigHost, name, address, liveState);
-		});
+		}
 	}
 
 	private _scheduleSSHReconnect(sshConfigHost: string, name: string, address: string, state: SSHReconnectState): void {
@@ -417,7 +447,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			if (this._pendingSSHReconnects.has(sshConfigHost)) {
 				return;
 			}
-			this._attemptSSHReconnect(sshConfigHost, name, address);
+			void this._attemptSSHReconnect(sshConfigHost, name, address);
 		});
 	}
 
