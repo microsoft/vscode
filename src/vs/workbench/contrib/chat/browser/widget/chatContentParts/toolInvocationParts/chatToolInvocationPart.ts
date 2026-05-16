@@ -223,7 +223,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}
 
 		if (isToolResultOutputDetails(resultDetails)) {
-			return this.instantiationService.createInstance(ChatToolOutputSubPart, this.toolInvocation, this.context, this._onDidRemount.event, this.renderer);
+			return this.instantiationService.createInstance(ChatToolOutputSubPart, this.toolInvocation, this.context, this._onDidRemount.event);
 		}
 
 		if (isToolResultInputOutputDetails(resultDetails)) {

@@ -62,13 +62,6 @@ export const allowedChatMarkdownHtmlTags = Object.freeze([
 ]);
 
 export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): MarkdownRenderOptions {
-	const augmentedLinkSchemes = [
-		product.urlProtocol,
-		'copilot-skill',
-		Schemas.vscodeBrowser,
-		AGENT_HOST_SCHEME,
-		...(options?.sanitizerConfig?.allowedLinkSchemes?.augment ?? []),
-	];
 	return {
 		...options,
 		sanitizerConfig: {
@@ -77,7 +70,7 @@ export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): M
 				override: allowedChatMarkdownHtmlTags,
 			},
 			...options?.sanitizerConfig,
-			allowedLinkSchemes: { augment: Array.from(new Set(augmentedLinkSchemes)) },
+			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME] },
 			remoteImageIsAllowed: _remoteImageDisallowed,
 		}
 	};

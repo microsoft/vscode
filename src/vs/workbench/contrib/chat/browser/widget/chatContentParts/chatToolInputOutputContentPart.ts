@@ -26,6 +26,7 @@ import { IDisposableReference } from './chatCollections.js';
 import { ChatQueryTitlePart } from './chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatToolOutputContentSubPart } from './chatToolOutputContentSubPart.js';
+import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 
 export interface IChatCollapsibleIOCodePart {
 	kind: 'code';
@@ -112,6 +113,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			title,
 			subtitle,
 		));
+		this._titlePart.setOptions({ markdownRenderOptions: getChatMarkdownRenderOptions(), renderFileWidgets: true });
 		const spacer = document.createElement('span');
 		spacer.style.flexGrow = '1';
 
