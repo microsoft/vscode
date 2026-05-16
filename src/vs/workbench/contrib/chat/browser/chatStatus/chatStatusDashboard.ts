@@ -42,6 +42,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { isNewUser } from './chatStatus.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
+import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import product from '../../../../../platform/product/common/product.js';
 import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
 
@@ -125,6 +126,7 @@ export class ChatStatusDashboard extends DomWidget {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
@@ -161,7 +163,7 @@ export class ChatStatusDashboard extends DomWidget {
 				label: localize('quotaLabel', "Manage Copilot Settings"),
 				tooltip: localize('quotaTooltip', "Manage Copilot Settings"),
 				class: ThemeIcon.asClassName(Codicon.settings),
-				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
+				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(this.defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings)))),
 			}));
 
 			// Add Additional Spend / Upgrade buttons to the header
@@ -176,7 +178,7 @@ export class ChatStatusDashboard extends DomWidget {
 				headerAdditionalSpendButton.label = localize('manageBudget', "Manage Budget");
 				this._store.add(headerAdditionalSpendButton.onDidClick(() => {
 					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.manageAdditionalSpend', from: 'chat-status' });
-					this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)));
+					this.runCommandAndClose(() => this.openerService.open(URI.parse(this.defaultAccountService.resolveGitHubUrl(GitHubPaths.billingBudgets))));
 				}));
 				if (actionBarElement) {
 					header.insertBefore(headerAdditionalSpendButton.element, actionBarElement);
@@ -205,7 +207,7 @@ export class ChatStatusDashboard extends DomWidget {
 				headerAdditionalSpendButton.label = localize('manageBudget', "Manage Budget");
 				this._store.add(headerAdditionalSpendButton.onDidClick(() => {
 					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.manageAdditionalSpend', from: 'chat-status' });
-					this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)));
+					this.runCommandAndClose(() => this.openerService.open(URI.parse(this.defaultAccountService.resolveGitHubUrl(GitHubPaths.billingBudgets))));
 				}));
 			}
 
@@ -420,9 +422,10 @@ export class ChatStatusDashboard extends DomWidget {
 			const headerLabel = typeof item.label === 'string' ? item.label : item.label.label;
 			let headerLink = typeof item.label === 'string' ? undefined : item.label.link;
 			let linkDescription = typeof item.label === 'string' ? undefined : item.label.helpText;
+			const section = this.element.appendChild($('div.contributed-section'));
 
 			// Single non-collapsible header row
-			const header = this.element.appendChild($('div.collapsible-header.non-collapsible'));
+			const header = section.appendChild($('div.collapsible-header.non-collapsible'));
 			header.appendChild($('span.collapsible-label', undefined, headerLabel));
 
 			// Info icon (replaces chevron) — shows helpText in a nested hover
@@ -464,7 +467,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 			let detailEl: HTMLElement | undefined;
 			if (item.detail) {
-				detailEl = header.appendChild($('span.contributed-detail'));
+				detailEl = section.appendChild($('div.contributed-detail'));
 				this.renderTextPlus(detailEl, item.detail, sectionStore);
 			}
 
@@ -493,7 +496,7 @@ export class ChatStatusDashboard extends DomWidget {
 							detailEl = undefined;
 						}
 					} else if (e.entry.detail) {
-						detailEl = header.appendChild($('span.contributed-detail'));
+						detailEl = section.appendChild($('div.contributed-detail'));
 						this.renderTextPlus(detailEl, e.entry.detail, newStore);
 					}
 				}

@@ -35,6 +35,7 @@ import { WebSocketClientTransport } from './webSocketClientTransport.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
 import { isDefined } from '../../../base/common/types.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
+import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 
 /** Tracks a single remote connection through its lifecycle. */
 interface IConnectionEntry {
@@ -64,6 +65,12 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	private static readonly ReconnectInitialDelay = 1000;
 	/** Maximum reconnect delay in milliseconds. */
 	private static readonly ReconnectMaxDelay = 30000;
+	/**
+	 * How long to wait for a server-upgrade trigger to be acknowledged.
+	 * The CLI awaits the binary download synchronously before responding,
+	 * so this needs to accommodate first-time downloads on slow networks.
+	 */
+	private static readonly UpgradeRequestTimeout = 5 * 60 * 1000;
 
 	declare readonly _serviceBrand: undefined;
 
@@ -156,6 +163,28 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		);
 	}
 
+	async triggerServerUpgrade(address: string, method: string): Promise<IVscodeUpgradeResult> {
+		const normalized = normalizeRemoteAgentHostAddress(address);
+		const entry = this._entries.get(normalized);
+		if (!entry) {
+			throw new Error(`No remote agent host entry found for ${address}.`);
+		}
+		// The protocol client may be in any state: it might have completed
+		// the handshake (Connected) or it might be sitting on an
+		// `incompatible` failure with the transport still open. Either way
+		// we send the upgrade request as a raw JSON-RPC call using the
+		// method name the host advertised in its `_meta` payload; the
+		// server handler allows it pre-`initialize`.
+		const result = await raceTimeout(
+			entry.client.triggerVscodeUpgrade(method),
+			RemoteAgentHostService.UpgradeRequestTimeout,
+		);
+		if (result === undefined) {
+			throw new Error(`Server upgrade request timed out after ${RemoteAgentHostService.UpgradeRequestTimeout}ms.`);
+		}
+		return result;
+	}
+
 	reconnect(address: string): void {
 		const normalized = normalizeRemoteAgentHostAddress(address);
 
@@ -232,6 +261,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	async addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable): Promise<IRemoteAgentHostConnectionInfo> {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			throw new Error('Remote agent host connections are not enabled.');
+		}
+
 		const address = getEntryAddress(entry);
 
 		// Dispose any existing entry for this address to avoid leaking
@@ -392,6 +425,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	private _connectTo(address: string, connectionToken?: string): void {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			return;
+		}
+
 		// Dispose any existing entry for this address before creating a new one
 		// to avoid leaking disposables on reconnect.
 		const existingEntry = this._entries.get(address);
@@ -414,7 +451,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				? { logsHome: this._environmentService.logsHome, connectionId: address, transport: 'websocket' }
 				: undefined,
 		);
-		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transportFactory));
+		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transportFactory, undefined));
 		const entry: IConnectionEntry = { store, client, connected: false, status: RemoteAgentHostConnectionStatus.connecting };
 		this._entries.set(address, entry);
 

@@ -11,6 +11,7 @@ const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
 	// Tab management
 	Open = `${commandPrefix}.open`,
+	OpenFile = `${commandPrefix}.openFile`,
 	NewTab = `${commandPrefix}.newTab`,
 	QuickOpen = `${commandPrefix}.quickOpen`,
 	OpenOrList = `${commandPrefix}.openOrList`,
@@ -66,10 +67,14 @@ export interface IElementData {
 }
 
 export interface IBrowserViewTheme {
-	readonly accentColor?: string;
-	readonly accentForegroundColor?: string;
-	readonly secondaryColor?: string;
+	readonly focusBorder?: string;
+	readonly buttonBackground?: string;
+	readonly buttonForeground?: string;
 	readonly font?: string;
+}
+
+export interface IBrowserViewConfiguration {
+	readonly aiFeaturesDisabled?: boolean;
 }
 
 export interface IBrowserViewBounds {
@@ -473,4 +478,10 @@ export interface IBrowserViewService {
 	 * @param keybindings A map of command ID to accelerator label
 	 */
 	updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void>;
+
+	/**
+	 * Update workbench configuration that affect browser view behavior.
+	 * @param config The configuration to apply
+	 */
+	updateConfiguration(config: IBrowserViewConfiguration): Promise<void>;
 }

@@ -36,6 +36,7 @@ const showLogViewContextKey = `github.copilot.chat.showLogView`;
 const debugReportFeedbackContextKey = 'github.copilot.debugReportFeedback';
 
 const previewFeaturesDisabledContextKey = 'github.copilot.previewFeaturesDisabled';
+const blackbirdExternalIndexingDisabledContextKey = 'github.copilot.blackbirdExternalIndexingDisabled';
 
 const clientByokEnabledContextKey = 'github.copilot.clientByokEnabled';
 
@@ -210,6 +211,15 @@ export class ContextKeysContribution extends Disposable {
 		}
 	}
 
+	private async _updateBlackbirdExternalIndexingDisabledContext() {
+		try {
+			const copilotToken = await this._authenticationService.getCopilotToken();
+			commands.executeCommand('setContext', blackbirdExternalIndexingDisabledContextKey, !copilotToken.isBlackbirdExternalIndexingEnabled());
+		} catch (e) {
+			commands.executeCommand('setContext', blackbirdExternalIndexingDisabledContextKey, undefined);
+		}
+	}
+
 	private async _updateClientByokEnabledContext() {
 		const hasGitHubSession = !!this._authenticationService.anyGitHubSession;
 		try {
@@ -244,6 +254,7 @@ export class ContextKeysContribution extends Disposable {
 		this._inspectContext();
 		this._updateQuotaExceededContext();
 		this._updatePreviewFeaturesDisabledContext();
+		this._updateBlackbirdExternalIndexingDisabledContext();
 		this._updateClientByokEnabledContext();
 		this._updateShowLogViewContext();
 		this._updatePermissiveSessionContext();

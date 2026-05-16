@@ -244,6 +244,27 @@ suite('CopilotShellTools', () => {
 		second.dispose();
 	});
 
+	test('shell helper tools (read/write/shutdown/list/redirect) are registered with skipPermission: true', async () => {
+		// Regression guard: the SDK's built-in shell helpers never call
+		// `permissions.request`. Our PTY-backed overrides must mirror that
+		// or the agent host will surface a permission prompt for every
+		// `write_bash` / `read_bash` / `bash_shutdown` / `list_bash` call,
+		// which breaks interactive shell flows.
+		const { instantiationService, terminalManager } = createServices();
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
+
+		const skipPermissionByName = Object.fromEntries(tools.map(t => [t.name, t.skipPermission ?? false]));
+		assert.deepStrictEqual(skipPermissionByName, {
+			bash: false,
+			read_bash: true,
+			write_bash: true,
+			bash_shutdown: true,
+			list_bash: true,
+			powershell: true,
+		});
+	});
+
 	test('primary shell tool normalizes multiline command input', async () => {
 		const { instantiationService, terminalManager } = createServices();
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));

@@ -16,6 +16,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { PendingMessage, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { ClaudeSdkPipeline, IRematerializer } from './claudeSdkPipeline.js';
+import { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { ClaudePermissionKind } from './claudeToolDisplay.js';
 
 // Re-export for callers that import IRematerializer from the session.
@@ -34,6 +35,17 @@ export type { IRematerializer } from './claudeSdkPipeline.js';
 export class ClaudeAgentSession extends Disposable {
 
 	private readonly _pipeline: ClaudeSdkPipeline;
+
+	/**
+	 * Phase 12 — per-session registry of Task tool calls that spawn
+	 * subagents (`SubagentSpawn` records keyed by `tool_use_id`, plus a
+	 * reverse index from inner `tool_use_id` to its parent Task). Owned
+	 * here so the registry dies with the session; consumers in the live
+	 * mapper (`ClaudeSdkMessageRouter` / `claudeMapSessionEvents` /
+	 * `claudeSubagentSignals`) and the `canUseTool` bridge read from
+	 * the same instance via the session.
+	 */
+	readonly subagents: SubagentRegistry = this._register(new SubagentRegistry());
 
 	/**
 	 * Phase 7 / S3.2. Tool-permission deferreds parked inside
@@ -61,7 +73,7 @@ export class ClaudeAgentSession extends Disposable {
 	) {
 		super();
 		this._pipeline = this._register(instantiationService.createInstance(
-			ClaudeSdkPipeline, sessionId, sessionUri, warm, abortController, dbRef,
+			ClaudeSdkPipeline, sessionId, sessionUri, warm, abortController, dbRef, this.subagents,
 		));
 		this._register(this._pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(s)));
 	}
@@ -168,6 +180,8 @@ export class ClaudeAgentSession extends Disposable {
 		readonly state: ToolCallPendingConfirmationState;
 		readonly permissionKind: ClaudePermissionKind;
 		readonly permissionPath?: string;
+		/** Phase 12 step 5 — when the confirmation belongs to a subagent context, route it to the subagent session. */
+		readonly parentToolCallId?: string;
 	}): Promise<boolean> {
 		if (this._pipeline.isAborted) {
 			return Promise.resolve(false);
@@ -179,6 +193,7 @@ export class ClaudeAgentSession extends Disposable {
 				state: args.state,
 				permissionKind: args.permissionKind,
 				...(args.permissionPath !== undefined ? { permissionPath: args.permissionPath } : {}),
+				...(args.parentToolCallId !== undefined ? { parentToolCallId: args.parentToolCallId } : {}),
 			});
 		});
 	}
@@ -192,7 +207,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * a deferred until {@link respondToUserInputRequest} resolves it.
 	 * Resolves with `{ response: Cancel }` if the pipeline is aborted.
 	 */
-	requestUserInput(request: SessionInputRequest): Promise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }> {
+	requestUserInput(request: SessionInputRequest, parentToolCallId?: string): Promise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }> {
 		if (this._pipeline.isAborted) {
 			return Promise.resolve({ response: SessionInputResponseKind.Cancel });
 		}
@@ -205,6 +220,7 @@ export class ClaudeAgentSession extends Disposable {
 					session: this.sessionUri.toString(),
 					request,
 				},
+				...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
 			});
 		});
 	}
