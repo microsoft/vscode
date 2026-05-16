@@ -208,7 +208,7 @@ export interface IRemoteAgentHostService {
 	/** Currently connected remote addresses with metadata. */
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[];
 
-	/** All configured remote agent host entries from settings, regardless of connection status. */
+	/** All configured remote agent host entries, regardless of connection status. */
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[];
 
 	/**

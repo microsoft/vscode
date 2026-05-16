@@ -133,6 +133,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				this._reconcileConnections();
 			}
 		}));
+		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, SSH_REMOTE_AGENT_HOSTS_STORAGE_KEY, this._store)(() => {
+			this._reconcileConnections();
+			this._onDidChangeConnections.fire();
+		}));
 
 		this._migrateSSHEntriesFromSetting();
 
