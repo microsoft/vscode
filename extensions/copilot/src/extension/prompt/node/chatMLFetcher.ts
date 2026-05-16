@@ -70,9 +70,10 @@ export abstract class AbstractChatMLFetcher extends Disposable implements IChatM
 		return {
 			temperature: this.options.temperature,
 			top_p: this.options.topP,
-			// we disallow `stream=false` because we don't support non-streamed response
+			// Default to streaming; callers can override via requestOptions.stream
+			// to opt into non-streaming (e.g. for background summarization).
+			stream: true,
 			...requestOptions,
-			stream: true
 		};
 	}
 
@@ -428,6 +429,9 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							...(result.serverRequestId ? { [CopilotChatAttr.SERVER_REQUEST_ID]: result.serverRequestId } : {}),
 							...(result.usage.completion_tokens_details?.reasoning_tokens
 								? { [GenAiAttr.USAGE_REASONING_TOKENS]: result.usage.completion_tokens_details.reasoning_tokens }
+								: {}),
+							...(typeof result.usage.copilot_usage?.total_nano_aiu === 'number'
+								? { [CopilotChatAttr.COPILOT_USAGE_NANO_AIU]: result.usage.copilot_usage.total_nano_aiu }
 								: {}),
 						});
 					}
@@ -1119,7 +1123,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			'OpenAI-Intent': intent,
 			'X-GitHub-Api-Version': '2025-05-01',
 			'X-Interaction-Id': this._interactionService.interactionId,
-			...(chatEndpointInfo.getExtraHeaders ? chatEndpointInfo.getExtraHeaders(location) : {}),
+			...(chatEndpointInfo.getExtraHeaders ? chatEndpointInfo.getExtraHeaders(location, interactionTypeOverride) : {}),
 		};
 		additionalHeaders['X-Interaction-Type'] = agentInteractionType;
 		additionalHeaders['X-Agent-Task-Id'] = ourRequestId;

@@ -96,7 +96,7 @@ class OpenPullRequestAction extends Action2 {
 			return;
 		}
 
-		const gitHubInfo = activeSession.gitHubInfo.get();
+		const gitHubInfo = activeSession.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
 		if (!gitHubInfo?.pullRequest?.uri) {
 			return;
 		}
@@ -117,7 +117,7 @@ class OpenFileAction extends Action2 {
 			icon: Codicon.goToFile,
 			f1: false,
 			menu: {
-				id: MenuId.ChatEditingSessionChangeToolbar,
+				id: MenuId.AgentsChangeInlineToolbar,
 				group: 'navigation',
 				order: 1,
 				alt: {

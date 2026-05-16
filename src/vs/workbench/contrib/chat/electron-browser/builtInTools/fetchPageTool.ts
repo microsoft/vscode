@@ -21,6 +21,7 @@ import { ChatImageMimeType } from '../../common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/builtinTools/tools.js';
 import { AgentNetworkFilterFetchWebToolName, IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { WorkingDirectory } from '../../common/workingDirectory.js';
 
 export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
@@ -180,10 +181,10 @@ export class FetchWebPageTool implements IToolImpl {
 		const allFetchedUris = new ResourceSet([...webUris.values(), ...validFileUris]);
 		// File URIs that are inside the workspace don't need confirmation — they're already accessible
 		// and don't carry the web content risks (prompt injection, malicious redirects).
-		// File URIs outside the workspace are treated like web URIs and require confirmation.
-		const fileUrisOutsideWorkspace = validFileUris.filter(
-			uri => !this._workspaceContextService.getWorkspaceFolder(uri)
-		);
+		// When a working directory is set (agents window), it is the source of truth;
+		// only fall back to workspace folders when no working directory is specified.
+		const workingDir = new WorkingDirectory(this._workspaceContextService, context.workingDirectory);
+		const fileUrisOutsideWorkspace = validFileUris.filter(uri => !workingDir.getFolder(uri));
 		const urlsNeedingConfirmation = new ResourceSet([...webUris.values(), ...fileUrisOutsideWorkspace]);
 
 		const pastTenseMessage = invalid.length
