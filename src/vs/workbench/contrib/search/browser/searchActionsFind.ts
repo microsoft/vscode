@@ -32,6 +32,7 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { forcedExpandRecursively } from './searchActionsTopBar.js';
 import { RenderableMatch, ISearchTreeFileMatch, ISearchTreeFolderMatchWithResource, ISearchResult, isSearchTreeFileMatch, isSearchTreeMatch } from './searchTreeModel/searchTreeCommon.js';
+import { mergeSearchPatternIfNotExists } from './searchPatternMerge.js';
 
 registerAction2(class RestrictSearchToFolderAction extends Action2 {
 	constructor() {
@@ -339,20 +340,6 @@ function extractSearchFilePattern(fileName: string): string {
 
 	const extensionParts = parts.slice(1);
 	return `*.${extensionParts.join('.')}`;
-}
-
-function mergeSearchPatternIfNotExists(currentPatterns: string, newPattern: string): string {
-	if (!currentPatterns.trim()) {
-		return newPattern;
-	}
-
-	const existingPatterns = currentPatterns.split(',').map(pattern => pattern.trim()).filter(pattern => pattern.length > 0);
-
-	if (existingPatterns.includes(newPattern)) {
-		return currentPatterns;
-	}
-
-	return `${currentPatterns}, ${newPattern}`;
 }
 
 async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplorer: boolean, isIncludes: boolean, resource?: URI, folderMatch?: ISearchTreeFolderMatchWithResource) {
