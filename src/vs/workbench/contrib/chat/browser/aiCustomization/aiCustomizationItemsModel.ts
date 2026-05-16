@@ -241,10 +241,6 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	}
 
 	private getOrCreateSource(descriptor: IHarnessDescriptor, sessionResource: URI): IAICustomizationItemSource {
-		const cached = this.sourceCache.get(descriptor);
-		if (cached) {
-			return cached;
-		}
 		const itemProvider = descriptor.itemProvider ?? (descriptor.syncProvider ? undefined : this.promptsServiceItemProvider);
 		const source = new ProviderCustomizationItemSource(
 			sessionResource,
