@@ -20,6 +20,7 @@ import { IWorkspaceChunkSearchService } from '../../../platform/workspaceChunkSe
 import { TelemetryCorrelationId } from '../../../util/common/telemetryCorrelationId';
 import { raceCancellation } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
+import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { StopWatch } from '../../../util/vs/base/common/stopwatch';
 import * as strings from '../../../util/vs/base/common/strings';
 import { URI } from '../../../util/vs/base/common/uri';
@@ -60,7 +61,7 @@ export interface IRankResult {
 	query: string;
 }
 
-export class SemanticSearchTextSearchProvider implements vscode.AITextSearchProvider {
+export class SemanticSearchTextSearchProvider extends Disposable implements vscode.AITextSearchProvider {
 	private _endpoint: IChatEndpoint | undefined = undefined;
 	public readonly name: string = 'Copilot';
 	public static feedBackSentKey = 'github.copilot.search.feedback.sent';
@@ -78,7 +79,16 @@ export class SemanticSearchTextSearchProvider implements vscode.AITextSearchProv
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IParserService private readonly _parserService: IParserService,
 		@IRerankerService private readonly _rerankerService: IRerankerService,
-	) { }
+	) {
+		super();
+		// Drop the cached utility endpoint whenever the endpoint provider
+		// reports a model refresh — for example because the user changed the
+		// `chat.utilitySmallModel` override. The next call to `getEndpoint`
+		// will re-resolve through the provider.
+		this._register(this._endpointProvider.onDidModelsRefresh(() => {
+			this._endpoint = undefined;
+		}));
+	}
 
 	private async getEndpoint() {
 		this._endpoint = this._endpoint ?? await this._endpointProvider.getChatEndpoint('copilot-utility-small');

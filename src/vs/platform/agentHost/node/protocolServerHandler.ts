@@ -61,10 +61,11 @@ function jsonRpcErrorFrom(id: number, err: unknown): JsonRpcResponse {
 }
 
 /**
- * Methods handled by the request dispatcher. Excludes `initialize` and
- * `reconnect` which are handled during the handshake phase.
+ * Methods handled by the request dispatcher. Excludes `initialize`,
+ * `reconnect`, and `ping`, which are handled directly during message
+ * dispatch without requiring an established client context.
  */
-type RequestMethod = Exclude<keyof CommandMap, 'initialize' | 'reconnect'>;
+type RequestMethod = Exclude<keyof CommandMap, 'initialize' | 'reconnect' | 'ping'>;
 
 /**
  * Typed handler map: each key is a request method, each value is a handler
@@ -152,6 +153,14 @@ export class ProtocolServerHandler extends Disposable {
 		disposables.add(transport.onMessage(msg => {
 			if (isJsonRpcRequest(msg)) {
 				this._logService.trace(`[ProtocolServer] request: method=${msg.method} id=${msg.id}`);
+
+				// Ping is stateless and MUST be answerable regardless of whether
+				// the connection has been initialized. Carries no payload — the
+				// round-trip itself is the liveness signal.
+				if (msg.method === 'ping') {
+					transport.send(jsonRpcSuccess(msg.id, null));
+					return;
+				}
 
 				// Handle initialize/reconnect as requests that set up the client
 				if (!client && msg.method === 'initialize') {

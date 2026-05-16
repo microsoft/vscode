@@ -40,6 +40,7 @@ class MockProtocolClient extends Disposable {
 	readonly onDidClose = this._onDidClose.event;
 	readonly onDidAction = Event.None;
 	readonly onDidNotification = Event.None;
+	readonly onDidChangeConnectionState = Event.None;
 
 	public connectDeferred = new DeferredPromise<void>();
 
@@ -505,6 +506,15 @@ suite('RemoteAgentHostService', () => {
 
 			assert.strictEqual(t.disposed(), true, 'transport disposable runs when entry is removed');
 			assert.strictEqual(service.getConnection('ws://managed:1234'), undefined);
+		});
+
+		test('throws when disabled', async () => {
+			configService.setEnabled(false);
+
+			await assert.rejects(
+				() => addManaged('Managed', 'managed:1234'),
+				/not enabled/,
+			);
 		});
 
 		test('does NOT dispose previous transportDisposable when entry is replaced', async () => {

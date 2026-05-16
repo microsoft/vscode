@@ -9,6 +9,8 @@ import { LogLevel, type ILogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { buildTopLevelSubagentReadyAction, emitInnerAssistantSignals, mapSubagentSystemMessage, SUBAGENT_SPAWNING_TOOL_NAMES, tagWithParent } from './claudeSubagentSignals.js';
+import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { getClaudeToolDisplayName } from './claudeToolDisplay.js';
 
 /**
@@ -139,6 +141,10 @@ export class ClaudeMapperState {
 	 * survive in the maps for the lifetime of the session and accumulate
 	 * across turns. Called from {@link mapResult} on every `result`
 	 * envelope; warns once per orphan to surface the protocol break.
+	 *
+	 * Phase 12 subagent state lives on {@link SubagentRegistry}, not
+	 * here; the mapper drives that drain via
+	 * `registry.drainForegroundSpawns()` from {@link mapResult}.
 	 */
 	clearPendingToolCalls(logService: ILogService): void {
 		if (this._toolCallTurnIds.size === 0) {
@@ -189,6 +195,7 @@ export function mapSDKMessageToAgentSignals(
 	turnId: string,
 	state: ClaudeMapperState,
 	logService: ILogService,
+	registry: SubagentRegistry,
 ): AgentSignal[] {
 	if (logService.getLevel() <= LogLevel.Trace) {
 		try {
@@ -200,35 +207,76 @@ export function mapSDKMessageToAgentSignals(
 	}
 	switch (message.type) {
 		case 'stream_event':
-			return mapStreamEvent(message.event, session, turnId, state, logService);
+			return tagWithParent(
+				mapStreamEvent(message.event, session, turnId, state, logService, message.parent_tool_use_id, registry),
+				session,
+				message.parent_tool_use_id,
+				registry,
+			);
 		case 'result':
-			return mapResult(message, session, turnId, state, logService);
+			return mapResult(message, session, turnId, state, logService, registry);
 		case 'assistant':
-			return mapAssistantCanonical();
+			return tagWithParent(
+				mapAssistantCanonical(message, session, turnId, state, message.parent_tool_use_id, registry),
+				session,
+				message.parent_tool_use_id,
+				registry,
+			);
 		case 'user':
-			return mapUserMessage(message, session, state, logService);
+			return tagWithParent(
+				mapUserMessage(message, session, state, logService, registry),
+				session,
+				message.parent_tool_use_id,
+				registry,
+			);
 		default:
+			// Phase 12 step 7 — system subtypes for subagent task discrimination.
+			if (message.type === 'system') {
+				return mapSubagentSystemMessage(message, session, registry);
+			}
 			return [];
 	}
 }
 
 /**
- * Handle the canonical {@link SDKAssistantMessage} (`type: 'assistant'`)
- * the SDK delivers as the final, authoritative message for a turn,
- * alongside its `'stream_event'` partials. CONTEXT.md M8:875 names this
- * envelope canonical: in principle the host could replace whatever the
- * partial accumulator built. In practice the protocol reducer is
- * append-only — there is no `SessionResponsePart` replacement action —
- * so re-emitting any of the per-block actions here would duplicate, not
- * reconcile, the activeTurn content. With
- * `Options.includePartialMessages: true` (Phase 6 S3.4), partials
- * produce the same content the canonical message carries, so dropping
- * is the correct behavior for every block kind, including `tool_use`
- * (Phase 7's partial-stream handler at `mapStreamEvent` already emitted
- * the `SessionToolCallStart`).
+ * Handle the canonical {@link SDKAssistantMessage} (`type: 'assistant'`).
+ *
+ * **Top-level (`parent_tool_use_id === null`)**: the SDK delivered each
+ * block via `stream_event` partials and `mapStreamEvent` emitted the
+ * matching signals, so most blocks here are no-ops. **Exception**: for
+ * Task/Agent tool_use blocks we synthesise a `SessionToolCallReady`
+ * (via {@link buildTopLevelSubagentReadyAction}) because the SDK skips
+ * `canUseTool` for them and the parent tool would otherwise stay in
+ * `Streaming` — see that function's JSDoc.
+ *
+ * **Inner subagent context (`parent_tool_use_id !== null`)**: empirically
+ * the SDK does NOT deliver inner content via `stream_event` — only via
+ * canonical `assistant` and `user` messages, even with
+ * `Options.forwardSubagentText: true`. Delegated to
+ * {@link emitInnerAssistantSignals} which emits one signal per content
+ * block. `tagWithParent` then stamps every emitted action with the
+ * envelope's `parent_tool_use_id` so `AgentSideEffects` routes them to
+ * the subagent session.
  */
-function mapAssistantCanonical(): AgentSignal[] {
-	return [];
+function mapAssistantCanonical(
+	message: Extract<SDKMessage, { type: 'assistant' }>,
+	session: URI,
+	turnId: string,
+	state: ClaudeMapperState,
+	parentToolUseId: string | null,
+	registry: SubagentRegistry,
+): AgentSignal[] {
+	if (parentToolUseId === null) {
+		const top: AgentSignal[] = [];
+		for (const block of message.message.content) {
+			if (block.type !== 'tool_use' || !SUBAGENT_SPAWNING_TOOL_NAMES.has(block.name)) {
+				continue;
+			}
+			top.push(buildTopLevelSubagentReadyAction(block, session, turnId, registry));
+		}
+		return top;
+	}
+	return emitInnerAssistantSignals(message, session, turnId, state, parentToolUseId, registry);
 }
 
 /**
@@ -247,6 +295,7 @@ function mapUserMessage(
 	session: URI,
 	state: ClaudeMapperState,
 	logService: ILogService,
+	registry: SubagentRegistry,
 ): AgentSignal[] {
 	const content = message.message.content;
 	if (!Array.isArray(content)) {
@@ -286,6 +335,19 @@ function mapUserMessage(
 			},
 		});
 		state.completeToolCall(block.tool_use_id);
+		// Phase 12 — foreground subagent completion. A tool_result for a
+		// known spawning Task/Agent tool_use fires `subagent_completed`
+		// UNLESS the spawning entry has been flagged background, in which
+		// case completion is deferred to a later `task_notification`.
+		const spawn = registry.getSpawn(block.tool_use_id);
+		if (spawn && !spawn.background && spawn.markCompleted()) {
+			signals.push({
+				kind: 'subagent_completed',
+				session,
+				toolCallId: block.tool_use_id,
+			});
+			registry.removeSpawn(block.tool_use_id);
+		}
 	}
 	return signals;
 }
@@ -327,6 +389,7 @@ function mapResult(
 	turnId: string,
 	state: ClaudeMapperState,
 	logService: ILogService,
+	registry: SubagentRegistry,
 ): AgentSignal[] {
 	const sessionStr = session.toString();
 	const signals: AgentSignal[] = [];
@@ -357,6 +420,12 @@ function mapResult(
 	// intermediate result during a steering preempt — CONTEXT.md M10);
 	// the mapper does not have that state.
 	state.clearPendingToolCalls(logService);
+	// Phase 12 — drain orphaned subagent-spawning entries (foreground
+	// only; background entries survive across turns by design). The
+	// registry owns this state; the mapper drives the drain at turn end.
+	for (const orphan of registry.drainForegroundSpawns()) {
+		logService.warn(`[claudeMapSessionEvents] turn ended with pending subagent-spawning tool_use ${orphan.toolUseId} (agentId=${orphan.agentId ?? '<unresolved>'}); dropping cross-message state`);
+	}
 	return signals;
 }
 
@@ -366,6 +435,8 @@ function mapStreamEvent(
 	turnId: string,
 	state: ClaudeMapperState,
 	logService: ILogService,
+	parentToolUseId: string | null,
+	registry: SubagentRegistry,
 ): AgentSignal[] {
 	const sessionStr = session.toString();
 	switch (event.type) {
@@ -409,6 +480,20 @@ function mapStreamEvent(
 			}
 			if (block.type === 'tool_use') {
 				state.startToolBlock(event.index, block.id, block.name, turnId);
+				// Phase 12 — subagent correlation bookkeeping. Either this
+				// tool_use is at the top level and (if Task/Agent) spawns a
+				// new subagent, or it is inner and we record its edge to the
+				// parent. They are mutually exclusive (a Task call inside a
+				// subagent is itself an inner tool_use; the resolver chain
+				// handles nested spawns by following the parent chain).
+				const isSubagentSpawn = SUBAGENT_SPAWNING_TOOL_NAMES.has(block.name);
+				if (parentToolUseId === null) {
+					if (isSubagentSpawn) {
+						registry.recordSpawn(block.id);
+					}
+				} else {
+					registry.noteInnerTool(block.id, parentToolUseId);
+				}
 				return [{
 					kind: 'action',
 					session,
@@ -419,6 +504,13 @@ function mapStreamEvent(
 						toolCallId: block.id,
 						toolName: block.name,
 						displayName: getClaudeToolDisplayName(block.name),
+						// Phase 12 — `_meta.toolKind` is read by the workbench
+						// renderer (`isSubagentTool` in stateToProgressAdapter)
+						// to recognise this tool call as a subagent spawner
+						// and render it via `ChatSubagentContentPart` instead
+						// of the generic tool-call view. Without this the UI
+						// shows "Running [tool]" with no subagent details.
+						...(isSubagentSpawn ? { _meta: { toolKind: 'subagent' } } : {}),
 					},
 				}];
 			}

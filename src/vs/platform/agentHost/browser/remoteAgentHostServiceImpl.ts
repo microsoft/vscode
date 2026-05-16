@@ -30,7 +30,7 @@ import {
 	type IRemoteAgentHostConnectionInfo,
 	type IRemoteAgentHostEntry,
 } from '../common/remoteAgentHostService.js';
-import { RemoteAgentHostProtocolClient } from './remoteAgentHostProtocolClient.js';
+import { RemoteAgentHostProtocolClient, AgentHostClientState } from './remoteAgentHostProtocolClient.js';
 import { WebSocketClientTransport } from './webSocketClientTransport.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
 import { isDefined } from '../../../base/common/types.js';
@@ -232,6 +232,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	async addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable): Promise<IRemoteAgentHostConnectionInfo> {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			throw new Error('Remote agent host connections are not enabled.');
+		}
+
 		const address = getEntryAddress(entry);
 
 		// Dispose any existing entry for this address to avoid leaking
@@ -392,6 +396,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	private _connectTo(address: string, connectionToken?: string): void {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			return;
+		}
+
 		// Dispose any existing entry for this address before creating a new one
 		// to avoid leaking disposables on reconnect.
 		const existingEntry = this._entries.get(address);
@@ -402,15 +410,19 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 		const store = new DisposableStore();
 		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
-		const transport = store.add(this._instantiationService.createInstance(
+		// Factory so the protocol client can replace the underlying transport
+		// across transient drops and use the `reconnect` RPC to resume — see
+		// {@link RemoteAgentHostProtocolClient}. The store owns only the client;
+		// individual transports are owned by the client itself.
+		const transportFactory = () => this._instantiationService.createInstance(
 			WebSocketClientTransport,
 			address,
 			connectionToken,
 			ahpLoggingEnabled
 				? { logsHome: this._environmentService.logsHome, connectionId: address, transport: 'websocket' }
 				: undefined,
-		));
-		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport));
+		);
+		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transportFactory, undefined));
 		const entry: IConnectionEntry = { store, client, connected: false, status: RemoteAgentHostConnectionStatus.connecting };
 		this._entries.set(address, entry);
 
@@ -426,8 +438,34 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			entry.connected = false;
 			entry.status = RemoteAgentHostConnectionStatus.disconnected;
 			this._onDidChangeConnections.fire();
-			// Schedule reconnect if the address is still configured
+			// Schedule reconnect if the address is still configured. This is
+			// the "fatal" path — the protocol client already gave up its own
+			// soft-reconnect attempts (or it was never enabled), so we rebuild
+			// from scratch.
 			this._scheduleReconnect(address, connectionToken);
+		}));
+
+		// Reflect transient transport drops as `connecting` status (rather
+		// than `disconnected`) so the UI doesn't flicker session lists into
+		// an empty state during a soft reconnect.
+		store.add(client.onDidChangeConnectionState(state => {
+			if (!isCurrentEntry()) {
+				return;
+			}
+			switch (state) {
+				case AgentHostClientState.Reconnecting:
+					entry.connected = false;
+					entry.status = RemoteAgentHostConnectionStatus.connecting;
+					this._onDidChangeConnections.fire();
+					break;
+				case AgentHostClientState.Connected:
+					entry.connected = true;
+					entry.status = RemoteAgentHostConnectionStatus.connected;
+					this._onDidChangeConnections.fire();
+					break;
+				default:
+					break;
+			}
 		}));
 
 		this._logService.info(`[RemoteAgentHost] Connecting to ${address}`);

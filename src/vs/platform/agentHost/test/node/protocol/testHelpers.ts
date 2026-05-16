@@ -225,10 +225,13 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the real Copilot SDK agent (no mock agent).
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(): Promise<IServerHandle> {
+export async function startRealServer(options?: { readonly claudeSdkPath?: string }): Promise<IServerHandle> {
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
 		const args = ['--port', '0', '--without-connection-token'];
+		if (options?.claudeSdkPath) {
+			args.push('--claude-sdk-path', options.claudeSdkPath);
+		}
 		const child = fork(serverPath, args, {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
 		});
@@ -249,6 +252,9 @@ export async function startRealServer(): Promise<IServerHandle> {
 
 		child.stderr!.on('data', () => {
 			// Intentionally swallowed - the test runner fails if console.error is used.
+			// Server logs go to the agent host's logger (under
+			// `<userDataPath>/logs/<timestamp>/agenthost-server.log`); check
+			// there when investigating real-SDK test failures.
 		});
 
 		child.on('error', err => {

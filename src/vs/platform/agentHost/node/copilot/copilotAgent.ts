@@ -34,6 +34,7 @@ import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProt
 import { CustomizationRef, CustomizationStatus, ResponsePartKind, SessionInputResponseKind, parseSubagentSessionUri, type MessageAttachment, type PendingMessage, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { CopilotAgentSession, SessionWrapperFactory, type CopilotSdkMode, type IActiveClientSnapshot } from './copilotAgentSession.js';
@@ -43,6 +44,7 @@ import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools } from './copilotShellTools.js';
 import { SessionCustomizationDiscovery } from './sessionCustomizationDiscovery.js';
 import { SessionPluginBundler } from './sessionPluginBundler.js';
+import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 
 interface ICreatedWorktree {
 	readonly repositoryRoot: URI;
@@ -273,10 +275,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@IAgentHostCompletions completions: IAgentHostCompletions,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
+		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id, {
+			hasHistory: (sessionId) => !this._provisionalSessions.has(sessionId) && this._sessions.has(sessionId),
+		})));
 	}
 
 	protected _createCopilotClient(options: CopilotClientOptions): CopilotClient {
