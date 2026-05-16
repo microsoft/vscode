@@ -22,6 +22,7 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { AICustomizationItemNormalizer, IAICustomizationItemSource, IAICustomizationListItem, ProviderCustomizationItemSource } from './aiCustomizationItemSource.js';
 import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 /**
  * The set of sections whose items are sourced from the customization
@@ -179,8 +180,9 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 			const available = this.harnessService.availableHarnesses.read(reader);
 			this.harnessService.activeHarness.read(reader);
 			this.pruneSourceCache(available);
+			const activeSessionResource = this.harnessService.activeSessionResource.read(reader);
 			const descriptor = this.harnessService.getActiveDescriptor();
-			const source = this.getOrCreateSource(descriptor);
+			const source = this.getOrCreateSource(descriptor, activeSessionResource);
 			sourceChangeListener.value = source.onDidChange(() => this.refetchObserved(source));
 			this.refetchObserved(source);
 		}));
@@ -210,7 +212,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	}
 
 	getActiveItemSource(): IAICustomizationItemSource {
-		return this.getOrCreateSource(this.harnessService.getActiveDescriptor());
+		return this.getOrCreateSource(this.harnessService.getActiveDescriptor(), this.harnessService.activeSessionResource.get());
 	}
 
 	getPromptsServiceItemProvider(): ICustomizationItemProvider {
@@ -238,13 +240,14 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		this.refetchPluginCount(this.getActiveItemSource());
 	}
 
-	private getOrCreateSource(descriptor: IHarnessDescriptor): IAICustomizationItemSource {
+	private getOrCreateSource(descriptor: IHarnessDescriptor, sessionResource: URI): IAICustomizationItemSource {
 		const cached = this.sourceCache.get(descriptor);
 		if (cached) {
 			return cached;
 		}
 		const itemProvider = descriptor.itemProvider ?? (descriptor.syncProvider ? undefined : this.promptsServiceItemProvider);
 		const source = new ProviderCustomizationItemSource(
+			sessionResource,
 			itemProvider,
 			descriptor.syncProvider,
 			this.promptsService,
@@ -304,10 +307,11 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 
 	private refetchPluginCount(source: IAICustomizationItemSource): void {
 		const seq = ++this.pluginFetchSeq;
+		const sessionRessource = this.harnessService.activeSessionResource.get();
 		const descriptor = this.harnessService.getActiveDescriptor();
 		const provider = descriptor.itemProvider;
 		const pending: Promise<readonly string[]> = provider
-			? provider.provideChatSessionCustomizations(CancellationToken.None).then(items => {
+			? provider.provideChatSessionCustomizations(sessionRessource, CancellationToken.None).then(items => {
 				return (items ?? [])
 					.filter(item => isPluginCustomizationItem(item) && item.groupKey !== 'remote-client')
 					.map(item => item.name ?? '');

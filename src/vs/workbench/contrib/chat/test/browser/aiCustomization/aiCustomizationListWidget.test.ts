@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -165,7 +166,7 @@ suite('aiCustomizationListWidget', () => {
 			getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [PromptsStorage.local, PromptsStorage.user] }),
 			itemProvider: {
 				onDidChange: Event.None,
-				provideChatSessionCustomizations: (_token: CancellationToken) => Promise.resolve(undefined),
+				provideChatSessionCustomizations: (sessionResource: URI, token: CancellationToken) => Promise.resolve(undefined),
 			},
 		};
 
@@ -204,9 +205,10 @@ suite('aiCustomizationListWidget', () => {
 			});
 
 			instaService.stub(ICustomizationHarnessService, {
+				activeSessionResource: observableValue('test', URI.parse('test://session')),
 				activeHarness: observableValue('test', 'test'),
 				availableHarnesses: observableValue('test', [descriptor]),
-				setActiveHarness: () => { },
+				setActiveSession: () => { },
 				getStorageSourceFilter: () => ({ sources: [] }),
 				getActiveDescriptor: () => descriptor,
 				findHarnessById: (id) => id === descriptor.id ? descriptor : undefined,

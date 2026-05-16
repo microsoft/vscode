@@ -219,7 +219,7 @@ class ChatModes extends Disposable implements IChatModes {
 	private async computeCustomAgents(): Promise<readonly ICustomAgent[]> {
 		const useHarness = this.useChatSessionCustomizationsForCustomAgents();
 		if (useHarness) {
-			return await this.customizationHarnessService.getCustomAgents(getChatSessionType(this.sessionResource), CancellationToken.None);
+			return await this.customizationHarnessService.getCustomAgents(this.sessionResource, CancellationToken.None);
 		}
 		const sessionType = getChatSessionType(this.sessionResource);
 		return (await this.promptsService.getCustomAgents(CancellationToken.None)).filter(mode => matchesSessionType(mode.sessionTypes, sessionType));

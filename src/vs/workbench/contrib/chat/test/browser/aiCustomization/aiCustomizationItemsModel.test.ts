@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { derived, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -22,6 +22,7 @@ import { ContributionEnablementState } from '../../../common/enablement.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { getChatSessionType } from '../../../common/model/chatUri.js';
 
 suite('AICustomizationItemsModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,8 +31,8 @@ suite('AICustomizationItemsModel', () => {
 
 		let disposables: DisposableStore;
 		let instaService: TestInstantiationService;
-
-		let activeHarness: ISettableObservable<string>;
+		let activeSessionResource: ISettableObservable<URI>;
+		let activeHarness: IObservable<string>;
 		let availableHarnesses: ISettableObservable<readonly IHarnessDescriptor[]>;
 		let descriptorA: IHarnessDescriptor;
 		let descriptorB: IHarnessDescriptor;
@@ -61,19 +62,20 @@ suite('AICustomizationItemsModel', () => {
 
 			const providerA: ICustomizationItemProvider = {
 				onDidChange: providerA_didChange.event,
-				provideChatSessionCustomizations: (_token: CancellationToken) => {
+				provideChatSessionCustomizations: (sessionResource: URI, token: CancellationToken) => {
 					providerA_callCount++;
 					return Promise.resolve(providerA_items.slice());
 				},
 			};
 			const providerB: ICustomizationItemProvider = {
 				onDidChange: Event.None,
-				provideChatSessionCustomizations: (_token: CancellationToken) => Promise.resolve([]),
+				provideChatSessionCustomizations: (sessionResource: URI, token: CancellationToken) => Promise.resolve([]),
 			};
 			descriptorA = createDescriptor('A', providerA);
 			descriptorB = createDescriptor('B', providerB);
 
-			activeHarness = observableValue('activeHarness', 'A');
+			activeSessionResource = observableValue('activeSessionResource', URI.parse(`A://session`));
+			activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 			availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', [descriptorA, descriptorB]);
 			plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
 
@@ -110,9 +112,12 @@ suite('AICustomizationItemsModel', () => {
 			});
 
 			instaService.stub(ICustomizationHarnessService, {
+				activeSessionResource,
 				activeHarness,
 				availableHarnesses,
-				setActiveHarness: (id: string) => activeHarness.set(id, undefined),
+				setActiveSession: (sessionResource: URI) => {
+					activeSessionResource.set(sessionResource, undefined);
+				},
 				getStorageSourceFilter: () => ({ sources: [] }),
 				getActiveDescriptor: () => availableHarnesses.get().find(d => d.id === activeHarness.get())!,
 				findHarnessById: (id: string) => availableHarnesses.get().find(d => d.id === id),
@@ -188,7 +193,7 @@ suite('AICustomizationItemsModel', () => {
 			model.getItems(AICustomizationManagementSection.Agents);
 			await timeout(0);
 			const sourceA = model.getActiveItemSource();
-			activeHarness.set('B', undefined);
+			activeSessionResource.set(URI.parse('B://session'), undefined);
 			await timeout(0);
 			const sourceB = model.getActiveItemSource();
 			assert.notStrictEqual(sourceA, sourceB);
@@ -407,7 +412,7 @@ suite('AICustomizationItemsModel', () => {
 			};
 			const providerWithSync: ICustomizationItemProvider = {
 				onDidChange: providerA_didChange.event,
-				provideChatSessionCustomizations: (_token: CancellationToken) => {
+				provideChatSessionCustomizations: (sessionResource: URI, token: CancellationToken) => {
 					providerA_callCount++;
 					return Promise.resolve(providerA_items.slice());
 				},
@@ -447,7 +452,7 @@ suite('AICustomizationItemsModel', () => {
 			};
 			const providerWithSync: ICustomizationItemProvider = {
 				onDidChange: providerA_didChange.event,
-				provideChatSessionCustomizations: (_token: CancellationToken) => {
+				provideChatSessionCustomizations: (sessionResource: URI, token: CancellationToken) => {
 					providerA_callCount++;
 					return Promise.resolve(providerA_items.slice());
 				},
@@ -483,7 +488,7 @@ suite('AICustomizationItemsModel', () => {
 
 			const provider: ICustomizationItemProvider = {
 				onDidChange: providerDidChange.event,
-				provideChatSessionCustomizations: (_token: CancellationToken) => Promise.resolve(providerItems.slice()),
+				provideChatSessionCustomizations: (sessionResource: URI, token: CancellationToken) => Promise.resolve(providerItems.slice()),
 			};
 			const descriptor: IHarnessDescriptor = {
 				id: 'A',
@@ -492,6 +497,7 @@ suite('AICustomizationItemsModel', () => {
 				getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [PromptsStorage.local, PromptsStorage.user] }),
 				itemProvider: provider,
 			};
+			const sessionResource = URI.parse('A:///active-session');
 			const activeHarness = observableValue('activeHarness', 'A');
 			const availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', [descriptor]);
 
@@ -524,10 +530,15 @@ suite('AICustomizationItemsModel', () => {
 				setOverrideProjectRoot: () => { },
 				clearOverrideProjectRoot: () => { },
 			});
+			const activeSessionResource = observableValue('activeSessionResource', sessionResource);
 			instaService.stub(ICustomizationHarnessService, {
+				activeSessionResource,
 				activeHarness,
 				availableHarnesses,
-				setActiveHarness: (id: string) => activeHarness.set(id, undefined),
+				setActiveSession: (sessionResource: URI) => {
+					activeSessionResource.set(sessionResource, undefined);
+					activeHarness.set(sessionResource.scheme, undefined);
+				},
 				getStorageSourceFilter: () => ({ sources: [] }),
 				getActiveDescriptor: () => availableHarnesses.get().find(d => d.id === activeHarness.get())!,
 				findHarnessById: (id: string) => availableHarnesses.get().find(d => d.id === id),
