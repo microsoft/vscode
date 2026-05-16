@@ -37,11 +37,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
-          cache-dependency-path: app/frontend/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            app/frontend/package-lock.json
 
       - name: Install root dependencies
+        run: npm ci
+
+      - name: Install app dependencies
         working-directory: app
         run: npm install
 

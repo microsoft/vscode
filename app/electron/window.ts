@@ -1,14 +1,13 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, app } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { setupWindowState } from './window-state.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export function createWindow(isDev: boolean): BrowserWindow {
   const win = new BrowserWindow({
-    width: 1400,
-    height: 900,
     minWidth: 800,
     minHeight: 600,
     title: 'AI Studio',
@@ -20,9 +19,11 @@ export function createWindow(isDev: boolean): BrowserWindow {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
+
+  setupWindowState(win, app.getPath('userData'));
 
   win.once('ready-to-show', () => {
     win.show();
