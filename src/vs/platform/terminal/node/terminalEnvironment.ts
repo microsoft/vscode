@@ -104,6 +104,11 @@ export async function getShellIntegrationInjection(
 		shell = shellLaunchConfig.shellType.toLowerCase();
 	}
 
+	// When shellType is 'none', disable shell integration without logging a warning for unsupported shells.
+	if (shell === 'none') {
+		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.IgnoreShellIntegrationFlag };
+	}
+
 	// Normalize .exe to make matching cross-platform and settings-sync friendly
 	shell = shell.replace(/\.exe$/, '');
 
