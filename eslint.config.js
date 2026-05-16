@@ -1920,7 +1920,8 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/workbench/contrib/terminal/terminal.all.js',
-						'vs/sessions/common/theme.js' // side-effect import for color registry
+						'vs/sessions/common/theme.js', // side-effect import for color registry
+						'vs/sessions/common/sizes.js' // side-effect import for size registry
 					]
 				},
 				{
@@ -2017,6 +2018,7 @@ export default tseslint.config(
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
 						'vs/workbench/~',
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
@@ -2037,6 +2039,7 @@ export default tseslint.config(
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
 						'vs/workbench/~',
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
@@ -2057,6 +2060,7 @@ export default tseslint.config(
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
 						'vs/workbench/~',
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
@@ -2073,6 +2077,7 @@ export default tseslint.config(
 						'vs/platform/*/~',
 						'vs/sessions/~',
 						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
 						'vs/workbench/~',
 						'vs/workbench/browser/**',
 						'vs/workbench/services/*/~',
@@ -2090,6 +2095,7 @@ export default tseslint.config(
 						'vs/sessions/~',
 						'vs/sessions/test/**',
 						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
 						'vs/workbench/~',
 						'vs/workbench/browser/**',
 						'vs/workbench/services/*/~',
@@ -2126,6 +2132,24 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/contrib/providers/*/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
+						'vs/sessions/services/*/~',
 					]
 				},
 				{
@@ -2368,8 +2392,8 @@ export default tseslint.config(
 			'extensions/markdown-language-features/src/**/*.ts',
 			'extensions/markdown-language-features/notebook/**/*.ts',
 			'extensions/markdown-language-features/preview-src/**/*.ts',
-			'extensions/mermaid-chat-features/chat-webview-src/**/*.ts',
-			'extensions/mermaid-chat-features/src/**/*.ts',
+			'extensions/mermaid-markdown-features/preview-src/chat/**/*.ts',
+			'extensions/mermaid-markdown-features/src/**/*.ts',
 			'extensions/media-preview/src/**/*.ts',
 			'extensions/simple-browser/**/*.ts',
 			'extensions/typescript-language-features/**/*.ts',
@@ -2390,9 +2414,9 @@ export default tseslint.config(
 					'extensions/simple-browser/tsconfig.json',
 					'extensions/simple-browser/preview-src/tsconfig.json',
 
-					// Mermaid chat features
-					'extensions/mermaid-chat-features/tsconfig.json',
-					'extensions/mermaid-chat-features/chat-webview-src/tsconfig.json',
+					// Mermaid markdown features
+					'extensions/mermaid-markdown-features/tsconfig.json',
+					'extensions/mermaid-markdown-features/preview-src/chat/tsconfig.json',
 
 					// TypeScript
 					'extensions/typescript-language-features/tsconfig.json',

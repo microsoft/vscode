@@ -61,6 +61,10 @@ export class AgentPluginManager implements IAgentPluginManager {
 		this._maxPlugins = maxPlugins;
 	}
 
+	get basePath(): URI {
+		return this._basePath;
+	}
+
 	async syncCustomizations(
 		clientId: string,
 		customizations: CustomizationRef[],

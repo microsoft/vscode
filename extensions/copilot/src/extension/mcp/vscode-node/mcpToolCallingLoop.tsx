@@ -53,7 +53,7 @@ export class McpToolCallingLoop extends ToolCallingLoop<IMcpToolCallingLoopOptio
 	}
 
 	private async getEndpoint() {
-		return await this.endpointProvider.getChatEndpoint('copilot-fast');
+		return await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 	}
 
 	protected async buildPrompt(buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
