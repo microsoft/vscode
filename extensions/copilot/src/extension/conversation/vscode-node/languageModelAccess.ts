@@ -469,10 +469,10 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			if (!resolved) {
 				continue;
 			}
-			// Skip when the override resolved to the same model that's
+			// Skip when the override resolved to the same endpoint that's
 			// already published; no alias change needed.
 			const published = this._utilityAliasEndpoints.get(family);
-			if (published && published.model === resolved.model) {
+			if (published && published.model === resolved.model && published.modelProvider === resolved.modelProvider) {
 				continue;
 			}
 			let baseCount: number;

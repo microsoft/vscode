@@ -211,6 +211,42 @@ suite('LanguageModelAccess model info', () => {
 			await extensionContext.globalState.update(baseCountCacheKey, undefined);
 		}
 	});
+
+	test('refreshes utility aliases when an override uses the same model id from another provider', async () => {
+		const publishedEndpoint = {
+			model: 'gpt-4o-mini',
+			modelProvider: 'copilot',
+		} as IChatEndpoint;
+		const resolvedEndpoint = {
+			model: 'gpt-4o-mini',
+			modelProvider: 'azure',
+		} as IChatEndpoint;
+		const testingServiceCollection = createExtensionTestingServices();
+		testingServiceCollection.define(IEndpointProvider, {
+			_serviceBrand: undefined,
+			onDidModelsRefresh: Event.None,
+			getAllCompletionModels: async () => [],
+			getAllChatEndpoints: async () => [],
+			getChatEndpoint: async () => resolvedEndpoint,
+			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
+		} as unknown as IEndpointProvider);
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
+		const internals = languageModelAccess as unknown as {
+			_utilityAliasEndpoints: Map<string, IChatEndpoint>;
+			_resolvedUtilityEndpoints: Map<string, { endpoint: IChatEndpoint; baseCount: number }>;
+			_promptBaseCountCache: { getBaseCount(endpoint: IChatEndpoint): Promise<number> };
+			_refreshUtilityOverrides(): Promise<void>;
+		};
+		internals._utilityAliasEndpoints.set('copilot-utility-small', publishedEndpoint);
+		internals._promptBaseCountCache = { getBaseCount: async () => 0 };
+		try {
+			await internals._refreshUtilityOverrides();
+			assert.strictEqual(internals._resolvedUtilityEndpoints.get('copilot-utility-small')?.endpoint, resolvedEndpoint);
+		} finally {
+			languageModelAccess.dispose();
+		}
+	});
 });
 
 suite('buildUtilityAliasModelInfo', () => {
