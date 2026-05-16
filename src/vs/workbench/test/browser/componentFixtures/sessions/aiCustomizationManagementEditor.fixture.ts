@@ -242,8 +242,8 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 	}();
 }
 
-function createMockHarnessService(sssionResource: URI, descriptors: readonly IHarnessDescriptor[]): ICustomizationHarnessService {
-	const activeSessionResource = observableValue<URI>('activeSessionResource', sssionResource);
+function createMockHarnessService(sessionResource: URI, descriptors: readonly IHarnessDescriptor[]): ICustomizationHarnessService {
+	const activeSessionResource = observableValue<URI>('activeSessionResource', sessionResource);
 	const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 	return new class extends mock<ICustomizationHarnessService>() {
 		override readonly activeSessionResource = activeSessionResource;
@@ -1191,7 +1191,7 @@ function makeMarketplacePluginItem(name: string, description: string): IAgentPlu
 // ============================================================================
 
 const localSessionResource = LocalChatSessionUri.getNewSessionUri();
-const cliSessionResource = URI.parse(`${SessionType.CopilotCLI}///session1`);
+const cliSessionResource = URI.parse(`${SessionType.CopilotCLI}:///session1`);
 
 export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
