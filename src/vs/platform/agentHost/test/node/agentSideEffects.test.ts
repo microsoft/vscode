@@ -26,7 +26,9 @@ import { buildSubagentSessionUri, MessageAttachmentKind, PendingMessageKind, Res
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
@@ -128,7 +130,7 @@ suite('AgentSideEffects', () => {
 			agents: agentList,
 			sessionDataService: createNullSessionDataService(),
 			onTurnComplete: () => { },
-		}, undefined, telemetryService);
+		}, undefined, disposables.add(new AgentHostTelemetryService(telemetryService)));
 	});
 
 	teardown(() => {
@@ -952,6 +954,24 @@ suite('AgentSideEffects', () => {
 				enabled: true,
 				status: CustomizationStatus.Loaded,
 			}]);
+		});
+
+		test('updates telemetry level from root config', () => {
+			setupSession();
+			const action: RootConfigChangedAction = {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(TelemetryLevel.NONE) },
+			};
+
+			sideEffects.handleAction(action);
+			sideEffects.handleAction({
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				userMessage: { text: 'hello world' },
+			});
+
+			assert.deepStrictEqual(telemetryService.events, []);
 		});
 	});
 

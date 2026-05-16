@@ -36,6 +36,7 @@ import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, type IIncrementalDiffOptions } from './sessionDiffAggregator.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 
 type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -827,6 +828,7 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.RootConfigChanged: {
+				updateAgentHostTelemetryLevelFromConfig(this._telemetryService, action.config);
 				// Host customizations are self-managed by each agent's
 				// PluginController via IAgentConfigurationService.onDidRootConfigChange.
 				// Republish agent infos for non-customization schema changes
