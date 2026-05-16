@@ -20,8 +20,8 @@ import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
 import { IChatOutputRendererService } from '../../../chatOutputItemRenderer.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatProgressSubPart } from '../chatProgressContentPart.js';
+import { IChatOutputPartStateCache, IOutputPartState } from '../chatOutputPartStateCache.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
-import { IChatToolOutputStateCache, IOutputState } from './chatToolOutputStateCache.js';
 
 // TODO: see if we can reuse existing types instead of adding ChatToolOutputSubPart
 export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
@@ -39,7 +39,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		@IChatOutputRendererService private readonly chatOutputItemRendererService: IChatOutputRendererService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IChatToolOutputStateCache private readonly stateCache: IChatToolOutputStateCache,
+		@IChatOutputPartStateCache private readonly stateCache: IChatOutputPartStateCache,
 	) {
 		super(toolInvocation);
 
@@ -79,7 +79,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		parent.style.maxHeight = '80vh';
 
 		// Try to restore cached state, or create new state
-		const partState: IOutputState = this.stateCache.get(toolInvocation.toolCallId) ?? { height: 0, webviewOrigin: generateUuid() };
+		const partState: IOutputPartState = this.stateCache.get(toolInvocation.toolCallId) ?? { height: 0, webviewOrigin: generateUuid() };
 
 		// Always update the cache with the current state reference
 		this.stateCache.set(toolInvocation.toolCallId, partState);
