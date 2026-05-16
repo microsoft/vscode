@@ -13,6 +13,7 @@ import { TERMINAL_BACKGROUND_COLOR } from '../workbench/contrib/terminal/common/
 import '../workbench/api/browser/extensionHost.contribution.js';
 import '../workbench/browser/workbench.contribution.js';
 import { agentsPanelBackground } from './common/theme.js';
+import './common/sizes.js';
 
 getColorRegistry().updateDefaultColor(PANEL_BACKGROUND, agentsPanelBackground);
 getColorRegistry().updateDefaultColor(TERMINAL_BACKGROUND_COLOR, agentsPanelBackground);
@@ -140,6 +141,7 @@ import '../workbench/services/dataChannel/browser/dataChannelService.js';
 import '../workbench/services/inlineCompletions/common/inlineCompletionsUnification.js';
 import '../workbench/services/chat/common/chatEntitlementService.js';
 import '../workbench/services/log/common/defaultLogLevels.js';
+import '../workbench/services/agentHost/common/agentHostPermissionService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
@@ -169,6 +171,7 @@ import { McpGalleryService } from '../platform/mcp/common/mcpGalleryService.js';
 import { AllowedMcpServersService } from '../platform/mcp/common/allowedMcpServersService.js';
 import { IWebWorkerService } from '../platform/webWorker/browser/webWorkerService.js';
 import { WebWorkerService } from '../platform/webWorker/browser/webWorkerServiceImpl.js';
+import { ISessionsSetUpService, SessionsSetUpService } from './browser/sessionsSetUpService.js';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
 registerSingleton(IAllowedExtensionsService, AllowedExtensionsService, InstantiationType.Delayed);
@@ -186,6 +189,7 @@ registerSingleton(IOpenerService, OpenerService, InstantiationType.Delayed);
 registerSingleton(IWebWorkerService, WebWorkerService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryService, McpGalleryService, InstantiationType.Delayed);
 registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, InstantiationType.Delayed);
+registerSingleton(ISessionsSetUpService, SessionsSetUpService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -226,8 +230,14 @@ import '../workbench/contrib/interactive/browser/interactive.contribution.js';
 // repl
 import '../workbench/contrib/replNotebook/browser/repl.contribution.js';
 
-// Testing
-import '../workbench/contrib/testing/browser/testing.contribution.js';
+// Testing (service)
+import { NullTestProfileService, NullTestResultService, NullTestService } from '../workbench/contrib/testing/common/nullTestingService.js';
+import { ITestProfileService } from '../workbench/contrib/testing/common/testProfileService.js';
+import { ITestResultService } from '../workbench/contrib/testing/common/testResultService.js';
+import { ITestService } from '../workbench/contrib/testing/common/testService.js';
+registerSingleton(ITestService, NullTestService, InstantiationType.Delayed);
+registerSingleton(ITestProfileService, NullTestProfileService, InstantiationType.Delayed);
+registerSingleton(ITestResultService, NullTestResultService, InstantiationType.Delayed);
 
 // Logs
 import '../workbench/contrib/logs/common/logs.contribution.js';
@@ -242,13 +252,18 @@ import '../workbench/contrib/files/browser/files.contribution.js';
 
 // Bulk Edit
 import '../workbench/contrib/bulkEdit/browser/bulkEditService.js';
-import '../workbench/contrib/bulkEdit/browser/preview/bulkEdit.contribution.js';
+// import '../workbench/contrib/bulkEdit/browser/preview/bulkEdit.contribution.js';
 
 // Rename Symbol Tracker for Inline completions.
 import '../workbench/contrib/inlineCompletions/browser/renameSymbolTrackerService.js';
 
 // Search Quick Access (file picker only, not the full search contribution)
 import '../workbench/contrib/search/browser/searchQuickAccess.contribution.js';
+
+// Search Editor
+import '../workbench/contrib/searchEditor/browser/searchEditor.contribution.js';
+import '../workbench/contrib/search/browser/search.common.contribution.js';
+import './contrib/search/browser/search.contribution.js';
 
 // Sash
 import '../workbench/contrib/sash/browser/sash.contribution.js';
@@ -434,31 +449,30 @@ import './browser/layoutActions.js';
 import './contrib/accountMenu/browser/account.contribution.js';
 import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
-import './contrib/chat/browser/agentHost/agentHostSessionConfigPicker.js';
+import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
+import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import './contrib/chat/browser/customizationsDebugLog.contribution.js';
-import './contrib/copilotChatSessions/browser/copilotChatSessions.contribution.js';
+import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
 import './contrib/sessions/browser/views/sessionsListModelService.js';
-import './contrib/remoteAgentHost/browser/agentHostFilterService.js';
+import './services/agentHostFilter/browser/agentHostFilterService.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changes.contribution.js';
-import './contrib/layout/browser/layout.contribution.js';
+import './contrib/layout/browser/sessionLayout.contribution.js';
 import './contrib/codeReview/browser/codeReview.contributions.js';
 import './contrib/files/browser/files.contribution.js';
 import './contrib/github/browser/github.contribution.js';
 import './contrib/applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
 import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view registration disabled; filesystem provider still needed
 import './contrib/configuration/browser/configuration.contribution.js';
-import './contrib/workingSet/browser/workingSet.contribution.js';
 import './contrib/browserView/browser/sessionBrowserView.contribution.js';
 import './contrib/editor/browser/editor.contribution.js';
 
 import './contrib/terminal/browser/sessionsTerminalContribution.js';
 import './contrib/chatDebug/browser/chatDebug.contribution.js';
 import './contrib/workspace/browser/workspace.contribution.js';
-import './contrib/welcome/browser/welcome.contribution.js';
+import './contrib/aquarium/browser/aquarium.contribution.js';
 import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
 
 import './services/sessions/browser/sessionsManagementService.js';
-
 //#endregion

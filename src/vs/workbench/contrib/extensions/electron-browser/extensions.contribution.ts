@@ -25,6 +25,7 @@ import { CleanUpExtensionsFolderAction, OpenExtensionsFolderAction } from './ext
 import { ExtensionsAutoProfiler } from './extensionsAutoProfiler.js';
 import { InstallRemoteExtensionsContribution, RemoteExtensionsInitializerContribution } from './remoteExtensionsInit.js';
 import { IExtensionHostProfileService, OpenExtensionHostProfileACtion, RuntimeExtensionsEditor, SaveExtensionHostProfileAction, StartExtensionHostProfileAction, StopExtensionHostProfileAction } from './runtimeExtensionsEditor.js';
+import { ShowRuntimeExtensionsAction } from '../browser/abstractRuntimeExtensionsEditor.js';
 
 // Singletons
 registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService, InstantiationType.Delayed);
@@ -83,3 +84,4 @@ registerAction2(StartExtensionHostProfileAction);
 registerAction2(StopExtensionHostProfileAction);
 registerAction2(SaveExtensionHostProfileAction);
 registerAction2(OpenExtensionHostProfileACtion);
+registerAction2(ShowRuntimeExtensionsAction);

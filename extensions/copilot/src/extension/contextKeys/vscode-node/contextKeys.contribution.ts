@@ -15,6 +15,7 @@ import { TelemetryData } from '../../../platform/telemetry/common/telemetryData'
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { autorun } from '../../../util/vs/base/common/observableInternal';
 import { GHPR_EXTENSION_ID } from '../../chatSessions/vscode/chatSessionsUriHandler';
+import { isClientBYOKAllowed } from '../../byok/common/byokProvider';
 import { EXTENSION_ID } from '../../common/constants';
 
 const welcomeViewContextKeys = {
@@ -35,6 +36,7 @@ const showLogViewContextKey = `github.copilot.chat.showLogView`;
 const debugReportFeedbackContextKey = 'github.copilot.debugReportFeedback';
 
 const previewFeaturesDisabledContextKey = 'github.copilot.previewFeaturesDisabled';
+const blackbirdExternalIndexingDisabledContextKey = 'github.copilot.blackbirdExternalIndexingDisabled';
 
 const clientByokEnabledContextKey = 'github.copilot.clientByokEnabled';
 
@@ -209,12 +211,22 @@ export class ContextKeysContribution extends Disposable {
 		}
 	}
 
-	private async _updateClientByokEnabledContext() {
+	private async _updateBlackbirdExternalIndexingDisabledContext() {
 		try {
 			const copilotToken = await this._authenticationService.getCopilotToken();
-			commands.executeCommand('setContext', clientByokEnabledContextKey, copilotToken.isClientBYOKEnabled());
+			commands.executeCommand('setContext', blackbirdExternalIndexingDisabledContextKey, !copilotToken.isBlackbirdExternalIndexingEnabled());
 		} catch (e) {
-			commands.executeCommand('setContext', clientByokEnabledContextKey, undefined);
+			commands.executeCommand('setContext', blackbirdExternalIndexingDisabledContextKey, undefined);
+		}
+	}
+
+	private async _updateClientByokEnabledContext() {
+		const hasGitHubSession = !!this._authenticationService.anyGitHubSession;
+		try {
+			const copilotToken = await this._authenticationService.getCopilotToken();
+			commands.executeCommand('setContext', clientByokEnabledContextKey, isClientBYOKAllowed(hasGitHubSession, copilotToken));
+		} catch (e) {
+			commands.executeCommand('setContext', clientByokEnabledContextKey, isClientBYOKAllowed(hasGitHubSession, undefined));
 		}
 	}
 
@@ -242,6 +254,7 @@ export class ContextKeysContribution extends Disposable {
 		this._inspectContext();
 		this._updateQuotaExceededContext();
 		this._updatePreviewFeaturesDisabledContext();
+		this._updateBlackbirdExternalIndexingDisabledContext();
 		this._updateClientByokEnabledContext();
 		this._updateShowLogViewContext();
 		this._updatePermissiveSessionContext();

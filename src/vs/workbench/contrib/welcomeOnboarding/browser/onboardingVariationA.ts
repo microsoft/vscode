@@ -21,7 +21,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { GitHubPaths, IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -510,7 +510,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.improveSuffix', " suggestions and use your data to improve the product."));
 		copilotDisclaimer.append(' ');
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.settingsPrefix', "You can change these "));
-		this._createInlineLink(copilotDisclaimer, localize('onboarding.signIn.disclaimer.settings', "settings"), defaultChat.manageSettingsUrl);
+		this._createInlineLink(copilotDisclaimer, localize('onboarding.signIn.disclaimer.settings', "settings"), this.defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings));
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.suffix', " anytime."));
 	}
 
@@ -993,11 +993,11 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		const features = append(wrapper, $('.onboarding-a-sessions-features'));
 
-		// Group 1: Chat modes — Plan / Agent / Ask
+		// Group 1: Chat modes — Plan / Agent
 		const chatGroup = append(features, $('.onboarding-a-sessions-group'));
 		const chatLabel = append(chatGroup, $('div.onboarding-a-sessions-group-label'));
 		chatLabel.textContent = localize('onboarding.sessions.group.chat', "Choose Your Agent");
-		const chatGrid = append(chatGroup, $('.onboarding-a-sessions-grid.onboarding-a-sessions-grid-3'));
+		const chatGrid = append(chatGroup, $('.onboarding-a-sessions-grid.onboarding-a-sessions-grid-2'));
 
 		this._createFeatureCard(chatGrid, Codicon.listOrdered,
 			localize('onboarding.sessions.planMode', "Plan"),
@@ -1006,10 +1006,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		this._createFeatureCard(chatGrid, Codicon.commentDiscussion,
 			localize('onboarding.sessions.agentMode', "Agent"),
 			localize('onboarding.sessions.agentMode.desc', "Describe a goal. The agent plans the approach, edits files, runs commands, and self-corrects. You review and approve along the way."));
-
-		this._createFeatureCard(chatGrid, Codicon.comment,
-			localize('onboarding.sessions.askMode', "Ask"),
-			localize('onboarding.sessions.askMode.desc', "Ask questions about your code or technical concepts and get answers grounded in your codebase."));
 
 		// Group 2: ways to run and customize agents beyond the default Chat experience
 		const moreGroup = append(features, $('.onboarding-a-sessions-group'));

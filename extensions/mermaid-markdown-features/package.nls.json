@@ -1,0 +1,23 @@
+{
+	"displayName": "Mermaid Markdown Features",
+	"description": "Adds Mermaid diagram support to built-in chats, Markdown previews, and notebooks.",
+	"command.resetPanZoom.title": "Reset Pan and Zoom",
+	"command.openInEditor.title": "Open Diagram in Editor",
+	"command.copySource.title": "Copy Diagram Source",
+	"config.title": "Mermaid",
+	"config.enabled.description": "Enable a tool for Mermaid diagram rendering in chat responses.",
+	"config.markdown-mermaid.lightModeTheme.description": "Default Mermaid theme for light mode.",
+	"config.markdown-mermaid.darkModeTheme.description": "Default Mermaid theme for dark mode.",
+	"config.markdown-mermaid.languages.description": "Default languages in Markdown.",
+	"config.markdown-mermaid.maxTextSize.description": "The maximum allowed size of the user's text diagram.",
+	"config.markdown-mermaid.mouseNavigation.enabled.description": "Controls when mouse-based navigation is enabled on Mermaid diagrams.",
+	"config.markdown-mermaid.mouseNavigation.enabled.always": "Always enable mouse navigation on Mermaid diagrams.",
+	"config.markdown-mermaid.mouseNavigation.enabled.alt": "Only enable mouse navigation when holding down Alt (Option on macOS). Gestures such as pinch-to-zoom will still work without Alt.",
+	"config.markdown-mermaid.mouseNavigation.enabled.never": "Disable mouse navigation.",
+	"config.markdown-mermaid.controls.show.description": "Controls showing UI controls on Mermaid diagrams.",
+	"config.markdown-mermaid.controls.show.never": "Never show controls.",
+	"config.markdown-mermaid.controls.show.onHoverOrFocus": "Show zoom controls when hovering over or focusing a diagram.",
+	"config.markdown-mermaid.controls.show.always": "Always show zoom controls.",
+	"config.markdown-mermaid.resizable.description": "Allow diagrams to be resized vertically by dragging the bottom edge.",
+	"config.markdown-mermaid.maxHeight.markdownDescription": "Maximum height for diagrams. Must be a CSS value with units such as `80vh` or `400px`. Leave empty to try to automatically size diagrams based on their content."
+}

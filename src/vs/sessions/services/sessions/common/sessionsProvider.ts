@@ -83,6 +83,13 @@ export interface ISessionsProvider {
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
 	/**
+	 * Whether this provider can resolve and run sessions against local file-system workspaces.
+	 * When `true`, the workspace picker includes a "Local" tab with a built-in
+	 * folder browse action that resolves through this provider.
+	 */
+	readonly supportsLocalWorkspaces?: boolean;
+
+	/**
 	 * Resolve a workspace for the given repository URI.
 	 * Returns `undefined` when the provider cannot handle the given URI
 	 * (e.g. wrong scheme or authority).
