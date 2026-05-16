@@ -48,10 +48,7 @@ suite('Copilot Chat Sanity Test', function () {
 		assert.strictEqual(typeof (activateResult as IInstantiationService).invokeFunction, 'function', 'invokeFunction is not a function');
 		realInstaAccessor = activateResult as IInstantiationService;
 
-		// The global ConversationFeature is constructed and activated by ContributionCollection
-		// during baseActivate; waitForActivationBlockers (awaited by activate() above) gates on
-		// its activationBlocker, so by the time we get here it has already registered. We still
-		// fetch a Copilot token so the first chat request does not pay that cost.
+		// Warm the Copilot token cache so the first chat request does not pay that cost.
 		await realInstaAccessor.invokeFunction(async (accessor) => {
 			const token = await accessor.get(IAuthenticationService).getCopilotToken();
 			assert.ok(token, 'Copilot token must be available before tests run');
