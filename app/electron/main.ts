@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { autoUpdater } from 'electron-updater';
 import { registerFileHandlers } from './ipc-handlers.js';
 import { createMenu } from './menu.js';
 import { createWindow } from './window.js';
@@ -11,6 +12,47 @@ const __dirname = path.dirname(__filename);
 let mainWindow: BrowserWindow | null = null;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+
+function setupAutoUpdater(): void {
+  if (isDev) return;
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('checking-for-update', () => {
+    mainWindow?.webContents.send('updater:checking');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    mainWindow?.webContents.send('updater:available', info);
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    mainWindow?.webContents.send('updater:not-available');
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    mainWindow?.webContents.send('updater:progress', progress);
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    mainWindow?.webContents.send('updater:downloaded', info);
+  });
+
+  autoUpdater.on('error', (err) => {
+    mainWindow?.webContents.send('updater:error', err.message);
+  });
+
+  // Check for updates every 4 hours
+  setInterval(() => {
+    autoUpdater.checkForUpdates().catch(() => {});
+  }, 4 * 60 * 60 * 1000);
+
+  // Initial check after 10 seconds
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch(() => {});
+  }, 10_000);
+}
 
 async function init(): Promise<void> {
   mainWindow = createWindow(isDev);
@@ -25,6 +67,8 @@ async function init(): Promise<void> {
     const indexPath = path.join(__dirname, '..', 'renderer', 'index.html');
     mainWindow.loadFile(indexPath);
   }
+
+  setupAutoUpdater();
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -71,6 +115,17 @@ async function init(): Promise<void> {
     });
     if (result.canceled) return null;
     return result.filePath;
+  });
+
+  // Auto-updater IPC handlers
+  ipcMain.handle('updater:check', () => {
+    if (!isDev) {
+      return autoUpdater.checkForUpdates().catch(() => null);
+    }
+    return null;
+  });
+  ipcMain.handle('updater:install', () => {
+    autoUpdater.quitAndInstall(false, true);
   });
 
   // Handle external links

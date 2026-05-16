@@ -115,6 +115,37 @@ npm run package:linux  # Linux AppImage
 
 Supports any OpenAI-compatible API (OpenAI, Anthropic via proxy, DeepSeek, Ollama, etc.)
 
+## Releases & Deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the full guide.
+
+### Quick Release
+
+```bash
+cd app
+
+# Set your GitHub token
+export GH_TOKEN=your_token
+
+# Release a patch version (1.0.0 → 1.0.1)
+./scripts/release.sh patch
+```
+
+This bumps the version, tags, pushes, and GitHub Actions builds + publishes installers for all platforms automatically.
+
+### Manual Publish
+
+```bash
+npm run publish          # Build + publish to GitHub Releases
+npm run publish:win      # Windows only
+npm run publish:mac      # macOS only
+npm run publish:linux    # Linux only
+```
+
+### Auto Updates
+
+Built-in via `electron-updater`. The app checks for updates on startup and every 4 hours. Updates download in the background and install on next quit.
+
 ## Architecture Decisions
 
 - **Single codebase** — everything in one repo
@@ -124,6 +155,8 @@ Supports any OpenAI-compatible API (OpenAI, Anthropic via proxy, DeepSeek, Ollam
 - **Vite** — fast HMR development
 - **esbuild** — fast Electron compilation
 - **IPC** — secure Electron IPC with context isolation
+- **GitHub Releases** — automated CI/CD with Electron Builder
+- **electron-updater** — seamless auto-updates
 
 ## License
 

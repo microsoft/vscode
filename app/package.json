@@ -18,9 +18,17 @@
     "package:win": "npm run build && electron-builder --win",
     "package:mac": "npm run build && electron-builder --mac",
     "package:linux": "npm run build && electron-builder --linux",
+    "publish": "npm run build && electron-builder --publish always",
+    "publish:win": "npm run build && electron-builder --win --publish always",
+    "publish:mac": "npm run build && electron-builder --mac --publish always",
+    "publish:linux": "npm run build && electron-builder --linux --publish always",
+    "release": "npm run build && electron-builder --publish always",
     "lint": "eslint . --ext .ts,.tsx --ignore-pattern dist --ignore-pattern node_modules",
     "typecheck": "tsc --noEmit",
-    "clean": "rimraf dist out"
+    "clean": "rimraf dist out",
+    "version:patch": "npm version patch",
+    "version:minor": "npm version minor",
+    "version:major": "npm version major"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
@@ -65,7 +73,7 @@
     "appId": "com.aistudio.ide",
     "productName": "AI Studio",
     "directories": {
-      "output": "out",
+      "output": "dist",
       "buildResources": "resources"
     },
     "files": [

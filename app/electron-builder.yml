@@ -3,12 +3,15 @@ productName: AI Studio
 copyright: Copyright © 2024 AI Studio
 
 directories:
-  output: out
+  output: dist
   buildResources: resources
 
 files:
   - dist/**/*
   - package.json
+
+asar: true
+compression: maximum
 
 win:
   target:
@@ -17,6 +20,7 @@ win:
         - x64
   icon: resources/icon.ico
   artifactName: "${productName}-${version}-Setup.${ext}"
+  publisherName: AI Studio
 
 mac:
   target:
@@ -26,7 +30,9 @@ mac:
         - arm64
   icon: resources/icon.icns
   category: public.app-category.developer-tools
-  artifactName: "${productName}-${version}.${ext}"
+  artifactName: "${productName}-${version}-mac.${ext}"
+  hardenedRuntime: true
+  gatekeeperAssess: false
 
 linux:
   target:
@@ -35,7 +41,7 @@ linux:
         - x64
   icon: resources/icon.png
   category: Development
-  artifactName: "${productName}-${version}.${ext}"
+  artifactName: "${productName}-${version}-linux.${ext}"
 
 nsis:
   oneClick: false
@@ -43,6 +49,7 @@ nsis:
   perMachine: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  uninstallDisplayName: AI Studio
 
 dmg:
   contents:
