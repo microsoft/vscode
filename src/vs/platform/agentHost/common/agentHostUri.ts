@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { decodeHex, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import type { ResourceLabelFormatter } from '../../label/common/label.js';
@@ -41,6 +41,16 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
 
 	// Path format: /[originalScheme]/[originalAuthority]/[originalPath]
 	const originalAuthority = originalUri.authority || '';
+	const gitBlobPath = getGitBlobRepoRelativePath(originalUri);
+	if (gitBlobPath) {
+		return URI.from({
+			scheme: AGENT_HOST_SCHEME,
+			authority: connectionAuthority,
+			path: `/${originalUri.scheme}/${originalAuthority || '-'}/${gitBlobPath}`,
+			query: `original=${encodeURIComponent(originalUri.toString())}`,
+		});
+	}
+
 	return URI.from({
 		scheme: AGENT_HOST_SCHEME,
 		authority: connectionAuthority,
@@ -83,6 +93,14 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 		originalAuthority = '';
 	}
 
+	if (originalScheme === 'git-blob' && agentHostUri.query.startsWith('original=')) {
+		try {
+			return URI.parse(decodeURIComponent(agentHostUri.query.substring('original='.length)));
+		} catch {
+			// Fall through to the path-derived URI below.
+		}
+	}
+
 	const originalPath = path.substring(authorityEnd);
 
 	return URI.from({
@@ -90,6 +108,23 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 		authority: originalAuthority || undefined,
 		path: originalPath,
 	});
+}
+
+function getGitBlobRepoRelativePath(uri: URI): string | undefined {
+	if (uri.scheme !== 'git-blob') {
+		return undefined;
+	}
+
+	const [, , encodedPath] = uri.path.split('/');
+	if (!encodedPath) {
+		return undefined;
+	}
+
+	try {
+		return decodeHex(encodedPath).toString();
+	} catch {
+		return undefined;
+	}
 }
 
 /**

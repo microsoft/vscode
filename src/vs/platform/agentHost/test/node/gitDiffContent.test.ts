@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildGitBlobUri, parseGitBlobUri } from '../../node/gitDiffContent.js';
 
@@ -31,5 +32,14 @@ suite('gitDiffContent', () => {
 		assert.strictEqual(parseGitBlobUri('file:///foo/bar.ts'), undefined);
 		assert.strictEqual(parseGitBlobUri('session-db://abc/def/before/x'), undefined);
 		assert.strictEqual(parseGitBlobUri('not a uri at all'), undefined);
+	});
+
+	test('parses explicit git blob URI shape', () => {
+		const sessionUri = 'copilot:/abc-123';
+		const sha = 'deadbeef0123456789abcdef0123456789abcdef';
+		const repoRelativePath = 'src/foo/bar.ts';
+		const uri = `git-blob://${encodeHex(VSBuffer.fromString(sessionUri))}/${encodeURIComponent(sha)}/${encodeHex(VSBuffer.fromString(repoRelativePath))}/bar.ts`;
+
+		assert.deepStrictEqual(parseGitBlobUri(uri), { sessionUri, sha, repoRelativePath });
 	});
 });
