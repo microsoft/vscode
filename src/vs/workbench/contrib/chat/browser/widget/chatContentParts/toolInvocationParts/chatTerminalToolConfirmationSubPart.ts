@@ -512,7 +512,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			(async () => {
 				try {
 					const result = await this.riskAssessmentService.assess(tool, parameters, cts.token);
-					if (cts.token.isCancellationRequested) {
+					if (cts.token.isCancellationRequested || widget.isDisposed) {
 						return;
 					}
 					if (!result) {
@@ -521,7 +521,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 					}
 					widget.setAssessment(result);
 				} catch {
-					widget.setHidden();
+					if (!widget.isDisposed) {
+						widget.setHidden();
+					}
 				}
 			})();
 		}

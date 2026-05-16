@@ -22,6 +22,8 @@ export class ToolRiskBadgeWidget extends Disposable {
 
 	public readonly domNode: HTMLElement;
 
+	public get isDisposed(): boolean { return this._store.isDisposed; }
+
 	private readonly _iconEl: HTMLElement;
 	private readonly _textEl: HTMLElement;
 	private readonly _detailsIconEl: HTMLElement;
@@ -48,6 +50,12 @@ export class ToolRiskBadgeWidget extends Disposable {
 		this.domNode.append(this._iconEl, this._textEl, this._detailsIconEl);
 		this._refreshDetailsHover();
 		this.setLoading();
+
+		this._register(dom.addDisposableListener(this._detailsIconEl, dom.EventType.CLICK, e => {
+			e.preventDefault();
+			e.stopPropagation();
+			this._hoverService.showManagedHover(this._detailsIconEl);
+		}));
 	}
 
 	setLoading(): void {
