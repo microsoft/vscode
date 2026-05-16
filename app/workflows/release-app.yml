@@ -1,3 +1,11 @@
+# GitHub Actions workflow for automated AI Studio releases.
+#
+# SETUP: Copy this file to .github/workflows/release-app.yml in the repo root.
+#        Then add GH_TOKEN to your repository secrets (Settings → Secrets → Actions).
+#
+# USAGE: Push a tag matching 'app-v*' to trigger a release build.
+#        Example: git tag app-v1.0.1 && git push origin app-v1.0.1
+
 name: Release AI Studio
 
 on:

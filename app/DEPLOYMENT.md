@@ -88,9 +88,14 @@ This will:
 
 ## Automated Releases (CI/CD)
 
+### Setup
+
+1. Copy `app/workflows/release-app.yml` to `.github/workflows/release-app.yml` in your repo root
+2. Add `GH_TOKEN` to your GitHub repository secrets (Settings → Secrets → Actions)
+
 ### How It Works
 
-The GitHub Actions workflow (`.github/workflows/release-app.yml`) triggers on version tags matching `app-v*`.
+The GitHub Actions workflow triggers on version tags matching `app-v*`.
 
 ### Release Flow
 
