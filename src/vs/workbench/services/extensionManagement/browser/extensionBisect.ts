@@ -64,7 +64,7 @@ class BisectState {
 	) { }
 }
 
-class ExtensionBisectService implements IExtensionBisectService {
+export class ExtensionBisectService implements IExtensionBisectService {
 
 	declare readonly _serviceBrand: undefined;
 
