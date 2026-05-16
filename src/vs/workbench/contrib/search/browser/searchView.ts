@@ -13,7 +13,7 @@ import { Delayer, RunOnceScheduler, Throttler } from '../../../../base/common/as
 import * as errors from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isLinux } from '../../../../base/common/platform.js';
 import * as strings from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -74,7 +74,7 @@ import { SemanticSearchBehavior, IPatternInfo, ISearchComplete, ISearchConfigura
 import { AISearchKeyword, TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
-import { ISCMService } from '../../scm/common/scm.js';
+import { ISCMRepository, ISCMService } from '../../scm/common/scm.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -309,8 +309,9 @@ export class SearchView extends ViewPane {
 			const hasRepositories = [...this.scmService.repositories].length > 0;
 			this.inputPatternIncludes?.setOnlySearchInChangedFilesEnabled(hasRepositories);
 		};
-		const registerScmRepositoryListeners = (repository: { provider: { onDidChangeResources: import('../../../../base/common/event.js').Event<void> } }) => {
-			this._register(repository.provider.onDidChangeResources(() => {
+		const scmRepositoryListeners = this._register(new DisposableMap<ISCMRepository>());
+		const registerScmRepositoryListeners = (repository: ISCMRepository) => {
+			scmRepositoryListeners.set(repository, repository.provider.onDidChangeResources(() => {
 				if (this.inputPatternIncludes?.onlySearchInChangedFiles()) {
 					this.triggerQueryChange();
 				}
@@ -323,7 +324,10 @@ export class SearchView extends ViewPane {
 			registerScmRepositoryListeners(repository);
 			updateChangedFilesToggleEnabled();
 		}));
-		this._register(this.scmService.onDidRemoveRepository(() => updateChangedFilesToggleEnabled()));
+		this._register(this.scmService.onDidRemoveRepository(repository => {
+			scmRepositoryListeners.deleteAndDispose(repository);
+			updateChangedFilesToggleEnabled();
+		}));
 
 		this.delayedRefresh = this._register(new Delayer<void>(250));
 

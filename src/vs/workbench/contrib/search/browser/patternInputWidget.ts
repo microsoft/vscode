@@ -247,6 +247,9 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 		}));
 		this.useSearchInChangedFilesBox.disable();
 		this._register(this.useSearchInChangedFilesBox.onChange(viaKeyboard => {
+			if (this.useSearchInChangedFilesBox.checked) {
+				this.useSearchInEditorsBox.checked = false;
+			}
 			this._onChangeSearchInChangedFilesBoxEmitter.fire();
 			if (!viaKeyboard) {
 				this.inputBox.focus();
@@ -260,6 +263,9 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 			...defaultToggleStyles
 		}));
 		this._register(this.useSearchInEditorsBox.onChange(viaKeyboard => {
+			if (this.useSearchInEditorsBox.checked) {
+				this.useSearchInChangedFilesBox.checked = false;
+			}
 			this._onChangeSearchInEditorsBoxEmitter.fire();
 			if (!viaKeyboard) {
 				this.inputBox.focus();

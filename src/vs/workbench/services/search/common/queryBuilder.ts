@@ -286,7 +286,7 @@ export class QueryBuilder {
 			return { ...queryProps, ...openEditorsQueryProps };
 		}
 
-		if (options.changedFileUris?.length) {
+		if (options.changedFileUris !== undefined) {
 			const changedFilesInQuery = options.changedFileUris.filter(uri => pathIncludedInQuery(queryProps, uri.fsPath));
 			const changedFilesQueryProps = this.commonQueryFromFileList(changedFilesInQuery);
 			this.logService.trace('QueryBuilder#commonQuery - changedFile Query', JSON.stringify(changedFilesQueryProps));
