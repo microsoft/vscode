@@ -34,6 +34,11 @@ jobs:
             package-lock.json
             app/frontend/package-lock.json
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libkrb5-dev
+
       - name: Install root dependencies
         run: npm ci
 
@@ -57,3 +62,4 @@ jobs:
         run: |
           echo "Build successful!"
           ls -R app/dist
+
