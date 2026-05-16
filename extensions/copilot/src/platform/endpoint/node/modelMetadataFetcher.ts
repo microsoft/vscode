@@ -300,6 +300,9 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 				familyMap.get(family)?.push(model);
 			}
 			this._lastFetchError = undefined;
+			if (this._copilotUtilityModel) {
+				this._hasForcedUtilityModelRetry = false;
+			}
 			this._onDidModelRefresh.fire();
 		} catch (e) {
 			this._logService.error(e, `Failed to fetch models (${requestId})`);
