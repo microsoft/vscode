@@ -321,7 +321,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 					return;
 				}
 				if (value === undefined) {
-					// User cancelled — submit empty responses to fail this attempt.
+					// User cancelled — abort the owning connection attempt.
 					await this._mainService.respondKeyboardInteractive(request.requestId, undefined);
 					return;
 				}

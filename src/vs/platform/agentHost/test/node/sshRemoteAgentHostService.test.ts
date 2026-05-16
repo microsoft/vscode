@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { createRemoteAgentHostState } from '../../common/remoteAgentHostMetadata.js';
-import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress } from '../../common/sshRemoteAgentHost.js';
+import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
 
 const dataFolderName = '.vscode-insiders';
@@ -296,6 +296,14 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	/** Sets the relay creation timeout; exposed for tests only. */
 	setRelayCreationTimeoutForTest(ms: number): void {
 		this.relayCreationTimeoutMs = ms;
+	}
+
+	startKeyboardInteractiveForTest(
+		prompts: readonly ISSHKeyboardInteractivePrompt[],
+		finish: (responses: readonly string[]) => void,
+		cancelConnect: () => void,
+	): string {
+		return this._handleKeyboardInteractive('ssh:test-host', 'test-host', 'testuser', '', '', prompts, finish, cancelConnect);
 	}
 }
 
@@ -859,6 +867,57 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.ok(progress.length >= 3, `expected at least 3 progress events, got ${progress.length}`);
 		assert.ok(progress.every(p => p.connectionKey === 'ssh:myhost'));
 		assert.ok(progress.every(p => p.message.length > 0), 'all progress messages should be non-empty');
+	});
+
+	test('cancelling keyboard-interactive prompt cancels connection attempt', async () => {
+		const requests: ISSHKeyboardInteractiveRequest[] = [];
+		disposables.add(service.onDidRequestKeyboardInteractive(request => requests.push(request)));
+		let finished: readonly string[] | undefined;
+		let cancelled = false;
+
+		const requestId = service.startKeyboardInteractiveForTest([
+			{ prompt: 'Password: ', echo: false },
+		], responses => { finished = responses; }, () => { cancelled = true; });
+
+		await service.respondKeyboardInteractive(requestId, undefined);
+
+		assert.deepStrictEqual({
+			finished,
+			cancelled,
+			requests: requests.map(request => ({
+				requestId: request.requestId,
+				connectionKey: request.connectionKey,
+				displayHost: request.displayHost,
+				username: request.username,
+				prompts: request.prompts,
+			})),
+		}, {
+			finished: [],
+			cancelled: true,
+			requests: [{
+				requestId,
+				connectionKey: 'ssh:test-host',
+				displayHost: 'test-host',
+				username: 'testuser',
+				prompts: [{ prompt: 'Password: ', echo: false }],
+			}],
+		});
+	});
+
+	test('responding to keyboard-interactive prompt does not cancel connection attempt', async () => {
+		let finished: readonly string[] | undefined;
+		let cancelled = false;
+
+		const requestId = service.startKeyboardInteractiveForTest([
+			{ prompt: 'Password: ', echo: false },
+		], responses => { finished = responses; }, () => { cancelled = true; });
+
+		await service.respondKeyboardInteractive(requestId, ['secret']);
+
+		assert.deepStrictEqual({ finished, cancelled }, {
+			finished: ['secret'],
+			cancelled: false,
+		});
 	});
 
 	// --- SSH client close triggers connection disposal ---
