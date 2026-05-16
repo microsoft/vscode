@@ -48,6 +48,24 @@ function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus 
 	return ChatSessionStatus.Completed;
 }
 
+function keepPendingNewSessionStatusInProgress(status: SessionStatus | undefined): SessionStatus {
+	const resolvedStatus = status ?? SessionStatus.Idle;
+	if ((resolvedStatus & SessionStatus.InProgress) !== 0 || (resolvedStatus & SessionStatus.Error) !== 0) {
+		return resolvedStatus;
+	}
+
+	return (resolvedStatus & ~SessionStatus.Idle) | SessionStatus.InProgress;
+}
+
+function keepPendingNewSessionInProgress(summary: SessionSummary): SessionSummary {
+	const status = keepPendingNewSessionStatusInProgress(summary.status);
+	if (status === summary.status) {
+		return summary;
+	}
+
+	return { ...summary, status };
+}
+
 /**
  * Provides session list items for the chat sessions sidebar by querying
  * active sessions from an agent host connection. Listens to protocol
@@ -64,7 +82,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	private _items: IChatSessionItem[] = [];
 	/** Cached full summaries per session so partial updates can be applied. */
 	private readonly _cachedSummaries = new Map<string, SessionSummary>();
-	/** Final-looking resources created locally before the backend session exists. */
+	/** Final-looking resources created locally before the backend session is listed. */
 	private readonly _pendingNewSessions = new Set<string>();
 	/**
 	 * Once `listSessions()` has succeeded, the in-memory list is kept in
@@ -94,15 +112,11 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		this._register(this._connection.onDidNotification(n => {
 			if (n.type === 'notify/sessionAdded' && n.summary.provider === this._provider) {
 				const rawId = AgentSession.id(n.summary.resource);
-				this._pendingNewSessions.delete(rawId);
-				this._cachedSummaries.set(rawId, n.summary);
-				const item = this._makeItemFromSummary(rawId, n.summary, n.summary.diffs);
-				const existingIndex = this._items.findIndex(item => item.resource.path === `/${rawId}`);
-				if (existingIndex >= 0) {
-					this._items[existingIndex] = item;
-				} else {
-					this._items.push(item);
-				}
+				const wasPendingNewSession = this._pendingNewSessions.delete(rawId);
+				const summary = wasPendingNewSession ? keepPendingNewSessionInProgress(n.summary) : n.summary;
+				this._cachedSummaries.set(rawId, summary);
+				const item = this._makeItemFromSummary(rawId, summary, summary.diffs);
+				this._upsertItem(item);
 				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [item] });
 			} else if (n.type === 'notify/sessionRemoved' && AgentSession.provider(n.session) === this._provider) {
 				const removedId = AgentSession.id(n.session);
@@ -152,14 +166,16 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			return undefined;
 		}
 		const rawId = generateUuid();
-		this._pendingNewSessions.add(rawId);
 		const now = Date.now();
+		this._pendingNewSessions.add(rawId);
 		const item = this._makeItem(rawId, {
 			title: request.prompt.trim(),
 			status: SessionStatus.InProgress,
 			createdAt: now,
 			modifiedAt: now,
 		});
+		this._upsertItem(item);
+		this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [item] });
 
 		// Bridge any pre-creation provisional session the user built up
 		// against the untitled chat-input URI to the freshly-minted real
@@ -189,15 +205,21 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			const sessions = await this._connection.listSessions();
 			const filtered = sessions.filter(s => AgentSession.provider(s.session) === this._provider);
 			this._cachedSummaries.clear();
+			const previousItems = this._items;
+			const listedSessionIds = new Set<string>();
 			this._items = filtered.map(s => {
 				const rawId = AgentSession.id(s.session);
-				this._pendingNewSessions.delete(rawId);
+				listedSessionIds.add(rawId);
+				const wasPendingNewSession = this._pendingNewSessions.delete(rawId);
 				let status = s.status ?? SessionStatus.Idle;
 				if (s.isRead) {
 					status |= SessionStatus.IsRead;
 				}
 				if (s.isArchived) {
 					status |= SessionStatus.IsArchived;
+				}
+				if (wasPendingNewSession) {
+					status = keepPendingNewSessionStatusInProgress(status);
 				}
 				this._cachedSummaries.set(rawId, {
 					resource: s.session.toString(),
@@ -219,6 +241,12 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 					diffs: s.diffs,
 				});
 			});
+			for (const item of previousItems) {
+				const rawId = item.resource.path.substring(1);
+				if (this._pendingNewSessions.has(rawId) && !listedSessionIds.has(rawId)) {
+					this._items.push(item);
+				}
+			}
 			this._cacheValid = true;
 		} catch {
 			this._cachedSummaries.clear();
@@ -266,6 +294,15 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			},
 			changes: mapDiffsToChanges(opts.diffs, this._connectionAuthority),
 		};
+	}
+
+	private _upsertItem(item: IChatSessionItem): void {
+		const existingIndex = this._items.findIndex(existing => existing.resource.toString() === item.resource.toString());
+		if (existingIndex >= 0) {
+			this._items[existingIndex] = item;
+		} else {
+			this._items.push(item);
+		}
 	}
 
 	private _buildMetadata(workingDirectory: URI | undefined): { readonly [key: string]: unknown } | undefined {
