@@ -171,6 +171,14 @@ export interface IEndpointProvider {
 	getChatEndpoint(requestOrFamily: LanguageModelChat | ChatRequest | ChatEndpointFamily): Promise<IChatEndpoint>;
 
 	/**
+	 * Like {@link getChatEndpoint} but safe to call during the copilot LM
+	 * provider's `provideLanguageModelChatInfo` callback. Non-copilot utility
+	 * overrides that require `lm.selectChatModels` are deferred to avoid
+	 * re-entering the language model service (which deadlocks).
+	 */
+	getChatEndpointDuringProviderResolution(family: ChatEndpointFamily): Promise<IChatEndpoint>;
+
+	/**
 	 * Get the CAPI embedding endpoint information
 	 */
 	getEmbeddingsEndpoint(family?: EmbeddingsEndpointFamily): Promise<IEmbeddingsEndpoint>;

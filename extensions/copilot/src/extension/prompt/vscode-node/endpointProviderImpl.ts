@@ -127,15 +127,24 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 	}
 
 	/**
+	 * Like {@link getChatEndpoint} but safe to call during the copilot LM
+	 * provider's `provideLanguageModelChatInfo` callback.  Non-copilot
+	 * utility overrides that require `lm.selectChatModels` are skipped
+	 * (they would deadlock) and resolved lazily on first use instead.
+	 */
+	async getChatEndpointDuringProviderResolution(family: ChatEndpointFamily): Promise<IChatEndpoint> {
+		return this._resolveUtilityFamily(family, /* duringProviderResolution */ true);
+	}
+
+	/**
 	 * Resolves an internal utility family (`copilot-utility-small` /
 	 * `copilot-utility`) to a concrete `CopilotChatEndpoint`. The model
 	 * selection for each family lives in the corresponding resolver
 	 * class so callers don't need to know which CAPI family backs each
 	 * purpose.
-
 	 */
-	private async _resolveUtilityFamily(family: ChatEndpointFamily): Promise<IChatEndpoint> {
-		const override = await this._resolveUtilityOverride(family);
+	private async _resolveUtilityFamily(family: ChatEndpointFamily, duringProviderResolution?: boolean): Promise<IChatEndpoint> {
+		const override = await this._resolveUtilityOverride(family, duringProviderResolution);
 		if (override) {
 			return override;
 		}
@@ -154,8 +163,12 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 	 * Returns `undefined` if no override is configured, if the value is
 	 * malformed, if no matching model is currently available, or if the
 	 * lookup throws.
+	 *
+	 * @param duringProviderResolution When true, skip non-copilot overrides
+	 * to avoid re-entering the language model service (which deadlocks).
+	 * Non-copilot overrides are resolved lazily on first use instead.
 	 */
-	private async _resolveUtilityOverride(family: ChatEndpointFamily): Promise<IChatEndpoint | undefined> {
+	private async _resolveUtilityOverride(family: ChatEndpointFamily, duringProviderResolution?: boolean): Promise<IChatEndpoint | undefined> {
 		let configKey: string;
 		if (family === 'copilot-utility-small') {
 			configKey = ProductionEndpointProvider.UTILITY_SMALL_MODEL_CONFIG_KEY;
@@ -209,6 +222,16 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 			this._logService.trace(`[ProductionEndpointProvider] Applying ${configKey} override: copilot/${modelMetadata.id}`);
 			this._reportOverrideAppliedTelemetry(family);
 			return this.getOrCreateChatEndpointInstance(modelMetadata);
+		}
+
+		// Non-copilot overrides require `lm.selectChatModels` which re-enters
+		// the language model service. When called during provider resolution
+		// (i.e. from _registerUtilityAliasModels inside provideLanguageModelChatInfo),
+		// this deadlocks because the copilot vendor's sequencer slot is held.
+		// Skip here and resolve lazily in _resolveUtilityFamily on first use.
+		if (duringProviderResolution) {
+			this._logService.trace(`[ProductionEndpointProvider] Deferring non-copilot ${configKey} override '${raw}' (resolving during provider callback).`);
+			return undefined;
 		}
 
 		let models: readonly LanguageModelChat[];

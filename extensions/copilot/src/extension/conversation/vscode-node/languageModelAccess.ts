@@ -407,7 +407,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		for (const family of aliasFamilies) {
 			let endpoint: IChatEndpoint | undefined;
 			try {
-				endpoint = await this._endpointProvider.getChatEndpoint(family);
+				endpoint = await this._endpointProvider.getChatEndpointDuringProviderResolution(family);
 			} catch (err) {
 				this._logService.warn(`[LanguageModelAccess] Failed to resolve utility alias '${family}': ${err}`);
 				continue;
