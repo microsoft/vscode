@@ -24,7 +24,6 @@ This document outlines the process for releasing a new version of AI Studio.
 
 3. **Verify Release**: Once the workflow completes, verify that a new release has been created in the GitHub Releases section with the appropriate assets:
    - Windows: `.exe` setup
-   - macOS: `.dmg` installer
    - Linux: `.AppImage`
 
 ## Release Channels

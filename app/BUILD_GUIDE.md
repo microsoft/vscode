@@ -50,8 +50,10 @@ To build the application for your current platform:
 
 Or use the shortcut:
 ```bash
-npm run package:[win|mac|linux]
+npm run package:[win|linux]
 ```
+
+*Note: macOS support is temporarily disabled in the production release pipeline.*
 
 ## Build Artifacts
 

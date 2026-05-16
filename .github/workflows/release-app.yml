@@ -25,8 +25,6 @@ jobs:
             platform: linux
           - os: windows-latest
             platform: win
-          - os: macos-latest
-            platform: mac
 
     runs-on: ${{ matrix.os }}
 
@@ -76,20 +74,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: npx electron-builder --win --publish always
 
-      - name: Package & Publish (macOS)
-        if: matrix.platform == 'mac'
-        working-directory: app
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: npx electron-builder --mac --publish always
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ai-studio-${{ matrix.platform }}
           path: |
             app/dist/*.exe
-            app/dist/*.dmg
             app/dist/*.AppImage
             app/dist/*.yml
             app/dist/*.yaml
