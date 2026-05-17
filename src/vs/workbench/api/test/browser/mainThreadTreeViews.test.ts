@@ -211,7 +211,11 @@ suite('MainThreadHostTreeView', function () {
 		const proxy = sinon.spy(extHostTreeViewsShape, '$setFocusedTreeView');
 
 		viewsService.setFocusedView(<IViewDescriptor>{
-			id: 'unknownView'
+			id: 'noTreeView'
+		});
+		viewsService.setFocusedView(<ITreeViewDescriptor>{
+			id: 'builtInTreeView',
+			treeView: (<ITreeViewDescriptor>ViewsRegistry.getView(testTreeViewId)).treeView
 		});
 
 		assert.strictEqual(proxy.callCount, 0);

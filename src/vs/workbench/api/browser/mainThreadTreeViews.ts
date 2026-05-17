@@ -169,8 +169,12 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 
 		const focusedView = this.viewsService.getFocusedView();
 
-		if (focusedView && (focusedView as ICustomViewDescriptor).treeView) {
-			next = focusedView.id;
+		if (focusedView) {
+			const customView = focusedView as Partial<ICustomViewDescriptor>;
+
+			if (customView.treeView && customView.extensionId) {
+				next = focusedView.id;
+			}
 		}
 
 		if (next !== this._lastFocusedTreeView) {
