@@ -85,15 +85,20 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
 		}, process.env);
 
+		const args = [
+			'--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
+			'--user-data-dir', this._environmentMainService.userDataPath,
+		];
+		if (this._environmentMainService.disableTelemetry) {
+			args.push('--disable-telemetry');
+		}
+
 		this.utilityProcess.start({
 			type: 'agentHost',
 			name: 'agent-host',
 			entryPoint: 'vs/platform/agentHost/node/agentHostMain',
 			execArgv,
-			args: [
-				'--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
-				'--user-data-dir', this._environmentMainService.userDataPath,
-			],
+			args,
 			env: {
 				...deepClone(process.env),
 				...shellEnv,

@@ -59,15 +59,20 @@ import { AgentPluginManager } from './agentPluginManager.js';
 import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
 import { join } from '../../../base/common/path.js';
+import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
 // When VSCODE_AGENT_HOST_PORT or VSCODE_AGENT_HOST_SOCKET_PATH env vars
 // are set, also starts a WebSocket server for external clients.
 
-startAgentHost();
+void startAgentHost().catch(err => {
+	console.error(err);
+	process.exit(1);
+});
 
-function startAgentHost(): void {
+async function startAgentHost(): Promise<void> {
 	// Setup RPC - supports both Electron utility process and Node child process
 	let server: ChildProcessServer<string> | UtilityProcessServer;
 	if (isUtilityProcess(process)) {
@@ -100,6 +105,7 @@ function startAgentHost(): void {
 	// Session data service
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 	const rootConfigResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json');
+	const telemetryService = await createAgentHostTelemetryService({ environmentService, productService, fileService, loggerService, logService, disposables });
 
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
@@ -113,6 +119,7 @@ function startAgentHost(): void {
 		diServices.set(IFileService, fileService);
 		diServices.set(ISessionDataService, sessionDataService);
 		diServices.set(IProductService, productService);
+		diServices.set(ITelemetryService, telemetryService);
 		instantiationService = new InstantiationService(diServices);
 		const gitService = instantiationService.createInstance(AgentHostGitService);
 		diServices.set(IAgentHostGitService, gitService);
@@ -124,7 +131,7 @@ function startAgentHost(): void {
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
-		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));

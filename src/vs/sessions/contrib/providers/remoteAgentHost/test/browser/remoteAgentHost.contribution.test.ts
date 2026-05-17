@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { SSHReconnectState } from '../../browser/remoteAgentHost.contribution.js';
+import { shouldPauseSSHReconnectAfterFailure, SSHReconnectState } from '../../browser/remoteAgentHost.contribution.js';
 
 suite('SSHReconnectState', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -96,6 +97,20 @@ suite('SSHReconnectState', () => {
 
 			await timeout(2000);
 			assert.strictEqual(fired, 0, 'pending retry must be cancelled by resetForResume');
+		});
+	});
+});
+
+suite('shouldPauseSSHReconnectAfterFailure', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('pauses reconnect after cancellation but not after regular failures', () => {
+		assert.deepStrictEqual({
+			cancellation: shouldPauseSSHReconnectAfterFailure(new CancellationError()),
+			regularError: shouldPauseSSHReconnectAfterFailure(new Error('boom')),
+		}, {
+			cancellation: true,
+			regularError: false,
 		});
 	});
 });
