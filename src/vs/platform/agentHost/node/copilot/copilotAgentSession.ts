@@ -10,7 +10,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
-import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
+import { basename, extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
 import { hasKey, isObject, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -23,6 +23,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentSignal } from '../../common/agentService.js';
+import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAttachment } from '../../common/agentFeedbackAttachments.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
@@ -679,9 +680,10 @@ export class CopilotAgentSession extends Disposable {
 			prompt = slashCommand.rest;
 		}
 
+		prompt = this._appendAgentFeedbackToPrompt(prompt, attachments);
+
 		const sdkAttachments = attachments
-			? (await Promise.all(attachments.map(a => this._toSdkAttachment(a))))
-				.filter((a): a is NonNullable<typeof a> => a !== undefined)
+			? (await Promise.all(attachments.map(a => this._toSdkAttachments(a)))).flat()
 			: undefined;
 		if (sdkAttachments?.length) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type })))}`);
@@ -703,20 +705,25 @@ export class CopilotAgentSession extends Disposable {
 	 * snapshots inline / client-resident attachment bytes into the
 	 * session database before dispatching the turn, so by the time we
 	 * see them here the bytes are local and the original URI is gone.
-	 * Simple attachments are dropped — the SDK has no equivalent shape
-	 * for them.
+	 * Simple attachments are usually dropped — the SDK has no equivalent
+	 * shape for arbitrary text attachments. Agent-feedback simple
+	 * attachments are also appended to the prompt and their file ranges are
+	 * best-effort forwarded as selection attachments.
 	 *
 	 * For selections we read the resource content from disk and slice it
 	 * by the carried range (the protocol's {@link TextSelection} only
 	 * carries the range, not the inline text). On read failure the
 	 * selection downgrades to a plain file reference.
 	 */
-	private async _toSdkAttachment(attachment: MessageAttachment): Promise<CopilotSdkAttachment | undefined> {
+	private async _toSdkAttachments(attachment: MessageAttachment): Promise<CopilotSdkAttachment[]> {
+		if (isAgentFeedbackAttachment(attachment)) {
+			return this._agentFeedbackToSdkAttachments(attachment);
+		}
 		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
-			return { type: 'blob' as const, data: attachment.data, mimeType: attachment.contentType, displayName: attachment.label };
+			return [{ type: 'blob' as const, data: attachment.data, mimeType: attachment.contentType, displayName: attachment.label }];
 		}
 		if (attachment.type !== MessageAttachmentKind.Resource) {
-			return undefined;
+			return [];
 		}
 		const uri = URI.parse(attachment.uri);
 		const path = uri.scheme === 'file' ? uri.fsPath : uri.toString();
@@ -724,17 +731,53 @@ export class CopilotAgentSession extends Disposable {
 		if (attachment.displayKind === 'selection' && attachment.selection) {
 			try {
 				const text = await this._readSelectedText(uri, attachment.selection.range);
-				return { type: 'selection' as const, filePath: path, displayName, text, selection: attachment.selection.range };
+				return [{ type: 'selection' as const, filePath: path, displayName, text, selection: attachment.selection.range }];
 			} catch (err) {
 				this._logService.warn(`[Copilot:${this.sessionId}] Failed to read selected text for ${uri.toString()}: ${err}`);
-				return { type: 'file' as const, path, displayName };
+				return [{ type: 'file' as const, path, displayName }];
 			}
 		}
 		if (attachment.displayKind === 'selection') {
-			return { type: 'file' as const, path, displayName };
+			return [{ type: 'file' as const, path, displayName }];
 		}
 		const type = attachment.displayKind === 'directory' ? 'directory' : 'file';
-		return { type, path, displayName };
+		return [{ type, path, displayName }];
+	}
+
+	private _appendAgentFeedbackToPrompt(prompt: string, attachments: readonly MessageAttachment[] | undefined): string {
+		const feedbackText = attachments
+			?.filter(isAgentFeedbackAttachment)
+			.map(attachment => attachment.modelRepresentation)
+			.filter((text): text is string => typeof text === 'string' && text.length > 0);
+		if (!feedbackText?.length) {
+			return prompt;
+		}
+		return `${prompt}\n\n<system-reminder>\nThe user provided the following line feedback on code changes:\n\n${feedbackText.join('\n\n')}\n</system-reminder>`;
+	}
+
+	private async _agentFeedbackToSdkAttachments(attachment: MessageAttachment): Promise<CopilotSdkAttachment[]> {
+		const metadata = getAgentFeedbackAttachmentMetadata(attachment);
+		if (!metadata?.feedbackItems.length) {
+			return [];
+		}
+		const attachments: CopilotSdkAttachment[] = [];
+		for (const item of metadata.feedbackItems) {
+			const uri = URI.parse(item.resourceUri);
+			const path = uri.scheme === Schemas.file ? uri.fsPath : uri.toString();
+			const displayName = basename(uri) || path;
+			if (item.codeSelection !== undefined) {
+				attachments.push({ type: 'selection' as const, filePath: path, displayName, text: item.codeSelection, selection: item.range });
+				continue;
+			}
+			try {
+				const text = await this._readSelectedText(uri, item.range);
+				attachments.push({ type: 'selection' as const, filePath: path, displayName, text, selection: item.range });
+			} catch (err) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to read feedback selection text for ${uri.toString()}: ${err}`);
+				attachments.push({ type: 'file' as const, path, displayName });
+			}
+		}
+		return attachments;
 	}
 
 	private async _readSelectedText(uri: URI, range: { readonly start: { readonly line: number; readonly character: number }; readonly end: { readonly line: number; readonly character: number } }): Promise<string> {

@@ -5,6 +5,7 @@
 
 import type Anthropic from '@anthropic-ai/sdk';
 import { URI } from '../../../../base/common/uri.js';
+import { isAgentFeedbackAttachment } from '../../common/agentFeedbackAttachments.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 
 /**
@@ -23,9 +24,9 @@ import { MessageAttachmentKind, type MessageAttachment } from '../../common/stat
  * suffix. The protocol's {@link TextSelection} carries range metadata
  * only; the selected text is not included inline.
  *
- * Only resource attachments are honoured today — simple and embedded
- * resources are dropped because the current Claude path does not have
- * a place to consume them.
+ * Only resource attachments and agent-feedback simple attachments are
+ * honoured today — other simple and embedded resources are dropped because
+ * the current Claude path does not have a place to consume them.
  */
 export function resolvePromptToContentBlocks(
 	prompt: string,
@@ -36,7 +37,14 @@ export function resolvePromptToContentBlocks(
 		return blocks;
 	}
 	const refLines: string[] = [];
+	const feedbackBlocks: string[] = [];
 	for (const att of attachments) {
+		if (isAgentFeedbackAttachment(att)) {
+			if (att.modelRepresentation) {
+				feedbackBlocks.push(att.modelRepresentation);
+			}
+			continue;
+		}
 		if (att.type !== MessageAttachmentKind.Resource) {
 			continue;
 		}
@@ -47,6 +55,14 @@ export function resolvePromptToContentBlocks(
 		} else {
 			refLines.push(`- ${uriToString(uri)}`);
 		}
+	}
+	if (feedbackBlocks.length > 0) {
+		blocks.push({
+			type: 'text',
+			text: '<system-reminder>\nThe user provided the following line feedback on code changes:\n\n' +
+				feedbackBlocks.join('\n\n') +
+				'\n</system-reminder>',
+		});
 	}
 	if (refLines.length === 0) {
 		return blocks;

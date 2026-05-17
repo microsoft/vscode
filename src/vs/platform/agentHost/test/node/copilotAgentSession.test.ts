@@ -18,6 +18,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../common/agentFeedbackAttachments.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction } from '../../common/state/sessionActions.js';
@@ -303,6 +304,47 @@ suite('CopilotAgentSession', () => {
 					},
 				},
 			],
+		}]);
+	});
+
+	test('appends agent feedback to prompt and forwards feedback ranges as selections', async () => {
+		const fileUri = URI.file('/workspace/file.ts');
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('/act-on-feedback', [{
+			type: MessageAttachmentKind.Simple,
+			label: 'Feedback',
+			displayKind: AgentFeedbackAttachmentDisplayKind,
+			modelRepresentation: 'Feedback text for the model',
+			_meta: {
+				[AgentFeedbackAttachmentMetadataKey]: {
+					sessionResource: AgentSession.uri('copilot', 'feedback').toString(),
+					feedbackItems: [{
+						id: 'feedback-1',
+						text: 'Please simplify this.',
+						resourceUri: fileUri.toString(),
+						range: {
+							start: { line: 1, character: 2 },
+							end: { line: 3, character: 4 },
+						},
+						codeSelection: 'const value = compute();',
+					}],
+				},
+			},
+		}]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: '/act-on-feedback\n\n<system-reminder>\nThe user provided the following line feedback on code changes:\n\nFeedback text for the model\n</system-reminder>',
+			attachments: [{
+				type: 'selection',
+				filePath: fileUri.fsPath,
+				displayName: 'file.ts',
+				text: 'const value = compute();',
+				selection: {
+					start: { line: 1, character: 2 },
+					end: { line: 3, character: 4 },
+				},
+			}],
 		}]);
 	});
 

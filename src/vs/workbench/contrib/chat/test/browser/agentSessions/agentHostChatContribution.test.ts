@@ -17,6 +17,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { ActionType, isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { CustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -2135,6 +2136,98 @@ suite('AgentHostChatContribution', () => {
 			}
 		});
 
+		test('restores agent feedback attachments into request history variable data', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/feedback-history' });
+			const feedbackFile = URI.file('/workspace/foo.ts');
+			const sessionUri = AgentSession.uri('copilot', 'feedback-history');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'turn-1',
+					userMessage: {
+						text: '/act-on-feedback',
+						attachments: [{
+							type: MessageAttachmentKind.Simple,
+							label: 'Feedback',
+							displayKind: AgentFeedbackAttachmentDisplayKind,
+							modelRepresentation: 'Feedback text for the model',
+							_meta: {
+								[AgentFeedbackAttachmentMetadataKey]: {
+									sessionResource: sessionResource.toString(),
+									feedbackItems: [{
+										id: 'feedback-1',
+										text: 'Please simplify this.',
+										resourceUri: feedbackFile.toString(),
+										range: {
+											start: { line: 1, character: 2 },
+											end: { line: 3, character: 4 },
+										},
+										codeSelection: 'const value = compute();',
+									}],
+								},
+							},
+						}],
+					},
+					responseParts: [],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			} as SessionState);
+
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			assert.strictEqual(session.history.length, 2);
+			const request = session.history[0];
+			assert.strictEqual(request.type, 'request');
+			if (request.type === 'request') {
+				assert.ok(request.variableData);
+				const variables = request.variableData.variables;
+				const feedbackVariable = variables[0];
+				assert.strictEqual(feedbackVariable.kind, 'agentFeedback');
+				assert.deepStrictEqual({
+					...feedbackVariable,
+					sessionResource: feedbackVariable.sessionResource.toString(),
+					feedbackItems: feedbackVariable.feedbackItems.map(item => ({
+						...item,
+						resourceUri: item.resourceUri.toString(),
+					})),
+				}, {
+					kind: 'agentFeedback',
+					id: feedbackVariable.id,
+					name: 'Feedback',
+					value: 'Feedback text for the model',
+					sessionResource: sessionResource.toString(),
+					feedbackItems: [{
+						id: 'feedback-1',
+						text: 'Please simplify this.',
+						resourceUri: feedbackFile.toString(),
+						range: { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 },
+						codeSelection: 'const value = compute();',
+						diffHunks: undefined,
+						sourcePRReviewCommentId: undefined,
+					}],
+					_meta: {
+						[AgentFeedbackAttachmentMetadataKey]: {
+							sessionResource: sessionResource.toString(),
+							feedbackItems: [{
+								id: 'feedback-1',
+								text: 'Please simplify this.',
+								resourceUri: feedbackFile.toString(),
+								range: {
+									start: { line: 1, character: 2 },
+									end: { line: 3, character: 4 },
+								},
+								codeSelection: 'const value = compute();',
+							}],
+						},
+					},
+				});
+			}
+		});
+
 		test('untitled sessions have empty history', async () => {
 			const { sessionHandler } = createContribution(disposables);
 
@@ -2668,6 +2761,66 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(turnAction.userMessage.attachments, [
 				{ type: MessageAttachmentKind.Resource, uri: URI.file('/workspace/test.ts').toString(), label: 'test.ts', displayKind: 'document', _meta: { provider: 'fs', score: 0.42 } },
 			]);
+		}));
+
+		test('agent feedback variable becomes simple attachment with structured metadata', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/feedback-test' });
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: '/act-on-feedback',
+				sessionResource,
+				variables: {
+					variables: [
+						upcastPartial({
+							kind: 'agentFeedback',
+							id: 'feedback-var',
+							name: 'Feedback',
+							value: 'Feedback text for the model',
+							sessionResource,
+							feedbackItems: [{
+								id: 'feedback-1',
+								text: 'Please simplify this.',
+								resourceUri: URI.file('/workspace/foo.ts'),
+								range: new Range(2, 3, 4, 5),
+								codeSelection: 'const value = compute();',
+								diffHunks: '@@ -1 +1 @@',
+								sourcePRReviewCommentId: 'thread-1',
+							}],
+							_meta: { source: 'test' },
+						}),
+					],
+				},
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.userMessage.attachments, [{
+				type: MessageAttachmentKind.Simple,
+				label: 'Feedback',
+				modelRepresentation: 'Feedback text for the model',
+				displayKind: AgentFeedbackAttachmentDisplayKind,
+				_meta: {
+					source: 'test',
+					[AgentFeedbackAttachmentMetadataKey]: {
+						sessionResource: sessionResource.toString(),
+						feedbackItems: [{
+							id: 'feedback-1',
+							text: 'Please simplify this.',
+							resourceUri: URI.file('/workspace/foo.ts').toString(),
+							range: {
+								start: { line: 1, character: 2 },
+								end: { line: 3, character: 4 },
+							},
+							codeSelection: 'const value = compute();',
+							diffHunks: '@@ -1 +1 @@',
+							sourcePRReviewCommentId: 'thread-1',
+						}],
+					},
+				},
+			}]);
 		}));
 
 		test('directory variable with file:// URI becomes directory attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
