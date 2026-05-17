@@ -135,8 +135,10 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 						if (session) {
 							storageService.store(agentHostModelPickerStorageKey(session.resource.scheme), model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 							const provider = sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
-							provider?.setModel(session.sessionId, model.identifier);
-							lastPushedSessionId = session.sessionId;
+							if (provider) {
+								provider.setModel(session.sessionId, model.identifier);
+								lastPushedSessionId = session.sessionId;
+							}
 						}
 						if (!settingModelInternally) {
 							reportNewChatPickerClosed(telemetryService, {
@@ -180,7 +182,7 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 					const storedModelId = isUntitled
 						? storageService.get(agentHostModelPickerStorageKey(session.resource.scheme), StorageScope.PROFILE)
 						: undefined;
-					const resolvedModel = resolveAgentHostModel(models, sessionModelId, storedModelId, isUntitled ? currentModel.get()?.identifier : undefined);
+					const resolvedModel = resolveAgentHostModel(models, sessionModelId, storedModelId, isUntitled && !sessionModelId ? currentModel.get()?.identifier : undefined);
 					currentModel.set(resolvedModel, undefined);
 					if (!isUntitled || sessionModelId) {
 						lastPushedSessionId = session.sessionId;
