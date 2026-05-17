@@ -68,6 +68,14 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 		return agentHostUri;
 	}
 
+	if (agentHostUri.query.startsWith('original=')) {
+		try {
+			return URI.parse(decodeURIComponent(agentHostUri.query.substring('original='.length)));
+		} catch {
+			// Fall through to the path-derived URI below.
+		}
+	}
+
 	// Path: /[originalScheme]/[originalAuthority]/[rest of original path]
 	const path = agentHostUri.path;
 
@@ -91,14 +99,6 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 	let originalAuthority = path.substring(schemeEnd + 1, authorityEnd);
 	if (originalAuthority === '-') {
 		originalAuthority = '';
-	}
-
-	if (originalScheme === 'git-blob' && agentHostUri.query.startsWith('original=')) {
-		try {
-			return URI.parse(decodeURIComponent(agentHostUri.query.substring('original='.length)));
-		} catch {
-			// Fall through to the path-derived URI below.
-		}
 	}
 
 	const originalPath = path.substring(authorityEnd);
