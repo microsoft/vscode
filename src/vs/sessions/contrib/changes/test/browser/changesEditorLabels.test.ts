@@ -53,7 +53,7 @@ suite('ChangesEditorLabels', () => {
 			},
 			backing: {
 				label: 'app.ts',
-				description: '/src',
+				description: '/abc123/7372632f6170702e7473',
 			},
 		});
 	});

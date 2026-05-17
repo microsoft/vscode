@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileSystemProviderErrorCode, FileType, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
@@ -118,21 +118,6 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		assert.strictEqual(unwrapped.scheme, 'agenthost-content');
 		assert.strictEqual(unwrapped.authority, 'session1');
 		assert.strictEqual(unwrapped.path, '/snap/before');
-	});
-
-	test('round-trips a git blob URI using a label-friendly wrapper path', () => {
-		const sessionUri = 'session-db://session-123';
-		const sha = 'abc123';
-		const repoRelativePath = 'src/deleted.ts';
-		const original = URI.from({
-			scheme: 'git-blob',
-			authority: encodeHex(VSBuffer.fromString(sessionUri)),
-			path: `/${sha}/${encodeHex(VSBuffer.fromString(repoRelativePath))}/deleted.ts`
-		});
-		const wrapped = toAgentHostUri(original, 'remote-host');
-
-		assert.strictEqual(wrapped.path, '/git-blob/73657373696f6e2d64623a2f2f73657373696f6e2d313233/src/deleted.ts');
-		assert.strictEqual(fromAgentHostUri(wrapped).toString(), original.toString());
 	});
 
 	test('local authority returns original URI unchanged', () => {

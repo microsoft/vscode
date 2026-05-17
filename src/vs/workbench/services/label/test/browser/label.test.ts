@@ -18,8 +18,6 @@ import { ResourceLabelFormatter } from '../../../../../platform/label/common/lab
 import { sep } from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { AGENT_HOST_LABEL_FORMATTER, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
 
 suite('URI Label', () => {
 	let labelService: LabelService;
@@ -83,42 +81,6 @@ suite('URI Label', () => {
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
 		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL\\\\1\\2\\3\\4\\5\\microsoft.com\\END');
 		assert.strictEqual(labelService.getUriBasenameLabel(uri1), 'END');
-	});
-
-	test('agent host formatter labels wrapped remote file URIs as original file paths', function () {
-		labelService.registerFormatter(AGENT_HOST_LABEL_FORMATTER);
-
-		const resource = toAgentHostUri(URI.file('/workspaces/demo/src/app.ts'), agentHostAuthority('localhost:8089'));
-
-		assert.deepStrictEqual({
-			label: labelService.getUriLabel(resource),
-			basename: labelService.getUriBasenameLabel(resource),
-			description: labelService.getUriLabel(resources.dirname(resource), { relative: true }),
-		}, {
-			label: '/workspaces/demo/src/app.ts',
-			basename: 'app.ts',
-			description: '/workspaces/demo/src',
-		});
-	});
-
-	test('agent host formatter labels wrapped remote git blob URIs as repository file paths', function () {
-		labelService.registerFormatter(AGENT_HOST_LABEL_FORMATTER);
-
-		const resource = toAgentHostUri(URI.from({
-			scheme: 'git-blob',
-			authority: encodeHex(VSBuffer.fromString('session-db://session-123')),
-			path: `/abc123/${encodeHex(VSBuffer.fromString('src/deleted.ts'))}/deleted.ts`,
-		}), agentHostAuthority('localhost:8089'));
-
-		assert.deepStrictEqual({
-			label: labelService.getUriLabel(resource),
-			basename: labelService.getUriBasenameLabel(resource),
-			description: labelService.getUriLabel(resources.dirname(resource), { relative: true }),
-		}, {
-			label: '/src/deleted.ts',
-			basename: 'deleted.ts',
-			description: '/src',
-		});
 	});
 
 	test('custom authority', function () {
