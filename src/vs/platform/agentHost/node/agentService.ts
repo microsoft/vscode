@@ -40,6 +40,9 @@ import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvid
 import { AgentHostSkillCompletionProvider } from './agentHostSkillCompletionProvider.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
+import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -131,6 +134,7 @@ export class AgentService extends Disposable implements IAgentService {
 		private readonly _productService: IProductService,
 		private readonly _gitService: IAgentHostGitService,
 		private readonly _rootConfigResource?: URI,
+		private readonly _telemetryService: ITelemetryService = NullTelemetryService,
 	) {
 		super();
 		this._logService.info('AgentService initialized');
@@ -143,11 +147,13 @@ export class AgentService extends Disposable implements IAgentService {
 		// via DI rather than being plumbed plain-class references.
 		const configurationService: IAgentConfigurationService = this._register(new AgentConfigurationService(this._stateManager, this._logService, this._rootConfigResource));
 		this._configurationService = configurationService;
+		updateAgentHostTelemetryLevelFromConfig(this._telemetryService, this._stateManager.rootState.config?.values);
 		const services = new ServiceCollection(
 			[ILogService, this._logService],
 			[IProductService, this._productService],
 			[IAgentConfigurationService, configurationService],
 			[IAgentHostGitService, this._gitService],
+			[ITelemetryService, this._telemetryService],
 		);
 		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
 
