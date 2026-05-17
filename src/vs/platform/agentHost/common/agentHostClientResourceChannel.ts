@@ -8,6 +8,7 @@ import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IFileService } from '../../files/common/files.js';
+import { AhpJsonlLogger, getAhpLogByteLength } from './ahpJsonlLogger.js';
 import { IRemoteFilesystemConnection } from './agentHostFileSystemProvider.js';
 import {
 	ContentEncoding, type DirectoryEntry, type ResourceDeleteParams, type ResourceDeleteResult,
@@ -32,13 +33,42 @@ export const AGENT_HOST_CLIENT_RESOURCE_CHANNEL = 'agentHostClientResource';
  */
 export class AgentHostClientResourceChannel implements IServerChannel {
 
-	constructor(private readonly _fileService: IFileService) { }
+	constructor(
+		private readonly _fileService: IFileService,
+		private readonly _ahpLogger?: AhpJsonlLogger,
+	) { }
 
 	listen<T>(_ctx: unknown, event: string): Event<T> {
 		throw new Error(`No event '${event}' on AgentHostClientResourceChannel`);
 	}
 
-	async call<T>(_ctx: unknown, command: string, arg?: unknown): Promise<T> {
+	async call<T>(ctx: unknown, command: string, arg?: unknown): Promise<T> {
+		const requestFrame = { jsonrpc: '2.0' as const, method: command, params: arg };
+		this._logReverseFrame(requestFrame, 's2c');
+		try {
+			const result = await this._call<T>(ctx, command, arg);
+			const responseFrame = { jsonrpc: '2.0' as const, method: command, result: result ?? null };
+			this._logReverseFrame(responseFrame, 'c2s');
+			return result;
+		} catch (err) {
+			const errorFrame = {
+				jsonrpc: '2.0' as const,
+				method: command,
+				error: {
+					code: -32603,
+					message: err instanceof Error ? err.message : String(err),
+				},
+			};
+			this._logReverseFrame(errorFrame, 'c2s');
+			throw err;
+		}
+	}
+
+	private _logReverseFrame(frame: object, dir: 'c2s' | 's2c'): void {
+		this._ahpLogger?.log(frame, dir, getAhpLogByteLength(safeStringify(frame)));
+	}
+
+	private async _call<T>(_ctx: unknown, command: string, arg?: unknown): Promise<T> {
 		const a = (arg ?? {}) as Record<string, unknown>;
 		switch (command) {
 			case 'resourceList': {
@@ -106,4 +136,12 @@ export function createAgentHostClientResourceConnection(channel: IChannel): IRem
 		resourceDelete: (params) => channel.call('resourceDelete', { ...params, uri: params.uri.toString() }) as Promise<ResourceDeleteResult>,
 		resourceMove: (params) => channel.call('resourceMove', { ...params, source: params.source.toString(), destination: params.destination.toString() }) as Promise<ResourceMoveResult>,
 	};
+}
+
+function safeStringify(value: unknown): string {
+	try {
+		return JSON.stringify(value);
+	} catch {
+		return '';
+	}
 }

@@ -5,6 +5,7 @@
 
 import { MessageOptions } from '@github/copilot-sdk';
 import { basename } from '../../../../base/common/path.js';
+import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
@@ -12,7 +13,7 @@ import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataServi
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn, type UserMessage } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
-import { buildSessionDbUri } from './fileEditTracker.js';
+import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 
 function tryStringify(value: unknown): string | undefined {
@@ -144,6 +145,8 @@ interface IToolStartInfo {
 	readonly parentToolCallId?: string;
 }
 
+type IToolRequestInfo = NonNullable<NonNullable<ISessionEventMessage['data']>['toolRequests']>[number];
+
 /** Subagent metadata seen via `subagent.started`, applied to the parent tool call's content at `tool.execution_complete`. */
 interface ISubagentInfo {
 	readonly agentName: string;
@@ -167,6 +170,37 @@ interface ITurnBuilder {
 function newTurnBuilder(id: string, text: string, attachments?: MessageAttachment[]): ITurnBuilder {
 	const userMessage: UserMessage = attachments?.length ? { text, attachments } : { text };
 	return { id, userMessage, responseParts: [], pendingTools: new Map() };
+}
+
+function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCallId: string | undefined, workingDirectory: URI | undefined): IToolStartInfo | undefined {
+	if (isHiddenTool(toolName)) {
+		return undefined;
+	}
+	const rawArgs = rawArguments !== undefined ? tryStringify(rawArguments) : undefined;
+	let parameters: Record<string, unknown> | undefined;
+	if (rawArgs) {
+		try { parameters = JSON.parse(rawArgs) as Record<string, unknown>; } catch { /* ignore */ }
+	}
+	// stripRedundantCdPrefix mutates `parameters` and signals via its
+	// return value. We re-stringify only when it changed something so
+	// `getToolInputString` sees the cleaned command line.
+	const cleaned = stripRedundantCdPrefix(toolName, parameters, workingDirectory) ? tryStringify(parameters) : undefined;
+	const toolArgs = cleaned ?? rawArgs;
+	const toolKind = getToolKind(toolName);
+	const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
+	const displayName = getToolDisplayName(toolName);
+	return {
+		toolName,
+		displayName,
+		invocationMessage: getInvocationMessage(toolName, displayName, parameters),
+		toolInput: getToolInputString(toolName, parameters, toolArgs),
+		toolKind,
+		language: toolKind === 'terminal' ? getShellLanguage(toolName) : undefined,
+		subagentAgentName: subagentMeta?.agentName,
+		subagentDescription: subagentMeta?.description,
+		parameters,
+		parentToolCallId,
+	};
 }
 
 function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
@@ -205,41 +239,23 @@ export async function mapSessionEvents(
 	// them at `tool.execution_complete` time.
 	const toolInfoByCallId = new Map<string, IToolStartInfo>();
 	const editToolCallIds: string[] = [];
+	const completionsByCallId = new Map<string, ISessionEventToolComplete['data']>();
 	for (const e of events) {
-		if (e.type !== 'tool.execution_start') {
-			continue;
+		if (e.type === 'tool.execution_complete') {
+			const d = (e as ISessionEventToolComplete).data;
+			completionsByCallId.set(d.toolCallId, d);
 		}
-		const d = (e as ISessionEventToolStart).data;
-		if (isHiddenTool(d.toolName)) {
-			continue;
-		}
-		const rawArgs = d.arguments !== undefined ? tryStringify(d.arguments) : undefined;
-		let parameters: Record<string, unknown> | undefined;
-		if (rawArgs) {
-			try { parameters = JSON.parse(rawArgs) as Record<string, unknown>; } catch { /* ignore */ }
-		}
-		// stripRedundantCdPrefix mutates `parameters` and signals via its
-		// return value. We re-stringify only when it changed something so
-		// `getToolInputString` sees the cleaned command line.
-		const cleaned = stripRedundantCdPrefix(d.toolName, parameters, workingDirectory) ? tryStringify(parameters) : undefined;
-		const toolArgs = cleaned ?? rawArgs;
-		const toolKind = getToolKind(d.toolName);
-		const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
-		const displayName = getToolDisplayName(d.toolName);
-		toolInfoByCallId.set(d.toolCallId, {
-			toolName: d.toolName,
-			displayName,
-			invocationMessage: getInvocationMessage(d.toolName, displayName, parameters),
-			toolInput: getToolInputString(d.toolName, parameters, toolArgs),
-			toolKind,
-			language: toolKind === 'terminal' ? getShellLanguage(d.toolName) : undefined,
-			subagentAgentName: subagentMeta?.agentName,
-			subagentDescription: subagentMeta?.description,
-			parameters,
-			parentToolCallId: d.parentToolCallId,
-		});
-		if (isEditTool(d.toolName)) {
-			editToolCallIds.push(d.toolCallId);
+		if (e.type === 'tool.execution_start') {
+			const d = (e as ISessionEventToolStart).data;
+			const info = makeToolStartInfo(d.toolName, d.arguments, d.parentToolCallId, workingDirectory);
+			if (!info) {
+				continue;
+			}
+			toolInfoByCallId.set(d.toolCallId, info);
+			const command = isString(info.parameters?.command) ? info.parameters.command : undefined;
+			if (isEditTool(d.toolName, command)) {
+				editToolCallIds.push(d.toolCallId);
+			}
 		}
 	}
 
@@ -363,6 +379,9 @@ export async function mapSessionEvents(
 						content,
 					});
 				}
+				if (d?.toolRequests?.length) {
+					appendFallbackToolRequests(builder, d.toolRequests, d.parentToolCallId);
+				}
 				// A parent assistant message without further tool requests
 				// terminates the current parent turn (no more responses
 				// expected). Subagent turns are flushed at the parent's
@@ -443,6 +462,27 @@ export async function mapSessionEvents(
 	}
 
 	return { turns, subagentTurnsByToolCallId: subagentTurns };
+
+	function appendFallbackToolRequests(builder: ITurnBuilder, toolRequests: readonly IToolRequestInfo[], parentToolCallId: string | undefined): void {
+		for (const request of toolRequests) {
+			const completion = completionsByCallId.get(request.toolCallId);
+			if (completion && toolInfoByCallId.has(request.toolCallId)) {
+				continue;
+			}
+			const info = toolInfoByCallId.get(request.toolCallId)
+				?? makeToolStartInfo(request.name, request.arguments, parentToolCallId, workingDirectory);
+			if (!info) {
+				continue;
+			}
+			builder.responseParts.push(makeCompletedToolCallPart(
+				completion ?? { toolCallId: request.toolCallId, success: true },
+				info,
+				sessionUriStr,
+				storedEdits,
+				subagentInfoByToolCallId.get(request.toolCallId),
+			));
+		}
+	}
 }
 
 /**

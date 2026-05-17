@@ -78,6 +78,25 @@ export interface InitializeResult {
 	completionTriggerCharacters?: string[];
 }
 
+// ─── ping ────────────────────────────────────────────────────────────────────
+
+/**
+ * Verifies that the AHP connection is still alive and keeps it from being
+ * closed by idle-timeout intermediaries (proxies, load balancers, etc.).
+ *
+ * The server MUST respond regardless of whether the client has completed
+ * `initialize` or holds any subscriptions. Ping carries no payload in either
+ * direction; the response itself is the signal.
+ *
+ * @category Commands
+ * @method ping
+ * @direction Client → Server
+ * @messageType Request
+ * @version 0.1.0
+ */
+export interface PingParams {
+}
+
 // ─── reconnect ───────────────────────────────────────────────────────────────
 
 /**

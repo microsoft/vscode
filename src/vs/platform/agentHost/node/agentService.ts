@@ -31,14 +31,18 @@ import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
-import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracker.js';
+import { ISessionDbUriFields, parseSessionDbUri } from './shared/fileEditTracker.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
+import { AgentHostSkillCompletionProvider } from './agentHostSkillCompletionProvider.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
+import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -90,6 +94,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _configurationService: IAgentConfigurationService;
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
 	private readonly _completions: IAgentHostCompletions;
+	private _skillCompletionProviderRegistered = false;
 
 	/**
 	 * Authoritative server-side per-resource subscription refcount, keyed by
@@ -113,6 +118,9 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Exposes the terminal manager for use by agent providers. */
 	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
 
+	/** Exposes the completions service for use by agent providers (e.g. to register agent-scoped completion item providers). */
+	get completionsService(): IAgentHostCompletions { return this._completions; }
+
 	/**
 	 * Trigger characters announced to clients via `InitializeResult.completionTriggerCharacters`.
 	 * Aggregated from all registered {@link IAgentHostCompletionItemProvider}s.
@@ -126,6 +134,7 @@ export class AgentService extends Disposable implements IAgentService {
 		private readonly _productService: IProductService,
 		private readonly _gitService: IAgentHostGitService,
 		private readonly _rootConfigResource?: URI,
+		private readonly _telemetryService: ITelemetryService = NullTelemetryService,
 	) {
 		super();
 		this._logService.info('AgentService initialized');
@@ -138,11 +147,13 @@ export class AgentService extends Disposable implements IAgentService {
 		// via DI rather than being plumbed plain-class references.
 		const configurationService: IAgentConfigurationService = this._register(new AgentConfigurationService(this._stateManager, this._logService, this._rootConfigResource));
 		this._configurationService = configurationService;
+		updateAgentHostTelemetryLevelFromConfig(this._telemetryService, this._stateManager.rootState.config?.values);
 		const services = new ServiceCollection(
 			[ILogService, this._logService],
 			[IProductService, this._productService],
 			[IAgentConfigurationService, configurationService],
 			[IAgentHostGitService, this._gitService],
+			[ITelemetryService, this._telemetryService],
 		);
 		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
 
@@ -180,12 +191,26 @@ export class AgentService extends Disposable implements IAgentService {
 		if (provider.onDidMaterializeSession) {
 			this._providerSubscriptions.add(provider.onDidMaterializeSession(e => this._onDidMaterializeSession(e)));
 		}
+		this._registerSkillCompletionProvider();
 		if (!this._defaultProvider) {
 			this._defaultProvider = provider.id;
 		}
 
 		// Update root state with current agents list
 		this._updateAgents();
+	}
+
+	private _registerSkillCompletionProvider(): void {
+		if (this._skillCompletionProviderRegistered) {
+			return;
+		}
+		this._skillCompletionProviderRegistered = true;
+		const provider = this._register(new AgentHostSkillCompletionProvider(
+			session => this._findProviderForSession(session),
+			this._fileService,
+			this._logService,
+		));
+		this._register(this._completions.registerProvider(provider));
 	}
 
 	// ---- auth ---------------------------------------------------------------
@@ -505,8 +530,8 @@ export class AgentService extends Disposable implements IAgentService {
 				config: config.config,
 			});
 			return { schema: resolved.schema, values: resolved.values };
-		} catch (error) {
-			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, error);
+		} catch (err) {
+			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, err);
 			return config.config ? { schema: { type: 'object', properties: {} }, values: config.config } : undefined;
 		}
 	}
@@ -579,7 +604,7 @@ export class AgentService extends Disposable implements IAgentService {
 				// Try subagent restore before regular session restore
 				const parsed = parseSubagentSessionUri(resource);
 				if (parsed) {
-					await this._restoreSubagentSession(resourceStr, parsed.parentSession, parsed.toolCallId);
+					await this._restoreSubagentSession(resourceStr, parsed.parentSession);
 				} else {
 					await this.restoreSession(resource);
 				}
@@ -1295,7 +1320,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * the subagent (by `parentToolCallId`), and builds the child session's
 	 * turns from those events.
 	 */
-	private async _restoreSubagentSession(subagentUri: string, parentSession: URI, toolCallId: string): Promise<void> {
+	private async _restoreSubagentSession(subagentUri: string, parentSession: URI): Promise<void> {
 		// Ensure the parent session is loaded first
 		const parentSessionKey = parentSession.toString();
 		if (!this._stateManager.getSessionState(parentSessionKey)) {

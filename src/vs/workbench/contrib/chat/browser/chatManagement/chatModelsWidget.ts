@@ -7,6 +7,8 @@ import './media/chatModelsWidget.css';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { Button, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ILanguageModelsService, ILanguageModelProviderDescriptor } from '../../../chat/common/languageModels.js';
@@ -797,21 +799,44 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IActionsColumnTemplateData): void {
-		const configActions = this.languageModelsService.getModelConfigurationActions(entry.model.identifier);
-		if (configActions.length === 0 && !entry.model.metadata.configurationSchema) {
-			return;
+		const primaryActions: IAction[] = [];
+
+		// Auto model cannot be pinned
+		if (entry.model.metadata.id !== 'auto') {
+			primaryActions.push(this.createPinAction(entry.model.identifier));
 		}
 
+		const configActions = this.languageModelsService.getModelConfigurationActions(entry.model.identifier);
 		const secondaryActions: IAction[] = [...configActions];
 
-		// Always add "Configure..." as fallback for complex properties
-		secondaryActions.push(toAction({
-			id: 'configureModel',
-			label: localize('models.configureModel', 'Configure...'),
-			run: () => this.languageModelsService.configureModel(entry.model.identifier)
-		}));
+		if (configActions.length > 0 || entry.model.metadata.configurationSchema) {
+			secondaryActions.push(toAction({
+				id: 'configureModel',
+				label: localize('models.configureModel', 'Configure...'),
+				run: () => this.languageModelsService.configureModel(entry.model.identifier)
+			}));
+		}
 
-		templateData.actionBar.setActions([], secondaryActions);
+		templateData.actionBar.setActions(primaryActions, secondaryActions);
+	}
+
+	private createPinAction(modelIdentifier: string): IAction {
+		const isPinned = this.languageModelsService.isModelPinned(modelIdentifier);
+		return toAction({
+			id: isPinned ? `unpin.${modelIdentifier}` : `pin.${modelIdentifier}`,
+			label: isPinned
+				? localize('models.unpinModel', "Unpin Model")
+				: localize('models.pinModel', "Pin Model"),
+			class: ThemeIcon.asClassName(isPinned ? Codicon.pinned : Codicon.pin),
+			run: () => {
+				if (isPinned) {
+					this.languageModelsService.unpinModel(modelIdentifier);
+				} else {
+					this.languageModelsService.pinModel(modelIdentifier);
+				}
+				this.viewModel.refresh();
+			}
+		});
 	}
 }
 
@@ -873,6 +898,10 @@ export class ChatModelsWidget extends Disposable {
 	private searchActionsContainer!: HTMLElement;
 	private table!: WorkbenchTable<IViewModelEntry>;
 	private tableContainer!: HTMLElement;
+	private tableViewport!: HTMLElement;
+	private tableInner!: HTMLElement;
+	private tableScrollable: DomScrollableElement | undefined;
+	private tableMinWidth: number = 0;
 	private addButtonContainer!: HTMLElement;
 	private addButton!: Button;
 	private dropdownActions: IAction[] = [];
@@ -1020,7 +1049,9 @@ export class ChatModelsWidget extends Disposable {
 			this.updateAddModelsButton();
 			this.createTable();
 		}));
+		this._register(this.chatEntitlementService.onDidChangeUsageBasedBilling(() => this.createTable()));
 		this._register(this.languageModelsService.onDidChangeLanguageModelVendors(() => this.updateAddModelsButton()));
+		this._register(this.languageModelsService.onDidChangePinnedModels(() => this.viewModel.refresh()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set(['github.copilot.clientByokEnabled']))) {
 				this.updateAddModelsButton();
@@ -1031,6 +1062,16 @@ export class ChatModelsWidget extends Disposable {
 	private createTable(): void {
 		this.tableDisposables.clear();
 		DOM.clearNode(this.tableContainer);
+
+		this.tableViewport = $('.models-table-viewport');
+		this.tableInner = DOM.append(this.tableViewport, $('.models-table-inner'));
+		this.tableScrollable = this.tableDisposables.add(new DomScrollableElement(this.tableViewport, {
+			horizontal: ScrollbarVisibility.Auto,
+			vertical: ScrollbarVisibility.Hidden,
+			useShadows: false,
+			scrollYToX: true,
+		}));
+		this.tableContainer.appendChild(this.tableScrollable.getDomNode());
 
 		const gutterColumnRenderer = this.instantiationService.createInstance(GutterColumnRenderer, this.viewModel);
 		const modelNameColumnRenderer = this.instantiationService.createInstance(ModelNameColumnRenderer);
@@ -1068,7 +1109,7 @@ export class ChatModelsWidget extends Disposable {
 			}
 		];
 
-		const hasAnyCostFields = this.viewModel.viewModelEntries.some(e => !isLanguageModelProviderEntry(e) && !isLanguageModelGroupEntry(e) && !isStatusEntry(e) && (e.model.metadata.inputCost !== undefined || e.model.metadata.outputCost !== undefined || e.model.metadata.cacheCost !== undefined));
+		const isUBB = this.chatEntitlementService.quotas.usageBasedBilling === true;
 		columns.push(
 			{
 				label: localize('tokenLimits', 'Context Size'),
@@ -1087,10 +1128,10 @@ export class ChatModelsWidget extends Disposable {
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
 			{
-				label: hasAnyCostFields ? localize('cost', 'Cost (Credits per 1M Tokens)') : localize('pricing', 'Pricing'),
+				label: isUBB ? localize('cost', 'Cost (Credits per 1M Tokens)') : localize('pricing', 'Pricing'),
 				tooltip: '',
-				weight: hasAnyCostFields ? 0.24 : 0.15,
-				minimumWidth: hasAnyCostFields ? 240 : 200,
+				weight: isUBB ? 0.24 : 0.15,
+				minimumWidth: isUBB ? 240 : 200,
 				templateId: CombinedCostColumnRenderer.TEMPLATE_ID,
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
@@ -1105,10 +1146,13 @@ export class ChatModelsWidget extends Disposable {
 			}
 		);
 
+		this.tableMinWidth = columns.reduce((sum, c) => sum + c.minimumWidth, 0);
+		this.tableInner.style.minWidth = `${this.tableMinWidth}px`;
+
 		this.table = this.tableDisposables.add(this.instantiationService.createInstance(
 			WorkbenchTable,
 			'ModelsWidget',
-			this.tableContainer,
+			this.tableInner,
 			new Delegate(),
 			columns,
 			[
@@ -1189,6 +1233,28 @@ export class ChatModelsWidget extends Disposable {
 			let configureVendor: ILanguageModelProviderDescriptor | undefined;
 
 			if (selectedModelEntries.length) {
+				// Pin/unpin action — single action for all selected models
+				const pinnableEntries = selectedModelEntries.filter(e => e.model.metadata.id !== 'auto');
+				if (pinnableEntries.length > 0) {
+					const allPinned = pinnableEntries.every(e => this.languageModelsService.isModelPinned(e.model.identifier));
+					actions.push(toAction({
+						id: allPinned ? 'unpinModels' : 'pinModels',
+						label: allPinned
+							? localize('models.unpinModel', "Unpin Model")
+							: localize('models.pinModel', "Pin Model"),
+						class: ThemeIcon.asClassName(allPinned ? Codicon.pinned : Codicon.pin),
+						run: () => {
+							for (const entry of pinnableEntries) {
+								if (allPinned) {
+									this.languageModelsService.unpinModel(entry.model.identifier);
+								} else {
+									this.languageModelsService.pinModel(entry.model.identifier);
+								}
+							}
+						}
+					}));
+				}
+
 				// Show per-model configuration actions for a single model
 				if (selectedModelEntries.length === 1) {
 					const configActions = this.languageModelsService.getModelConfigurationActions(selectedModelEntries[0].model.identifier);
@@ -1286,7 +1352,7 @@ export class ChatModelsWidget extends Disposable {
 		const entitlement = this.chatEntitlementService.entitlement;
 		const isManagedEntitlement = entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
 		const supportsAddingModels = this.chatEntitlementService.isInternal
-			|| (isManagedEntitlement && this.chatEntitlementService.clientByokEnabled)
+			|| this.chatEntitlementService.clientByokEnabled
 			|| (entitlement !== ChatEntitlement.Unknown
 				&& entitlement !== ChatEntitlement.Available
 				&& !isManagedEntitlement);
@@ -1294,13 +1360,32 @@ export class ChatModelsWidget extends Disposable {
 		this.addButton.enabled = supportsAddingModels && configurableVendors.length > 0;
 		this.addButton.setTitle(!supportsAddingModels && isManagedEntitlement ? localize('models.managedByOrganization', "Adding models is managed by your organization") : '');
 
-		this.dropdownActions = configurableVendors.map(vendor => toAction({
+		// Sort vendors alphabetically by displayName, but pin "OpenAI Compatible (Deprecated)" (customoai)
+		// at the end of the sorted list and "Custom Endpoint" (customendpoint) after a separator at the very end.
+		const customEndpointVendor = configurableVendors.find(v => v.vendor === 'customendpoint');
+		const customOaiVendor = configurableVendors.find(v => v.vendor === 'customoai');
+		const sortedVendors = configurableVendors
+			.filter(v => v.vendor !== 'customendpoint' && v.vendor !== 'customoai')
+			.sort((a, b) => a.displayName.localeCompare(b.displayName));
+		if (customOaiVendor) {
+			sortedVendors.push(customOaiVendor);
+		}
+
+		const toVendorAction = (vendor: ILanguageModelProviderDescriptor) => toAction({
 			id: `enable-${vendor.vendor}`,
 			label: vendor.displayName,
 			run: async () => {
 				await this.addModelsForVendor(vendor);
 			}
-		}));
+		});
+
+		this.dropdownActions = sortedVendors.map(toVendorAction);
+		if (customEndpointVendor) {
+			if (this.dropdownActions.length > 0) {
+				this.dropdownActions.push(new Separator());
+			}
+			this.dropdownActions.push(toVendorAction(customEndpointVendor));
+		}
 	}
 
 	private filterModels(): void {
@@ -1319,7 +1404,9 @@ export class ChatModelsWidget extends Disposable {
 		this.searchWidget.layout(new DOM.Dimension(width - this.searchActionsContainer.clientWidth - this.addButtonContainer.clientWidth - 8, 22));
 		const tableHeight = height - 40;
 		this.tableContainer.style.height = `${tableHeight}px`;
-		this.table.layout(tableHeight, width);
+		const tableWidth = Math.max(width, this.tableMinWidth);
+		this.table.layout(tableHeight, tableWidth);
+		this.tableScrollable?.scanDomNode();
 	}
 
 	public focusSearch(): void {

@@ -17,14 +17,14 @@ import { SessionsNavigation } from '../../browser/sessionNavigation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ISendRequestOptions } from '../../common/sessionsProvider.js';
 
-const stubChat: IChat = {
+const stubChat = {
 	resource: URI.parse('test:///chat'),
 	createdAt: new Date(),
 	title: constObservable('Chat'),
 	updatedAt: constObservable(new Date()),
-	status: constObservable(0),
-	changesets: constObservable([]),
+	status: constObservable(SessionStatus.Completed),
 	changes: constObservable([]),
+	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
 	mode: constObservable(undefined),
 	isArchived: constObservable(false),
@@ -33,7 +33,26 @@ const stubChat: IChat = {
 	lastTurnEnd: constObservable(undefined),
 };
 
-function stubSession(id: string, status: SessionStatus = SessionStatus.Completed): ISession {
+function stubChatWithId(id: string, status: SessionStatus = SessionStatus.Completed): IChat {
+	return {
+		resource: URI.parse(`test:///chat-${id}`),
+		createdAt: new Date(),
+		title: constObservable(`Chat ${id}`),
+		updatedAt: constObservable(new Date()),
+		status: constObservable(status),
+		checkpoints: constObservable(undefined),
+		changes: constObservable([]),
+		modelId: constObservable(undefined),
+		mode: constObservable(undefined),
+		isArchived: constObservable(false),
+		isRead: constObservable(true),
+		description: constObservable(undefined),
+		lastTurnEnd: constObservable(undefined),
+	};
+}
+
+function stubSession(id: string, status: SessionStatus = SessionStatus.Completed, chats?: IChat[]): ISession {
+	const sessionChats = chats ?? [stubChat];
 	return {
 		sessionId: id,
 		resource: URI.parse(`test:///${id}`),
@@ -54,10 +73,9 @@ function stubSession(id: string, status: SessionStatus = SessionStatus.Completed
 		isRead: constObservable(true),
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
-		gitHubInfo: constObservable(undefined),
-		chats: constObservable([stubChat]),
-		mainChat: stubChat,
-		capabilities: { supportsMultipleChats: false },
+		chats: constObservable(sessionChats),
+		mainChat: sessionChats[0],
+		capabilities: { supportsMultipleChats: chats !== undefined && chats.length > 1 },
 	};
 }
 
@@ -71,20 +89,30 @@ class MockSessionStore implements ISessionsManagementService {
 
 	private readonly _sessions = new Map<string, ISession>();
 	private _openedResource: URI | undefined;
+	private _openedChatResource: URI | undefined;
 	private _openedNewSession = false;
 
 	get lastOpenedResource(): URI | undefined { return this._openedResource; }
+	get lastOpenedChatResource(): URI | undefined { return this._openedChatResource; }
 	get lastOpenedNewSession(): boolean { return this._openedNewSession; }
 
-	setActiveSession(session: ISession | undefined): void {
+	setActiveSession(session: ISession | undefined, chat?: IChat): void {
 		if (session) {
+			const activeChat = chat ?? session.chats.get()[0] ?? stubChat;
 			const active: IActiveSession = {
 				...session,
-				activeChat: constObservable(stubChat),
+				activeChat: observableValue<IChat>(`test.activeChat-${session.sessionId}`, activeChat),
 			};
 			this.activeSession.set(active, undefined);
 		} else {
 			this.activeSession.set(undefined, undefined);
+		}
+	}
+
+	setActiveChat(chat: IChat): void {
+		const active = this.activeSession.get();
+		if (active) {
+			(active.activeChat as ReturnType<typeof observableValue<IChat>>).set(chat, undefined);
 		}
 	}
 
@@ -102,6 +130,7 @@ class MockSessionStore implements ISessionsManagementService {
 
 	async openSession(sessionResource: URI): Promise<void> {
 		this._openedResource = sessionResource;
+		this._openedChatResource = undefined;
 		this._openedNewSession = false;
 		const session = this._sessions.get(sessionResource.toString());
 		if (session) {
@@ -112,10 +141,19 @@ class MockSessionStore implements ISessionsManagementService {
 	openNewSessionView(): void {
 		this._openedNewSession = true;
 		this._openedResource = undefined;
+		this._openedChatResource = undefined;
 		this.setActiveSession(undefined);
 	}
 
-	openChat(_session: ISession, _chatUri: URI): Promise<void> { throw new Error('not implemented'); }
+	async openChat(session: ISession, chatUri: URI): Promise<void> {
+		this._openedResource = session.resource;
+		this._openedChatResource = chatUri;
+		this._openedNewSession = false;
+		const chat = session.chats.get().find(c => c.resource.toString() === chatUri.toString());
+		if (chat) {
+			this.setActiveSession(session, chat);
+		}
+	}
 	restoreLastActiveSession(): Promise<void> { throw new Error('not implemented'); }
 	createNewSession(_providerId: string, _workspaceUri: URI, _sessionTypeId?: string): ISession { throw new Error('not implemented'); }
 	unsetNewSession(): void { throw new Error('not implemented'); }
@@ -356,5 +394,98 @@ suite('SessionsNavigation', () => {
 
 		store.setActiveSession(undefined); // go to new-session view again
 		assert.strictEqual(canGoBack(), true, 'back enabled after second new-session view');
+	});
+
+	test('switching chats within a session is recorded in history', () => {
+		const chatA = stubChatWithId('a');
+		const chatB = stubChatWithId('b');
+		const s1 = stubSession('s1', SessionStatus.Completed, [chatA, chatB]);
+		store.addSession(s1);
+
+		store.setActiveSession(s1, chatA);
+		assert.strictEqual(canGoBack(), false);
+
+		// Switch to chat B within the same session
+		store.setActiveChat(chatB);
+		assert.strictEqual(canGoBack(), true, 'back enabled after switching chat within session');
+	});
+
+	test('goBack restores previous chat within a session', async () => {
+		const chatA = stubChatWithId('a');
+		const chatB = stubChatWithId('b');
+		const s1 = stubSession('s1', SessionStatus.Completed, [chatA, chatB]);
+		store.addSession(s1);
+
+		store.setActiveSession(s1, chatA);
+		store.setActiveChat(chatB);
+
+		await nav.goBack();
+		assert.strictEqual(store.lastOpenedChatResource?.toString(), chatA.resource.toString());
+		assert.strictEqual(store.lastOpenedResource?.toString(), s1.resource.toString());
+	});
+
+	test('navigation across sessions and chats works together', async () => {
+		const chatA = stubChatWithId('a');
+		const chatB = stubChatWithId('b');
+		const s1 = stubSession('s1', SessionStatus.Completed, [chatA, chatB]);
+		const s2 = stubSession('s2');
+		store.addSession(s1);
+		store.addSession(s2);
+
+		// s1/chatA → s1/chatB → s2
+		store.setActiveSession(s1, chatA);
+		store.setActiveChat(chatB);
+		store.setActiveSession(s2);
+
+		// Go back to s1/chatB
+		await nav.goBack();
+		assert.strictEqual(store.lastOpenedChatResource?.toString(), chatB.resource.toString());
+
+		// Go back to s1/chatA
+		await nav.goBack();
+		assert.strictEqual(store.lastOpenedChatResource?.toString(), chatA.resource.toString());
+
+		// Go forward to s1/chatB
+		await nav.goForward();
+		assert.strictEqual(store.lastOpenedChatResource?.toString(), chatB.resource.toString());
+
+		// Go forward to s2
+		await nav.goForward();
+		assert.strictEqual(store.lastOpenedResource?.toString(), s2.resource.toString());
+	});
+
+	test('untitled chats are not recorded with a chat resource', () => {
+		const chatUntitled = stubChatWithId('untitled', SessionStatus.Untitled);
+		const s1 = stubSession('s1', SessionStatus.Completed, [chatUntitled]);
+		store.addSession(s1);
+
+		store.setActiveSession(s1, chatUntitled);
+		assert.strictEqual(canGoBack(), false, 'untitled chat produces a session-only entry, no second entry');
+	});
+
+	test('goBack falls back to openSession when chat was deleted', async () => {
+		const chatA = stubChatWithId('a');
+		const chatB = stubChatWithId('b');
+		const chatsObs = observableValue<readonly IChat[]>('test.chats', [chatA, chatB]);
+		const s1: ISession = {
+			...stubSession('s1', SessionStatus.Completed, [chatA, chatB]),
+			chats: chatsObs,
+		};
+		const s2 = stubSession('s2');
+		store.addSession(s1);
+		store.addSession(s2);
+
+		// Record history: s1/chatA → s1/chatB → s2
+		store.setActiveSession(s1, chatA);
+		store.setActiveChat(chatB);
+		store.setActiveSession(s2);
+
+		// Remove chatB from the session
+		chatsObs.set([chatA], undefined);
+
+		// Go back — chatB is stale, should fall back to openSession(s1)
+		await nav.goBack();
+		assert.strictEqual(store.lastOpenedResource?.toString(), s1.resource.toString());
+		assert.strictEqual(store.lastOpenedChatResource, undefined, 'should not open a stale chat');
 	});
 });

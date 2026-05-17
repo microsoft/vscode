@@ -61,6 +61,21 @@ export const allowedChatMarkdownHtmlTags = Object.freeze([
 	'input', // Allowed for rendering checkboxes. Other types of inputs are removed and the inputs are always disabled
 ]);
 
+export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): MarkdownRenderOptions {
+	return {
+		...options,
+		sanitizerConfig: {
+			replaceWithPlaintext: true,
+			allowedTags: {
+				override: allowedChatMarkdownHtmlTags,
+			},
+			...options?.sanitizerConfig,
+			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME] },
+			remoteImageIsAllowed: _remoteImageDisallowed,
+		}
+	};
+}
+
 /**
  * This wraps the MarkdownRenderer and applies sanitizer options needed for chat content.
  */
@@ -74,18 +89,7 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 	) { }
 
 	render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown {
-		options = {
-			...options,
-			sanitizerConfig: {
-				replaceWithPlaintext: true,
-				allowedTags: {
-					override: allowedChatMarkdownHtmlTags,
-				},
-				...options?.sanitizerConfig,
-				allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME] },
-				remoteImageIsAllowed: _remoteImageDisallowed,
-			}
-		};
+		options = getChatMarkdownRenderOptions(options);
 
 		const mdWithBody: IMarkdownString = (markdown && markdown.supportHtml) ?
 			{

@@ -52,6 +52,28 @@
 	width: 100%;
 	border-spacing: 0;
 	border-collapse: separate;
+	overflow: hidden;
+}
+
+.models-widget .models-table-container > .monaco-scrollable-element {
+	width: 100%;
+	height: 100%;
+}
+
+.models-widget .models-table-container .models-table-viewport {
+	width: 100%;
+	height: 100%;
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: none;
+}
+
+.models-widget .models-table-container .models-table-viewport::-webkit-scrollbar {
+	display: none;
+}
+
+.models-widget .models-table-container .models-table-inner {
+	height: 100%;
 }
 
 .models-widget .models-table-container .monaco-table-tr {
