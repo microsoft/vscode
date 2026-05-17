@@ -17,6 +17,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
@@ -32,6 +33,9 @@ import { AhpErrorCodes } from '../common/state/protocol/errors.js';
 import { ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
+import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
+import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
+import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
@@ -248,6 +252,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostPermissionService private readonly _permissionService: IAgentHostPermissionService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._address = address;
@@ -273,6 +278,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		// Forward action envelopes from the transport to the subscription manager
 		this._register(this.onDidAction(envelope => {
 			this._subscriptionManager.receiveEnvelope(envelope);
+		}));
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID) || e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)) {
+				if (this._state.kind !== AgentHostClientState.Connected) {
+					return;
+				}
+				this._updateTelemetryLevel();
+			}
 		}));
 
 		// Detect silently-dead transports — see {@link _resetLivenessTimers}.
@@ -357,6 +371,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}
 
 		this._completionTriggerCharacters = result.completionTriggerCharacters ?? [];
+		this._updateTelemetryLevel();
 		this._transitionTo({ kind: AgentHostClientState.Connected });
 	}
 
@@ -1117,6 +1132,13 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/** Send a JSON-RPC request for a VS Code extension method (not in the protocol spec). */
 	private _sendExtensionRequest<M extends keyof IRemoteAgentHostExtensionCommandMap>(method: M, params?: IRemoteAgentHostExtensionCommandMap[M]['params']): Promise<IRemoteAgentHostExtensionCommandMap[M]['result']> {
 		return this._dispatchRequest<IRemoteAgentHostExtensionCommandMap[M]['result']>(method, params);
+	}
+
+	private _updateTelemetryLevel(): void {
+		this.dispatchAction({
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(getTelemetryLevel(this._configurationService)) },
+		}, this._clientId, 0);
 	}
 
 	/**
