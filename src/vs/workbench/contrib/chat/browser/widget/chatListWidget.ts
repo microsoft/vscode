@@ -7,7 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement, ITreeFilter } from '../../../../../base/browser/ui/tree/tree.js';
-import { RenderIndentGuides, IStickyScrollDelegate, StickyScrollNode } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -389,17 +389,6 @@ export class ChatListWidget extends Disposable {
 				expandOnlyOnTwistieClick: true,
 				allowNonCollapsibleParents: true,
 				renderIndentGuides: RenderIndentGuides.None,
-				stickyScrollDelegate: {
-					constrainStickyScrollNodes(stickyNodes: StickyScrollNode<ChatTreeItem, FuzzyScore>[], stickyScrollMaxItemCount: number, maxWidgetHeight: number): StickyScrollNode<ChatTreeItem, FuzzyScore>[] {
-						for (let i = 0; i < stickyNodes.length; i++) {
-							const stickyNodeBottom = stickyNodes[i].position + stickyNodes[i].height;
-							if (stickyNodeBottom > maxWidgetHeight || i >= stickyScrollMaxItemCount) {
-								return stickyNodes.slice(0, i);
-							}
-						}
-						return stickyNodes;
-					},
-				} satisfies IStickyScrollDelegate<ChatTreeItem, FuzzyScore>,
 				accessibilityProvider: this.instantiationService.createInstance(ChatAccessibilityProvider),
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (e: ChatTreeItem) =>
@@ -590,11 +579,13 @@ export class ChatListWidget extends Disposable {
 
 		this._withPersistedAutoScroll(() => {
 			this._tree.setChildren(null, treeItems, {
+				diffDepth: 1,
 				diffIdentityProvider: {
 					getId: (element) => {
 						// Pending types only have 'id', request/response have 'dataId'
 						const baseId = (isRequestVM(element) || isResponseVM(element)) ? element.dataId : element.id;
 						const disablement = (isRequestVM(element) || isResponseVM(element)) ? element.shouldBeRemovedOnSend : undefined;
+						const isLastItem = element.id === this._lastItem?.id;
 						// Per-element editing state: only re-render items whose editing role changed
 						const isEditTarget = isRequestVM(element) && editing?.id === element.id;
 						const isBlocked = (isRequestVM(element) || isResponseVM(element)) ? element.shouldBeBlocked.get() : false;
@@ -611,6 +602,8 @@ export class ChatListWidget extends Disposable {
 							`_${isBlocked ? 'blocked' : ''}` +
 							// Re-render requests when editing starts/stops (for hover button visibility, click handlers)
 							(isRequestVM(element) ? `_${editing ? '1' : '0'}` : '') +
+							// Re-render the old and new tail rows when the list grows or shrinks.
+							`_${isLastItem ? 'last' : ''}` +
 							// Re-render all if invoked by setting change
 							`_setting${this._settingChangeCounter}` +
 							// Rerender request if we got new content references in the response

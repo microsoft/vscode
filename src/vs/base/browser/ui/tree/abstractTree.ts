@@ -1717,6 +1717,9 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 	) {
 
 		this._rootDomNode = $('.monaco-tree-sticky-container.empty');
+		if (this.accessibilityProvider?.getWidgetRole?.() === 'list') {
+			this._rootDomNode.setAttribute('role', 'listitem');
+		}
 		container.appendChild(this._rootDomNode);
 
 		const shadow = $('.monaco-tree-sticky-container-shadow');
@@ -1949,9 +1952,6 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		if (typeof ariaLevel === 'number') {
 			container.setAttribute('aria-level', `${ariaLevel}`);
 		}
-
-		// Sticky Scroll elements can not be selected
-		container.setAttribute('aria-selected', String(false));
 
 		return result;
 	}
