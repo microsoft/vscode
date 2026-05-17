@@ -90,7 +90,7 @@ function createAgentInfo(customizations: readonly CustomizationRef[]): AgentInfo
 suite('RemoteAgentHostCustomizationHarness', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const testSessionResource = URI.parse('copilotcli:///test-session');
+	const testSessionResource = URI.parse('agent://copilotcli/session-1');
 
 	test('removeConfiguredPlugin keeps sibling scopes for the same URI', async () => {
 		const connection = disposables.add(new MockAgentConnection());
