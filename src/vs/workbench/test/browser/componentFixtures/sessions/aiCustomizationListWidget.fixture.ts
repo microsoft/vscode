@@ -5,7 +5,7 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { derived, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -15,8 +15,8 @@ import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/wo
 import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
-import { IChatSessionsService, SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
+import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IPromptPath, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AICustomizationManagementSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
@@ -121,7 +121,7 @@ function createMockHarnessService(): ICustomizationHarnessService {
 	const descriptor = createVSCodeHarnessDescriptor([PromptsStorage.extension]);
 	return new class extends mock<ICustomizationHarnessService>() {
 		override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
-		override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
+		override readonly activeHarness = derived(r => getChatSessionType(this.activeSessionResource.read(r)));
 		override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('harnesses', [descriptor]);
 		override getStorageSourceFilter() { return defaultFilter; }
 		override getActiveDescriptor() { return descriptor; }

@@ -74,7 +74,7 @@ suite('AICustomizationItemsModel', () => {
 			descriptorA = createDescriptor('A', providerA);
 			descriptorB = createDescriptor('B', providerB);
 
-			activeSessionResource = observableValue('activeSessionResource', URI.parse(`A://session`));
+			activeSessionResource = observableValue('activeSessionResource', URI.parse(`A:///session`));
 			activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 			availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', [descriptorA, descriptorB]);
 			plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
@@ -479,7 +479,6 @@ suite('AICustomizationItemsModel', () => {
 				itemProvider: provider,
 			};
 			const sessionResource = URI.parse('A:///active-session');
-			const activeHarness = observableValue('activeHarness', 'A');
 			const availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', [descriptor]);
 
 			instaService = workbenchInstantiationService({}, disposables);
@@ -512,13 +511,13 @@ suite('AICustomizationItemsModel', () => {
 				clearOverrideProjectRoot: () => { },
 			});
 			const activeSessionResource = observableValue('activeSessionResource', sessionResource);
+			const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 			instaService.stub(ICustomizationHarnessService, {
 				activeSessionResource,
 				activeHarness,
 				availableHarnesses,
 				setActiveSession: (sessionResource: URI) => {
 					activeSessionResource.set(sessionResource, undefined);
-					activeHarness.set(sessionResource.scheme, undefined);
 				},
 				getStorageSourceFilter: () => ({ sources: [] }),
 				getActiveDescriptor: () => availableHarnesses.get().find(d => d.id === activeHarness.get())!,

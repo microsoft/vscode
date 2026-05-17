@@ -8,7 +8,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { derived, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -19,6 +19,7 @@ import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFi
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
+import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
@@ -204,9 +205,12 @@ suite('aiCustomizationListWidget', () => {
 				clearOverrideProjectRoot: () => { },
 			});
 
+			const activeSessionResource = observableValue('test', URI.parse('test:///session'));
+			const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
+
 			instaService.stub(ICustomizationHarnessService, {
-				activeSessionResource: observableValue('test', URI.parse('test://session')),
-				activeHarness: observableValue('test', 'test'),
+				activeSessionResource,
+				activeHarness,
 				availableHarnesses: observableValue('test', [descriptor]),
 				setActiveSession: () => { },
 				getStorageSourceFilter: () => ({ sources: [] }),
