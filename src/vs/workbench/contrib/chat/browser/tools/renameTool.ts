@@ -5,9 +5,8 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -17,7 +16,6 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { rename } from '../../../../../editor/contrib/rename/browser/rename.js';
 import { localize } from '../../../../../nls.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -46,10 +44,16 @@ IMPORTANT: The file and line do NOT need to be the definition of the symbol. Any
 
 If the tool returns an error, retry with corrected input - ensure the file path is correct, the line content matches the actual file content, and the symbol name appears in that line.`;
 
-export class RenameTool extends Disposable implements IToolImpl {
+/**
+ * Static description that does not depend on the set of registered rename
+ * providers, so it stays byte-stable across requests as language extensions
+ * activate during a turn.
+ */
+const StaticModelDescription = BaseModelDescription + `
 
-	private readonly _onDidUpdateToolData = this._store.add(new Emitter<void>());
-	readonly onDidUpdateToolData = this._onDidUpdateToolData.event;
+If the file's language has no rename provider registered, the tool returns an error.`;
+
+export class RenameTool extends Disposable implements IToolImpl {
 
 	constructor(
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
@@ -59,37 +63,25 @@ export class RenameTool extends Disposable implements IToolImpl {
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 	) {
 		super();
-
-		this._store.add(Event.debounce(
-			this._languageFeaturesService.renameProvider.onDidChange,
-			() => { },
-			2000
-		)((() => this._onDidUpdateToolData.fire())));
 	}
 
 	getToolData(): IToolData {
-		const languageIds = this._languageFeaturesService.renameProvider.registeredLanguageIds;
+		return this._buildToolData(
+			StaticModelDescription,
+			localize('tool.rename.userDescription', 'Rename a symbol across the workspace'),
+		);
+	}
 
-		let modelDescription = BaseModelDescription;
-		if (languageIds.has('*')) {
-			modelDescription += '\n\nSupported for all languages.';
-		} else if (languageIds.size > 0) {
-			const sorted = [...languageIds].sort();
-			modelDescription += `\n\nCurrently supported for: ${sorted.join(', ')}.`;
-		} else {
-			modelDescription += '\n\nNo languages currently have rename providers registered.';
-		}
-
+	private _buildToolData(modelDescription: string, userDescription: string): IToolData {
 		return {
 			id: RenameToolId,
 			toolReferenceName: 'rename',
 			canBeReferencedInPrompt: false,
 			icon: ThemeIcon.fromId(Codicon.rename.id),
 			displayName: localize('tool.rename.displayName', 'Rename Symbol'),
-			userDescription: localize('tool.rename.userDescription', 'Rename a symbol across the workspace'),
+			userDescription,
 			modelDescription,
 			source: ToolDataSource.Internal,
-			when: ContextKeyExpr.has('config.chat.tools.renameTool.enabled'),
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -130,7 +122,7 @@ export class RenameTool extends Disposable implements IToolImpl {
 		const input = invocation.parameters as IRenameToolInput;
 
 		// --- resolve URI ---
-		const uri = resolveToolUri(input, this._workspaceContextService);
+		const uri = resolveToolUri(input, this._workspaceContextService, invocation.context?.workingDirectory);
 		if (!uri) {
 			return errorResult('Provide either "uri" (a full URI) or "filePath" (a workspace-relative path) to identify the file.');
 		}
@@ -247,20 +239,6 @@ export class RenameToolContribution extends Disposable implements IWorkbenchCont
 		super();
 
 		const renameTool = this._store.add(instantiationService.createInstance(RenameTool));
-
-		let registration: IDisposable | undefined;
-		const registerRenameTool = () => {
-			registration?.dispose();
-			toolsService.flushToolUpdates();
-			const toolData = renameTool.getToolData();
-			registration = toolsService.registerTool(toolData, renameTool);
-		};
-		registerRenameTool();
-		this._store.add(renameTool.onDidUpdateToolData(registerRenameTool));
-		this._store.add({
-			dispose: () => {
-				registration?.dispose();
-			}
-		});
+		this._store.add(toolsService.registerTool(renameTool.getToolData(), renameTool));
 	}
 }

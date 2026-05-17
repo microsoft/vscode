@@ -139,6 +139,7 @@
 .monaco-hover .hover-row.status-bar .actions .action-container .action .icon {
 	padding-right: 4px;
 	vertical-align: middle;
+	font-size: inherit;
 }
 
 .monaco-hover .hover-row.status-bar .actions .action-container a {

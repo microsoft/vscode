@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { isLocation } from '../../../../../editor/common/languages.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { escapeModelIdForTelemetry, ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatAgentData } from '../participants/chatAgents.js';
 import { ChatRequestModel, IChatRequestVariableData } from '../model/chatModel.js';
 import { ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from '../requestParser/chatParserTypes.js';
@@ -13,20 +13,18 @@ import { ChatAgentVoteDirection, ChatCopyKind, IChatSendRequestOptions, IChatUse
 import { isImageVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ILanguageModelsService } from '../languageModels.js';
-import { chatSessionResourceToId } from '../model/chatUri.js';
+import { chatSessionResourceToId, getChatSessionType } from '../model/chatUri.js';
 
 type ChatVoteEvent = {
 	direction: 'up' | 'down';
 	agentId: string;
 	command: string | undefined;
-	reason: string | undefined;
 };
 
 type ChatVoteClassification = {
 	direction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user voted up or down.' };
 	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat agent that this vote is for.' };
 	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the slash command that this vote is for.' };
-	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason selected by the user for voting down.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -122,6 +120,9 @@ type ChatEditHunkEvent = {
 	outcome: 'accepted' | 'rejected';
 	lineCount: number;
 	hasRemainingEdits: boolean;
+	requestId: string;
+	modelId: string;
+	modeId: string;
 };
 
 type ChatEditHunkClassification = {
@@ -129,6 +130,9 @@ type ChatEditHunkClassification = {
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The outcome of the edit hunk action.' };
 	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the relevant change.' };
 	hasRemainingEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether there are remaining edits in the file after this action.' };
+	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat request that produced the edit.' };
+	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The AI model used to generate the edit.' };
+	modeId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat mode used for the request (e.g. ask, edit, agent).' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of Chat features.';
 };
@@ -188,7 +192,6 @@ export class ChatServiceTelemetry {
 				direction: action.action.direction === ChatAgentVoteDirection.Up ? 'up' : 'down',
 				agentId: action.agentId ?? '',
 				command: action.command,
-				reason: action.action.reason,
 			});
 		} else if (action.action.kind === 'copy') {
 			this.telemetryService.publicLog2<ChatCopyEvent, ChatCopyClassification>('interactiveSessionCopy', {
@@ -227,6 +230,9 @@ export class ChatServiceTelemetry {
 				outcome: action.action.outcome,
 				lineCount: action.action.lineCount,
 				hasRemainingEdits: action.action.hasRemainingEdits,
+				requestId: action.requestId,
+				modelId: escapeModelIdForTelemetry(action.modelId) ?? '',
+				modeId: action.modeId ?? '',
 			});
 		}
 	}
@@ -311,7 +317,7 @@ export class ChatRequestTelemetry {
 			model: this.resolveModelId(this.opts.options?.userSelectedModelId),
 			permissionLevel: this.opts.options?.modeInfo?.kind === ChatModeKind.Ask ? undefined : this.opts.options?.modeInfo?.permissionLevel,
 			chatMode: this.opts.options?.modeInfo?.modeName ?? this.opts.options?.modeInfo?.modeId,
-			sessionType: this.opts.sessionResource.scheme,
+			sessionType: getChatSessionTypeForTelemetry(this.opts.sessionResource),
 		});
 	}
 
@@ -356,4 +362,9 @@ export class ChatRequestTelemetry {
 	private resolveModelId(userSelectedModelId: string | undefined): string | undefined {
 		return userSelectedModelId && this.languageModelsService.lookupLanguageModel(userSelectedModelId)?.id;
 	}
+}
+
+function getChatSessionTypeForTelemetry(sessionResource: URI): string {
+	const sessionType = getChatSessionType(sessionResource);
+	return sessionType.startsWith('remote-') ? 'remote-agent-host' : sessionType;
 }

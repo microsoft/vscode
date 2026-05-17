@@ -44,6 +44,13 @@ export interface IAgentPluginRepositoryService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Root directory where agent plugins are stored on disk.
+	 * On native this is `~/{dataFolderName}/agent-plugins/`; on web it
+	 * falls back to `{cacheHome}/agentPlugins/`.
+	 */
+	readonly agentPluginsHome: URI;
+
+	/**
 	 * Returns the local cache URI for a marketplace repository reference.
 	 * Uses a storage-backed marketplace index when available.
 	 */
@@ -102,9 +109,13 @@ export interface IAgentPluginRepositoryService {
 	 * the marketplace repository cache). For direct sources (github, url, npm,
 	 * pip) the cache directory is deleted.
 	 *
+	 * When {@link otherInstalledDescriptors} is provided, deletion is skipped
+	 * if any of those descriptors share the same cleanup target directory
+	 * (e.g. multiple plugins installed from the same cloned repository).
+	 *
 	 * This is best-effort: failures are logged but do not throw.
 	 */
-	cleanupPluginSource(plugin: IMarketplacePlugin): Promise<void>;
+	cleanupPluginSource(plugin: IMarketplacePlugin, otherInstalledDescriptors?: readonly IPluginSourceDescriptor[]): Promise<void>;
 
 	/**
 	 * Silently fetches remote refs for a cloned marketplace repository and

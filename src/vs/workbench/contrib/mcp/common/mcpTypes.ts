@@ -81,9 +81,10 @@ export interface McpCollectionDefinition {
 
 	readonly source?: IWorkbenchMcpServer | ExtensionIdentifier;
 
+	/** Sort order of the collection. Lower values have higher priority. */
+	readonly order: number;
+
 	readonly presentation?: {
-		/** Sort order of the collection. */
-		readonly order?: number;
 		/** Place where this collection is configured, used in workspace trust prompts and "show config" */
 		readonly origin?: URI;
 	};
@@ -279,6 +280,7 @@ export const IMcpService = createDecorator<IMcpService>('IMcpService');
 export interface McpCollectionReference {
 	id: string;
 	label: string;
+	order: number;
 	presentation?: McpCollectionDefinition['presentation'];
 }
 
@@ -451,6 +453,13 @@ export interface IMcpPromptMessage extends MCP.PromptMessage { }
 export interface IMcpToolCallContext {
 	chatSessionResource: URI | undefined;
 	chatRequestId?: string;
+	/**
+	 * Optional W3C trace context `traceparent` value to forward to the MCP server
+	 * via `_meta.traceparent` on the JSON-RPC `tools/call` request (MCP SEP-414).
+	 */
+	traceparent?: string;
+	/** Optional W3C trace context `tracestate` value paired with {@link traceparent}. */
+	tracestate?: string;
 }
 
 /**
@@ -534,6 +543,10 @@ export interface McpServerTransportHTTPAuthentication {
 	readonly scopes: string[];
 }
 
+export interface McpServerTransportHTTPOAuth {
+	readonly clientId?: string;
+}
+
 /**
  * MCP server launched on the command line which communicated over SSE or Streamable HTTP.
  * https://spec.modelcontextprotocol.io/specification/2024-11-05/basic/transports/#http-with-sse
@@ -543,6 +556,11 @@ export interface McpServerTransportHTTP {
 	readonly type: McpServerTransportType.HTTP;
 	readonly uri: URI;
 	readonly headers: [string, string][];
+	readonly oauth?: McpServerTransportHTTPOAuth;
+	/**
+	 * @deprecated this was originally used for step-auth auth but a different approach was used instead
+	 * so it's effectively dead code.
+	 */
 	readonly authentication?: McpServerTransportHTTPAuthentication;
 }
 
@@ -552,7 +570,7 @@ export type McpServerLaunch =
 
 export namespace McpServerLaunch {
 	export type Serialized =
-		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][]; authentication?: McpServerTransportHTTPAuthentication }
+		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][]; oauth?: McpServerTransportHTTPOAuth; authentication?: McpServerTransportHTTPAuthentication }
 		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined; sandbox: IMcpSandboxConfiguration | undefined };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
@@ -562,7 +580,7 @@ export namespace McpServerLaunch {
 	export function fromSerialized(launch: McpServerLaunch.Serialized): McpServerLaunch {
 		switch (launch.type) {
 			case McpServerTransportType.HTTP:
-				return { type: launch.type, uri: URI.revive(launch.uri), headers: launch.headers, authentication: launch.authentication };
+				return { type: launch.type, uri: URI.revive(launch.uri), headers: launch.headers, oauth: launch.oauth, authentication: launch.authentication };
 			case McpServerTransportType.Stdio:
 				return {
 					type: launch.type,
@@ -813,7 +831,7 @@ export interface IMcpWorkbenchService {
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
 	getMcpConfigPath(arg: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
 	getMcpConfigPath(arg: URI): Promise<IMcpConfigPath | undefined>;
-	openSearch(searchValue: string, preserveFoucs?: boolean): Promise<void>;
+	openSearch(searchValue: string, preserveFocus?: boolean): Promise<void>;
 	open(extension: IWorkbenchMcpServer | string, options?: IMcpServerEditorOptions): Promise<void>;
 }
 

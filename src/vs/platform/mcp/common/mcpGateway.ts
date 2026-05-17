@@ -13,44 +13,76 @@ export const IMcpGatewayService = createDecorator<IMcpGatewayService>('IMcpGatew
 export const McpGatewayChannelName = 'mcpGateway';
 export const McpGatewayToolBrokerChannelName = 'mcpGatewayToolBroker';
 
-export interface IGatewayCallToolResult {
-	result: MCP.CallToolResult;
-	serverIndex: number;
-}
-
-export interface IGatewayServerResources {
-	serverIndex: number;
-	resources: readonly MCP.Resource[];
-}
-
-export interface IGatewayServerResourceTemplates {
-	serverIndex: number;
-	resourceTemplates: readonly MCP.ResourceTemplate[];
-}
-
-export interface IMcpGatewayToolInvoker {
-	readonly onDidChangeTools: Event<void>;
-	readonly onDidChangeResources: Event<void>;
-	listTools(): Promise<readonly MCP.Tool[]>;
-	callTool(name: string, args: Record<string, unknown>): Promise<IGatewayCallToolResult>;
-	listResources(): Promise<readonly IGatewayServerResources[]>;
-	readResource(serverIndex: number, uri: string): Promise<MCP.ReadResourceResult>;
-	listResourceTemplates(): Promise<readonly IGatewayServerResourceTemplates[]>;
+/**
+ * Descriptor for an MCP server known to the gateway.
+ */
+export interface IMcpGatewayServerDescriptor {
+	readonly id: string;
+	readonly label: string;
 }
 
 /**
- * Result of creating an MCP gateway.
+ * A single server entry exposed by the gateway.
  */
-export interface IMcpGatewayInfo {
-	/**
-	 * The address of the HTTP endpoint for this gateway.
-	 */
+export interface IMcpGatewayServerInfo {
+	readonly label: string;
 	readonly address: URI;
+}
+
+/**
+ * Per-server tool invoker used by a single gateway route/session.
+ * All methods operate on the specific server this invoker is bound to.
+ */
+export interface IMcpGatewaySingleServerInvoker {
+	readonly onDidChangeTools: Event<void>;
+	readonly onDidChangeResources: Event<void>;
+	listTools(): Promise<readonly MCP.Tool[]>;
+	callTool(name: string, args: Record<string, unknown>): Promise<MCP.CallToolResult>;
+	listResources(): Promise<readonly MCP.Resource[]>;
+	readResource(uri: string): Promise<MCP.ReadResourceResult>;
+	listResourceTemplates(): Promise<readonly MCP.ResourceTemplate[]>;
+}
+
+/**
+ * Aggregating tool invoker that provides per-server operations and
+ * server lifecycle tracking. Used by the gateway service to create
+ * and manage per-server routes.
+ */
+export interface IMcpGatewayToolInvoker {
+	readonly onDidChangeServers: Event<readonly IMcpGatewayServerDescriptor[]>;
+	readonly onDidChangeTools: Event<void>;
+	readonly onDidChangeResources: Event<void>;
+	listServers(): readonly IMcpGatewayServerDescriptor[];
+	listToolsForServer(serverId: string): Promise<readonly MCP.Tool[]>;
+	callToolForServer(serverId: string, name: string, args: Record<string, unknown>): Promise<MCP.CallToolResult>;
+	listResourcesForServer(serverId: string): Promise<readonly MCP.Resource[]>;
+	readResourceForServer(serverId: string, uri: string): Promise<MCP.ReadResourceResult>;
+	listResourceTemplatesForServer(serverId: string): Promise<readonly MCP.ResourceTemplate[]>;
+}
+
+/**
+ * Serializable result of creating an MCP gateway (safe for IPC).
+ */
+export interface IMcpGatewayDto {
+	/**
+	 * The servers currently exposed by this gateway.
+	 */
+	readonly servers: readonly IMcpGatewayServerInfo[];
 
 	/**
 	 * The unique identifier for this gateway, used for disposal.
 	 */
 	readonly gatewayId: string;
+}
+
+/**
+ * Result of creating an MCP gateway (in-process, includes event).
+ */
+export interface IMcpGatewayInfo extends IMcpGatewayDto {
+	/**
+	 * Event that fires when the set of servers changes.
+	 */
+	readonly onDidChangeServers: Event<readonly IMcpGatewayServerInfo[]>;
 }
 
 /**

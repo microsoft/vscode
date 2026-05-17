@@ -114,6 +114,11 @@ steps:
 
   - template: ../../common/install-builtin-extensions.yml@self
 
+  - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: Download Copilot VSIX (background)
+
   - script: npm run gulp core-ci
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -134,6 +139,11 @@ steps:
     - script: npm run copy-policy-dto --prefix build && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc darwin
       displayName: Generate policy definitions
       retryCountOnTaskFailure: 3
+
+  - script: npx deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: Download Copilot VSIX
 
   - script: |
       set -e
@@ -343,7 +353,23 @@ steps:
         APP_NAME="`ls $APP_ROOT | head -n 1`"
         APP_PATH="$APP_ROOT/$APP_NAME"
         codesign -dv --deep --verbose=4 "$APP_PATH"
-        "$APP_PATH/Contents/Resources/app/bin/code" --export-default-configuration=.build
+        BINARY_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").nameShort")
+        TIMERS_FILE="$(Build.ArtifactStagingDirectory)/startup-timers.txt"
+        "$APP_PATH/Contents/MacOS/$BINARY_NAME" \
+          --prof-append-timers "$TIMERS_FILE" \
+          --user-data-dir "$(Agent.TempDirectory)/vscode-verify" \
+          --extensions-dir "$(Agent.TempDirectory)/vscode-verify-ext" \
+          --disable-extensions --disable-telemetry --skip-welcome \
+          --skip-release-notes --disable-updates --disable-experiments \
+          --disable-workspace-trust
+        if [ ! -f "$TIMERS_FILE" ]; then
+          echo "ERROR: VS Code failed to start — startup timers were not written."
+          echo "This may indicate a binary was killed by AMFI due to restricted entitlements."
+          exit 1
+        fi
+        echo "Startup timers:"
+        cat "$TIMERS_FILE"
+      timeoutInMinutes: 3
       displayName: Verify signature
 
     - script: |

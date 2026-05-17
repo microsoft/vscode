@@ -14,7 +14,10 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
-import { CHAT_INTERNAL_SCHEME } from '../../common/promptSyntax/internalCustomizations/internalPromptFileSystem.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
+
+const _remoteImageDisallowed = () => false;
 
 export const allowedChatMarkdownHtmlTags = Object.freeze([
 	'b',
@@ -58,6 +61,21 @@ export const allowedChatMarkdownHtmlTags = Object.freeze([
 	'input', // Allowed for rendering checkboxes. Other types of inputs are removed and the inputs are always disabled
 ]);
 
+export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): MarkdownRenderOptions {
+	return {
+		...options,
+		sanitizerConfig: {
+			replaceWithPlaintext: true,
+			allowedTags: {
+				override: allowedChatMarkdownHtmlTags,
+			},
+			...options?.sanitizerConfig,
+			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME] },
+			remoteImageIsAllowed: _remoteImageDisallowed,
+		}
+	};
+}
+
 /**
  * This wraps the MarkdownRenderer and applies sanitizer options needed for chat content.
  */
@@ -71,18 +89,7 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 	) { }
 
 	render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown {
-		options = {
-			...options,
-			sanitizerConfig: {
-				replaceWithPlaintext: true,
-				allowedTags: {
-					override: allowedChatMarkdownHtmlTags,
-				},
-				...options?.sanitizerConfig,
-				allowedLinkSchemes: { augment: [product.urlProtocol, CHAT_INTERNAL_SCHEME, 'copilot-skill'] },
-				remoteImageIsAllowed: (_uri) => false,
-			}
-		};
+		options = getChatMarkdownRenderOptions(options);
 
 		const mdWithBody: IMarkdownString = (markdown && markdown.supportHtml) ?
 			{
@@ -90,7 +97,7 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 
 				// dompurify uses DOMParser, which strips leading comments. Wrapping it all in 'body' prevents this.
 				// The \n\n prevents marked.js from parsing the body contents as just text in an 'html' token, instead of actual markdown.
-				value: `<body>\n\n${markdown.value}</body>`,
+				value: `<body>\n\n${markdown.value}\n\n</body>`,
 			}
 			: markdown;
 		const result = this.markdownRendererService.render(mdWithBody, options, outElement);

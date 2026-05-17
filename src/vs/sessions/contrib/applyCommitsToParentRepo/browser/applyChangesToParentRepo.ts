@@ -19,10 +19,10 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IsActiveSessionArchivedContext } from '../../../common/contextkeys.js';
 
 const hasWorktreeAndRepositoryContextKey = new RawContextKey<boolean>('agentSessionHasWorktreeAndRepository', false, {
 	type: 'boolean',
@@ -43,7 +43,8 @@ class ApplyChangesToParentRepoContribution extends Disposable implements IWorkbe
 
 		this._register(autorun(reader => {
 			const activeSession = sessionManagementService.activeSession.read(reader);
-			const hasWorktreeAndRepo = !!activeSession?.worktree && !!activeSession?.repository;
+			const folder = activeSession?.workspace.read(reader)?.folders[0];
+			const hasWorktreeAndRepo = !!folder?.gitRepository?.workTreeUri;
 			worktreeAndRepoKey.set(hasWorktreeAndRepo);
 		}));
 	}
@@ -64,7 +65,7 @@ class ApplyChangesToParentRepoAction extends Action2 {
 			),
 			menu: [
 				{
-					id: MenuId.ChatEditingSessionApplySubmenu,
+					id: MenuId.AgentsChangesPrimaryActionSubMenu,
 					group: 'navigation',
 					order: 2,
 					when: ContextKeyExpr.and(
@@ -85,13 +86,14 @@ class ApplyChangesToParentRepoAction extends Action2 {
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
 
-		const activeSession = sessionManagementService.getActiveSession();
-		if (!activeSession?.worktree || !activeSession?.repository) {
+		const activeSession = sessionManagementService.activeSession.get();
+		const folder = activeSession?.workspace.get()?.folders[0];
+		if (!activeSession || !folder?.gitRepository?.workTreeUri) {
 			return;
 		}
 
-		const worktreeRoot = activeSession.worktree;
-		const repoRoot = activeSession.repository;
+		const worktreeRoot = folder.gitRepository.workTreeUri;
+		const repoRoot = folder.root;
 
 		const openFolderAction = toAction({
 			id: 'applyChangesToParentRepo.openFolder',
@@ -163,10 +165,12 @@ registerAction2(ApplyChangesToParentRepoAction);
 registerWorkbenchContribution2(ApplyChangesToParentRepoContribution.ID, ApplyChangesToParentRepoContribution, WorkbenchPhase.AfterRestored);
 
 // Register the apply submenu in the session changes toolbar
-MenuRegistry.appendMenuItem(MenuId.ChatEditingSessionChangesToolbar, {
-	submenu: MenuId.ChatEditingSessionApplySubmenu,
+MenuRegistry.appendMenuItem(MenuId.AgentsChangesToolbar, {
+	submenu: MenuId.AgentsChangesPrimaryActionSubMenu,
 	title: localize2('applyActions', 'Apply Actions'),
 	group: 'navigation',
 	order: 1,
-	when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.hasAgentSessionChanges),
+	when: ContextKeyExpr.and(
+		IsSessionsWindowContext,
+		IsActiveSessionArchivedContext.isEqualTo(false))
 });
