@@ -619,15 +619,19 @@ export class CopilotAgentSession extends Disposable {
 			?.filter(c => c.type === ToolResultContentType.EmbeddedResource)
 			.map(c => ({ data: c.data, mimeType: c.contentType, type: /^image(\/|$)/.test(c.contentType) ? 'image' : 'resource' }));
 
+		// When there's an image result, prevent "Tool ran without output or errors" due to empty text content.
+		const hasImageBinary = binaryResults?.some(b => b.type === 'image');
+		const textWithBinaryFallback = textContent || (hasImageBinary ? 'See attached image(s).' : textContent);
+
 		if (result.success) {
 			deferred.complete({
-				textResultForLlm: textContent,
+				textResultForLlm: textWithBinaryFallback,
 				resultType: 'success',
 				binaryResultsForLlm: binaryResults?.length ? binaryResults : undefined,
 			});
 		} else {
 			deferred.complete({
-				textResultForLlm: textContent || result.error?.message || 'Tool call failed',
+				textResultForLlm: textWithBinaryFallback || result.error?.message || 'Tool call failed',
 				resultType: 'failure',
 				error: result.error?.message,
 				binaryResultsForLlm: binaryResults?.length ? binaryResults : undefined,
