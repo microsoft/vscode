@@ -134,25 +134,33 @@ export class VSBuffer {
 	}
 
 	slice(start?: number, end?: number): VSBuffer {
-		// Use slice (which copies) rather than subarray (which returns a view
-		// sharing the source's underlying ArrayBuffer).
+		// Return a VSBuffer that owns its underlying ArrayBuffer storage,
+		// rather than a view sharing the source's ArrayBuffer.
 		//
-		// History: VSBuffer#slice was changed from slice to subarray in #76076
-		// for performance — avoiding an unnecessary copy. However the returned
-		// view shares its underlying ArrayBuffer with the source, which leaks
-		// a soft contract: callers expect a sliced buffer to be independently
-		// usable. When the source's ArrayBuffer is later transferred to another
-		// execution context (e.g. an extension-host iframe via postMessage with
-		// a transfer list, as the browser-mode IPC layer does), the
-		// ArrayBuffer becomes detached. WebKit/JavaScriptCore throws
-		// synchronously per ECMA-262 §25.1.2.1 on any subsequent access through
-		// a view into the detached buffer, while V8 is permissive — masking
-		// the issue on Chromium/Electron and exposing it on Safari and iOS.
+		// History: VSBuffer#slice was changed from `slice` to `subarray` in
+		// #76076 for performance — avoiding an unnecessary copy. The returned
+		// view shares its underlying ArrayBuffer with the source. When the
+		// source is later transferred to another execution context (e.g. the
+		// extension-host iframe via postMessage with a transfer list, as the
+		// browser-mode IPC layer does), the ArrayBuffer becomes detached.
+		// WebKit/JavaScriptCore throws synchronously per ECMA-262 §25.1.2.1
+		// on any subsequent access through a view into the detached buffer,
+		// while V8 is permissive — masking the issue on Chromium/Electron and
+		// exposing it on Safari and iOS. This produces blank webview panels
+		// for every webview-heavy extension on every Safari / iOS client of
+		// browser-mode VS Code (vscode.dev, code-server, code serve-web,
+		// Codespaces). See #316841 for the full diagnosis.
 		//
-		// This causes webview-heavy extensions to render blank on every
-		// Safari / iOS client of browser-mode VS Code (vscode.dev, code-server,
-		// code serve-web, Codespaces). See #316841 for the full diagnosis.
-		return new VSBuffer(this.buffer.slice(start, end));
+		// We can't naively use `this.buffer.slice(...)`: in Node/Electron,
+		// `this.buffer` may be a `Buffer` (see VSBuffer.alloc / .wrap /
+		// .fromString), and `Buffer.prototype.slice` is a deprecated alias for
+		// `subarray` that returns a view, not a copy — the original 2019
+		// caveat from #76076. Wrapping the subarray view in `new Uint8Array(…)`
+		// forces a copy into fresh ArrayBuffer storage in all environments per
+		// ECMA-262 §23.2.5.1 step 12 (TypedArray copy-from-TypedArray), so the
+		// returned buffer always owns its storage regardless of whether the
+		// backing store is a `Buffer` or a plain `Uint8Array`.
+		return new VSBuffer(new Uint8Array(this.buffer.subarray(start, end)));
 	}
 
 	set(array: VSBuffer, offset?: number): void;
