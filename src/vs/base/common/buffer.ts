@@ -134,10 +134,25 @@ export class VSBuffer {
 	}
 
 	slice(start?: number, end?: number): VSBuffer {
-		// IMPORTANT: use subarray instead of slice because TypedArray#slice
-		// creates shallow copy and NodeBuffer#slice doesn't. The use of subarray
-		// ensures the same, performance, behaviour.
-		return new VSBuffer(this.buffer.subarray(start, end));
+		// Use slice (which copies) rather than subarray (which returns a view
+		// sharing the source's underlying ArrayBuffer).
+		//
+		// History: VSBuffer#slice was changed from slice to subarray in #76076
+		// for performance — avoiding an unnecessary copy. However the returned
+		// view shares its underlying ArrayBuffer with the source, which leaks
+		// a soft contract: callers expect a sliced buffer to be independently
+		// usable. When the source's ArrayBuffer is later transferred to another
+		// execution context (e.g. an extension-host iframe via postMessage with
+		// a transfer list, as the browser-mode IPC layer does), the
+		// ArrayBuffer becomes detached. WebKit/JavaScriptCore throws
+		// synchronously per ECMA-262 §25.1.2.1 on any subsequent access through
+		// a view into the detached buffer, while V8 is permissive — masking
+		// the issue on Chromium/Electron and exposing it on Safari and iOS.
+		//
+		// This causes webview-heavy extensions to render blank on every
+		// Safari / iOS client of browser-mode VS Code (vscode.dev, code-server,
+		// code serve-web, Codespaces). See #316841 for the full diagnosis.
+		return new VSBuffer(this.buffer.slice(start, end));
 	}
 
 	set(array: VSBuffer, offset?: number): void;

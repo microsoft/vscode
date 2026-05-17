@@ -33,6 +33,38 @@ suite('Buffer', () => {
 		assert.strictEqual(result.charCodeAt(0), 0xFEFF);
 	});
 
+	test('issue #316841 - VSBuffer#slice returns an independent buffer that survives detachment of the source', () => {
+		// VSBuffer instances in IPC code paths are typically views into a larger
+		// ArrayBuffer carrying WebSocket binary frame data. After a slice is
+		// extracted by ChunkStream._read (vs/base/parts/ipc/common/ipc.net.ts),
+		// downstream code may transfer the underlying ArrayBuffer to another
+		// execution context (e.g. an extension-host iframe via postMessage with
+		// a transfer list), detaching the source.
+		//
+		// On WebKit / JavaScriptCore (Safari, all iOS browsers), any subsequent
+		// access through a view into the detached ArrayBuffer throws
+		// synchronously per ECMA-262 §25.1.2.1 (IsDetachedBuffer). This causes
+		// the IPC reader to unwind and the message channel to die, manifesting
+		// as permanently blank webview panels for every webview-heavy extension.
+		//
+		// VSBuffer#slice must therefore return a buffer that owns its data, not
+		// a view sharing the source's underlying ArrayBuffer.
+		const source = VSBuffer.alloc(1024);
+		source.buffer[0] = 42;
+		const slice = source.slice(0, 512);
+
+		// Detach the source's underlying ArrayBuffer.
+		// structuredClone with a transfer list performs ownership transfer
+		// synchronously, leaving the original ArrayBuffer detached on return.
+		structuredClone(source.buffer.buffer, { transfer: [source.buffer.buffer] });
+		assert.strictEqual(source.buffer.byteLength, 0,
+			'source.buffer should be detached after transfer');
+
+		// The slice must still be readable — it must own its own storage.
+		assert.strictEqual(slice.byteLength, 512);
+		assert.strictEqual(slice.buffer[0], 42);
+	});
+
 	test('bufferToReadable / readableToBuffer', () => {
 		const content = 'Hello World';
 		const readable = bufferToReadable(VSBuffer.fromString(content));
