@@ -702,5 +702,73 @@ suite('LocalAgentsSessionsController', () => {
 				assert.strictEqual(changeEventCount, 0, 'onDidChangeChatSessionItems should NOT fire after model is removed');
 			});
 		});
+
+		test('should remove session from items and fire removed event on onDidDisposeSession', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = createController();
+
+				const sessionResource = LocalChatSessionUri.forSession('dispose-session');
+				const mockModel = createMockChatModel({
+					sessionResource,
+					hasRequests: true
+				});
+
+				// Add the session and populate items
+				mockChatService.addSession(mockModel);
+				mockChatService.setLiveSessionItems([await chatModelToChatDetail(mockModel)]);
+				await controller.refresh(CancellationToken.None);
+				assert.strictEqual(controller.items.length, 1);
+
+				// Listen for the removed event
+				const removedResources: URI[] = [];
+				disposables.add(controller.onDidChangeChatSessionItems(delta => {
+					if (delta.removed) {
+						removedResources.push(...delta.removed);
+					}
+				}));
+
+				// Fire onDidDisposeSession (simulates removeHistoryEntry)
+				mockChatService.fireDidDisposeSession([sessionResource]);
+
+				// Session should be removed from items immediately
+				assert.strictEqual(controller.items.length, 0, 'items should be empty after dispose');
+				assert.strictEqual(removedResources.length, 1, 'removed event should fire');
+				assert.strictEqual(removedResources[0].toString(), sessionResource.toString());
+
+				// Even if refresh is called again, the session should not reappear
+				// (because getLiveSessionItems would still return it, but shouldBeInHistory
+				// would filter it in the real ChatService — here we simulate by keeping
+				// liveSessionItems unchanged, but _items was already cleared)
+			});
+		});
+
+		test('should not re-add disposed session to items on refresh', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = createController();
+
+				const sessionResource = LocalChatSessionUri.forSession('disposed-refresh-session');
+				const mockModel = createMockChatModel({
+					sessionResource,
+					hasRequests: true
+				});
+
+				// Add the session and populate items
+				mockChatService.addSession(mockModel);
+				mockChatService.setLiveSessionItems([await chatModelToChatDetail(mockModel)]);
+				await controller.refresh(CancellationToken.None);
+				assert.strictEqual(controller.items.length, 1);
+
+				// Dispose the session
+				mockChatService.fireDidDisposeSession([sessionResource]);
+				assert.strictEqual(controller.items.length, 0);
+
+				// Clear live items (simulates isDeleted filtering in real ChatService)
+				mockChatService.setLiveSessionItems([]);
+
+				// Refresh should not bring it back
+				await controller.refresh(CancellationToken.None);
+				assert.strictEqual(controller.items.length, 0, 'disposed session should not reappear after refresh');
+			});
+		});
 	});
 });
