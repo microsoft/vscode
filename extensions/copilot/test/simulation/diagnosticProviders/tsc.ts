@@ -13,7 +13,7 @@ import { CacheScope } from '../../base/simulationContext';
 import { REPO_ROOT } from '../../base/stest';
 import { TS_SERVER_DIAGNOSTICS_PROVIDER_CACHE_SALT } from '../../cacheSalt';
 import { cleanTempDirWithRetry, createTempDir } from '../stestUtil';
-import { IFile, ITSDiagnosticRelatedInformation, ITestDiagnostic } from './diagnosticsProvider';
+import { IFile, ITSDiagnosticRelatedInformation, ITestDiagnostic, ITestDiagnosticLocation } from './diagnosticsProvider';
 import { CachingDiagnosticsProvider, setupTemporaryWorkspace } from './utils';
 
 /**
@@ -130,6 +130,7 @@ declare module '*'  {
 	private compileFolder(workspacePath: string, files: { filePath: string; fileName: string; fileContents: string }[]): Promise<ITestDiagnostic[]> {
 		return new Promise<ITestDiagnostic[]>((resolve, reject) => {
 			const results: ITestDiagnostic[] = [];
+			const fileContentsByName = new Map(files.map(file => [file.fileName, file.fileContents]));
 
 			const tsserverPath = path.resolve(path.join(REPO_ROOT, 'node_modules/typescript/lib/tsserver.js'));
 			const tsserver = cp.fork(tsserverPath, {
@@ -182,11 +183,8 @@ declare module '*'  {
 				const kind = resp.command === 'semanticDiagnosticsSync' ? 'semantic' : 'syntactic';
 				const diagResp = resp as ts.server.protocol.SemanticDiagnosticsSyncResponse | ts.server.protocol.SyntacticDiagnosticsSyncResponse;
 				for (const diag of diagResp.body ?? []) {
-					if (typeof diag.start === 'number') {
-						throw new Error(`TODO: Can't handle DiagnosticWithLinePosition right now`);
-					}
-					const regularDiag = diag as ts.server.protocol.Diagnostic;
-					const _relatedInfo: (ITSDiagnosticRelatedInformation | null)[] = (regularDiag.relatedInformation ?? []).map((ri) => {
+					const fileName = seqToFile.get(diagResp.request_seq)!;
+					const _relatedInfo: (ITSDiagnosticRelatedInformation | null)[] = (diag.relatedInformation ?? []).map((ri) => {
 						if (!ri.span) {
 							return null;
 						}
@@ -203,14 +201,11 @@ declare module '*'  {
 						};
 					});
 					const relatedInformation = _relatedInfo.filter((x): x is ITSDiagnosticRelatedInformation => !!x);
+					const location = getDiagnosticLocation(diag, fileName, fileContentsByName.get(fileName));
 					results.push({
-						file: seqToFile.get(diagResp.request_seq)!,
-						startLine: regularDiag.start.line - 1,
-						startCharacter: regularDiag.start.offset - 1,
-						endLine: regularDiag.end.line - 1,
-						endCharacter: regularDiag.end.offset - 1,
-						message: regularDiag.text,
-						code: regularDiag.code,
+						...location,
+						message: getDiagnosticMessage(diag),
+						code: diag.code,
 						relatedInformation,
 						source: 'ts',
 						kind,
@@ -267,6 +262,68 @@ declare module '*'  {
 			});
 		});
 	}
+}
+
+function getDiagnosticMessage(diagnostic: ts.server.protocol.Diagnostic | ts.server.protocol.DiagnosticWithLinePosition): string {
+	return isDiagnosticWithLinePosition(diagnostic) ? diagnostic.message : diagnostic.text;
+}
+
+function getDiagnosticLocation(diagnostic: ts.server.protocol.Diagnostic | ts.server.protocol.DiagnosticWithLinePosition, fileName: string, fileContents: string | undefined): ITestDiagnosticLocation {
+	if (!isDiagnosticWithLinePosition(diagnostic)) {
+		return {
+			file: fileName,
+			startLine: diagnostic.start.line - 1,
+			startCharacter: diagnostic.start.offset - 1,
+			endLine: diagnostic.end.line - 1,
+			endCharacter: diagnostic.end.offset - 1,
+		};
+	}
+
+	if (diagnostic.startLocation && diagnostic.endLocation) {
+		return {
+			file: fileName,
+			startLine: diagnostic.startLocation.line - 1,
+			startCharacter: diagnostic.startLocation.offset - 1,
+			endLine: diagnostic.endLocation.line - 1,
+			endCharacter: diagnostic.endLocation.offset - 1,
+		};
+	}
+
+	const start = positionAt(fileContents ?? '', diagnostic.start);
+	const end = positionAt(fileContents ?? '', diagnostic.start + diagnostic.length);
+	return {
+		file: fileName,
+		startLine: start.line,
+		startCharacter: start.character,
+		endLine: end.line,
+		endCharacter: end.character,
+	};
+}
+
+function isDiagnosticWithLinePosition(diagnostic: ts.server.protocol.Diagnostic | ts.server.protocol.DiagnosticWithLinePosition): diagnostic is ts.server.protocol.DiagnosticWithLinePosition {
+	return typeof diagnostic.start === 'number';
+}
+
+function positionAt(text: string, offset: number): { line: number; character: number } {
+	offset = Math.max(0, Math.min(offset, text.length));
+
+	let line = 0;
+	let lineStart = 0;
+	for (let i = 0; i < offset; i++) {
+		const charCode = text.charCodeAt(i);
+		if (charCode === 13 /* \r */) {
+			if (i + 1 < offset && text.charCodeAt(i + 1) === 10 /* \n */) {
+				i++;
+			}
+			line++;
+			lineStart = i + 1;
+		} else if (charCode === 10 /* \n */) {
+			line++;
+			lineStart = i + 1;
+		}
+	}
+
+	return { line, character: offset - lineStart };
 }
 
 function addIdentifiersToSet(content: string, result: Set<string>): void {
