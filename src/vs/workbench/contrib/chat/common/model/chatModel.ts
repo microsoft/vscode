@@ -2819,7 +2819,9 @@ export class ChatModel extends Disposable implements IChatModel {
 			throw new Error('acceptResponseProgress: Adding progress to a completed response');
 		}
 
-		if (progress.kind === 'usedContext' || progress.kind === 'reference') {
+		if (progress.kind === 'usage') {
+			request.response.setUsage(progress);
+		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
 		} else if (progress.kind === 'codeCitation') {
 			request.response.applyCodeCitation(progress);

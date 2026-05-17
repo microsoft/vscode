@@ -191,6 +191,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Overflow widget DOM node at the top level so the suggest widget
 		// is not clipped by any overflow:hidden ancestor.
 		const editorOverflowWidgetsDomNode = dom.append(root, dom.$('.sessions-chat-editor-overflow.monaco-editor'));
+		// Suppress the default `Text` kind icon in the suggest widget; chat slash/skill
+		// completions use that kind and rely on the chat module's CSS rule scoped to this class.
+		editorOverflowWidgetsDomNode.classList.add('hideSuggestTextIcons');
 		this._register({ dispose: () => editorOverflowWidgetsDomNode.remove() });
 
 		// Notification widget above the input area

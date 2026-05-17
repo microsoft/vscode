@@ -2591,6 +2591,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			OpenAgentHostPermissionModePickerAction.ID,
 			OpenAgentHostBranchPickerAction.ID,
 			OpenAgentHostIsolationPickerAction.ID,
+			'sessions.tunnelHost.toggleSharing'
 		]);
 		// Direct-rendered chip lane for agent-host config properties that
 		// are advertised by the agent's schema but not handled by a

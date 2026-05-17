@@ -487,6 +487,34 @@ suite('SnippetSession', function () {
 		assert.doesNotThrow(() => session.next());
 	});
 
+	test('snippets, deep merge does not produce phantom cursors (#279349)', function () {
+		// Recursively expanding a snippet (e.g. \sin\left(${1:x}\right)) used to assign
+		// fractional placeholder indicies. After ~16 nestings, double-precision rounding
+		// collapsed distinct placeholders onto the same index, producing a phantom cursor.
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '\\sin\\left(${1:x}\\right) ', undefined, languageConfigurationService);
+		session.insert();
+		for (let i = 0; i < 25; i++) {
+			session.merge('\\sin\\left(${1:x}\\right) ');
+			assert.strictEqual(editor.getSelections()!.length, 1, `selection count after ${i + 1} merges`);
+		}
+	});
+
+	test('snippets, merge preserves mirrors in nested snippet', function () {
+		// Nested snippets that themselves contain mirrors ($1...$1) must still
+		// produce multi-cursor selections after renormalization of placeholder
+		// indicies, since the renormalize step maps each unique old index to a
+		// single new index.
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '(${1:x})', undefined, languageConfigurationService);
+		session.insert();
+		session.merge('${1:y}-${1}');
+		assert.strictEqual(editor.getModel().getValue(), '(y-y)');
+		assert.strictEqual(editor.getSelections()!.length, 2);
+	});
+
 	test('snippets, merge does not throw when placeholder occurrences collapse to same position', function () {
 		// $1$1 places two zero-width occurrences of the same placeholder at the same position;
 		// the editor's cursor normalization collapses these into one selection. Previously this
