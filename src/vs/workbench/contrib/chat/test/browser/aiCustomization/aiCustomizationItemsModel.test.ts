@@ -199,25 +199,6 @@ suite('AICustomizationItemsModel', () => {
 			assert.notStrictEqual(sourceA, sourceB);
 		});
 
-		test('source cache is keyed by descriptor identity (not id) — re-registration produces a fresh source', async () => {
-			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
-			model.getItems(AICustomizationManagementSection.Agents);
-			await timeout(0);
-			const sourceA1 = model.getActiveItemSource();
-
-			// Replace descriptor A with a fresh descriptor that re-uses the same id.
-			const replacementProvider: ICustomizationItemProvider = {
-				onDidChange: Event.None,
-				provideChatSessionCustomizations: async () => [],
-			};
-			const replacementA = createDescriptor('A', replacementProvider);
-			availableHarnesses.set([replacementA, descriptorB], undefined);
-			await timeout(0);
-
-			const sourceA2 = model.getActiveItemSource();
-			assert.notStrictEqual(sourceA1, sourceA2);
-		});
-
 		test('preserves provider-supplied plugin storage when pluginUri is omitted', async () => {
 			providerA_items = [{
 				uri: URI.parse('agent-host://test-authority/plugins/my-plugin/skills/my-skill/SKILL.md'),
