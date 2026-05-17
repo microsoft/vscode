@@ -238,9 +238,8 @@ async function resourcesToClipboard(resources: URI[], kind: 'path' | 'relativePa
 			return;
 		}
 
-		const relative = resources.length > 1 ? false : kind === 'relativePath';
-
 		let separator: '/' | '\\' | undefined = undefined;
+		const relative = resources.length > 1 ? false : kind === 'relativePath';
 		const copyRelativeOrFullPathSeparatorSection = relative ? 'explorer.copyRelativePathSeparator' : 'explorer.copyPathSeparator';
 		const copyRelativeOrFullPathSeparator: '/' | '\\' | undefined = configurationService.getValue(copyRelativeOrFullPathSeparatorSection);
 		if (copyRelativeOrFullPathSeparator === '/' || copyRelativeOrFullPathSeparator === '\\') {

@@ -223,6 +223,7 @@ appendToCommandPalette({
 	title: nls.localize2('copyRelativePathOfActive', "Copy Relative Path of Active File"),
 	category: Categories.File
 }, IsSessionsWindowContext.negate());
+
 appendToCommandPalette({
 	id: SAVE_FILE_COMMAND_ID,
 	title: SAVE_FILE_LABEL,
