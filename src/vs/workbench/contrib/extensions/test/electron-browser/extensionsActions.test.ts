@@ -963,6 +963,32 @@ suite('ExtensionsActions', () => {
 			});
 	});
 
+	test('Test DisableGloballyAction when extension is disabled globally but enabled for workspace', () => {
+		// Regression test for https://github.com/microsoft/vscode/issues/244138:
+		// When an extension is globally disabled but re-enabled only for the current workspace,
+		// DisableGloballyAction must not be enabled — disabling globally again would have no effect.
+		const local = aLocalExtension('a');
+		const enablmentService = instantiationService.get(IWorkbenchExtensionEnablementService);
+		instantiationService.stub(IExtensionService, {
+			extensions: [toExtensionDescription(local)],
+			onDidChangeExtensions: Event.None,
+			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
+		});
+
+		return enablmentService.setEnablement([local], EnablementState.DisabledGlobally)
+			.then(() => enablmentService.setEnablement([local], EnablementState.EnabledWorkspace))
+			.then(() => {
+				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+
+				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
+					.then(extensions => {
+						const testObject: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
+						testObject.extension = extensions[0];
+						assert.ok(!testObject.enabled);
+					});
+			});
+	});
+
 });
 
 suite('ExtensionRuntimeStateAction', () => {
