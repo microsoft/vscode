@@ -18,7 +18,6 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
-import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../common/agentFeedbackAttachments.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction } from '../../common/state/sessionActions.js';
@@ -311,50 +310,19 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
-	test('sends simple attachments as text blobs and restores original user message', async () => {
-		const fileUri = URI.file('/workspace/file.ts');
+	test('sends simple attachments as text blobs and restores them from SDK blobs', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 
 		await session.send('/act-on-feedback', [{
 			type: MessageAttachmentKind.Simple,
 			label: 'Feedback',
-			displayKind: AgentFeedbackAttachmentDisplayKind,
 			modelRepresentation: 'Feedback text for the model',
-			_meta: {
-				[AgentFeedbackAttachmentMetadataKey]: {
-					sessionResource: AgentSession.uri('copilot', 'feedback').toString(),
-					feedbackItems: [{
-						id: 'feedback-1',
-						text: 'Please simplify this.',
-						resourceUri: fileUri.toString(),
-						range: {
-							start: { line: 1, character: 2 },
-							end: { line: 3, character: 4 },
-						},
-					}],
-				},
-			},
 		}]);
 
 		const expectedAttachment = {
 			type: MessageAttachmentKind.Simple,
 			label: 'Feedback',
-			displayKind: AgentFeedbackAttachmentDisplayKind,
 			modelRepresentation: 'Feedback text for the model',
-			_meta: {
-				[AgentFeedbackAttachmentMetadataKey]: {
-					sessionResource: AgentSession.uri('copilot', 'feedback').toString(),
-					feedbackItems: [{
-						id: 'feedback-1',
-						text: 'Please simplify this.',
-						resourceUri: fileUri.toString(),
-						range: {
-							start: { line: 1, character: 2 },
-							end: { line: 3, character: 4 },
-						},
-					}],
-				},
-			},
 		};
 		assert.deepStrictEqual(mockSession.sendRequests, [{
 			prompt: '/act-on-feedback',

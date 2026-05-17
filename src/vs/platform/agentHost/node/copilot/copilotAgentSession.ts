@@ -12,7 +12,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
-import { hasKey, isObject, isString } from '../../../../base/common/types.js';
+import { hasKey, isDefined, isObject, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -36,7 +36,7 @@ import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvide
 import type { ShellManager } from './copilotShellTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
-import { mapSessionEvents, originalUserMessageMetadataKey } from './mapSessionEvents.js';
+import { mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 
 /**
@@ -658,7 +658,6 @@ export class CopilotAgentSession extends Disposable {
 	// ---- session operations -------------------------------------------------
 
 	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode): Promise<void> {
-		const originalUserMessage = attachments?.length ? { text: prompt, attachments: [...attachments] } : undefined;
 		if (turnId) {
 			this._turnId = turnId;
 			this._turnCopilotUsageTotalNanoAiu = 0;
@@ -680,18 +679,15 @@ export class CopilotAgentSession extends Disposable {
 			prompt = slashCommand.rest;
 		}
 
-		const sdkAttachments = attachments
-			? (await Promise.all(attachments.map(a => this._toSdkAttachments(a)))).flat()
+		const sdkAttachments = attachments?.length
+			? (await Promise.all(attachments.map(a => this._toSdkAttachment(a)))).filter(isDefined)
 			: undefined;
 		if (sdkAttachments?.length) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type })))}`);
 		}
 
 		await this.applyMode(mode);
-		const messageId = await this._wrapper.session.send({ prompt, attachments: sdkAttachments });
-		if (messageId && originalUserMessage) {
-			await this._databaseRef.object.setMetadata(originalUserMessageMetadataKey(messageId), JSON.stringify(originalUserMessage));
-		}
+		await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
@@ -710,23 +706,23 @@ export class CopilotAgentSession extends Disposable {
 	 * carries the range, not the inline text). On read failure the
 	 * selection downgrades to a plain file reference.
 	 */
-	private async _toSdkAttachments(attachment: MessageAttachment): Promise<CopilotSdkAttachment[]> {
+	private async _toSdkAttachment(attachment: MessageAttachment): Promise<CopilotSdkAttachment | undefined> {
 		if (attachment.type === MessageAttachmentKind.Simple) {
 			if (attachment.modelRepresentation) {
-				return [{
+				return {
 					type: 'blob' as const,
 					data: encodeBase64(VSBuffer.fromString(attachment.modelRepresentation)),
 					mimeType: 'text/plain',
 					displayName: attachment.label,
-				}];
+				};
 			}
-			return [];
+			return undefined;
 		}
 		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
-			return [{ type: 'blob' as const, data: attachment.data, mimeType: attachment.contentType, displayName: attachment.label }];
+			return { type: 'blob' as const, data: attachment.data, mimeType: attachment.contentType, displayName: attachment.label };
 		}
 		if (attachment.type !== MessageAttachmentKind.Resource) {
-			return [];
+			return undefined;
 		}
 		const uri = URI.parse(attachment.uri);
 		const path = uri.scheme === 'file' ? uri.fsPath : uri.toString();
@@ -734,17 +730,17 @@ export class CopilotAgentSession extends Disposable {
 		if (attachment.displayKind === 'selection' && attachment.selection) {
 			try {
 				const text = await this._readSelectedText(uri, attachment.selection.range);
-				return [{ type: 'selection' as const, filePath: path, displayName, text, selection: attachment.selection.range }];
+				return { type: 'selection' as const, filePath: path, displayName, text, selection: attachment.selection.range };
 			} catch (err) {
 				this._logService.warn(`[Copilot:${this.sessionId}] Failed to read selected text for ${uri.toString()}: ${err}`);
-				return [{ type: 'file' as const, path, displayName }];
+				return { type: 'file' as const, path, displayName };
 			}
 		}
 		if (attachment.displayKind === 'selection') {
-			return [{ type: 'file' as const, path, displayName }];
+			return { type: 'file' as const, path, displayName };
 		}
 		const type = attachment.displayKind === 'directory' ? 'directory' : 'file';
-		return [{ type, path, displayName }];
+		return { type, path, displayName };
 	}
 
 	private async _readSelectedText(uri: URI, range: { readonly start: { readonly line: number; readonly character: number }; readonly end: { readonly line: number; readonly character: number } }): Promise<string> {

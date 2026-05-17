@@ -17,12 +17,6 @@ import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagen
 import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 
-const ORIGINAL_USER_MESSAGE_METADATA_KEY_PREFIX = 'copilot.originalUserMessage.';
-
-export function originalUserMessageMetadataKey(messageId: string): string {
-	return `${ORIGINAL_USER_MESSAGE_METADATA_KEY_PREFIX}${messageId}`;
-}
-
 function tryStringify(value: unknown): string | undefined {
 	try {
 		return JSON.stringify(value);
@@ -337,9 +331,8 @@ export async function mapSessionEvents(
 				}
 				const d = (e as ISessionEventMessage).data;
 				const messageId = d?.messageId ?? d?.interactionId ?? '';
-				const originalUserMessage = await getOriginalUserMessage(db, messageId);
-				const content = originalUserMessage?.text ?? d?.content ?? '';
-				const attachments = originalUserMessage?.attachments ?? sdkAttachmentsToProtocol(d?.attachments);
+				const content = d?.content ?? '';
+				const attachments = sdkAttachmentsToProtocol(d?.attachments);
 				if (d?.parentToolCallId) {
 					// User messages with a parent tool call route into the
 					// subagent's transcript. They never start a new parent
@@ -493,40 +486,16 @@ export async function mapSessionEvents(
 	}
 }
 
-async function getOriginalUserMessage(db: ISessionDatabase | undefined, messageId: string): Promise<UserMessage | undefined> {
-	if (!db || !messageId) {
-		return undefined;
-	}
-	const raw = await db.getMetadata(originalUserMessageMetadataKey(messageId));
-	if (!raw) {
-		return undefined;
-	}
-	try {
-		const parsed = JSON.parse(raw) as Partial<UserMessage>;
-		if (!isString(parsed.text)) {
-			return undefined;
-		}
-		if (parsed.attachments !== undefined && !Array.isArray(parsed.attachments)) {
-			return undefined;
-		}
-		return {
-			text: parsed.text,
-			attachments: parsed.attachments as MessageAttachment[] | undefined,
-		};
-	} catch {
-		return undefined;
-	}
-}
-
 /**
  * Translates the SDK's `UserMessageAttachment[]` payload back into the
- * agent-protocol {@link MessageAttachment} shape. Blob attachments are
- * surfaced as inline {@link MessageAttachmentKind.EmbeddedResource}
- * payloads; file/directory/selection variants reconstruct local
- * `Resource` attachments. We don't try to re-link these to the on-disk
- * snapshots produced by the agent host's attachment rewriter — the SDK
- * keeps a copy of the bytes / paths it actually saw on send, which is
- * the authoritative record for replay.
+ * agent-protocol {@link MessageAttachment} shape. Text blob attachments
+ * surface as {@link MessageAttachmentKind.Simple}; other blobs surface as
+ * inline {@link MessageAttachmentKind.EmbeddedResource} payloads.
+ * File/directory/selection variants reconstruct local `Resource`
+ * attachments. We don't try to re-link these to the on-disk snapshots
+ * produced by the agent host's attachment rewriter — the SDK keeps a
+ * copy of the bytes / paths it actually saw on send, which is the
+ * authoritative record for replay.
  */
 function sdkAttachmentsToProtocol(
 	attachments: readonly ISdkUserMessageAttachment[] | undefined,
