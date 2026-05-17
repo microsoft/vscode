@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* ---------- Nth Match Editor & Terminal Input Boxes ---------- */
 
-
-.monaco-editor .find-widget .matchesCount .editable-nth-match,
-.monaco-findInput.monaco-inputbox.editable-nth-match {
+ /* ---------- Nth Match Input - FindWidget ---------- */
+.nth-match {
 	width: 45px;
 	min-width: 45px;
 	max-width: 60px;
@@ -18,13 +16,11 @@
 	transition: width 300ms ease;
 }
 
-.monaco-editor .find-widget .matchesCount .editable-nth-match.elongated,
-.monaco-findInput.monaco-inputbox.editable-nth-match.elongated {
+.nth-match.elongated {
 	width: 60px;
 }
 
-.monaco-editor .find-widget .matchesCount .editable-nth-match input,
-.monaco-findInput.monaco-inputbox.editable-nth-match input {
+.nth-match input {
 	text-align: center;
 	overflow-x: hidden;
 	text-overflow: clip;
@@ -32,7 +28,7 @@
 }
 
 
-/* ---------- Nth Match Terminal Input Box ---------- */
-.monaco-findInput.monaco-inputbox.editable-nth-match {
+/* ---------- Nth Match Input - SimpleFindWidget ---------- */
+.nth-match.simple-nth-match {
 	bottom: unset;
 }

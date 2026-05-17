@@ -6,13 +6,14 @@
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { IKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { alert as alertFn } from '../../../../../../base/browser/ui/aria/aria.js';
+import { MATCHES_LIMIT } from '../../../../../../base/browser/ui/findinput/findContants.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import * as strings from '../../../../../../base/common/strings.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { FindMatch } from '../../../../../../editor/common/model.js';
-import { MATCHES_LIMIT, CONTEXT_FIND_WIDGET_VISIBLE } from '../../../../../../editor/contrib/find/browser/findModel.js';
+import { CONTEXT_FIND_WIDGET_VISIBLE } from '../../../../../../editor/contrib/find/browser/findModel.js';
 import { FindReplaceState } from '../../../../../../editor/contrib/find/browser/findState.js';
 import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from '../../../../../../editor/contrib/find/browser/findWidget.js';
 import { FindWidgetSearchHistory } from '../../../../../../editor/contrib/find/browser/findWidgetSearchHistory.js';

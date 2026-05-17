@@ -142,12 +142,12 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		}
 	}
 
-	public override findNth(nthMatchPosition: number): void {
+	public override findNth(n: number): void {
 		const xterm = this._instance.xterm;
 		if (!xterm) {
 			return;
 		}
-		this._findNthWithEvent(xterm, this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), nthMatchPosition: nthMatchPosition });
+		this._findNthWithEvent(xterm, this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), n });
 	}
 
 	override reveal(): void {
@@ -252,9 +252,8 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	private async _findNthWithEvent(xterm: IXtermTerminal, term: string, options: ISearchOptions): Promise<boolean> {
-		return xterm.findNth(term, options).then(foundMatch => {
-			this._register(Event.once(xterm.onDidChangeSelection)(() => xterm.clearActiveSearchDecoration()));
-			return foundMatch;
-		});
+		const foundMatch = await xterm.findNth(term, options);
+		this._registerSelectionChangeListener(xterm);
+		return foundMatch;
 	}
 }

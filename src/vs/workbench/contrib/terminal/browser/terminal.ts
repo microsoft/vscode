@@ -813,7 +813,7 @@ export interface ISearchOptions {
 	incremental?: boolean;
 
 	/** The 1-based index of the desired match relative to its peer matches */
-	nthMatchPosition?: number;
+	n?: number;
 }
 
 export interface ITerminalInstance extends IBaseTerminalInstance {

@@ -24,6 +24,7 @@ import { ReplaceAllCommand } from './replaceAllCommand.js';
 import { parseReplaceString, ReplacePattern } from './replacePattern.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindings } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { MATCHES_LIMIT } from '../../../../base/browser/ui/findinput/findContants.js';
 
 export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
 export const CONTEXT_FIND_WIDGET_NOT_VISIBLE = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
@@ -65,8 +66,8 @@ export const FIND_IDS = {
 	NextMatchFindAction: 'editor.action.nextMatchFindAction',
 	PreviousMatchFindAction: 'editor.action.previousMatchFindAction',
 	GoToMatchFindAction: 'editor.action.goToMatchFindAction',
-	GoToEditableNthMatchFindAction: 'editor.action.goToEditableNthMatchFindAction',
-	GoToLastMatchFindAction: 'editor.action.goToLastMatchFindAction',
+	NthMatchFindAction: 'editor.action.nthMatchFindAction',
+	LastMatchFindAction: 'editor.action.lastMatchFindAction',
 	NextSelectionMatchFindAction: 'editor.action.nextSelectionMatchFindAction',
 	PreviousSelectionMatchFindAction: 'editor.action.previousSelectionMatchFindAction',
 	StartFindReplaceAction: 'editor.action.startFindReplaceAction',
@@ -81,7 +82,6 @@ export const FIND_IDS = {
 	SelectAllMatchesAction: 'editor.action.selectAllMatches'
 };
 
-export const MATCHES_LIMIT = 19999;
 const RESEARCH_DELAY = 240;
 
 export class FindModelBoundToEditorModel {

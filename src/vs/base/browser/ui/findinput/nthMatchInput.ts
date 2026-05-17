@@ -6,7 +6,6 @@
 import * as dom from '../../dom.js';
 import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { IMouseEvent } from '../../mouseEvent.js';
-import { IToggleStyles } from '../toggle/toggle.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
 import { InputBox, IInputBoxStyles, IMessage as InputBoxMessage } from '../inputbox/inputBox.js';
 import { Widget } from '../widget.js';
@@ -14,27 +13,21 @@ import { Emitter, Event } from '../../../common/event.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import './nthMatchInput.css';
 import * as nls from '../../../../nls.js';
-import { MATCHES_LIMIT } from '../../../../editor/contrib/find/browser/findModel.js';
+import { MATCHES_LIMIT } from './findContants.js';
 
 export interface INthMatchInputOptions {
 	readonly placeholder?: string;
 	readonly tooltip?: string;
-	readonly width?: number;
 	readonly label: string;
 	readonly type: 'text';
 	readonly min?: number;
 	readonly max?: number;
-	readonly flexibleHeight?: boolean;
-	readonly flexibleWidth?: boolean;
-	readonly flexibleMaxHeight?: number;
 
-	readonly showCommonFindToggles?: boolean;
-	readonly toggleStyles: IToggleStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
 }
 
 export interface IStepEvent {
-	direction: 'up' | 'down';
+	to: 'previous' | 'next';
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -79,9 +72,6 @@ export class NthMatchInput extends Widget {
 		this.type = options.type || 'text';
 		this.min = options.min || 1;
 		this.max = options.max || MATCHES_LIMIT;
-		const flexibleHeight = !!options.flexibleHeight;
-		const flexibleWidth = !!options.flexibleWidth;
-		const flexibleMaxHeight = options.flexibleMaxHeight;
 
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('monaco-findInput');
@@ -90,20 +80,17 @@ export class NthMatchInput extends Widget {
 			placeholder: this.placeholder || '',
 			tooltip: this.tooltip || '',
 			ariaLabel: this.label || '',
-			flexibleHeight,
-			flexibleWidth,
-			flexibleMaxHeight,
 			inputBoxStyles: options.inputBoxStyles,
 			type: this.type
 		}));
 
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
-			// Arrow-Key support to step the match position up or down
+			// Arrow-Key support for stepping to the previous match or to the next one.
 			if (event.equals(KeyCode.UpArrow)) {
-				this._onStep.fire({ direction: 'down' });
+				this._onStep.fire({ to: 'previous' });
 			}
 			else if (event.equals(KeyCode.DownArrow)) {
-				this._onStep.fire({ direction: 'up' });
+				this._onStep.fire({ to: 'next' });
 			}
 		});
 
@@ -144,14 +131,12 @@ export class NthMatchInput extends Widget {
 	public updateInputWrapperWidth() {
 		const currentInputValue = `${this.getSanitizedCurrentValue()}`;
 		const containerElem = (this.inputBox.element.parentElement as HTMLElement);
-		console.log('nthMatchInput.updateInputWrapperWidth() ---> currentInputValue', currentInputValue);
 		if ((currentInputValue.length >= 5)) {
 			if (!containerElem.classList.contains('elongated')) {
 				containerElem.classList.add(...['elongated']);
 			}
 		}
 		else if (currentInputValue.length <= 4) {
-			console.log('nthMatchInput.updateInputWrapperWidth() ---> length <= 3 ---> classList AFTER classList change', containerElem?.classList);
 			if (containerElem.classList.contains('elongated')) {
 				containerElem.classList.remove(...['elongated']);
 			}
