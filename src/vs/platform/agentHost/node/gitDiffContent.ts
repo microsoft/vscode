@@ -47,7 +47,6 @@ export function parseGitBlobUri(raw: string): IGitBlobUriFields | undefined {
 	if (parsed.scheme !== GIT_BLOB_SCHEME) {
 		return undefined;
 	}
-
 	const [, sha, encodedPath] = parsed.path.split('/');
 	if (!sha || !encodedPath) {
 		return undefined;
