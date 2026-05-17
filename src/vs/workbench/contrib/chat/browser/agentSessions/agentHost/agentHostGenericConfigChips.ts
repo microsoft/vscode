@@ -162,14 +162,15 @@ export class AgentHostGenericConfigChips extends Disposable {
 	}
 
 	private _readSchemaProperties(): readonly [string, SessionConfigPropertySchema][] | undefined {
+		const sessionResource = this._widget.viewModel?.sessionResource;
 		if (this._subRef.value) {
 			const state = this._subRef.value.sub.value;
 			if (!state || state instanceof Error || !state.config) {
 				return undefined;
 			}
-			return Object.entries(state.config.schema.properties);
+			const overlay = sessionResource ? this._provisional.getResolvedConfig(sessionResource) : undefined;
+			return Object.entries((overlay?.schema ?? state.config.schema).properties);
 		}
-		const sessionResource = this._widget.viewModel?.sessionResource;
 		if (this._initialResolved && sessionResource && this._initialResolved.sessionResource.toString() === sessionResource.toString()) {
 			return Object.entries(this._initialResolved.result.schema.properties);
 		}

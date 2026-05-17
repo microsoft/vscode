@@ -3949,6 +3949,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	line-height: 1.4;
 }
 
+.monaco-workbench .chat-model-hover-description .codicon[class*='codicon-'] {
+	vertical-align: middle;
+	font-size: 12px;
+}
+
 .chat-model-hover-description > div p {
 	margin: 0;
 }

@@ -17,6 +17,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
+import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 
 /**
  * Callback the agent supplies via {@link ClaudeSdkPipeline.attachRematerializer}
@@ -109,6 +110,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		warm: WarmQuery,
 		abortController: AbortController,
 		dbRef: IReference<ISessionDatabase>,
+		subagents: SubagentRegistry,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -127,7 +129,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
-			ClaudeSdkMessageRouter, sessionUri, dbRef,
+			ClaudeSdkMessageRouter, sessionUri, dbRef, subagents,
 		));
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*

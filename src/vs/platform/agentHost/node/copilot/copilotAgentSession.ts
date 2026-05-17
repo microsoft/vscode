@@ -32,6 +32,7 @@ import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind,
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeRequestParams, IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
+import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { ShellManager } from './copilotShellTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
@@ -616,9 +617,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const binaryResults = result.content
 			?.filter(c => c.type === ToolResultContentType.EmbeddedResource)
-			.map(c => {
-				return { data: c.data, mimeType: c.contentType, type: c.contentType };
-			});
+			.map(c => ({ data: c.data, mimeType: c.contentType, type: /^image(\/|$)/.test(c.contentType) ? 'image' : 'resource' }));
 
 		if (result.success) {
 			deferred.complete({
@@ -664,6 +663,21 @@ export class CopilotAgentSession extends Disposable {
 			this._turnCopilotUsageTotalNanoAiu = 0;
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
+
+		const slashCommand = parseLeadingSlashCommand(prompt);
+		if (slashCommand?.command === 'compact') {
+			try {
+				await this._wrapper.session.rpc.history.compact();
+			} catch (err) {
+				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.history.compact failed`);
+				throw err;
+			}
+			return;
+		}
+		if (slashCommand?.command === 'plan') {
+			mode = 'plan';
+			prompt = slashCommand.rest;
+		}
 
 		const sdkAttachments = attachments
 			? (await Promise.all(attachments.map(a => this._toSdkAttachment(a))))

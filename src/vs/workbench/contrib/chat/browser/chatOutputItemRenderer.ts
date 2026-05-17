@@ -14,14 +14,15 @@ import { Disposable, DisposableStore, IDisposable } from '../../../../base/commo
 import { autorun } from '../../../../base/common/observable.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import * as nls from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWebview, IWebviewService, WebviewContentPurpose } from '../../../contrib/webview/browser/webview.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ExtensionKeyedWebviewOriginStore, IWebview, IWebviewService, WebviewContentPurpose } from '../../../contrib/webview/browser/webview.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry, IExtensionPointUser } from '../../../services/extensions/common/extensionsRegistry.js';
+import { IChatWidgetService } from './chat.js';
 
 export interface IChatOutputItemRenderer {
 	renderOutputPart(mime: string, data: Uint8Array, webview: IWebview, context: IChatOutputRenderContext, token: CancellationToken): Promise<void>;
@@ -51,7 +52,7 @@ export interface IChatOutputRendererService {
 
 	renderOutputPart(mime: string, data: Uint8Array, parent: HTMLElement, webviewOptions: RenderOutputPartWebviewOptions, token: CancellationToken): Promise<RenderedOutputPart>;
 
-	renderCodeBlock(languageIdentifier: string, data: Uint8Array, parent: HTMLElement, webviewOptions: RenderOutputPartWebviewOptions, token: CancellationToken): Promise<RenderedOutputPart>;
+	renderCodeBlock(languageIdentifier: string, data: Uint8Array, parent: HTMLElement, webviewOptions: RenderCodeBlockWebviewOptions, token: CancellationToken): Promise<RenderedOutputPart>;
 }
 
 export interface RenderedOutputPart extends IDisposable {
@@ -63,8 +64,12 @@ export interface RenderedOutputPart extends IDisposable {
 
 interface RenderOutputPartWebviewOptions {
 	readonly title?: string;
-	readonly origin?: string;
 	readonly webviewState?: string;
+	readonly chatSessionResource?: URI;
+}
+
+interface RenderCodeBlockWebviewOptions extends RenderOutputPartWebviewOptions {
+	readonly chatSessionResource: URI;
 }
 
 interface ContributionEntry {
@@ -81,6 +86,8 @@ interface RendererEntry {
 export class ChatOutputRendererService extends Disposable implements IChatOutputRendererService {
 	_serviceBrand: undefined;
 
+	private readonly _originStore: ExtensionKeyedWebviewOriginStore;
+
 	private readonly _contributions = new Map</*viewType*/ string, ContributionEntry>();
 
 	private readonly _renderers = new Map</*viewType*/ string, RendererEntry>();
@@ -89,8 +96,11 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
+		this._originStore = new ExtensionKeyedWebviewOriginStore('chatOutputRenderer.origins', storageService);
 
 		this._register(chatOutputRenderContributionPoint.setHandler(extensions => {
 			this.updateContributions(extensions);
@@ -123,7 +133,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 		return this.doRenderOutputPart(rendererData, mime, data, {}, parent, webviewOptions, token);
 	}
 
-	async renderCodeBlock(languageIdentifier: string, data: Uint8Array, parent: HTMLElement, webviewOptions: RenderOutputPartWebviewOptions, token: CancellationToken): Promise<RenderedOutputPart> {
+	async renderCodeBlock(languageIdentifier: string, data: Uint8Array, parent: HTMLElement, webviewOptions: RenderCodeBlockWebviewOptions, token: CancellationToken): Promise<RenderedOutputPart> {
 		const rendererData = await this.getRendererForCodeBlock(languageIdentifier, token);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -142,7 +152,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 
 		const webview = store.add(this._webviewService.createWebviewElement({
 			title: webviewOptions.title ?? '',
-			origin: webviewOptions.origin ?? generateUuid(),
+			origin: this.getOrigin(rendererData),
 			providedViewType: rendererData.viewType,
 			options: {
 				enableFindWidget: false,
@@ -153,6 +163,9 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 			extension: rendererData.options.extension ? rendererData.options.extension : undefined,
 		}));
 		webview.setContextKeyService(store.add(this._contextKeyService.createScoped(parent)));
+		if (webviewOptions.chatSessionResource) {
+			store.add(this.delegateScrollToChatWidget(webview, webviewOptions.chatSessionResource));
+		}
 
 		const onDidChangeHeight = store.add(new Emitter<number>());
 		store.add(autorun(reader => {
@@ -180,6 +193,20 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 				webview.reinitializeAfterDismount();
 			},
 		};
+	}
+
+	private delegateScrollToChatWidget(webview: IWebview, chatSessionResource: URI): IDisposable {
+		return webview.onDidWheel(e => {
+			this._chatWidgetService.getWidgetBySessionResource(chatSessionResource)?.delegateScrollFromMouseWheelEvent({
+				...e,
+				preventDefault: () => { },
+				stopPropagation: () => { }
+			});
+		});
+	}
+
+	private getOrigin(rendererData: RendererEntry): string | undefined {
+		return rendererData.options.extension ? this._originStore.getOrigin(rendererData.viewType, rendererData.options.extension.id) : undefined;
 	}
 
 	private async getRendererForMime(mime: string, token: CancellationToken): Promise<RendererEntry | undefined> {
