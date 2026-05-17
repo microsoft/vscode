@@ -261,7 +261,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 
 	private pruneSourceCache(activeSessionResource: URI): void {
 		for (const sessionResource of this.sourceCache.keys()) {
-			if (isEqual(sessionResource, activeSessionResource)) {
+			if (!isEqual(sessionResource, activeSessionResource)) {
 				this.sourceCache.delete(sessionResource);
 			}
 		}
