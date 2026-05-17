@@ -194,7 +194,8 @@ suite('MainThreadHostTreeView', function () {
 
 		viewsService.setFocusedView(<ICustomViewDescriptor>{
 			id: testTreeViewId,
-			extensionId: new ExtensionIdentifier('test.extension')
+			extensionId: new ExtensionIdentifier('test.extension'),
+			treeView: (<ITreeViewDescriptor>ViewsRegistry.getView(testTreeViewId)).treeView
 		});
 
 		assert.strictEqual(proxy.callCount, 1);
@@ -221,7 +222,8 @@ suite('MainThreadHostTreeView', function () {
 
 		const view1 = <ICustomViewDescriptor>{
 			id: testTreeViewId,
-			extensionId: new ExtensionIdentifier('test.extension')
+			extensionId: new ExtensionIdentifier('test.extension'),
+			treeView: (<ITreeViewDescriptor>ViewsRegistry.getView(testTreeViewId)).treeView
 		};
 
 		viewsService.setFocusedView(view1);
@@ -231,6 +233,17 @@ suite('MainThreadHostTreeView', function () {
 		assert.strictEqual(proxy.callCount, 2);
 		assert.strictEqual(proxy.firstCall.args[0], testTreeViewId);
 		assert.strictEqual(proxy.secondCall.args[0], undefined);
+	});
+
+	test('ignores extension-contributed non-tree views', () => {
+		const proxy = sinon.spy(extHostTreeViewsShape, '$setFocusedTreeView');
+
+		viewsService.setFocusedView(<ICustomViewDescriptor>{
+			id: 'webview',
+			extensionId: new ExtensionIdentifier('test.extension')
+		});
+
+		assert.strictEqual(proxy.callCount, 0);
 	});
 
 });
