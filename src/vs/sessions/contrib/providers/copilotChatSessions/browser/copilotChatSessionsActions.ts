@@ -469,7 +469,7 @@ export function getAvailableModels(
 	// models (those without a targetChatSessionType) since no extension
 	// registers models specifically targeting the 'local' session type.
 	if (session.sessionType === SessionType.Local) {
-		return allModels.filter(m => !m.metadata.targetChatSessionType && m.metadata.isUserSelectable);
+		return allModels.filter(m => !m.metadata.targetChatSessionType && m.metadata.isUserSelectable !== false);
 	}
 
 	return allModels.filter(m => m.metadata.targetChatSessionType === session.sessionType);

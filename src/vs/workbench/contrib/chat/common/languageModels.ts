@@ -411,6 +411,11 @@ export interface ILanguageModelsService {
 	setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void>;
 
 	/**
+	 * Updates whether the given model is shown in model pickers.
+	 */
+	setModelPickerVisibility(modelId: string, visible: boolean): Promise<void>;
+
+	/**
 	 * Returns actions for configuring the given model based on its configuration schema.
 	 * For enum properties, returns submenu actions with checkable values.
 	 * Returns an empty array if the model has no configuration schema.
@@ -597,6 +602,7 @@ const CHAT_MODEL_PINNED_STORAGE_KEY = 'chatModelPinned';
 const AUTO_MODEL_IDENTIFIER = 'copilot/auto';
 const CHAT_PARTICIPANT_NAME_REGISTRY_STORAGE_KEY = 'chat.participantNameRegistry';
 const CHAT_MODELS_CONTROL_STORAGE_KEY = 'chat.modelsControl';
+const MODEL_PICKER_VISIBILITY_SETTING = 'isUserSelectable';
 
 interface IChatControlResponse {
 	readonly version: number;
@@ -875,11 +881,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 				// Instead, apply the per-model config to the already-resolved models.
 				if (!vendor.configuration && allModels.length > 0) {
 					if (group.settings) {
-						for (const model of allModels) {
+						for (let i = 0; i < allModels.length; i++) {
+							const model = allModels[i];
 							const modelConfig = group.settings[model.metadata.id];
 							if (modelConfig) {
+								allModels[i] = this._applyModelSettings(model, modelConfig);
 								// Store raw config (without resolving secrets) to avoid leaking secrets on persist
-								perModelConfigurations.set(model.identifier, { ...modelConfig });
+								const providerConfig = this._getProviderModelConfiguration(modelConfig);
+								if (Object.keys(providerConfig).length > 0) {
+									perModelConfigurations.set(model.identifier, providerConfig);
+								}
 							}
 						}
 					}
@@ -902,6 +913,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 							if (!models[i].metadata.detail) {
 								models[i] = { ...models[i], metadata: { ...models[i].metadata, detail: group.name } };
 							}
+							const modelConfig = group.settings?.[models[i].metadata.id];
+							if (modelConfig) {
+								models[i] = this._applyModelSettings(models[i], modelConfig);
+							}
 						}
 						allModels.push(...models);
 						languageModelsGroups.push({ group, modelIdentifiers: models.map(m => m.identifier) });
@@ -913,7 +928,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 							const modelConfig = group.settings[model.metadata.id];
 							if (modelConfig) {
 								// Store raw config (without resolving secrets) to avoid leaking secrets on persist
-								perModelConfigurations.set(model.identifier, { ...modelConfig });
+								const providerConfig = this._getProviderModelConfiguration(modelConfig);
+								if (Object.keys(providerConfig).length > 0) {
+									perModelConfigurations.set(model.identifier, providerConfig);
+								}
 							}
 						}
 					}
@@ -983,6 +1001,20 @@ export class LanguageModelsService implements ILanguageModelsService {
 			}
 		}
 		return false;
+	}
+
+	private _applyModelSettings<T extends ILanguageModelChatMetadataAndIdentifier>(model: T, settings: IStringDictionary<unknown>): T {
+		const isUserSelectable = settings[MODEL_PICKER_VISIBILITY_SETTING];
+		if (typeof isUserSelectable === 'boolean') {
+			return { ...model, metadata: { ...model.metadata, isUserSelectable } };
+		}
+		return model;
+	}
+
+	private _getProviderModelConfiguration(settings: IStringDictionary<unknown>): IStringDictionary<unknown> {
+		const providerConfiguration = { ...settings };
+		delete providerConfiguration[MODEL_PICKER_VISIBILITY_SETTING];
+		return providerConfiguration;
 	}
 
 	getLanguageModelGroups(vendor: string): ILanguageModelsGroup[] {
@@ -1115,8 +1147,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 			group = allGroups.find(g => g.vendor === metadata.vendor);
 		}
 
-		// Merge new values into existing config, removing properties set to their schema default
-		const existingConfig = this._modelConfigurations.get(modelId) ?? {};
+		// Merge new values into existing config, preserving model picker visibility
+		// overrides that share the same persisted settings object.
+		const existingConfig = {
+			...(group?.settings?.[metadata.id] ?? {}),
+			...(this._modelConfigurations.get(modelId) ?? {})
+		};
 		const updatedConfig = { ...existingConfig, ...values };
 		const schema = metadata.configurationSchema;
 		if (schema?.properties) {
@@ -1163,14 +1199,55 @@ export class LanguageModelsService implements ILanguageModelsService {
 			await this._languageModelsConfigurationService.addLanguageModelsProviderGroup(newGroup);
 		}
 
-		// Update the in-memory cache
-		if (Object.keys(updatedConfig).length > 0) {
-			this._modelConfigurations.set(modelId, updatedConfig);
+		// Update the in-memory provider configuration cache.
+		const providerConfig = this._getProviderModelConfiguration(updatedConfig);
+		if (Object.keys(providerConfig).length > 0) {
+			this._modelConfigurations.set(modelId, providerConfig);
 		} else {
 			this._modelConfigurations.delete(modelId);
 		}
 
 		// Notify listeners so UI (e.g., model picker label) updates
+		this._onLanguageModelChange.fire(metadata.vendor);
+	}
+
+	async setModelPickerVisibility(modelId: string, visible: boolean): Promise<void> {
+		const metadata = this._modelCache.get(modelId);
+		if (!metadata) {
+			return;
+		}
+
+		const allGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
+		let group = allGroups.find(g => g.vendor === metadata.vendor && g.settings?.[metadata.id] !== undefined);
+		if (!group) {
+			group = allGroups.find(g => g.vendor === metadata.vendor);
+		}
+
+		const existingSettings = (group?.settings as IStringDictionary<IStringDictionary<unknown>> | undefined) ?? {};
+		const updatedModelSettings = {
+			...(existingSettings[metadata.id] ?? {}),
+			[MODEL_PICKER_VISIBILITY_SETTING]: visible
+		};
+		const updatedSettings = { ...existingSettings, [metadata.id]: updatedModelSettings };
+
+		if (group) {
+			await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(group, {
+				...group,
+				settings: updatedSettings
+			});
+		} else {
+			const vendor = this._vendors.get(metadata.vendor);
+			if (!vendor) {
+				return;
+			}
+			await this._languageModelsConfigurationService.addLanguageModelsProviderGroup({
+				name: vendor.displayName,
+				vendor: metadata.vendor,
+				settings: updatedSettings
+			});
+		}
+
+		this._modelCache.set(modelId, { ...metadata, isUserSelectable: visible });
 		this._onLanguageModelChange.fire(metadata.vendor);
 	}
 

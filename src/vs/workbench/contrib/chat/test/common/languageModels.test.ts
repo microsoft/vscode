@@ -771,7 +771,7 @@ suite('LanguageModels - Per-Model Configuration', function () {
 						vendor: 'config-vendor',
 						name: 'default',
 						settings: {
-							'model-a': { temperature: 0.7, reasoningEffort: 'high' },
+							'model-a': { temperature: 0.7, reasoningEffort: 'high', isUserSelectable: false },
 							'model-b': { temperature: 0.2 }
 						}
 					}];
@@ -858,6 +858,11 @@ suite('LanguageModels - Per-Model Configuration', function () {
 		assert.deepStrictEqual(configB, { temperature: 0.2 });
 	});
 
+	test('model picker visibility setting updates metadata but is not provider configuration', function () {
+		assert.strictEqual(languageModelsService.lookupLanguageModel('config-vendor/default/model-a')?.isUserSelectable, false);
+		assert.deepStrictEqual(languageModelsService.getModelConfiguration('config-vendor/default/model-a'), { temperature: 0.7, reasoningEffort: 'high', maxTokens: 4096 });
+	});
+
 	test('getModelConfiguration returns undefined for unknown model', function () {
 		const config = languageModelsService.getModelConfiguration('config-vendor/default/model-c');
 		assert.strictEqual(config, undefined);
@@ -891,6 +896,91 @@ suite('LanguageModels - Per-Model Configuration', function () {
 		await request.result;
 
 		assert.deepStrictEqual(receivedOptions, { configuration: { temperature: 0.2 } });
+	});
+});
+
+suite('LanguageModels - Model Picker Visibility', function () {
+
+	const disposables = new DisposableStore();
+
+	teardown(function () {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('setModelPickerVisibility persists and applies model visibility overrides', async function () {
+		const groups: ILanguageModelsProviderGroup[] = [];
+		const languageModelsService = disposables.add(new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() {
+					return Promise.resolve();
+				}
+			},
+			new NullLogService(),
+			disposables.add(new TestStorageService()),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() {
+					return groups;
+				}
+				override async addLanguageModelsProviderGroup(group: ILanguageModelsProviderGroup) {
+					groups.push(group);
+					return group;
+				}
+				override async updateLanguageModelsProviderGroup(from: ILanguageModelsProviderGroup, to: ILanguageModelsProviderGroup) {
+					const index = groups.indexOf(from);
+					if (index >= 0) {
+						groups[index] = to;
+					}
+					return to;
+				}
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+		));
+
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'visible-vendor', displayName: 'Visible Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		disposables.add(languageModelsService.registerLanguageModelProvider('visible-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [{
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Model',
+					vendor: 'visible-vendor',
+					family: 'family',
+					version: '1.0',
+					id: 'model',
+					maxInputTokens: 100,
+					maxOutputTokens: 100,
+					isDefaultForLocation: {}
+				} satisfies ILanguageModelChatMetadata,
+				identifier: 'visible-vendor/model'
+			}],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		await languageModelsService.selectLanguageModels({});
+		assert.notStrictEqual(languageModelsService.lookupLanguageModel('visible-vendor/model')?.isUserSelectable, false);
+
+		await languageModelsService.setModelPickerVisibility('visible-vendor/model', false);
+		assert.strictEqual(groups[0].settings?.['model']?.isUserSelectable, false);
+		assert.strictEqual(languageModelsService.lookupLanguageModel('visible-vendor/model')?.isUserSelectable, false);
+		assert.strictEqual(languageModelsService.getModelConfiguration('visible-vendor/model'), undefined);
+
+		await languageModelsService.selectLanguageModels({});
+		assert.strictEqual(languageModelsService.lookupLanguageModel('visible-vendor/model')?.isUserSelectable, false);
+
+		await languageModelsService.setModelPickerVisibility('visible-vendor/model', true);
+		assert.strictEqual(groups[0].settings?.['model']?.isUserSelectable, true);
+		assert.strictEqual(languageModelsService.lookupLanguageModel('visible-vendor/model')?.isUserSelectable, true);
 	});
 });
 
