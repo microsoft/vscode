@@ -16,7 +16,7 @@ import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvide
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { getAgentHostConfiguredCustomizations } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -131,6 +131,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			actions: this._getItemActions?.(customization, clientId),
 		};
 	}
+	private _resolveSessionUri(sessionResource: URI): URI {
+		const rawId = sessionResource.path.substring(1);
+		return AgentSession.uri(this._agentInfo.provider, rawId);
+	}
 
 	async provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[]> {
 		const items = new Map<string, ICustomizationItem>();
@@ -144,7 +148,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			items.set(customizationItemKey(customization, undefined), item);
 			plugins.push({ item, nonce: customization.nonce, status: undefined, statusMessage: undefined, enabled: undefined, childGroupKey: REMOTE_HOST_GROUP, isBundleItem: false });
 		}
-		const sessionCustomizations = this._sessionCustomizationsCache.get(sessionResource.toString()) ?? [];
+		const sessionUri = this._resolveSessionUri(sessionResource);
+		const sessionCustomizations = this._sessionCustomizationsCache.get(sessionUri.toString()) ?? [];
 		for (const sessionCustomization of sessionCustomizations) {
 			const isBundleItem = isSyntheticBundle(sessionCustomization.customization);
 			const isClientSynced = sessionCustomization.clientId !== undefined;
