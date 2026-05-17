@@ -603,7 +603,7 @@ suite('LocalAgentsSessionsController', () => {
 				mockModel.setRequestInProgress(true);
 				await onDidChangeChatSessionItems;
 
-				assert.strictEqual(changeEventCount, 2);
+				assert.strictEqual(changeEventCount, 3);
 			});
 		});
 
@@ -627,14 +627,49 @@ suite('LocalAgentsSessionsController', () => {
 					changeEventCount++;
 				}));
 				await controller.refresh(CancellationToken.None);
-				assert.strictEqual(changeEventCount, 0);
+				assert.strictEqual(changeEventCount, 1); // 1 from refresh detecting the new session
 
 				const onDidChangeChatSessionItems = Event.toPromise(controller.onDidChangeChatSessionItems);
 
 				mockModel.setRequestInProgress(true);
 
 				await onDidChangeChatSessionItems;
-				assert.strictEqual(changeEventCount, 1);
+				assert.strictEqual(changeEventCount, 2);
+			});
+		});
+
+		test('should fire onDidChangeChatSessionItems when refresh discovers new sessions', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = createController();
+
+				const sessionResource1 = LocalChatSessionUri.forSession('session-1');
+				const mockModel1 = createMockChatModel({ sessionResource: sessionResource1, hasRequests: true });
+				mockChatService.addSession(mockModel1);
+				mockChatService.setLiveSessionItems([await chatModelToChatDetail(mockModel1)]);
+
+				// Initial refresh populates _items
+				await controller.refresh(CancellationToken.None);
+				assert.strictEqual(controller.items.length, 1);
+
+				// Simulate a forked session appearing (new model added, live items updated)
+				const sessionResource2 = LocalChatSessionUri.forSession('session-2-forked');
+				const mockModel2 = createMockChatModel({ sessionResource: sessionResource2, hasRequests: true, customTitle: 'Forked: Test Chat Title' });
+				mockChatService.addSession(mockModel2);
+				mockChatService.setLiveSessionItems([
+					await chatModelToChatDetail(mockModel1),
+					await chatModelToChatDetail(mockModel2),
+				]);
+
+				const fired: { addedOrUpdated?: readonly IChatSessionItem[]; removed?: readonly URI[] }[] = [];
+				disposables.add(controller.onDidChangeChatSessionItems(delta => fired.push(delta)));
+
+				await controller.refresh(CancellationToken.None);
+
+				assert.strictEqual(controller.items.length, 2);
+				// The event must have fired with the new (forked) session
+				const addedResources = fired.flatMap(d => d.addedOrUpdated ?? []).map(i => i.resource.toString());
+				assert.ok(addedResources.includes(sessionResource2.toString()), 'forked session should appear in addedOrUpdated');
+				assert.ok(!addedResources.includes(sessionResource1.toString()), 'existing session should not appear in addedOrUpdated');
 			});
 		});
 
