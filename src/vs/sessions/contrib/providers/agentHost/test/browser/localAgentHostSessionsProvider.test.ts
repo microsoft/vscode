@@ -1306,6 +1306,39 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(changes[0].changed.length, 1);
 	});
 
+	test('SessionSummaryChanged notification updates cached model', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'summary-model-change', { title: 'Summary Model Change', model: 'old-model' });
+
+		const target = provider.getSessions().find(s => s.title.get() === 'Summary Model Change');
+		assert.ok(target);
+
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		const backendSession = AgentSession.uri('copilotcli', 'summary-model-change').toString();
+		agentHost.fireNotification({
+			channel: 'ahp-root://',
+			type: NotificationType.SessionSummaryChanged,
+			session: backendSession,
+			changes: { model: { id: 'new-model' } },
+		});
+		agentHost.fireNotification({
+			channel: 'ahp-root://',
+			type: NotificationType.SessionSummaryChanged,
+			session: backendSession,
+			changes: { model: undefined },
+		});
+
+		assert.deepStrictEqual({
+			modelId: target!.modelId.get(),
+			changedSessionIds: changes.flatMap(e => e.changed.map(s => s.sessionId)),
+		}, {
+			modelId: undefined,
+			changedSessionIds: [target!.sessionId, target!.sessionId],
+		});
+	});
+
 	// ---- Refresh on turnComplete -------
 
 	test('turnComplete action triggers session refresh', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

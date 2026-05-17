@@ -89,10 +89,16 @@ export function resolveAgentHostModel(
 	models: readonly ILanguageModelChatMetadataAndIdentifier[],
 	sessionModelId: string | undefined,
 	storedModelId: string | undefined,
+	currentModelId?: string,
 ): ILanguageModelChatMetadataAndIdentifier | undefined {
 	const sessionModel = sessionModelId ? models.find(model => model.identifier === sessionModelId) : undefined;
 	if (sessionModel) {
 		return sessionModel;
+	}
+
+	const currentModel = currentModelId ? models.find(model => model.identifier === currentModelId) : undefined;
+	if (currentModel) {
+		return currentModel;
 	}
 
 	return storedModelId ? models.find(model => model.identifier === storedModelId) : undefined;
@@ -117,6 +123,8 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 			Menus.NewSessionConfig, 'sessions.agentHost.modelPicker',
 			(_action, _options, scopedInstantiationService) => {
 				const currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentModel', undefined);
+				let lastResourceScheme: string | undefined;
+				let lastPushedSessionId: string | undefined;
 				let settingModelInternally = false;
 				const delegate: IModelPickerDelegate = {
 					currentModel,
@@ -128,6 +136,7 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 							storageService.store(agentHostModelPickerStorageKey(session.resource.scheme), model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 							const provider = sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
 							provider?.setModel(session.sessionId, model.identifier);
+							lastPushedSessionId = session.sessionId;
 						}
 						if (!settingModelInternally) {
 							reportNewChatPickerClosed(telemetryService, {
@@ -153,6 +162,13 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 				const modelPicker = scopedInstantiationService.createInstance(ModelPickerActionItem, action, delegate, pickerOptions);
 
 				const initModel = (session: ISession | undefined, sessionModelId: string | undefined, isUntitled: boolean) => {
+					const resourceScheme = session?.resource.scheme;
+					if (resourceScheme !== lastResourceScheme) {
+						currentModel.set(undefined, undefined);
+						lastResourceScheme = resourceScheme;
+						lastPushedSessionId = undefined;
+					}
+
 					const models = getAgentHostModels(languageModelsService, session);
 					modelPicker.setEnabled(models.length > 0);
 
@@ -164,12 +180,18 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 					const storedModelId = isUntitled
 						? storageService.get(agentHostModelPickerStorageKey(session.resource.scheme), StorageScope.PROFILE)
 						: undefined;
-					const resolvedModel = resolveAgentHostModel(models, sessionModelId, storedModelId);
+					const resolvedModel = resolveAgentHostModel(models, sessionModelId, storedModelId, isUntitled ? currentModel.get()?.identifier : undefined);
 					currentModel.set(resolvedModel, undefined);
-					if (!sessionModelId && isUntitled && resolvedModel) {
+					if (!isUntitled || sessionModelId) {
+						lastPushedSessionId = session.sessionId;
+						return;
+					}
+
+					if (resolvedModel && session.sessionId !== lastPushedSessionId) {
 						settingModelInternally = true;
 						try {
 							delegate.setModel(resolvedModel);
+							lastPushedSessionId = session.sessionId;
 						} finally {
 							settingModelInternally = false;
 						}

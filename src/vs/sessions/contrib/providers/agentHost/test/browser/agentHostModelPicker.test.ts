@@ -71,6 +71,18 @@ suite('AgentHostModelPicker', () => {
 		assert.strictEqual(resolveAgentHostModel(models, undefined, 'agent-host-copilotcli:stored'), models[1]);
 	});
 
+	test('uses the current picker model before the stored model for new untitled sessions', () => {
+		const models = [
+			makeModel('agent-host-copilotcli:current'),
+			makeModel('agent-host-copilotcli:stored'),
+		];
+
+		assert.strictEqual(
+			resolveAgentHostModel(models, undefined, 'agent-host-copilotcli:stored', 'agent-host-copilotcli:current'),
+			models[0],
+		);
+	});
+
 	test('does not fall back to the first model for new untitled sessions without stored state', () => {
 		const models = [
 			makeModel('agent-host-copilotcli:first'),
