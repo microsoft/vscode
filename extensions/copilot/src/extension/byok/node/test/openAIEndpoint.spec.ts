@@ -6,6 +6,7 @@
 import { Raw } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
 import { ICreateEndpointBodyOptions, IEndpointBody } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
@@ -38,6 +39,20 @@ const createTestOptions = (messages: Raw.ChatMessage[]): ICreateEndpointBodyOpti
 	postOptions: {},
 	finishedCb: undefined,
 	location: undefined as any
+});
+
+const createStatefulMarkerMessage = (modelId: string, marker: string): Raw.ChatMessage => ({
+	role: Raw.ChatRole.Assistant,
+	content: [{
+		type: Raw.ChatCompletionContentPartKind.Opaque,
+		value: {
+			type: CustomDataPartMimeTypes.StatefulMarker,
+			value: {
+				modelId,
+				marker,
+			}
+		}
+	}]
 });
 
 describe('OpenAIEndpoint - Reasoning Properties', () => {
@@ -182,6 +197,89 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			const body = endpoint.createRequestBody(options);
 
 			expect(body.reasoning).toBeUndefined(); // Should be removed
+		});
+
+		it('omits previous_response_id when a caller explicitly ignores a valid Responses stateful marker', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelMetadata,
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+			const messages: Raw.ChatMessage[] = [
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before marker' }]
+				},
+				createStatefulMarkerMessage(modelMetadata.id, 'resp_prev_123'),
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }]
+				}
+			];
+
+			const body = endpoint.createRequestBody({
+				...createTestOptions(messages),
+				ignoreStatefulMarker: true,
+			});
+
+			expect(body.previous_response_id).toBeUndefined();
+		});
+
+		it.each([
+			['unset', undefined],
+			['false', false],
+		])('keeps previous_response_id on non-ZDR initial Responses requests when ignoreStatefulMarker is %s', (_label, ignoreStatefulMarker) => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelMetadata,
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+			const messages: Raw.ChatMessage[] = [
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before marker' }]
+				},
+				createStatefulMarkerMessage(modelMetadata.id, 'resp_prev_456'),
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }]
+				}
+			];
+
+			const body = endpoint.createRequestBody({
+				...createTestOptions(messages),
+				ignoreStatefulMarker,
+			});
+
+			expect(body.previous_response_id).toBe('resp_prev_456');
+			expect(body.store).toBe(true);
+		});
+
+		it('disables marker reuse and store for ZDR Responses requests', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					zeroDataRetentionEnabled: true,
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+			const messages: Raw.ChatMessage[] = [
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before marker' }]
+				},
+				createStatefulMarkerMessage(modelMetadata.id, 'resp_prev_789'),
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }]
+				}
+			];
+
+			const body = endpoint.createRequestBody({
+				...createTestOptions(messages),
+				ignoreStatefulMarker: false,
+			});
+
+			expect(body.previous_response_id).toBeUndefined();
+			expect(body.store).toBe(false);
 		});
 	});
 
