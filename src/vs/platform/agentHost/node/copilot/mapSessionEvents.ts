@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MessageOptions } from '@github/copilot-sdk';
+import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { basename } from '../../../../base/common/path.js';
 import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -15,6 +16,12 @@ import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResul
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
+
+const ORIGINAL_USER_MESSAGE_METADATA_KEY_PREFIX = 'copilot.originalUserMessage.';
+
+export function originalUserMessageMetadataKey(messageId: string): string {
+	return `${ORIGINAL_USER_MESSAGE_METADATA_KEY_PREFIX}${messageId}`;
+}
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -330,8 +337,9 @@ export async function mapSessionEvents(
 				}
 				const d = (e as ISessionEventMessage).data;
 				const messageId = d?.messageId ?? d?.interactionId ?? '';
-				const content = d?.content ?? '';
-				const attachments = sdkAttachmentsToProtocol(d?.attachments);
+				const originalUserMessage = await getOriginalUserMessage(db, messageId);
+				const content = originalUserMessage?.text ?? d?.content ?? '';
+				const attachments = originalUserMessage?.attachments ?? sdkAttachmentsToProtocol(d?.attachments);
 				if (d?.parentToolCallId) {
 					// User messages with a parent tool call route into the
 					// subagent's transcript. They never start a new parent
@@ -485,6 +493,31 @@ export async function mapSessionEvents(
 	}
 }
 
+async function getOriginalUserMessage(db: ISessionDatabase | undefined, messageId: string): Promise<UserMessage | undefined> {
+	if (!db || !messageId) {
+		return undefined;
+	}
+	const raw = await db.getMetadata(originalUserMessageMetadataKey(messageId));
+	if (!raw) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(raw) as Partial<UserMessage>;
+		if (!isString(parsed.text)) {
+			return undefined;
+		}
+		if (parsed.attachments !== undefined && !Array.isArray(parsed.attachments)) {
+			return undefined;
+		}
+		return {
+			text: parsed.text,
+			attachments: parsed.attachments as MessageAttachment[] | undefined,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
 /**
  * Translates the SDK's `UserMessageAttachment[]` payload back into the
  * agent-protocol {@link MessageAttachment} shape. Blob attachments are
@@ -541,6 +574,13 @@ function sdkAttachmentToProtocol(
 			};
 		}
 		case 'blob': {
+			if (attachment.mimeType.startsWith('text/plain')) {
+				return {
+					type: MessageAttachmentKind.Simple,
+					label: attachment.displayName ?? 'attachment',
+					modelRepresentation: decodeBase64(attachment.data).toString(),
+				};
+			}
 			const displayKind = attachment.mimeType.startsWith('image/') ? 'image' : undefined;
 			return {
 				type: MessageAttachmentKind.EmbeddedResource,

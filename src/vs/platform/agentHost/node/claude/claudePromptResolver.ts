@@ -5,7 +5,6 @@
 
 import type Anthropic from '@anthropic-ai/sdk';
 import { URI } from '../../../../base/common/uri.js';
-import { isAgentFeedbackAttachment } from '../../common/agentFeedbackAttachments.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 
 /**
@@ -14,19 +13,18 @@ import { MessageAttachmentKind, type MessageAttachment } from '../../common/stat
  * attachments accompanying the user message.
  *
  * Phase 6 keeps the resolver pure and minimal: a single `text` block
- * carrying the prompt, plus (when attachments are present) a second
- * `text` block wrapped in `<system-reminder>` tags listing the
- * referenced URIs. This mirrors the production extension's resolver
- * shape so a future phase that adds image rendering or inline range
- * substitution can extend without restructuring.
+ * carrying the prompt, plus additional text blocks for attachments. This
+ * mirrors the production extension's resolver shape so a future phase that
+ * adds image rendering or inline range substitution can extend without
+ * restructuring.
  *
  * Selections are rendered as URI references with an optional line
  * suffix. The protocol's {@link TextSelection} carries range metadata
  * only; the selected text is not included inline.
  *
- * Only resource attachments and agent-feedback simple attachments are
- * honoured today — other simple and embedded resources are dropped because
- * the current Claude path does not have a place to consume them.
+ * Resource attachments and simple attachments with model representations
+ * are honoured today. Embedded resources are dropped because the current
+ * Claude path does not have a place to consume them.
  */
 export function resolvePromptToContentBlocks(
 	prompt: string,
@@ -37,11 +35,11 @@ export function resolvePromptToContentBlocks(
 		return blocks;
 	}
 	const refLines: string[] = [];
-	const feedbackBlocks: string[] = [];
+	const simpleBlocks: string[] = [];
 	for (const att of attachments) {
-		if (isAgentFeedbackAttachment(att)) {
+		if (att.type === MessageAttachmentKind.Simple) {
 			if (att.modelRepresentation) {
-				feedbackBlocks.push(att.modelRepresentation);
+				simpleBlocks.push(att.modelRepresentation);
 			}
 			continue;
 		}
@@ -56,12 +54,10 @@ export function resolvePromptToContentBlocks(
 			refLines.push(`- ${uriToString(uri)}`);
 		}
 	}
-	if (feedbackBlocks.length > 0) {
+	if (simpleBlocks.length > 0) {
 		blocks.push({
 			type: 'text',
-			text: '<system-reminder>\nThe user provided the following line feedback on code changes:\n\n' +
-				feedbackBlocks.join('\n\n') +
-				'\n</system-reminder>',
+			text: simpleBlocks.join('\n\n'),
 		});
 	}
 	if (refLines.length === 0) {

@@ -2094,7 +2094,7 @@ suite('ClaudeAgent', () => {
 		assert.ok(!blocks[1].text.includes('```'));
 	});
 
-	test('agent feedback simple attachments become a system-reminder block', () => {
+	test('simple attachments use their model representation as context', () => {
 		const blocks = resolvePromptToContentBlocks('/act-on-feedback', [{
 			type: MessageAttachmentKind.Simple,
 			label: 'Feedback',
@@ -2106,7 +2106,7 @@ suite('ClaudeAgent', () => {
 			{ type: 'text', text: '/act-on-feedback' },
 			{
 				type: 'text',
-				text: '<system-reminder>\nThe user provided the following line feedback on code changes:\n\nFeedback text for the model\n</system-reminder>',
+				text: 'Feedback text for the model',
 			},
 		]);
 	});
@@ -4044,7 +4044,6 @@ suite('ClaudeAgent (Phase 13 — getSessionMessages)', () => {
 });
 
 // #endregion
-
 
 
 

@@ -5,7 +5,7 @@
 
 import type { MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -23,7 +23,6 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentSignal } from '../../common/agentService.js';
-import { isAgentFeedbackAttachment } from '../../common/agentFeedbackAttachments.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
@@ -37,7 +36,7 @@ import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvide
 import type { ShellManager } from './copilotShellTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
-import { mapSessionEvents } from './mapSessionEvents.js';
+import { mapSessionEvents, originalUserMessageMetadataKey } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 
 /**
@@ -659,6 +658,7 @@ export class CopilotAgentSession extends Disposable {
 	// ---- session operations -------------------------------------------------
 
 	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode): Promise<void> {
+		const originalUserMessage = attachments?.length ? { text: prompt, attachments: [...attachments] } : undefined;
 		if (turnId) {
 			this._turnId = turnId;
 			this._turnCopilotUsageTotalNanoAiu = 0;
@@ -680,8 +680,6 @@ export class CopilotAgentSession extends Disposable {
 			prompt = slashCommand.rest;
 		}
 
-		prompt = this._appendAgentFeedbackToPrompt(prompt, attachments);
-
 		const sdkAttachments = attachments
 			? (await Promise.all(attachments.map(a => this._toSdkAttachments(a)))).flat()
 			: undefined;
@@ -690,7 +688,10 @@ export class CopilotAgentSession extends Disposable {
 		}
 
 		await this.applyMode(mode);
-		await this._wrapper.session.send({ prompt, attachments: sdkAttachments });
+		const messageId = await this._wrapper.session.send({ prompt, attachments: sdkAttachments });
+		if (messageId && originalUserMessage) {
+			await this._databaseRef.object.setMetadata(originalUserMessageMetadataKey(messageId), JSON.stringify(originalUserMessage));
+		}
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
@@ -701,9 +702,8 @@ export class CopilotAgentSession extends Disposable {
 	 * {@link MessageAttachmentBase.displayKind} advisory hint controls
 	 * which one). Embedded resources (e.g. inline image bytes) map to the
 	 * SDK's `blob` variant.
-	 * Simple attachments are usually dropped — the SDK has no equivalent
-	 * shape for arbitrary text attachments. Agent-feedback simple attachments
-	 * are appended to the prompt instead.
+	 * Simple attachments with a model representation map to `text/plain`
+	 * blob attachments.
 	 *
 	 * For selections we read the resource content from disk and slice it
 	 * by the carried range (the protocol's {@link TextSelection} only
@@ -711,7 +711,15 @@ export class CopilotAgentSession extends Disposable {
 	 * selection downgrades to a plain file reference.
 	 */
 	private async _toSdkAttachments(attachment: MessageAttachment): Promise<CopilotSdkAttachment[]> {
-		if (isAgentFeedbackAttachment(attachment)) {
+		if (attachment.type === MessageAttachmentKind.Simple) {
+			if (attachment.modelRepresentation) {
+				return [{
+					type: 'blob' as const,
+					data: encodeBase64(VSBuffer.fromString(attachment.modelRepresentation)),
+					mimeType: 'text/plain',
+					displayName: attachment.label,
+				}];
+			}
 			return [];
 		}
 		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
@@ -737,17 +745,6 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const type = attachment.displayKind === 'directory' ? 'directory' : 'file';
 		return [{ type, path, displayName }];
-	}
-
-	private _appendAgentFeedbackToPrompt(prompt: string, attachments: readonly MessageAttachment[] | undefined): string {
-		const feedbackText = attachments
-			?.filter(isAgentFeedbackAttachment)
-			.map(attachment => attachment.modelRepresentation)
-			.filter((text): text is string => typeof text === 'string' && text.length > 0);
-		if (!feedbackText?.length) {
-			return prompt;
-		}
-		return `${prompt}\n\n<system-reminder>\nThe user provided the following line feedback on code changes:\n\n${feedbackText.join('\n\n')}\n</system-reminder>`;
 	}
 
 	private async _readSelectedText(uri: URI, range: { readonly start: { readonly line: number; readonly character: number }; readonly end: { readonly line: number; readonly character: number } }): Promise<string> {
