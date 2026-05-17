@@ -1017,6 +1017,18 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return providerConfiguration;
 	}
 
+	private _getModelProviderGroup(modelId: string, metadata: ILanguageModelChatMetadata): ILanguageModelsProviderGroup | undefined {
+		const vendorGroups = this._modelsGroups.get(metadata.vendor);
+		if (vendorGroups) {
+			for (const vendorGroup of vendorGroups) {
+				if (vendorGroup.modelIdentifiers.includes(modelId) && vendorGroup.group) {
+					return vendorGroup.group;
+				}
+			}
+		}
+		return undefined;
+	}
+
 	getLanguageModelGroups(vendor: string): ILanguageModelsGroup[] {
 		return this._modelsGroups.get(vendor) ?? [];
 	}
@@ -1218,7 +1230,13 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		const allGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
-		let group = allGroups.find(g => g.vendor === metadata.vendor && g.settings?.[metadata.id] !== undefined);
+		const modelGroup = this._getModelProviderGroup(modelId, metadata);
+		let group = modelGroup
+			? allGroups.find(g => g.vendor === modelGroup.vendor && g.name === modelGroup.name) ?? modelGroup
+			: undefined;
+		if (!group) {
+			group = allGroups.find(g => g.vendor === metadata.vendor && g.settings?.[metadata.id] !== undefined);
+		}
 		if (!group) {
 			group = allGroups.find(g => g.vendor === metadata.vendor);
 		}

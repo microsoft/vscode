@@ -982,6 +982,77 @@ suite('LanguageModels - Model Picker Visibility', function () {
 		assert.strictEqual(groups[0].settings?.['model']?.isUserSelectable, true);
 		assert.strictEqual(languageModelsService.lookupLanguageModel('visible-vendor/model')?.isUserSelectable, true);
 	});
+
+	test('setModelPickerVisibility persists to the resolved provider group', async function () {
+		const groups: ILanguageModelsProviderGroup[] = [
+			{ vendor: 'multi-vendor', name: 'Local' },
+			{ vendor: 'multi-vendor', name: 'Remote' }
+		];
+		const languageModelsService = disposables.add(new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() {
+					return Promise.resolve();
+				}
+			},
+			new NullLogService(),
+			disposables.add(new TestStorageService()),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() {
+					return groups;
+				}
+				override async updateLanguageModelsProviderGroup(from: ILanguageModelsProviderGroup, to: ILanguageModelsProviderGroup) {
+					const index = groups.indexOf(from);
+					if (index >= 0) {
+						groups[index] = to;
+					}
+					return to;
+				}
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+		));
+
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'multi-vendor', displayName: 'Multi Vendor', configuration: {} as unknown as undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		disposables.add(languageModelsService.registerLanguageModelProvider('multi-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async (options) => {
+				if (!options.group) {
+					return [];
+				}
+				return [{
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: 'Shared Model',
+						vendor: 'multi-vendor',
+						family: 'shared',
+						version: '1.0',
+						id: 'shared-model',
+						maxInputTokens: 100,
+						maxOutputTokens: 100,
+						isDefaultForLocation: {}
+					} satisfies ILanguageModelChatMetadata,
+					identifier: `multi-vendor/${options.group}/shared-model`
+				}];
+			},
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		await languageModelsService.selectLanguageModels({});
+		await languageModelsService.setModelPickerVisibility('multi-vendor/Remote/shared-model', false);
+
+		assert.strictEqual(groups[0].settings?.['shared-model']?.isUserSelectable, undefined);
+		assert.strictEqual(groups[1].settings?.['shared-model']?.isUserSelectable, false);
+		assert.notStrictEqual(languageModelsService.lookupLanguageModel('multi-vendor/Local/shared-model')?.isUserSelectable, false);
+		assert.strictEqual(languageModelsService.lookupLanguageModel('multi-vendor/Remote/shared-model')?.isUserSelectable, false);
+	});
 });
 
 suite('LanguageModels - Provider Group Detail Fallback', function () {
