@@ -5,7 +5,7 @@
 
 import { normalizeDriveLetter } from '../../../../base/common/labels.js';
 import * as path from '../../../../base/common/path.js';
-import { dirname } from '../../../../base/common/resources.js';
+import { dirname, relativePath } from '../../../../base/common/resources.js';
 import { commonPrefixLength, getLeadingWhitespace, isFalsyOrWhitespace, splitLines } from '../../../../base/common/strings.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -163,7 +163,8 @@ export class ModelBasedVariableResolver implements VariableResolver {
 
 	constructor(
 		private readonly _labelService: ILabelService,
-		private readonly _model: ITextModel
+		private readonly _model: ITextModel,
+		private readonly _workspaceService: IWorkspaceContextService | undefined,
 	) {
 		//
 	}
@@ -213,20 +214,24 @@ export class ModelBasedVariableResolver implements VariableResolver {
 	}
 
 	private _resolveReverseRelativeFilepath(): string | undefined {
-		const relativeFilepath = this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
-		const absoluteFilepath = this._labelService.getUriLabel(this._model.uri, { noPrefix: true });
-
-		if (relativeFilepath === absoluteFilepath) {
+		const folder = this._workspaceService?.getWorkspaceFolder(this._model.uri);
+		if (!folder) {
 			return undefined;
 		}
 
-		// Number of parent directories ("..") needed to traverse from the file's directory back to the workspace root.
-		const parentDirectoryDepth = relativeFilepath.split(/[\\/]/).length - 1;
+		const relative = relativePath(folder.uri, this._model.uri);
+		if (relative === undefined) {
+			return undefined;
+		}
+
+		// `relativePath` returns posix-separated paths. The number of '/' segments above the file name
+		// is the depth needed to traverse back to the workspace root.
+		const parentDirectoryDepth = relative.length === 0 ? 0 : relative.split('/').length - 1;
 		if (parentDirectoryDepth === 0) {
 			return '.';
 		}
 
-		const separator = relativeFilepath.includes('\\') ? '\\' : '/';
+		const separator = this._labelService.getSeparator(this._model.uri.scheme, this._model.uri.authority);
 		return Array.from({ length: parentDirectoryDepth }, () => '..').join(separator);
 	}
 }

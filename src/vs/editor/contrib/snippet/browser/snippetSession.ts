@@ -485,7 +485,7 @@ export class SnippetSession {
 		const model = editor.getModel();
 
 		const workspaceService = editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService));
-		const modelBasedVariableResolver = editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService), model));
+		const modelBasedVariableResolver = editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService), model, workspaceService));
 		const readClipboardText = () => clipboardText;
 
 		// know what text the overwrite[Before|After] extensions
@@ -571,7 +571,7 @@ export class SnippetSession {
 		const parser = new SnippetParser();
 		const snippet = new TextmateSnippet();
 
-		const modelBasedVariableResolver = editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService), model));
+		const modelBasedVariableResolver = editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService), model, accessor.get(IWorkspaceContextService)));
 		const timeBasedVariableResolver = new TimeBasedVariableResolver;
 		const workspaceBasedVariableResolver = new WorkspaceBasedVariableResolver(editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService)));
 		const randomBasedVariableResolver = new RandomBasedVariableResolver;
