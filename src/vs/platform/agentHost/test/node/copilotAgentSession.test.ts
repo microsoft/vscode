@@ -307,7 +307,7 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
-	test('appends agent feedback to prompt and forwards feedback ranges as selections', async () => {
+	test('appends agent feedback to prompt without duplicating SDK attachments', async () => {
 		const fileUri = URI.file('/workspace/file.ts');
 		const { session, mockSession } = await createAgentSession(disposables);
 
@@ -327,7 +327,6 @@ suite('CopilotAgentSession', () => {
 							start: { line: 1, character: 2 },
 							end: { line: 3, character: 4 },
 						},
-						codeSelection: 'const value = compute();',
 					}],
 				},
 			},
@@ -335,16 +334,7 @@ suite('CopilotAgentSession', () => {
 
 		assert.deepStrictEqual(mockSession.sendRequests, [{
 			prompt: '/act-on-feedback\n\n<system-reminder>\nThe user provided the following line feedback on code changes:\n\nFeedback text for the model\n</system-reminder>',
-			attachments: [{
-				type: 'selection',
-				filePath: fileUri.fsPath,
-				displayName: 'file.ts',
-				text: 'const value = compute();',
-				selection: {
-					start: { line: 1, character: 2 },
-					end: { line: 3, character: 4 },
-				},
-			}],
+			attachments: [],
 		}]);
 	});
 

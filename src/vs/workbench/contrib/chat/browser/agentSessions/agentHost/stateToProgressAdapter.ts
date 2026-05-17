@@ -231,9 +231,6 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 					text: item.text,
 					resourceUri: toAgentHostUri(URI.parse(item.resourceUri), connectionAuthority),
 					range: textRangeToIRange(item.range),
-					codeSelection: item.codeSelection,
-					diffHunks: item.diffHunks,
-					sourcePRReviewCommentId: item.sourcePRReviewCommentId,
 				})),
 				_meta: attachment._meta,
 			};

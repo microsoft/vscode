@@ -2164,7 +2164,6 @@ suite('AgentHostChatContribution', () => {
 											start: { line: 1, character: 2 },
 											end: { line: 3, character: 4 },
 										},
-										codeSelection: 'const value = compute();',
 									}],
 								},
 							},
@@ -2205,9 +2204,6 @@ suite('AgentHostChatContribution', () => {
 						text: 'Please simplify this.',
 						resourceUri: feedbackFile.toString(),
 						range: { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 },
-						codeSelection: 'const value = compute();',
-						diffHunks: undefined,
-						sourcePRReviewCommentId: undefined,
 					}],
 					_meta: {
 						[AgentFeedbackAttachmentMetadataKey]: {
@@ -2220,7 +2216,6 @@ suite('AgentHostChatContribution', () => {
 									start: { line: 1, character: 2 },
 									end: { line: 3, character: 4 },
 								},
-								codeSelection: 'const value = compute();',
 							}],
 						},
 					},
@@ -2814,9 +2809,6 @@ suite('AgentHostChatContribution', () => {
 								start: { line: 1, character: 2 },
 								end: { line: 3, character: 4 },
 							},
-							codeSelection: 'const value = compute();',
-							diffHunks: '@@ -1 +1 @@',
-							sourcePRReviewCommentId: 'thread-1',
 						}],
 					},
 				},
@@ -3030,6 +3022,7 @@ suite('AgentHostChatContribution', () => {
 			const requestedDir = URI.file('/source');
 			const resolvedDir = URI.file('/worktree');
 			const expectedSelectionUri = URI.file('/worktree/sub/foo.ts');
+			const feedbackUri = URI.file('/source/commented.ts');
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
 				workingDirectoryResolver: { resolve: () => requestedDir },
 			});
@@ -3051,6 +3044,20 @@ suite('AgentHostChatContribution', () => {
 							enabled: true,
 							value: { uri: URI.file('/source/sub/foo.ts'), range: new Range(2, 3, 4, 5) },
 						}),
+						upcastPartial({
+							kind: 'agentFeedback',
+							id: 'v-feedback',
+							name: 'Feedback',
+							value: 'Feedback text for the model',
+							sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/new-turntest' }),
+							feedbackItems: [{
+								id: 'feedback-1',
+								text: 'Please simplify this.',
+								resourceUri: feedbackUri,
+								range: new Range(6, 1, 6, 8),
+								codeSelection: 'compute',
+							}],
+						}),
 					],
 				},
 			});
@@ -3071,6 +3078,26 @@ suite('AgentHostChatContribution', () => {
 						range: {
 							start: { line: 1, character: 2 },
 							end: { line: 3, character: 4 },
+						},
+					},
+				},
+				{
+					type: MessageAttachmentKind.Simple,
+					label: 'Feedback',
+					modelRepresentation: 'Feedback text for the model',
+					displayKind: AgentFeedbackAttachmentDisplayKind,
+					_meta: {
+						[AgentFeedbackAttachmentMetadataKey]: {
+							sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/new-turntest' }).toString(),
+							feedbackItems: [{
+								id: 'feedback-1',
+								text: 'Please simplify this.',
+								resourceUri: feedbackUri.toString(),
+								range: {
+									start: { line: 5, character: 0 },
+									end: { line: 5, character: 7 },
+								},
+							}],
 						},
 					},
 				},

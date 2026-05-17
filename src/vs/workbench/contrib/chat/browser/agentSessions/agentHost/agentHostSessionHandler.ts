@@ -2823,11 +2823,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const feedbackItems = v.feedbackItems.map(item => ({
 			id: item.id,
 			text: item.text,
-			resourceUri: this._rebaseAttachmentUri(item.resourceUri, sessionResource).toString(),
+			resourceUri: item.resourceUri.toString(),
 			range: this._toTextRange(item.range),
-			codeSelection: item.codeSelection,
-			diffHunks: item.diffHunks,
-			sourcePRReviewCommentId: item.sourcePRReviewCommentId,
 		}));
 		return this._toSimpleAttachment(
 			v.name,

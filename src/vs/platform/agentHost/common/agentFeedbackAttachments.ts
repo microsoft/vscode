@@ -19,9 +19,6 @@ export interface IAgentFeedbackAttachmentItemMetadata {
 	readonly text: string;
 	readonly resourceUri: string;
 	readonly range: TextRange;
-	readonly codeSelection?: string;
-	readonly diffHunks?: string;
-	readonly sourcePRReviewCommentId?: string;
 }
 
 export function isAgentFeedbackAttachment(attachment: MessageAttachment): attachment is SimpleMessageAttachment {
@@ -64,9 +61,6 @@ function parseAgentFeedbackAttachmentItem(item: unknown): IAgentFeedbackAttachme
 		text: item.text,
 		resourceUri: item.resourceUri,
 		range,
-		codeSelection: isString(item.codeSelection) ? item.codeSelection : undefined,
-		diffHunks: isString(item.diffHunks) ? item.diffHunks : undefined,
-		sourcePRReviewCommentId: isString(item.sourcePRReviewCommentId) ? item.sourcePRReviewCommentId : undefined,
 	};
 }
 
