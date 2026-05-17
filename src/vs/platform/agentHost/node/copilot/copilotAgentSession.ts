@@ -700,11 +700,7 @@ export class CopilotAgentSession extends Disposable {
 	 * SDK's reference-style `file`/`directory`/`selection` variants (the
 	 * {@link MessageAttachmentBase.displayKind} advisory hint controls
 	 * which one). Embedded resources (e.g. inline image bytes) map to the
-	 * SDK's `blob` variant. Resource attachments that point at a
-	 * `session-db:` URI are also forwarded as `blob` — the agent host
-	 * snapshots inline / client-resident attachment bytes into the
-	 * session database before dispatching the turn, so by the time we
-	 * see them here the bytes are local and the original URI is gone.
+	 * SDK's `blob` variant.
 	 * Simple attachments are usually dropped — the SDK has no equivalent
 	 * shape for arbitrary text attachments. Agent-feedback simple attachments
 	 * are appended to the prompt instead.

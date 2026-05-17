@@ -2830,7 +2830,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			v.name,
 			typeof v.value === 'string' ? v.value : undefined,
 			{
-				...v._meta,
+				...(v._meta ?? {}),
 				[AgentFeedbackAttachmentMetadataKey]: {
 					sessionResource: v.sessionResource.toString(),
 					feedbackItems,
