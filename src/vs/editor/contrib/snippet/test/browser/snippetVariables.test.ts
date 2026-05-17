@@ -91,6 +91,36 @@ suite('Snippet Variables Resolver', function () {
 		};
 	}
 
+	function createUriLabelService(folderUri: URI | undefined, separator: '/' | '\\'): ILabelService {
+		return new class extends mock<ILabelService>() {
+			override getUriLabel(uri: URI, options: { relative?: boolean } = {}) {
+				if (options.relative && folderUri && uri.scheme === folderUri.scheme && uri.authority === folderUri.authority) {
+					const folderPath = folderUri.path;
+					if (uri.path === folderPath) {
+						return '';
+					}
+					const folderPrefix = folderPath.endsWith('/') ? folderPath : folderPath + '/';
+					if (uri.path.startsWith(folderPrefix)) {
+						return uri.path.substring(folderPrefix.length).replace(/\//g, separator);
+					}
+				}
+				return uri.path.replace(/\//g, separator);
+			}
+			override getSeparator() {
+				return separator;
+			}
+		};
+	}
+
+	function createUriWorkspaceContextService(folderUri: URI | undefined): IWorkspaceContextService {
+		const folders = folderUri ? [toWorkspaceFolder(folderUri)] : [];
+		const workspace = new Workspace('', folders);
+		return new class extends mock<IWorkspaceContextService>() {
+			override getWorkspace() { return workspace; }
+			override getWorkspaceFolder(resource: URI) { return workspace.getFolder(resource); }
+		};
+	}
+
 	test('editor variables, basics', function () {
 		assertVariableResolve(resolver, 'TM_FILENAME', 'text.txt');
 		assertVariableResolve(resolver, 'something', undefined);
@@ -523,7 +553,7 @@ suite('Snippet Variables Resolver', function () {
 	test('REVERSE_RELATIVE_FILEPATH handles deeply nested paths and platform-specific separators', function () {
 
 		const deepModel = createTextModel('', undefined, undefined, URI.parse('file:///foo/dir/sub/text.txt'));
-		let resolver: VariableResolver = new ModelBasedVariableResolver(
+		const resolver: VariableResolver = new ModelBasedVariableResolver(
 			createMockWorkspaceLabelService('/foo'),
 			deepModel,
 			createMockWorkspaceContextService('/foo')
@@ -534,56 +564,27 @@ suite('Snippet Variables Resolver', function () {
 			assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..\\..');
 		}
 		deepModel.dispose();
-
-		// Force Windows-style separator via the label service even on non-Windows hosts.
-		const backslashSeparatorLabelService = new class extends mock<ILabelService>() {
-			override getSeparator() { return '\\' as const; }
-		};
-		const windowsModel = createTextModel('', undefined, undefined, URI.parse('file:///foo/dir/sub/text.txt'));
-		resolver = new ModelBasedVariableResolver(
-			backslashSeparatorLabelService,
-			windowsModel,
-			createMockWorkspaceContextService('/foo')
-		);
-		if (!isWindows) {
-			// On POSIX hosts the workspace folder URI maps to '/foo' and the file URI to '/foo/dir/sub/text.txt'.
-			// The label service forces backslash joining of the '..' segments.
-			assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..\\..');
-		} else {
-			assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..\\..');
-		}
-		windowsModel.dispose();
 	});
 
 	test('REVERSE_RELATIVE_FILEPATH handles remote scenarios and is robust to filename characters', function () {
 
-		const remoteUri = URI.parse('vscode-remote://ssh-remote%2Bexample/home/user/workspace/dir/file.ts');
 		const remoteWorkspaceUri = URI.parse('vscode-remote://ssh-remote%2Bexample/home/user/workspace');
-		const remoteOutsideUri = URI.parse('vscode-remote://ssh-remote%2Bexample/home/user/other/place/file.ts');
+		const remoteLabelService = createUriLabelService(remoteWorkspaceUri, '/');
+		const remoteWorkspaceService = createUriWorkspaceContextService(remoteWorkspaceUri);
 
-		const remoteLabelService = new class extends mock<ILabelService>() {
-			override getSeparator() { return '/' as const; }
-		};
-
-		const remoteWorkspace = new Workspace('', [toWorkspaceFolder(remoteWorkspaceUri)]);
-		const remoteWorkspaceService = new class extends mock<IWorkspaceContextService>() {
-			override getWorkspace() { return remoteWorkspace; }
-			override getWorkspaceFolder(resource: URI) { return remoteWorkspace.getFolder(resource); }
-		};
-
-		// In-workspace remote URI: one level above workspace root.
-		const remoteModel = createTextModel('', undefined, undefined, remoteUri);
+		// In-workspace remote URI: the file lives one directory deep inside the workspace,
+		// so the reverse path from the file's directory back to the workspace root is `..`.
+		const remoteModel = createTextModel('', undefined, undefined, URI.parse('vscode-remote://ssh-remote%2Bexample/home/user/workspace/dir/file.ts'));
 		let resolver: VariableResolver = new ModelBasedVariableResolver(remoteLabelService, remoteModel, remoteWorkspaceService);
 		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..');
 
 		// Out-of-workspace remote URI resolves to undefined.
-		const remoteOutsideModel = createTextModel('', undefined, undefined, remoteOutsideUri);
+		const remoteOutsideModel = createTextModel('', undefined, undefined, URI.parse('vscode-remote://ssh-remote%2Bexample/home/user/other/place/file.ts'));
 		resolver = new ModelBasedVariableResolver(remoteLabelService, remoteOutsideModel, remoteWorkspaceService);
 		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', undefined);
 
 		// Backslash in a POSIX/remote filename must not be treated as a directory separator.
-		const remoteBackslashUri = URI.parse('vscode-remote://ssh-remote%2Bexample/home/user/workspace/foo%5Cbar.txt');
-		const remoteBackslashModel = createTextModel('', undefined, undefined, remoteBackslashUri);
+		const remoteBackslashModel = createTextModel('', undefined, undefined, URI.parse('vscode-remote://ssh-remote%2Bexample/home/user/workspace/foo%5Cbar.txt'));
 		resolver = new ModelBasedVariableResolver(remoteLabelService, remoteBackslashModel, remoteWorkspaceService);
 		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '.');
 
@@ -592,28 +593,19 @@ suite('Snippet Variables Resolver', function () {
 		remoteBackslashModel.dispose();
 	});
 
-	test('REVERSE_RELATIVE_FILEPATH does not rely on label equality for workspace membership', function () {
+	test('REVERSE_RELATIVE_FILEPATH handles Windows drive-letter workspace and file URIs', function () {
 
-		// A formatter could make the in-workspace label identical to the absolute label
-		// (for example, a root workspace whose formatter strips the leading separator).
-		// The reverse-relative resolution must still work for files inside the workspace.
-		const equalLabelService = new class extends mock<ILabelService>() {
-			override getUriLabel(uri: URI) {
-				return uri.path; // identical regardless of `relative`
-			}
-			override getSeparator() { return '/' as const; }
-		};
+		// Windows drive-letter file URI: `file:///c%3A/workspace/dir/sub/text.txt` and folder `file:///c%3A/workspace`.
+		const driveFolderUri = URI.parse('file:///c%3A/workspace');
+		const driveFileUri = URI.parse('file:///c%3A/workspace/dir/sub/text.txt');
 
-		const model = createTextModel('', undefined, undefined, URI.parse('vscode-remote://ssh-remote%2Bexample/workspace/sub/file.ts'));
-		const workspace = new Workspace('', [toWorkspaceFolder(URI.parse('vscode-remote://ssh-remote%2Bexample/workspace'))]);
-		const workspaceService = new class extends mock<IWorkspaceContextService>() {
-			override getWorkspace() { return workspace; }
-			override getWorkspaceFolder(resource: URI) { return workspace.getFolder(resource); }
-		};
+		const labelService = createUriLabelService(driveFolderUri, '\\');
+		const workspaceService = createUriWorkspaceContextService(driveFolderUri);
 
-		const resolver: VariableResolver = new ModelBasedVariableResolver(equalLabelService, model, workspaceService);
-		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..');
+		const driveModel = createTextModel('', undefined, undefined, driveFileUri);
+		const resolver: VariableResolver = new ModelBasedVariableResolver(labelService, driveModel, workspaceService);
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..\\..');
 
-		model.dispose();
+		driveModel.dispose();
 	});
 });

@@ -5,7 +5,7 @@
 
 import { normalizeDriveLetter } from '../../../../base/common/labels.js';
 import * as path from '../../../../base/common/path.js';
-import { dirname, relativePath } from '../../../../base/common/resources.js';
+import { dirname } from '../../../../base/common/resources.js';
 import { commonPrefixLength, getLeadingWhitespace, isFalsyOrWhitespace, splitLines } from '../../../../base/common/strings.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -219,19 +219,16 @@ export class ModelBasedVariableResolver implements VariableResolver {
 			return undefined;
 		}
 
-		const relative = relativePath(folder.uri, this._model.uri);
-		if (relative === undefined) {
-			return undefined;
-		}
+		// Defer to the label service for the relative path text so that formatters,
+		// scheme handling and separator choice stay in sync with `RELATIVE_FILEPATH`.
+		const relativeLabel = this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
+		const separator = this._labelService.getSeparator(this._model.uri.scheme, this._model.uri.authority);
 
-		// `relativePath` returns posix-separated paths. The number of '/' segments above the file name
-		// is the depth needed to traverse back to the workspace root.
-		const parentDirectoryDepth = relative.length === 0 ? 0 : relative.split('/').length - 1;
+		const parentDirectoryDepth = relativeLabel.length === 0 ? 0 : relativeLabel.split(separator).length - 1;
 		if (parentDirectoryDepth === 0) {
 			return '.';
 		}
 
-		const separator = this._labelService.getSeparator(this._model.uri.scheme, this._model.uri.authority);
 		return Array.from({ length: parentDirectoryDepth }, () => '..').join(separator);
 	}
 }
