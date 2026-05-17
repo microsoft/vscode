@@ -112,7 +112,7 @@ class MessageWidget {
 
 		dom.clearNode(this._messageBlock);
 		this._messageBlock.setAttribute('aria-label', this.getAriaLabel(marker));
-		aria.alert(this.getAriaLabel(marker));
+		aria.status(this.getAriaLabel(marker));
 		this._editor.applyFontInfo(this._messageBlock);
 		let lastLineElement = this._messageBlock;
 		for (const line of lines) {
