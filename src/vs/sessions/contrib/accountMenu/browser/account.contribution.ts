@@ -445,6 +445,10 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		title.textContent = this.getPanelHeaderLabel();
 		const headerActionsContainer = append(headerSection, $('.sessions-account-titlebar-panel-header-actions'));
 		const headerActionBar = panelStore.add(new ActionBar(headerActionsContainer));
+		panelStore.add(headerActionBar.onWillRun(() => {
+			this.hoverService.hideHover(true);
+			this.clickPanelDisposable.clear();
+		}));
 
 		// CTA buttons (Manage Budget, Upgrade) will be rendered here by the dashboard
 		const ctaButtonsContainer = append(headerActionsContainer, $('.sessions-account-titlebar-panel-cta-actions'));
@@ -461,6 +465,10 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			const actionsSection = append(panel, $('.sessions-account-titlebar-panel-actions'));
 			const actionsActionBar = panelStore.add(new ActionBar(actionsSection, {
 				orientation: ActionsOrientation.VERTICAL,
+			}));
+			panelStore.add(actionsActionBar.onWillRun(() => {
+				this.hoverService.hideHover(true);
+				this.clickPanelDisposable.clear();
 			}));
 			let lastWasSeparator = true;
 			for (const action of partitioned.other) {
