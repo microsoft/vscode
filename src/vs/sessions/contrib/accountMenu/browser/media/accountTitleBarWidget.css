@@ -265,6 +265,43 @@
 	color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-panel-section {
+	display: flex;
+	flex-direction: column;
+}
+
+/* The embedded chat status dashboard ships dividers/HRs and header borders
+	intended for its standalone tooltip presentation. The section headings
+	provide the only visual grouping we want here. */
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip hr {
+	display: none;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip > div.header,
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .contribution > div.header {
+	border-bottom: none;
+	padding-bottom: 0;
+}
+
+/* Flatten contributed sub-sections (e.g. "Codebase Semantic Index") into
+	the parent Subscription section. The dashboard renders these non-collapsibly;
+	these rules just align the header typography with the panel's quota-title
+	style above it. */
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible {
+	margin-top: 4px;
+	padding: 0 28px 0 0;
+	border-top: none;
+	background: none;
+	font-size: 12px;
+	line-height: 18px;
+	font-weight: 400;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible .collapsible-label {
+	color: var(--vscode-foreground);
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible .collapsible-status {
 	margin-left: auto;
 	font-size: 11px;
