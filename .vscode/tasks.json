@@ -101,7 +101,7 @@
 				"group": "buildWatchers",
 				"close": false
 			},
-			"problemMatcher": "$esbuild-watch"
+			"problemMatcher": []
 		},
 		{
 			"label": "VS Code - Build",
