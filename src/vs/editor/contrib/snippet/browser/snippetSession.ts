@@ -353,9 +353,36 @@ export class OneSnippet {
 				}
 			}
 
+			// Renormalize fractional placeholder indicies back to small integers.
+			// Without this, deeply nested merges (~16+ levels) lose floating-point
+			// precision so distinct placeholders collapse onto the same index and
+			// produce phantom cursors. #279349
+			this._renormalizePlaceholderIndices();
+
 			// Last, re-create the placeholder groups by sorting placeholders by their index.
 			this._placeholderGroups = groupBy(this._snippet.placeholders, Placeholder.compareByIndex);
 		});
+	}
+
+	private _renormalizePlaceholderIndices(): void {
+		const placeholders = this._snippet.placeholders;
+		const uniqueIndices = new Set<number>();
+		for (const placeholder of placeholders) {
+			if (!placeholder.isFinalTabstop) {
+				uniqueIndices.add(placeholder.index);
+			}
+		}
+		const sorted = [...uniqueIndices].sort((a, b) => a - b);
+		const remap = new Map<number, number>();
+		for (let i = 0; i < sorted.length; i++) {
+			remap.set(sorted[i], i + 1);
+		}
+		for (const placeholder of placeholders) {
+			if (!placeholder.isFinalTabstop) {
+				placeholder.index = remap.get(placeholder.index)!;
+			}
+		}
+		this._nestingLevel = 1;
 	}
 
 	getEnclosingRange(): Range | undefined {

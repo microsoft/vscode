@@ -25,7 +25,6 @@ import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type SymbolTag } from '../../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
@@ -54,7 +53,7 @@ import { IChatProgressRenderableResponseContent } from '../../../common/model/ch
 import { IChatContentInlineReference, IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
+import { IChatCodeBlockInfo } from '../../chat.js';
 import { IChatOutputRendererService, type RenderedOutputPart } from '../../chatOutputItemRenderer.js';
 import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
 import { IMarkdownDiffBlockData, MarkdownDiffBlockPart, parseUnifiedDiff } from './chatDiffBlockPart.js';
@@ -709,7 +708,6 @@ class ChatOutputCodeBlockPart extends Disposable {
 		private readonly onDidChangeHeight: () => void,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatOutputRendererService private readonly chatOutputRendererService: IChatOutputRendererService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatOutputPartStateCache private readonly stateCache: IChatOutputPartStateCache,
 	) {
 		super();
@@ -726,7 +724,7 @@ class ChatOutputCodeBlockPart extends Disposable {
 		this.element.appendChild(parent);
 
 		const stateCacheKey = `codeBlock/${context.element.sessionResource.toString()}/${context.element.id}/${codeBlockIndex}/${identifier.toLowerCase()}`;
-		const partState: IOutputPartState = this.stateCache.get(stateCacheKey) ?? { height: 0, webviewOrigin: generateUuid() };
+		const partState: IOutputPartState = this.stateCache.get(stateCacheKey) ?? { height: 0 };
 		this.stateCache.set(stateCacheKey, partState);
 		if (partState.height) {
 			parent.style.height = `${partState.height}px`;
@@ -741,7 +739,11 @@ class ChatOutputCodeBlockPart extends Disposable {
 			return;
 		}
 
-		this.chatOutputRendererService.renderCodeBlock(identifier, new TextEncoder().encode(text), parent, { origin: partState.webviewOrigin, webviewState: partState.webviewState, title }, this._disposeCts.token).then(renderedItem => {
+		this.chatOutputRendererService.renderCodeBlock(identifier, new TextEncoder().encode(text), parent, {
+			webviewState: partState.webviewState,
+			title,
+			chatSessionResource: this.context.element.sessionResource,
+		}, this._disposeCts.token).then(renderedItem => {
 			if (this._disposeCts.token.isCancellationRequested) {
 				renderedItem.dispose();
 				return;
@@ -760,14 +762,6 @@ class ChatOutputCodeBlockPart extends Disposable {
 				partState.height = newHeight;
 				this.onDidChangeHeight();
 			}));
-			this._register(renderedItem.webview.onDidWheel(e => {
-				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.delegateScrollFromMouseWheelEvent({
-					...e,
-					preventDefault: () => { },
-					stopPropagation: () => { }
-				});
-			}));
-
 			this._register(this.context.onDidChangeVisibility(visible => {
 				if (visible) {
 					renderedItem.reinitialize();

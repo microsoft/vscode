@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OperatingSystem } from '../../../../../base/common/platform.js';
-import type { ITerminalSandboxCommand } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+import { OperatingSystem } from '../../../base/common/platform.js';
+import type { ITerminalSandboxCommand } from './terminalSandboxService.js';
 import { gitGlobalOptionsWithValue, type ITerminalSandboxCommandRule, matchesTerminalSandboxCommandRule } from './terminalSandboxCommandRules.js';
 
 export const enum TerminalSandboxRuntimeConfigurationOperation {
