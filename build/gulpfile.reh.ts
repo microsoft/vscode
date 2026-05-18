@@ -434,7 +434,17 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 
 	return async () => {
 		const deps = (await Promise.all([
-			promisify(glob)('**/*.node', { cwd }),
+			promisify(glob)('**/*.node', {
+				cwd,
+				ignore: [
+					// Pre-signed by GitHub upstream; rcedit-ing them strips the Authenticode
+					// signature and produces a PE layout that signtool refuses to re-sign
+					// (0x800700C1). Leave these files untouched so the upstream signature
+					// ships intact.
+					'**/@github/copilot/prebuilds/win32-*/**',
+					'**/@github/copilot/sdk/prebuilds/win32-*/**',
+				]
+			}),
 			promisify(glob)('**/rg.exe', { cwd }),
 		])).flatMap(o => o);
 		const packageJsonContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'package.json'), 'utf8'));

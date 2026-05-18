@@ -534,6 +534,7 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 					// signature and produces a PE layout that signtool refuses to re-sign
 					// (0x800700C1). Leave these files untouched so the upstream signature
 					// ships intact.
+					'**/@github/copilot/prebuilds/win32-*/**',
 					'**/@github/copilot/sdk/prebuilds/win32-*/**',
 				]
 			}),

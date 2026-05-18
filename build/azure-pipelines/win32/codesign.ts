@@ -11,14 +11,16 @@ import { $, usePwsh } from 'zx';
 import { printBanner, spawnCodesignProcess, streamProcessOutputAndCheckResult } from '../common/codesign.ts';
 import { e } from '../common/publish.ts';
 
-// These prebuilt native modules are shipped pre-signed by GitHub in the
-// @github/copilot SDK. signtool's append (/as) path rejects them with
+// These prebuilt native modules are shipped pre-signed by GitHub in
+// @github/copilot and copied into the SDK. signtool's append (/as) path rejects them with
 // 0x800700C1 (ERROR_BAD_EXE_FORMAT), failing the whole ESRP submission.
 // Move them aside before signing and restore them after.
 const COPILOT_PREBUILT_NODE_FILES = ['runtime.node', 'win32-native.node', 'icu-native.node'];
-const COPILOT_PREBUILT_RELDIR = path.join(
-	'@github', 'copilot', 'sdk', 'prebuilds'
-);
+const COPILOT_PREBUILT_RELDIRS = [
+	path.join('@github', 'copilot', 'prebuilds'),
+	path.join('@github', 'copilot', 'sdk', 'prebuilds'),
+];
+const COPILOT_PREBUILT_WIN32_MARKERS = COPILOT_PREBUILT_RELDIRS.map(dir => `${dir.replace(/\\/g, '/')}/win32-`);
 
 function findCopilotPrebuiltNodes(rootDir: string): string[] {
 	const results: string[] = [];
@@ -38,7 +40,7 @@ function findCopilotPrebuiltNodes(rootDir: string): string[] {
 				walk(full);
 			} else if (entry.isFile() && COPILOT_PREBUILT_NODE_FILES.includes(entry.name)) {
 				const normalized = full.replace(/\\/g, '/');
-				if (normalized.includes(COPILOT_PREBUILT_RELDIR.replace(/\\/g, '/') + '/win32-')) {
+				if (COPILOT_PREBUILT_WIN32_MARKERS.some(marker => normalized.includes(marker))) {
 					results.push(full);
 				}
 			}
@@ -95,7 +97,7 @@ async function main() {
 	const esrpCliDLLPath = e('EsrpCliDllPath');
 	const codeSigningFolderPath = e('CodeSigningFolderPath');
 
-	// Temporarily move pre-signed Copilot SDK native modules out of the sign roots
+	// Temporarily move pre-signed Copilot native modules out of the sign roots
 	// to work around signtool 0x800700C1 (ERROR_BAD_EXE_FORMAT) on these files.
 	const signFolders = codeSigningFolderPath.split(',').map(f => f.trim()).filter(f => f.length > 0);
 	const stashed = stashCopilotPrebuilts(signFolders);
@@ -125,7 +127,7 @@ async function main() {
 			await streamProcessOutputAndCheckResult('Codesign context menu appx package', codesignTask3);
 		}
 	} finally {
-		// Restore the pre-signed Copilot SDK native modules so they ship in the
+		// Restore the pre-signed Copilot native modules so they ship in the
 		// packaged artifacts below.
 		restoreCopilotPrebuilts(stashed);
 	}
