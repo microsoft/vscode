@@ -35,7 +35,10 @@ jobs:
     templateContext:
       sdl:
         binskim:
-          analyzeTargetGlob: '$(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web/**/*.node'
+          ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
+            analyzeTargetGlob: '$(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/**/*.node'
+          ${{ else }}:
+            analyzeTargetGlob: '$(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web/**/*.node'
           preReleaseVersion: '4.3.1'
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:
