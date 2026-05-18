@@ -5,13 +5,14 @@
 
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { type AgentProvider, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, type IRemoteAgentHostSSHConnection, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TunnelAgentHostsSettingId } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { AgentHostLocalFilePermissionsSettingId } from '../../../../../platform/agentHost/common/agentHostPermissionService.js';
@@ -25,7 +26,6 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import product from '../../../../../platform/product/common/product.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
@@ -50,8 +50,9 @@ import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
 import { createRemoteAgentCustomizationItemProvider, createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
+import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
-import { ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logTerminalRecovery } from '../../../../common/sessionsTelemetry.js';
@@ -105,6 +106,10 @@ export class SSHReconnectState extends Disposable {
 		this.paused = false;
 		this._timer.clear();
 	}
+}
+
+export function shouldPauseSSHReconnectAfterFailure(err: unknown): boolean {
+	return isCancellationError(err);
 }
 
 /** Per-connection state bundle, disposed when a connection is removed. */
@@ -270,11 +275,19 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 	private _createProvider(entry: IRemoteAgentHostEntry): void {
 		const address = getEntryAddress(entry);
+		const sshConnection = entry.connection.type === RemoteAgentHostEntryType.SSH ? entry.connection : undefined;
+		const connectOnDemand = sshConnection
+			? () => this._connectSSHOnDemand(sshConnection, entry.name, address)
+			: undefined;
+		const disconnectOnDemand = sshConnection
+			? () => this._disconnectSSHOnDemand(sshConnection)
+			: undefined;
 		const store = new DisposableStore();
 		const provider = this._instantiationService.createInstance(
-			RemoteAgentHostSessionsProvider, { address, name: entry.name });
+			RemoteAgentHostSessionsProvider, { address, name: entry.name, connectOnDemand, disconnectOnDemand });
 		store.add(provider);
 		store.add(this._sessionsProvidersService.registerProvider(provider));
+		store.add(watchForIncompatibleNotifications(provider, this._instantiationService, this._notificationService));
 		this._providerInstances.set(address, provider);
 		store.add(toDisposable(() => this._providerInstances.delete(address)));
 		this._providerStores.set(address, store);
@@ -291,6 +304,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 * called.
 	 */
 	private _reconnectSSHEntries(): void {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			this._sshReconnectStates.clearAndDisposeAll();
+			return;
+		}
+
 		const autoConnect = this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId);
 		const entries = this._remoteAgentHostService.configuredEntries;
 		const stillConfigured = new Set<string>();
@@ -319,7 +337,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			if (!autoConnect) {
 				continue;
 			}
-			this._attemptSSHReconnect(sshConfigHost, entry.name, address);
+			void this._attemptSSHReconnect(sshConfigHost, entry.name, address);
 		}
 
 		// Drop retry state for hosts that are no longer configured.
@@ -330,19 +348,66 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 	}
 
-	private _attemptSSHReconnect(sshConfigHost: string, name: string, address: string): void {
+	private async _connectSSHOnDemand(connection: IRemoteAgentHostSSHConnection, name: string, address: string): Promise<void> {
+		const sshConfigHost = connection.sshConfigHost;
+		if (!sshConfigHost) {
+			await this._sshService.connect({
+				host: connection.hostName,
+				port: connection.port,
+				username: connection.user ?? connection.hostName,
+				authMethod: SSHAuthMethod.Agent,
+				name,
+			});
+			return;
+		}
+		if (this._pendingSSHReconnects.has(sshConfigHost)) {
+			return;
+		}
+		this._sshReconnectStates.get(sshConfigHost)?.resetForResume();
+		await this._attemptSSHReconnect(sshConfigHost, name, address, { userInitiated: true });
+	}
+
+	private async _disconnectSSHOnDemand(connection: IRemoteAgentHostSSHConnection): Promise<void> {
+		const connectionKey = connection.sshConfigHost
+			? `ssh:${connection.sshConfigHost}`
+			: `${connection.user ?? connection.hostName}@${connection.hostName}:${connection.port ?? 22}`;
+		if (connection.sshConfigHost) {
+			this._sshReconnectStates.deleteAndDispose(connection.sshConfigHost);
+		}
+		await this._sshService.disconnect(connectionKey);
+	}
+
+	private async _attemptSSHReconnect(sshConfigHost: string, name: string, address: string, options: { userInitiated?: boolean } = {}): Promise<void> {
 		this._pendingSSHReconnects.add(sshConfigHost);
 		const state = this._getOrCreateSSHReconnectState(sshConfigHost);
 		const attempt = state.attempts;
+		const provider = this._providerInstances.get(address);
+		if (options.userInitiated) {
+			provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
+		}
 		this._logService.info(`[RemoteAgentHost] Re-establishing SSH tunnel for ${sshConfigHost} (attempt ${attempt + 1})`);
-		this._sshService.reconnect(sshConfigHost, name).then(() => {
+		try {
+			await this._sshService.reconnect(sshConfigHost, name);
 			this._pendingSSHReconnects.delete(sshConfigHost);
 			this._sshReconnectStates.deleteAndDispose(sshConfigHost);
 			this._logService.info(`[RemoteAgentHost] SSH tunnel re-established for ${sshConfigHost}`);
-		}).catch(err => {
+		} catch (err) {
 			this._pendingSSHReconnects.delete(sshConfigHost);
+			if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+				this._sshReconnectStates.deleteAndDispose(sshConfigHost);
+				return;
+			}
+			if (options.userInitiated) {
+				provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+			}
+			if (shouldPauseSSHReconnectAfterFailure(err)) {
+				this._logService.info(`[RemoteAgentHost] Pausing SSH auto-reconnect for ${sshConfigHost} after user cancellation`);
+				provider?.unpublishCachedSessions();
+				const liveState = this._getOrCreateSSHReconnectState(sshConfigHost);
+				liveState.paused = true;
+				return;
+			}
 			this._logService.error(`[RemoteAgentHost] SSH reconnect failed for ${sshConfigHost}`, err);
-			const provider = this._providerInstances.get(address);
 			// Surface protocol-version mismatches on the provider so the
 			// workspace picker can show the host's message and the user
 			// can read it. Other errors stay as the existing disconnected
@@ -369,8 +434,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				liveState.paused = true;
 				return;
 			}
+			if (options.userInitiated) {
+				return;
+			}
 			this._scheduleSSHReconnect(sshConfigHost, name, address, liveState);
-		});
+		}
 	}
 
 	private _scheduleSSHReconnect(sshConfigHost: string, name: string, address: string, state: SSHReconnectState): void {
@@ -379,6 +447,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		state.scheduleRetry(delay, () => {
 			// Re-check eligibility — config might have changed, or a manual
 			// connect might have succeeded while we were waiting.
+			if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+				this._sshReconnectStates.deleteAndDispose(sshConfigHost);
+				return;
+			}
 			const autoConnect = this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId);
 			if (!autoConnect) {
 				return;
@@ -391,7 +463,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			if (this._pendingSSHReconnects.has(sshConfigHost)) {
 				return;
 			}
-			this._attemptSSHReconnect(sshConfigHost, name, address);
+			void this._attemptSSHReconnect(sshConfigHost, name, address);
 		});
 	}
 
@@ -753,7 +825,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[RemoteAgentHostsEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.remoteAgentHosts.enabled', "Enable connecting to remote agent hosts."),
-			default: product.quality !== 'stable',
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},
@@ -783,14 +855,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			items: {
 				type: 'object',
 				properties: {
-					address: { type: 'string', description: nls.localize('chat.remoteAgentHosts.address', "The address of the remote agent host (e.g. \"localhost:3000\").") },
+					address: { type: 'string', description: nls.localize('chat.remoteAgentHosts.address', "The WebSocket address of the remote agent host (e.g. \"localhost:3000\").") },
 					name: { type: 'string', description: nls.localize('chat.remoteAgentHosts.name', "A display name for this remote agent host.") },
 					connectionToken: { type: 'string', description: nls.localize('chat.remoteAgentHosts.connectionToken', "An optional connection token for authenticating with the remote agent host.") },
-					sshConfigHost: { type: 'string', description: nls.localize('chat.remoteAgentHosts.sshConfigHost', "SSH config host alias for automatic reconnection via SSH tunnel.") },
 				},
 				required: ['address', 'name'],
 			},
-			description: nls.localize('chat.remoteAgentHosts', "A list of remote agent host addresses to connect to (e.g. \"localhost:3000\")."),
+			description: nls.localize('chat.remoteAgentHosts', "A list of WebSocket remote agent host addresses to connect to (e.g. \"localhost:3000\"). SSH remote agent host details are managed by VS Code."),
 			default: [],
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],

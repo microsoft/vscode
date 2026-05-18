@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -31,7 +31,6 @@ function makeActiveSession(providerId: string): IActiveSession {
 		title: observableValue('t', 'Test'),
 		updatedAt: observableValue('u', new Date()),
 		status: observableValue('s', 0),
-		changesets: observableValue('cs', []),
 		changes: observableValue('c', []),
 		modelId: observableValue('m', undefined),
 		mode: observableValue('mo', undefined),
@@ -52,7 +51,7 @@ function makeActiveSession(providerId: string): IActiveSession {
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
-		changesets: chat.changesets,
+		changesets: constObservable([]),
 		changes: chat.changes,
 		modelId: chat.modelId,
 		mode: chat.mode,

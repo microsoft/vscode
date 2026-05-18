@@ -10,7 +10,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroupsService, GroupsOrder } from '../../../../services/editor/common/editorGroupsService.js';
-import { EditorsOrder, GroupIdentifier } from '../../../../common/editor.js';
+import { EditorsOrder, EditorResourceAccessor, GroupIdentifier, SideBySideEditor } from '../../../../common/editor.js';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPickSeparator, QuickInputButtonLocation, IQuickPick } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -44,7 +44,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
+import { IsSessionsWindowContext, ResourceContextKey } from '../../../../common/contextkeys.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 const CONTEXT_BROWSER_EDITOR_OPEN = new RawContextKey<boolean>('browserEditorOpen', false, localize('browser.editorOpen', "Whether any browser editor is currently open"));
 
@@ -333,6 +334,59 @@ class OpenIntegratedBrowserAction extends Action2 {
 	}
 }
 
+class OpenFileInIntegratedBrowserAction extends Action2 {
+	constructor() {
+		const IS_LOCAL_HTML_FILE = ContextKeyExpr.and(
+			ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+			ContextKeyExpr.regex(ResourceContextKey.Extension.key, /\.html?$/i),
+		);
+		super({
+			id: BrowserViewCommandId.OpenFile,
+			title: localize2('browser.openFileAction', "Open in Integrated Browser"),
+			category: BrowserActionCategory,
+			icon: Codicon.globe,
+			f1: true,
+			precondition: IS_LOCAL_HTML_FILE,
+			menu: [
+				{
+					id: MenuId.ExplorerContext,
+					group: 'navigation',
+					order: 29,
+					when: IS_LOCAL_HTML_FILE,
+				},
+				{
+					id: MenuId.EditorTitleContext,
+					group: '1_open',
+					order: 5,
+					when: IS_LOCAL_HTML_FILE,
+				},
+				{
+					id: MenuId.EditorTitle,
+					group: 'navigation',
+					order: 99,
+					when: IS_LOCAL_HTML_FILE,
+				},
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, resource?: URI): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const telemetryService = accessor.get(ITelemetryService);
+
+		// Resolve the file URI from the context or the active editor
+		const fileUri = resource ?? EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { filterByScheme: [Schemas.file], supportSideBySide: SideBySideEditor.PRIMARY });
+		if (!fileUri) {
+			return;
+		}
+
+		logBrowserOpen(telemetryService, 'openFileCommand');
+
+		const browserUri = BrowserViewUri.forId(generateUuid());
+		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } });
+	}
+}
+
 class NewTabAction extends Action2 {
 	constructor() {
 		super({
@@ -469,6 +523,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: BrowserV
 
 registerAction2(QuickOpenBrowserAction);
 registerAction2(OpenIntegratedBrowserAction);
+registerAction2(OpenFileInIntegratedBrowserAction);
 registerAction2(OpenOrListBrowsersAction);
 registerAction2(NewTabAction);
 registerAction2(CloseAllBrowserTabsAction);

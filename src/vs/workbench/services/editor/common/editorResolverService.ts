@@ -112,14 +112,33 @@ export type RegisteredEditorOptions = {
 	canSupportResource?: (resource: URI) => boolean;
 };
 
+export type RegisteredEditorPriorityInfo = {
+	readonly editor: RegisteredEditorPriority;
+	readonly diff: RegisteredEditorPriority;
+	readonly merge: RegisteredEditorPriority;
+};
+
 export type RegisteredEditorInfo = {
 	readonly id: string;
 	readonly label: string;
 	readonly detail?: string;
-	readonly priority: RegisteredEditorPriority;
-	readonly diffEditorPriority?: RegisteredEditorPriority;
-	readonly mergeEditorPriority?: RegisteredEditorPriority;
+	readonly priority: RegisteredEditorPriorityInfo;
 };
+
+export type RegisteredEditorRegistrationInfo = Omit<RegisteredEditorInfo, 'priority'> & {
+	readonly priority: RegisteredEditorPriority | RegisteredEditorPriorityInfo;
+};
+
+export function toRegisteredEditorPriorityInfo(priority: RegisteredEditorPriority | RegisteredEditorPriorityInfo): RegisteredEditorPriorityInfo {
+	if (typeof priority !== 'string') {
+		return priority;
+	}
+	return {
+		editor: priority,
+		diff: priority,
+		merge: priority,
+	};
+}
 
 type EditorInputFactoryResult = EditorInputWithOptions | Promise<EditorInputWithOptions>;
 
@@ -179,7 +198,7 @@ export interface IEditorResolverService {
 	 */
 	registerEditor(
 		globPattern: string | glob.IRelativePattern,
-		editorInfo: RegisteredEditorInfo,
+		editorInfo: RegisteredEditorRegistrationInfo,
 		options: RegisteredEditorOptions,
 		editorFactoryObject: EditorInputFactoryObject
 	): IDisposable;
