@@ -4261,6 +4261,24 @@
 						],
 						"description": "%github.copilot.config.anthropic.promptCaching.extendedTtlMessages%"
 					},
+					"github.copilot.chat.modelCapabilityOverrides": {
+						"type": "object",
+						"default": {},
+						"markdownDescription": "%github.copilot.config.modelCapabilityOverrides%",
+						"additionalProperties": {
+							"type": "object",
+							"properties": {
+								"family": {
+									"type": "string",
+									"description": "Alias the model's family for capability routing (e.g. 'claude-opus-4.7')."
+								}
+							},
+							"additionalProperties": false
+						},
+						"tags": [
+							"advanced"
+						]
+					},
 					"github.copilot.chat.freezeCustomizationsIndex": {
 						"type": "boolean",
 						"default": true,

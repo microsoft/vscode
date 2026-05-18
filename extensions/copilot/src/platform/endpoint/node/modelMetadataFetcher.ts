@@ -19,6 +19,7 @@ import { ILogService } from '../../log/common/logService';
 import { getRequest } from '../../networking/common/networking';
 import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
+import { getModelCapabilityOverride } from '../common/chatModelCapabilities';
 import { IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IModelAPIResponse, isChatModelInformation, isCompletionModelInformation, isEmbeddingModelInformation } from '../common/endpointProvider';
 
 export interface IModelMetadataFetcher {
@@ -190,12 +191,18 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 
 	public async getChatModelFromApiModel(apiModel: LanguageModelChat): Promise<IChatModelInformation | undefined> {
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
+		// `apiModel.family` may have been rewritten by a configured capability
+		// override (see `chat.modelCapabilityOverrides`). The CAPI model list
+		// still carries the model's real server family, so when an override is
+		// present we accept either the real family or the overridden family.
+		const overriddenFamily = getModelCapabilityOverride(apiModel.id, this._configService)?.family;
 		let resolvedModel: IModelAPIResponse | undefined;
 		for (const models of this._familyMap.values()) {
 			resolvedModel = models.find(model =>
 				model.id === apiModel.id &&
 				model.version === apiModel.version &&
-				model.capabilities.family === apiModel.family);
+				(model.capabilities.family === apiModel.family ||
+					(overriddenFamily !== undefined && apiModel.family === overriddenFamily)));
 			if (resolvedModel) {
 				break;
 			}
