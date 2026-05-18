@@ -25,8 +25,6 @@ import { GitHubPaths, IDefaultAccountService } from '../../../../platform/defaul
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import product from '../../../../platform/product/common/product.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
@@ -461,41 +459,49 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const actions = append(contentMain, $('.onboarding-a-signin-actions'));
 		this._signInActionsEl = actions;
 
-		const githubBtn = this._registerStepFocusable(this._createSignInButton(actions, 'github', localize('onboarding.signIn.github', "Continue with GitHub"), {
-			emphasized: true,
-			label: localize('onboarding.signIn.github.aria', "Continue with GitHub")
-		}));
-		this.stepDisposables.add(addDisposableListener(githubBtn, EventType.CLICK, () => {
-			this._logAction('signIn', undefined, 'github');
-			this._handleSignIn();
-		}));
+		if (this._userSignedIn) {
+			const signedIn = append(actions, $('.onboarding-a-signin-confirmation'));
+			const icon = append(signedIn, $('span'));
+			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
+			const text = append(signedIn, $('span'));
+			text.textContent = localize('onboarding.signIn.signedIn', "You're signed in.");
+		} else {
+			const githubBtn = this._registerStepFocusable(this._createSignInButton(actions, 'github', localize('onboarding.signIn.github', "Continue with GitHub"), {
+				emphasized: true,
+				label: localize('onboarding.signIn.github.aria', "Continue with GitHub")
+			}));
+			this.stepDisposables.add(addDisposableListener(githubBtn, EventType.CLICK, () => {
+				this._logAction('signIn', undefined, 'github');
+				this._handleSignIn();
+			}));
 
-		const googleBtn = this._registerStepFocusable(this._createSignInButton(actions, 'google', localize('onboarding.signIn.google', "Continue with Google"), {
-			iconOnly: true,
-			label: localize('onboarding.signIn.google', "Continue with Google")
-		}));
-		this.stepDisposables.add(addDisposableListener(googleBtn, EventType.CLICK, () => {
-			this._logAction('signIn', undefined, 'google');
-			this._handleSignIn('google');
-		}));
+			const googleBtn = this._registerStepFocusable(this._createSignInButton(actions, 'google', localize('onboarding.signIn.google', "Continue with Google"), {
+				iconOnly: true,
+				label: localize('onboarding.signIn.google', "Continue with Google")
+			}));
+			this.stepDisposables.add(addDisposableListener(googleBtn, EventType.CLICK, () => {
+				this._logAction('signIn', undefined, 'google');
+				this._handleSignIn('google');
+			}));
 
-		const appleBtn = this._registerStepFocusable(this._createSignInButton(actions, 'apple', localize('onboarding.signIn.apple', "Continue with Apple"), {
-			iconOnly: true,
-			label: localize('onboarding.signIn.apple', "Continue with Apple")
-		}));
-		this.stepDisposables.add(addDisposableListener(appleBtn, EventType.CLICK, () => {
-			this._logAction('signIn', undefined, 'apple');
-			this._handleSignIn('apple');
-		}));
+			const appleBtn = this._registerStepFocusable(this._createSignInButton(actions, 'apple', localize('onboarding.signIn.apple', "Continue with Apple"), {
+				iconOnly: true,
+				label: localize('onboarding.signIn.apple', "Continue with Apple")
+			}));
+			this.stepDisposables.add(addDisposableListener(appleBtn, EventType.CLICK, () => {
+				this._logAction('signIn', undefined, 'apple');
+				this._handleSignIn('apple');
+			}));
 
-		const gheBtn = this._registerStepFocusable(this._createSignInButton(actions, 'github-enterprise', localize('onboarding.signIn.ghe', "GHE"), {
-			textOnly: true,
-			label: localize('onboarding.signIn.ghe.aria', "Continue with GitHub Enterprise")
-		}));
-		this.stepDisposables.add(addDisposableListener(gheBtn, EventType.CLICK, () => {
-			this._logAction('signIn', undefined, 'github-enterprise');
-			this._handleEnterpriseSignIn();
-		}));
+			const gheBtn = this._registerStepFocusable(this._createSignInButton(actions, 'github-enterprise', localize('onboarding.signIn.ghe', "GHE"), {
+				textOnly: true,
+				label: localize('onboarding.signIn.ghe.aria', "Continue with GitHub Enterprise")
+			}));
+			this.stepDisposables.add(addDisposableListener(gheBtn, EventType.CLICK, () => {
+				this._logAction('signIn', undefined, 'github-enterprise');
+				this._handleEnterpriseSignIn();
+			}));
+		}
 
 		const footer = append(wrapper, $('.onboarding-a-signin-footer'));
 
@@ -602,53 +608,22 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 			const provider = defaultChat.provider.enterprise.id;
 
-			// Mark the authentication provider as the enterprise one so that
-			// `defaultAccountService.signIn` actually uses the configured
-			// GHE URL instead of plain github.com. Register the schema first
-			// so that the dotted-path lookup used by the default account
-			// service resolves the nested `authProvider` value.
-			const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-			registry.registerConfiguration({
-				'id': 'copilot.setup',
-				'type': 'object',
-				'properties': {
-					[defaultChat.completionsAdvancedSetting]: {
-						'type': 'object',
-						'properties': {
-							'authProvider': {
-								'type': 'string'
-							}
-						}
-					},
-					[defaultChat.providerUriSetting]: {
-						'type': 'string'
-					}
-				}
+			// Delegate to chat setup with the enterprise strategy. The
+			// runner will reuse the URI we already persisted, sign in with
+			// the enterprise provider, and install the chat extension —
+			// avoiding a second device-flow prompt that would occur if we
+			// signed in ourselves first and then triggered setup.
+			const success = await this.commandService.executeCommand<boolean>('workbench.action.chat.triggerSetup', undefined, {
+				disableChatViewReveal: true,
+				setupStrategy: ChatSetupStrategy.SetupWithEnterpriseProvider,
 			});
-
-			let existingAdvancedSetting = this.configurationService.inspect(defaultChat.completionsAdvancedSetting).user?.value;
-			if (typeof existingAdvancedSetting !== 'object' || existingAdvancedSetting === null) {
-				existingAdvancedSetting = {};
-			}
-			await this.configurationService.updateValue(defaultChat.completionsAdvancedSetting, {
-				...existingAdvancedSetting,
-				'authProvider': provider,
-			}, ConfigurationTarget.USER);
-
-			const account = await this.defaultAccountService.signIn({
-				extraAuthorizeParameters: { get_started_with: 'copilot-vscode' },
-			});
-			if (account) {
+			if (success) {
 				this._userSignedIn = true;
 				this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
-				this.commandService.executeCommand('workbench.action.chat.triggerSetup', undefined, {
-					disableChatViewReveal: true,
-					setupStrategy: ChatSetupStrategy.DefaultSetup,
-				});
 				this._nextStep();
 			} else {
-				// signIn returned no account (user dismissed external flow):
-				// restore the original sign-in buttons.
+				// Setup returned no success (user cancelled the external
+				// flow): restore the original sign-in buttons.
 				progress?.dispose();
 				progress = undefined;
 				restoreSignInButtons?.();
@@ -769,12 +744,11 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 			const submit = append(row, $<HTMLButtonElement>('button.onboarding-a-signin-ghe-submit'));
 			submit.type = 'submit';
-			submit.textContent = localize('onboarding.signIn.enterprise.continue', "Continue");
-
-			const cancel = append(row, $<HTMLButtonElement>('button.onboarding-a-signin-ghe-cancel'));
-			cancel.type = 'button';
-			cancel.textContent = localize('onboarding.signIn.enterprise.back', "Back");
-			cancel.setAttribute('aria-label', localize('onboarding.signIn.enterprise.back.aria', "Back to sign-in options"));
+			submit.setAttribute('aria-label', localize('onboarding.signIn.enterprise.continue', "Continue"));
+			submit.title = localize('onboarding.signIn.enterprise.continue', "Continue");
+			const submitIcon = append(submit, $('span'));
+			submitIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowRight));
+			submitIcon.setAttribute('aria-hidden', 'true');
 
 			const message = append(form, $('.onboarding-a-signin-ghe-message'));
 			message.textContent = localize('onboarding.signIn.enterprise.prompt', "What is your {0} instance?", defaultChat.provider.enterprise.name);
@@ -782,7 +756,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			// Make the new controls part of the step focus ring.
 			this._registerStepFocusable(input);
 			this._registerStepFocusable(submit);
-			this._registerStepFocusable(cancel);
 
 			let isSingleWord = false;
 
@@ -867,7 +840,24 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				}
 			}));
 
-			localDisposables.add(addDisposableListener(cancel, EventType.CLICK, () => finish(undefined)));
+			// Temporarily repurpose the footer Back button (lower-right) so
+			// it dismisses the inline form back to the sign-in options,
+			// matching the back-affordance pattern used on the other steps.
+			const backBtn = this.backButton;
+			let restoreBack: (() => void) | undefined;
+			if (backBtn) {
+				const prevDisplay = backBtn.style.display;
+				backBtn.style.display = '';
+				const backListener = addDisposableListener(backBtn, EventType.CLICK, e => {
+					e.stopImmediatePropagation();
+					finish(undefined);
+				}, true);
+				restoreBack = () => {
+					backListener.dispose();
+					backBtn.style.display = prevDisplay;
+				};
+				localDisposables.add(toDisposable(() => restoreBack?.()));
+			}
 
 			// Initial validation state (likely disables submit until typing).
 			validate();

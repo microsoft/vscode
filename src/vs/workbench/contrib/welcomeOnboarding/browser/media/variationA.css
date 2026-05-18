@@ -477,13 +477,14 @@
 	align-items: center;
 	justify-content: center;
 	height: 40px;
-	padding: 0 16px;
+	width: 40px;
+	padding: 0;
 	border-radius: 8px;
 	border: 1px solid var(--vscode-button-background, var(--vscode-focusBorder));
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 	font-family: inherit;
-	font-size: 13px;
+	font-size: 16px;
 	font-weight: 600;
 	cursor: pointer;
 }
@@ -498,31 +499,6 @@
 }
 
 .onboarding-a-signin-ghe-submit:focus-visible {
-	outline: 2px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
-}
-
-.onboarding-a-signin-ghe-cancel {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	height: 40px;
-	padding: 0 12px;
-	border-radius: 8px;
-	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
-	background: transparent;
-	color: var(--vscode-editor-foreground);
-	font-family: inherit;
-	font-size: 13px;
-	font-weight: 600;
-	cursor: pointer;
-}
-
-.onboarding-a-signin-ghe-cancel:hover {
-	background: var(--vscode-list-hoverBackground);
-}
-
-.onboarding-a-signin-ghe-cancel:focus-visible {
 	outline: 2px solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 }
@@ -550,6 +526,15 @@
 }
 
 .onboarding-a-signin-ghe-progress-message {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.onboarding-a-signin-confirmation {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 0;
 	font-size: 13px;
 	color: var(--vscode-descriptionForeground);
 }
