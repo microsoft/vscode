@@ -16,6 +16,7 @@ import { IFileSystemService } from '../../../platform/filesystem/common/fileSyst
 import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IOTelService } from '../../../platform/otel/common/otelService';
+import { IProxyModelsService } from '../../../platform/proxyModels/common/proxyModelsService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -67,6 +68,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		@IFileSystemService fileSystemService: IFileSystemService,
 		@IOTelService otelService: IOTelService,
 		@IGitService gitService: IGitService,
+		@IProxyModelsService private readonly proxyModelsService: IProxyModelsService,
 	) {
 		super(options, instantiationService, endpointProvider, logService, requestLogger, authenticationChatUpgradeService, telemetryService, configurationService, experimentationService, chatHookService, sessionTranscriptService, fileSystemService, otelService, gitService);
 	}
@@ -97,7 +99,12 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		if (useAgenticProxy) {
 			// Use agentic proxy with SearchSubagentModel or default to 'agentic-search-v3'
 			const agenticProxyModel = modelName || SearchSubagentToolCallingLoop.DEFAULT_AGENTIC_PROXY_MODEL;
-			return this.instantiationService.createInstance(ProxyAgenticEndpoint, agenticProxyModel);
+			// Only use the agentic proxy if the user is entitled to it
+			const allowedModels = this.proxyModelsService.models?.models;
+			if (allowedModels && allowedModels.some(m => m.name === agenticProxyModel)) {
+				return this.instantiationService.createInstance(ProxyAgenticEndpoint, agenticProxyModel);
+			}
+			return await this.endpointProvider.getChatEndpoint(this.options.request);
 		}
 
 		if (modelName) {
