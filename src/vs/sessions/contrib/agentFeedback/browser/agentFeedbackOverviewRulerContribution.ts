@@ -16,7 +16,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { getSessionForResource } from './agentFeedbackEditorUtils.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 const overviewRulerAgentFeedbackForeground = registerColor(
 	'editorOverviewRuler.agentFeedbackForeground',

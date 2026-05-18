@@ -9,6 +9,9 @@ import { chatSessionResourceToId } from './model/chatUri.js';
 
 const chatPerfPrefix = 'code/chat/';
 
+/** Tracks all mark names emitted per session so they can be cleared individually. */
+const chatMarksBySession = new Map<string, Set<string>>();
+
 /**
  * Well-defined perf scenarios for chat request lifecycle.
  * Each mark is a boundary of a measurable scenario — don't add marks
@@ -62,7 +65,15 @@ export const ChatPerfMark = {
  * disposed — see {@link clearChatMarks}.
  */
 export function markChat(sessionResource: URI, name: string): void {
-	mark(`${chatPerfPrefix}${chatSessionResourceToId(sessionResource)}/${name}`);
+	const sessionId = chatSessionResourceToId(sessionResource);
+	const fullName = `${chatPerfPrefix}${sessionId}/${name}`;
+	let names = chatMarksBySession.get(sessionId);
+	if (!names) {
+		names = new Set();
+		chatMarksBySession.set(sessionId, names);
+	}
+	names.add(fullName);
+	mark(fullName);
 }
 
 /**
@@ -70,7 +81,14 @@ export function markChat(sessionResource: URI, name: string): void {
  * Called when the chat model is disposed.
  */
 export function clearChatMarks(sessionResource: URI): void {
-	clearMarks(`${chatPerfPrefix}${chatSessionResourceToId(sessionResource)}/`);
+	const sessionId = chatSessionResourceToId(sessionResource);
+	const names = chatMarksBySession.get(sessionId);
+	if (names) {
+		for (const name of names) {
+			clearMarks(name);
+		}
+		chatMarksBySession.delete(sessionId);
+	}
 }
 
 /**

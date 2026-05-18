@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import type { ResourceLabelFormatter } from '../../label/common/label.js';
 
@@ -34,7 +35,7 @@ export const AGENT_HOST_SCHEME = 'vscode-agent-host';
  *   the URI authority (from {@link agentHostAuthority}).
  */
 export function toAgentHostUri(originalUri: URI, connectionAuthority: string): URI {
-	if (connectionAuthority === 'local') {
+	if (connectionAuthority === 'local' && originalUri.scheme === Schemas.file) {
 		return originalUri;
 	}
 
@@ -53,6 +54,10 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
  * The inverse of {@link toAgentHostUri}.
  */
 export function fromAgentHostUri(agentHostUri: URI): URI {
+	if (agentHostUri.scheme !== AGENT_HOST_SCHEME) {
+		return agentHostUri;
+	}
+
 	// Path: /[originalScheme]/[originalAuthority]/[rest of original path]
 	const path = agentHostUri.path;
 
@@ -118,7 +123,7 @@ export function agentHostAuthority(address: string): string {
 	if (/^[a-zA-Z0-9.:\-]+$/.test(normalized)) {
 		return normalized.replaceAll(':', '__');
 	}
-	return 'b64-' + encodeBase64(VSBuffer.fromString(normalized), false, true);
+	return `b64-${encodeBase64(VSBuffer.fromString(normalized), false, true)}`;
 }
 
 /**

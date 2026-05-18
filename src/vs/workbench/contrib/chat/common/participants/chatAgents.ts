@@ -50,6 +50,7 @@ export interface IChatAgentAttachmentCapabilities {
 	supportsTerminalAttachments?: boolean;
 	supportsPromptAttachments?: boolean;
 	supportsHandOffs?: boolean;
+	supportsCheckpoints?: boolean;
 }
 
 export interface IChatAgentData {
@@ -147,11 +148,18 @@ export interface IChatAgentRequest {
 	locationData?: Revived<IChatLocationData>;
 	acceptedConfirmationData?: unknown[];
 	rejectedConfirmationData?: unknown[];
+	agentHostSessionConfig?: Record<string, unknown>;
 	userSelectedModelId?: string;
 	modelConfiguration?: IStringDictionary<unknown>;
 	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
+	/**
+	 * The working directory URI for the session, if set.
+	 * In the agents window, each session can have its own working directory
+	 * that differs from the current workspace folders.
+	 */
+	workingDirectory?: URI;
 	/**
 	 * Collected hooks configuration for this request.
 	 * Contains all hooks defined in hooks .json files, organized by hook type.
@@ -180,6 +188,10 @@ export interface IChatAgentRequest {
 	 */
 	parentRequestId?: string;
 
+	/**
+	 * When true, this request was initiated by the system rather than the user.
+	 */
+	isSystemInitiated?: boolean;
 }
 
 export interface IChatQuestion {
@@ -218,12 +230,18 @@ export interface IChatAgentCompletionItem {
 	command?: Command;
 }
 
+export interface IChatAgentInvocationEvent {
+	readonly agentId: string;
+	readonly request: Readonly<IChatAgentRequest>;
+}
+
 export interface IChatAgentService {
 	_serviceBrand: undefined;
 	/**
 	 * undefined when an agent was removed
 	 */
 	readonly onDidChangeAgents: Event<IChatAgent | undefined>;
+	readonly onWillInvokeAgent: Event<IChatAgentInvocationEvent>;
 	readonly hasToolsAgent: boolean;
 	registerAgent(id: string, data: IChatAgentData): IDisposable;
 	registerAgentImplementation(id: string, agent: IChatAgentImplementation): IDisposable;
@@ -268,6 +286,8 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	private readonly _onDidChangeAgents = this._register(new Emitter<IChatAgent | undefined>());
 	readonly onDidChangeAgents: Event<IChatAgent | undefined> = this._onDidChangeAgents.event;
+	private readonly _onWillInvokeAgent = this._register(new Emitter<IChatAgentInvocationEvent>());
+	readonly onWillInvokeAgent: Event<IChatAgentInvocationEvent> = this._onWillInvokeAgent.event;
 
 	private readonly _agentsContextKeys = new Set<string>();
 	private readonly _hasDefaultAgent: IContextKey<boolean>;
@@ -514,6 +534,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			throw new Error(`No activated agent with id "${id}"`);
 		}
 
+		this._onWillInvokeAgent.fire({ agentId: id, request });
 		const result = await data.impl.invoke(request, progress, history, token);
 		markChat(request.sessionResource, ChatPerfMark.AgentDidInvoke);
 		return result;
@@ -522,7 +543,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	setRequestTools(id: string, requestId: string, tools: UserSelectedTools): void {
 		const data = this._agents.get(id);
 		if (!data?.impl) {
-			throw new Error(`No activated agent with id "${id}"`);
+			return;
 		}
 
 		data.impl.setRequestTools?.(requestId, tools);

@@ -39,8 +39,8 @@ export enum ThemeSettings {
 }
 
 export namespace ThemeSettingDefaults {
-	export const COLOR_THEME_DARK = 'VS Code Dark';
-	export const COLOR_THEME_LIGHT = 'VS Code Light';
+	export const COLOR_THEME_DARK = 'Dark 2026';
+	export const COLOR_THEME_LIGHT = 'Light 2026';
 	export const COLOR_THEME_HC_DARK = 'Default High Contrast';
 	export const COLOR_THEME_HC_LIGHT = 'Default High Contrast Light';
 
@@ -59,8 +59,12 @@ export function migrateThemeSettingsId(settingsId: string): string {
 		case 'Default Light Modern': return 'Light Modern';
 		case 'Default Dark+': return 'Dark+';
 		case 'Default Light+': return 'Light+';
-		case 'Experimental Dark': return 'VS Code Dark';
-		case 'Experimental Light': return 'VS Code Light';
+		case 'Experimental Dark':
+		case 'VS Code Dark':
+			return ThemeSettingDefaults.COLOR_THEME_DARK;
+		case 'Experimental Light':
+		case 'VS Code Light':
+			return ThemeSettingDefaults.COLOR_THEME_LIGHT;
 	}
 	return settingsId;
 }
