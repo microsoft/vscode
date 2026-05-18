@@ -338,15 +338,22 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		}
 
 		let lastEntry = entry;
+		let lastWasAlert = item.kind === 'warning' || item.kind === 'error';
 		const accessor: IStatusbarEntryAccessor = {
 			update: entry => {
 				lastEntry = entry;
 				item.update(this.withEntryOverride(entry, id));
 
-				// The entry's `kind` (e.g. error/warning) or background may have changed.
-				// Re-evaluate rainbow coloring so semantic kind colors win and reappear when cleared.
+				// Only re-evaluate rainbow coloring when the entry's alert state actually flips:
+				// non-alert entries always show their rainbow hue, alert entries always show their
+				// kind colors. Other property changes (text, tooltip, command, ...) don't affect
+				// the rainbow layout, so we can skip the O(N) DOM update.
 				if (this.rainbowApplied) {
-					this.updateRainbowColors();
+					const isAlert = item.kind === 'warning' || item.kind === 'error';
+					if (isAlert !== lastWasAlert) {
+						lastWasAlert = isAlert;
+						this.updateRainbowColors();
+					}
 				}
 			},
 			dispose: () => {
