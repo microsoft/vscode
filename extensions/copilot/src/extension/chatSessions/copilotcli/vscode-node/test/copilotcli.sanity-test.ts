@@ -67,7 +67,7 @@ suite('Copilot CLI Chat Sanity Test', function () {
 					captured.push(`${LogLevel[level]}: ${message}`);
 				}
 			};
-			const targets: ILogTarget[] = (logService as any).logger._logTargets;
+			const targets = (logService as unknown as { logger: { _logTargets: ILogTarget[] } }).logger._logTargets;
 			assert.ok(Array.isArray(targets), 'Could not access LogService targets array');
 			targets.push(logTarget);
 
