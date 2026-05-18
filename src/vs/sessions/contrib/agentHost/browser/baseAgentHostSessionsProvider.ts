@@ -1279,10 +1279,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		// Open chat widget — getOrCreateChatSession will wait for the session
 		// handler to become available via canResolveChatSession internally.
+		// In background mode the caller keeps its own UI in front (e.g. the
+		// aquarium-as-sessions new-chat view), so skip the chat-widget reveal:
+		// `viewsService.openView(ChatViewId)` would return null while the
+		// new-chat view's when-clause is true and the send would otherwise
+		// fail outright. The session model is still loaded below via
+		// `acquireOrLoadSession`, which is all `sendRequest` actually needs.
 		await this._chatSessionsService.getOrCreateChatSession(sessionResource, CancellationToken.None);
-		const chatWidget = await this._chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
-		if (!chatWidget) {
-			throw new Error(`[${this.id}] Failed to open chat widget`);
+		if (!options.background) {
+			const chatWidget = await this._chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
+			if (!chatWidget) {
+				throw new Error(`[${this.id}] Failed to open chat widget`);
+			}
 		}
 
 		// Load session model and apply selected model

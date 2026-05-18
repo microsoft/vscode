@@ -231,8 +231,6 @@ class NewChatWidget extends Disposable {
 		this._hotspotStore.value = store;
 		const button = dom.$('button.aquarium-compose-hotspot') as HTMLButtonElement;
 		button.type = 'button';
-		button.setAttribute('aria-label', localize('aquarium.composeHotspot.aria', "Compose new agent chat"));
-		button.textContent = localize('aquarium.composeHotspot.label', "Click to compose…");
 		// Keep the hotspot above the aquarium toggle's stacking context so
 		// pointer events on empty space reach the button rather than the
 		// (decorative, pointer-events:none) aquarium layers.
@@ -443,6 +441,36 @@ class NewChatWidget extends Disposable {
 		// session is registered. The service is a no-op when the
 		// sessions-aware aquarium isn't active.
 		this.aquariumSubmitIntentService.recordIntent();
+
+		if (this._aquariumModeActive) {
+			// Aquarium-mode submit: stay on the new-chat / aquarium view rather
+			// than routing to the chat view. The management service's
+			// sendAndCreateChat synchronously flips isNewChatSessionContext to
+			// false (which would briefly swap to the chat view before we could
+			// swap it back). Talk to the provider directly with `background:
+			// true` so it sends the request without revealing the chat view,
+			// then mint a fresh pending new session for the same workspace so
+			// the next submit creates another chat.
+			const selectedProject = this._workspacePicker.selectedProject;
+			const provider = this.sessionsProvidersService.getProvider(session.providerId);
+			if (provider && selectedProject) {
+				// Slide the chat input away immediately — the submission
+				// proceeds in the background and the new session/fish
+				// appears via the aquarium population driver. Without this
+				// the input would stay open until the full commit cycle
+				// (worktree creation, model load, etc.) finishes.
+				this._scheduleAquariumAutoDismiss();
+				try {
+					await provider.sendAndCreateChat(session.sessionId, { query, attachedContext, background: true });
+					this._createNewSession(selectedProject, this._newChatInput.sessionTypePicker.selectedType);
+				} catch (e) {
+					this.logService.error('Failed to send request:', e);
+				}
+				return;
+			}
+			// Fall through to the regular path if we can't determine the workspace.
+		}
+
 		try {
 			await this.sessionsManagementService.sendAndCreateChat(session, { query, attachedContext });
 			// In aquarium-mode, slide the chat input back away so the user can

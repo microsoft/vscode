@@ -189,18 +189,8 @@
 	color: var(--vscode-charts-orange, #d18616);
 }
 
-.agents-aquarium-fish--completed {
-	color: var(--vscode-descriptionForeground, #989898);
-}
-
 .agents-aquarium-fish--error {
 	color: var(--vscode-charts-red, #f14c4c);
-}
-
-/* Higher specificity so completed fish stay slightly faded even while
- * `.visible` (which would otherwise pin opacity to 1). */
-.agents-aquarium-fish.visible.agents-aquarium-fish--completed {
-	opacity: 0.55;
 }
 
 /* --- Activity bubbles (sessions-aware aquarium) --- */

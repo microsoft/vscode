@@ -26,6 +26,13 @@ export interface ISendRequestOptions {
 	readonly query: string;
 	/** Optional attached context entries. */
 	readonly attachedContext?: IChatRequestVariableEntry[];
+	/**
+	 * When true, the provider should send the request without revealing any
+	 * UI — in particular, without opening the chat view. Used by callers that
+	 * want to keep their own view in front (e.g. the aquarium-as-sessions
+	 * new-chat view). Providers that can't honor this MAY still open UI.
+	 */
+	readonly background?: boolean;
 }
 
 /**

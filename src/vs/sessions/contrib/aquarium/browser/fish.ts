@@ -30,9 +30,9 @@ const SPECIES_COLOR: Record<FishSpecies, string> = {
  * (`agents-aquarium-fish--<variant>`); when cleared, the species color is
  * restored.
  */
-export type FishStatusVariant = 'running' | 'needs-input' | 'completed' | 'error';
+export type FishStatusVariant = 'running' | 'needs-input' | 'error';
 
-const ALL_STATUS_VARIANTS: readonly FishStatusVariant[] = ['running', 'needs-input', 'completed', 'error'];
+const ALL_STATUS_VARIANTS: readonly FishStatusVariant[] = ['running', 'needs-input', 'error'];
 
 /** Pick a random species, weighted Stable > Insiders > Exploration. */
 export function pickRandomSpecies(): FishSpecies {

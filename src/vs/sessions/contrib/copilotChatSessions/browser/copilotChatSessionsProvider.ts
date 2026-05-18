@@ -1656,82 +1656,102 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		// Claude sessions use the ChatSessionItemController API which creates
 		// real session URIs upfront, bypassing the untitled→commit→swap flow.
 		if (session instanceof ClaudeCodeNewSession) {
-			return this._sendFirstChatViaController(session, query, sendOptions);
+			return this._sendFirstChatViaController(session, query, sendOptions, options.background);
 		}
 
 		await this.chatSessionsService.getOrCreateChatSession(session.resource, CancellationToken.None);
-		const disposable = await this._applySessionModelState(session.resource, session, permissionLevel);
-		const chatWidget = await this.chatWidgetService.openSession(session.resource, ChatViewPaneTarget);
-		disposable.dispose();
-		if (!chatWidget) {
-			throw new Error('[DefaultCopilotProvider] Failed to open chat widget');
-		}
-
-		// Send request
-		this.logService.debug(`[CopilotChatSessionsProvider] Sending first chat for session ${session.id} with options:`, {
-			userSelectedModelId: sendOptions.userSelectedModelId,
-		});
-		const result = await this.chatService.sendRequest(session.resource, query, sendOptions);
-		if (result.kind === 'rejected') {
-			throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
-		}
-
-		// Extract promises to detect cancellation vs normal completion
-		const responseCompletePromise = result.kind === 'sent'
-			? result.data.responseCompletePromise
-			: undefined;
-		const responseCreatedPromise = result.kind === 'sent'
-			? result.data.responseCreatedPromise
-			: undefined;
-
-		// Add the new session to the sessions model immediately so it appears in the sessions list
-		session.setTitle(localize('new session', "New Session"));
-		session.setStatus(SessionStatus.InProgress);
-		const key = session.resource.toString();
-		this._sessionCache.set(key, session);
-		this._invalidateGroupingCaches();
-		const newSession = this._chatToSession(session);
-		this._onDidChangeSessions.fire({ added: [newSession], removed: [], changed: [] });
-
+		const modelStateRef = await this._applySessionModelState(session.resource, session, permissionLevel);
+		let modelStateRefDisposed = false;
 		try {
-
-			// Wait for the session to be committed (URI swapped from untitled to real)
-			const committedResource = await this._waitForCommittedSession(session.resource, responseCompletePromise, responseCreatedPromise);
-
-			// Wait for _refreshSessionCache to populate the committed adapter
-			const committedChat = await this._waitForSessionInCache(committedResource);
-
-			// Remove the temp from the cache (the adapter now owns the committed key)
-			this._sessionCache.delete(key);
-			this._currentNewSession = undefined;
-			session.dispose();
-
-			const committedSession = this._chatToSession(committedChat);
-
-			// Notify listeners that the temp session was replaced by the committed one
-			this._sessionGroupCache.delete(session.id);
-			this._onDidReplaceSession.fire({ from: newSession, to: committedSession });
-
-			return committedSession;
-		} catch (error) {
-			this._currentNewSession = undefined;
-
-			if (error instanceof CancellationError) {
-				// Session was stopped before the agent created a worktree.
-				// Keep the temp session in the list so the user can review
-				// whatever content the agent produced before cancellation.
-				session.setStatus(SessionStatus.Completed);
-				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [newSession] });
-				return newSession;
+			// In background mode the caller keeps its own UI in front (e.g. the
+			// aquarium-as-sessions new-chat view), so skip the chat-view reveal:
+			// `viewsService.openView(ChatViewId)` would return null while the
+			// new-chat view's when-clause is true and the send would otherwise
+			// fail outright. We also keep our model ref alive across sendRequest
+			// and the commit wait so the (often untitled) session model isn't
+			// evicted from ChatModelStore while tools fire during
+			// createNewChatSessionItem — in normal flow the chat widget holds
+			// that ref, but here there's no widget to hold it.
+			if (!options.background) {
+				const chatWidget = await this.chatWidgetService.openSession(session.resource, ChatViewPaneTarget);
+				if (!chatWidget) {
+					throw new Error('[DefaultCopilotProvider] Failed to open chat widget');
+				}
+				// The chat widget acquired its own model ref — release ours.
+				modelStateRef.dispose();
+				modelStateRefDisposed = true;
 			}
 
-			// Unexpected error — clean up the temp session entirely
-			this._sessionCache.delete(key);
+			// Send request
+			this.logService.debug(`[CopilotChatSessionsProvider] Sending first chat for session ${session.id} with options:`, {
+				userSelectedModelId: sendOptions.userSelectedModelId,
+			});
+			const result = await this.chatService.sendRequest(session.resource, query, sendOptions);
+			if (result.kind === 'rejected') {
+				throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
+			}
+
+			// Extract promises to detect cancellation vs normal completion
+			const responseCompletePromise = result.kind === 'sent'
+				? result.data.responseCompletePromise
+				: undefined;
+			const responseCreatedPromise = result.kind === 'sent'
+				? result.data.responseCreatedPromise
+				: undefined;
+
+			// Add the new session to the sessions model immediately so it appears in the sessions list
+			session.setTitle(localize('new session', "New Session"));
+			session.setStatus(SessionStatus.InProgress);
+			const key = session.resource.toString();
+			this._sessionCache.set(key, session);
 			this._invalidateGroupingCaches();
-			this._sessionGroupCache.delete(session.id);
-			this._onDidChangeSessions.fire({ added: [], removed: [this._chatToSession(session)], changed: [] });
-			session.dispose();
-			throw error;
+			const newSession = this._chatToSession(session);
+			this._onDidChangeSessions.fire({ added: [newSession], removed: [], changed: [] });
+
+			try {
+
+				// Wait for the session to be committed (URI swapped from untitled to real)
+				const committedResource = await this._waitForCommittedSession(session.resource, responseCompletePromise, responseCreatedPromise);
+
+				// Wait for _refreshSessionCache to populate the committed adapter
+				const committedChat = await this._waitForSessionInCache(committedResource);
+
+				// Remove the temp from the cache (the adapter now owns the committed key)
+				this._sessionCache.delete(key);
+				this._currentNewSession = undefined;
+				session.dispose();
+
+				const committedSession = this._chatToSession(committedChat);
+
+				// Notify listeners that the temp session was replaced by the committed one
+				this._sessionGroupCache.delete(session.id);
+				this._onDidReplaceSession.fire({ from: newSession, to: committedSession });
+
+				return committedSession;
+			} catch (error) {
+				this._currentNewSession = undefined;
+
+				if (error instanceof CancellationError) {
+					// Session was stopped before the agent created a worktree.
+					// Keep the temp session in the list so the user can review
+					// whatever content the agent produced before cancellation.
+					session.setStatus(SessionStatus.Completed);
+					this._onDidChangeSessions.fire({ added: [], removed: [], changed: [newSession] });
+					return newSession;
+				}
+
+				// Unexpected error — clean up the temp session entirely
+				this._sessionCache.delete(key);
+				this._invalidateGroupingCaches();
+				this._sessionGroupCache.delete(session.id);
+				this._onDidChangeSessions.fire({ added: [], removed: [this._chatToSession(session)], changed: [] });
+				session.dispose();
+				throw error;
+			}
+		} finally {
+			if (!modelStateRefDisposed) {
+				modelStateRef.dispose();
+			}
 		}
 	}
 
@@ -1748,6 +1768,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		session: ClaudeCodeNewSession,
 		query: string,
 		sendOptions: IChatSendRequestOptions,
+		background?: boolean,
 	): Promise<ISession> {
 		// Create the real session item via the controller's newChatSessionItemHandler.
 		// This returns a session with a real (non-untitled) URI.
@@ -1762,80 +1783,95 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		const realResource = newItem.resource;
 
-		// Open chat session and widget with the real URI
+		// Open chat session and widget with the real URI. In background mode
+		// the caller keeps its own UI in front, so skip the chat-view reveal
+		// (see `_sendFirstChat` for the full rationale). Also keep our model
+		// ref alive across sendRequest and the cache wait so the model isn't
+		// evicted from ChatModelStore while tools fire during the first turn.
 		await this.chatSessionsService.getOrCreateChatSession(realResource, CancellationToken.None);
-		const disposable = await this._applySessionModelState(realResource, session, sendOptions.modeInfo?.permissionLevel);
-		const chatWidget = await this.chatWidgetService.openSession(realResource, ChatViewPaneTarget);
-		disposable.dispose();
-		if (!chatWidget) {
-			throw new Error('[CopilotChatSessionsProvider] Failed to open chat widget');
-		}
-
-		// Send request to the real URI — sendRequest skips the
-		// createNewChatSessionItem block since the URI is not untitled.
-		this.logService.debug(`[CopilotChatSessionsProvider] Sending first Claude chat to ${realResource.toString()} with options:`, {
-			userSelectedModelId: sendOptions.userSelectedModelId,
-		});
-		const result = await this.chatService.sendRequest(realResource, query, sendOptions);
-		if (result.kind === 'rejected') {
-			throw new Error(`[CopilotChatSessionsProvider] sendRequest rejected: ${result.reason}`);
-		}
-
-		// Add the temp session to the cache immediately so it appears in the sessions list
-		session.setTitle(newItem.label);
-		session.setStatus(SessionStatus.InProgress);
-		const tempKey = session.resource.toString();
-		this._sessionCache.set(tempKey, session);
-		const tempSession = this._chatToSession(session);
-		this._onDidChangeSessions.fire({ added: [tempSession], removed: [], changed: [] });
-
-		// Extract response promises for cancellation detection
-		const responseCreatedPromise = result.kind === 'sent'
-			? result.data.responseCreatedPromise
-			: undefined;
-		const cts = new CancellationTokenSource();
-		// TODO: Understand why we are not awaiting this an only handling the cancellation
-		responseCreatedPromise?.then(r => {
-			if (r?.isCanceled) {
-				cts.cancel();
-			}
-		});
-
+		const modelStateRef = await this._applySessionModelState(realResource, session, sendOptions.modeInfo?.permissionLevel);
+		let modelStateRefDisposed = false;
 		try {
-			// Wait for the agent sessions model to pick up the real session,
-			// racing against cancellation so we don't timeout when the user
-			// stops the request before the agent creates a worktree.
-			const committedChat = await this._waitForSessionInCache(realResource, cts.token);
-
-			// Clean up temp session and replace with the real adapter
-			this._sessionCache.delete(tempKey);
-			this._currentNewSession = undefined;
-			session.dispose();
-
-			const committedSession = this._chatToSession(committedChat);
-			this._sessionGroupCache.delete(session.id);
-			this._onDidReplaceSession.fire({ from: tempSession, to: committedSession });
-
-			return committedSession;
-		} catch (error) {
-			this._currentNewSession = undefined;
-
-			if (error instanceof CancellationError) {
-				// Keep the temp session visible so the user can review
-				// whatever content the agent produced before the cancellation.
-				session.setStatus(SessionStatus.Completed);
-				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [tempSession] });
-				return tempSession;
+			if (!background) {
+				const chatWidget = await this.chatWidgetService.openSession(realResource, ChatViewPaneTarget);
+				if (!chatWidget) {
+					throw new Error('[CopilotChatSessionsProvider] Failed to open chat widget');
+				}
+				// The chat widget acquired its own model ref — release ours.
+				modelStateRef.dispose();
+				modelStateRefDisposed = true;
 			}
 
-			// Unexpected error — clean up the temp session entirely
-			this._sessionCache.delete(tempKey);
-			this._sessionGroupCache.delete(session.id);
-			this._onDidChangeSessions.fire({ added: [], removed: [tempSession], changed: [] });
-			session.dispose();
-			throw error;
+			// Send request to the real URI — sendRequest skips the
+			// createNewChatSessionItem block since the URI is not untitled.
+			this.logService.debug(`[CopilotChatSessionsProvider] Sending first Claude chat to ${realResource.toString()} with options:`, {
+				userSelectedModelId: sendOptions.userSelectedModelId,
+			});
+			const result = await this.chatService.sendRequest(realResource, query, sendOptions);
+			if (result.kind === 'rejected') {
+				throw new Error(`[CopilotChatSessionsProvider] sendRequest rejected: ${result.reason}`);
+			}
+
+			// Add the temp session to the cache immediately so it appears in the sessions list
+			session.setTitle(newItem.label);
+			session.setStatus(SessionStatus.InProgress);
+			const tempKey = session.resource.toString();
+			this._sessionCache.set(tempKey, session);
+			const tempSession = this._chatToSession(session);
+			this._onDidChangeSessions.fire({ added: [tempSession], removed: [], changed: [] });
+
+			// Extract response promises for cancellation detection
+			const responseCreatedPromise = result.kind === 'sent'
+				? result.data.responseCreatedPromise
+				: undefined;
+			const cts = new CancellationTokenSource();
+			// TODO: Understand why we are not awaiting this an only handling the cancellation
+			responseCreatedPromise?.then(r => {
+				if (r?.isCanceled) {
+					cts.cancel();
+				}
+			});
+
+			try {
+				// Wait for the agent sessions model to pick up the real session,
+				// racing against cancellation so we don't timeout when the user
+				// stops the request before the agent creates a worktree.
+				const committedChat = await this._waitForSessionInCache(realResource, cts.token);
+
+				// Clean up temp session and replace with the real adapter
+				this._sessionCache.delete(tempKey);
+				this._currentNewSession = undefined;
+				session.dispose();
+
+				const committedSession = this._chatToSession(committedChat);
+				this._sessionGroupCache.delete(session.id);
+				this._onDidReplaceSession.fire({ from: tempSession, to: committedSession });
+
+				return committedSession;
+			} catch (error) {
+				this._currentNewSession = undefined;
+
+				if (error instanceof CancellationError) {
+					// Keep the temp session visible so the user can review
+					// whatever content the agent produced before the cancellation.
+					session.setStatus(SessionStatus.Completed);
+					this._onDidChangeSessions.fire({ added: [], removed: [], changed: [tempSession] });
+					return tempSession;
+				}
+
+				// Unexpected error — clean up the temp session entirely
+				this._sessionCache.delete(tempKey);
+				this._sessionGroupCache.delete(session.id);
+				this._onDidChangeSessions.fire({ added: [], removed: [tempSession], changed: [] });
+				session.dispose();
+				throw error;
+			} finally {
+				cts.dispose();
+			}
 		} finally {
-			cts.dispose();
+			if (!modelStateRefDisposed) {
+				modelStateRef.dispose();
+			}
 		}
 	}
 

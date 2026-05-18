@@ -12,14 +12,6 @@ import { IAquariumHost, IAquariumPopulationDriver, IFishHandle } from './aquariu
 import { IAquariumSubmitIntentService } from './aquariumSubmitIntentService.js';
 import { FishStatusVariant } from './fish.js';
 
-/**
- * Soft cap on session-fish so the aquarium never balloons past a comfortable
- * count even when the user runs unusually many parallel sessions. The driver
- * enforces this by aging out the oldest **terminal** (completed / error)
- * fish first; active sessions are never displaced by the cap.
- */
-const MAX_SESSION_FISH = 20;
-
 /** Spawn size of a fish that's growing from a freshly-submitted chat. */
 const GROWTH_START_SIZE = 18;
 /** Final size the fish reaches if its session keeps running long enough. */
@@ -30,10 +22,8 @@ const GROWTH_DURATION_MS = 18000;
 interface ISessionFishEntry {
 	readonly handle: IFishHandle;
 	readonly perSession: DisposableStore;
-	/** Latest status observed via the per-session autorun, used by the cap eviction. */
+	/** Latest status observed via the per-session autorun. */
 	lastStatus: SessionStatus;
-	/** Wall-clock time the session was first observed, used as the cap-eviction tiebreaker. */
-	readonly addedAt: number;
 	/**
 	 * True when the fish was spawned via a freshly-consumed submit intent and
 	 * is currently in the grow-from-spawn tween. Cleared the moment the
@@ -44,8 +34,9 @@ interface ISessionFishEntry {
 }
 
 /**
- * Population driver that maps the live set of sessions 1:1 to fish in the
- * aquarium. Status drives color via {@link FishStatusVariant}; add / remove
+ * Population driver that maps the live, non-archived set of sessions 1:1 to
+ * fish in the aquarium — mirroring what the sessions sidebar shows by
+ * default. Status drives color via {@link FishStatusVariant}; add / remove
  * animations are handled by the engine via {@link IFishHandle.fadeOut}.
  *
  * Activity bubbles and submit-grow tweens are layered on top in later phases
@@ -56,6 +47,8 @@ export class SessionPopulationDriver extends Disposable implements IAquariumPopu
 	private _host: IAquariumHost | undefined;
 
 	private readonly _entries = new Map<string, ISessionFishEntry>();
+	/** Per-session disposable that observes archived state so we add/remove fish in sync with the sidebar. */
+	private readonly _watchers = new Map<string, IDisposable>();
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -69,23 +62,26 @@ export class SessionPopulationDriver extends Disposable implements IAquariumPopu
 		this._host = host;
 
 		for (const session of this._sessionsManagementService.getSessions()) {
-			this._addSession(session);
+			this._watchSession(session);
 		}
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
 			for (const removed of e.removed) {
+				this._unwatchSession(removed.sessionId);
 				this._removeSession(removed.sessionId);
 			}
 			for (const added of e.added) {
-				this._addSession(added);
+				this._watchSession(added);
 			}
 			// `changed` is reactively handled by per-session autoruns wired in `_addSession`.
 		}));
-
-		this._enforceCap();
 	}
 
 	override dispose(): void {
+		for (const watcher of this._watchers.values()) {
+			watcher.dispose();
+		}
+		this._watchers.clear();
 		for (const entry of this._entries.values()) {
 			entry.perSession.dispose();
 			entry.handle.dispose();
@@ -93,6 +89,32 @@ export class SessionPopulationDriver extends Disposable implements IAquariumPopu
 		this._entries.clear();
 		this._host = undefined;
 		super.dispose();
+	}
+
+	/**
+	 * Watch a session's archived state. Archived sessions are hidden from the
+	 * sidebar's default list and so are hidden from the aquarium too; if the
+	 * user unarchives a session its fish reappears.
+	 */
+	private _watchSession(session: ISession): void {
+		if (this._watchers.has(session.sessionId)) {
+			return;
+		}
+		const store = new DisposableStore();
+		this._watchers.set(session.sessionId, store);
+		store.add(autorun(reader => {
+			const archived = session.isArchived.read(reader);
+			if (archived) {
+				this._removeSession(session.sessionId);
+			} else {
+				this._addSession(session);
+			}
+		}));
+	}
+
+	private _unwatchSession(sessionId: string): void {
+		this._watchers.get(sessionId)?.dispose();
+		this._watchers.delete(sessionId);
 	}
 
 	private _addSession(session: ISession): void {
@@ -117,7 +139,6 @@ export class SessionPopulationDriver extends Disposable implements IAquariumPopu
 			handle,
 			perSession,
 			lastStatus: SessionStatus.Untitled,
-			addedAt: Date.now(),
 			isGrowing,
 		};
 		this._entries.set(session.sessionId, entry);
@@ -133,10 +154,6 @@ export class SessionPopulationDriver extends Disposable implements IAquariumPopu
 			if (entry.isGrowing && previousStatus === SessionStatus.InProgress && status !== SessionStatus.InProgress) {
 				entry.isGrowing = false;
 				handle.fish.setTargetSize(handle.fish.size, 0);
-			}
-			if (isTerminal(status)) {
-				// Re-evaluate the cap when a fish becomes evictable.
-				this._enforceCap();
 			}
 		}));
 
@@ -164,32 +181,6 @@ export class SessionPopulationDriver extends Disposable implements IAquariumPopu
 		this._entries.delete(sessionId);
 		return undefined;
 	}
-
-	/**
-	 * Soft-cap the number of fish at {@link MAX_SESSION_FISH}. Only sessions
-	 * in a terminal state (`Completed` / `Error`) are evicted; oldest first.
-	 * Active sessions are kept regardless of cap to preserve the 1:1 visual.
-	 */
-	private _enforceCap(): void {
-		if (this._entries.size <= MAX_SESSION_FISH) {
-			return;
-		}
-		const evictable: Array<{ id: string; addedAt: number }> = [];
-		for (const [id, entry] of this._entries) {
-			if (isTerminal(entry.lastStatus)) {
-				evictable.push({ id, addedAt: entry.addedAt });
-			}
-		}
-		// Oldest first so the visible "fade-out" pattern is FIFO.
-		evictable.sort((a, b) => a.addedAt - b.addedAt);
-
-		let toEvict = this._entries.size - MAX_SESSION_FISH;
-		while (toEvict > 0 && evictable.length > 0) {
-			const next = evictable.shift()!;
-			this._removeSession(next.id);
-			toEvict--;
-		}
-	}
 }
 
 function statusToVariant(status: SessionStatus): FishStatusVariant | undefined {
@@ -198,15 +189,11 @@ function statusToVariant(status: SessionStatus): FishStatusVariant | undefined {
 			return 'running';
 		case SessionStatus.NeedsInput:
 			return 'needs-input';
-		case SessionStatus.Completed:
-			return 'completed';
 		case SessionStatus.Error:
 			return 'error';
 		default:
+			// Untitled / Completed fall through to the species color so the
+			// aquarium stays colorful — only live or errored fish stand out.
 			return undefined;
 	}
-}
-
-function isTerminal(status: SessionStatus): boolean {
-	return status === SessionStatus.Completed || status === SessionStatus.Error;
 }
