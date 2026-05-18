@@ -30,10 +30,9 @@ import { IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../claude/node/claudeModelId';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
 import { IClaudeCodeSessionService } from '../claude/node/sessionParser/claudeCodeSessionService';
-import { formatModelDetails, ModelDetailsInfo } from '../../../platform/chat/common/chatModelDetails';
+import { formatModelDetails, formatModelDetailsWithMultiplier } from '../../../platform/chat/common/chatModelDetails';
 import { IClaudeCodeSessionInfo, IClaudeCodeSession, SYNTHETIC_MODEL_ID } from '../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
-import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
 import { builtinSlashCommands } from '../common/builtinSlashCommands';
 import { IClaudeWorkspaceFolderService } from '../common/claudeWorkspaceFolderService';
@@ -89,7 +88,6 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
-		@IChatSessionMetadataStore private readonly _chatSessionMetadataStore: IChatSessionMetadataStore,
 	) {
 		super();
 		this._controller = this._register(instantiationService.createInstance(ClaudeChatSessionItemController));
@@ -186,11 +184,6 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 				details = formatModelDetails(endpoint.name, endpoint.multiplier, creditsUsed);
 			}
 
-			// Persist credits so rebuilt history can recover them
-			if (creditsUsed !== undefined) {
-				this._chatSessionMetadataStore.updateRequestDetails(effectiveSessionId, [{ vscodeRequestId: request.id, creditsUsed }]).catch(() => { /* best-effort */ });
-			}
-
 			return {
 				...(details ? { details } : {}),
 				...(result.errorDetails ? { errorDetails: result.errorDetails } : {}),
@@ -203,19 +196,9 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 	async provideChatSessionContent(sessionResource: vscode.Uri, token: vscode.CancellationToken, context?: { readonly inputState: vscode.ChatSessionInputState }): Promise<vscode.ChatSession> {
 		const existingSession = await this.sessionService.getSession(sessionResource, token);
 		const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
-		const sessionId = ClaudeSessionUri.getSessionId(sessionResource);
-		const [detailsByModelId, storedRequestDetails] = existingSession && modelDetailsEnabled
-			? await Promise.all([this._buildModelDetailsLookup(existingSession, token), this._chatSessionMetadataStore.getRequestDetails(sessionId)])
-			: [undefined, []];
-		const creditsByTurnIndex = new Map<number, number>();
-		for (let turnIndex = 0; turnIndex < storedRequestDetails.length; turnIndex++) {
-			const d = storedRequestDetails[turnIndex];
-			if (d.creditsUsed !== undefined) {
-				creditsByTurnIndex.set(turnIndex, d.creditsUsed);
-			}
-		}
+		const detailsByModelId = existingSession && modelDetailsEnabled ? await this._buildModelDetailsLookup(existingSession, token) : undefined;
 		const history = existingSession ?
-			buildChatHistory(existingSession, detailsByModelId, creditsByTurnIndex.size > 0 ? creditsByTurnIndex : undefined) :
+			buildChatHistory(existingSession, detailsByModelId ? id => detailsByModelId.get(id) : undefined) :
 			[];
 
 		const options: Record<string, string | vscode.ChatSessionProviderOptionItem> = {};
@@ -245,7 +228,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 	 * ids are present, when the caller has cancelled, or when no ids resolve to known
 	 * endpoints — so callers can skip the per-turn details work entirely.
 	 */
-	private async _buildModelDetailsLookup(session: IClaudeCodeSession, token: vscode.CancellationToken): Promise<Map<string, ModelDetailsInfo> | undefined> {
+	private async _buildModelDetailsLookup(session: IClaudeCodeSession, token: vscode.CancellationToken): Promise<Map<string, string> | undefined> {
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
@@ -261,14 +244,14 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		if (modelIds.size === 0) {
 			return undefined;
 		}
-		const detailsByModelId = new Map<string, ModelDetailsInfo>();
+		const detailsByModelId = new Map<string, string>();
 		await Promise.all([...modelIds].map(async modelId => {
 			if (token.isCancellationRequested) {
 				return;
 			}
 			const endpoint = await this.claudeModels.resolveEndpoint(modelId, undefined);
 			if (endpoint) {
-				detailsByModelId.set(modelId, { name: endpoint.name, multiplier: endpoint.multiplier });
+				detailsByModelId.set(modelId, formatModelDetailsWithMultiplier(endpoint.name, endpoint.multiplier));
 			}
 		}));
 		if (token.isCancellationRequested) {

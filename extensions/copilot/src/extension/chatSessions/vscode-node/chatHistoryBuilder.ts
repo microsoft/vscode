@@ -10,7 +10,6 @@ import { ChatReferenceBinaryData, ChatRequestTurn2 } from '../../../vscodeTypes'
 import { tryParseClaudeModelId } from '../claude/node/claudeModelId';
 import { completeToolInvocation, createFormattedToolInvocation } from '../claude/common/toolInvocationFormatter';
 import { AssistantMessageContent, ContentBlock, IClaudeCodeSession, ImageBlock, ISubagentSession, StoredMessage, SYNTHETIC_MODEL_ID, TextBlock, ThinkingBlock, ToolResultBlock, ToolUseBlock } from '../claude/node/sessionParser/claudeSessionSchema';
-import { formatModelDetails, ModelDetailsInfo } from '../../../platform/chat/common/chatModelDetails';
 
 // #region Types
 
@@ -385,7 +384,7 @@ function findModelIdForRequest(
  * @param getModelDetails Optional lookup that returns the display string for a Claude
  * model id (as it appears on stored assistant messages).
  */
-export function buildChatHistory(session: IClaudeCodeSession, modelDetailsById?: ReadonlyMap<string, ModelDetailsInfo>, creditsByTurnIndex?: ReadonlyMap<number, number>): (vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2)[] {
+export function buildChatHistory(session: IClaudeCodeSession, getModelDetails?: (modelId: string) => string | undefined): (vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2)[] {
 	const result: (vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2)[] = [];
 	const toolContext: ToolContext = {
 		unprocessedToolCalls: new Map(),
@@ -397,16 +396,12 @@ export function buildChatHistory(session: IClaudeCodeSession, modelDetailsById?:
 	// Tracks the most recent assistant model id observed in the current pending response
 	// group so we can populate `ChatResponseTurn2.result.details` when finalizing it.
 	let pendingResponseModelId: string | undefined;
-	// Counts user request turns emitted so far, used to look up per-turn credits.
-	let requestTurnCount = 0;
 	const makeResponseResult = (modelId: string | undefined): vscode.ChatResult => {
-		const modelInfo = modelId ? modelDetailsById?.get(modelId) : undefined;
-		if (!modelInfo) {
+		if (!modelId || !getModelDetails) {
 			return {};
 		}
-		const creditsUsed = creditsByTurnIndex?.get(requestTurnCount - 1);
-		const details = formatModelDetails(modelInfo.name, modelInfo.multiplier, creditsUsed);
-		return { details };
+		const details = getModelDetails(modelId);
+		return details ? { details } : {};
 	};
 
 	// Build a map from parentToolUseId to subagent for quick lookup
@@ -460,7 +455,6 @@ export function buildChatHistory(session: IClaudeCodeSession, modelDetailsById?:
 				}
 				// Emit the command as a request turn
 				result.push(new ChatRequestTurn2(commandInfo.commandName, undefined, [], '', [], undefined, currentMessageId, modelId, undefined));
-				requestTurnCount++;
 				// Emit stdout as a response turn if present
 				if (commandInfo.stdout) {
 					result.push(new vscode.ChatResponseTurn2(
@@ -480,7 +474,6 @@ export function buildChatHistory(session: IClaudeCodeSession, modelDetailsById?:
 						pendingResponseModelId = undefined;
 					}
 					result.push(requestTurn);
-					requestTurnCount++;
 				}
 				// Otherwise this was a tool-result-only message — don't break the response grouping
 			}
