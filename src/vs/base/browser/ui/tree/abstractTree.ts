@@ -1717,9 +1717,6 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 	) {
 
 		this._rootDomNode = $('.monaco-tree-sticky-container.empty');
-		if (this.accessibilityProvider?.getWidgetRole?.() === 'list') {
-			this._rootDomNode.setAttribute('role', 'listitem');
-		}
 		container.appendChild(this._rootDomNode);
 
 		const shadow = $('.monaco-tree-sticky-container-shadow');
