@@ -702,7 +702,7 @@ class HiddenModelGPromptResolver implements IAgentPrompt {
 	}
 
 	resolveSystemPrompt(_endpoint: IChatEndpoint): SystemPrompt | undefined {
-		return Claude46OpusPrompt;
+		return Claude47OpusPrompt;
 	}
 
 	resolveReminderInstructions(_endpoint: IChatEndpoint): ReminderInstructionsConstructor | undefined {
