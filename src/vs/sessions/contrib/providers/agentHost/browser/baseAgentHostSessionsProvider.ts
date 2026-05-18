@@ -839,23 +839,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	private readonly _sessionStateIdleTimers = this._register(new DisposableMap<string, IDisposable>());
 
-	/**
-	 * Held subscription on the *active* session's `<session>/changeset/uncommitted`
-	 * resource. Rotated whenever {@link ISessionsManagementService.activeSession}
-	 * changes to a session this provider owns.
-	 *
-	 * Why: the session-list chip renders aggregate counts from
-	 * `SessionSummary.changesets[i]`, which the agent host only updates after
-	 * `_doComputeStaticChangeset` runs. That recompute fires on the
-	 * `addSubscriber` 0→1 transition for `<session>/changeset/uncommitted` —
-	 * but the chip itself never subscribes to that URI. Without this active
-	 * subscription, switching between sessions in the list never triggers a
-	 * recompute, so chip counts stay stuck at whatever the agent's last turn
-	 * produced. This rotating subscription gives the chip a refresh whenever
-	 * a session becomes the active one.
-	 */
-	private readonly _activeUncommittedSubscription = this._register(new MutableDisposable<IDisposable>());
-
 	protected _cacheInitialized = false;
 
 	constructor(
@@ -871,33 +854,28 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	) {
 		super();
 
-		// Rotate an uncommitted-changeset subscription so that switching
-		// to one of our sessions in the list triggers a server-side
-		// recompute via the existing `addSubscriber` 0→1 path. See the
-		// field-level comment on {@link _activeUncommittedSubscription}
-		// for the why.
-		this._register(autorun(reader => {
+		const changesetUri = derived(reader => {
 			const active = this._sessionsManagementService.activeSession.read(reader);
 			if (!active || active.providerId !== this.id) {
-				this._activeUncommittedSubscription.clear();
-				return;
-			}
-			const connection = this.connection;
-			if (!connection) {
-				this._activeUncommittedSubscription.clear();
 				return;
 			}
 			const rawId = active.resource.path.replace(/^\//, '');
 			if (!rawId) {
-				this._activeUncommittedSubscription.clear();
 				return;
 			}
-			// `active.sessionType` is the agent provider name for sessions
-			// owned by this provider (the adapter sets `logicalSessionType`
-			// to `AgentSession.provider(meta.session)`).
+
 			const backendUri = AgentSession.uri(active.sessionType, rawId);
-			const uncommittedUri = URI.parse(buildUncommittedChangesetUri(backendUri.toString()));
-			this._activeUncommittedSubscription.value = connection.getSubscription(StateComponents.Changeset, uncommittedUri);
+			return buildUncommittedChangesetUri(backendUri.toString());
+		});
+
+		this._register(autorun(reader => {
+			const uriString = changesetUri.read(reader);
+			if (!uriString || !this.connection) {
+				return;
+			}
+
+			const uncommittedUri = URI.parse(uriString);
+			reader.store.add(this.connection.getSubscription(StateComponents.Changeset, uncommittedUri));
 		}));
 	}
 
@@ -1820,11 +1798,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			} else if (e.action.type === ActionType.SessionConfigChanged && isSessionAction(e.action)) {
 				this._handleConfigChanged(e.action.session, e.action.config, e.action.replace === true);
 			}
-			// `changeset/*` actions intentionally do not flow into the
-			// session adapter through this fan-out: per-changeset state is
-			// delivered via a dedicated `ChangesetState` subscription that
-			// `_ensureChangesetSubscription` opens for each expanded
-			// changeset URI when sessions are added or updated.
 		}));
 	}
 
