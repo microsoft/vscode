@@ -126,16 +126,64 @@ suite('copilotPluginConverters', () => {
 
 	suite('toSdkCustomAgents', () => {
 
-		test('reads agent files and creates configs', async () => {
-			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/helper.md' });
-			await fileService.writeFile(agentUri, VSBuffer.fromString('You are a helpful assistant'));
+		test('parses agent front matter and creates configs', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/helper.agent.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: Helper',
+				'description: Helps with coding',
+				`tools: ['search', 'terminal']`,
+				'infer: false',
+				'---',
+				'You are a helpful assistant',
+			].join('\n')));
+
+			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'helper-file' }];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.deepStrictEqual(result, [{
+				name: 'Helper',
+				displayName: 'Helper',
+				description: 'Helps with coding',
+				tools: ['search', 'terminal'],
+				prompt: 'You are a helpful assistant',
+				infer: false,
+			}]);
+		});
+
+		test('falls back to resource name and supports scalar tools', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/helper.agent.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'description: Helps with coding',
+				`tools: search, terminal, 'web search'`,
+				'infer: true',
+				'---',
+				'Use the available tools carefully.',
+			].join('\n')));
 
 			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'helper' }];
 			const result = await toSdkCustomAgents(agents, fileService);
 
 			assert.deepStrictEqual(result, [{
 				name: 'helper',
-				prompt: 'You are a helpful assistant',
+				description: 'Helps with coding',
+				tools: ['search', 'terminal', 'web search'],
+				prompt: 'Use the available tools carefully.',
+				infer: true,
+			}]);
+		});
+
+		test('uses whole file as prompt when there is no front matter', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/plain.agent.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString('You are a plain assistant'));
+
+			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'plain' }];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.deepStrictEqual(result, [{
+				name: 'plain',
+				prompt: 'You are a plain assistant',
 			}]);
 		});
 

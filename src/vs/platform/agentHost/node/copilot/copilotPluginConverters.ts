@@ -10,6 +10,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IMcpServerDefinition, INamedPluginResource, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { dirname } from '../../../../base/common/path.js';
+import { parseCustomAgentMarkdown } from './copilotAgentMarkdownParser.js';
 
 type SessionHooks = NonNullable<SessionConfig['hooks']>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
@@ -70,16 +71,22 @@ function toStringEnv(env: Record<string, string | number | null>): Record<string
 
 /**
  * Converts parsed plugin agents into the SDK's `customAgents` config.
- * Reads each agent's `.md` file to use as the prompt.
+ * Reads each agent's `.agent.md` file and maps its front matter to the SDK config.
  */
 export async function toSdkCustomAgents(agents: readonly INamedPluginResource[], fileService: IFileService): Promise<CustomAgentConfig[]> {
 	const configs: CustomAgentConfig[] = [];
 	for (const agent of agents) {
 		try {
 			const content = await fileService.readFile(agent.uri);
+			const parsed = parseCustomAgentMarkdown(content.value.toString());
+			const headerName = parsed.name?.trim() ? parsed.name : undefined;
 			configs.push({
-				name: agent.name,
-				prompt: content.value.toString(),
+				name: headerName ?? agent.name,
+				...(headerName !== undefined ? { displayName: headerName } : {}),
+				...(parsed.description !== undefined ? { description: parsed.description } : {}),
+				...(parsed.tools !== undefined ? { tools: parsed.tools } : { tools: null }),
+				prompt: parsed.body,
+				...(parsed.infer !== undefined ? { infer: parsed.infer } : {}),
 			});
 		} catch {
 			// Skip agents whose file cannot be read
