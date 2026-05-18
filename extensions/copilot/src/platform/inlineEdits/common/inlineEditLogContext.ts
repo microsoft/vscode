@@ -392,7 +392,10 @@ export class InlineEditRequestLogContext {
 	 * (e.g., in `setIsCachedResult` which intentionally overrides any inherited outcome).
 	 */
 	private _setOutcome(outcome: LogContextOutcome): void {
-		if (this._outcome !== 'pending') {
+		// 'reusedInFlight' is an intermediate state set when joining an in-flight
+		// request (before the result arrives), so it can legitimately transition
+		// to the final outcome (skipped, errored, etc.) just like 'pending'.
+		if (this._outcome !== 'pending' && this._outcome !== 'reusedInFlight') {
 			console.warn(`[InlineEditRequestLogContext] outcome transition from '${this._outcome}' to '${outcome}' (request #${this.requestId})`);
 		}
 		this._outcome = outcome;

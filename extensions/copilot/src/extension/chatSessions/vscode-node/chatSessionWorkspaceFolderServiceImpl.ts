@@ -27,6 +27,8 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 	declare _serviceBrand: undefined;
 
 	private static readonly EMPTY_TREE_OBJECT = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+	private readonly _onDidChangeWorkspaceFolderChanges = this._register(new vscode.EventEmitter<{ sessionId: string }>());
+	readonly onDidChangeWorkspaceFolderChanges = this._onDidChangeWorkspaceFolderChanges.event;
 
 	private readonly workspaceState = new Map<string, WorkspaceFolderEntry>();
 	private readonly sessionRepoKeys = new Map<string, string>();
@@ -98,9 +100,28 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 		return await this.metadataStore.getRepositoryProperties(sessionId);
 	}
 
+	async setRepositoryProperties(sessionId: string, repositoryProperties: RepositoryProperties): Promise<void> {
+		this.sessionsWithNoRepoProperties.delete(sessionId);
+		await this.metadataStore.storeRepositoryProperties(sessionId, repositoryProperties);
+	}
+
 	async handleRequestCompleted(sessionId: string): Promise<void> {
 		// Clear changes cache
 		this.invalidateSessionCache(sessionId);
+	}
+
+	async hasCachedChanges(sessionId: string): Promise<boolean> {
+		const existingRepoKey = this.sessionRepoKeys.get(sessionId);
+		const cachedChanges = existingRepoKey ? this.workspaceFolderChanges.get(existingRepoKey) : undefined;
+		return !!cachedChanges;
+	}
+
+	async refreshWorkspaceChanges(sessionId: string): Promise<void> {
+		// Clear the cache
+		this.clearWorkspaceChanges(sessionId);
+
+		// Populate the cache
+		await this.getWorkspaceChanges(sessionId);
 	}
 
 	async getWorkspaceChanges(sessionId: string): Promise<readonly ChatSessionWorktreeFile[] | undefined> {
@@ -305,6 +326,7 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 		if (repoKey) {
 			this.workspaceFolderChanges.delete(repoKey);
 		}
+		this._onDidChangeWorkspaceFolderChanges.fire({ sessionId });
 	}
 
 	getAssociatedSessions(folderUri: vscode.Uri): string[] {

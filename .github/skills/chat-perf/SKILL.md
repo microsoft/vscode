@@ -58,7 +58,9 @@ Launches VS Code via Playwright Electron, opens the chat panel, sends a message 
 | `--production-build` | — | Build a local bundled package via `gulp vscode` for comparison against a release baseline. |
 | `--no-cache` | — | Ignore cached baseline data, always run fresh. |
 | `--force` | — | Skip build mode mismatch confirmation prompt. |
-| `--ci` | — | CI mode: write Markdown summary to `ci-summary.md` (implies `--no-cache`). |
+| `--ci` | — | CI mode: write Markdown summary to `ci-summary.md` (implies `--no-cache`, `--heap-snapshots`, `--cleanup-diagnostics`). |
+| `--heap-snapshots` | — | Take heap snapshots after each run (slow; auto-enabled in `--ci` mode). |
+| `--cleanup-diagnostics` | — | Delete heap snapshots, CPU profiles, and traces to save disk. During runs, only the latest run's files are kept; after comparison, files for non-regressed scenarios are deleted. Auto-enabled in `--ci` mode. |
 | `--setting <k=v>` | — | Set a VS Code setting override for all builds (repeatable). |
 | `--test-setting <k=v>` | — | Set a VS Code setting override for the test build only. |
 | `--baseline-setting <k=v>` | — | Set a VS Code setting override for the baseline build only. |

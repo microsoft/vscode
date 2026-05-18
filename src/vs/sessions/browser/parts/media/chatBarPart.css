@@ -86,3 +86,17 @@
 .monaco-workbench .chatbar.pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item {
 	max-width: 150px;
 }
+
+.monaco-workbench .part.chatbar .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) {
+	border-radius: 50%;
+}
+
+.monaco-workbench .part.chatbar .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-arrow-up {
+	border-radius: 50%;
+}
+
+/* Nudge icon position to ensure it looks optically aligned within the button */
+.monaco-workbench .part.chatbar .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-arrow-up::before {
+	display: inline-block;
+	transform: translateX(-0.5px);
+}

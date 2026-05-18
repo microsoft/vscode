@@ -114,6 +114,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get workspaceStorageHome(): URI { return joinPath(this.userRoamingDataHome, 'workspaceStorage'); }
 
 	@memoize
+	get appSharedDataHome(): URI { return joinPath(this.userRoamingDataHome, 'sharedData'); }
+
+	@memoize
 	get localHistoryHome(): URI { return joinPath(this.userRoamingDataHome, 'History'); }
 
 	@memoize
@@ -143,9 +146,6 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get extHostLogsPath(): URI { return joinPath(this.logsHome, 'exthost'); }
-
-	@memoize
-	get agentPluginsHome(): URI { return joinPath(this.userRoamingDataHome, 'agent-plugins'); }
 
 	private extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
 

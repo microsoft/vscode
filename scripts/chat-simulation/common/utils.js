@@ -222,7 +222,7 @@ function buildArgs(userDataDir, extDir, logsDir, { isDevBuild = true, extHostIns
 	// only processes switches that precede the first non-switch argument.
 	const chromiumFlags = [];
 	if (traceFile) {
-		chromiumFlags.push(`--enable-tracing=v8.gc,devtools.timeline,blink.user_timing`);
+		chromiumFlags.push(`--enable-tracing=v8.gc,disabled-by-default-v8.gc,disabled-by-default-v8.gc_stats,devtools.timeline,blink.user_timing`);
 		chromiumFlags.push(`--trace-startup-file=${traceFile}`);
 		chromiumFlags.push(`--enable-tracing-format=json`);
 	}

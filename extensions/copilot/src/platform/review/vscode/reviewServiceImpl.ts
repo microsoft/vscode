@@ -24,8 +24,8 @@ const numberOfReviewCommentsKey = 'github.copilot.chat.review.numberOfComments';
 
 export class ReviewServiceImpl implements IReviewService {
 	declare _serviceBrand: undefined;
-	private _disposables = new DisposableStore();
-	private _repositoryDisposables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
+	private readonly _repositoryDisposables = new DisposableStore();
 	private _reviewDiffReposString: string | undefined;
 	private _diagnosticCollection: vscode.DiagnosticCollection | undefined;
 	private _commentController = vscode.comments.createCommentController('github-copilot-review', 'Code Review');

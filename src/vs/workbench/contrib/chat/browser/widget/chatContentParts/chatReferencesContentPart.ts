@@ -215,7 +215,7 @@ export class CollapsibleListPool extends Disposable {
 		const container = $('.chat-used-context-list');
 		store.add(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		const list = this.instantiationService.createInstance(
+		const list = store.add(this.instantiationService.createInstance(
 			WorkbenchList<IChatCollapsibleListItem>,
 			'ChatListRenderer',
 			container,
@@ -268,7 +268,7 @@ export class CollapsibleListPool extends Disposable {
 						}
 					},
 				},
-			});
+			}));
 
 		return {
 			list,

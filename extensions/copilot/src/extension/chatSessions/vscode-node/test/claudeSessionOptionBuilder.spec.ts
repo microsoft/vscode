@@ -6,9 +6,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type * as vscode from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
-import { Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
@@ -47,10 +47,11 @@ describe('ClaudeSessionOptionBuilder', () => {
 		serviceCollection.set(IWorkspaceService, workspaceService);
 		const accessor = serviceCollection.createTestingAccessor();
 		const configService = accessor.get(IConfigurationService);
+		const experimentationService = accessor.get(IExperimentationService);
 		if (configOverrides?.bypassPermissions) {
 			configService.setConfig(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions, true);
 		}
-		return new ClaudeSessionOptionBuilder(configService, mockFolderMruService, workspaceService);
+		return new ClaudeSessionOptionBuilder(configService, mockFolderMruService, workspaceService, experimentationService);
 	}
 
 	describe('buildPermissionModeGroup', () => {
@@ -76,7 +77,7 @@ describe('ClaudeSessionOptionBuilder', () => {
 		it('returns undefined for single-root workspace', async () => {
 			builder = createBuilder([URI.file('/project')]);
 
-			const group = await builder.buildNewFolderGroup(undefined);
+			const group = await builder.buildNewFolderGroup();
 
 			expect(group).toBeUndefined();
 		});
@@ -86,7 +87,7 @@ describe('ClaudeSessionOptionBuilder', () => {
 			const folderB = URI.file('/b');
 			builder = createBuilder([folderA, folderB]);
 
-			const group = await builder.buildNewFolderGroup(undefined);
+			const group = await builder.buildNewFolderGroup();
 
 			expect(group).toBeDefined();
 			expect(group!.id).toBe('folder');
@@ -101,32 +102,10 @@ describe('ClaudeSessionOptionBuilder', () => {
 				{ folder: mruFolder, repository: undefined, lastAccessed: Date.now() },
 			]);
 
-			const group = await builder.buildNewFolderGroup(undefined);
+			const group = await builder.buildNewFolderGroup();
 
 			expect(group).toBeDefined();
 			expect(group!.items[0].id).toBe(mruFolder.fsPath);
-		});
-
-		it('restores previous folder selection', async () => {
-			const folderA = URI.file('/a');
-			const folderB = URI.file('/b');
-			builder = createBuilder([folderA, folderB]);
-
-			const previousInputState = {
-				groups: [{
-					id: 'folder',
-					name: 'Folder',
-					description: 'Pick Folder',
-					items: [{ id: folderB.fsPath, name: 'b' }],
-					selected: { id: folderB.fsPath, name: 'b' },
-				}],
-				sessionResource: undefined,
-				onDidChange: Event.None,
-			} as vscode.ChatSessionInputState;
-
-			const group = await builder.buildNewFolderGroup(previousInputState);
-
-			expect(group!.selected?.id).toBe(folderB.fsPath);
 		});
 	});
 
@@ -147,7 +126,7 @@ describe('ClaudeSessionOptionBuilder', () => {
 		it('includes permission mode group with default selection', async () => {
 			builder = createBuilder([URI.file('/project')]);
 
-			const groups = await builder.buildNewSessionGroups(undefined);
+			const groups = await builder.buildNewSessionGroups();
 
 			const permGroup = groups.find(g => g.id === 'permissionMode');
 			expect(permGroup).toBeDefined();
@@ -157,7 +136,7 @@ describe('ClaudeSessionOptionBuilder', () => {
 		it('excludes folder group for single-root workspace', async () => {
 			builder = createBuilder([URI.file('/project')]);
 
-			const groups = await builder.buildNewSessionGroups(undefined);
+			const groups = await builder.buildNewSessionGroups();
 
 			expect(groups.find(g => g.id === 'folder')).toBeUndefined();
 		});
@@ -165,7 +144,7 @@ describe('ClaudeSessionOptionBuilder', () => {
 		it('includes folder group for multi-root workspace', async () => {
 			builder = createBuilder([URI.file('/a'), URI.file('/b')]);
 
-			const groups = await builder.buildNewSessionGroups(undefined);
+			const groups = await builder.buildNewSessionGroups();
 
 			expect(groups.find(g => g.id === 'folder')).toBeDefined();
 		});

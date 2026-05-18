@@ -10,8 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IProcessPropertyMap, ITerminalChildProcess, ITerminalLaunchError, ITerminalLaunchResult, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { ActionType, IActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import { TerminalClaimKind, type ITerminalContentPart, type ITerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType, ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import { TerminalClaimKind, type TerminalContentPart, type TerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { BasePty } from '../common/basePty.js';
@@ -95,7 +95,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 
 	private readonly _startBarrier = new Barrier();
 	private readonly _subscriptionDisposables = this._register(new DisposableStore());
-	private _subscriptionRef: IReference<IAgentSubscription<ITerminalState>> | undefined;
+	private _subscriptionRef: IReference<IAgentSubscription<TerminalState>> | undefined;
 	private _initialCwd = '';
 
 	private readonly _onCommandExecuted = this._register(new Emitter<IAgentHostPtyCommandExecutedEvent>());
@@ -120,7 +120,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 
 	constructor(
 		id: number,
-		private readonly _connection: IAgentConnection,
+		private _connection: IAgentConnection,
 		private readonly _terminalUri: URI,
 		private readonly _options?: IAgentHostPtyOptions,
 	) {
@@ -157,7 +157,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 				});
 			}
 
-			const state = subscription.value as ITerminalState;
+			const state = subscription.value as TerminalState;
 
 			// 4. Replay any existing content from the snapshot
 			if (state.supportsCommandDetection) {
@@ -189,7 +189,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 		}
 	}
 
-	private _handleAction(envelope: IActionEnvelope): void {
+	private _handleAction(envelope: ActionEnvelope): void {
 		const action = envelope.action;
 		switch (action.type) {
 			case ActionType.TerminalData:
@@ -254,7 +254,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 	 * Emits command lifecycle events for command parts so that consumers
 	 * (e.g. {@link AhpTerminalCommandSource}) can reconstruct command history.
 	 */
-	private _replayContent(content: ITerminalContentPart[]): void {
+	private _replayContent(content: TerminalContentPart[]): void {
 		for (const part of content) {
 			if (part.type === 'unclassified') {
 				if (part.value) {
@@ -376,6 +376,84 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 
 	async updateProperty<T extends ProcessPropertyType>(_type: T, _value: IProcessPropertyMap[T]): Promise<void> {
 		// Not applicable
+	}
+
+	/**
+	 * Reconnect this pty to a new agent host connection. Tears down the
+	 * old subscription and re-subscribes with the new connection, replaying
+	 * content from the server-side snapshot. Terminal output during the
+	 * disconnect gap is a stream (not state), so some loss is expected.
+	 *
+	 * @returns `true` if reconnection succeeded, `false` otherwise.
+	 */
+	async reconnect(newConnection: IAgentConnection): Promise<boolean> {
+		// Clean up old subscription
+		this._subscriptionDisposables.clear();
+		this._subscriptionRef?.dispose();
+		this._subscriptionRef = undefined;
+
+		// Swap connection
+		this._connection = newConnection;
+
+		try {
+			// Re-subscribe to the terminal state
+			this._subscriptionRef = this._connection.getSubscription(StateComponents.Terminal, this._terminalUri);
+			const subscription = this._subscriptionRef.object;
+
+			// Wait for hydration with a timeout — the terminal may no longer
+			// exist on the server (e.g. agent process restarted).
+			if (subscription.value === undefined) {
+				const RECONNECT_HYDRATE_TIMEOUT_MS = 10_000;
+				await new Promise<void>((resolve, reject) => {
+					const timer = setTimeout(() => {
+						listener.dispose();
+						reject(new Error('Reconnect hydration timed out'));
+					}, RECONNECT_HYDRATE_TIMEOUT_MS);
+					const listener = subscription.onDidChange(() => {
+						clearTimeout(timer);
+						listener.dispose();
+						resolve();
+					});
+					this._subscriptionDisposables.add(listener);
+				});
+			}
+
+			const state = subscription.value as TerminalState;
+
+			if (state.supportsCommandDetection && !this._supportsCommandDetection) {
+				this._supportsCommandDetection = true;
+				this._onSupportsCommandDetection.fire();
+			}
+
+			// Clear the terminal buffer before replaying to avoid duplicate
+			// content. ESC[2J clears the screen, ESC[3J clears scrollback,
+			// ESC[H moves cursor to home position.
+			this.handleData('\x1b[2J\x1b[3J\x1b[H');
+			this._replayContent(state.content);
+
+			// Update cwd/title if they changed
+			if (state.cwd) {
+				this._properties.cwd = state.cwd.toString();
+			}
+			if (state.title) {
+				this._properties.title = state.title;
+			}
+
+			// Wire up action listener for streaming updates
+			this._subscriptionDisposables.add(subscription.onDidApplyAction(envelope => {
+				this._handleAction(envelope);
+			}));
+
+			return true;
+		} catch (err) {
+			console.warn('[AgentHostPty] Reconnection failed:', err instanceof Error ? err.message : String(err));
+			return false;
+		}
+	}
+
+	/** The terminal URI this pty is subscribed to. */
+	get terminalUri(): URI {
+		return this._terminalUri;
 	}
 
 	override dispose(): void {

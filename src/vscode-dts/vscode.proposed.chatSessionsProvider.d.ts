@@ -76,6 +76,23 @@ declare module 'vscode' {
 		// TODO: Do we need a flag to try auth if needed?
 		provideChatSessionItems(token: CancellationToken): ProviderResult<ChatSessionItem[]>;
 
+		/**
+		 * @deprecated Use {@linkcode ChatSessionItemController.resolveChatSessionItem} instead.
+		 *
+		 * Given a chat session item fill in more data, like {@link ChatSessionItem.timing timing},
+		 * {@link ChatSessionItem.changes changes}, or {@link ChatSessionItem.badge badge}.
+		 *
+		 * The editor will call this when a chat session item becomes visible in the UI, for example
+		 * when the user scrolls to it or when it is first rendered.
+		 *
+		 * @param item A chat session item currently visible in the UI. Treat this as read-only.
+		 * @param token A cancellation token.
+		 * @returns A new {@link ChatSessionItem} instance (or a thenable that resolves to one) with the
+		 * same `resource` as `item` and any additional properties filled in. When no result is returned,
+		 * the given `item` is left unchanged.
+		 */
+		resolveChatSessionItem?: (item: ChatSessionItem, token: CancellationToken) => ProviderResult<ChatSessionItem>;
+
 		// #region Unstable parts of API
 
 		/**
@@ -99,11 +116,6 @@ declare module 'vscode' {
 			readonly prompt: string;
 			readonly command?: string;
 		};
-
-		/**
-		 * @deprecated Use `inputState` instead
-		 */
-		readonly sessionOptions: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
 
 		readonly inputState: ChatSessionInputState;
 	}
@@ -198,6 +210,26 @@ declare module 'vscode' {
 		 * Gets the input state for a chat session.
 		 */
 		getChatSessionInputState?: ChatSessionControllerGetInputState;
+
+		/**
+		 * Called to fill in more data on a chat session item, like {@link ChatSessionItem.timing timing},
+		 * {@link ChatSessionItem.changes changes}, or {@link ChatSessionItem.badge badge}.
+		 *
+		 * The editor will call this when a chat session item becomes visible in the UI, for example
+		 * when the user scrolls to it or when it is first rendered.
+		 *
+		 * The editor will only resolve a chat session item once, unless the item is updated via
+		 * {@link ChatSessionItemCollection.add add} or {@link ChatSessionItemCollection.replace replace},
+		 * which invalidates the resolve cache.
+		 *
+		 * The handler should update the item in the {@link ChatSessionItemController.items items collection} via
+		 * {@link ChatSessionItemCollection.add add}. The editor picks up the updated item from
+		 * the collection after the returned thenable resolves.
+		 *
+		 * @param item A chat session item currently visible in the UI.
+		 * @param token A cancellation token.
+		 */
+		resolveChatSessionItem?: (item: ChatSessionItem, token: CancellationToken) => Thenable<void>;
 
 		/**
 		 * Create a new managed ChatSessionInputState object.
@@ -505,11 +537,6 @@ declare module 'vscode' {
 		 */
 		provideChatSessionContent(resource: Uri, token: CancellationToken, context: {
 			readonly inputState: ChatSessionInputState;
-
-			/**
-			 * @deprecated Use `inputState` instead
-			 */
-			readonly sessionOptions: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
 		}): Thenable<ChatSession> | ChatSession;
 
 		/**
@@ -621,6 +648,16 @@ declare module 'vscode' {
 		 * Only one item per option group should be marked as default.
 		 */
 		readonly default?: boolean;
+
+		/**
+		 * Optional slash-command alias (without leading `/`) that selects this option
+		 * when the user submits `/<slashCommand>`. Does not send a chat request; only
+		 * updates the selection so the next prompt runs with this option active.
+		 *
+		 * Scoped to chat sessions owned by the contributing provider. Names must be
+		 * unique across the provider's groups; on conflict, the first declared wins.
+		 */
+		readonly slashCommand?: string;
 	}
 
 	/**
@@ -678,6 +715,22 @@ declare module 'vscode' {
 		 * `{ inputState: ChatSessionInputState; sessionResource: Uri | undefined }` that they can use to determine which session and options they are being invoked for.
 		 */
 		readonly commands?: Command[];
+
+		/**
+		 * Optional kind that hints how this option group should be presented in the UI.
+		 *
+		 * - `'permissions'`: The group represents tool-approval permissions for the session.
+		 *   The editor will not render this group as its own picker. Instead, its items
+		 *   replace the built-in items in the chat permission picker for the session,
+		 *   and the user's selection is reported back through the standard
+		 *   {@link ChatSessionContentProvider.handleChatSessionOptionsChange} flow.
+		 *   At most one option group per provider may use this kind; if more than one is
+		 *   declared, the first one (in declaration order) is used. The group is invisible
+		 *   if the chat permission picker itself is hidden by other `when` clauses.
+		 *
+		 * When omitted, the group is rendered as a standalone picker as usual.
+		 */
+		readonly kind?: 'permissions';
 	}
 
 	export interface ChatSessionProviderOptions {
@@ -699,6 +752,11 @@ declare module 'vscode' {
 	 * Represents the current state of user inputs for a chat session.
 	 */
 	export interface ChatSessionInputState {
+		/**
+		 * Fired when the input state is disposed.
+		 */
+		readonly onDidDispose: Event<void>;
+
 		/**
 		 * Fired when the input state is changed by the user.
 		 *

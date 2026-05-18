@@ -43,6 +43,9 @@ describe('modelSupportsToolSearch', () => {
 		expect(modelSupportsToolSearch('claude-opus-4-5-20251101')).toBe(true);
 		expect(modelSupportsToolSearch('claude-opus-4-6')).toBe(true);
 		expect(modelSupportsToolSearch('claude-opus-4.6')).toBe(true);
+		expect(modelSupportsToolSearch('claude-opus-4.7')).toBe(true);
+		expect(modelSupportsToolSearch('claude-opus-4-7@1.0.0')).toBe(true);
+		expect(modelSupportsToolSearch('claude-sonnet-4-6@1.0.0')).toBe(true);
 	});
 
 	test('rejects pre-4.5 models, including date-suffixed ones', () => {
@@ -61,7 +64,19 @@ describe('modelSupportsToolSearch', () => {
 		expect(modelSupportsToolSearch('claude-3-opus')).toBe(false);
 	});
 
-	test('rejects non-Claude models', () => {
+	test('supports OpenAI gpt-5.4 and gpt-5.5 models', () => {
+		expect(modelSupportsToolSearch('gpt-5.4')).toBe(true);
+		expect(modelSupportsToolSearch('gpt-5.5')).toBe(true);
+	});
+
+	test('rejects suffixed gpt-5.4/5.5 variants (exact match only)', () => {
+		expect(modelSupportsToolSearch('gpt-5.4-mini')).toBe(false);
+		expect(modelSupportsToolSearch('gpt-5.4-preview')).toBe(false);
+		expect(modelSupportsToolSearch('gpt-5.5-preview')).toBe(false);
+		expect(modelSupportsToolSearch('gpt5.5-preview')).toBe(false);
+	});
+
+	test('rejects other non-Claude models', () => {
 		expect(modelSupportsToolSearch('gpt-5')).toBe(false);
 		expect(modelSupportsToolSearch('gemini-2.5-pro')).toBe(false);
 		expect(modelSupportsToolSearch('o4-mini')).toBe(false);

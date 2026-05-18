@@ -26,19 +26,19 @@ export class GitHubChangesFetcher {
 	) { }
 
 	async getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]> {
-		const data = await this._apiClient.request<IGitHubCompareResponse>(
+		const response = await this._apiClient.request<IGitHubCompareResponse>(
 			'GET',
 			`/repos/${e(owner)}/${e(repo)}/compare/${e(base)}...${e(head)}`,
 			'githubApi.getChangedFiles'
 		);
 
-		return data.files.map(file => ({
+		return response.data?.files.map(file => ({
 			filename: file.filename,
 			previous_filename: file.previous_filename,
 			status: file.status,
 			additions: file.additions,
 			deletions: file.deletions,
-		}));
+		})) ?? [];
 	}
 }
 

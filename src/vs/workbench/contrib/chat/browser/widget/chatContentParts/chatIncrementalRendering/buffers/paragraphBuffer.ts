@@ -53,14 +53,14 @@ export function lastBlockBoundary(text: string): number {
 export class ParagraphBuffer implements IIncrementalRenderingBuffer {
 	readonly handlesFlush = false;
 
-	getRenderable(fullMarkdown: string, lastRendered: string): string {
+	getRenderable(fullMarkdown: string, _lastRendered: string): string {
 		const lastBlock = lastBlockBoundary(fullMarkdown);
 		let renderable = lastBlock === -1
-			? lastRendered   // no complete block yet — keep current
+			? fullMarkdown   // no paragraph breaks — single block, render as-is
 			: fullMarkdown.slice(0, lastBlock + 2);
 
-		// Escape hatch: if too much content has accumulated without a
-		// block boundary, render what we have.
+		// Escape hatch: if too much content has accumulated beyond the
+		// last block boundary, render what we have.
 		if (fullMarkdown.length - renderable.length > MAX_BUFFERED_CHARS) {
 			renderable = fullMarkdown;
 		}
