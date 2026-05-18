@@ -1648,14 +1648,10 @@ export class SearchView extends ViewPane {
 
 		let changedFileUris: URI[] | undefined;
 		if (onlySearchInChangedFiles) {
-			changedFileUris = [];
-			for (const repository of this.scmService.repositories) {
-				for (const group of repository.provider.groups) {
-					for (const resource of group.resources) {
-						changedFileUris.push(resource.sourceUri);
-					}
-				}
-			}
+			changedFileUris = [...this.scmService.repositories]
+				.flatMap(repository => repository.provider.groups)
+				.flatMap(group => group.resources)
+				.map(resource => resource.sourceUri);
 		}
 
 		// Need the full match line to correctly calculate replace text, if this is a search/replace with regex group references ($1, $2, ...).

@@ -240,7 +240,7 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 
 	protected override renderSubcontrols(controlsDiv: HTMLDivElement): void {
 		this.useSearchInChangedFilesBox = this._register(new Toggle({
-			icon: Codicon.sourceControl,
+			icon: Codicon.editCode,
 			title: nls.localize('onlySearchInChangedFiles', "Search only in Changed Files (Source Control)"),
 			isChecked: false,
 			...defaultToggleStyles
