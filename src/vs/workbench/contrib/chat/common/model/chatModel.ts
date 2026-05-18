@@ -2310,6 +2310,14 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._isImported;
 	}
 
+	private _isDeleted = false;
+	get isDeleted(): boolean {
+		return this._isDeleted;
+	}
+	markDeleted(): void {
+		this._isDeleted = true;
+	}
+
 	private _customTitle: string | undefined;
 	get customTitle(): string | undefined {
 		return this._customTitle;

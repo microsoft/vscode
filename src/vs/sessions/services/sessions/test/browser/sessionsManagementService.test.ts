@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -25,7 +25,7 @@ import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/bro
 import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../common/session.js';
-import { ISendRequestOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
+import { ISessionChangeEvent, ISendRequestOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
 import { deduplicateSessions, SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
@@ -74,9 +74,26 @@ function stubSession(overrides: Partial<ISession> & Pick<ISession, 'sessionId' |
 
 class TestChatWidgetService extends mock<IChatWidgetService>() {
 	readonly opened: URI[] = [];
+	private _widgetSessionResources = new Set<string>();
 
 	override async openSession(sessionResource: URI, _target?: typeof ChatViewPaneTarget | PreferredGroup, _options?: IChatEditorOptions): Promise<IChatWidget | undefined> {
 		this.opened.push(sessionResource);
+		return undefined;
+	}
+
+	/** Simulate a session being displayed in a chat widget. */
+	setWidgetSessionResource(resource: URI): void {
+		this._widgetSessionResources.add(resource.toString());
+	}
+
+	clearWidgetSessionResources(): void {
+		this._widgetSessionResources.clear();
+	}
+
+	override getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined {
+		if (this._widgetSessionResources.has(sessionResource.toString())) {
+			return {} as IChatWidget; // truthy stub
+		}
 		return undefined;
 	}
 }
@@ -246,5 +263,79 @@ suite('SessionsManagementService', () => {
 		await openPromise;
 
 		assert.deepStrictEqual({ opened: chatWidgetService.opened.map(uri => uri.toString()), observed: agentSessionsService.observed.map(uri => uri.toString()) }, { opened: [session.resource.toString()], observed: [session.resource.toString()] });
+	});
+
+	test('sets active session when added session is displayed in a chat widget', async () => {
+		const originalSession = stubSession({ sessionId: 'original', providerId: 'test' });
+		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+		const provider = new class extends TestSessionsProvider {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			constructor() { super(originalSession); }
+		};
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const chatWidgetService = new TestChatWidgetService();
+		const agentSessionsService = new TestAgentSessionsService();
+
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+		instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+		instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+		instantiationService.stub(IChatWidgetService, chatWidgetService);
+		instantiationService.stub(IAgentSessionsService, agentSessionsService);
+		instantiationService.stub(IProgressService, new TestProgressService());
+
+		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+
+		// Open the original session so it becomes the active session
+		await service.openSession(originalSession.resource);
+		assert.strictEqual(service.activeSession.get()?.sessionId, 'original');
+
+		// Simulate fork: a new session is added and the chat widget displays it
+		const forkedSession = stubSession({ sessionId: 'forked', providerId: 'test' });
+		chatWidgetService.setWidgetSessionResource(forkedSession.resource);
+
+		onDidChangeSessions.fire({ added: [forkedSession], removed: [], changed: [] });
+
+		// The active session should now be the forked session
+		assert.strictEqual(service.activeSession.get()?.sessionId, 'forked');
+	});
+
+	test('does not change active session when added session is not displayed in any widget', async () => {
+		const originalSession = stubSession({ sessionId: 'original', providerId: 'test' });
+		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+		const provider = new class extends TestSessionsProvider {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			constructor() { super(originalSession); }
+		};
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const chatWidgetService = new TestChatWidgetService();
+		const agentSessionsService = new TestAgentSessionsService();
+
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+		instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+		instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+		instantiationService.stub(IChatWidgetService, chatWidgetService);
+		instantiationService.stub(IAgentSessionsService, agentSessionsService);
+		instantiationService.stub(IProgressService, new TestProgressService());
+
+		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+
+		// Open the original session so it becomes the active session
+		await service.openSession(originalSession.resource);
+		assert.strictEqual(service.activeSession.get()?.sessionId, 'original');
+
+		// A new session appears but is NOT displayed in any widget
+		const otherSession = stubSession({ sessionId: 'other', providerId: 'test' });
+		// Note: not calling chatWidgetService.setWidgetSessionResource()
+
+		onDidChangeSessions.fire({ added: [otherSession], removed: [], changed: [] });
+
+		// The active session should remain unchanged
+		assert.strictEqual(service.activeSession.get()?.sessionId, 'original');
 	});
 });

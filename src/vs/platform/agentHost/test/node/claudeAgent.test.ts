@@ -35,6 +35,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
+import { AgentFeedbackAttachmentDisplayKind } from '../../common/agentFeedbackAttachments.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, ResponsePartKind, SessionInputResponseKind, SessionStatus } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -2093,6 +2094,23 @@ suite('ClaudeAgent', () => {
 		assert.ok(!blocks[1].text.includes('```'));
 	});
 
+	test('simple attachments use their model representation as context', () => {
+		const blocks = resolvePromptToContentBlocks('/act-on-feedback', [{
+			type: MessageAttachmentKind.Simple,
+			label: 'Feedback',
+			displayKind: AgentFeedbackAttachmentDisplayKind,
+			modelRepresentation: 'Feedback text for the model',
+		}]);
+
+		assert.deepStrictEqual(blocks, [
+			{ type: 'text', text: '/act-on-feedback' },
+			{
+				type: 'text',
+				text: 'Feedback text for the model',
+			},
+		]);
+	});
+
 	test('shutdown resolves without throwing', async () => {
 		const { agent } = createTestContext(disposables);
 		await agent.shutdown();
@@ -4026,8 +4044,6 @@ suite('ClaudeAgent (Phase 13 — getSessionMessages)', () => {
 });
 
 // #endregion
-
-
 
 
 
