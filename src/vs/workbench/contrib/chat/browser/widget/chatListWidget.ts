@@ -385,6 +385,7 @@ export class ChatListWidget extends Disposable {
 				enableStickyScroll: stickyScrollEnabled,
 				stickyScrollMaxItemCount: 1,
 				stickyScrollMaxNodeHeight: 150,
+				stickyScrollShowOnlyWhenNodeFullyHidden: true,
 				indent: 0,
 				expandOnDoubleClick: false,
 				expandOnlyOnTwistieClick: true,

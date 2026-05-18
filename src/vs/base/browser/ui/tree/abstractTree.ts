@@ -1499,6 +1499,10 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 				return undefined;
 			}
 
+			if (this.tree.options.stickyScrollShowOnlyWhenNodeFullyHidden) {
+				return undefined;
+			}
+
 			if (this.nodeTopAlignsWithStickyNodesBottom(firstVisibleNodeUnderWidget, stickyNodesHeight)) {
 				return undefined;
 			}
@@ -1834,7 +1838,8 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 				element.style.height = previousHeight;
 				continue;
 			}
-			const clampedMeasuredHeight = this.clampNodeHeight(measuredHeight);
+			const maxNodeHeight = this.tree.options.stickyScrollMaxNodeHeight;
+			const clampedMeasuredHeight = maxNodeHeight !== undefined ? Math.min(measuredHeight, maxNodeHeight) : measuredHeight;
 
 			// Always update the sticky element's visual height to match the measured content
 			if (this.tree.options.setRowHeight !== false) {
@@ -2296,6 +2301,7 @@ export interface IAbstractTreeOptionsUpdate<T> extends ITreeRendererOptions<T> {
 	readonly enableStickyScroll?: boolean;
 	readonly stickyScrollMaxItemCount?: number;
 	readonly stickyScrollMaxNodeHeight?: number;
+	readonly stickyScrollShowOnlyWhenNodeFullyHidden?: boolean;
 	readonly paddingTop?: number;
 }
 
