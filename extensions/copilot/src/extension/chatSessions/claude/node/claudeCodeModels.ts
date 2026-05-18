@@ -194,8 +194,6 @@ export function isEffortLevel(value: string): value is EffortLevel {
 	return SUPPORTED_EFFORT_LEVELS.includes(value as EffortLevel);
 }
 
-
-
 /**
  * Picks the reasoning effort to use for an endpoint given a requested level.
  */
