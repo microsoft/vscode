@@ -527,7 +527,16 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 	return async () => {
 		const versionedResourcesFolder = util.getVersionedResourcesFolder('win32', commit!);
 		const deps = (await Promise.all([
-			glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' }),
+			glob('**/*.node', {
+				cwd, ignore: [
+					'extensions/node_modules/@parcel/watcher/**',
+					// Pre-signed by GitHub upstream; rcedit-ing them strips the Authenticode
+					// signature and produces a PE layout that signtool refuses to re-sign
+					// (0x800700C1). Leave these files untouched so the upstream signature
+					// ships intact.
+					'**/@github/copilot/sdk/prebuilds/win32-*/**',
+				]
+			}),
 			glob('**/rg.exe', { cwd }),
 			glob('**/*explorer_command*.dll', { cwd }),
 		])).flatMap(o => o);
