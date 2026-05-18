@@ -1,0 +1,218 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Docked "Pet" region. Pinned to the bottom of the auxiliary bar so it sits
+ * UNDER the active composite (Changes / Files). Height is interactive — the
+ * top edge is a sash users can drag. The AuxiliaryBarPart reads its current
+ * height via `data-reserved-bottom` and subtracts it from the active
+ * composite's layout, so dragging the sash shrinks/grows the Changes pane in
+ * lockstep.
+ */
+.part.auxiliarybar .agents-buddy-dock {
+	position: absolute;
+	left: 5px;
+	right: 0;
+	bottom: 0;
+	height: var(--agents-buddy-dock-height, 200px);
+	display: flex;
+	flex-direction: column;
+	background: var(--part-background);
+	border: 1px solid var(--part-border-color, transparent);
+	border-radius: 8px;
+	box-sizing: border-box;
+	overflow: hidden;
+	z-index: 5;
+	pointer-events: auto;
+}
+
+.agents-buddy-dock-sash {
+	position: absolute;
+	top: -4px;
+	left: 0;
+	right: 0;
+	height: 8px;
+	cursor: ns-resize;
+	z-index: 1;
+	background: transparent;
+	transition: background 120ms ease-out;
+}
+
+.agents-buddy-dock-sash:hover,
+body.agents-buddy-resizing .agents-buddy-dock-sash {
+	background: var(--vscode-sash-hoverBorder, var(--vscode-focusBorder, transparent));
+}
+
+body.agents-buddy-resizing,
+body.agents-buddy-resizing * {
+	cursor: ns-resize !important;
+	user-select: none !important;
+}
+
+.agents-buddy-dock-body {
+	position: relative;
+	flex: 1 1 auto;
+	overflow: hidden;
+}
+
+/*
+ * Buddy widget. Anchored inside the dock body — the sprite roams horizontally
+ * inside it (`--buddy-x` is a percentage of the body width).
+ */
+.agents-buddy {
+	position: absolute;
+	left: var(--buddy-x, 50%);
+	bottom: var(--buddy-y, 16px);
+	width: 0;
+	height: 0;
+	pointer-events: none;
+	z-index: 2;
+	transition: left 600ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+	animation: agents-buddy-bob 2.4s ease-in-out infinite;
+}
+
+.agents-buddy.jumping {
+	animation: agents-buddy-jump 600ms cubic-bezier(0.2, 0.7, 0.3, 1.4);
+}
+
+.agents-buddy-sprite {
+	position: absolute;
+	left: -32px;
+	bottom: 0;
+	width: 64px;
+	height: 64px;
+	pointer-events: auto;
+	cursor: pointer;
+	touch-action: manipulation;
+	background-repeat: no-repeat;
+	background-position: 0 0;
+	background-size: auto 64px;
+	filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+	user-select: none;
+}
+
+.agents-buddy-sprite.state-idle {
+	background-image: url('./sprites/idle.png');
+	animation: agents-buddy-frames-4 1.4s steps(4) infinite;
+}
+
+.agents-buddy-sprite.state-thinking {
+	background-image: url('./sprites/thinking.png');
+	animation: agents-buddy-frames-4 1.0s steps(4) infinite;
+}
+
+.agents-buddy-sprite.state-typing {
+	background-image: url('./sprites/typing.png');
+	animation: agents-buddy-frames-4 0.45s steps(4) infinite;
+}
+
+.agents-buddy-sprite.state-alert {
+	background-image: url('./sprites/alert.png');
+	animation:
+		agents-buddy-frames-4 0.5s steps(4) infinite,
+		agents-buddy-wiggle 0.4s ease-in-out infinite;
+}
+
+/*
+ * One-shot idle flavor animations. Layered on top of the persistent `state-*`
+ * class so they swap the sprite for the duration of a single cycle and revert
+ * on `animationend`. Authored as 4-frame strips matching the other states.
+ */
+.agents-buddy-sprite.oneshot-wave {
+	background-image: url('./sprites/wave.png');
+	animation: agents-buddy-frames-6 0.9s steps(6) 1 forwards;
+}
+
+.agents-buddy-sprite.oneshot-jump {
+	background-image: url('./sprites/jump.png');
+	animation: agents-buddy-frames-4 0.6s steps(4) 1 forwards;
+}
+
+@keyframes agents-buddy-frames-4 {
+	from { background-position-x: 0; }
+	to { background-position-x: -256px; }
+}
+
+@keyframes agents-buddy-frames-6 {
+	from { background-position-x: 0; }
+	to { background-position-x: -384px; }
+}
+
+@keyframes agents-buddy-bob {
+	0%, 100% { transform: translateY(0); }
+	50% { transform: translateY(-4px); }
+}
+
+@keyframes agents-buddy-wiggle {
+	0%, 100% { transform: rotate(-6deg); }
+	50% { transform: rotate(6deg); }
+}
+
+@keyframes agents-buddy-jump {
+	0% { transform: translateY(0); }
+	50% { transform: translateY(-32px); }
+	100% { transform: translateY(0); }
+}
+
+/* Speech bubble */
+.agents-buddy-bubble {
+	position: absolute;
+	left: 0;
+	bottom: 70px;
+	transform: translateX(calc(-50% + var(--bubble-shift, 0px))) scale(0.6);
+	opacity: 0;
+	transition: transform 180ms ease-out, opacity 180ms ease-out;
+	padding: 4px 10px;
+	width: max-content;
+	max-width: 220px;
+	border-radius: 10px;
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+	border: 1px solid var(--vscode-editorWidget-border, transparent);
+	font-size: 12px;
+	line-height: 1.3;
+	white-space: normal;
+	overflow-wrap: break-word;
+	pointer-events: none;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.agents-buddy-bubble.visible {
+	transform: translateX(calc(-50% + var(--bubble-shift, 0px))) scale(1);
+	opacity: 1;
+}
+
+.agents-buddy-bubble::after {
+	content: '';
+	position: absolute;
+	left: 50%;
+	bottom: -5px;
+	transform: translateX(calc(-50% - var(--bubble-shift, 0px))) rotate(45deg);
+	width: 8px;
+	height: 8px;
+	background: var(--vscode-editorWidget-background);
+	border-right: 1px solid var(--vscode-editorWidget-border, transparent);
+	border-bottom: 1px solid var(--vscode-editorWidget-border, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agents-buddy,
+	.agents-buddy.jumping,
+	.agents-buddy-sprite,
+	.agents-buddy-sprite.state-idle,
+	.agents-buddy-sprite.state-thinking,
+	.agents-buddy-sprite.state-typing,
+	.agents-buddy-sprite.state-alert,
+	.agents-buddy-sprite.oneshot-wave,
+	.agents-buddy-sprite.oneshot-jump {
+		animation: none;
+	}
+	.agents-buddy {
+		transition: none;
+	}
+	.agents-buddy-bubble {
+		transition: opacity 120ms linear;
+	}
+}
