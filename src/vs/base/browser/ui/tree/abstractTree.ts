@@ -1837,19 +1837,20 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 				element.style.height = previousHeight;
 				continue;
 			}
+			const clampedMeasuredHeight = this.clampNodeHeight(measuredHeight);
 
 			// Always update the sticky element's visual height to match the measured content
 			if (this.tree.options.setRowHeight !== false) {
-				element.style.height = `${measuredHeight}px`;
+				element.style.height = `${clampedMeasuredHeight}px`;
 			}
 			if (this.tree.options.setRowLineHeight !== false) {
-				element.style.lineHeight = `${measuredHeight}px`;
+				element.style.lineHeight = `${clampedMeasuredHeight}px`;
 			}
 
 			// Only propagate height increases to the real row — never shrink it,
 			// since sticky elements may have CSS truncation (e.g. line-clamp).
-			if (measuredHeight > stickyNode.height) {
-				heightChanges.push({ index: stickyNode.startIndex, height: measuredHeight });
+			if (clampedMeasuredHeight > stickyNode.height) {
+				heightChanges.push({ index: stickyNode.startIndex, height: clampedMeasuredHeight });
 			}
 		}
 

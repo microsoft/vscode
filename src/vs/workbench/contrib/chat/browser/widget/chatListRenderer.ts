@@ -1398,74 +1398,88 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		dom.clearNode(templateData.value);
 		const parts: IChatContentPart[] = [];
 		const content: IChatRendererContent[] = [];
+		const isStickyScrollRow = !!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row');
 
 		if (!element.confirmation) {
-			const store = new DisposableStore();
-			templateData.elementDisposables.add(store);
+			if (isStickyScrollRow) {
+				const store = new DisposableStore();
+				templateData.elementDisposables.add(store);
 
-			const isStickyAndEditing = dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row')
-				&& element.id === this.viewModel?.editing?.id;
+				const isStickyAndEditing = element.id === this.viewModel?.editing?.id;
 
-			const message = element.message;
-			let plainTextContent: HTMLElement;
-			if (isStickyAndEditing) {
-				const editingText = this.delegate.getEditingValue?.() || '';
-				plainTextContent = dom.$('span', undefined, editingText);
-			} else if (isChatFollowup(message)) {
-				plainTextContent = dom.$('span', undefined, message.message);
-			} else {
-				plainTextContent = this.markdownDecorationsRenderer.renderParsedRequestToPlainText(message, store);
-			}
+				const message = element.message;
+				let plainTextContent: HTMLElement;
+				if (isStickyAndEditing) {
+					const editingText = this.delegate.getEditingValue?.() || '';
+					plainTextContent = dom.$('span', undefined, editingText);
+				} else if (isChatFollowup(message)) {
+					plainTextContent = dom.$('span', undefined, message.message);
+				} else {
+					plainTextContent = this.markdownDecorationsRenderer.renderParsedRequestToPlainText(message, store);
+				}
 
-			const container = dom.$('.rendered-markdown');
-			const innerContent = dom.$('.chat-request-text');
-			innerContent.appendChild(plainTextContent);
-			container.appendChild(innerContent);
+				const container = dom.$('.rendered-markdown');
+				const innerContent = dom.$('.chat-request-text');
+				innerContent.classList.toggle('sticky-editing', isStickyAndEditing);
+				innerContent.appendChild(plainTextContent);
+				container.appendChild(innerContent);
 
-			// In minimal mode, show inline progress ellipsis
-			if (this.rendererOptions.renderStyle === 'minimal' && !element.isComplete) {
-				templateData.value.classList.add('inline-progress');
-				templateData.elementDisposables.add(toDisposable(() => templateData.value.classList.remove('inline-progress')));
-				container.appendChild(dom.$('span'));
-			} else {
-				templateData.value.classList.remove('inline-progress');
-			}
+				if (this.rendererOptions.renderStyle === 'minimal' && !element.isComplete) {
+					templateData.value.classList.add('inline-progress');
+					templateData.elementDisposables.add(toDisposable(() => templateData.value.classList.remove('inline-progress')));
+					container.appendChild(dom.$('span'));
+				} else {
+					templateData.value.classList.remove('inline-progress');
+				}
 
-			// Wire up request-specific behaviors
-			container.tabIndex = 0;
-			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && this.rendererOptions.editable) {
-				container.classList.add('clickable');
-				store.add(dom.addDisposableListener(container, dom.EventType.CLICK, (e: MouseEvent) => {
-					if (this.viewModel?.editing?.id === element.id) {
-						return;
-					}
+				container.tabIndex = 0;
+				if (this.configService.getValue<string>('chat.editRequests') === 'inline' && this.rendererOptions.editable) {
+					container.classList.add('clickable');
+					store.add(dom.addDisposableListener(container, dom.EventType.CLICK, (e: MouseEvent) => {
+						if (this.viewModel?.editing?.id === element.id) {
+							return;
+						}
 
-					const selection = dom.getWindow(templateData.rowContainer).getSelection();
-					if (selection && !selection.isCollapsed && selection.toString().length > 0) {
-						return;
-					}
+						const selection = dom.getWindow(templateData.rowContainer).getSelection();
+						if (selection && !selection.isCollapsed && selection.toString().length > 0) {
+							return;
+						}
 
-					e.preventDefault();
-					e.stopPropagation();
-					this._onDidClickRequest.fire(templateData);
+						e.preventDefault();
+						e.stopPropagation();
+						this._onDidClickRequest.fire(templateData);
+					}));
+					store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, localize('requestMarkdownPartTitle', "Click to Edit"), { trapFocus: true }));
+				}
+				store.add(dom.addDisposableListener(container, dom.EventType.FOCUS, () => {
+					this.hoverVisible(templateData.requestHover);
 				}));
-				store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, localize('requestMarkdownPartTitle', "Click to Edit"), { trapFocus: true }));
-			}
-			store.add(dom.addDisposableListener(container, dom.EventType.FOCUS, () => {
-				this.hoverVisible(templateData.requestHover);
-			}));
-			store.add(dom.addDisposableListener(container, dom.EventType.BLUR, () => {
-				this.hoverHidden(templateData.requestHover);
-			}));
+				store.add(dom.addDisposableListener(container, dom.EventType.BLUR, () => {
+					this.hoverHidden(templateData.requestHover);
+				}));
 
-			templateData.value.appendChild(container);
-			const plainTextPart: IChatContentPart = {
-				domNode: container,
-				hasSameContent: (other) => other.kind === 'markdownContent',
-				dispose: () => store.dispose(),
-				addDisposable: (d) => store.add(d),
-			};
-			parts.push(plainTextPart);
+				templateData.value.appendChild(container);
+				const plainTextPart: IChatContentPart = {
+					domNode: container,
+					hasSameContent: (other) => other.kind === 'markdownContent',
+					dispose: () => store.dispose(),
+					addDisposable: (d) => store.add(d),
+				};
+				parts.push(plainTextPart);
+			} else {
+				const markdown = isChatFollowup(element.message) ?
+					element.message.message :
+					this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, element.message);
+				content.push({ content: new MarkdownString(markdown), kind: 'markdownContent' });
+
+				if (this.rendererOptions.renderStyle === 'minimal' && !element.isComplete) {
+					templateData.value.classList.add('inline-progress');
+					templateData.elementDisposables.add(toDisposable(() => templateData.value.classList.remove('inline-progress')));
+					content.push({ content: new MarkdownString('<span></span>', { supportHtml: true }), kind: 'markdownContent' });
+				} else {
+					templateData.value.classList.remove('inline-progress');
+				}
+			}
 		}
 
 		let inlineSlashCommandRendered = false;

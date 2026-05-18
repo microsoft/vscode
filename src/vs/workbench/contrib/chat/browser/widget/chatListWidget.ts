@@ -369,6 +369,7 @@ export class ChatListWidget extends Disposable {
 
 		// Create tree
 		const styles = options.styles ?? {};
+		const stickyScrollEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.StickyScrollEnabled) === true;
 		this._tree = this._register(scopedInstantiationService.createInstance(
 			WorkbenchObjectTree<ChatTreeItem, FuzzyScore>,
 			'ChatList',
@@ -381,7 +382,7 @@ export class ChatListWidget extends Disposable {
 				alwaysConsumeMouseWheel: false,
 				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
-				enableStickyScroll: true,
+				enableStickyScroll: stickyScrollEnabled,
 				stickyScrollMaxItemCount: 1,
 				stickyScrollMaxNodeHeight: 150,
 				indent: 0,
@@ -479,6 +480,9 @@ export class ChatListWidget extends Disposable {
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration(ChatConfiguration.StickyScrollEnabled)) {
+				this._tree.updateOptions({ enableStickyScroll: this.configurationService.getValue<boolean>(ChatConfiguration.StickyScrollEnabled) === true });
+			}
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests) || e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)) {
 				this._settingChangeCounter++;
 				this.refresh();

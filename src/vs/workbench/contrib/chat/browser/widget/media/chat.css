@@ -33,7 +33,7 @@
 }
 
 .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container .monaco-tree-sticky-row:hover {
-	background-color: transparent !important;
+	background-color: var(--vscode-chat-list-background) !important;
 }
 
 .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container .monaco-tree-sticky-row {
@@ -3423,6 +3423,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		-webkit-line-clamp: 4;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
+	}
+
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-text.sticky-editing {
+		font-style: italic;
 	}
 
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .request-hover {
