@@ -480,7 +480,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('workbench.browser.agentHostChatToolsEnabled', "When enabled, integrated browser tools are exposed as client-provided tools to agent host sessions in the Sessions window. Requires {0} and {1}.", `\`#${AgentHostEnabledSettingId}#\``, '`#workbench.browser.enableChatTools#`'),
 			default: false,
 			experiment: { mode: 'startup' },
-			tags: ['experimental', 'advanced']
-		}
+			tags: ['experimental', 'advanced'],
+		},
 	}
 });
