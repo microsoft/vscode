@@ -133,11 +133,12 @@ const RAINBOW_PART_FOREGROUND = '#ffffff';
 const RAINBOW_ITEM_CLASS = 'rainbow-color';
 
 /**
- * Status bar entries currently showing a warning or error kind should keep their semantic
- * theme colors and visibly break the rainbow, so users can spot them.
+ * Returns a stable per-entry category key for rainbow coloring. Prefers identifiers that are
+ * not user-visible or localized so that the same logical entry receives the same hue across
+ * languages and across providers that happen to share a display name.
  */
-function isAlertKindEntry(entry: IStatusbarViewModelEntry): boolean {
-	return entry.container.classList.contains('warning-kind') || entry.container.classList.contains('error-kind');
+function rainbowCategoryKey(entry: IStatusbarViewModelEntry): string {
+	return entry.extensionId ?? entry.id;
 }
 
 class StatusbarPart extends Part implements IStatusbarEntryContainer {
@@ -326,6 +327,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 			readonly labelContainer = item.labelContainer;
 
 			get name() { return item.name; }
+			get kind() { return item.kind; }
 			get hasCommand() { return item.hasCommand; }
 		};
 
@@ -642,16 +644,17 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		// participate in the indexing so that surrounding entries keep stable hues.
 		const categoryIndex = new Map<string, number>();
 		for (const entry of visibleEntries) {
-			if (!categoryIndex.has(entry.name)) {
-				categoryIndex.set(entry.name, categoryIndex.size);
+			const key = rainbowCategoryKey(entry);
+			if (!categoryIndex.has(key)) {
+				categoryIndex.set(key, categoryIndex.size);
 			}
 		}
 
 		const total = categoryIndex.size;
 		for (const entry of visibleEntries) {
-			// Skip entries showing a semantic kind (error/warning/...): let their theme colors win
+			// Skip entries showing a warning or error kind: let their theme colors win
 			// and visibly break the rainbow so users can spot them.
-			if (isAlertKindEntry(entry)) {
+			if (entry.kind === 'warning' || entry.kind === 'error') {
 				if (entry.container.classList.contains(RAINBOW_ITEM_CLASS)) {
 					entry.container.style.backgroundColor = '';
 					entry.container.classList.remove(RAINBOW_ITEM_CLASS);
@@ -659,7 +662,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 				continue;
 			}
 
-			const hue = statusBarRainbowHue(categoryIndex.get(entry.name)!, total);
+			const hue = statusBarRainbowHue(categoryIndex.get(rainbowCategoryKey(entry))!, total);
 			entry.container.style.backgroundColor = `hsl(${hue}deg ${RAINBOW_ITEM_SATURATION}% ${RAINBOW_ITEM_LIGHTNESS}%)`;
 			entry.container.classList.add(RAINBOW_ITEM_CLASS);
 		}
