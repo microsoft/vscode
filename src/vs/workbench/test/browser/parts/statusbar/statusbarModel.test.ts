@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { IStatusbarViewModelEntry, StatusbarViewModel } from '../../../../browser/parts/statusbar/statusbarModel.js';
+import { statusBarRainbowHue } from '../../../../browser/parts/statusbar/statusbarPart.js';
 import { TestStorageService } from '../../../common/workbenchTestServices.js';
 import { StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -294,6 +295,44 @@ suite('Workbench status bar model', () => {
 		assert.strictEqual(entries[0].id, 'entry3');
 		assert.strictEqual(entries[1].id, 'entry2');
 		assert.strictEqual(entries[2].id, 'entry1');
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+});
+
+suite('Workbench status bar rainbow colors', () => {
+
+	test('single entry defaults to hue 120', () => {
+		assert.strictEqual(statusBarRainbowHue(0, 1), 120);
+	});
+
+	test('two entries get hues 0 and 300', () => {
+		assert.deepStrictEqual(
+			[statusBarRainbowHue(0, 2), statusBarRainbowHue(1, 2)],
+			[0, 300]
+		);
+	});
+
+	test('three entries spread evenly across 0-300', () => {
+		assert.deepStrictEqual(
+			[statusBarRainbowHue(0, 3), statusBarRainbowHue(1, 3), statusBarRainbowHue(2, 3)],
+			[0, 150, 300]
+		);
+	});
+
+	test('five entries spread evenly across 0-300', () => {
+		assert.deepStrictEqual(
+			[0, 1, 2, 3, 4].map(i => statusBarRainbowHue(i, 5)),
+			[0, 75, 150, 225, 300]
+		);
+	});
+
+	test('intermediate values are rounded to nearest integer', () => {
+		// 4 entries: step = 300/3 = 100 — all exact
+		assert.deepStrictEqual(
+			[0, 1, 2, 3].map(i => statusBarRainbowHue(i, 4)),
+			[0, 100, 200, 300]
+		);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

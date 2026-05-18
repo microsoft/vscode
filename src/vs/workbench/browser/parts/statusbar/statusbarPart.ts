@@ -26,6 +26,7 @@ import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ToggleStatusbarVisibilityAction } from '../../actions/layoutActions.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { hash } from '../../../../base/common/hash.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
@@ -116,6 +117,29 @@ interface IPendingStatusbarEntry {
 	accessor?: IStatusbarEntryAccessor;
 }
 
+/**
+ * Computes the HSL hue for a rainbow-colored status bar entry.
+ * Hues range from 0 to 300 degrees (avoiding the red wrap-around) spread evenly across all categories.
+ * A single entry defaults to hue 120 (green).
+ */
+export function statusBarRainbowHue(index: number, total: number): number {
+	return total > 1 ? Math.round((index / (total - 1)) * 300) : 120;
+}
+
+const RAINBOW_ITEM_SATURATION = 70;
+const RAINBOW_ITEM_LIGHTNESS = 27;
+const RAINBOW_PART_BACKGROUND = '#111111';
+const RAINBOW_PART_FOREGROUND = '#ffffff';
+const RAINBOW_ITEM_CLASS = 'rainbow-color';
+
+/**
+ * Status bar entries currently showing a warning or error kind should keep their semantic
+ * theme colors and visibly break the rainbow, so users can spot them.
+ */
+function isAlertKindEntry(entry: IStatusbarViewModelEntry): boolean {
+	return entry.container.classList.contains('warning-kind') || entry.container.classList.contains('error-kind');
+}
+
 class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 	static readonly HEIGHT = 22;
@@ -151,6 +175,8 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	private readonly compactEntriesDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly styleOverrides = new Set<IStatusbarStyleOverride>();
 
+	private rainbowApplied = false;
+
 	constructor(
 		id: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -160,6 +186,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -205,6 +232,13 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 		// Workbench state changes
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
+
+		// Color mode setting changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.statusBar.colorMode')) {
+				this.updateStyles();
+			}
+		}));
 	}
 
 	overrideEntry(id: string, override: Partial<IStatusbarEntry>): IDisposable {
@@ -308,6 +342,12 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 			update: entry => {
 				lastEntry = entry;
 				item.update(this.withEntryOverride(entry, id));
+
+				// The entry's `kind` (e.g. error/warning) or background may have changed.
+				// Re-evaluate rainbow coloring so semantic kind colors win and reappear when cleared.
+				if (this.rainbowApplied) {
+					this.updateRainbowColors();
+				}
 			},
 			dispose: () => {
 				const { needsFullRefresh } = this.doAddOrRemoveModelEntry(viewModelEntry, false);
@@ -569,6 +609,62 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 				}
 			}
 		}
+
+		this.updateRainbowColors();
+	}
+
+	private updateRainbowColors(): void {
+		const isRainbow = this.configurationService.getValue<string>('workbench.statusBar.colorMode') === 'rainbow';
+
+		if (!isRainbow) {
+			if (this.rainbowApplied) {
+				// Tear down previously applied rainbow styles only on the entries we touched.
+				for (const entry of this.viewModel.entries) {
+					if (entry.container.classList.contains(RAINBOW_ITEM_CLASS)) {
+						entry.container.style.backgroundColor = '';
+						entry.container.classList.remove(RAINBOW_ITEM_CLASS);
+					}
+				}
+
+				this.rainbowApplied = false;
+			}
+
+			return;
+		}
+
+		const leftEntries = this.viewModel.getEntries(StatusbarAlignment.LEFT)
+			.filter(e => !this.viewModel.isHidden(e.id));
+		const rightEntries = this.viewModel.getEntries(StatusbarAlignment.RIGHT)
+			.filter(e => !this.viewModel.isHidden(e.id));
+		const visibleEntries = [...leftEntries, ...rightEntries];
+
+		// Assign each unique category a left-to-right position index. Alert entries still
+		// participate in the indexing so that surrounding entries keep stable hues.
+		const categoryIndex = new Map<string, number>();
+		for (const entry of visibleEntries) {
+			if (!categoryIndex.has(entry.name)) {
+				categoryIndex.set(entry.name, categoryIndex.size);
+			}
+		}
+
+		const total = categoryIndex.size;
+		for (const entry of visibleEntries) {
+			// Skip entries showing a semantic kind (error/warning/...): let their theme colors win
+			// and visibly break the rainbow so users can spot them.
+			if (isAlertKindEntry(entry)) {
+				if (entry.container.classList.contains(RAINBOW_ITEM_CLASS)) {
+					entry.container.style.backgroundColor = '';
+					entry.container.classList.remove(RAINBOW_ITEM_CLASS);
+				}
+				continue;
+			}
+
+			const hue = statusBarRainbowHue(categoryIndex.get(entry.name)!, total);
+			entry.container.style.backgroundColor = `hsl(${hue}deg ${RAINBOW_ITEM_SATURATION}% ${RAINBOW_ITEM_LIGHTNESS}%)`;
+			entry.container.classList.add(RAINBOW_ITEM_CLASS);
+		}
+
+		this.rainbowApplied = true;
 	}
 
 	private showContextMenu(e: MouseEvent | GestureEvent): void {
@@ -637,11 +733,16 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 		const container = assertReturnsDefined(this.getContainer());
 		const styleOverride: IStatusbarStyleOverride | undefined = [...this.styleOverrides].sort((a, b) => a.priority - b.priority)[0];
+		const isRainbow = this.configurationService.getValue<string>('workbench.statusBar.colorMode') === 'rainbow';
 
 		// Background / foreground colors
-		const backgroundColor = this.getColor(styleOverride?.background ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND)) || '';
+		const backgroundColor = isRainbow
+			? RAINBOW_PART_BACKGROUND
+			: this.getColor(styleOverride?.background ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND)) || '';
 		container.style.backgroundColor = backgroundColor;
-		const foregroundColor = this.getColor(styleOverride?.foreground ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND)) || '';
+		const foregroundColor = isRainbow
+			? RAINBOW_PART_FOREGROUND
+			: this.getColor(styleOverride?.foreground ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND)) || '';
 		container.style.color = foregroundColor;
 		const itemBorderColor = this.getColor(STATUS_BAR_ITEM_FOCUS_BORDER);
 
@@ -724,8 +825,9 @@ export class MainStatusbarPart extends StatusbarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(Parts.STATUSBAR_PART, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService);
+		super(Parts.STATUSBAR_PART, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, configurationService);
 	}
 }
 
@@ -749,9 +851,10 @@ export class AuxiliaryStatusbarPart extends StatusbarPart implements IAuxiliaryS
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		const id = AuxiliaryStatusbarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService);
+		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, configurationService);
 	}
 }
 
