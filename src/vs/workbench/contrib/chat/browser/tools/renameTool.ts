@@ -16,7 +16,6 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { rename } from '../../../../../editor/contrib/rename/browser/rename.js';
 import { localize } from '../../../../../nls.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -83,7 +82,6 @@ export class RenameTool extends Disposable implements IToolImpl {
 			userDescription,
 			modelDescription,
 			source: ToolDataSource.Internal,
-			when: ContextKeyExpr.has('config.chat.tools.renameTool.enabled'),
 			inputSchema: {
 				type: 'object',
 				properties: {

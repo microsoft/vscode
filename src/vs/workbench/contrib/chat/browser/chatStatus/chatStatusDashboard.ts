@@ -422,9 +422,10 @@ export class ChatStatusDashboard extends DomWidget {
 			const headerLabel = typeof item.label === 'string' ? item.label : item.label.label;
 			let headerLink = typeof item.label === 'string' ? undefined : item.label.link;
 			let linkDescription = typeof item.label === 'string' ? undefined : item.label.helpText;
+			const section = this.element.appendChild($('div.contributed-section'));
 
 			// Single non-collapsible header row
-			const header = this.element.appendChild($('div.collapsible-header.non-collapsible'));
+			const header = section.appendChild($('div.collapsible-header.non-collapsible'));
 			header.appendChild($('span.collapsible-label', undefined, headerLabel));
 
 			// Info icon (replaces chevron) — shows helpText in a nested hover
@@ -466,7 +467,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 			let detailEl: HTMLElement | undefined;
 			if (item.detail) {
-				detailEl = header.appendChild($('span.contributed-detail'));
+				detailEl = section.appendChild($('div.contributed-detail'));
 				this.renderTextPlus(detailEl, item.detail, sectionStore);
 			}
 
@@ -495,7 +496,7 @@ export class ChatStatusDashboard extends DomWidget {
 							detailEl = undefined;
 						}
 					} else if (e.entry.detail) {
-						detailEl = header.appendChild($('span.contributed-detail'));
+						detailEl = section.appendChild($('div.contributed-detail'));
 						this.renderTextPlus(detailEl, e.entry.detail, newStore);
 					}
 				}

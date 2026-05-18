@@ -78,12 +78,6 @@
     "configuration": {
       "title": "%config.title%",
       "properties": {
-        "mermaid-markdown.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%config.enabled.description%",
-          "scope": "application"
-        },
         "markdown-mermaid.lightModeTheme": {
           "order": 0,
           "type": "string",
@@ -205,7 +199,7 @@
         "canBeReferencedInPrompt": true,
         "modelDescription": "Renders a Mermaid diagram from Mermaid.js markup.",
         "userDescription": "Render a Mermaid.js diagram from markup.",
-        "when": "config.mermaid-markdown.enabled",
+        "when": "chatSessionType == local",
         "inputSchema": {
           "type": "object",
           "properties": {

@@ -643,7 +643,7 @@ export namespace ConfigKey {
 		export const ProjectLabelsInline = defineAndMigrateExpSetting<boolean>('chat.advanced.projectLabels.inline', 'chat.projectLabels.inline', false);
 		export const WorkspaceMaxLocalIndexSize = defineAndMigrateExpSetting<number>('chat.advanced.workspace.maxLocalIndexSize', 'chat.workspace.maxLocalIndexSize', 100_000);
 		export const WorkspaceEnableCodeSearch = defineAndMigrateExpSetting<boolean>('chat.advanced.workspace.enableCodeSearch', 'chat.workspace.enableCodeSearch', true);
-		export const WorkspaceEnableCodeSearchExternalIngest = defineSetting<boolean>('chat.workspace.codeSearchExternalIngest.enabled', ConfigType.ExperimentBased, false, undefined, undefined, { experimentName: 'copilotchat.config.chat.advanced.workspace.codeSearchExternalIngest.enabled' });
+		export const WorkspaceEnableCodeSearchExternalIngest = defineSetting<boolean>('chat.workspace.codeSearchExternalIngest.enabled', ConfigType.ExperimentBased, true, undefined, undefined, { experimentName: 'copilotchat.config.chat.advanced.workspace.codeSearchExternalIngest.enabled' });
 		export const WorkspacePreferredEmbeddingsModel = defineAndMigrateExpSetting<string>('chat.advanced.workspace.preferredEmbeddingsModel', 'chat.workspace.preferredEmbeddingsModel', '');
 		export const NotebookAlternativeDocumentFormat = defineAndMigrateExpSetting<AlternativeNotebookFormat>('chat.advanced.notebook.alternativeFormat', 'chat.notebook.alternativeFormat', AlternativeNotebookFormat.xml);
 		export const UseAlternativeNESNotebookFormat = defineAndMigrateExpSetting<boolean>('chat.advanced.notebook.alternativeNESFormat.enabled', 'chat.notebook.alternativeNESFormat.enabled', false);
