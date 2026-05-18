@@ -106,18 +106,6 @@ export class ChatMarkdownDecorationsRenderer {
 		return result;
 	}
 
-	private getDecorationTitle(part: IParsedChatRequestPart): string | undefined {
-		const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI
-			? part.data
-			: undefined;
-		return uri ? this.labelService.getUriLabel(uri, { relative: true }) :
-			part instanceof ChatRequestSlashCommandPart ? part.slashCommand.detail :
-				part instanceof ChatRequestAgentSubcommandPart ? part.command.description :
-					part instanceof ChatRequestSlashPromptPart ? part.name :
-						part instanceof ChatRequestToolPart ? (this.toolsService.getTool(part.toolId)?.userDescription) :
-							undefined;
-	}
-
 	private genericDecorationToMarkdown(part: IParsedChatRequestPart): string {
 		const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI ?
 			part.data :
