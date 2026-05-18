@@ -194,6 +194,20 @@ suite('KeybindingResolver', () => {
 			]);
 		});
 
+		test('empty keybinding override is preserved', () => {
+			const defaults = [
+				kbItem(KeyCode.KeyA, 'command1', null, undefined, true)
+			];
+			const overrides = [
+				kbItem(0, 'command1', null, undefined, false)
+			];
+			const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
+			assert.deepStrictEqual(actual, [
+				kbItem(KeyCode.KeyA, 'command1', null, undefined, true),
+				kbItem(0, 'command1', null, undefined, false)
+			]);
+		});
+
 		test('issue #138997 - removal in default list', () => {
 			const defaults = [
 				kbItem(KeyCode.KeyA, 'yes1', null, undefined, true),
