@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import mermaid, { MermaidConfig } from 'mermaid';
+import { createMermaidErrorElement, markVsCodeContextAsError } from '../shared';
 import { VsCodeApi } from './vscodeApi';
 
 interface PanZoomState {
@@ -379,7 +380,17 @@ export async function initializeMermaidWebview(vscode: VsCodeApi): Promise<PanZo
 		theme,
 	};
 	mermaid.initialize(config);
-	await mermaid.run({ nodes: [diagram] });
+	try {
+		await mermaid.run({ nodes: [diagram] });
+	} catch (err) {
+		diagram.replaceChildren(createMermaidErrorElement(err));
+		markVsCodeContextAsError(document.body);
+		for (const el of document.querySelectorAll<HTMLElement>('.zoom-controls')) {
+			el.style.display = 'none';
+		}
+		diagram.classList.add('rendered');
+		return;
+	}
 
 	// Show the diagram now that it's rendered
 	diagram.classList.add('rendered');
