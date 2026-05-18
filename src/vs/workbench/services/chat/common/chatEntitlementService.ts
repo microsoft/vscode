@@ -707,6 +707,7 @@ type EntitlementClassification = {
 	usageBasedBilling: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is on usage-based billing' };
 	additionalUsageEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether overage / additional spend is enabled' };
 	additionalUsageCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of overage interactions used' };
+	canUpgradePlan: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is eligible to upgrade their plan' };
 	owner: 'bpasero';
 	comment: 'Reporting chat entitlements';
 };
@@ -731,6 +732,7 @@ type EntitlementEvent = {
 	usageBasedBilling: boolean | undefined;
 	additionalUsageEnabled: boolean | undefined;
 	additionalUsageCount: number | undefined;
+	canUpgradePlan: boolean | undefined;
 };
 
 interface IEntitlements {
@@ -973,7 +975,8 @@ export class ChatEntitlementRequests extends Disposable {
 			quotaResetDate: entitlements.quotas?.resetDate,
 			usageBasedBilling: entitlements.quotas?.usageBasedBilling,
 			additionalUsageEnabled: entitlements.quotas?.additionalUsageEnabled,
-			additionalUsageCount: entitlements.quotas?.additionalUsageCount
+			additionalUsageCount: entitlements.quotas?.additionalUsageCount,
+			canUpgradePlan: entitlements.quotas?.canUpgradePlan
 		});
 
 		return entitlements;
