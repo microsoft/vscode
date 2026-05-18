@@ -434,6 +434,125 @@
 	white-space: nowrap;
 }
 
+/* Inline GitHub Enterprise instance input */
+.onboarding-a-signin-ghe-input {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-top: 4px;
+}
+
+.onboarding-a-signin-ghe-input-row {
+	display: flex;
+	align-items: stretch;
+	gap: 8px;
+}
+
+.onboarding-a-signin-ghe-input-field {
+	flex: 1;
+	min-width: 0;
+	height: 40px;
+	padding: 0 12px;
+	border-radius: 8px;
+	border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, rgba(255, 255, 255, 0.1)));
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-family: inherit;
+	font-size: 13px;
+	outline: none;
+}
+
+.onboarding-a-signin-ghe-input-field:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+	border-color: var(--vscode-focusBorder);
+}
+
+.onboarding-a-signin-ghe-input-field.invalid {
+	border-color: var(--vscode-inputValidation-errorBorder);
+}
+
+.onboarding-a-signin-ghe-submit {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 40px;
+	padding: 0 16px;
+	border-radius: 8px;
+	border: 1px solid var(--vscode-button-background, var(--vscode-focusBorder));
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font-family: inherit;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.onboarding-a-signin-ghe-submit:hover:not(:disabled) {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.onboarding-a-signin-ghe-submit:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.onboarding-a-signin-ghe-submit:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.onboarding-a-signin-ghe-cancel {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 40px;
+	padding: 0 12px;
+	border-radius: 8px;
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	background: transparent;
+	color: var(--vscode-editor-foreground);
+	font-family: inherit;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.onboarding-a-signin-ghe-cancel:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.onboarding-a-signin-ghe-cancel:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.onboarding-a-signin-ghe-message {
+	font-size: 12px;
+	line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+	min-height: 16px;
+}
+
+.onboarding-a-signin-ghe-message.info {
+	color: var(--vscode-descriptionForeground);
+}
+
+.onboarding-a-signin-ghe-message.error {
+	color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground));
+}
+
+.onboarding-a-signin-ghe-progress {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 0;
+}
+
+.onboarding-a-signin-ghe-progress-message {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+}
 
 .onboarding-a-provider-mark {
 	display: flex;
