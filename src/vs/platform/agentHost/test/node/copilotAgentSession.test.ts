@@ -6,7 +6,7 @@
 import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join, sep } from '../../../../base/common/path.js';
@@ -39,6 +39,7 @@ class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
+	messages: SessionEvent[] = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
 	planReadResult: { exists: boolean; content: string | null; path: string | null } = { exists: false, content: null, path: null };
@@ -65,10 +66,13 @@ class MockCopilotSession {
 	}
 
 	// Stubs for methods the wrapper / session class calls
-	async send(request: unknown) { this.sendRequests.push(request); return ''; }
+	async send(request: unknown) {
+		this.sendRequests.push(request);
+		return `message-${this.sendRequests.length}`;
+	}
 	async abort() { }
 	async setModel() { }
-	async getMessages(): Promise<SessionEvent[]> { return []; }
+	async getMessages(): Promise<SessionEvent[]> { return this.messages; }
 	async destroy() { }
 
 	readonly rpc = {
@@ -303,6 +307,59 @@ suite('CopilotAgentSession', () => {
 					},
 				},
 			],
+		}]);
+	});
+
+	test('sends simple attachments as text blobs and restores them from SDK blobs', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('/act-on-feedback', [{
+			type: MessageAttachmentKind.Simple,
+			label: 'Feedback',
+			modelRepresentation: 'Feedback text for the model',
+		}]);
+
+		const expectedAttachment = {
+			type: MessageAttachmentKind.Simple,
+			label: 'Feedback',
+			modelRepresentation: 'Feedback text for the model',
+		};
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: '/act-on-feedback',
+			attachments: [{
+				type: 'blob',
+				data: encodeBase64(VSBuffer.fromString('Feedback text for the model')),
+				mimeType: 'text/plain',
+				displayName: 'Feedback',
+			}],
+		}]);
+
+		mockSession.messages = [{
+			type: 'user.message',
+			id: 'event-1',
+			parentId: null,
+			timestamp: new Date().toISOString(),
+			data: {
+				interactionId: 'message-1',
+				content: '/act-on-feedback',
+				attachments: [{
+					type: 'blob',
+					data: encodeBase64(VSBuffer.fromString('Feedback text for the model')),
+					mimeType: 'text/plain',
+					displayName: 'Feedback',
+				}],
+			},
+		}];
+
+		assert.deepStrictEqual(await session.getMessages(), [{
+			id: 'message-1',
+			userMessage: {
+				text: '/act-on-feedback',
+				attachments: [expectedAttachment],
+			},
+			responseParts: [],
+			usage: undefined,
+			state: 'cancelled',
 		}]);
 	});
 
