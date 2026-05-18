@@ -10,7 +10,6 @@ import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } fro
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 
 export interface IOutputPartState {
-	webviewOrigin: string;
 	height: number;
 	webviewState?: string;
 }
@@ -62,11 +61,11 @@ export class ChatOutputPartStateCache implements IChatOutputPartStateCache {
 
 	private _deserialize(raw: string): void {
 		try {
-			const data: Record<string, IOutputPartState> = JSON.parse(raw);
+			const data: Record<string, Partial<IOutputPartState>> = JSON.parse(raw);
 			for (const key in data) {
 				const state = data[key];
-				if (typeof state.webviewOrigin === 'string' && typeof state.height === 'number') {
-					this._cache.set(key, state);
+				if (typeof state.height === 'number') {
+					this._cache.set(key, { height: state.height, webviewState: typeof state.webviewState === 'string' ? state.webviewState : undefined });
 				}
 			}
 		} catch {

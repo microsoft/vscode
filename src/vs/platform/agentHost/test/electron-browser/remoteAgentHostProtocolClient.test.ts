@@ -25,6 +25,9 @@ import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ROOT_STATE_URI, StateComponents } from '../../common/state/sessionState.js';
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 
@@ -88,7 +91,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport } {
 		const fileService = disposables.add(new FileService(new NullLogService()));
-		const client = disposables.add(new RemoteAgentHostProtocolClient('test.example:1234', transport, loadEstimator, new NullLogService(), fileService, permissionService));
+		const client = disposables.add(new RemoteAgentHostProtocolClient('test.example:1234', transport, loadEstimator, new NullLogService(), fileService, permissionService, new TestConfigurationService()));
 		return { client, transport };
 	}
 
@@ -381,6 +384,18 @@ suite('RemoteAgentHostProtocolClient', () => {
 			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
 		});
 		await connectPromise;
+		const telemetryLevel = transport.sentMessages[1] as JsonRpcNotification;
+		assert.deepStrictEqual(telemetryLevel, {
+			jsonrpc: '2.0',
+			method: 'dispatchAction',
+			params: {
+				clientSeq: 0,
+				action: {
+					type: ActionType.RootConfigChanged,
+					config: { [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(TelemetryLevel.USAGE) },
+				},
+			},
+		});
 	});
 
 	test('rejects connect when host returns UnsupportedProtocolVersion (-32005)', async () => {
@@ -719,6 +734,15 @@ suite('RemoteAgentHostProtocolClient', () => {
 			);
 		}
 
+		function findDispatchAction(transport: TestProtocolTransport, actionType: ActionType): JsonRpcNotification | undefined {
+			return transport.sentMessages.find(
+				(m): m is JsonRpcNotification => 'method' in m
+					&& (m as JsonRpcNotification).method === 'dispatchAction'
+					&& !('id' in m)
+					&& ((m as JsonRpcNotification).params as { action?: { type?: unknown } } | undefined)?.action?.type === actionType,
+			);
+		}
+
 		async function flushMicrotasks(): Promise<void> {
 			// `await Promise.resolve()` only advances one microtask; loop a few times to
 			// drain chained .then handlers without resorting to fake timers.
@@ -769,7 +793,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 			};
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			const client = disposables.add(new RemoteAgentHostProtocolClient(
-				'test.example:1234', factory, undefined, new NullLogService(), fileService, createPermissionService(),
+				'test.example:1234', factory, undefined, new NullLogService(), fileService, createPermissionService(), new TestConfigurationService(),
 			));
 			return { client, transports };
 		}
@@ -841,7 +865,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 					title: 'Renamed by user',
 				};
 				client.dispatch(action);
-				const initialDispatch = findNotification(transports[0], 'dispatchAction');
+				const initialDispatch = findDispatchAction(transports[0], ActionType.SessionTitleChanged);
 				assert.ok(initialDispatch, 'optimistic dispatch should reach the original transport');
 				const initialSeq = (initialDispatch.params as { clientSeq: number }).clientSeq;
 
@@ -858,7 +882,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				});
 				await flushMicrotasks();
 
-				const replayed = findNotification(reconnectTransport, 'dispatchAction');
+				const replayed = findDispatchAction(reconnectTransport, ActionType.SessionTitleChanged);
 				assert.ok(replayed, 'pending optimistic action should be re-sent after reconnect');
 				assert.strictEqual((replayed.params as { clientSeq: number }).clientSeq, initialSeq, 'replayed dispatch must reuse the original clientSeq');
 
@@ -889,7 +913,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 					title: 'Echoed back',
 				};
 				client.dispatch(action);
-				const initialDispatch = findNotification(transports[0], 'dispatchAction')!;
+				const initialDispatch = findDispatchAction(transports[0], ActionType.SessionTitleChanged)!;
 				const initialSeq = (initialDispatch.params as { clientSeq: number }).clientSeq;
 
 				transports[0].fireClose();
@@ -914,7 +938,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				});
 				await flushMicrotasks();
 
-				assert.strictEqual(findNotification(reconnectTransport, 'dispatchAction'), undefined,
+				assert.strictEqual(findDispatchAction(reconnectTransport, ActionType.SessionTitleChanged), undefined,
 					'action echoed back via replay buffer must not be re-sent');
 
 				subRef.dispose();
@@ -979,7 +1003,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 					title: 'Rejected change',
 				};
 				client.dispatch(action);
-				const initialDispatch = findNotification(transports[0], 'dispatchAction')!;
+				const initialDispatch = findDispatchAction(transports[0], ActionType.SessionTitleChanged)!;
 				const initialSeq = (initialDispatch.params as { clientSeq: number }).clientSeq;
 
 				transports[0].fireClose();
@@ -1008,7 +1032,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				assert.ok(sessionState, 'session state should be hydrated');
 				assert.strictEqual(sessionState.summary.title, 'Original',
 					'rejected action must not have been applied to confirmed state');
-				assert.strictEqual(findNotification(reconnectTransport, 'dispatchAction'), undefined,
+				assert.strictEqual(findDispatchAction(reconnectTransport, ActionType.SessionTitleChanged), undefined,
 					'rejected action must not be re-dispatched');
 
 				subRef.dispose();

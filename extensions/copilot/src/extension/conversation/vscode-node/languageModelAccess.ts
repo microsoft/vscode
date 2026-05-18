@@ -18,7 +18,7 @@ import { encodeStatefulMarker } from '../../../platform/endpoint/common/stateful
 import { isAnthropicFamily, isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
-import { CopilotChatEndpoint } from '../../../platform/endpoint/node/copilotChatEndpoint';
+import { CopilotChatEndpoint, CopilotUtilitySmallChatEndpoint } from '../../../platform/endpoint/node/copilotChatEndpoint';
 import { IEnvService, isScenarioAutomation } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
@@ -159,6 +159,25 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchem
 	return { configurationSchema: { properties } };
 }
 
+const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility'];
+
+/**
+ * Checks whether `endpoint` is the built-in Copilot endpoint for a utility alias.
+ */
+function isDefaultEndpointForUtilityFamily(family: ChatEndpointFamily, endpoint: IChatEndpoint): boolean {
+	if (!(endpoint instanceof CopilotChatEndpoint)) {
+		return false;
+	}
+	switch (family) {
+		case 'copilot-utility-small':
+			return endpoint.family === CopilotUtilitySmallChatEndpoint.capiFamily;
+		case 'copilot-utility':
+			return endpoint.isFallback;
+		default:
+			return false;
+	}
+}
+
 /**
  * Builds the {@link vscode.LanguageModelChatInformation} entry that publishes a
  * utility-family alias (e.g. `copilot-utility-small`) under the copilot vendor.
@@ -228,6 +247,8 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	 * underlying endpoint without re-resolving the user setting.
 	 */
 	private _utilityAliasEndpoints: Map<string, IChatEndpoint> = new Map();
+	// Overrides resolved outside model-info publication, reused on the next alias publish.
+	private readonly _resolvedUtilityEndpoints = new Map<ChatEndpointFamily, { endpoint: IChatEndpoint; baseCount: number }>();
 	private _lmWrapper: CopilotLanguageModelWrapper;
 	private _promptBaseCountCache: LanguageModelAccessPromptBaseCountCache;
 
@@ -282,7 +303,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			this._onDidChange.fire();
 		}));
 		this._register(this._endpointProvider.onDidModelsRefresh(() => {
-			// Models have been refreshed from CAPI so we should requery them
+			// Drop stale overrides; model publication uses defaults until refresh completes.
+			this._resolvedUtilityEndpoints.clear();
+			void this._refreshUtilityOverrides();
 			this._onDidChange.fire();
 		}));
 	}
@@ -395,45 +418,75 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		this._currentModels = models;
 		this._chatEndpoints = chatEndpoints;
 
-		await this._registerUtilityAliasModels(models);
+		this._registerUtilityAliasModels(models, allEndpoints);
 		return models;
 	}
 
-	private async _registerUtilityAliasModels(models: vscode.LanguageModelChatInformation[]): Promise<void> {
+	/** Publishes utility aliases without waiting for override resolution. */
+	private _registerUtilityAliasModels(
+		models: vscode.LanguageModelChatInformation[],
+		allEndpoints: readonly IChatEndpoint[],
+	): void {
 		this._utilityAliasEndpoints.clear();
-		const aliasFamilies: ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility'];
 		const session = this._authenticationService.anyGitHubSession;
 		const requiresAuthorization = session ? { label: session.account.label } : undefined;
-		for (const family of aliasFamilies) {
-			let endpoint: IChatEndpoint | undefined;
-			try {
-				endpoint = await this._endpointProvider.getChatEndpoint(family);
-			} catch (err) {
-				this._logService.warn(`[LanguageModelAccess] Failed to resolve utility alias '${family}': ${err}`);
-				continue;
-			}
+
+		for (const family of utilityAliasFamilies) {
+			const cached = this._resolvedUtilityEndpoints.get(family);
+			const endpoint = cached?.endpoint ?? allEndpoints.find(e => isDefaultEndpointForUtilityFamily(family, e));
 			if (!endpoint) {
 				continue;
 			}
 			this._utilityAliasEndpoints.set(family, endpoint);
 
 			try {
-				const baseCount = await this._promptBaseCountCache.getBaseCount(endpoint);
-				// Always publish the alias as an entry under the `copilot` vendor
-				// — including for BYOK overrides — so workbench consumers that
-				// resolve these utility aliases directly via
-				// `vscode.lm.selectChatModels({ vendor: 'copilot', id: '<alias>' })`
-				// continue to discover a model when the alias is overridden to a
-				// non-copilot endpoint. The alias entry carries the same
-				// `requiresAuthorization` metadata as regular copilot entries so
-				// other extensions can't use it to bypass the underlying
-				// provider's authorization prompt.
-				const aliasInfo = buildUtilityAliasModelInfo(family, endpoint, models, baseCount, requiresAuthorization);
+				// Copilot defaults clone an existing entry; synthesized override aliases need baseCount.
+				const aliasInfo = buildUtilityAliasModelInfo(family, endpoint, models, cached?.baseCount ?? 0, requiresAuthorization);
 				this._logService.trace(`[LanguageModelAccess] Publishing alias '${family}' -> ${endpoint.model} (${aliasInfo.synthesized ? 'synthesized' : 'cloned'}, ${endpoint instanceof CopilotChatEndpoint ? 'copilot' : 'override'}).`);
 				models.push(aliasInfo.info);
 			} catch (err) {
 				this._logService.warn(`[LanguageModelAccess] Failed to publish utility alias '${family}' -> ${endpoint.model}; skipping. Error: ${err}`);
 			}
+		}
+
+		// Override resolution may hang, so keep it off the model-info request path.
+		void this._refreshUtilityOverrides().catch(err => {
+			this._logService.warn(`[LanguageModelAccess] Failed to refresh utility overrides: ${err}`);
+		});
+	}
+
+	/** Resolves configured utility model overrides for the next alias publish. */
+	private async _refreshUtilityOverrides(): Promise<void> {
+		let didChange = false;
+		for (const family of utilityAliasFamilies) {
+			let resolved: IChatEndpoint | undefined;
+			try {
+				resolved = await this._endpointProvider.getChatEndpoint(family);
+			} catch (err) {
+				this._logService.warn(`[LanguageModelAccess] Failed to resolve utility alias '${family}' in background: ${err}`);
+				continue;
+			}
+			if (!resolved) {
+				continue;
+			}
+			// Skip when the override resolved to the same endpoint that's
+			// already published; no alias change needed.
+			const published = this._utilityAliasEndpoints.get(family);
+			if (published && published.model === resolved.model && published.modelProvider === resolved.modelProvider) {
+				continue;
+			}
+			let baseCount: number;
+			try {
+				baseCount = await this._promptBaseCountCache.getBaseCount(resolved);
+			} catch (err) {
+				this._logService.warn(`[LanguageModelAccess] Failed to compute baseCount for utility alias '${family}' -> ${resolved.model}; keeping previously-published alias. Error: ${err}`);
+				continue;
+			}
+			this._resolvedUtilityEndpoints.set(family, { endpoint: resolved, baseCount });
+			didChange = true;
+		}
+		if (didChange) {
+			this._onDidChange.fire();
 		}
 	}
 
