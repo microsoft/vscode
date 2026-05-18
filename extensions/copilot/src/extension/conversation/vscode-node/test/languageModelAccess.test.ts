@@ -208,6 +208,12 @@ suite('LanguageModelAccess model info', () => {
 			assert.ok(aliasLookupStarted.isResolved, 'expected utility alias lookup to have been started in the background');
 		} finally {
 			languageModelAccess.dispose();
+			// Release the stalled alias-resolution promise so it doesn't linger
+			// past the test. The throttler's cancellation also unblocks any
+			// `raceCancellation` waiters internally.
+			if (!unresolvedAliasEndpoint.isResolved) {
+				unresolvedAliasEndpoint.error(new Error('test teardown'));
+			}
 			await extensionContext.globalState.update(baseCountCacheKey, undefined);
 		}
 	});
@@ -245,6 +251,55 @@ suite('LanguageModelAccess model info', () => {
 			assert.strictEqual(internals._resolvedUtilityEndpoints.get('copilot-utility-small')?.endpoint, resolvedEndpoint);
 		} finally {
 			languageModelAccess.dispose();
+		}
+	});
+
+	test('coalesces concurrent background refreshes and cancels them on dispose', async () => {
+		let callCount = 0;
+		const gate = new DeferredPromise<IChatEndpoint>();
+		const testingServiceCollection = createExtensionTestingServices();
+		testingServiceCollection.define(IEndpointProvider, {
+			_serviceBrand: undefined,
+			onDidModelsRefresh: Event.None,
+			getAllCompletionModels: async () => [],
+			getAllChatEndpoints: async () => [],
+			getChatEndpoint: async () => {
+				callCount++;
+				return gate.p;
+			},
+			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
+		} as unknown as IEndpointProvider);
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
+		const internals = languageModelAccess as unknown as {
+			_resolvedUtilityEndpoints: Map<string, { endpoint: IChatEndpoint; baseCount: number }>;
+			_promptBaseCountCache: { getBaseCount(endpoint: IChatEndpoint): Promise<number> };
+			_refreshUtilityOverrides(): Promise<void>;
+		};
+		internals._promptBaseCountCache = { getBaseCount: async () => 0 };
+		try {
+			// Three concurrent fire-and-forget refreshes should coalesce: the
+			// throttler runs one immediately and queues at most one more.
+			const refreshes = Promise.all([
+				internals._refreshUtilityOverrides(),
+				internals._refreshUtilityOverrides(),
+				internals._refreshUtilityOverrides(),
+			]);
+			// Let microtasks settle so the active refresh starts its first await.
+			await new Promise<void>(resolve => setImmediate(resolve));
+			assert.strictEqual(callCount, 1, 'expected concurrent refreshes to coalesce into a single in-flight call');
+
+			// Disposing should cancel the throttler's token, so all pending
+			// refreshes resolve even though the upstream `getChatEndpoint`
+			// promise never settles.
+			languageModelAccess.dispose();
+			const settled = await raceTimeout(refreshes, 2_000);
+			assert.ok(settled, 'expected pending refreshes to resolve after dispose cancelled the throttler');
+			assert.strictEqual(internals._resolvedUtilityEndpoints.size, 0, 'expected no overrides to be recorded once cancelled');
+		} finally {
+			if (!gate.isResolved) {
+				gate.error(new Error('test teardown'));
+			}
 		}
 	});
 });
