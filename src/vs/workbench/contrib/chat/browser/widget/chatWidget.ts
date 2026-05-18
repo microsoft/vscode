@@ -2058,6 +2058,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		// Guard against disposal: if the widget was disposed during an async
+		// operation in a caller (e.g. ChatViewPane.showModel), inputPart will
+		// be undefined and accessing it would throw (see #308865).
+		if (!this.inputPartDisposable.value) {
+			return;
+		}
+
 		if (this.viewModel?.editing) {
 			this.finishedEditing();
 		}
