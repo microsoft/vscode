@@ -26,6 +26,14 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 
 export abstract class ChatCollapsibleContentPart extends Disposable implements IChatContentPart {
 
+	/**
+	 * Bubbling DOM event dispatched from the collapsible's root when the user
+	 * clicks the collapse/expand button. Ancestors (e.g. the chat list widget)
+	 * can listen to preserve the scroll anchor across the resulting height
+	 * change instead of auto-scrolling to the bottom.
+	 */
+	public static readonly USER_TOGGLE_EVENT = 'chatCollapsibleUserToggle';
+
 	private _domNode?: HTMLElement;
 	private readonly _renderedTitleWithWidgets = this._register(new MutableDisposable<IRenderedMarkdown>());
 
@@ -100,6 +108,12 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		this._register(collapseButton.onDidClick(() => {
 			const value = this._isExpanded.get();
 			this._isExpanded.set(!value, undefined);
+
+			// Signal to ancestors (e.g. the chat list widget) that this height change
+			// was caused by a user-initiated collapse/expand, so the list can preserve
+			// the user's scroll anchor instead of auto-scrolling to the bottom.
+			// See issue #274731.
+			this._domNode?.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.USER_TOGGLE_EVENT, { bubbles: true }));
 		}));
 
 		// Initialize the expanded state based on the subclass's isExpanded() method

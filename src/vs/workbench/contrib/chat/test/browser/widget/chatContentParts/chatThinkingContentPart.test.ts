@@ -13,6 +13,7 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatThinkingContentPart } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
@@ -1845,6 +1846,76 @@ suite('ChatThinkingContentPart', () => {
 			part.dispose();
 
 			assert.strictEqual(disposed, true, 'Factory disposable should be disposed with thinking part');
+		});
+	});
+
+	suite('User toggle signal for scroll anchoring (issue #274731)', () => {
+		setup(() => {
+			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
+		});
+
+		test('clicking the collapse button fires a bubbling USER_TOGGLE_EVENT so the chat list can preserve scroll anchor', () => {
+			const content = createThinkingPart('**Analyzing code**');
+			const context = createMockRenderContext(true); // isComplete = true so click actually toggles expand state
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			// Wrap in an ancestor to verify the event bubbles (chat list widget
+			// listens at the container level, not on the part itself).
+			const ancestor = mainWindow.document.createElement('div');
+			ancestor.appendChild(part.domNode);
+			mainWindow.document.body.appendChild(ancestor);
+			disposables.add(toDisposable(() => ancestor.remove()));
+
+			let toggleEventCount = 0;
+			const listener = () => { toggleEventCount++; };
+			ancestor.addEventListener(ChatCollapsibleContentPart.USER_TOGGLE_EVENT, listener);
+			disposables.add(toDisposable(() => ancestor.removeEventListener(ChatCollapsibleContentPart.USER_TOGGLE_EVENT, listener)));
+
+			// Simulate a user clicking the collapse/expand button.
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			assert.ok(button, 'Should have collapse button');
+			button.click();
+
+			assert.strictEqual(
+				toggleEventCount, 1,
+				'Clicking the collapse button should dispatch exactly one bubbling USER_TOGGLE_EVENT so the chat list preserves the scroll anchor instead of pushing content upward.'
+			);
+		});
+
+		test('no click means no USER_TOGGLE_EVENT (baseline: rendering and streaming updates do not falsely trigger scroll-anchor preservation)', () => {
+			const content = createThinkingPart('**Analyzing code**');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			let toggleEventCount = 0;
+			const listener = () => { toggleEventCount++; };
+			part.domNode.addEventListener(ChatCollapsibleContentPart.USER_TOGGLE_EVENT, listener);
+			disposables.add(toDisposable(() => part.domNode.removeEventListener(ChatCollapsibleContentPart.USER_TOGGLE_EVENT, listener)));
+
+			// No user click: mounting, rendering, and automatic state changes
+			// must NOT dispatch the user-toggle event. Otherwise the chat list
+			// would incorrectly suppress auto-scroll during streaming.
+			assert.strictEqual(
+				toggleEventCount, 0,
+				'USER_TOGGLE_EVENT must only fire in response to explicit user clicks, not construction or rendering.'
+			);
 		});
 	});
 });
