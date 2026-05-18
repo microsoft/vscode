@@ -149,28 +149,52 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 
 	protected override _buildItem(position: Position, item: IChatInputCompletionItem): CompletionItem {
 		const replaceRange = AgentHostInputCompletionHandler.computeRange(position, item);
-		const label = item.attachment.displayName ?? item.insertText;
-		const description = item.attachment.uri.path;
-		const kind = item.attachment.isDirectory ? CompletionItemKind.Folder : CompletionItemKind.File;
-		const entry: IChatRequestVariableEntry = {
-			id: item.attachment.uri.toString(),
-			name: item.attachment.displayName ?? this._basename(item.attachment.uri),
-			value: item.attachment.uri,
-			kind: item.attachment.isDirectory ? 'directory' : 'file',
-			_meta: item.attachment._meta,
-		};
-		return {
-			label: { label, description },
-			insertText: item.insertText,
-			filterText: item.insertText,
-			range: replaceRange,
-			kind,
-			command: {
-				id: ADD_REFERENCE_COMMAND,
-				title: '',
-				arguments: [{ handler: this, entry, insertText: item.insertText } satisfies IReferenceArg],
-			},
-		};
+		const attachment = item.attachment;
+		switch (attachment.kind) {
+			case 'command': {
+				return {
+					label: item.insertText,
+					insertText: item.insertText,
+					filterText: item.insertText,
+					range: replaceRange,
+					kind: CompletionItemKind.Text,
+					detail: attachment.description,
+				};
+			}
+			case 'skill': {
+				return {
+					label: item.insertText,
+					insertText: item.insertText,
+					filterText: item.insertText,
+					range: replaceRange,
+					kind: CompletionItemKind.Text,
+				};
+			}
+			default: {
+				const label = attachment.displayName ?? item.insertText;
+				const description = attachment.uri.path;
+				const kind = attachment.isDirectory ? CompletionItemKind.Folder : CompletionItemKind.File;
+				const entry: IChatRequestVariableEntry = {
+					id: attachment.uri.toString(),
+					name: attachment.displayName ?? this._basename(attachment.uri),
+					value: attachment.uri,
+					kind: attachment.isDirectory ? 'directory' : 'file',
+					_meta: attachment._meta,
+				};
+				return {
+					label: { label, description },
+					insertText: item.insertText,
+					filterText: item.insertText,
+					range: replaceRange,
+					kind,
+					command: {
+						id: ADD_REFERENCE_COMMAND,
+						title: '',
+						arguments: [{ handler: this, entry, insertText: item.insertText } satisfies IReferenceArg],
+					},
+				};
+			}
+		}
 	}
 
 	private _basename(uri: URI): string {

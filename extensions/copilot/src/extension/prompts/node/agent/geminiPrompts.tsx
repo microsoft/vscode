@@ -13,7 +13,7 @@ import { InstructionMessage } from '../base/instructionMessage';
 import { ResponseTranslationRules } from '../base/responseTranslationRules';
 import { Tag } from '../base/tag';
 import { EXISTING_CODE_MARKER } from '../panel/codeBlockFormattingRules';
-import { MathIntegrationRules } from '../panel/editorIntegrationRules';
+import { ResponseRenderingRules } from '../panel/editorIntegrationRules';
 import { ApplyPatchInstructions, CodesearchModeInstructions, DefaultAgentPromptProps, detectToolCapabilities, GenericEditingTips, getEditingReminder, McpToolInstructions, NotebookInstructions, ReminderInstructionsProps } from './defaultAgentInstructions';
 import { FileLinkificationInstructions } from './fileLinkificationInstructions';
 import { IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SystemPrompt } from './promptRegistry';
@@ -108,7 +108,7 @@ export class DefaultGeminiAgentPrompt extends PromptElement<DefaultAgentPromptPr
 			<Tag name='outputFormatting'>
 				Use proper Markdown formatting. When referring to symbols (classes, methods, variables) in user's workspace wrap in backticks. For file paths and line number rules, see fileLinkification section below<br />
 				<FileLinkificationInstructions />
-				<MathIntegrationRules />
+				<ResponseRenderingRules />
 			</Tag>
 			<ResponseTranslationRules />
 		</InstructionMessage>;
@@ -206,7 +206,7 @@ export class HiddenModelFGeminiAgentPrompt extends PromptElement<DefaultAgentPro
 			<Tag name='outputFormatting'>
 				Use proper Markdown formatting. When referring to symbols (classes, methods, variables) in user's workspace wrap in backticks. For file paths and line number rules, see fileLinkification section below<br />
 				<FileLinkificationInstructions />
-				<MathIntegrationRules />
+				<ResponseRenderingRules />
 			</Tag>
 			<Tag name='grounding'>
 				You are a strictly grounded assistant limited to the<br />

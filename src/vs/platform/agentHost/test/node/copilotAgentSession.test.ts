@@ -6,7 +6,7 @@
 import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join, sep } from '../../../../base/common/path.js';
@@ -21,7 +21,7 @@ import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToo
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallStatus, ToolResultContentType } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallStatus, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { CopilotAgentSession, IActiveClientSnapshot, SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -39,6 +39,7 @@ class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
+	messages: SessionEvent[] = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
 	planReadResult: { exists: boolean; content: string | null; path: string | null } = { exists: false, content: null, path: null };
@@ -65,10 +66,13 @@ class MockCopilotSession {
 	}
 
 	// Stubs for methods the wrapper / session class calls
-	async send(request: unknown) { this.sendRequests.push(request); return ''; }
+	async send(request: unknown) {
+		this.sendRequests.push(request);
+		return `message-${this.sendRequests.length}`;
+	}
 	async abort() { }
 	async setModel() { }
-	async getMessages(): Promise<SessionEvent[]> { return []; }
+	async getMessages(): Promise<SessionEvent[]> { return this.messages; }
 	async destroy() { }
 
 	readonly rpc = {
@@ -123,6 +127,7 @@ type ISessionInternalsForTest = {
 	_editTracker: {
 		trackEditStart(path: string): Promise<void>;
 		completeEdit(path: string): Promise<void>;
+		takeCompletedEdit(turnId: string, toolCallId: string, path: string): Promise<ToolResultFileEditContent | undefined>;
 	};
 	_pendingClientToolCalls: {
 		get(toolCallId: string): DeferredPromise<ToolResultObject> | undefined;
@@ -303,6 +308,108 @@ suite('CopilotAgentSession', () => {
 				},
 			],
 		}]);
+	});
+
+	test('sends simple attachments as text blobs and restores them from SDK blobs', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('/act-on-feedback', [{
+			type: MessageAttachmentKind.Simple,
+			label: 'Feedback',
+			modelRepresentation: 'Feedback text for the model',
+		}]);
+
+		const expectedAttachment = {
+			type: MessageAttachmentKind.Simple,
+			label: 'Feedback',
+			modelRepresentation: 'Feedback text for the model',
+		};
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: '/act-on-feedback',
+			attachments: [{
+				type: 'blob',
+				data: encodeBase64(VSBuffer.fromString('Feedback text for the model')),
+				mimeType: 'text/plain',
+				displayName: 'Feedback',
+			}],
+		}]);
+
+		mockSession.messages = [{
+			type: 'user.message',
+			id: 'event-1',
+			parentId: null,
+			timestamp: new Date().toISOString(),
+			data: {
+				interactionId: 'message-1',
+				content: '/act-on-feedback',
+				attachments: [{
+					type: 'blob',
+					data: encodeBase64(VSBuffer.fromString('Feedback text for the model')),
+					mimeType: 'text/plain',
+					displayName: 'Feedback',
+				}],
+			},
+		}];
+
+		assert.deepStrictEqual(await session.getMessages(), [{
+			id: 'message-1',
+			userMessage: {
+				text: '/act-on-feedback',
+				attachments: [expectedAttachment],
+			},
+			responseParts: [],
+			usage: undefined,
+			state: 'cancelled',
+		}]);
+	});
+
+	test('emits accumulated Copilot usage metadata', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-usage');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-sonnet-4.6',
+			inputTokens: 10,
+			outputTokens: 20,
+			cacheReadTokens: 5,
+			cost: 2,
+			copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
+		});
+		mockSession.fire('assistant.usage', {
+			model: 'claude-sonnet-4.6',
+			inputTokens: 30,
+			outputTokens: 40,
+			cost: 2,
+			copilotUsage: { totalNanoAiu: 750_000_000, tokenDetails: [] },
+		});
+
+		const usageActions = signals
+			.filter((s): s is IAgentActionSignal => s.kind === 'action')
+			.map(s => s.action)
+			.filter(a => a.type === ActionType.SessionUsage);
+
+		assert.deepStrictEqual(usageActions.map(a => a.usage), [
+			{
+				inputTokens: 10,
+				outputTokens: 20,
+				model: 'claude-sonnet-4.6',
+				cacheReadTokens: 5,
+				_meta: {
+					cost: 2,
+					copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
+				},
+			},
+			{
+				inputTokens: 30,
+				outputTokens: 40,
+				model: 'claude-sonnet-4.6',
+				cacheReadTokens: undefined,
+				_meta: {
+					cost: 2,
+					copilotUsage: { totalNanoAiu: 1_250_000_000, tokenDetails: [] },
+				},
+			},
+		]);
 	});
 
 	test('extracts selected text from file contents for different line endings and bounds', async () => {
@@ -880,6 +987,87 @@ suite('CopilotAgentSession', () => {
 			if (isAction(readySignal, ActionType.SessionToolCallReady)) {
 				assert.strictEqual((readySignal.action as SessionToolCallReadyAction).toolInput, 'cd /repo/project && npm test');
 			}
+		});
+
+		test('edit hooks resolve relative apply_patch file paths against workingDirectory', async () => {
+			const capturedCallbacks: { current?: Parameters<SessionWrapperFactory>[0] } = {};
+			const workingDirectory = URI.file('/repo/project');
+			const absolutePath = URI.file('/tmp/absolute.ts').fsPath;
+			const { session } = await createAgentSession(disposables, { workingDirectory, captureWrapperCallbacks: capturedCallbacks });
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const started: string[] = [];
+			const completed: string[] = [];
+			sessionInternals._editTracker.trackEditStart = async path => { started.push(path); };
+			sessionInternals._editTracker.completeEdit = async path => { completed.push(path); };
+			const patch = [
+				'*** Begin Patch',
+				'*** Update File: foo.ts',
+				'@@',
+				'+new',
+				'*** Update File: src/bar.ts',
+				'@@',
+				'+new',
+				`*** Update File: ${absolutePath}`,
+				'@@',
+				'+new',
+				'*** End Patch',
+			].join('\n');
+
+			await capturedCallbacks.current!.hooks.onPreToolUse({
+				timestamp: 0,
+				cwd: '/repo/project',
+				toolName: 'apply_patch',
+				toolArgs: patch,
+			});
+			await capturedCallbacks.current!.hooks.onPostToolUse({
+				timestamp: 0,
+				cwd: '/repo/project',
+				toolName: 'apply_patch',
+				toolArgs: patch,
+				toolResult: { textResultForLlm: '', resultType: 'success' },
+			});
+
+			assert.deepStrictEqual({ started, completed }, {
+				started: [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts'), absolutePath],
+				completed: [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts'), absolutePath],
+			});
+		});
+
+		test('tool_complete resolves relative apply_patch file paths before taking completed edits', async () => {
+			const workingDirectory = URI.file('/repo/project');
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { workingDirectory });
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const taken: string[] = [];
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path) => {
+				taken.push(path);
+				return undefined;
+			};
+			session.resetTurnState('turn-apply-patch');
+			const patch = [
+				'*** Begin Patch',
+				'*** Update File: foo.ts',
+				'@@',
+				'+new',
+				'*** Update File: src/bar.ts',
+				'@@',
+				'+new',
+				'*** End Patch',
+			].join('\n');
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-apply-patch',
+				toolName: 'apply_patch',
+				arguments: patch,
+			} as unknown as SessionEventPayload<'tool.execution_start'>['data']);
+
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-apply-patch',
+				success: true,
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			await waitForSignal(s => isAction(s, ActionType.SessionToolCallComplete));
+
+			assert.deepStrictEqual(taken, [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts')]);
 		});
 
 		test('hidden tools are not emitted as tool_start', async () => {
@@ -1503,6 +1691,194 @@ suite('CopilotAgentSession', () => {
 			await Promise.resolve();
 			assert.strictEqual(signals.length, 1);
 			assert.ok(isAction(signals[0], ActionType.SessionInputRequested));
+		});
+	});
+
+	// ---- elicitation handling ----
+
+	suite('elicitation handling', () => {
+
+		test('form-mode request projects schema fields to questions and accept round-trips content', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Configure deployment',
+				mode: 'form',
+				requestedSchema: {
+					type: 'object',
+					properties: {
+						environment: { type: 'string', enum: ['dev', 'prod'], enumNames: ['Development', 'Production'] },
+						replicas: { type: 'integer', minimum: 1, maximum: 10, default: 3 },
+						confirm: { type: 'boolean', default: false },
+						region: { type: 'string', minLength: 2, default: 'us-west-2' },
+						tags: { type: 'array', items: { type: 'string', enum: ['a', 'b', 'c'] } },
+					},
+					required: ['environment', 'confirm'],
+				},
+			});
+
+			assert.strictEqual(signals.length, 1);
+			const request = getInputRequest(signals[0]);
+			assert.strictEqual(request.message, 'Configure deployment');
+			assert.ok(request.questions);
+			assert.deepStrictEqual(request.questions.map(q => ({ id: q.id, kind: q.kind, required: q.required })), [
+				{ id: 'environment', kind: SessionInputQuestionKind.SingleSelect, required: true },
+				{ id: 'replicas', kind: SessionInputQuestionKind.Integer, required: false },
+				{ id: 'confirm', kind: SessionInputQuestionKind.Boolean, required: true },
+				{ id: 'region', kind: SessionInputQuestionKind.Text, required: false },
+				{ id: 'tags', kind: SessionInputQuestionKind.MultiSelect, required: false },
+			]);
+			const envQuestion = request.questions[0];
+			assert.strictEqual(envQuestion.kind, SessionInputQuestionKind.SingleSelect);
+			if (envQuestion.kind === SessionInputQuestionKind.SingleSelect) {
+				assert.deepStrictEqual(envQuestion.options, [
+					{ id: 'dev', label: 'Development' },
+					{ id: 'prod', label: 'Production' },
+				]);
+			}
+
+			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
+				environment: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Selected, value: 'prod' } },
+				replicas: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Number, value: 5 } },
+				confirm: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Boolean, value: true } },
+				region: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Text, value: 'eu-west-1' } },
+				tags: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.SelectedMany, value: ['a', 'c'] } },
+			});
+
+			assert.deepStrictEqual(await resultPromise, {
+				action: 'accept',
+				content: {
+					environment: 'prod',
+					replicas: 5,
+					confirm: true,
+					region: 'eu-west-1',
+					tags: ['a', 'c'],
+				},
+			});
+		});
+
+		test('skipped and missing answers are omitted from accept content', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Partial form',
+				mode: 'form',
+				requestedSchema: {
+					type: 'object',
+					properties: {
+						name: { type: 'string' },
+						count: { type: 'integer' },
+					},
+				},
+			});
+
+			const request = getInputRequest(signals[0]);
+			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
+				name: { state: SessionInputAnswerState.Skipped },
+				// `count` is missing entirely
+			});
+
+			assert.deepStrictEqual(await resultPromise, { action: 'accept', content: {} });
+		});
+
+		test('url-mode request surfaces url and accept returns no content', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Open this link',
+				mode: 'url',
+				url: 'https://example.com/auth',
+			});
+
+			const request = getInputRequest(signals[0]);
+			assert.strictEqual(request.url, 'https://example.com/auth');
+			assert.strictEqual(request.questions, undefined);
+
+			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept);
+			assert.deepStrictEqual(await resultPromise, { action: 'accept' });
+		});
+
+		test('free-form request (no schema) returns submitted text as content.answer', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'What is your favorite color?',
+				mode: 'form',
+				// No requestedSchema — the workbench fallback renders a single text question.
+			});
+
+			const request = getInputRequest(signals[0]);
+			assert.strictEqual(request.questions, undefined);
+
+			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
+				answer: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Text, value: 'teal' } },
+			});
+
+			assert.deepStrictEqual(await resultPromise, { action: 'accept', content: { answer: 'teal' } });
+		});
+
+		test('decline response maps to action=decline', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Please confirm',
+				mode: 'form',
+				requestedSchema: { type: 'object', properties: { ok: { type: 'boolean' } } },
+			});
+
+			const request = getInputRequest(signals[0]);
+			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Decline);
+			assert.deepStrictEqual(await resultPromise, { action: 'decline' });
+		});
+
+		test('cancel response maps to action=cancel', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Please confirm',
+				mode: 'form',
+				requestedSchema: { type: 'object', properties: { ok: { type: 'boolean' } } },
+			});
+
+			const request = getInputRequest(signals[0]);
+			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Cancel);
+			assert.deepStrictEqual(await resultPromise, { action: 'cancel' });
+		});
+
+		test('autopilot auto-cancels without firing a progress event', async () => {
+			const { session, signals } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+			});
+
+			const result = await session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Need input',
+				mode: 'form',
+				requestedSchema: { type: 'object', properties: { ok: { type: 'boolean' } } },
+			});
+
+			assert.deepStrictEqual(result, { action: 'cancel' });
+			assert.strictEqual(signals.length, 0);
+		});
+
+		test('pending elicitations are cancelled on dispose', async () => {
+			const { session } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Will be cancelled',
+				mode: 'form',
+				requestedSchema: { type: 'object', properties: { ok: { type: 'boolean' } } },
+			});
+
+			session.dispose();
+			assert.deepStrictEqual(await resultPromise, { action: 'cancel' });
 		});
 	});
 

@@ -34,7 +34,7 @@ import { INotebookEditorModelResolverService } from '../../common/notebookEditor
 import { NotebookOutputRendererInfo, NotebookStaticPreloadInfo } from '../../common/notebookOutputRenderer.js';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from '../../common/notebookProvider.js';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from '../../common/notebookService.js';
-import { DiffEditorInputFactoryFunction, EditorInputFactoryFunction, EditorInputFactoryObject, IEditorResolverService, IEditorType, RegisteredEditorInfo, RegisteredEditorPriority, UntitledEditorInputFactoryFunction, type MergeEditorInputFactoryFunction } from '../../../../services/editor/common/editorResolverService.js';
+import { DiffEditorInputFactoryFunction, EditorInputFactoryFunction, EditorInputFactoryObject, IEditorResolverService, IEditorType, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, UntitledEditorInputFactoryFunction, type MergeEditorInputFactoryFunction } from '../../../../services/editor/common/editorResolverService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import { IExtensionPointUser } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { InstallRecommendedExtensionAction } from '../../../extensions/browser/extensionsActions.js';
@@ -177,7 +177,7 @@ export class NotebookProviderInfoStore extends Disposable {
 
 		for (const selector of notebookProviderInfo.selectors) {
 			const globPattern = (selector as INotebookExclusiveDocumentFilter).include || selector as glob.IRelativePattern | string;
-			const notebookEditorInfo: RegisteredEditorInfo = {
+			const notebookEditorInfo: RegisteredEditorRegistrationInfo = {
 				id: notebookProviderInfo.id,
 				label: notebookProviderInfo.displayName,
 				detail: notebookProviderInfo.providerDisplayName,

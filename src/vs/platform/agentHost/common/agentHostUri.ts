@@ -54,6 +54,10 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
  * The inverse of {@link toAgentHostUri}.
  */
 export function fromAgentHostUri(agentHostUri: URI): URI {
+	if (agentHostUri.scheme !== AGENT_HOST_SCHEME) {
+		return agentHostUri;
+	}
+
 	// Path: /[originalScheme]/[originalAuthority]/[rest of original path]
 	const path = agentHostUri.path;
 
@@ -119,7 +123,7 @@ export function agentHostAuthority(address: string): string {
 	if (/^[a-zA-Z0-9.:\-]+$/.test(normalized)) {
 		return normalized.replaceAll(':', '__');
 	}
-	return 'b64-' + encodeBase64(VSBuffer.fromString(normalized), false, true);
+	return `b64-${encodeBase64(VSBuffer.fromString(normalized), false, true)}`;
 }
 
 /**

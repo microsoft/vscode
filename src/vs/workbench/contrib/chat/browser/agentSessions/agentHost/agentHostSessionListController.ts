@@ -6,46 +6,44 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ISessionFileDiff, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import type { ChangesetSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionFileChange2, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
+import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
-type ICompactSessionFileDiff = { readonly uri: string; readonly added?: number; readonly removed?: number };
+/**
+ * Picks the default catalogue entry to render the sidebar chip from.
+ *
+ * The default is always `summary.changesets[0]` — the first entry of
+ * the ordered catalogue. Templated entries (with `{...}` variables in
+ * their `uriTemplate`) are skipped because they require expansion the
+ * sidebar cannot perform.
+ */
+function pickDefaultChangeset(catalogue: readonly ChangesetSummary[] | undefined): ChangesetSummary | undefined {
+	return catalogue?.find(c => !c.uriTemplate.includes('{'));
+}
 
-function mapDiffsToChanges(diffs: readonly ISessionFileDiff[] | readonly ICompactSessionFileDiff[] | undefined, connectionAuthority: string): readonly IChatSessionFileChange2[] | undefined {
-	if (!diffs || diffs.length === 0) {
+/**
+ * Maps the catalogue counts onto the aggregate-counts shape supported by
+ * {@link IChatSessionItem.changes}. Returns `undefined` when the
+ * catalogue entry is missing or carries no counts so the sidebar
+ * doesn't render an empty chip.
+ */
+function changesetCountsToChanges(summary: ChangesetSummary | undefined): IChatSessionItem['changes'] {
+	if (!summary || summary.files === undefined || summary.files === 0) {
 		return undefined;
 	}
-	const changes: IChatSessionFileChange2[] = [];
-	for (const diff of diffs) {
-		const uri = getDiffUri(diff);
-		if (uri) {
-			changes.push({
-				uri: toAgentHostUri(URI.parse(uri), connectionAuthority),
-				insertions: getDiffAdded(diff) ?? 0,
-				deletions: getDiffRemoved(diff) ?? 0,
-			});
-		}
-	}
-	return changes.length > 0 ? changes : undefined;
-}
-
-function getDiffUri(diff: ISessionFileDiff | ICompactSessionFileDiff): string | undefined {
-	return hasKey(diff, { uri: true }) ? diff.uri : diff.after?.uri ?? diff.before?.uri;
-}
-
-function getDiffAdded(diff: ISessionFileDiff | ICompactSessionFileDiff): number | undefined {
-	return hasKey(diff, { uri: true }) ? diff.added : diff.diff?.added;
-}
-
-function getDiffRemoved(diff: ISessionFileDiff | ICompactSessionFileDiff): number | undefined {
-	return hasKey(diff, { uri: true }) ? diff.removed : diff.diff?.removed;
+	return {
+		files: summary.files,
+		insertions: summary.additions ?? 0,
+		deletions: summary.deletions ?? 0,
+	};
 }
 
 function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus {
@@ -96,10 +94,13 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		private readonly _provider: string,
 		private readonly _connection: IAgentConnection,
 		private readonly _description: string | undefined,
-		private readonly _connectionAuthority: string,
+		_connectionAuthority: string,
 		@IProductService private readonly _productService: IProductService,
+		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
+		void _connectionAuthority;
 
 		// React to protocol notifications for session list changes
 		this._register(this._connection.onDidNotification(n => {
@@ -107,16 +108,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				const rawId = AgentSession.id(n.summary.resource);
 				this._pendingNewSessions.delete(rawId);
 				this._cachedSummaries.set(rawId, n.summary);
-				const workingDir = typeof n.summary.workingDirectory === 'string' ? URI.parse(n.summary.workingDirectory) : undefined;
-				const item = this._makeItem(rawId, {
-					title: n.summary.title,
-					status: n.summary.status,
-					activity: n.summary.activity,
-					workingDirectory: workingDir,
-					createdAt: n.summary.createdAt,
-					modifiedAt: n.summary.modifiedAt,
-					diffs: n.summary.diffs,
-				});
+				const item = this._makeItemFromSummary(rawId, n.summary);
 				const existingIndex = this._items.findIndex(item => item.resource.path === `/${rawId}`);
 				if (existingIndex >= 0) {
 					this._items[existingIndex] = item;
@@ -142,7 +134,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				const updated = { ...cached, ...n.changes };
 				this._cachedSummaries.set(rawId, updated);
 
-				const item = this._makeItemFromSummary(rawId, updated, updated.diffs);
+				const item = this._makeItemFromSummary(rawId, updated);
 				const idx = this._items.findIndex(i => i.resource.path === `/${rawId}`);
 				if (idx >= 0) {
 					this._items[idx] = item;
@@ -180,6 +172,20 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			createdAt: now,
 			modifiedAt: now,
 		});
+
+		// Bridge any pre-creation provisional session the user built up
+		// against the untitled chat-input URI to the freshly-minted real
+		// resource. The provisional service is the source of truth for the
+		// `state.config.values` the user picked via chips; copying them
+		// here means the agent's `_materializeProvisional` will see them on
+		// first send. Best-effort — if no provisional exists or the rebind
+		// fails, the handler falls through to its standard
+		// `_createAndSubscribe` path with no user selections.
+		if (request.untitledResource) {
+			const workingDirectory = this._workspaceContextService.getWorkspace().folders[0]?.uri;
+			await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider, workingDirectory);
+		}
+
 		return item;
 	}
 
@@ -214,6 +220,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 					createdAt: s.startTime,
 					modifiedAt: s.modifiedTime,
 					workingDirectory: s.workingDirectory?.toString(),
+					changesets: s.changesets ? [...s.changesets] : undefined,
 				});
 				return this._makeItem(rawId, {
 					title: s.summary,
@@ -222,7 +229,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 					workingDirectory: s.workingDirectory,
 					createdAt: s.startTime,
 					modifiedAt: s.modifiedTime,
-					diffs: s.diffs,
+					changesets: s.changesets,
 				});
 			});
 			this._cacheValid = true;
@@ -233,7 +240,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this._items });
 	}
 
-	private _makeItemFromSummary(rawId: string, summary: SessionSummary, diffs: readonly ISessionFileDiff[] | undefined): IChatSessionItem {
+	private _makeItemFromSummary(rawId: string, summary: SessionSummary): IChatSessionItem {
 		const workingDir = typeof summary.workingDirectory === 'string' ? URI.parse(summary.workingDirectory) : summary.workingDirectory;
 		return this._makeItem(rawId, {
 			title: summary.title,
@@ -242,7 +249,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			workingDirectory: workingDir,
 			createdAt: summary.createdAt,
 			modifiedAt: summary.modifiedAt,
-			diffs,
+			changesets: summary.changesets,
 		});
 	}
 
@@ -253,7 +260,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		workingDirectory?: URI;
 		createdAt: number;
 		modifiedAt: number;
-		diffs?: readonly ISessionFileDiff[] | readonly ICompactSessionFileDiff[];
+		changesets?: readonly ChangesetSummary[];
 	}): IChatSessionItem {
 		const inProgress = opts.status !== undefined && (opts.status & SessionStatus.InProgress) !== 0;
 		const description = inProgress && opts.activity ? opts.activity : this._description;
@@ -270,7 +277,12 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				lastRequestStarted: opts.modifiedAt,
 				lastRequestEnded: opts.modifiedAt,
 			},
-			changes: mapDiffsToChanges(opts.diffs, this._connectionAuthority),
+			// Sidebar chip data: aggregate `{ files, insertions, deletions }`
+			// from the catalogue. Per-file detail (used by the session detail
+			// "Changes" view) requires subscribing to the changeset URI;
+			// `BaseAgentHostSessionsProvider._ensureChangesetSubscription`
+			// owns that path.
+			changes: changesetCountsToChanges(pickDefaultChangeset(opts.changesets)),
 		};
 	}
 

@@ -140,8 +140,8 @@ export class HoverService extends Disposable implements IHoverService {
 		}
 
 		if (!this._currentDelayedHover || this._currentDelayedHoverWasShown) {
-			// Current hover is locked, reject
-			if (this._currentHover?.isLocked) {
+			// Current hover is locked, reject — unless this is a nesting scenario
+			if (this._currentHover?.isLocked && this._getContainingHoverIndex(options.target) < 0) {
 				return undefined;
 			}
 

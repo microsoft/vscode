@@ -14,6 +14,7 @@ pub mod singleton_client;
 pub mod singleton_server;
 
 pub mod agent_host;
+pub mod agent_host_metadata;
 mod challenge;
 mod control_server;
 mod nosleep;
