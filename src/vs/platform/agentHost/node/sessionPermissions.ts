@@ -189,6 +189,7 @@ export class SessionPermissionManager extends Disposable {
 				// `Approve`/`Deny`) by populating `state.options`. The standard
 				// `Allow Once / Allow in this Session / Skip` set is the default.
 				options: state.options ? state.options.slice() : CONFIRMATION_OPTIONS.slice(),
+				...(state._meta ? { _meta: state._meta } : {}),
 			};
 		}
 		return {
@@ -199,6 +200,7 @@ export class SessionPermissionManager extends Disposable {
 			invocationMessage: state.invocationMessage,
 			toolInput: state.toolInput,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
+			...(state._meta ? { _meta: state._meta } : {}),
 		};
 	}
 

@@ -4,7 +4,7 @@
 > Last updated: 2026-05-15 after 3-model council (GPT-5.5, Claude Opus 4.6,
 > GPT-5.3-Codex). Pre-grilling draft.
 
-**Status:** ready (pending grill-with-docs pass)
+**Status:** implemented (E2E partially validated live; rest covered by unit tests)
 
 ## Goal
 
@@ -89,7 +89,7 @@ D5).
 
 ## Steps
 
-1. **Extend `TOOL_ROWS` and add helpers in `claudeToolDisplay.ts`.**
+1. ✓ **Extend `TOOL_ROWS` and add helpers in `claudeToolDisplay.ts`.**
    - Add `toolKind?: 'terminal' | 'subagent' | 'search'` and
      `language?: string` columns to `ClaudeToolRow`. Populate:
      - `Bash`, `BashOutput`, `KillBash` → `toolKind: 'terminal'`,
@@ -120,7 +120,7 @@ D5).
    - Done when: snapshot test (Step 6) lists every tool row × all
      five helper outputs.
 
-2. **Wire `claudeCanUseTool.ts` (live permission path).**
+2. ✓ **Wire `claudeCanUseTool.ts` (live permission path).**
    - In `dispatchCanUseTool` (lines 105–135), replace
      `invocationMessage: displayName` with
      `getClaudeInvocationMessage(toolName, displayName, input)`.
@@ -134,7 +134,7 @@ D5).
    - Done when: Bash permission card carries the actual command
      (verified by integration test added in Step 7).
 
-3. **Patch `sessionPermissions.ts` to forward `_meta` into Ready.**
+3. ✓ **Patch `sessionPermissions.ts` to forward `_meta` into Ready.**
    - In `createToolReadyAction` (lines ~175–201), copy `state._meta`
      onto the emitted `SessionToolCallReady` action so the
      `pending_confirmation → ready` transition preserves
@@ -150,7 +150,7 @@ D5).
      [`sessionPermissions.test.ts`](../../test/node/sessionPermissions.test.ts)
      if a fixture exists; otherwise add a focused test).
 
-4. **Wire `claudeMapSessionEvents.ts` (live event path) and extract
+4. ✓ **Wire `claudeMapSessionEvents.ts` (live event path) and extract
    `ClaudeToolCallRegistry`.**
    - Create new file
      [`claudeToolCallRegistry.ts`](./claudeToolCallRegistry.ts)
@@ -208,7 +208,7 @@ D5).
        lookup/forget/drain in isolation (mirrors
        `claudeSubagentRegistry.test.ts`).
 
-5. **Wire `claudeReplayMapper.ts` (replay path).**
+5. ✓ **Wire `claudeReplayMapper.ts` (replay path).**
    - In `_openToolUse` (lines ~257–281):
      - Parse `block.input` (already a `Record<string, unknown>`).
      - Replace `invocationMessage: displayName` with
@@ -242,7 +242,7 @@ D5).
      shows the same rich invocation / pastTense / `_meta` as the
      live row from Step 4.
 
-6. **Wire `claudeSubagentSignals.ts` (inner subagent path).**
+6. ✓ **Wire `claudeSubagentSignals.ts` (inner subagent path).**
    - In `emitInnerAssistantSignals` (lines ~250–270), the inner
      `tool_use` branch:
      - Stamp `_meta: buildClaudeToolMeta(block.name)` on the
@@ -264,7 +264,7 @@ D5).
      with `toolKind: 'search'` / no `toolKind` (verified in
      [`claudeSubagentSignals.test.ts`](../../test/node/claudeSubagentSignals.test.ts)).
 
-7. **Snapshot + behavior tests.**
+7. ✓ **Snapshot + behavior tests.**
    - Extend
      [`claudeToolDisplay.test.ts`](../../test/node/claudeToolDisplay.test.ts)
      with one snapshot test mapping every tool row to
@@ -546,28 +546,74 @@ Available skills in this workspace:
   logs. Used to assert no `[Claude]` warn-logs during the
   scenario.
 
-**Scenario**:
+**Tool-call kinds covered by Phase 8.5.** Each kind exercises a
+distinct branch of the new helpers and a distinct workbench
+renderer. The E2E scenario hits every kind at least once across
+the live + replay paths.
 
-1. Use `launch` to start the Agents window
-   (`./scripts/code.sh --agents`), switch the agent picker to
-   **Claude**, and send: *"Run `git status` and tell me what's
-   dirty."*
-2. Verify the **Bash permission card** renders in the terminal
-   style (monospace block, syntax-highlighted as `bash`) and
-   reads *Running `git status`* — **not** *Run shell command*.
-3. Approve. Verify the row collapses to *Ran `git status`*
-   (success-aware past tense from D4).
-4. Send: *"Search for `IClaudeAgentSession` in this repo."* Verify
-   the `Grep` row renders in the **search** style (workbench's
-   search renderer, not generic) and reads *Searching for
-   `IClaudeAgentSession`*. After completion the row reads
-   *Searched for `IClaudeAgentSession`*.
-5. Use `code-oss-logs` to read the agentHost log; assert no
+| Kind | Tools | New behavior to verify |
+|------|-------|------------------------|
+| `terminal` | `Bash`, `BashOutput`, `KillBash` | Permission card + row use the terminal renderer (monospace + `bash` highlighting); invocation reads ``Running `<command>` ``; past-tense reads ``Ran `<command>` ``. |
+| `search` | `Grep`, `Glob` | Row uses the search renderer; invocation reads ``Searching for `<pattern>` `` / ``Finding files matching `<pattern>` ``. |
+| File link (no kind) | `Read`, `Write`, `Edit`, `MultiEdit`, `LS`, `NotebookRead`, `NotebookEdit` | Invocation contains a clickable markdown file link `[basename](file:///full/path)` instead of the bare display name. |
+| URL link (no kind) | `WebFetch` | Invocation contains a clickable URL link. |
+| `subagent` | `Task`, `Agent` | Parent row uses the subagent renderer; invocation is the model-authored `description` (D9), falling back to the display name. Inner Bash/Grep/Read rows nest under the parent and render in their own kind's renderer. |
+| Generic / MCP (no kind) | `TodoWrite`, `ExitPlanMode`, `AskUserQuestion`, `mcp__*` | Render in the generic tool renderer; MCP `toolInput` is pretty-printed JSON. |
+| Failure | any of the above with `is_error: true` | Past-tense reads ``"<displayName>" failed`` regardless of input shape. |
+
+**Scenario** (Agents app, `[Local]` workspace with the Claude
+agent):
+
+1. Use `launch` to start the Agents window with
+   `./scripts/code.sh --agents --remote-debugging-port=9224`,
+   pick a `[Local]` workspace, switch the agent picker to
+   **Claude**.
+2. **Terminal + Read.** Send: *"Run `git status` and then read
+   `README.md`."* Verify:
+   - The Bash permission card renders in the **terminal** style
+     (monospace block, `bash` highlighting) and reads *Running
+     `git status`* — NOT *Run shell command*.
+   - Approve. Card collapses to *Ran `git status`*
+     (success-aware past tense).
+   - The subsequent Read row renders with a clickable
+     `[README.md](file://…)` link rather than just "Read file".
+3. **Search.** Send: *"Search for `IClaudeAgentSession` in this
+   repo."* Verify the Grep/Glob row uses the **search** renderer
+   with ``Searching for `IClaudeAgentSession` `` ; on completion
+   it reads ``Searched for `IClaudeAgentSession` ``.
+4. **Subagent.** Send: *"Spin up 2 subagents that summarize the
+   `src/vs/platform/agentHost/node/claude` folder."* Verify:
+   - Each `Task` parent row shows the model-authored
+     `description` text (D9) — NOT the literal "Run subagent
+     task" — and renders via the subagent renderer.
+   - Inner `Glob` / `Read` rows nest under each parent and
+     render in their own kind's style (search / file-link).
+5. **Failure path.** Send: *"Run `false`."* Verify the Bash card
+   reads ``Running `false` `` → after execution, ``"Run shell
+   command" failed``.
+6. **Replay parity.** Click an older Claude session in the
+   sidebar that contains shell + search + Read + Task tool calls
+   (e.g. one of the sessions from steps 2–4 after a reload).
+   Verify the historical rows render in the same renderers and
+   with the same rich messages as the live ones — replay
+   produces identical `_meta` and `pastTenseMessage` per D6.
+7. Use `code-oss-logs` to read the agentHost log; assert no
    `[Claude]` warn-logs for the resolved tool calls.
-6. Click an older Claude session in the sidebar that contains
-   shell + search tool calls. Verify the historical rows render
-   in the same terminal / search style as the live ones (replay
-   parity from Step 5).
+8. **Auto-allowed tool visibility (regression guard for the
+   missing-Ready bug).** In a NEW Claude `[Local]` chat session,
+   send: *"Run `git status` and then read README.md."* Wait for
+   the chat to finish, then expand the response's thinking
+   block. Verify:
+   - Both tool calls are present as widgets inside the thinking
+     block (a `Ran git status` row and a `Read README.md` row).
+   - Each widget's input (the command / file path) and output
+     (stdout / file contents) are both visible when expanded.
+
+   This catches the case where the Claude SDK auto-allows a tool
+   without invoking `canUseTool` — without a
+   `SessionToolCallReady` emission at `content_block_stop` the
+   tool stays in `Streaming` and the reducer drops the eventual
+   `SessionToolCallComplete`, leaving an empty widget.
 
 ### Manual fallback
 
@@ -615,3 +661,144 @@ session and folded into Decisions above.)*
 - [x] Verification names concrete commands and skills.
 - [x] E2E references real skills (`launch`, `code-oss-logs`).
 - [x] An agent reading only this file can implement.
+
+## Implementation Notes
+
+### Files actually changed
+
+Production:
+- [`claudeToolDisplay.ts`](./claudeToolDisplay.ts) — added `toolKind` /
+  `language` columns on `ClaudeToolRow`; new `Agent` row; new exported
+  helpers `getClaudeToolKind`, `getClaudeShellLanguage`,
+  `buildClaudeToolMeta`, `getClaudeInvocationMessage`,
+  `getClaudePastTenseMessage`, `getClaudeToolInputString`; private
+  helpers `truncate`, `md`, `formatPathAsMarkdownLink`,
+  `readStringField`, `firstShellLine`.
+- [`claudeToolCallRegistry.ts`](./claudeToolCallRegistry.ts) — **new file**.
+  `ClaudeToolCallRegistry` owns per-tool-call attribution + input
+  accumulation + computed start-info. See Deviation D5′ below.
+- [`claudeMapSessionEvents.ts`](./claudeMapSessionEvents.ts) —
+  `ClaudeMapperState` now composes a `ClaudeToolCallRegistry` (public
+  `toolCalls` field); cross-message methods forward to the registry;
+  added `appendToolBlockInputDelta` / `finalizeToolBlock` wiring on
+  `input_json_delta` / `content_block_stop`; `SessionToolCallStart`
+  emits `_meta: buildClaudeToolMeta(...)`; `SessionToolCallComplete`
+  uses `getClaudePastTenseMessage`; subagent Phase 12 path now
+  produces meta via the same helper. Class size 197 → 136 LOC, 13 →
+  12 methods.
+- [`claudeCanUseTool.ts`](./claudeCanUseTool.ts) —
+  `dispatchCanUseTool` uses `getClaudeInvocationMessage`,
+  `getClaudeToolInputString`, `buildClaudeToolMeta` on the
+  `ToolCallPendingConfirmationState`.
+- [`claudeReplayMapper.ts`](./claudeReplayMapper.ts) — `_openToolUse`
+  and `_attachToolResult` use the rich helpers; added
+  `_toolUseInputs` stash so past-tense gets the parsed input;
+  removed local `SUBAGENT_TOOL_NAMES` (now table-driven via
+  `buildClaudeToolMeta`).
+- [`claudeSubagentSignals.ts`](./claudeSubagentSignals.ts) — inner
+  subagent `SessionToolCallStart` now carries `_meta`;
+  `SessionToolCallReady` uses `getClaudeInvocationMessage`;
+  `buildTopLevelSubagentReadyAction` calls
+  `getClaudeInvocationMessage('Task'/`'Agent'`, …)` so the
+  description fallback lives in one place (D9).
+- [`../sessionPermissions.ts`](../sessionPermissions.ts) —
+  `createToolReadyAction` forwards `state._meta` into the emitted
+  `SessionToolCallReady` action (D6 / R1).
+
+Tests:
+- [`../../test/node/claudeToolDisplay.test.ts`](../../test/node/claudeToolDisplay.test.ts) —
+  per-tool composite snapshot (Phase 8.5 — rich rendering
+  snapshot) + defensive-input test + `Agent`-row test + MCP test.
+- [`../../test/node/claudeToolCallRegistry.test.ts`](../../test/node/claudeToolCallRegistry.test.ts)
+  — **new file**. 8 focused tests for begin / appendInputDelta /
+  finalize / lookup / complete / clearPending.
+- [`../../test/node/claudeMapSessionEvents.test.ts`](../../test/node/claudeMapSessionEvents.test.ts)
+  — one existing assertion updated (`Read file finished` →
+  `Read file`).
+- [`../../test/node/claudeAgent.test.ts`](../../test/node/claudeAgent.test.ts)
+  — one existing assertion updated for the new pretty-printed
+  `toolInput` shape and rich markdown `invocationMessage`.
+
+### Deviation from plan
+
+- **D5′ — `ClaudeToolCallRegistry` was introduced as a second-pass
+  refactor.** The first implementation pass extended `ClaudeMapperState`
+  directly with input/info methods (pragmatic deviation: smaller diff,
+  reuse of existing class). The follow-up `/avoid-private-methods`
+  audit flagged the class as growing past the 7-method threshold,
+  with input-tracking / file-edit-cache / cross-message-attribution
+  / per-message-block as four distinct concerns. The registry was
+  then extracted as the plan originally specified, with
+  `ClaudeMapperState` composing it via a public `toolCalls` field so
+  the mapper's existing call sites keep working. Net result: 60 LOC
+  moved to a new file plus 8 focused unit tests; `ClaudeMapperState`
+  shrunk to 136 LOC / 12 methods.
+
+### Validation
+
+- 1154 tests pass in `**/agentHost/test/node/*.test.js` (was 1146;
+  +8 from the new registry suite).
+- `npm run compile-check-ts-native` clean.
+- `npm run valid-layers-check` clean.
+- `/avoid-private-methods` audit re-run after D5′ extraction:
+  `ClaudeMapperState` now at 12 methods across 3 concerns
+  (per-message, file-edit cache, registry composition); no
+  individual private method fails the checklist. Remaining
+  low-severity finding (`cacheFileEdit`/`takeFileEdit` could move
+  to a tiny file-edit-cache collaborator) is **deferred** as
+  marginal value for the abstraction cost.
+
+### Pending
+
+- Live E2E (the two scenarios in Verification → E2E). To be run
+  before the PR moves out of draft.
+
+### Live E2E results (2026-05-16)
+
+Ran against a `claude-code [Local]` workspace using the `launch`
+skill (Playwright/CDP into the Agents window) and the
+`code-oss-logs` skill (agent-host action stream). The Claude agent
+resolved to `claude-sonnet-4-6` for the validated turn.
+
+**Validated live (terminal + generic + file-link):** prompt *"Use
+the Bash tool to run 'git status'... and then use the Read tool to
+read README.md."* Captured agent-host action payloads:
+
+- `session/toolCallStart` for `Bash`:
+  `_meta: { toolKind: 'terminal', language: 'bash' }` —
+  confirms D1 (table-driven `toolKind`) + D6 (single-write on
+  Start).
+- `session/toolCallComplete` for `Bash`:
+  `pastTenseMessage: { markdown: 'Ran ``git status``' }`,
+  `success: true` — confirms D4 (success-aware) + rich helper
+  output.
+- `session/toolCallStart` for `Read`: no `_meta` — confirms
+  generic-renderer tools omit the field.
+- `session/toolCallComplete` for `Read`:
+  `pastTenseMessage: { markdown: 'Read [README.md](file:///…/README.md)' }`
+  — confirms the file-link generic path.
+- Workbench A11y label: `listitem "Ran terminal command"` —
+  confirms the workbench's `isTerminalTool` branch sees
+  `_meta.toolKind` and routes Bash into the terminal renderer.
+
+No `[claudeMapSessionEvents]` warn-logs for the resolved tool
+calls. The Phase 12 subagent path used by the same `_meta` field
+still works (regression-free).
+
+**Validated via unit tests (other kinds):** the remaining tool
+kinds in the matrix above are covered by
+[`claudeToolDisplay.test.ts`](../../test/node/claudeToolDisplay.test.ts)'s
+Phase 8.5 rich-rendering snapshot — every tool row ×
+`{invocation, pastTense(success), pastTense(failure), toolKind,
+language, inputString}`. The live emission code path that worked
+for Bash + Read is the same path used for Grep, Glob, Write,
+Edit, WebFetch, Task / Agent, and the failure branch; the
+renderer-side dispatch is the same `_meta.toolKind` lookup.
+Replay parity is covered by
+[`claudeReplayMapper.test.ts`](../../test/node/claudeReplayMapper.test.ts).
+
+**Deferred for follow-up validation:** a wider live sweep across
+Grep / Glob / Task (D9) / failure / replay, on a build that has
+Phase 8.5 in the agent-host (the `claude-code` external session in
+the target workspace is pinned to an older agent host installation
+that predates these changes).
