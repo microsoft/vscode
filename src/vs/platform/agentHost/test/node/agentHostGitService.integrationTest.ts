@@ -54,7 +54,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 
 	teardown(() => {
 		if (tmpRoot) {
-			rmSync(tmpRoot, { recursive: true, force: true });
+			try { rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* best-effort temp cleanup; Windows can briefly hold git handles */ }
 		}
 	});
 
@@ -135,7 +135,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			assert.strictEqual(result.outgoingChanges, 2);
 			assert.strictEqual(result.uncommittedChanges, 0);
 		} finally {
-			rmSync(remoteDir, { recursive: true, force: true });
+			try { rmSync(remoteDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* best-effort temp cleanup; Windows can briefly hold git handles */ }
 		}
 	});
 });
@@ -157,7 +157,7 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 
 	teardown(() => {
 		if (tmpRoot) {
-			rmSync(tmpRoot, { recursive: true, force: true });
+			try { rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* best-effort temp cleanup; Windows can briefly hold git handles */ }
 		}
 	});
 
@@ -321,7 +321,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 
 	teardown(() => {
 		if (tmpRoot) {
-			rmSync(tmpRoot, { recursive: true, force: true });
+			try { rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* best-effort temp cleanup; Windows can briefly hold git handles */ }
 		}
 	});
 
@@ -360,7 +360,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			const stat = await fs.stat(wtPath);
 			assert.ok(stat.isDirectory(), 'worktree directory should exist');
 		} finally {
-			rmSync(wtPath, { recursive: true, force: true });
+			try { rmSync(wtPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* best-effort temp cleanup; Windows can briefly hold git handles */ }
 		}
 	});
 
@@ -383,7 +383,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			assert.throws(() => cp.execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd: wtPath, env, stdio: 'pipe' }), /fatal:/);
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath)); } catch { /* best-effort cleanup */ }
-			rmSync(wtPath, { recursive: true, force: true });
+			try { rmSync(wtPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* best-effort temp cleanup; Windows can briefly hold git handles */ }
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/test-origin-start-point'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
