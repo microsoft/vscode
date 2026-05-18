@@ -15,7 +15,7 @@ import { CancellationToken } from '../../../../../util/vs/base/common/cancellati
 import {
 	buildChatHistoryFromEvents, createCopilotCLIToolInvocation, enrichToolInvocationWithSubagentMetadata, extractCdPrefix, FakeToolsService, getAffectedUrisForEditTool, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, RequestIdDetails, stripReminders, ToolCall, updateTodoListFromSqlItems
 } from '../copilotCLITools';
-import { formatModelDetailsWithCredits } from '../../../../../platform/chat/common/chatModelDetails';
+import { formatModelDetails, formatModelDetailsWithCredits, formatModelDetailsWithMultiplier } from '../../../../../platform/chat/common/chatModelDetails';
 import { IChatDelegationSummaryService } from '../delegationSummaryService';
 
 // Helper to extract invocation message text independent of MarkdownString vs string
@@ -86,6 +86,20 @@ describe('CopilotCLITools', () => {
 		});
 	});
 
+	describe('formatModelDetails', () => {
+		it('prefers credits over multiplier when credits are available', () => {
+			expect(formatModelDetails('GPT 5.4', 2, 5)).toBe('GPT 5.4 \u2022 5 credits');
+		});
+
+		it('falls back to multiplier when credits are undefined', () => {
+			expect(formatModelDetails('GPT 5.4', 2, undefined)).toBe('GPT 5.4 \u2022 2x');
+		});
+
+		it('returns just model name when both credits and multiplier are absent', () => {
+			expect(formatModelDetails('GPT 5.4', undefined, undefined)).toBe('GPT 5.4');
+		});
+	});
+
 	describe('formatModelDetailsWithCredits', () => {
 		it('formats integer credits as plural', () => {
 			expect(formatModelDetailsWithCredits('GPT 5.4', 5)).toBe('GPT 5.4 \u2022 5 credits');
@@ -97,6 +111,20 @@ describe('CopilotCLITools', () => {
 
 		it('formats fractional credits with one decimal place', () => {
 			expect(formatModelDetailsWithCredits('GPT 5.4', 16.31565)).toBe('GPT 5.4 \u2022 16.3 credits');
+		});
+	});
+
+	describe('formatModelDetailsWithMultiplier', () => {
+		it('formats with multiplier suffix', () => {
+			expect(formatModelDetailsWithMultiplier('GPT 5.4', 2)).toBe('GPT 5.4 \u2022 2x');
+		});
+
+		it('returns just the model name when multiplier is 0', () => {
+			expect(formatModelDetailsWithMultiplier('GPT 5.4', 0)).toBe('GPT 5.4');
+		});
+
+		it('returns just the model name when multiplier is undefined', () => {
+			expect(formatModelDetailsWithMultiplier('GPT 5.4', undefined)).toBe('GPT 5.4');
 		});
 	});
 

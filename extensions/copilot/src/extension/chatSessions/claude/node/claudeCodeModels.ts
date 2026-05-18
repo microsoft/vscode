@@ -194,13 +194,7 @@ export function isEffortLevel(value: string): value is EffortLevel {
 	return SUPPORTED_EFFORT_LEVELS.includes(value as EffortLevel);
 }
 
-/**
- * Formats a Claude endpoint for display in the chat response footer.
- * Mirrors the Codex CLI's `formatModelDetails` for visual parity across providers.
- */
-export function formatClaudeModelDetails(endpoint: IChatEndpoint): string {
-	return `${endpoint.name}${endpoint.multiplier ? ` • ${endpoint.multiplier}x` : ''}`;
-}
+
 
 /**
  * Picks the reasoning effort to use for an endpoint given a requested level.

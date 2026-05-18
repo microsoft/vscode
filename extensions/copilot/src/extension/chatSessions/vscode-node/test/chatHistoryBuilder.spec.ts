@@ -10,6 +10,7 @@ import { URI } from '../../../../util/vs/base/common/uri';
 import { ChatReferenceBinaryData, ChatRequestTurn, ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { IClaudeCodeSession, ISubagentSession, StoredMessage, SYNTHETIC_MODEL_ID } from '../../claude/node/sessionParser/claudeSessionSchema';
 import { buildChatHistory } from '../chatHistoryBuilder';
+import { ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 
 // #region Test Helpers
 
@@ -1393,10 +1394,15 @@ describe('buildChatHistory', () => {
 
 	// #region Response Details (model footer)
 
-	describe('response details via getModelDetails', () => {
-		// Returns the raw model id back so we can spot-check exactly which id the
-		// builder fed into the lookup for each response turn.
-		const echoLookup = (id: string) => `details:${id}`;
+	describe('response details via model details lookup', () => {
+		// Helper that creates a ModelDetailsInfo map echoing the model id as the name
+		function echoLookup(...modelIds: string[]): Map<string, ModelDetailsInfo> {
+			const map = new Map<string, ModelDetailsInfo>();
+			for (const id of modelIds) {
+				map.set(id, { name: id, multiplier: undefined });
+			}
+			return map;
+		}
 
 		it('omits details when no lookup is provided (regression)', () => {
 			const s = session([
@@ -1416,19 +1422,19 @@ describe('buildChatHistory', () => {
 				assistantMsg([{ type: 'text', text: 'Hi' }], 'claude-opus-4-5-20251101'),
 			]);
 
-			const result = buildChatHistory(s, echoLookup);
+			const result = buildChatHistory(s, echoLookup('claude-opus-4-5-20251101'));
 
 			const responseTurn = result[1] as vscode.ChatResponseTurn2;
-			expect(responseTurn.result).toEqual({ details: 'details:claude-opus-4-5-20251101' });
+			expect(responseTurn.result).toEqual({ details: 'claude-opus-4-5-20251101' });
 		});
 
-		it('omits details when the lookup returns undefined', () => {
+		it('omits details when the lookup does not contain the model id', () => {
 			const s = session([
 				userMsg('Hello'),
 				assistantMsg([{ type: 'text', text: 'Hi' }], 'unknown-model-id'),
 			]);
 
-			const result = buildChatHistory(s, () => undefined);
+			const result = buildChatHistory(s, echoLookup());
 
 			const responseTurn = result[1] as vscode.ChatResponseTurn2;
 			expect(responseTurn.result).toEqual({});
@@ -1442,12 +1448,12 @@ describe('buildChatHistory', () => {
 				assistantMsg([{ type: 'text', text: 'A2' }], 'claude-opus-4-5-20251101'),
 			]);
 
-			const result = buildChatHistory(s, echoLookup);
+			const result = buildChatHistory(s, echoLookup('claude-sonnet-4-20250514', 'claude-opus-4-5-20251101'));
 
 			const firstResponse = result[1] as vscode.ChatResponseTurn2;
 			const secondResponse = result[3] as vscode.ChatResponseTurn2;
-			expect(firstResponse.result).toEqual({ details: 'details:claude-sonnet-4-20250514' });
-			expect(secondResponse.result).toEqual({ details: 'details:claude-opus-4-5-20251101' });
+			expect(firstResponse.result).toEqual({ details: 'claude-sonnet-4-20250514' });
+			expect(secondResponse.result).toEqual({ details: 'claude-opus-4-5-20251101' });
 		});
 
 		it('uses the last non-synthetic assistant model in a multi-message response group', () => {
@@ -1459,10 +1465,10 @@ describe('buildChatHistory', () => {
 				assistantMsg([{ type: 'text', text: 'OK' }], 'claude-opus-4-5-20251101'),
 			]);
 
-			const result = buildChatHistory(s, echoLookup);
+			const result = buildChatHistory(s, echoLookup('claude-sonnet-4-20250514', 'claude-opus-4-5-20251101'));
 
 			const responseTurn = result[1] as vscode.ChatResponseTurn2;
-			expect(responseTurn.result).toEqual({ details: 'details:claude-opus-4-5-20251101' });
+			expect(responseTurn.result).toEqual({ details: 'claude-opus-4-5-20251101' });
 		});
 
 		it('does not bleed model ids across response groups when lookup is undefined for one', () => {
@@ -1473,7 +1479,8 @@ describe('buildChatHistory', () => {
 				assistantMsg([{ type: 'text', text: 'A2' }], 'unknown-model-id'),
 			]);
 
-			const result = buildChatHistory(s, id => id === 'claude-sonnet-4-20250514' ? 'Sonnet' : undefined);
+			const lookup = new Map<string, ModelDetailsInfo>([['claude-sonnet-4-20250514', { name: 'Sonnet', multiplier: undefined }]]);
+			const result = buildChatHistory(s, lookup);
 
 			const firstResponse = result[1] as vscode.ChatResponseTurn2;
 			const secondResponse = result[3] as vscode.ChatResponseTurn2;
@@ -1490,10 +1497,10 @@ describe('buildChatHistory', () => {
 				assistantMsg([{ type: 'text', text: 'No response requested.' }], SYNTHETIC_MODEL_ID),
 			]);
 
-			const result = buildChatHistory(s, echoLookup);
+			const result = buildChatHistory(s, echoLookup('claude-sonnet-4-20250514'));
 
 			const responseTurn = result[1] as vscode.ChatResponseTurn2;
-			expect(responseTurn.result).toEqual({ details: 'details:claude-sonnet-4-20250514' });
+			expect(responseTurn.result).toEqual({ details: 'claude-sonnet-4-20250514' });
 		});
 
 		it('attaches details to slash-command response turns', () => {
@@ -1502,11 +1509,57 @@ describe('buildChatHistory', () => {
 				assistantMsg([{ type: 'text', text: 'Compacted.' }], 'claude-sonnet-4-20250514'),
 			]);
 
-			const result = buildChatHistory(s, echoLookup);
+			const result = buildChatHistory(s, echoLookup('claude-sonnet-4-20250514'));
 
 			// [request, response]
 			const responseTurn = result[1] as vscode.ChatResponseTurn2;
-			expect(responseTurn.result).toEqual({ details: 'details:claude-sonnet-4-20250514' });
+			expect(responseTurn.result).toEqual({ details: 'claude-sonnet-4-20250514' });
+		});
+
+		it('formats details with multiplier when available', () => {
+			const s = session([
+				userMsg('Hello'),
+				assistantMsg([{ type: 'text', text: 'Hi' }], 'claude-sonnet-4-20250514'),
+			]);
+
+			const lookup = new Map<string, ModelDetailsInfo>([['claude-sonnet-4-20250514', { name: 'Claude Sonnet 4', multiplier: 2 }]]);
+			const result = buildChatHistory(s, lookup);
+
+			const responseTurn = result[1] as vscode.ChatResponseTurn2;
+			expect(responseTurn.result).toEqual({ details: 'Claude Sonnet 4 \u2022 2x' });
+		});
+
+		it('shows credits instead of multiplier when per-turn credits are provided', () => {
+			const s = session([
+				userMsg('Hello'),
+				assistantMsg([{ type: 'text', text: 'Hi' }], 'claude-sonnet-4-20250514'),
+			]);
+
+			const lookup = new Map<string, ModelDetailsInfo>([['claude-sonnet-4-20250514', { name: 'Claude Sonnet 4', multiplier: 2 }]]);
+			const credits = new Map<number, number>([[0, 5]]);
+			const result = buildChatHistory(s, lookup, credits);
+
+			const responseTurn = result[1] as vscode.ChatResponseTurn2;
+			expect(responseTurn.result).toEqual({ details: 'Claude Sonnet 4 \u2022 5 credits' });
+		});
+
+		it('applies per-turn credits to correct response turns across multiple requests', () => {
+			const s = session([
+				userMsg('First'),
+				assistantMsg([{ type: 'text', text: 'A1' }], 'claude-sonnet-4-20250514'),
+				userMsg('Second'),
+				assistantMsg([{ type: 'text', text: 'A2' }], 'claude-sonnet-4-20250514'),
+			]);
+
+			const lookup = new Map<string, ModelDetailsInfo>([['claude-sonnet-4-20250514', { name: 'Claude Sonnet 4', multiplier: 2 }]]);
+			// Only the second turn has credits
+			const credits = new Map<number, number>([[1, 3]]);
+			const result = buildChatHistory(s, lookup, credits);
+
+			const firstResponse = result[1] as vscode.ChatResponseTurn2;
+			const secondResponse = result[3] as vscode.ChatResponseTurn2;
+			expect(firstResponse.result).toEqual({ details: 'Claude Sonnet 4 \u2022 2x' });
+			expect(secondResponse.result).toEqual({ details: 'Claude Sonnet 4 \u2022 3 credits' });
 		});
 	});
 
