@@ -32,6 +32,7 @@ function renderMermaidElement(
 	mermaidContainer.dataset.vscodeContext = JSON.stringify({
 		webviewSection: 'mermaid',
 		mermaidSource: source,
+		preventDefaultContextMenuItems: true,
 	});
 	mermaidContainer.innerHTML = '';
 
