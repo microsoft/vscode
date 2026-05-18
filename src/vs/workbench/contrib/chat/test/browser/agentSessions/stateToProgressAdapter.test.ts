@@ -8,7 +8,7 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent } from '../../../common/chatService/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
@@ -249,6 +249,28 @@ suite('stateToProgressAdapter', () => {
 				[
 					{ type: 'request', modelId: 'agent-host-copilot:gpt-5' },
 					{ type: 'response', details: 'GPT-5' },
+				],
+			);
+		});
+
+		test('maps turn usage to chat usage progress for restored history', () => {
+			const turn = createTurn({
+				usage: { inputTokens: 1200, outputTokens: 300, model: 'gpt-5' },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'Done' }],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+
+			assert.deepStrictEqual(
+				response.parts.map(part => part.kind === 'usage'
+					? { kind: part.kind, promptTokens: part.promptTokens, completionTokens: part.completionTokens }
+					: { kind: part.kind }),
+				[
+					{ kind: 'usage', promptTokens: 1200, completionTokens: 300 },
+					{ kind: 'markdownContent' },
 				],
 			);
 		});
@@ -901,6 +923,18 @@ suite('stateToProgressAdapter', () => {
 		test('empty active turn produces empty progress', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState(), undefined);
 			assert.deepStrictEqual(result, []);
+		});
+
+		test('includes usage progress from active turn usage', () => {
+			const activeTurn = createActiveTurnState();
+			activeTurn.usage = { inputTokens: 1000, outputTokens: 250 };
+
+			const result = activeTurnToProgress(URI.file('/'), activeTurn, undefined);
+			const usage = result[0] as IChatUsage;
+			assert.deepStrictEqual(
+				{ kind: usage.kind, promptTokens: usage.promptTokens, completionTokens: usage.completionTokens },
+				{ kind: 'usage', promptTokens: 1000, completionTokens: 250 },
+			);
 		});
 
 		test('produces markdown content for streamed text', () => {

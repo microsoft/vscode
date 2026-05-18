@@ -495,7 +495,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.SessionSyncEnabled]: {
 			default: false,
-			markdownDescription: nls.localize('chat.sessionSync.enabled', "Enable session sync to GitHub.com. When enabled, Copilot session data is synced to your GitHub account for cross-device access and richer insights. Requires local session tracking to also be enabled."),
+			markdownDescription: nls.localize('chat.sessionSync.enabled', "Enable session sync to GitHub.com. When enabled, Copilot session data is synced to your GitHub account for cross-device access and richer insights. Requires `#github.copilot.chat.localIndex.enabled#` to also be enabled."),
 			type: 'boolean',
 			tags: ['experimental', 'advanced'],
 			experiment: {
@@ -1577,24 +1577,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			markdownDescription: nls.localize('chat.tools.compressOutput.enabled', "Post-process tool output (for example `git diff`, `ls -l`, or `npm install`) to reduce token usage before it is sent to the model."),
-			tags: ['preview'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
-		'chat.tools.usagesTool.enabled': {
-			type: 'boolean',
-			default: true,
-			markdownDescription: nls.localize('chat.tools.usagesTool.enabled', "Controls whether the usages tool is available for finding references, definitions, and implementations of code symbols."),
-			tags: ['preview'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
-		'chat.tools.renameTool.enabled': {
-			type: 'boolean',
-			default: true,
-			markdownDescription: nls.localize('chat.tools.renameTool.enabled', "Controls whether the rename tool is available for renaming code symbols across the workspace."),
 			tags: ['preview'],
 			experiment: {
 				mode: 'auto'

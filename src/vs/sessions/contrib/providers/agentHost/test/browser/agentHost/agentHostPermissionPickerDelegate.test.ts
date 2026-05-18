@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatPermissionLevel } from '../../../../../../../workbench/contrib/chat/common/constants.js';
-import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownModeSchema } from '../../../browser/agentHostPermissionPickerDelegate.js';
+import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema } from '../../../browser/agentHostPermissionPickerDelegate.js';
 import { IAgentHostSessionsProvider } from '../../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
@@ -240,5 +240,37 @@ suite('isWellKnownModeSchema', () => {
 		assert.strictEqual(isWellKnownModeSchema(schema({ type: 'number' as 'string' })), false);
 		assert.strictEqual(isWellKnownModeSchema(schema({ enum: undefined })), false);
 		assert.strictEqual(isWellKnownModeSchema(schema({ enum: [] })), false);
+	});
+});
+
+suite('isWellKnownClaudePermissionModeSchema', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function schema(overrides: Partial<SessionConfigPropertySchema> = {}): SessionConfigPropertySchema {
+		return {
+			title: 'Approvals',
+			description: 'desc',
+			type: 'string',
+			enum: ['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk', 'auto'],
+			...overrides,
+		} as SessionConfigPropertySchema;
+	}
+
+	test('matches the canonical permission-mode enum', () => {
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema()), true);
+	});
+
+	test('matches a subset that still contains "default"', () => {
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: ['default', 'acceptEdits'] })), true);
+	});
+
+	test('rejects schemas missing "default" or containing custom values', () => {
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: ['acceptEdits', 'plan'] })), false);
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: ['default', 'custom'] })), false);
+	});
+
+	test('rejects non-string types and missing enums', () => {
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ type: 'number' as 'string' })), false);
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: undefined })), false);
 	});
 });

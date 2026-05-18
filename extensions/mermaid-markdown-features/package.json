@@ -60,17 +60,17 @@
       "webview/context": [
         {
           "command": "_mermaid-markdown.openInEditor",
-          "when": "webviewId == 'vscode.mermaid-markdown-features.chatOutputItem' || ((webviewId == 'markdown.preview' || webviewId == 'vscode.markdown.preview.editor' || webviewId == 'notebook.output') && webviewSection == 'mermaid')",
+          "when": "webviewId == 'vscode.mermaid-markdown-features.chatOutputItem' || (webviewSection == 'mermaid' && (webviewId == 'markdown.preview' || webviewId == 'vscode.markdown.preview.editor' || webviewId == 'notebook.output'))",
           "group": "navigation@1"
         },
         {
           "command": "_mermaid-markdown.copySource",
-          "when": "webviewId == 'vscode.mermaid-markdown-features.chatOutputItem' || webviewId == 'vscode.mermaid-markdown-features.preview' || ((webviewId == 'markdown.preview' || webviewId == 'vscode.markdown.preview.editor' || webviewId == 'notebook.output') && webviewSection == 'mermaid')",
+          "when": "webviewId == 'vscode.mermaid-markdown-features.chatOutputItem' || webviewId == 'vscode.mermaid-markdown-features.preview' || (webviewSection == 'mermaid' && (webviewId == 'markdown.preview' || webviewId == 'vscode.markdown.preview.editor' || webviewId == 'notebook.output'))",
           "group": "navigation@2"
         },
         {
           "command": "_mermaid-markdown.resetPanZoom",
-          "when": "webviewId == 'vscode.mermaid-markdown-features.chatOutputItem' || webviewId == 'vscode.mermaid-markdown-features.preview'",
+          "when": "!mermaidError && (webviewId == 'vscode.mermaid-markdown-features.chatOutputItem' || webviewId == 'vscode.mermaid-markdown-features.preview')",
           "group": "navigation@3"
         }
       ]
@@ -78,12 +78,6 @@
     "configuration": {
       "title": "%config.title%",
       "properties": {
-        "mermaid-markdown.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%config.enabled.description%",
-          "scope": "application"
-        },
         "markdown-mermaid.lightModeTheme": {
           "order": 0,
           "type": "string",
@@ -205,7 +199,7 @@
         "canBeReferencedInPrompt": true,
         "modelDescription": "Renders a Mermaid diagram from Mermaid.js markup.",
         "userDescription": "Render a Mermaid.js diagram from markup.",
-        "when": "config.mermaid-markdown.enabled",
+        "when": "chatSessionType == local",
         "inputSchema": {
           "type": "object",
           "properties": {
