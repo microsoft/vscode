@@ -33,8 +33,8 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry'
 import { isEncryptedThinkingDelta } from '../../../platform/thinking/common/thinking';
 import { BaseTokensPerCompletion } from '../../../platform/tokenizer/node/tokenizer';
 import { TelemetryCorrelationId } from '../../../util/common/telemetryCorrelationId';
-import { raceCancellation, Throttler } from '../../../util/vs/base/common/async';
-import { CancellationToken } from '../../../util/vs/base/common/cancellation';
+import { raceCancellation } from '../../../util/vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from '../../../util/vs/base/common/cancellation';
 import { Emitter } from '../../../util/vs/base/common/event';
 import { Disposable, MutableDisposable } from '../../../util/vs/base/common/lifecycle';
 import { isBoolean, isDefined, isNumber, isString, isStringArray } from '../../../util/vs/base/common/types';
@@ -251,7 +251,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	private _utilityAliasEndpoints: Map<string, IChatEndpoint> = new Map();
 	// Overrides resolved outside model-info publication, reused on the next alias publish.
 	private readonly _resolvedUtilityEndpoints = new Map<ChatEndpointFamily, { endpoint: IChatEndpoint; baseCount: number }>();
-	private readonly _refreshThrottler = this._register(new Throttler());
+	private readonly _utilityOverrideRefreshCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _lmWrapper: CopilotLanguageModelWrapper;
 	private _promptBaseCountCache: LanguageModelAccessPromptBaseCountCache;
 
@@ -283,6 +283,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	}
 
 	override dispose(): void {
+		this._cancelUtilityOverrideRefresh();
 		super.dispose();
 	}
 
@@ -456,22 +457,30 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		void this._refreshUtilityOverrides();
 	}
 
-	/**
-	 * Queues a background refresh of utility alias overrides. Concurrent calls
-	 * coalesce via {@link _refreshThrottler}, and the throttler's cancellation
-	 * token is cancelled on dispose so in-flight work can bail.
-	 */
+	/** Refreshes utility alias overrides in the background. Newer attempts supersede older ones. */
 	private async _refreshUtilityOverrides(): Promise<void> {
+		this._cancelUtilityOverrideRefresh();
+		const cancellationTokenSource = new CancellationTokenSource();
+		this._utilityOverrideRefreshCancellation.value = cancellationTokenSource;
 		try {
-			await this._refreshThrottler.queue(token => this._doRefreshUtilityOverrides(token));
+			await this._doRefreshUtilityOverrides(cancellationTokenSource.token);
 		} catch (err) {
 			this._logService.trace(`[LanguageModelAccess] Skipped utility overrides refresh: ${err}`);
+		} finally {
+			if (this._utilityOverrideRefreshCancellation.value === cancellationTokenSource) {
+				this._utilityOverrideRefreshCancellation.clear();
+			}
 		}
+	}
+
+	private _cancelUtilityOverrideRefresh(): void {
+		this._utilityOverrideRefreshCancellation.value?.cancel();
+		this._utilityOverrideRefreshCancellation.clear();
 	}
 
 	/** Resolves configured utility model overrides for the next alias publish. */
 	private async _doRefreshUtilityOverrides(token: CancellationToken): Promise<void> {
-		let didChange = false;
+		const refreshedUtilityEndpoints = new Map<ChatEndpointFamily, { endpoint: IChatEndpoint; baseCount: number }>();
 		for (const family of utilityAliasFamilies) {
 			if (token.isCancellationRequested) {
 				return;
@@ -505,10 +514,12 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			if (token.isCancellationRequested || baseCount === undefined) {
 				return;
 			}
-			this._resolvedUtilityEndpoints.set(family, { endpoint: resolved, baseCount });
-			didChange = true;
+			refreshedUtilityEndpoints.set(family, { endpoint: resolved, baseCount });
 		}
-		if (didChange && !token.isCancellationRequested) {
+		if (refreshedUtilityEndpoints.size > 0 && !token.isCancellationRequested) {
+			for (const [family, resolvedUtilityEndpoint] of refreshedUtilityEndpoints) {
+				this._resolvedUtilityEndpoints.set(family, resolvedUtilityEndpoint);
+			}
 			this._onDidChange.fire();
 		}
 	}
