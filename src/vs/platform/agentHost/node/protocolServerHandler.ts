@@ -12,7 +12,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { AgentSession, type IAgentService } from '../common/agentService.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
-import { ActionEnvelope, ActionType, INotification, isSessionAction, isTerminalAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
+import { ActionEnvelope, ActionType, INotification, isChangesetAction, isSessionAction, isTerminalAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { negotiateProtocolVersion } from '../common/state/protocol/version/negotiation.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
@@ -34,7 +34,7 @@ import {
 	type ReconnectParams,
 	type IStateSnapshot,
 } from '../common/state/sessionProtocol.js';
-import { ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationTargetKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 
@@ -630,7 +630,7 @@ export class ProtocolServerHandler extends Disposable {
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
 					model: s.model,
 					workingDirectory: s.workingDirectory?.toString(),
-					diffs: s.diffs ? [...s.diffs] : undefined,
+					changesets: s.changesets ? [...s.changesets] : undefined,
 				};
 			});
 			return { items };
@@ -711,6 +711,32 @@ export class ProtocolServerHandler extends Disposable {
 		disposeTerminal: async (_client, params) => {
 			await this._agentService.disposeTerminal(URI.parse(params.terminal));
 			return null;
+		},
+		invokeChangesetOperation: async (_client, params) => {
+			// v1 wires the request/response infrastructure but does not
+			// register any concrete operation handlers. The body validates
+			// the request shape against the current changeset state so that
+			// future producers slotting in handlers don't need to repeat
+			// boilerplate, then rejects the request with a JSON-RPC error
+			// for the "no handler" case. See the Changesets spec section
+			// "Changeset Operations" for the contract.
+			const state = this._stateManager.getChangesetState(params.changeset);
+			if (!state) {
+				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Changeset not found: ${params.changeset}`);
+			}
+			const op = state.operations?.find(o => o.id === params.operationId);
+			if (!op) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unknown operation '${params.operationId}' on changeset ${params.changeset}`);
+			}
+			const targetKind: ChangesetOperationScope = params.target?.kind === ChangesetOperationTargetKind.Resource
+				? ChangesetOperationScope.Resource
+				: params.target?.kind === ChangesetOperationTargetKind.Range
+					? ChangesetOperationScope.Range
+					: ChangesetOperationScope.Changeset;
+			if (!op.scopes.includes(targetKind)) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' does not support scope '${targetKind}' (allowed: ${op.scopes.join(', ')})`);
+			}
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `No operation handler registered for '${params.operationId}' on changeset ${params.changeset}`);
 		},
 	};
 
@@ -818,6 +844,9 @@ export class ProtocolServerHandler extends Disposable {
 		}
 		if (isSessionAction(action)) {
 			return client.subscriptions.has(action.session);
+		}
+		if (isChangesetAction(action)) {
+			return client.subscriptions.has(action.changeset);
 		}
 		if (isTerminalAction(action)) {
 			return client.subscriptions.has(action.terminal);

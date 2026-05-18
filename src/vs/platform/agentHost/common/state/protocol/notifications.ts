@@ -118,7 +118,7 @@ export interface SessionRemovedNotification {
  *   server has surfaced via `listSessions()` or `notify/sessionAdded`.
  *   Servers MAY coalesce or debounce updates for noisy fields (for example,
  *   `modifiedAt` bumps while a turn is streaming, or rapidly changing
- *   `diffs`) at their discretion.
+ *   `changesets`) at their discretion.
  * - Clients that have no cached entry for `session` MAY ignore the
  *   notification; it is not a substitute for `notify/sessionAdded`.
  *
