@@ -826,6 +826,25 @@ suite('AgentSessionsDataSource', () => {
 			]);
 		});
 
+		test('groups sessions from user-created worktrees (arbitrary paths) using repositoryPath metadata', () => {
+			// Reproduces https://github.com/microsoft/vscode/issues/312729:
+			// Sessions from user-created worktrees at arbitrary paths should be grouped
+			// together when all their metadata includes the same repositoryPath.
+			const sessions = [
+				createMockSession({ id: '1', metadata: { repositoryPath: '/home/user/vscode', workingDirectoryPath: '/home/user/vscode' } }),
+				createMockSession({ id: '2', metadata: { repositoryPath: '/home/user/vscode', workingDirectoryPath: '/home/user/vscode-feature-1' } }),
+				createMockSession({ id: '3', metadata: { repositoryPath: '/home/user/vscode', workingDirectoryPath: '/home/user/vscode-feature-2' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'vscode', count: 3 },
+			]);
+		});
+
 		test('groups sessions by badge with $(repo) prefix', () => {
 			const sessions = [
 				createMockSession({ id: '1', badge: '$(repo) vscode' }),

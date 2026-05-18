@@ -3454,6 +3454,61 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('list controller adds repositoryPath to metadata when project URI is provided', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const controller = disposables.add(instantiationService.createInstance(
+				AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
+
+			const repoRoot = URI.file('/home/user/my-repo');
+			const workingDirectory = URI.file('/home/user/my-repo-feature-branch');
+			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'sess-worktree'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Worktree session',
+				workingDirectory,
+				project: { uri: repoRoot, displayName: 'my-repo' },
+			});
+			await controller.refresh(CancellationToken.None);
+
+			assert.strictEqual(controller.items.length, 1);
+			assert.deepStrictEqual(controller.items[0].metadata, {
+				repositoryPath: repoRoot.fsPath,
+				workingDirectoryPath: workingDirectory.fsPath,
+			});
+		});
+
+		test('list controller adds repositoryPath from vscode-agent-host URI for remote sessions', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const server = 'my-remote-server';
+
+			const controller = disposables.add(instantiationService.createInstance(
+				AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, server));
+
+			// For remote sessions the project URI and working directory arrive already wrapped
+			// as vscode-agent-host:// URIs (done by remoteAgentHostProtocolClient._toLocalProjectUri).
+			const remoteRepoRoot = URI.from({ scheme: 'vscode-agent-host', authority: server, path: '/file/-/home/user/my-repo' });
+			const remoteWorkingDir = URI.from({ scheme: 'vscode-agent-host', authority: server, path: '/file/-/home/user/my-repo-feature-branch' });
+			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'sess-remote-worktree'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Remote worktree session',
+				workingDirectory: remoteWorkingDir,
+				project: { uri: remoteRepoRoot, displayName: 'my-repo' },
+			});
+			await controller.refresh(CancellationToken.None);
+
+			assert.strictEqual(controller.items.length, 1);
+			// repositoryPath should be the unwrapped remote path so that sessions
+			// from different worktrees of the same remote repo group together.
+			assert.deepStrictEqual(controller.items[0].metadata, {
+				repositoryPath: '/home/user/my-repo',
+				workingDirectoryPath: '/file/-/home/user/my-repo-feature-branch',
+			});
+		});
+
 		test('handler works with any IAgentConnection, not just IAgentHostService', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 
