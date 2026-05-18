@@ -30,6 +30,7 @@ import { ISessionsProvidersService } from '../../../../../services/sessions/brow
 import { type ISession } from '../../../../../services/sessions/common/session.js';
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 import { agentHostModelPickerStorageKey } from '../agentHostModelPicker.js';
+import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
 import { reportNewChatPickerClosed } from '../../../../chat/browser/newChatPickerTelemetry.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
@@ -110,8 +111,10 @@ class MobileChatInputConfigPicker extends Disposable {
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
+		@INewChatModelPickerService private readonly _newChatModelPickerService: INewChatModelPickerService,
 	) {
 		super();
+		this._register(this._newChatModelPickerService.registerModelPicker(() => { void this._showSheet(); }));
 
 		// Re-render the trigger whenever the active session, its config,
 		// its model, or the available language models change. The
@@ -401,8 +404,8 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig,
 			MOBILE_CHAT_INPUT_CONFIG_PICKER_ID,
-			() => {
-				const picker = instantiationService.createInstance(MobileChatInputConfigPicker);
+			(_action, _options, scopedInstantiationService) => {
+				const picker = scopedInstantiationService.createInstance(MobileChatInputConfigPicker);
 				return new MobileChatInputConfigPickerActionViewItem(picker);
 			},
 		));

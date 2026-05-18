@@ -52,10 +52,12 @@ import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
+import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -142,6 +144,18 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 * Safe after a successful rebind because the old mapping is already gone.
 	 */
 	disposeSession(sessionResource: URI): Promise<void>;
+
+	/**
+	 * Latest workbench-side re-resolved config (schema + values) for a
+	 * provisional session, if any. Populated by {@link applyConfigChange}
+	 * after a value change so dependent properties (e.g. branch ↔ isolation)
+	 * refresh without a protocol-level schema-update channel.
+	 *
+	 * Both the schema and the values matter: `resolveSessionConfig` runs
+	 * `validateOrDefault`, which can clamp now-invalid values or inject
+	 * derived defaults the consumer should prefer over `state.config.values`.
+	 */
+	getResolvedConfig(sessionResource: URI): ResolveSessionConfigResult | undefined;
 }
 
 interface IEntry {
@@ -154,9 +168,15 @@ interface IEntry {
 	 * `state.config.values`.
 	 */
 	config: Record<string, unknown>;
+	/**
+	 * Latest re-resolved config (schema + values) for this provisional, set
+	 * by {@link applyConfigChange} after each value change. Cleared when the
+	 * entry is rebound or disposed.
+	 */
+	resolvedConfig?: ResolveSessionConfigResult;
 }
 
-class AgentHostUntitledProvisionalSessionService extends Disposable implements IAgentHostUntitledProvisionalSessionService {
+export class AgentHostUntitledProvisionalSessionService extends Disposable implements IAgentHostUntitledProvisionalSessionService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _entries = new ResourceMap<IEntry>();
@@ -359,25 +379,42 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 		return URI.from({ scheme: provider, path: `/${rawId}` });
 	}
 
+	getResolvedConfig(sessionResource: URI): ResolveSessionConfigResult | undefined {
+		return this._entries.get(sessionResource)?.resolvedConfig;
+	}
+
 	async applyConfigChange(
 		sessionResource: URI,
 		provider: string,
 		workingDirectory: URI | undefined,
 		partial: Record<string, unknown>,
 	): Promise<URI | undefined> {
-		// Mutate the workbench cache synchronously so a `tryRebind` racing
-		// with this call cannot snapshot stale config across the await
-		// below. When the entry doesn't exist yet, `getOrCreate` will seed
-		// its initial config and we apply the partial on top after.
+		// SYNCHRONOUS pre-await mutation: a `tryRebind` racing during
+		// `getOrCreate` only awaits `_pending` (not this service's
+		// `_sequencer`), so the rebound entry must observe the latest
+		// `entry.config` even if the user clicks Send the very next tick.
 		const preExisting = this._entries.get(sessionResource);
 		if (preExisting) {
 			Object.assign(preExisting.config, partial);
+			// Keep overlay values in sync with the cache so the picker (which
+			// prefers `overlay.values`) doesn't render a stale value during the
+			// re-resolve round-trip. Schema is left as-is; the queued resolve
+			// replaces both atomically below.
+			if (preExisting.resolvedConfig) {
+				preExisting.resolvedConfig = {
+					...preExisting.resolvedConfig,
+					values: { ...preExisting.resolvedConfig.values, ...partial },
+				};
+			}
 		}
 		const backend = await this.getOrCreate(sessionResource, provider, workingDirectory);
 		if (!backend) {
 			return undefined;
 		}
 		if (!preExisting) {
+			// Fresh entry just created by getOrCreate; apply partial on top.
+			// No `resolvedConfig` exists yet on a newly-created entry, so
+			// there's nothing to merge into.
 			const entry = this._entries.get(sessionResource);
 			if (entry) {
 				Object.assign(entry.config, partial);
@@ -388,7 +425,41 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 			session: backend.toString(),
 			config: partial,
 		});
-		return backend;
+
+		// Sequence ONLY the re-resolve so racing chip clicks settle in order
+		// (e.g. worktree → folder issued before the first resolve returns).
+		return this._sequencer.queue(sessionResource.toString(), async () => {
+			const current = this._entries.get(sessionResource);
+			if (!current) {
+				return backend;
+			}
+			try {
+				const resolved = await this._agentHostService.resolveSessionConfig({
+					provider,
+					workingDirectory,
+					config: { ...current.config },
+				});
+				const stillCurrent = this._entries.get(sessionResource);
+				if (stillCurrent === current) {
+					const resolvedValues = { ...resolved.values };
+					// Merge resolved values into entry.config so a later `tryRebind`
+					// materializes the backend session with the validated configuration
+					// the UI is displaying. Merge (not replace) so any keys the schema
+					// doesn't know about survive.
+					const mergedConfig = { ...stillCurrent.config, ...resolvedValues };
+					const configChanged = !equals(stillCurrent.config, mergedConfig);
+					const resolvedChanged = !equals(stillCurrent.resolvedConfig, resolved);
+					if (configChanged || resolvedChanged) {
+						stillCurrent.config = mergedConfig;
+						stillCurrent.resolvedConfig = resolved;
+						this._onDidChange.fire(sessionResource);
+					}
+				}
+			} catch (err) {
+				this._logService.warn(`[AgentHostProvisional] schema re-resolve failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+			return backend;
+		});
 	}
 
 	/**

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CopilotClient, ResumeSessionConfig, type CopilotClientOptions, type SessionConfig } from '@github/copilot-sdk';
-import { rgPath } from '@vscode/ripgrep';
 import * as fs from 'fs/promises';
 import { Limiter, SequencerByKey } from '../../../../base/common/async.js';
+import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -34,6 +34,7 @@ import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProt
 import { CustomizationRef, CustomizationStatus, ResponsePartKind, SessionInputResponseKind, parseSubagentSessionUri, type MessageAttachment, type PendingMessage, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { CopilotAgentSession, SessionWrapperFactory, type CopilotSdkMode, type IActiveClientSnapshot } from './copilotAgentSession.js';
@@ -43,6 +44,7 @@ import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools } from './copilotShellTools.js';
 import { SessionCustomizationDiscovery } from './sessionCustomizationDiscovery.js';
 import { SessionPluginBundler } from './sessionPluginBundler.js';
+import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 
 interface ICreatedWorktree {
 	readonly repositoryRoot: URI;
@@ -273,10 +275,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@IAgentHostCompletions completions: IAgentHostCompletions,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
+		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id, {
+			hasHistory: (sessionId) => !this._provisionalSessions.has(sessionId) && this._sessions.has(sessionId),
+		})));
 	}
 
 	protected _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -448,9 +454,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const cliPath = URI.joinPath(FileAccess.asFileUri(''), '..', 'node_modules', '@github', 'copilot', 'index.js').fsPath;
 
 			// Add VS Code's built-in ripgrep to PATH so the CLI subprocess can find it.
-			// If @vscode/ripgrep is in an .asar file, the binary is unpacked.
-			const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
-			const rgDir = dirname(rgDiskPath);
+			const resolvedRgDiskPath = await rgDiskPath();
+			const rgDir = dirname(resolvedRgDiskPath);
 			// On Windows the env key is typically "Path" (not "PATH"). Since we copied
 			// process.env into a plain (case-sensitive) object, we must find the actual key.
 			const pathKey = Object.keys(env).find(k => k.toUpperCase() === 'PATH') ?? 'PATH';

@@ -67,6 +67,7 @@ function createEntitlementService(opts: {
 		setForceHidden: () => { },
 		previewFeaturesDisabled: false,
 		clientByokEnabled: false,
+		hasByokModels: false,
 	} as IChatEntitlementService;
 }
 

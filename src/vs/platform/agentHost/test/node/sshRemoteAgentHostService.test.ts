@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { createRemoteAgentHostState } from '../../common/remoteAgentHostMetadata.js';
-import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress } from '../../common/sshRemoteAgentHost.js';
+import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
+import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
 
 const dataFolderName = '.vscode-insiders';
 const quality = 'insider';
@@ -138,6 +141,49 @@ class MockSSHClient {
 
 	end(): void {
 		this.ended = true;
+	}
+}
+
+class KeyboardInteractiveMockSSHClient {
+	ended = false;
+	finishResponses: readonly string[] | undefined;
+
+	private readonly _errorListeners: Array<(err: Error) => void> = [];
+
+	on(event: 'ready', listener: () => void): this;
+	on(event: 'error', listener: (err: Error) => void): this;
+	on(event: 'close', listener: () => void): this;
+	on(event: string, listener: ((err: Error) => void) | (() => void)): this {
+		if (event === 'error') {
+			this._errorListeners.push(listener as (err: Error) => void);
+		}
+		return this;
+	}
+
+	removeListener(_event: string, _listener: (...args: never[]) => void): this {
+		return this;
+	}
+
+	connect(config: ConnectConfig): void {
+		const authHandler = config.authHandler as ((methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void) | undefined;
+		authHandler?.(null, false, method => {
+			if (method && method.type === 'keyboard-interactive') {
+				method.prompt('Keyboard', '', 'en-US', [{ prompt: 'Password: ', echo: false }], responses => {
+					this.finishResponses = responses;
+					this.fireError(new Error('All configured authentication methods failed'));
+				});
+			}
+		});
+	}
+
+	end(): void {
+		this.ended = true;
+	}
+
+	private fireError(err: Error): void {
+		for (const listener of this._errorListeners) {
+			listener(err);
+		}
 	}
 }
 
@@ -296,6 +342,30 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	/** Sets the relay creation timeout; exposed for tests only. */
 	setRelayCreationTimeoutForTest(ms: number): void {
 		this.relayCreationTimeoutMs = ms;
+	}
+
+	startKeyboardInteractiveForTest(
+		prompts: readonly ISSHKeyboardInteractivePrompt[],
+		finish: (responses: readonly string[]) => void,
+		cancelConnect: () => void,
+	): string {
+		return this._handleKeyboardInteractive('ssh:test-host', 'test-host', 'testuser', '', '', prompts, finish, cancelConnect);
+	}
+}
+
+class KeyboardInteractiveConnectTestService extends SSHRemoteAgentHostMainService {
+	readonly client = new KeyboardInteractiveMockSSHClient();
+
+	protected override async _createSSHClient() {
+		return this.client as never;
+	}
+
+	protected override async _buildAuthAttempts(config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
+		return [{ type: 'keyboard-interactive', username: config.username }];
+	}
+
+	connectSSHForTest(config: ISSHAgentHostConfig) {
+		return this._connectSSH(config, 'ssh:test-host');
 	}
 }
 
@@ -859,6 +929,48 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.ok(progress.length >= 3, `expected at least 3 progress events, got ${progress.length}`);
 		assert.ok(progress.every(p => p.connectionKey === 'ssh:myhost'));
 		assert.ok(progress.every(p => p.message.length > 0), 'all progress messages should be non-empty');
+	});
+
+	test('cancelling keyboard-interactive prompt rejects connect with cancellation', async () => {
+		const kbiService = disposables.add(new KeyboardInteractiveConnectTestService(
+			new NullLogService(),
+			{
+				_serviceBrand: undefined,
+				quality,
+				dataFolderName,
+			} as IProductService,
+		));
+		const request = new DeferredPromise<ISSHKeyboardInteractiveRequest>();
+		disposables.add(kbiService.onDidRequestKeyboardInteractive(kbiRequest => request.complete(kbiRequest)));
+
+		const connectPromise = kbiService.connectSSHForTest(makeConfig({ sshConfigHost: 'test-host' }));
+		const kbiRequest = await request.p;
+		await kbiService.respondKeyboardInteractive(kbiRequest.requestId, undefined);
+
+		await assert.rejects(connectPromise, error => isCancellationError(error));
+		assert.deepStrictEqual({
+			ended: kbiService.client.ended,
+			finishResponses: kbiService.client.finishResponses,
+		}, {
+			ended: true,
+			finishResponses: [],
+		});
+	});
+
+	test('responding to keyboard-interactive prompt does not cancel connection attempt', async () => {
+		let finished: readonly string[] | undefined;
+		let cancelled = false;
+
+		const requestId = service.startKeyboardInteractiveForTest([
+			{ prompt: 'Password: ', echo: false },
+		], responses => { finished = responses; }, () => { cancelled = true; });
+
+		await service.respondKeyboardInteractive(requestId, ['secret']);
+
+		assert.deepStrictEqual({ finished, cancelled }, {
+			finished: ['secret'],
+			cancelled: false,
+		});
 	});
 
 	// --- SSH client close triggers connection disposal ---

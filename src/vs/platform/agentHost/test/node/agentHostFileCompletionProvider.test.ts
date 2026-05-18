@@ -26,7 +26,8 @@ class FakeWorkspaceFiles extends AgentHostWorkspaceFiles {
 	}
 }
 
-function assertResourceUri(attachment: MessageAttachment, expected: string): void {
+function assertResourceUri(attachment: MessageAttachment | undefined, expected: string): void {
+	assert.ok(attachment, 'expected attachment to be defined');
 	assert.strictEqual(attachment.type, MessageAttachmentKind.Resource);
 	assert.strictEqual(attachment.type === MessageAttachmentKind.Resource && attachment.uri, expected);
 }

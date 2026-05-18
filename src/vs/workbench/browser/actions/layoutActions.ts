@@ -352,7 +352,7 @@ MenuRegistry.appendMenuItems([
 	}, {
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: '2_pane_toggles',
+			group: 'navigation',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
 				title: localize('toggleSideBar', "Toggle Primary Side Bar"),
@@ -371,7 +371,7 @@ MenuRegistry.appendMenuItems([
 	}, {
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: '2_pane_toggles',
+			group: 'navigation',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
 				title: localize('toggleSideBar', "Toggle Primary Side Bar"),
@@ -1400,6 +1400,19 @@ for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...
 	}
 }
 
+/**
+ * Matches the title bar's `editorActionsEnabled` getter: true when editor
+ * actions render in the title bar (either explicitly, or because tabs are
+ * hidden and the location defaults there).
+ */
+const EditorActionsInTitleBar = ContextKeyExpr.or(
+	ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.TITLEBAR),
+	ContextKeyExpr.and(
+		ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.DEFAULT),
+		ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.NONE)
+	)
+)!;
+
 registerAction2(class CustomizeLayoutAction extends Action2 {
 
 	private _currentQuickPick?: IQuickPick<IQuickPickItem, { useSeparators: true }>;
@@ -1419,7 +1432,17 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 					id: MenuId.LayoutControlMenu,
 					when: ContextKeyExpr.and(
 						IsAuxiliaryWindowContext.toNegated(),
-						ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')
+						ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both'),
+						EditorActionsInTitleBar.negate()
+					),
+					group: 'navigation'
+				},
+				{
+					id: MenuId.LayoutControlMenu,
+					when: ContextKeyExpr.and(
+						IsAuxiliaryWindowContext.toNegated(),
+						ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both'),
+						EditorActionsInTitleBar
 					),
 					group: '1_layout'
 				}

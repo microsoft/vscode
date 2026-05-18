@@ -15,7 +15,7 @@ import { IsAuxiliaryWindowContext } from '../../../../../workbench/common/contex
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { IsNewChatSessionContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { IAgentHostFilterService } from '../common/agentHostFilter.js';
+import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { HostFilterActionViewItem } from './hostFilterActionViewItem.js';
 import { MobileHostFilterActionViewItem } from './mobileHostFilterActionViewItem.js';
 

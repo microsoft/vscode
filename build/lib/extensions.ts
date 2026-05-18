@@ -632,7 +632,7 @@ const esbuildMediaScripts = [
 	'markdown-language-features/esbuild.notebook.mts',
 	'markdown-language-features/esbuild.webview.mts',
 	'markdown-math/esbuild.notebook.mts',
-	'mermaid-chat-features/esbuild.webview.mts',
+	'mermaid-markdown-features/esbuild.webview.mts',
 	'notebook-renderers/esbuild.notebook.mts',
 	'simple-browser/esbuild.webview.mts',
 ];
