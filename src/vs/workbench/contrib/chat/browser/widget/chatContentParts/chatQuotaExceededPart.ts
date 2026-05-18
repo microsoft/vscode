@@ -63,7 +63,6 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 		dom.append(messageContainer, markdownContent.element);
 
 		let primaryButtonLabel: string | undefined;
-		const isUsageBasedBilling = chatEntitlementService.quotas.usageBasedBilling === true;
 		switch (chatEntitlementService.entitlement) {
 			case ChatEntitlement.EDU:
 			case ChatEntitlement.Pro:
