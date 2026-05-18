@@ -35,7 +35,7 @@ import { mapSessionMessagesToTurns } from './claudeReplayMapper.js';
 import { getSubagentTranscript } from './claudeSubagentResolver.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { handleCanUseTool } from './claudeCanUseTool.js';
-import { ClaudeMaterializer } from './claudeMaterializer.js';
+import { ClaudeMaterializer, type IClaudeMaterializeProvisional } from './claudeMaterializer.js';
 import { tryParseClaudeModelId } from './claudeModelId.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle, IClaudeProxyService } from './claudeProxyService.js';
@@ -544,6 +544,83 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
+	 * Bring up a session whose state exists only on disk — created in
+	 * another window, or before an agent-host restart. Mirror of
+	 * `CopilotAgent._resumeSession`. Reads `workingDirectory` from the
+	 * SDK's session record and `model` / `permissionMode` from the
+	 * metadata overlay, builds an {@link IClaudeMaterializeProvisional}
+	 * record on the fly, and routes through
+	 * {@link ClaudeMaterializer.materialize} with `startMode: 'resume'`
+	 * so the SDK reloads the existing transcript instead of minting a
+	 * fresh one.
+	 *
+	 * Caller must hold the session sequencer so two concurrent
+	 * `sendMessage` calls for a freshly-resumed session collapse into
+	 * one resume + two ordered sends.
+	 */
+	private async _resumeSession(sessionId: string, sessionUri: URI): Promise<ClaudeAgentSession> {
+		this._logService.info(`[Claude:${sessionId}] _resumeSession — no in-memory state, rebuilding from disk`);
+		const proxyHandle = this._ensureAuthenticated();
+		const sdkInfo = await this._sdkService.getSessionInfo(sessionId);
+		if (!sdkInfo) {
+			throw new Error(`Cannot resume unknown session: ${sessionId} (not present in SDK transcript store)`);
+		}
+		const workingDirectory = sdkInfo.cwd ? URI.file(sdkInfo.cwd) : undefined;
+		if (!workingDirectory) {
+			throw new Error(`Cannot resume session ${sessionId}: workingDirectory missing from SDK transcript`);
+		}
+		let overlay: IClaudeSessionOverlay = {};
+		try {
+			overlay = await this._metadataStore.read(sessionUri);
+		} catch (err) {
+			this._logService.warn(`[Claude:${sessionId}] overlay read failed during resume; continuing with defaults`, err);
+		}
+		const permissionMode = this._readSessionPermissionMode(sessionUri)
+			?? overlay.permissionMode
+			?? 'default';
+		const abortController = new AbortController();
+		const provisional: IClaudeMaterializeProvisional = {
+			sessionId,
+			sessionUri,
+			workingDirectory,
+			abortController,
+			project: undefined,
+			model: overlay.model,
+		};
+
+		const canUseTool: NonNullable<Options['canUseTool']> = (toolName, input, options) =>
+			handleCanUseTool(
+				{ getSession: id => this._sessions.get(id)?.session, configurationService: this._configurationService },
+				sessionId, toolName, input, options,
+			);
+
+		const session = await this._materializer.materialize(provisional, proxyHandle, permissionMode, canUseTool, 'resume');
+
+		const initialEffort = clampEffortForRuntime(resolveClaudeEffort(overlay.model));
+		session.seedBijectiveState({
+			model: overlay.model?.id,
+			effort: initialEffort,
+			permissionMode,
+		});
+		session.attachRematerializer(async (_reason) => {
+			const liveMode = this._readSessionPermissionMode(sessionUri) ?? permissionMode;
+			return this._materializer.materializeResume(provisional, proxyHandle, liveMode, canUseTool);
+		});
+
+		const entry = new ClaudeSessionEntry(session);
+		entry.addDisposable(session.onDidSessionProgress(signal => this._onDidSessionProgress.fire(signal)));
+		this._sessions.set(sessionId, entry);
+
+		this._onDidMaterializeSession.fire({
+			session: sessionUri,
+			workingDirectory,
+			project: undefined,
+		});
+
+		return session;
+	}
+
+	/**
 	 * Pull `permissionMode` out of the post-validation `IAgentCreateSessionConfig.config`
 	 * bag, narrowing the runtime `unknown` value to the SDK's six-value
 	 * `PermissionMode` union (sdk.d.ts:1560). Falls back to `'default'`
@@ -835,12 +912,19 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return this._sessionSequencer.queue(sessionId, async () => {
 			let session = this._sessions.get(sessionId)?.session;
 			if (!session) {
-				if (!this._provisionalSessions.has(sessionId)) {
-					throw new Error(`Cannot send to unknown session: ${sessionId}`);
+				if (this._provisionalSessions.has(sessionId)) {
+					// Materialize seeds permissionMode via Options.permissionMode,
+					// so no setPermissionMode call needed on this turn.
+					session = await this._materializeProvisional(sessionId);
+				} else {
+					// Session exists on disk (created in another window or
+					// before agent restart) but has no in-memory state in
+					// this agent instance. Reconstruct a provisional record
+					// from the SDK transcript + metadata overlay and bring
+					// it up under `Options.resume` so the SDK reloads the
+					// existing history rather than minting a fresh one.
+					session = await this._resumeSession(sessionId, sessionUri);
 				}
-				// Materialize seeds permissionMode via Options.permissionMode,
-				// so no setPermissionMode call needed on this turn.
-				session = await this._materializeProvisional(sessionId);
 			} else {
 				// Plan S3.6: forward live `permissionMode` to the bound
 				// `Query` immediately before yielding the next user message
