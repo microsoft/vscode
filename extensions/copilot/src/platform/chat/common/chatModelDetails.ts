@@ -41,5 +41,5 @@ export function formatModelDetailsWithCredits(modelName: string, creditsUsed: nu
  * Returns "Model Name • 2x" when multiplier is defined, or just "Model Name" otherwise.
  */
 export function formatModelDetailsWithMultiplier(modelName: string, multiplier: number | undefined): string {
-	return multiplier !== undefined ? `${modelName} \u2022 ${multiplier}x` : modelName;
+	return multiplier !== undefined ? l10n.t('{0} \u2022 {1}x', modelName, multiplier) : modelName;
 }

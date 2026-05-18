@@ -206,7 +206,7 @@ describe('CopilotCLITools', () => {
 				{ type: 'user.message', data: { content: 'Hello', attachments: [] } },
 				{ type: 'assistant.message', data: { content: 'Hi there' } }
 			];
-			const turns = buildChatHistoryFromEvents('', 'base', events, getVSCodeRequestId, delegationSummary, logger, undefined, undefined, new Map([['base', 'Base • 2x']]));
+			const turns = buildChatHistoryFromEvents('', 'base', events, getVSCodeRequestId, delegationSummary, logger, undefined, undefined, new Map([['base', { name: 'Base', multiplier: 2 }]]));
 			expect(turns).toHaveLength(2);
 			const responseTurn = turns[1] as ChatResponseTurn2;
 			expect(responseTurn.result).toEqual({ details: 'Base • 2x' });
@@ -214,10 +214,10 @@ describe('CopilotCLITools', () => {
 
 		it('uses session model changes for each rebuilt response turn', () => {
 			const modelDetails = new Map([
-				['opus-4.6', 'Opus 4.6 • 4x'],
-				['opus-4.7', 'Opus 4.7 • 4x'],
-				['gpt-5.4', 'GPT 5.4 • 2x'],
-				['gpt-5.3', 'GPT 5.3 • 1x'],
+				['opus-4.6', { name: 'Opus 4.6', multiplier: 4 }],
+				['opus-4.7', { name: 'Opus 4.7', multiplier: 4 }],
+				['gpt-5.4', { name: 'GPT 5.4', multiplier: 2 }],
+				['gpt-5.3', { name: 'GPT 5.3', multiplier: 1 }],
 			]);
 			const events: any[] = [
 				{ type: 'session.start', data: { selectedModel: 'opus-4.6' } },
@@ -252,7 +252,7 @@ describe('CopilotCLITools', () => {
 				{ type: 'assistant.usage', data: { model: 'gpt-5.4', inputTokens: 10, outputTokens: 5 } },
 			];
 
-			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger, undefined, undefined, new Map([['gpt-5.4', 'GPT 5.4 • 2x']]));
+			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger, undefined, undefined, new Map([['gpt-5.4', { name: 'GPT 5.4', multiplier: 2 }]]));
 
 			expect(turns).toHaveLength(2);
 			expect((turns[0] as ChatRequestTurn2).modelId).toBe('gpt-5.4');
@@ -280,8 +280,8 @@ describe('CopilotCLITools', () => {
 			const lookup = (sdkRequestId: string) => detailsByEventId[sdkRequestId];
 
 			const turns = buildChatHistoryFromEvents('', 'auto', events, lookup, delegationSummary, logger, undefined, undefined, new Map([
-				['gpt-5.4', 'GPT 5.4 • 2x'],
-				['claude-opus-4.7', 'Claude Opus 4.7 • 4x'],
+				['gpt-5.4', { name: 'GPT 5.4', multiplier: 2 }],
+				['claude-opus-4.7', { name: 'Claude Opus 4.7', multiplier: 4 }],
 			]));
 
 			expect(turns).toHaveLength(4);
@@ -303,7 +303,7 @@ describe('CopilotCLITools', () => {
 			const lookup = (sdkRequestId: string) => detailsByEventId[sdkRequestId];
 
 			const turns = buildChatHistoryFromEvents('', undefined, events, lookup, delegationSummary, logger, undefined, undefined, new Map([
-				['gpt-5.4', 'GPT 5.4 • 2x'],
+				['gpt-5.4', { name: 'GPT 5.4', multiplier: 2 }],
 			]));
 
 			expect(turns).toHaveLength(2);
@@ -321,7 +321,7 @@ describe('CopilotCLITools', () => {
 			const lookup = (sdkRequestId: string) => detailsByEventId[sdkRequestId];
 
 			const turns = buildChatHistoryFromEvents('', undefined, events, lookup, delegationSummary, logger, undefined, undefined, new Map([
-				['gpt-5.4', 'GPT 5.4 • 2x'],
+				['gpt-5.4', { name: 'GPT 5.4', multiplier: 2 }],
 			]));
 
 			expect((turns[1] as ChatResponseTurn2).result).toEqual({ details: 'GPT 5.4 \u2022 1 credit' });
@@ -338,7 +338,7 @@ describe('CopilotCLITools', () => {
 			const lookup = (sdkRequestId: string) => detailsByEventId[sdkRequestId];
 
 			const turns = buildChatHistoryFromEvents('', undefined, events, lookup, delegationSummary, logger, undefined, undefined, new Map([
-				['gpt-5.4', 'GPT 5.4 • 2x'],
+				['gpt-5.4', { name: 'GPT 5.4', multiplier: 2 }],
 			]));
 
 			expect((turns[1] as ChatResponseTurn2).result).toEqual({ details: 'GPT 5.4 • 2x' });
@@ -358,7 +358,7 @@ describe('CopilotCLITools', () => {
 			const lookup = (sdkRequestId: string) => detailsByEventId[sdkRequestId];
 
 			const turns = buildChatHistoryFromEvents('', undefined, events, lookup, delegationSummary, logger, undefined, undefined, new Map([
-				['gpt-5.4', 'GPT 5.4 • 2x'],
+				['gpt-5.4', { name: 'GPT 5.4', multiplier: 2 }],
 			]));
 
 			expect(turns.filter(turn => turn instanceof ChatResponseTurn2).map(turn => (turn as ChatResponseTurn2).result)).toEqual([
