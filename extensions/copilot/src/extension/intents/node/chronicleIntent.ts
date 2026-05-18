@@ -397,7 +397,7 @@ ${schema}`;
 		if (workspacePath) {
 			prompt += `
 
-**IMPORTANT - Workspace Scoping**: Always filter queries to the current workspace: ${workspacePath}
+**IMPORTANT - Workspace Scoping**: Always filter queries to the current workspace: \`${workspacePath}\`
 Use the \`cwd\` column in the sessions table. For example: \`WHERE cwd = '${workspacePath.replace(/'/g, "''")}'\`. Do not include sessions from other workspaces.`;
 		}
 
