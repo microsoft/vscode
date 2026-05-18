@@ -809,6 +809,17 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapResult.isSandboxWrapped, true, 'Command should remain sandbox wrapped');
 	});
 
+	test('should include VSCODE_CWD env var when cwd is provided', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const withCwd = await sandboxService.wrapCommand('echo test', false, 'bash', URI.file('/workspace-one'));
+		ok(withCwd.command.includes("VSCODE_CWD='/workspace-one'"), `Wrapped command should include VSCODE_CWD when cwd is provided. Actual: ${withCwd.command}`);
+
+		const withoutCwd = await sandboxService.wrapCommand('echo test', false, 'bash');
+		ok(!withoutCwd.command.includes('VSCODE_CWD'), 'Wrapped command should not include VSCODE_CWD when no cwd is provided');
+	});
+
 	test('should preserve TMPDIR when unsandboxed execution is requested', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
