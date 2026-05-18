@@ -132,3 +132,4 @@ export abstract class MediaPreview extends Disposable {
 		}
 	}
 }
+

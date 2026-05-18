@@ -254,7 +254,10 @@ export function registerImagePreviewSupport(context: vscode.ExtensionContext, bi
 	const previewManager = new ImagePreviewManager(context.extensionUri, sizeStatusBarEntry, binarySizeStatusBarEntry, zoomStatusBarEntry);
 
 	disposables.push(vscode.window.registerCustomEditorProvider(ImagePreviewManager.viewType, previewManager, {
-		supportsMultipleEditorsPerDocument: true,
+		
+	\twebviewOptions: {
+	\t\tretainContextWhenHidden: true,
+	\t},
 	}));
 
 	disposables.push(vscode.commands.registerCommand('imagePreview.zoomIn', () => {
@@ -280,3 +283,4 @@ export function registerImagePreviewSupport(context: vscode.ExtensionContext, bi
 
 	return vscode.Disposable.from(...disposables);
 }
+
