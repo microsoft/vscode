@@ -1817,6 +1817,69 @@ suite('ChatService', () => {
 		// Clean up
 		ref.dispose();
 	});
+
+	test('removeHistoryEntry marks model as deleted and excludes from getLiveSessionItems', async () => {
+		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithMarkdownId, chatAgentWithMarkdown));
+
+		const testService = createChatService();
+
+		// Create a session and send a message so it has requests
+		const ref = testDisposables.add(startSessionModel(testService));
+		const model = ref.object;
+		const response = await testService.sendRequest(model.sessionResource, `@${chatAgentWithMarkdownId} test request`);
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		assert.strictEqual(model.getRequests().length, 1);
+
+		// Verify the session appears in live session items
+		const liveItemsBefore = await testService.getLiveSessionItems();
+		assert.ok(
+			liveItemsBefore.some(item => item.sessionResource.toString() === model.sessionResource.toString()),
+			'Session should appear in getLiveSessionItems before deletion'
+		);
+
+		// Delete the session
+		await testService.removeHistoryEntry(model.sessionResource);
+
+		// Verify the session no longer appears in live session items
+		const liveItemsAfter = await testService.getLiveSessionItems();
+		assert.ok(
+			!liveItemsAfter.some(item => item.sessionResource.toString() === model.sessionResource.toString()),
+			'Session should NOT appear in getLiveSessionItems after deletion'
+		);
+
+		// Verify onDidDisposeSession was fired
+		// (model is still alive because ref holds it, but it's marked deleted)
+		assert.strictEqual((model as ChatModel).isDeleted, true);
+	});
+
+	test('removeHistoryEntry prevents re-saving on model disposal', async () => {
+		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithMarkdownId, chatAgentWithMarkdown));
+
+		const testService = createChatService();
+
+		// Create a session with a request
+		const ref = testDisposables.add(startSessionModel(testService));
+		const model = ref.object;
+		const response = await testService.sendRequest(model.sessionResource, `@${chatAgentWithMarkdownId} test request`);
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		// Delete the history entry
+		await testService.removeHistoryEntry(model.sessionResource);
+
+		// Release the model reference — this triggers willDisposeModel
+		ref.dispose();
+		await testService.waitForModelDisposals();
+
+		// Verify the session does NOT reappear in history after disposal
+		const testService2 = createChatService();
+		const historyItems = await testService2.getHistorySessionItems();
+		assert.ok(
+			!historyItems.some(item => item.sessionResource.toString() === model.sessionResource.toString()),
+			'Deleted session should NOT reappear in history after model disposal'
+		);
+	});
 });
 
 
