@@ -175,7 +175,7 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 
 	public async getCopilotUtilityModel(): Promise<IChatModelInformation> {
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
-		if (!this._copilotUtilityModel && this._familyMap.size > 0 && !this._hasForcedUtilityModelRetry) {
+		if (!this._copilotUtilityModel && this._familyMap.size > 0 && !this._hasForcedUtilityModelRetry && this._envService.isActive) {
 			// One-shot retry per auth epoch: avoids storming CAPI on persistent server misconfig.
 			this._hasForcedUtilityModelRetry = true;
 			this._logService.warn('Utility model unset after initial fetch; forcing one refresh');
@@ -281,6 +281,7 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 			}
 
 			this._familyMap.clear();
+			this._completionsFamilyMap.clear();
 			this._copilotUtilityModel = undefined;
 
 			const data: IModelAPIResponse[] = (await response.json()).data;
