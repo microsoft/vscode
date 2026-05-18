@@ -112,7 +112,11 @@ export class ClaudeToolCallRegistry {
 				// Malformed JSON — fall through with `parsedInput: undefined`.
 			}
 		}
-		this._writeInfo(entry, parsedInput);
+		// Preserve the raw buffer as a fallback `toolInput` so a malformed
+		// or non-object payload still surfaces SOMETHING in the UI rather
+		// than leaving the input section empty.
+		const rawFallback = entry.inputBuffer.length > 0 ? entry.inputBuffer : undefined;
+		this._writeInfo(entry, parsedInput, rawFallback);
 		// Buffer is no longer needed once parsed.
 		entry.inputBuffer = '';
 	}
@@ -138,14 +142,14 @@ export class ClaudeToolCallRegistry {
 		this._writeInfo(entry, normalized);
 	}
 
-	private _writeInfo(entry: IRegistryEntry, parsedInput: Record<string, unknown> | undefined): void {
+	private _writeInfo(entry: IRegistryEntry, parsedInput: Record<string, unknown> | undefined, rawFallback?: string): void {
 		const displayName = getClaudeToolDisplayName(entry.toolName);
 		entry.info = {
 			toolName: entry.toolName,
 			displayName,
 			parsedInput,
 			invocationMessage: getClaudeInvocationMessage(entry.toolName, displayName, parsedInput),
-			toolInput: getClaudeToolInputString(entry.toolName, parsedInput),
+			toolInput: getClaudeToolInputString(entry.toolName, parsedInput) ?? rawFallback,
 		};
 	}
 

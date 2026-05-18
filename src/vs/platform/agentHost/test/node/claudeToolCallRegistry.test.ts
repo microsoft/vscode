@@ -50,7 +50,7 @@ suite('claudeToolCallRegistry — Phase 8.5 input/info tracking', () => {
 		);
 	});
 
-	test('finalize with malformed JSON falls back to undefined parsedInput', () => {
+	test('finalize with malformed JSON falls back to undefined parsedInput, preserves raw buffer as toolInput', () => {
 		const registry = new ClaudeToolCallRegistry();
 		registry.begin('tu_2', 'Read', 'turn-1');
 		registry.appendInputDelta('tu_2', '{not valid json');
@@ -62,11 +62,15 @@ suite('claudeToolCallRegistry — Phase 8.5 input/info tracking', () => {
 				parsedInput: entry?.info?.parsedInput,
 				displayName: entry?.info?.displayName,
 				invocationMessage: entry?.info?.invocationMessage,
+				// Raw buffer preserved so the UI still shows the SDK's payload
+				// instead of an empty input section.
+				toolInput: entry?.info?.toolInput,
 			},
 			{
 				parsedInput: undefined,
 				displayName: 'Read file',
 				invocationMessage: 'Reading file',
+				toolInput: '{not valid json',
 			},
 		);
 	});

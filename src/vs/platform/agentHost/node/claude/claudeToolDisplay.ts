@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel } from '../../../../base/common/htmlContent.js';
 import { basename } from '../../../../base/common/resources.js';
 import { truncate } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -289,7 +289,7 @@ function md(value: string): StringOrMarkdown {
 
 function formatPathAsMarkdownLink(path: string): string {
 	const uri = URI.file(path);
-	return `[${basename(uri)}](${uri})`;
+	return `[${escapeMarkdownLinkLabel(basename(uri))}](${uri})`;
 }
 
 /**
@@ -381,7 +381,7 @@ export function getClaudeInvocationMessage(
 		case 'WebFetch': {
 			const url = readStringField(input, 'url');
 			if (url) {
-				return md(localize('claude.toolInvoke.webFetch', "Fetching {0}", `[${truncate(url, 80)}](${url})`));
+				return md(localize('claude.toolInvoke.webFetch', "Fetching {0}", `[${escapeMarkdownLinkLabel(truncate(url, 80))}](${url})`));
 			}
 			return localize('claude.toolInvoke.webFetchGeneric', "Fetching URL");
 		}
@@ -470,7 +470,7 @@ export function getClaudePastTenseMessage(
 		case 'WebFetch': {
 			const url = readStringField(input, 'url');
 			if (url) {
-				return md(localize('claude.toolComplete.webFetch', "Fetched {0}", `[${truncate(url, 80)}](${url})`));
+				return md(localize('claude.toolComplete.webFetch', "Fetched {0}", `[${escapeMarkdownLinkLabel(truncate(url, 80))}](${url})`));
 			}
 			return localize('claude.toolComplete.webFetchGeneric', "Fetched URL");
 		}

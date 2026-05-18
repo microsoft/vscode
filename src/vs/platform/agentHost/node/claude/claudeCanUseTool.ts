@@ -123,7 +123,7 @@ async function dispatchCanUseTool(
 	const permissionKind = getClaudePermissionKind(toolName);
 	const displayName = getClaudeToolDisplayName(toolName);
 	const permissionPath = options.blockedPath ?? getClaudeToolPath(toolName, input);
-	const toolInputString = getClaudeToolInputString(toolName, input) ?? JSON.stringify(input);
+	const toolInputString = getClaudeToolInputString(toolName, input);
 	const meta = buildClaudeToolMeta(toolName);
 	const state: ToolCallPendingConfirmationState = {
 		status: ToolCallStatus.PendingConfirmation,
