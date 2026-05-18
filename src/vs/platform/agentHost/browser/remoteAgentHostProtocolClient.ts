@@ -767,7 +767,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			workingDirectory: typeof s.workingDirectory === 'string' ? toAgentHostUri(URI.parse(s.workingDirectory), this._connectionAuthority) : undefined,
 			isRead: !!(s.status & SessionStatus.IsRead),
 			isArchived: !!(s.status & SessionStatus.IsArchived),
-			diffs: s.diffs,
+			changesets: s.changesets,
 		}));
 	}
 

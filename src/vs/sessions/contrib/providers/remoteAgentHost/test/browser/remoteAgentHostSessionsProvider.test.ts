@@ -35,6 +35,8 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { IObservable, constObservable } from '../../../../../../base/common/observable.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -215,6 +217,9 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
+	}());
+	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+		override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable<IActiveSession | undefined>(undefined);
 	}());
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
