@@ -3,20 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import gulp from 'gulp';
+import { gulp, rename, replace, filter, jsonEditor } from './lib/gulp/facade.ts';
 import * as fs from 'fs';
 import * as path from 'path';
 import es from 'event-stream';
 import vfs from 'vinyl-fs';
-import rename from 'gulp-rename';
-import replace from 'gulp-replace';
-import filter from 'gulp-filter';
 import electron from '@vscode/gulp-electron';
-import jsonEditor from 'gulp-json-editor';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
 import { readISODate, writeISODate } from './lib/date.ts';
-import * as task from './lib/task.ts';
+import * as task from './lib/gulp/task.ts';
 import buildfile from './buildfile.ts';
 import * as optimize from './lib/optimize.ts';
 import { inlineMeta } from './lib/inlineMeta.ts';
@@ -164,7 +160,7 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 		}
 	)
 ));
-gulp.task(bundleVSCodeTask);
+task.task(bundleVSCodeTask);
 
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 const isCI = !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
@@ -175,18 +171,18 @@ const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	util.rimraf('out-vscode-min'),
 	optimize.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
 ));
-gulp.task(minifyVSCodeTask);
+task.task(minifyVSCodeTask);
 
-gulp.task(task.define('core-ci-old', task.series(
-	gulp.task('compile-build-with-mangling') as task.Task,
+task.task(task.define('core-ci-old', task.series(
+	task.task('compile-build-with-mangling') as task.Task,
 	task.parallel(
-		gulp.task('minify-vscode') as task.Task,
-		gulp.task('minify-vscode-reh') as task.Task,
-		gulp.task('minify-vscode-reh-web') as task.Task,
+		task.task('minify-vscode') as task.Task,
+		task.task('minify-vscode-reh') as task.Task,
+		task.task('minify-vscode-reh-web') as task.Task,
 	)
 )));
 
-gulp.task(task.define('core-ci', task.series(
+task.task(task.define('core-ci', task.series(
 	copyCodiconsTask,
 	compileNonNativeExtensionsBuildTask,
 	compileExtensionMediaBuildTask,
@@ -643,7 +639,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 		}
 
 		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...packageTasks));
-		gulp.task(vscodeTaskCI);
+		task.task(vscodeTaskCI);
 
 		let vscodeTask: task.Task;
 		if (useEsbuildTranspile) {
@@ -678,23 +674,23 @@ BUILD_TARGETS.forEach(buildTarget => {
 				vscodeTaskCI
 			));
 		}
-		gulp.task(vscodeTask);
+		task.task(vscodeTask);
 
 		return vscodeTask;
 	});
 
 	if (process.platform === platform && process.arch === arch) {
-		gulp.task(task.define('vscode', task.series(vscode)));
-		gulp.task(task.define('vscode-min', task.series(vscodeMin)));
+		task.task(task.define('vscode', task.series(vscode)));
+		task.task(task.define('vscode-min', task.series(vscodeMin)));
 	}
 });
 
 // #region nls
 
-gulp.task(task.define(
+task.task(task.define(
 	'vscode-translations-export',
 	task.series(
-		gulp.task('core-ci') as task.Task,
+		task.task('core-ci') as task.Task,
 		compileAllExtensionsBuildTask,
 		function () {
 			const pathToMetadata = './out-build/nls.metadata.json';
@@ -710,7 +706,7 @@ gulp.task(task.define(
 	)
 ));
 
-gulp.task('vscode-translations-import', function () {
+task.task('vscode-translations-import', function () {
 	const options = minimist(process.argv.slice(2), {
 		string: 'location',
 		default: {
