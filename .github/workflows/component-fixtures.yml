@@ -173,27 +173,6 @@ jobs:
               echo "patch<<BLOCKS_CI_PATCH_EOF" >> "$GITHUB_OUTPUT"
               echo "$PATCH" >> "$GITHUB_OUTPUT"
               echo "BLOCKS_CI_PATCH_EOF" >> "$GITHUB_OUTPUT"
-              # Surface per-fixture rendering errors for blocks-ci fixtures so
-              # they are visible in fork PRs (where broken screenshot URLs
-              # otherwise hide the root cause of the diff).
-              ERRORS=$(node -e "
-                const m = require('./test/componentFixtures/.screenshots/current/manifest.json');
-                const lines = [];
-                const sorted = [...m.fixtures].sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
-                for (const f of sorted) {
-                  if (!(f.labels || []).includes('blocks-ci')) { continue; }
-                  if (!f.hasError) { continue; }
-                  const errEvents = (f.events || []).filter(e => e.isError);
-                  const msg = errEvents.map(e => e.message).join('; ') || 'unknown error';
-                  lines.push('⚠ ' + f.fixtureId + ' (error: ' + msg + ')');
-                }
-                process.stdout.write(lines.join('\n'));
-              ")
-              if [ -n "$ERRORS" ]; then
-                echo "errors<<BLOCKS_CI_ERRORS_EOF" >> "$GITHUB_OUTPUT"
-                echo "$ERRORS" >> "$GITHUB_OUTPUT"
-                echo "BLOCKS_CI_ERRORS_EOF" >> "$GITHUB_OUTPUT"
-              fi
             }
 
       - name: Upload screenshots as artifact
@@ -308,64 +287,53 @@ jobs:
           fi
         continue-on-error: true
 
-      - name: Write job summary
+      - name: Build comment body
+        id: comment_body
         if: steps.diff.outputs.has_changes == 'true' || steps.blocks-ci.outputs.match == 'false'
+        # Centralised body assembly shared by the job summary (which fork PRs
+        # rely on, since they can't post comments) and the PR comment for
+        # non-fork PRs. Producing the markdown in a single place keeps the
+        # two surfaces in sync. The diff body already includes any fixture
+        # rendering errors via the "Errored" section emitted by
+        # screenshotDiffReport.ts, so that concern is not duplicated here.
         run: |
-          BODY="${COMMENT_BODY}"
-          if [ -n "$BLOCKS_CI_CONTENT" ]; then
-            if [ -n "$BODY" ]; then BODY+=$'\n\n---\n\n'; fi
-            BODY+="### blocks-ci screenshots changed"$'\n\n'
-            if [ -n "$BLOCKS_CI_ERRORS" ]; then
-              BODY+="**Fixture rendering errors:**"$'\n\n'
-              BODY+='```'$'\n'"${BLOCKS_CI_ERRORS}"$'\n''```'$'\n\n'
+          {
+            if [ -n "$COMMENT_BODY" ]; then
+              printf '%s\n' "$COMMENT_BODY"
             fi
-            BODY+="Replace the contents of \`test/componentFixtures/blocks-ci-screenshots.md\` with:"$'\n\n'
-            BODY+="<details>"$'\n'"<summary>Updated blocks-ci-screenshots.md</summary>"$'\n\n'
-            BODY+="\`\`\`md"$'\n'"${BLOCKS_CI_CONTENT}"$'\n'"\`\`\`"$'\n\n'
-            BODY+="</details>"
-            if [ -n "$BLOCKS_CI_PATCH" ]; then
-              BODY+=$'\n\n'"<details open>"$'\n'"<summary>Patch</summary>"$'\n\n'
-              BODY+="\`\`\`diff"$'\n'"${BLOCKS_CI_PATCH}"$'\n'"\`\`\`"$'\n\n'
-              BODY+="</details>"
+            if [ -n "$BLOCKS_CI_CONTENT" ]; then
+              if [ -n "$COMMENT_BODY" ]; then printf '\n---\n\n'; fi
+              printf '### blocks-ci screenshots changed\n\n'
+              printf 'Replace the contents of `test/componentFixtures/blocks-ci-screenshots.md` with:\n\n'
+              printf '<details>\n<summary>Updated blocks-ci-screenshots.md</summary>\n\n'
+              printf '```md\n%s\n```\n\n' "$BLOCKS_CI_CONTENT"
+              printf '</details>\n'
+              if [ -n "$BLOCKS_CI_PATCH" ]; then
+                printf '\n<details open>\n<summary>Patch</summary>\n\n'
+                printf '```diff\n%s\n```\n\n' "$BLOCKS_CI_PATCH"
+                printf '</details>\n'
+              fi
             fi
-          fi
-          echo "$BODY" >> "$GITHUB_STEP_SUMMARY"
+          } > /tmp/comment-body.md
+          echo "path=/tmp/comment-body.md" >> "$GITHUB_OUTPUT"
         env:
           COMMENT_BODY: ${{ steps.diff.outputs.body }}
           BLOCKS_CI_CONTENT: ${{ steps.blocks-ci.outputs.content }}
           BLOCKS_CI_PATCH: ${{ steps.blocks-ci.outputs.patch }}
-          BLOCKS_CI_ERRORS: ${{ steps.blocks-ci.outputs.errors }}
+
+      - name: Write job summary
+        if: steps.comment_body.outputs.path
+        run: cat "${{ steps.comment_body.outputs.path }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Post PR comment (non-fork PR only)
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v9
         with:
           script: |
+            const fs = require('fs');
             const marker = '<!-- screenshot-diff-report -->';
-            let body = process.env.COMMENT_BODY || '';
-            const blocksCiContent = process.env.BLOCKS_CI_CONTENT;
-            const blocksCiPatch = process.env.BLOCKS_CI_PATCH;
-            const blocksCiErrors = process.env.BLOCKS_CI_ERRORS;
-
-            if (blocksCiContent) {
-              if (body) { body += '\n\n---\n\n'; }
-              body += '### blocks-ci screenshots changed\n\n';
-              if (blocksCiErrors) {
-                body += '**Fixture rendering errors:**\n\n';
-                body += '```\n' + blocksCiErrors + '\n```\n\n';
-              }
-              body += 'Replace the contents of `test/componentFixtures/blocks-ci-screenshots.md` with:\n\n';
-              body += '<details>\n<summary>Updated blocks-ci-screenshots.md</summary>\n\n';
-              body += '```md\n' + blocksCiContent + '\n```\n\n';
-              body += '</details>';
-              if (blocksCiPatch) {
-                body += '\n\n<details open>\n<summary>Patch</summary>\n\n';
-                body += '```diff\n' + blocksCiPatch + '\n```\n\n';
-                body += '</details>';
-              }
-            }
-
-            const hasContent = body || blocksCiContent;
+            const bodyPath = process.env.COMMENT_BODY_PATH;
+            let body = bodyPath && fs.existsSync(bodyPath) ? fs.readFileSync(bodyPath, 'utf8').replace(/\s+$/, '') : '';
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -375,7 +343,7 @@ jobs:
             });
             const existing = comments.find(c => c.body?.startsWith(marker));
 
-            if (!hasContent) {
+            if (!body) {
               // No changes to report — update existing comment if present, otherwise do nothing
               if (existing) {
                 const baseSha = (process.env.BASE_SHA || '').slice(0, 8);
@@ -412,10 +380,7 @@ jobs:
               });
             }
         env:
-          COMMENT_BODY: ${{ steps.diff.outputs.body }}
-          BLOCKS_CI_CONTENT: ${{ steps.blocks-ci.outputs.content }}
-          BLOCKS_CI_PATCH: ${{ steps.blocks-ci.outputs.patch }}
-          BLOCKS_CI_ERRORS: ${{ steps.blocks-ci.outputs.errors }}
+          COMMENT_BODY_PATH: ${{ steps.comment_body.outputs.path }}
           BASE_SHA: ${{ steps.base.outputs.base_sha }}
           CURRENT_SHA: ${{ github.sha }}
 
