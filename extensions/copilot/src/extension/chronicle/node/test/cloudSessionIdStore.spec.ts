@@ -131,6 +131,21 @@ describe('CloudSessionIdStore', () => {
 		expect(store.get('local-b')).toEqual({ cloudSessionId: 'cloud-no-task', cloudTaskId: 'local-b' });
 	});
 
+	it('mergeFromCloud refreshes stale cloudTaskId when the cloud listing later provides task_id', async () => {
+		const store = new CloudSessionIdStore(tmpDir);
+		await store.load();
+
+		// Simulate an entry reconciled before task_id was exposed (cloudTaskId
+		// fell back to agent_task_id).
+		store.mergeFromCloud([{ id: 'cloud-1', agent_task_id: 'local-1' }]);
+		expect(store.get('local-1')).toEqual({ cloudSessionId: 'cloud-1', cloudTaskId: 'local-1' });
+
+		// Cloud listing now returns a real server task_id — the entry should
+		// be refreshed so delete uses the correct identifier.
+		store.mergeFromCloud([{ id: 'cloud-1', agent_task_id: 'local-1', task_id: 'server-task-1' }]);
+		expect(store.get('local-1')).toEqual({ cloudSessionId: 'cloud-1', cloudTaskId: 'server-task-1' });
+	});
+
 	it('keys returns all session IDs', async () => {
 		const store = new CloudSessionIdStore(tmpDir);
 		await store.load();
