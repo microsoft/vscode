@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
+import { GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_USER_EMAIL, IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { SpyChatResponseStream } from '../../../../../util/common/test/mockChatResponseStream';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
@@ -67,6 +68,12 @@ suite('Copilot CLI Chat Sanity Test', function () {
 		assert.ok(activateResult, 'Activation result is not available');
 		assert.strictEqual(typeof (activateResult as IInstantiationService).invokeFunction, 'function', 'invokeFunction is not a function');
 		realInstaAccessor = activateResult as IInstantiationService;
+		await realInstaAccessor.invokeFunction(async (accessor) => {
+			const token = process.env.GITHUB_PAT ?? process.env.GITHUB_OAUTH_TOKEN;
+			assert.ok(token, 'Expected GITHUB_PAT or GITHUB_OAUTH_TOKEN to be set for Copilot CLI sanity auth. Run `npm run get_token` first.');
+			const authenticationService = accessor.get(IAuthenticationService);
+			sandbox.stub(authenticationService, 'getGitHubSession').callsFake(async (kind) => createGitHubSession(token, kind));
+		});
 	});
 
 	suiteTeardown(async function () {
@@ -193,5 +200,17 @@ suite('Copilot CLI Chat Sanity Test', function () {
 			return argument.message;
 		}
 		return argument ?? '';
+	}
+
+	function createGitHubSession(token: string, kind: 'permissive' | 'any'): vscode.AuthenticationSession {
+		return {
+			id: token,
+			accessToken: token,
+			scopes: kind === 'permissive' ? GITHUB_SCOPE_ALIGNED : GITHUB_SCOPE_USER_EMAIL,
+			account: {
+				id: 'user',
+				label: 'User',
+			},
+		};
 	}
 });
