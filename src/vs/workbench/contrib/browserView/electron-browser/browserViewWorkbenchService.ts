@@ -19,6 +19,22 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { ChatConfiguration } from '../../chat/common/constants.js';
+import { AgentHostEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { focusBorder } from '../../../../platform/theme/common/colors/baseColors.js';
+import { buttonForeground, buttonBackground } from '../../../../platform/theme/common/colors/inputColors.js';
+import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
+
+/**
+ * When enabled, integrated browser tools are exposed as client-provided tools
+ * to agent host sessions in the Sessions window. Has no effect outside the
+ * Sessions window or when the agent host is disabled.
+ */
+export const AgentHostChatToolsEnabledSettingId = 'workbench.browser.agentHostChatToolsEnabled';
 
 /** Command IDs whose accelerators are shown in browser view context menus. */
 const browserViewContextMenuCommands = [
@@ -37,6 +53,30 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	private readonly _onDidChangeBrowserViews = this._register(new Emitter<void>());
 	readonly onDidChangeBrowserViews: Event<void> = this._onDidChangeBrowserViews.event;
 
+	private static readonly _sharingAvailableContext = ContextKeyExpr.and(
+		ChatContextKeys.enabled,
+		ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
+		ContextKeyExpr.has(`config.workbench.browser.enableChatTools`),
+		// If we're in Sessions Window, we require some additional conditions.
+		ContextKeyExpr.or(
+			IsSessionsWindowContext.negate(),
+			ContextKeyExpr.and(
+				IsSessionsWindowContext,
+				ContextKeyExpr.has(`config.${AgentHostEnabledSettingId}`),
+				ContextKeyExpr.has(`config.${AgentHostChatToolsEnabledSettingId}`),
+			),
+		),
+	)!;
+
+	private _isSharingAvailable: boolean = false;
+
+	private readonly _onDidChangeSharingAvailable = this._register(new Emitter<boolean>());
+	readonly onDidChangeSharingAvailable: Event<boolean> = this._onDidChangeSharingAvailable.event;
+
+	get isSharingAvailable(): boolean {
+		return this._isSharingAvailable;
+	}
+
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -46,7 +86,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 		const channel = mainProcessService.getChannel(ipcBrowserViewChannelName);
@@ -55,6 +97,30 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 		this.sendKeybindings();
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.sendKeybindings()));
+
+		this.sendTheme();
+		this._register(this.themeService.onDidColorThemeChange(() => this.sendTheme()));
+
+		this.sendConfiguration();
+		const chatEnabledKeys = new Set(ChatContextKeys.enabled.keys());
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(chatEnabledKeys)) {
+				this.sendConfiguration();
+			}
+		}));
+
+		// Track sharing availability from context keys
+		this._isSharingAvailable = this.contextKeyService.contextMatchesRules(BrowserViewWorkbenchService._sharingAvailableContext);
+		const sharingKeys = new Set(BrowserViewWorkbenchService._sharingAvailableContext.keys());
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(sharingKeys)) {
+				const was = this._isSharingAvailable;
+				this._isSharingAvailable = this.contextKeyService.contextMatchesRules(BrowserViewWorkbenchService._sharingAvailableContext);
+				if (was !== this._isSharingAvailable) {
+					this._onDidChangeSharingAvailable.fire(this._isSharingAvailable);
+				}
+			}
+		}));
 
 		// Start asynchronously creating models for all views we already own.
 		void this._initializeExistingViews().catch(e => {
@@ -146,9 +212,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	private async _initializeExistingViews(): Promise<void> {
 		const views = await this._browserViewService.getBrowserViews(this._mainWindowId);
 		for (const info of views) {
-			if (!this._known.has(info.id)) {
-				this._createModel(info.id, info.owner, info.state);
-			}
+			this._createModel(info.id, info.owner, info.state);
 		}
 	}
 
@@ -163,6 +227,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 		// Sanity: both pass and assign the model to be sure. It will no-op if already set.
 		this.getOrCreateLazy(id, {}, model).model = model;
+
+		this._onDidChangeBrowserViews.fire();
 
 		return model;
 	}
@@ -219,5 +285,21 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 		}
 		void this._browserViewService.updateKeybindings(keybindings);
+	}
+
+	private sendTheme(): void {
+		const theme = this.themeService.getColorTheme();
+		void this._browserViewService.updateTheme({
+			focusBorder: theme.getColor(focusBorder)?.toString(),
+			buttonBackground: theme.getColor(buttonBackground)?.toString(),
+			buttonForeground: theme.getColor(buttonForeground)?.toString(),
+			font: DEFAULT_FONT_FAMILY,
+		});
+	}
+
+	private sendConfiguration(): void {
+		void this._browserViewService.updateConfiguration({
+			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
+		});
 	}
 }

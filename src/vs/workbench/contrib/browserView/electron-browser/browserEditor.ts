@@ -40,7 +40,6 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { SiteInfoWidget } from './siteInfoWidget.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -67,10 +66,10 @@ export abstract class BrowserEditorContribution extends Disposable {
 
 	constructor(protected readonly editor: BrowserEditor) {
 		super();
-		this._register(editor.onDidChangeModel(model => {
+		this._register(editor.onDidChangeModel(({ model, isNew }) => {
 			this._modelStore.clear();
 			if (model) {
-				this.subscribeToModel(model, this._modelStore);
+				this.subscribeToModel(model, this._modelStore, isNew);
 			} else {
 				this.clear();
 			}
@@ -80,7 +79,7 @@ export abstract class BrowserEditorContribution extends Disposable {
 	/**
 	 * Called whenever the editor model changes to update state.
 	 */
-	protected subscribeToModel(_model: IBrowserViewModel, _store: DisposableStore): void { }
+	protected subscribeToModel(_model: IBrowserViewModel, _store: DisposableStore, _isNew: boolean): void { }
 
 	/**
 	 * Called when the model is cleared to reset state.
@@ -339,7 +338,10 @@ export class BrowserEditor extends EditorPane {
 
 	private _model: IBrowserViewModel | undefined;
 	get model(): IBrowserViewModel | undefined { return this._model; }
-	private readonly _onDidChangeModel = this._register(new Emitter<IBrowserViewModel | undefined>());
+	private readonly _onDidChangeModel = this._register(new Emitter<{
+		model: IBrowserViewModel | undefined;
+		isNew: boolean;
+	}>());
 	readonly onDidChangeModel = this._onDidChangeModel.event;
 
 	// -- State ----------------------------------------------------------
@@ -375,16 +377,8 @@ export class BrowserEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super(BrowserEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
-
-		// Be sure to hide the view when the workbench is reloading, as `clearInput()` may not be called.
-		this._register(this.lifecycleService.onWillShutdown((e) => {
-			if (e.reason === ShutdownReason.RELOAD) {
-				this._model?.setVisible(false);
-			}
-		}));
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -540,6 +534,7 @@ export class BrowserEditor extends EditorPane {
 		this._inputDisposables.clear();
 
 		let model = input.model;
+		const isNew = !model;
 		if (!model) {
 			// Set initial navigation state from the input so that the UI is populated while the model is loading.
 			this.updateNavigationState({
@@ -559,7 +554,7 @@ export class BrowserEditor extends EditorPane {
 		}
 
 		this._model = model;
-		this._onDidChangeModel.fire(model);
+		this._onDidChangeModel.fire({ model, isNew });
 
 		// Initialize UI state and context keys from model
 		this.updateNavigationState({
@@ -1044,7 +1039,7 @@ export class BrowserEditor extends EditorPane {
 
 		void this._model?.setVisible(false);
 		this._model = undefined;
-		this._onDidChangeModel.fire(undefined);
+		this._onDidChangeModel.fire({ model: undefined, isNew: false });
 
 		this._canGoBackContext.reset();
 		this._canGoForwardContext.reset();

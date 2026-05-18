@@ -154,6 +154,11 @@ declare module 'vscode' {
 		timeToFirstTokenInMillis?: number;
 
 		/**
+		 * The unique request id assigned by the model provider for this turn.
+		 */
+		requestId?: string;
+
+		/**
 		 * The maximum number of prompt/input tokens allowed for this request.
 		 */
 		maxInputTokens?: number;
@@ -169,9 +174,22 @@ declare module 'vscode' {
 		requestName?: string;
 
 		/**
+		 * Cache-relevant request options as a JSON-stringified blob (e.g.
+		 * `tool_choice`, `reasoning_effort`, `thinking`, `response_format`).
+		 * When this differs between two requests, the prompt cache is
+		 * invalidated even if the message array is byte-identical.
+		 */
+		requestOptions?: string;
+
+		/**
 		 * The outcome status of the model turn (e.g., "success", "failure", "canceled").
 		 */
 		status?: string;
+
+		/**
+		 * The per-request cost from `copilot_usage.total_nano_aiu`, in nano-AIUs.
+		 */
+		copilotUsageNanoAiu?: number;
 
 		/**
 		 * Create a new ChatDebugModelTurnEvent.
@@ -547,6 +565,11 @@ declare module 'vscode' {
 		timeToFirstTokenInMillis?: number;
 
 		/**
+		 * The unique request id assigned by the model provider for this turn.
+		 */
+		requestId?: string;
+
+		/**
 		 * The maximum number of prompt/input tokens allowed for this request.
 		 */
 		maxInputTokens?: number;
@@ -575,6 +598,14 @@ declare module 'vscode' {
 		 * The total number of tokens consumed (input + output).
 		 */
 		totalTokens?: number;
+
+		/**
+		 * Cache-relevant request options as a JSON-stringified blob (e.g.
+		 * `tool_choice`, `reasoning_effort`, `thinking`, `response_format`).
+		 * When this differs between two requests, the prompt cache is
+		 * invalidated even if the message array is byte-identical.
+		 */
+		requestOptions?: string;
 
 		/**
 		 * An error message, if the model turn failed.

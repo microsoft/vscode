@@ -15,6 +15,7 @@ import { ILanguageModelToolsService, SpecedToolAliases } from '../../tools/langu
 import { PromptsType, Target } from '../promptTypes.js';
 import { ISequenceValue, IHeaderAttribute, IScalarValue, parseCommaSeparatedList, ParsedPromptFile, PromptHeader, IValue, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_AGENTS_SOURCE_FOLDER, isInClaudeRulesFolder, isSkillFilename, LEGACY_MODE_FILE_EXTENSION, VALID_SKILL_NAME_REGEX } from '../config/promptFileLocations.js';
@@ -37,6 +38,7 @@ export class PromptValidator {
 		@ILabelService private readonly labelService: ILabelService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILogService private readonly logger: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -132,6 +134,19 @@ export class PromptValidator {
 				}
 			}
 		}
+
+		// Validate context: fork — requires the skill tool to be enabled
+		const contextAttribute = promptAST.header?.getAttribute(PromptHeaderAttributes.context);
+		if (contextAttribute && contextAttribute.value.type === 'scalar' && contextAttribute.value.value.trim() === 'fork') {
+			const skillToolEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.skillTool.enabled');
+			if (!skillToolEnabled) {
+				report(toMarker(
+					localize('promptValidator.contextForkNotSupported', "The 'context: fork' attribute requires the skill tool to be enabled (github.copilot.chat.skillTool.enabled)."),
+					contextAttribute.value.range,
+					MarkerSeverity.Warning
+				));
+			}
+		}
 	}
 
 	private async validateBody(promptAST: ParsedPromptFile, target: Target, report: (markers: IMarkerData) => void): Promise<void> {
@@ -157,8 +172,8 @@ export class PromptValidator {
 							const loc = this.labelService.getUriLabel(resolved);
 							report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found at '{1}'.", ref.content, loc), ref.range, MarkerSeverity.Warning));
 						}
-					} catch {
-						this.logger.warn(`Error checking existence of file reference '${ref.content}' resolved to '${resolved.toString()}' in prompt file '${promptAST.uri.toString()}'`);
+					} catch (e) {
+						this.logger.warn(`Error checking existence of file reference '${ref.content}' resolved to '${resolved.toString()}' in prompt file '${promptAST.uri.toString()}': ${e.message}`);
 					}
 				})());
 			}
@@ -212,7 +227,7 @@ export class PromptValidator {
 		this.validateArgumentHint(attributes, report);
 		switch (promptType) {
 			case PromptsType.prompt: {
-				const agent = this.validateAgent(attributes, report);
+				const agent = await this.validateAgent(attributes, report);
 				this.validateTools(attributes, agent?.kind ?? ChatModeKind.Agent, target, report);
 				this.validateModel(attributes, agent?.kind ?? ChatModeKind.Agent, report);
 				break;
@@ -426,7 +441,7 @@ export class PromptValidator {
 		return undefined;
 	}
 
-	private validateAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): IChatMode | undefined {
+	private async validateAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): Promise<IChatMode | undefined> {
 		const agentAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.agent);
 		const modeAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.mode);
 		if (modeAttribute) {
@@ -450,11 +465,11 @@ export class PromptValidator {
 			report(toMarker(localize('promptValidator.attributeMustBeNonEmpty', "The '{0}' attribute must be a non-empty string.", attribute.key), attribute.value.range, MarkerSeverity.Error));
 			return undefined;
 		}
-		return this.validateAgentValue(attribute.value, report);
+		return await this.validateAgentValue(attribute.value, report);
 	}
 
-	private validateAgentValue(value: IScalarValue, report: (markers: IMarkerData) => void): IChatMode | undefined {
-		const agents = this.chatModeService.getModes();
+	private async validateAgentValue(value: IScalarValue, report: (markers: IMarkerData) => void): Promise<IChatMode | undefined> {
+		const agents = await this.chatModeService.getLocalModes();
 		const availableAgents = [];
 
 		// Check if agent exists in builtin or custom agents
@@ -837,7 +852,7 @@ export class PromptValidator {
 		}
 
 		// Collect available agent names
-		const agents = await this.promptsService.getCustomAgents(CancellationToken.None);
+		const agents = (await this.promptsService.getCustomAgents(CancellationToken.None)).filter(a => a.enabled);
 		const availableAgentNames = new Set<string>(agents.map(agent => agent.name));
 		availableAgentNames.add(ChatMode.Agent.name.get()); // include default agent
 
@@ -925,7 +940,7 @@ const allAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
 	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.hooks, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, GithubPromptHeaderAttributes.github],
-	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation],
+	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, PromptHeaderAttributes.context],
 	[PromptsType.hook]: [], // hooks are JSON files, not markdown with YAML frontmatter
 };
 const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers, GithubPromptHeaderAttributes.github, PromptHeaderAttributes.infer];

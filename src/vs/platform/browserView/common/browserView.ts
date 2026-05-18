@@ -11,6 +11,7 @@ const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
 	// Tab management
 	Open = `${commandPrefix}.open`,
+	OpenFile = `${commandPrefix}.openFile`,
 	NewTab = `${commandPrefix}.newTab`,
 	QuickOpen = `${commandPrefix}.quickOpen`,
 	OpenOrList = `${commandPrefix}.openOrList`,
@@ -65,6 +66,17 @@ export interface IElementData {
 	readonly innerText?: string;
 }
 
+export interface IBrowserViewTheme {
+	readonly focusBorder?: string;
+	readonly buttonBackground?: string;
+	readonly buttonForeground?: string;
+	readonly font?: string;
+}
+
+export interface IBrowserViewConfiguration {
+	readonly aiFeaturesDisabled?: boolean;
+}
+
 export interface IBrowserViewBounds {
 	windowId: number;
 	x: number;
@@ -88,6 +100,8 @@ export interface IBrowserViewCaptureScreenshotOptions {
 export interface IBrowserViewOwner {
 	/** The main code window ID that owns this view's lifecycle. */
 	readonly mainWindowId: number;
+	/** Optional session ID identifying the agent session that created this view. */
+	readonly sessionId?: string;
 }
 
 /**
@@ -141,6 +155,7 @@ export interface IBrowserViewState {
 	certificateError: IBrowserViewCertificateError | undefined;
 	storageScope: BrowserViewStorageScope;
 	browserZoomIndex: number;
+	isElementSelectionActive: boolean;
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -264,6 +279,8 @@ export interface IBrowserViewService {
 	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
 	onDynamicDidFindInPage(id: string): Event<IBrowserViewFindInPageResult>;
 	onDynamicDidClose(id: string): Event<void>;
+	onDynamicDidSelectElement(id: string): Event<IElementData>;
+	onDynamicDidChangeElementSelectionActive(id: string): Event<boolean>;
 
 	/**
 	 * Get all known browser views with their ownership and state information.
@@ -441,30 +458,30 @@ export interface IBrowserViewService {
 	getConsoleLogs(id: string): Promise<string>;
 
 	/**
-	 * Start element inspection mode in a browser view. Sets up a CDP overlay that
-	 * highlights elements on hover. When the user clicks an element, its data is
-	 * returned and the overlay is removed.
+	 * Toggle element selection mode in a browser view.
+	 * Element selections are delivered via {@link onDynamicDidSelectElement}.
+	 * State changes are delivered via {@link onDynamicDidChangeElementSelectionActive}.
+	 *
 	 * @param id The browser view identifier
-	 * @param cancellationId An identifier that can be passed to {@link cancel} to abort
-	 * @returns The inspected element data, or undefined if cancelled
+	 * @param enabled Whether to enable or disable. Omit to toggle.
 	 */
-	getElementData(id: string, cancellationId: number): Promise<IElementData | undefined>;
+	toggleElementSelection(id: string, enabled?: boolean): Promise<void>;
 
 	/**
-	 * Get element data for the currently focused element in the browser view.
-	 * @param id The browser view identifier
-	 * @returns The focused element's data, or undefined if no element is focused
+	 * Update the theme used by injected UI across all browser views.
+	 * @param theme The theme variables to apply
 	 */
-	getFocusedElementData(id: string): Promise<IElementData | undefined>;
-
-	/**
-	 * Cancel an in-progress request.
-	 */
-	cancel(cancellationId: number): Promise<void>;
+	updateTheme(theme: IBrowserViewTheme): Promise<void>;
 
 	/**
 	 * Update the keybinding accelerators used in browser view context menus.
 	 * @param keybindings A map of command ID to accelerator label
 	 */
 	updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void>;
+
+	/**
+	 * Update workbench configuration that affect browser view behavior.
+	 * @param config The configuration to apply
+	 */
+	updateConfiguration(config: IBrowserViewConfiguration): Promise<void>;
 }

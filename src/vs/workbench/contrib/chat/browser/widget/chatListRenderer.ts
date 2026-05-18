@@ -21,7 +21,7 @@ import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
@@ -122,6 +122,13 @@ export interface IChatListItemTemplate {
 	 * they are disposed in a separate cycle after diffing with the next content to render.
 	 */
 	renderedParts?: IChatContentPart[];
+	/**
+	 * Tool parts that have been moved out of a thinking part into the row's value
+	 * container. Their lifecycle matches `renderedParts` (cleared by
+	 * `clearRenderedParts`), not `elementDisposables` which is cleared on
+	 * virtualization recycle.
+	 */
+	movedOutToolParts?: DisposableMap<string, IDisposable>;
 	/**
 	 * Element used to track whether the template is mounted in the DOM.
 	 */
@@ -345,8 +352,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (normalizedHeight === template.currentElement.currentRenderedHeight) {
 			return;
 		}
+
+		const originalStoredHeight = template.currentElement.currentRenderedHeight;
 		template.currentElement.currentRenderedHeight = normalizedHeight;
-		if (template.currentElement !== this._elementBeingRendered) {
+		if (template.currentElement !== this._elementBeingRendered && typeof originalStoredHeight === 'number') {
 			this._onDidChangeItemHeight.fire({ element: template.currentElement, height: normalizedHeight });
 		}
 	}
@@ -636,7 +645,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}));
 
-		const resizeObserver = templateDisposables.add(new dom.DisposableResizeObserver((entries) => {
+		const resizeObserver = templateDisposables.add(new dom.DisposableResizeObserver('ChatListItemRenderer.itemHeight', (entries) => {
 			const entry = entries[0];
 			if (entry) {
 				this.fireItemHeightChange(template, entry.borderBoxSize.at(0)?.blockSize);
@@ -668,6 +677,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else if (isPendingDividerVM(templateData.currentElement)) {
 			dom.clearNode(templateData.value);
 		}
+
+		templateData.movedOutToolParts?.dispose();
+		templateData.movedOutToolParts = undefined;
 
 		// This template item is no longer in use, or having another element rendered into it,
 		// clear the context on toolbars so it doesn't retain the viewmodel.
@@ -1072,7 +1084,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const showProgressDetails = this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false
-			&& this.configService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true;
+			&& (this.configService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true || this.accessibilityService.isMotionReduced());
 		if (element.isComplete) {
 			return undefined;
 		}
@@ -1235,12 +1247,27 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private updateWorkingProgressForPendingConfirmations(templateData: IChatListItemTemplate): void {
+		// Defer mutation of `templateData.renderedParts` (via `removeWorkingProgressContentPart`)
+		// to a microtask. This method is invoked from tool autoruns, which fire synchronously inside
+		// `renderChatContentDiff` while the array is being iterated — splicing it mid-render would
+		// orphan subsequent parts and leave detached DOM nodes referenced from `renderedParts`.
+		// Capture the originating element so we bail out if the template was recycled for a different one.
+		const originalElement = templateData.currentElement;
+		queueMicrotask(() => {
+			if (templateData.currentElement !== originalElement) {
+				return;
+			}
+			this.doUpdateWorkingProgressForPendingConfirmations(templateData);
+		});
+	}
+
+	private doUpdateWorkingProgressForPendingConfirmations(templateData: IChatListItemTemplate): void {
 		const element = templateData.currentElement;
 		if (!isResponseVM(element)) {
 			return;
 		}
 
-		if (element.isComplete && this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false && this.configService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true) {
+		if (element.isComplete && this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false && (this.configService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true || this.accessibilityService.isMotionReduced())) {
 			return;
 		}
 
@@ -1915,7 +1942,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// only pin terminal tools based on settings
 		const isTerminalTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'terminal';
 		const isContributedTerminalToolInvocation = element
-			&& (element.sessionResource.scheme !== Schemas.vscodeChatInput && element.sessionResource.scheme !== Schemas.vscodeLocalChatSession) // contributed sessions
+			&& (element.sessionResource.scheme !== Schemas.vscodeChatInput && getChatSessionType(element.sessionResource) !== localChatSessionType) // contributed sessions
 			&& part.kind === 'toolInvocationSerialized' && part.toolSpecificData?.kind === 'terminal'; // contributed serialized terminal tool invocations data
 		if (isTerminalTool && !isContributedTerminalToolInvocation) {
 			// don't pin terminals with confirmation
@@ -2383,8 +2410,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
-		// Skip rendering completed tool invocations that have no meaningful content - ie, autopilot "task complete"
-		if (IChatToolInvocation.isComplete(toolInvocation)) {
+		// Skip rendering completed tool invocations that are hidden and have no meaningful content - ie, autopilot "task complete".
+		// We intentionally only short-circuit when the invocation's presentation is hidden, otherwise extension-contributed
+		// tools that don't supply a `pastTenseMessage` (proposed API) get filtered out incorrectly.
+		if (IChatToolInvocation.isComplete(toolInvocation) && IChatToolInvocation.isEffectivelyHidden(toolInvocation)) {
 			const msg = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
 			const text = typeof msg === 'string' ? msg : msg?.value;
 			if (!text || text.trim().length === 0) {
@@ -2538,12 +2567,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					wrapper.remove();
 				}
 				templateData.value.appendChild(createdPart.domNode);
-				// Decrement thinking part counters for the materialized item that was moved out
+				// Decrement thinking part counters for the materialized item that was moved out.
+				// removeMaterializedItem detaches the part from the thinking part's ownership
+				// without disposing it, so transfer ownership to the template's moved-out
+				// store which shares the lifecycle of `renderedParts`.
 				thinkingPart.removeMaterializedItem(toolInvocation.toolCallId);
+				(templateData.movedOutToolParts ??= new DisposableMap()).set(toolInvocation.toolCallId, createdPart);
 			} else {
 				thinkingPart.removeLazyItem(toolInvocation.toolId);
 				const { domNode, part: createdPart } = createToolPart();
 				part = createdPart;
+				(templateData.movedOutToolParts ??= new DisposableMap()).set(toolInvocation.toolCallId, createdPart);
 				templateData.value.appendChild(domNode);
 			}
 			this.finalizeCurrentThinkingPart(context, templateData);
@@ -2748,6 +2782,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource) : undefined;
 		const shouldAutoFocus = widget ? widget.getInput() === '' : true;
 		const responseId = isResponseVM(context.element) ? context.element.requestId : undefined;
+		const carouselKey = carousel.resolveId ?? `${responseId ?? ''}_${context.contentIndex}`;
 
 		const handleSubmit = async (answers: Map<string, IChatQuestionAnswerValue> | undefined, part: ChatQuestionCarouselPart) => {
 			// Mark the carousel as used and store the answers
@@ -2769,7 +2804,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.removeCarouselFromTracking(context, part);
 
 			// Clear from input part (clear only the submitted carousel by its key)
-			const carouselKey = carousel.resolveId ?? `${responseId}_${context.contentIndex}`;
 			widget?.input.clearQuestionCarousel(undefined, carouselKey);
 		};
 
@@ -2790,10 +2824,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.pendingQuestionCarousels.get(context.element.sessionResource)?.clear();
 			}
 
-			// Clear the carousel from input part when response completes (stopped/canceled)
-			// Only clear if this response's carousel is currently displayed (pass responseId)
-			if (responseIsComplete && inputPartHasCarousel && responseId) {
-				widget?.input.clearQuestionCarousel(responseId);
+			// Clear the carousel from the input area once it has been answered or when the
+			// whole response completes. `carousel.isUsed` covers externally completed
+			// flows (for example, a remote answer winning over the local input UI).
+			if (inputPartHasCarousel) {
+				if (carousel.isUsed) {
+					widget?.input.clearQuestionCarousel(undefined, carouselKey);
+				} else if (responseIsComplete && responseId) {
+					widget?.input.clearQuestionCarousel(responseId);
+				}
 			}
 
 			const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
@@ -2923,18 +2962,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (review instanceof ChatPlanReviewData) {
 				review.completion.complete(undefined);
 			}
-			if (responseId) {
-				widget?.input.clearPlanReview(responseId);
-			}
+		}
+		// Always clear the docked widget once the response is complete —
+		// `isUsed` may already be true if the response was cancelled (see
+		// `ChatResponseModel.cancel()` → `ChatPlanReviewData.dismiss()`),
+		// in which case the branch above is skipped but the widget above
+		// the input still needs to go.
+		if (responseIsComplete && responseId) {
+			widget?.input.clearPlanReview(responseId);
 		}
 
-		// Build the inline progress message for the response stream. While
-		// pending, this is "Plan review required" with a spinner. Once the
-		// user has answered, it transitions to the action that was taken
-		// (e.g. "Approved plan", "Started implementation with autopilot"),
-		// and — when the user provided feedback — appends that feedback
-		// inline in the same progress row after a colon, collapsing
-		// whitespace so the transcript reads as a single line.
+		// Build the inline progress message. While pending: "Plan review
+		// required" with a spinner. Once answered: the action that was
+		// taken (e.g. "Approved plan", "Provided feedback"). The actual
+		// feedback text is rendered as a separate markdown block beneath
+		// rather than collapsed onto the progress line.
 		const renderProgress = (): IChatContentPart => {
 			const message = this.getPlanReviewProgressMessage(review);
 			if (!message) {
@@ -2947,12 +2989,24 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// pending → used transition and trigger a re-render.
 			const renderedAsUsed = !!review.isUsed;
 			const isPending = !renderedAsUsed;
-			const feedbackText = renderedAsUsed && !review.data?.rejected ? review.data?.feedback?.trim() : undefined;
-			const fullMessage = feedbackText
-				? localize('chat.planReview.feedbackInline', "{0}: {1}", message, feedbackText.replace(/\s+/g, ' '))
-				: message;
+			const data = renderedAsUsed && !review.data?.rejected ? review.data : undefined;
+			// Prefer the structured fields from `ChatPlanReviewPart`; fall
+			// back to the combined `feedback` string for older results.
+			let overall = data?.feedbackOverall?.trim();
+			const inlineMd = data?.feedbackInlineMarkdown?.trim();
+			if (!overall && !inlineMd && data?.feedback) {
+				overall = data.feedback.trim();
+			}
 			const content = new MarkdownString(undefined, { supportThemeIcons: true });
-			content.appendText(fullMessage);
+			if (overall) {
+				content.appendText(localize('chat.planReview.feedbackInline', "{0}: {1}", message, overall.replace(/\s+/g, ' ')));
+			} else {
+				content.appendText(message);
+			}
+			if (inlineMd) {
+				content.appendMarkdown('\n\n');
+				content.appendMarkdown(inlineMd);
+			}
 			const progressPart = this.instantiationService.createInstance(
 				ChatProgressContentPart,
 				{ content },

@@ -74,7 +74,8 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.LayoutControlMenu,
 				when: ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), IsAuxiliaryWindowContext),
-				order: 0
+				order: 0,
+				group: 'navigation'
 			}
 		});
 	}
@@ -94,7 +95,8 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.LayoutControlMenu,
 				when: ContextKeyExpr.and(IsCompactTitleBarContext, IsAuxiliaryWindowContext),
-				order: 0
+				order: 0,
+				group: 'navigation'
 			}
 		});
 	}

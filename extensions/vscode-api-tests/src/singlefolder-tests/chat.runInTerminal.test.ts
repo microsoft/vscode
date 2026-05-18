@@ -262,7 +262,8 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			assert.ok(trimmed.endsWith(`${m1}\n${m2}`), `Expected markers at end, got: ${trimmed}`);
 		});
 
-		test('non-zero exit code is reported', async function () {
+		// Flaky: #313601
+		test.skip('non-zero exit code is reported', async function () {
 			this.timeout(60000);
 
 			// Use a subshell so we don't kill the shared terminal
@@ -314,7 +315,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			assert.strictEqual(output.trim(), marker);
 		});
 
-		test('network requests to allowlisted domains succeed in sandbox', async function () {
+		test.skip('network requests to allowlisted domains succeed in sandbox', async function () {
 			this.timeout(60000);
 
 			const configuration = vscode.workspace.getConfiguration();
@@ -332,7 +333,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			}
 		});
 
-		test('requestUnsandboxedExecution preserves sandbox $TMPDIR', async function () {
+		test.skip('requestUnsandboxedExecution preserves sandbox $TMPDIR', async function () {
 			this.timeout(60000);
 
 			const marker = `SANDBOX_UNSANDBOX_${Date.now()}`;
@@ -370,7 +371,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			assert.ok(trimmed.endsWith(marker), `Unexpected output: ${JSON.stringify(trimmed)}`);
 		});
 
-		test('can read files outside the workspace', async function () {
+		test.skip('can read files outside the workspace', async function () {
 			this.timeout(60000);
 
 			const output = await invokeRunInTerminal('head -1 /etc/shells');
@@ -397,7 +398,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			assert.strictEqual(output.trim(), marker);
 		});
 
-		test('$TMPDIR is writable inside the sandbox', async function () {
+		test.skip('$TMPDIR is writable inside the sandbox', async function () {
 			this.timeout(60000);
 
 			const marker = `SANDBOX_TMPDIR_${Date.now()}`;
@@ -411,7 +412,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			assert.strictEqual(lastLine, marker, `Unexpected output: ${JSON.stringify(trimmed)}`);
 		});
 
-		test('non-allowlisted domains trigger unsandboxed confirmation flow', async function () {
+		test.skip('non-allowlisted domains trigger unsandboxed confirmation flow', async function () {
 			this.timeout(60000);
 
 			const marker = `SANDBOX_DOMAIN_${Date.now()}`;

@@ -144,7 +144,7 @@ const TOOL_CATEGORIES = [
 	{ id: 'edit', label: 'Edit tools', tools: ['Edit', 'Write', 'NotebookEdit'] },
 	{ id: 'execution', label: 'Execution tools', tools: ['Bash'] },
 	{ id: 'mcp', label: 'MCP tools', tools: [] }, // Populated dynamically
-	{ id: 'other', label: 'Other tools', tools: ['Skill', 'Task', 'TodoWrite'] },
+	{ id: 'other', label: 'Other tools', tools: ['Skill', 'Agent', 'Task', 'TodoWrite'] },
 ] as const;
 
 /**
@@ -161,6 +161,7 @@ const ALL_TOOLS = [
 	'WebFetch',
 	'WebSearch',
 	'Skill',
+	'Agent',
 	'Task',
 	'TodoWrite',
 ] as const;

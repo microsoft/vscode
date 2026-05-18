@@ -42,6 +42,33 @@ function toNodePlatformArch(platform: string, arch: string): { nodePlatform: str
 }
 
 /**
+ * The platform-arch directories shipped by @vscode/ripgrep-universal.
+ * These follow Node's `${process.platform}-${process.arch}` naming.
+ * Alpine builds reuse the regular `linux-*` binaries (ripgrep is statically
+ * linked enough to run on both glibc and musl).
+ */
+const ripgrepUniversalPlatforms = [
+	'darwin-arm64', 'darwin-x64',
+	'linux-arm', 'linux-arm64', 'linux-ia32', 'linux-x64',
+	'linux-ppc64', 'linux-riscv64', 'linux-s390x',
+	'win32-arm64', 'win32-ia32', 'win32-x64',
+];
+
+/**
+ * Returns a glob filter that strips @vscode/ripgrep-universal bin directories
+ * for architectures other than the build target.
+ */
+export function getRipgrepExcludeFilter(platform: string, arch: string): string[] {
+	const { nodePlatform, nodeArch } = toNodePlatformArch(platform, arch);
+	const target = `${nodePlatform}-${nodeArch}`;
+	const nonTargetPlatforms = ripgrepUniversalPlatforms.filter(p => p !== target);
+
+	const excludes = nonTargetPlatforms.map(p => `!**/node_modules/@vscode/ripgrep-universal/bin/${p}/**`);
+
+	return ['**', ...excludes];
+}
+
+/**
  * Returns a glob filter that strips @github/copilot platform packages
  * for architectures other than the build target.
  *
@@ -90,9 +117,18 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Copilot SDK directory not found at ${copilotSdkBase}`);
 	}
 
-	const ripgrepSource = path.join(appNodeModulesDir, '@vscode', 'ripgrep', 'bin');
+	const ripgrepSource = path.join(appNodeModulesDir, '@vscode', 'ripgrep-universal', 'bin', platformArch);
 	if (!fs.existsSync(ripgrepSource)) {
-		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ripgrep source not found at ${ripgrepSource}`);
+		const binDir = path.join(appNodeModulesDir, '@vscode', 'ripgrep-universal', 'bin');
+		let diagnostics: string;
+		try {
+			diagnostics = fs.existsSync(binDir)
+				? `Available bin entries: ${JSON.stringify(fs.readdirSync(binDir))}`
+				: `bin directory does not exist at ${binDir}`;
+		} catch (err) {
+			diagnostics = `Failed to enumerate bin directory: ${err}`;
+		}
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ripgrep source not found at ${ripgrepSource} (build platform=${platform}, arch=${arch}, computed platformArch=${platformArch}). ${diagnostics}`);
 	}
 
 	const ripgrepDest = path.join(copilotSdkBase, 'ripgrep', 'bin', platformArch);

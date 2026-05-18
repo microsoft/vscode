@@ -876,7 +876,7 @@ describe('ChatSessionContentProvider', () => {
 			const handleRequestMock = vi.mocked(mockAgentManager.handleRequest);
 			expect(handleRequestMock).toHaveBeenCalledOnce();
 
-			const [sessionId, , , , , isNewSession] = handleRequestMock.mock.calls[0];
+			const [sessionId, , , , isNewSession] = handleRequestMock.mock.calls[0];
 			expect(sessionId).toBe('real-uuid-123');
 			expect(isNewSession).toBe(true);
 		});
@@ -898,7 +898,7 @@ describe('ChatSessionContentProvider', () => {
 			const handleRequestMock = vi.mocked(mockAgentManager.handleRequest);
 			expect(handleRequestMock).toHaveBeenCalledOnce();
 
-			const [sessionId, , , , , isNewSession] = handleRequestMock.mock.calls[0];
+			const [sessionId, , , , isNewSession] = handleRequestMock.mock.calls[0];
 			expect(sessionId).toBe('real-uuid-123');
 			expect(isNewSession).toBe(false);
 		});
@@ -923,7 +923,7 @@ describe('ChatSessionContentProvider', () => {
 			await handler(createTestRequest('second'), secondContext, stream, CancellationToken.None);
 
 			const handleRequestMock = vi.mocked(mockAgentManager.handleRequest);
-			const [, , , , , secondIsNew] = handleRequestMock.mock.calls[1];
+			const [, , , , secondIsNew] = handleRequestMock.mock.calls[1];
 			expect(secondIsNew).toBe(false);
 		});
 	});
@@ -1104,41 +1104,64 @@ describe('ChatSessionContentProvider', () => {
 			expect(getGroup(state, 'permissionMode')!.selected?.id).toBe('default');
 		});
 
-		it('markSessionStarted locks the folder group mid-session', async () => {
+		it('live permission option changes update session state', async () => {
+			const mocks = createDefaultMocks();
+			const { provider, accessor: localAccessor } = createProviderWithServices(store, [workspaceFolderUri], mocks);
+			const sessionStateService = localAccessor.get(IClaudeSessionStateService);
+			const setPermissionSpy = vi.spyOn(sessionStateService, 'setPermissionModeForSession');
+
+			provider.provideHandleOptionsChange(createClaudeSessionUri('live-session'), [
+				{ optionId: 'permissionMode', value: 'plan' }
+			], CancellationToken.None);
+
+			expect(setPermissionSpy).toHaveBeenCalledWith('live-session', 'plan');
+			expect(sessionStateService.getPermissionModeForSession('live-session')).toBe('plan');
+		});
+
+		it('external permission change syncs into a previousInputState-restored pipeline', async () => {
+			const mocks = createDefaultMocks();
+			const { accessor: localAccessor } = createProviderWithServices(store, [workspaceFolderUri], mocks);
+			const sessionStateService = localAccessor.get(IClaudeSessionStateService);
+
+			const existingSession = { id: 'prev-state-session', messages: [], subagents: [] };
+			vi.mocked(mocks.mockSessionService.getSession).mockResolvedValue(existingSession as any);
+
+			const sessionUri = createClaudeSessionUri('prev-state-session');
+			const firstState = await getInputState(sessionUri);
+
+			// Simulate getChatSessionInputState being called again with previousInputState
+			// (e.g. user refocuses the chat window). The pipeline is rebuilt from scratch.
+			const restoredState = await getInputState(sessionUri, firstState);
+			expect(getGroup(restoredState, 'permissionMode')!.selected?.id).not.toBe('plan');
+
+			// Permission mode changes externally (e.g. EnterPlanMode tool call)
+			sessionStateService.setPermissionModeForSession('prev-state-session', 'plan');
+			expect(getGroup(restoredState, 'permissionMode')!.selected?.id).toBe('plan');
+
+			sessionStateService.setPermissionModeForSession('prev-state-session', 'acceptEdits');
+			expect(getGroup(restoredState, 'permissionMode')!.selected?.id).toBe('acceptEdits');
+		});
+
+		it('sessionResource locks the folder group for existing sessions', async () => {
 			const mocks = createDefaultMocks();
 			createProviderWithServices(store, [folderA, folderB], mocks);
 
-			const state = await getInputState();
-			let folderGroup = getGroup(state, 'folder')!;
+			// New session (no sessionResource) — folder is unlocked
+			const newState = await getInputState();
+			let folderGroup = getGroup(newState, 'folder')!;
 			expect(folderGroup.items.every(i => !i.locked)).toBe(true);
 			expect(folderGroup.selected?.locked).toBeUndefined();
 
-			// Simulate a new session starting by invoking the handler (which calls markSessionStarted)
-			// The handler is owned by the content provider — we go through it via createHandler.
-			// Easier: reach through via the exported accessor pattern — call markSessionStarted through the controller.
-			// The content provider does not export the controller, but the handler path covers it.
-			vi.mocked(mocks.mockSessionService.getSession).mockResolvedValue(undefined);
-			seedSessionItem('new-session');
+			// Existing session (sessionResource provided) — folder is locked
+			vi.mocked(mocks.mockSessionService.getSession).mockResolvedValue({
+				id: 'started-session',
+				messages: [{ type: 'user', message: { role: 'user', content: 'Hello' } }],
+				subagents: [],
+			} as any);
+			const sessionUri = createClaudeSessionUri('started-session');
+			const startedState = await getInputState(sessionUri);
 
-			const { provider: handlerProvider } = createProviderWithServices(store, [folderA, folderB], mocks);
-			const handler = handlerProvider.createHandler();
-			// The state we want to observe must be the one passed into the handler
-			const newState = await getInputState();
-			const context: vscode.ChatContext = {
-				history: [],
-				yieldRequested: false,
-				chatSessionContext: {
-					isUntitled: false,
-					chatSessionItem: {
-						resource: ClaudeSessionUri.forSessionId('new-session'),
-						label: 'New',
-					},
-					inputState: newState,
-				},
-			} as vscode.ChatContext;
-			await handler(createTestRequest('hello'), context, new MockChatResponseStream(), CancellationToken.None);
-
-			folderGroup = getGroup(newState, 'folder')!;
+			folderGroup = getGroup(startedState, 'folder')!;
 			expect(folderGroup.items.every(i => i.locked === true)).toBe(true);
 			expect(folderGroup.selected?.locked).toBe(true);
 		});

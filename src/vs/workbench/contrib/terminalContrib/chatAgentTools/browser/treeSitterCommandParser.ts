@@ -10,6 +10,7 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { posix, win32 } from '../../../../../base/common/path.js';
 import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import type { ITerminalSandboxCommand } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 import { ICommandFileWriteParser } from './commandParsers/commandFileWriteParser.js';
 import { SedFileWriteParser } from './commandParsers/sedFileWriteParser.js';
 
@@ -73,16 +74,26 @@ export class TreeSitterCommandParser extends Disposable {
 		return captures;
 	}
 
-	async extractCommandKeywords(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
-		const captures = await this._queryTree(languageId, commandLine, '(command_name) @command');
-		const keywords = new Set<string>();
-		for (const capture of captures) {
-			const normalized = this._normalizeCommandKeyword(capture.node.text);
-			if (normalized) {
-				keywords.add(normalized);
+	/**
+	 * Extracts executable command invocations from the command line and returns
+	 * normalized command details for sandbox allow-listing.
+	 *
+	 * Example: `PATH=/bin /usr/bin/git commit -S -m "test" && npm install`
+	 * returns:
+	 * `[
+	 * 	{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] },
+	 * 	{ keyword: 'npm', args: ['install'] }
+	 * ]`.
+	 */
+	async extractCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<ITerminalSandboxCommand[]> {
+		const commands: ITerminalSandboxCommand[] = [];
+		for (const commandText of await this.extractSubCommands(languageId, commandLine)) {
+			const command = this._parseCommand(commandText);
+			if (command) {
+				commands.push(command);
 			}
 		}
-		return [...keywords];
+		return commands;
 	}
 
 	async getFileWrites(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
@@ -137,6 +148,10 @@ export class TreeSitterCommandParser extends Disposable {
 		return query.captures(tree.rootNode);
 	}
 
+	/**
+	 * Converts a command token to the stable keyword used by sandbox allow-list
+	 * rules by stripping quotes, path segments, and common executable suffixes.
+	 */
 	private _normalizeCommandKeyword(token: string): string | undefined {
 		const unquoted = token.replace(/^['"]|['"]$/g, '');
 		if (!unquoted) {
@@ -146,6 +161,94 @@ export class TreeSitterCommandParser extends Disposable {
 		const pathBase = unquoted.includes('\\') ? win32.basename(unquoted) : posix.basename(unquoted);
 		const normalized = pathBase.toLowerCase().replace(/\.(?:exe|cmd|bat|ps1)$/i, '');
 		return normalized || undefined;
+	}
+
+	/**
+	 * Parses a single tree-sitter command node into command details, ignoring
+	 * leading environment variable assignments such as `NODE_ENV=test npm run build`.
+	 */
+	private _parseCommand(commandText: string): ITerminalSandboxCommand | undefined {
+		const tokens = this._splitCommandTokens(commandText);
+		let commandIndex = 0;
+		while (commandIndex < tokens.length && this._isVariableAssignment(tokens[commandIndex])) {
+			commandIndex++;
+		}
+
+		const keyword = this._normalizeCommandKeyword(tokens[commandIndex] ?? '');
+		if (!keyword) {
+			return undefined;
+		}
+
+		return {
+			keyword,
+			args: tokens.slice(commandIndex + 1),
+		};
+	}
+
+	/**
+	 * Splits enough shell syntax for sandbox allow-listing: whitespace separates
+	 * tokens, quotes are removed, and backslash escapes preserve the escaped char.
+	 */
+	private _splitCommandTokens(commandText: string): string[] {
+		const tokens: string[] = [];
+		let current = '';
+		let quote: '\'' | '"' | undefined;
+		let escaping = false;
+
+		for (const char of commandText.trim()) {
+			if (escaping) {
+				current += char;
+				escaping = false;
+				continue;
+			}
+
+			if (char === '\\' && quote !== '\'') {
+				escaping = true;
+				continue;
+			}
+
+			if (quote) {
+				if (char === quote) {
+					quote = undefined;
+				} else {
+					current += char;
+				}
+				continue;
+			}
+
+			if (char === '\'' || char === '"') {
+				quote = char;
+				continue;
+			}
+
+			if (/\s/.test(char)) {
+				if (current) {
+					tokens.push(current);
+					current = '';
+				}
+				continue;
+			}
+
+			current += char;
+		}
+
+		if (escaping) {
+			current += '\\';
+		}
+
+		if (current) {
+			tokens.push(current);
+		}
+
+		return tokens;
+	}
+
+	/**
+	 * Returns true for simple shell-style environment variable assignments that
+	 * can prefix a command invocation.
+	 */
+	private _isVariableAssignment(token: string): boolean {
+		return /^[A-Za-z_][A-Za-z0-9_]*=.*/.test(token);
 	}
 
 	private async _doQuery(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<{ tree: Tree; query: Query }> {

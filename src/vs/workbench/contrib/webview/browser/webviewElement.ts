@@ -139,6 +139,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
 	private readonly _resourceLoadingCts = this._register(new CancellationTokenSource());
+	private readonly _activeStreamControllers = new Set<ReadableStreamDefaultController>();
 
 	private _contextKeyService: IContextKeyService | undefined;
 
@@ -352,6 +353,11 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 
 		this._onDidDispose.fire();
+
+		for (const controller of this._activeStreamControllers) {
+			try { controller.close(); } catch { /* already closed */ }
+		}
+		this._activeStreamControllers.clear();
 
 		this._resourceLoadingCts.dispose(true);
 
@@ -771,12 +777,20 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	}
 
 	private async loadResource(id: number, uri: URI, options: { ifNoneMatch: string | undefined; range?: { readonly start: number; readonly end?: number } }, token: CancellationToken) {
+		if (this._disposed) {
+			return;
+		}
+
 		try {
 			const result = await this._instantiationService.invokeFunction(loadLocalResource, uri, {
 				ifNoneMatch: options.ifNoneMatch,
 				roots: this._content.options.localResourceRoots || [],
 				range: options.range,
 			}, token);
+
+			if (this._disposed) {
+				return;
+			}
 
 			switch (result.type) {
 				case WebviewResourceResponse.Type.Success: {
@@ -789,15 +803,18 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 					if (WebviewElement._supportsTransferableStreams.value) {
 						const stream = new ReadableStream<Uint8Array<ArrayBuffer>>({
 							start: (controller) => {
+								// Track this controller so that the single
+								// cancellation handler in dispose() can close
+								// all active streams without per-stream listeners.
+								this._activeStreamControllers.add(controller);
 								let closed = false;
 								const close = () => {
 									if (!closed) {
 										closed = true;
+										this._activeStreamControllers.delete(controller);
 										try { controller.close(); } catch { /* already closed */ }
-										cancellationSub.dispose();
 									}
 								};
-								const cancellationSub = token.onCancellationRequested(close);
 
 								listenStream(result.stream, {
 									onData: (chunk) => {
@@ -806,15 +823,15 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 												controller.enqueue(new Uint8Array<ArrayBuffer>(chunk.buffer.buffer as ArrayBuffer, chunk.buffer.byteOffset, chunk.buffer.byteLength));
 											} catch {
 												closed = true;
-												cancellationSub.dispose();
+												this._activeStreamControllers.delete(controller);
 											}
 										}
 									},
 									onError: (err) => {
 										if (!closed) {
 											closed = true;
+											this._activeStreamControllers.delete(controller);
 											try { controller.error(err); } catch { /* already closed */ }
-											cancellationSub.dispose();
 										}
 									},
 									onEnd: () => close()

@@ -213,6 +213,13 @@ export interface SessionModelInfo {
 	 * {@link ModelSelection.config} when creating or changing sessions.
 	 */
 	configSchema?: ConfigSchema;
+	/**
+	 * Additional provider-specific metadata for this model.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI.
+	 * For example, a `pricing` key may carry model pricing metadata.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -331,6 +338,14 @@ export interface SessionState {
 	 * {@link SessionActiveClient.customizations | activeClient.customizations}.
 	 */
 	customizations?: SessionCustomization[];
+	/**
+	 * Additional provider-specific metadata for this session.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI.
+	 * For example, a `git` key may provide extra git metadata about the session's
+	 * workingDirectory.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -376,6 +391,8 @@ export interface SessionSummary {
 	title: string;
 	/** Current session status */
 	status: SessionStatus;
+	/** Human-readable description of what the session is currently doing */
+	activity?: string;
 	/** Creation timestamp */
 	createdAt: number;
 	/** Last modification timestamp */
@@ -386,8 +403,169 @@ export interface SessionSummary {
 	model?: ModelSelection;
 	/** The working directory URI for this session */
 	workingDirectory?: URI;
-	/** Files changed during this session with diff statistics */
-	diffs?: FileEdit[];
+	/**
+	 * Catalogue of changesets the server can produce for this session. Each
+	 * entry advertises a subscribable view of file changes (uncommitted,
+	 * session-wide, per-turn, etc.) and the URI template the client expands
+	 * before subscribing. See {@link ChangesetSummary} for the full shape and
+	 * {@link /guide/changesets | Changesets} for an overview of the model.
+	 */
+	changesets?: ChangesetSummary[];
+}
+
+// ─── Changesets ──────────────────────────────────────────────────────────────
+
+/**
+ * Catalogue entry describing one changeset the server can produce for a
+ * session.
+ *
+ * Catalogue entries are intentionally lightweight — just enough to render a
+ * chip or list row without subscribing. Full per-changeset detail
+ * ({@link ChangesetState}) lives on the subscribable URI obtained by
+ * expanding {@link uriTemplate}.
+ *
+ * @category Changesets
+ */
+export interface ChangesetSummary {
+	/** Human-readable label, e.g. `"Uncommitted Changes"`. */
+	label: string;
+	/**
+	 * RFC 6570 URI template. Clients parse the variables directly out of the
+	 * template using the standard `{name}` syntax — they are not redeclared
+	 * here.
+	 *
+	 * Only the following template shapes are defined by this protocol; any
+	 * other variable name MUST be ignored by clients (there is no
+	 * protocol-defined way to obtain values for unknown variables):
+	 *
+	 * | Variables in template                       | Meaning                                                                              |
+	 * | ------------------------------------------- | ------------------------------------------------------------------------------------ |
+	 * | _(none)_                                    | A static, session-wide changeset. The template is itself a subscribable URI.         |
+	 * | `{turnId}`                                  | Per-turn slice. Expand with a `Turn.id` from the session.                            |
+	 * | `{originalTurnId}` and `{modifiedTurnId}`   | Diff between two turns. Both variables MUST be present.                              |
+	 *
+	 * Future protocol versions MAY add new well-known variables.
+	 */
+	uriTemplate: string;
+	/** Optional longer description. */
+	description?: string;
+	/** Aggregate line additions across the changeset, when known. */
+	additions?: number;
+	/** Aggregate line deletions across the changeset, when known. */
+	deletions?: number;
+	/** Number of files in the changeset, when known. */
+	files?: number;
+}
+
+/**
+ * Computation lifecycle of a {@link ChangesetState}.
+ *
+ * @category Changesets
+ */
+export const enum ChangesetStatus {
+	/** The server is still computing the contents of this changeset. */
+	Computing = 'computing',
+	/** The changeset has been fully computed and is up-to-date. */
+	Ready = 'ready',
+	/**
+	 * Computation failed. The cause is described by
+	 * {@link ChangesetState.error}.
+	 */
+	Error = 'error',
+}
+
+/**
+ * Full state for a single changeset, returned when a client subscribes to
+ * an expanded changeset URI.
+ *
+ * The client already knows the URI it subscribed to, so this state does
+ * not redundantly carry it (or the catalogue's `id`, `label`, etc.).
+ * Aggregate counts (`additions`, `deletions`, `files`) are likewise
+ * omitted: clients trivially compute them from `files[].edit.diff`.
+ *
+ * @category Changesets
+ */
+export interface ChangesetState {
+	/** Computation lifecycle. */
+	status: ChangesetStatus;
+	/** Present iff `status === ChangesetStatus.Error`. */
+	error?: ErrorInfo;
+	/** Files in this changeset, keyed by {@link ChangesetFile.id}. */
+	files: ChangesetFile[];
+	/**
+	 * Operations the client may invoke against this changeset. Omit when no
+	 * operations are available.
+	 */
+	operations?: ChangesetOperation[];
+}
+
+/**
+ * One file entry within a {@link ChangesetState}.
+ *
+ * @category Changesets
+ */
+export interface ChangesetFile {
+	/**
+	 * Stable identifier within the changeset. Typically `after.uri`
+	 * (or `before.uri` for deletions).
+	 */
+	id: string;
+	/**
+	 * Reuses the existing {@link FileEdit} shape. Clients derive line
+	 * additions, deletions, and rename/create/delete semantics from this.
+	 */
+	edit: FileEdit;
+	/**
+	 * Server-defined opaque metadata, surfaced to operations and tooling
+	 * but not interpreted by the protocol.
+	 */
+	_meta?: Record<string, unknown>;
+}
+
+/**
+ * Where a {@link ChangesetOperation} can be invoked.
+ *
+ * @category Changesets
+ */
+export const enum ChangesetOperationScope {
+	/** Applies to the whole changeset. */
+	Changeset = 'changeset',
+	/** Applies to a single file within the changeset. */
+	Resource = 'resource',
+	/** Applies to a line range within a single file. */
+	Range = 'range',
+}
+
+/**
+ * A server-declared invokable verb the client can run against a
+ * changeset, a file, or a range — `"stage"`, `"revert"`, `"create-pr"`,
+ * and so on.
+ *
+ * The term "operation" is used deliberately to avoid colliding with the
+ * protocol-level [Actions](/guide/actions) that mutate state.
+ *
+ * @category Changesets
+ */
+export interface ChangesetOperation {
+	/** Stable identifier, unique within this changeset. */
+	id: string;
+	/** Human-readable button/menu label. */
+	label: string;
+	/** Optional longer description shown on hover or in tooltips. */
+	description?: string;
+	/** Where this operation can be invoked. */
+	scopes: ChangesetOperationScope[];
+	/**
+	 * Optional confirmation prompt to show before invoking. When present,
+	 * the client MUST display this message to the user (typically in a
+	 * confirmation dialog) and only invoke the operation after the user
+	 * accepts. The presence of this field also signals that the operation
+	 * is destructive — clients SHOULD style the affirmative button
+	 * accordingly (e.g. with a warning colour).
+	 */
+	confirmation?: StringOrMarkdown;
+	/** Optional generic icon hint, e.g. `"check"`, `"trash"`. */
+	icon?: string;
 }
 
 // ─── Config Schema Types ─────────────────────────────────────────────────────
@@ -585,11 +763,20 @@ export interface SessionInputTextQuestion extends SessionInputQuestionBase {
 /** Numeric question within a session input request. */
 export interface SessionInputNumberQuestion extends SessionInputQuestionBase {
 	kind: SessionInputQuestionKind.Number | SessionInputQuestionKind.Integer;
-	/** Minimum value */
+	/**
+	 * Minimum value
+	 * @format float
+	 */
 	min?: number;
-	/** Maximum value */
+	/**
+	 * Maximum value
+	 * @format float
+	 */
 	max?: number;
-	/** Default numeric value */
+	/**
+	 * Default numeric value
+	 * @format float
+	 */
 	defaultValue?: number;
 }
 
@@ -646,7 +833,7 @@ export interface SessionInputRequest {
 	/** Stable request identifier */
 	id: string;
 	/** Display message for the request as a whole */
-	message: string;
+	message?: string;
 	/** URL the user should review or open, for URL-style elicitations */
 	url?: URI;
 	/** Ordered questions to ask the user */
@@ -680,6 +867,7 @@ export interface SessionInputTextAnswerValue {
 
 export interface SessionInputNumberAnswerValue {
 	kind: SessionInputAnswerValueKind.Number;
+	/** @format float */
 	value: number;
 }
 
@@ -754,14 +942,17 @@ export const enum TurnState {
 }
 
 /**
- * Type of a message attachment.
+ * Discriminant for {@link MessageAttachment} variants.
  *
  * @category Turn Types
  */
-export const enum AttachmentType {
-	File = 'file',
-	Directory = 'directory',
-	Selection = 'selection',
+export const enum MessageAttachmentKind {
+	/** A simple, opaque attachment whose representation is described by the producer. */
+	Simple = 'simple',
+	/** An attachment whose data is embedded inline as a base64 string. */
+	EmbeddedResource = 'embeddedResource',
+	/** An attachment that references a resource by URI. */
+	Resource = 'resource',
 }
 
 /**
@@ -810,6 +1001,13 @@ export interface ActiveTurn {
 }
 
 /**
+ * A user message and its associated attachments.
+ *
+ * Attachments MAY be referenced inside {@link UserMessage.text} via their
+ * {@link MessageAttachmentBase.range} field. Attachments without a range are
+ * still associated with the message but do not correspond to a specific span
+ * in the text.
+ *
  * @category Turn Types
  */
 export interface UserMessage {
@@ -820,16 +1018,156 @@ export interface UserMessage {
 }
 
 /**
+ * Common fields shared by all {@link MessageAttachment} variants.
+ *
  * @category Turn Types
  */
-export interface MessageAttachment {
-	/** Attachment type */
-	type: AttachmentType;
-	/** File/directory path */
-	path: string;
-	/** Display name */
-	displayName?: string;
+export interface MessageAttachmentBase {
+	/**
+	 * A human-readable label for the attachment (e.g. the filename of a file
+	 * attachment). Used for display in UI.
+	 */
+	label: string;
+
+	/**
+	 * If defined, the range in {@link UserMessage.text} that references this
+	 * attachment. This is a text range, not a byte range.
+	 */
+	range?: TextRange;
+
+	/**
+	 * Advisory display hint for clients rendering this attachment. Recognized
+	 * values include:
+	 *
+	 * - `'image'`: the attachment is an image
+	 * - `'document'`: the attachment is a textual document
+	 * - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
+	 * - `'directory'`: the attachment is a folder
+	 * - `'selection'`: the attachment is a selection within a document
+	 *
+	 * Implementations MAY provide additional values; clients SHOULD fall back
+	 * to a reasonable default when an unknown value is encountered.
+	 */
+	displayKind?: string;
+
+	/**
+	 * Additional implementation-defined metadata for the attachment.
+	 *
+	 * If the attachment was produced by the `completions` command, the client
+	 * MUST preserve every property of `_meta` originally returned by the agent
+	 * host when sending the user message containing the accepted completion.
+	 */
+	_meta?: Record<string, unknown>;
 }
+
+/**
+ * A zero-based position within a textual document.
+ *
+ * @category Turn Types
+ */
+export interface TextPosition {
+	/** Zero-based line number. */
+	line: number;
+	/** Zero-based character offset within the line. */
+	character: number;
+}
+
+/**
+ * A range within a textual document.
+ *
+ * @category Turn Types
+ */
+export interface TextRange {
+	/** Start position of the range. */
+	start: TextPosition;
+	/** End position of the range. */
+	end: TextPosition;
+}
+
+/**
+ * A selection within a textual resource.
+ *
+ * This is only meaningful for textual resources. Binary resources may still
+ * use resource or embedded resource attachments, but they should not use this
+ * text selection field.
+ *
+ * @category Turn Types
+ */
+export interface TextSelection {
+	/** The range covered by the selection. */
+	range: TextRange;
+}
+
+/**
+ * A simple, opaque attachment whose model representation is described by
+ * the producer.
+ *
+ * @category Turn Types
+ */
+export interface SimpleMessageAttachment extends MessageAttachmentBase {
+	/** Discriminant */
+	type: MessageAttachmentKind.Simple;
+
+	/**
+	 * Representation of the attachment as it should be shown to the model.
+	 *
+	 * If the attachment was produced by the client, this property MUST be
+	 * defined so the agent host can correctly interpret the attachment. This
+	 * property MAY be omitted when the attachment originated from a
+	 * `completions` response.
+	 */
+	modelRepresentation?: string;
+}
+
+/**
+ * An attachment whose data is embedded inline as a base64 string.
+ *
+ * Use this for small binary payloads (e.g. a pasted image) that should be
+ * delivered with the user message itself rather than fetched separately.
+ *
+ * @category Turn Types
+ */
+export interface MessageEmbeddedResourceAttachment extends MessageAttachmentBase {
+	/** Discriminant */
+	type: MessageAttachmentKind.EmbeddedResource;
+	/** Base64-encoded binary data */
+	data: string;
+	/** Content MIME type (e.g. `"image/png"`, `"application/pdf"`) */
+	contentType: string;
+	/**
+	 * Optional selection within the attached textual resource.
+	 *
+	 * Only meaningful for textual resources.
+	 */
+	selection?: TextSelection;
+}
+
+/**
+ * An attachment that references a resource by URI. The content is not
+ * delivered inline; consumers can fetch it via `resourceRead` when needed.
+ *
+ * @category Turn Types
+ */
+export interface MessageResourceAttachment extends MessageAttachmentBase, ContentRef {
+	/** Discriminant */
+	type: MessageAttachmentKind.Resource;
+	/**
+	 * Optional selection within the referenced textual resource.
+	 *
+	 * Only meaningful for textual resources.
+	 */
+	selection?: TextSelection;
+}
+
+/**
+ * An attachment associated with a {@link UserMessage}.
+ *
+ * @category Turn Types
+ */
+export type MessageAttachment =
+	| SimpleMessageAttachment
+	| MessageEmbeddedResourceAttachment
+	| MessageResourceAttachment;
 
 // ─── Response Parts ──────────────────────────────────────────────────────────
 
@@ -843,6 +1181,7 @@ export const enum ResponsePartKind {
 	ContentRef = 'contentRef',
 	ToolCall = 'toolCall',
 	Reasoning = 'reasoning',
+	SystemNotification = 'systemNotification',
 }
 
 /**
@@ -912,7 +1251,30 @@ export interface ReasoningResponsePart {
 /**
  * @category Response Parts
  */
-export type ResponsePart = MarkdownResponsePart | ResourceReponsePart | ToolCallResponsePart | ReasoningResponsePart;
+export type ResponsePart =
+	| MarkdownResponsePart
+	| ResourceReponsePart
+	| ToolCallResponsePart
+	| ReasoningResponsePart
+	| SystemNotificationResponsePart;
+
+/**
+ * A system notification surfaced as part of the response stream.
+ *
+ * System notifications are messages authored by the agent harness
+ * that need to be visible to both the agent (for situational awareness) and
+ * the user (for transcript continuity). Examples include "background subagent
+ * X completed" or "task Y was cancelled".
+ *
+ * @category Response Parts
+ */
+export interface SystemNotificationResponsePart {
+	/** Discriminant */
+	kind: ResponsePartKind.SystemNotification;
+	/** The text of the system notification */
+	content: StringOrMarkdown;
+}
+
 
 // ─── Tool Call Types ─────────────────────────────────────────────────────────
 
@@ -1444,9 +1806,6 @@ export const enum CustomizationStatus {
 /**
  * A customization active in a session.
  *
- * Entries without a `clientId` are server-provided; entries with a `clientId`
- * originate from that client.
- *
  * @category Customization Types
  */
 export interface SessionCustomization {
@@ -1454,6 +1813,11 @@ export interface SessionCustomization {
 	customization: CustomizationRef;
 	/** Whether this customization is currently enabled */
 	enabled: boolean;
+	/**
+	 * The `clientId` of the client that contributed this customization.
+	 * Absent for server-provided customizations.
+	 */
+	clientId?: string;
 	/** Server-reported loading status */
 	status?: CustomizationStatus;
 	/**
@@ -1634,6 +1998,11 @@ export interface UsageInfo {
 	model?: string;
 	/** Tokens read from cache */
 	cacheReadTokens?: number;
+	/**
+	 * Additional provider-specific metadata for this usage report.
+	 * Clients MAY look for well-known optional keys here to provide enhanced UI.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -1658,7 +2027,7 @@ export interface Snapshot {
 	/** The subscribed resource URI (e.g. `agenthost:/root` or `copilot:/<uuid>`) */
 	resource: URI;
 	/** The current state of the resource */
-	state: RootState | SessionState | TerminalState;
+	state: RootState | SessionState | TerminalState | ChangesetState;
 	/** The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`. */
 	fromSeq: number;
 }

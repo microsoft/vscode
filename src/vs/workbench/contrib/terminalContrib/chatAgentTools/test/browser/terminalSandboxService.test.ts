@@ -22,12 +22,13 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../
 import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
 import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ISandboxDependencyStatus, ISandboxHelperService } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
+import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../../../../../platform/sandbox/common/terminalSandboxRuntimeConfigurationPerOperation.js';
 
 suite('TerminalSandboxService - network domains', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -184,17 +185,19 @@ suite('TerminalSandboxService - network domains', () => {
 
 		// Setup default configuration
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
 
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IEnvironmentService, <IEnvironmentService & { tmpDir?: URI; execPath?: string; window?: { id: number }; userHome?: URI; userDataPath?: string }>{
+		instantiationService.stub(IEnvironmentService, <IEnvironmentService & { tmpDir?: URI; execPath?: string; window?: { id: number }; userHome?: URI; userDataPath?: string; workspaceStorageHome?: URI }>{
 			_serviceBrand: undefined,
 			tmpDir: URI.file('/tmp'),
 			execPath: '/usr/bin/node',
 			userHome: URI.file('/home/local-user'),
 			userDataPath: '/custom/local-user-data',
+			workspaceStorageHome: URI.file('/local-workspace-storage'),
 			window: { id: windowId }
 		});
 		instantiationService.stub(ILogService, new NullLogService());
@@ -211,6 +214,15 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(await sandboxService.isEnabled(), true, 'Sandbox should be enabled when dependencies are present');
 		strictEqual(await sandboxService.isEnabled(), true, 'Sandbox should stay enabled on subsequent checks');
 		strictEqual(sandboxHelperService.callCount, 0, 'Dependency checks should not be called for isEnabled');
+	});
+
+	test('should report enabled when configured to allow network', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+
+		strictEqual(await sandboxService.isEnabled(), true, 'Allow network mode should keep sandboxing enabled');
+		strictEqual(await sandboxService.isSandboxAllowNetworkEnabled(), true, 'Allow network mode should report network access allowed');
 	});
 
 	test('should report dependency prereq failures', async () => {
@@ -262,6 +274,31 @@ suite('TerminalSandboxService - network domains', () => {
 		});
 	});
 
+	test('should disable runtime network config when configured to allow network', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['blocked.example.com']);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime, {
+			network: {
+				allowedDomains: ['should-not-win.example'],
+				deniedDomains: ['should-not-win-blocked.example'],
+				allowUnixSockets: true,
+			},
+			allowPty: true,
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created');
+
+		const config = JSON.parse(configContent);
+		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [], enabled: false });
+		strictEqual(config.allowPty, true, 'Non-network runtime settings should still be merged');
+	});
+
 	test('should write configured runtime values to sandbox config root', async () => {
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime, {
 			allowUnixSockets: true,
@@ -284,6 +321,77 @@ suite('TerminalSandboxService - network domains', () => {
 			enabled: true,
 			mode: 'strict'
 		});
+	});
+
+	test('should add command-specific runtime values for signed git commits', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+
+		async function getConfigAfterWrap(command: string, commandDetails: readonly { keyword: string; args: readonly string[] }[]) {
+			await sandboxService.wrapCommand(command, false, 'bash', undefined, commandDetails);
+			const configContent = createdFiles.get(configPath!);
+			ok(configContent, 'Config file should be rewritten for the command');
+			return JSON.parse(configContent);
+		}
+
+		const signedCommitConfig = await getConfigAfterWrap('git commit -S -m "test"', [{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] }]);
+		strictEqual(signedCommitConfig.network.allowAllUnixSockets, true, 'Explicitly signed git commits should allow Unix sockets for GPG signing');
+
+		const signedCommitWithGlobalOptionConfig = await getConfigAfterWrap('git -C repo commit --gpg-sign=key -m "test"', [{ keyword: 'git', args: ['-C', 'repo', 'commit', '--gpg-sign=key', '-m', 'test'] }]);
+		strictEqual(signedCommitWithGlobalOptionConfig.network.allowAllUnixSockets, true, 'Signed git commits with global options should allow Unix sockets for GPG signing');
+
+		const unsignedCommitConfig = await getConfigAfterWrap('git commit -m "test"', [{ keyword: 'git', args: ['commit', '-m', 'test'] }]);
+		strictEqual(Object.prototype.hasOwnProperty.call(unsignedCommitConfig.network, 'allowAllUnixSockets'), false, 'Unsigned git commits should not allow all Unix sockets');
+
+		const npmConfig = await getConfigAfterWrap('npm install', [{ keyword: 'npm', args: ['install'] }]);
+		strictEqual(Object.prototype.hasOwnProperty.call(npmConfig.network, 'allowAllUnixSockets'), false, 'Commands without a matching Unix socket runtime rule should not allow all Unix sockets');
+	});
+
+	test('should skip command-specific runtime values when rule condition is false', () => {
+		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Windows, [{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] }]);
+
+		deepStrictEqual(config, {}, 'Signed git commit runtime values should not apply on Windows');
+	});
+
+	test('should preserve user runtime settings over command-specific runtime values', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime, {
+			network: {
+				allowAllUnixSockets: false,
+			}
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		await sandboxService.wrapCommand('git commit -S -m "test"', false, 'bash', undefined, [{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] }]);
+
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be rewritten for the command');
+
+		const config = JSON.parse(configContent);
+		strictEqual(config.network.allowAllUnixSockets, false, 'Configured runtime values should take precedence over command-specific defaults');
+	});
+
+	test('should rewrite sandbox config when command-specific runtime values change', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const initialCreateFileCount = createFileCount;
+
+		await sandboxService.wrapCommand('git commit -m "test"', false, 'bash', undefined, [{ keyword: 'git', args: ['commit', '-m', 'test'] }]);
+		const afterUnsignedCommitCount = createFileCount;
+		strictEqual(afterUnsignedCommitCount, initialCreateFileCount + 1, 'First git commit command should rewrite the config once');
+
+		await sandboxService.wrapCommand('git commit -S -m "test"', false, 'bash', undefined, [{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] }]);
+		strictEqual(createFileCount, afterUnsignedCommitCount + 1, 'Switching to a signed git commit should rewrite the config for runtime settings');
+
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be rewritten for the signed commit');
+		strictEqual(JSON.parse(configContent).network.allowAllUnixSockets, true);
 	});
 
 	test('should omit runtime root-level entries when runtime setting is empty', async () => {
@@ -409,7 +517,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(config.filesystem.allowRead.includes('/workspace-one'), 'Sandbox config should re-allow reads from workspace folders');
 		ok(config.filesystem.allowRead.includes('/configured/path'), 'Sandbox config should re-allow reads from configured allowWrite paths');
 		ok(config.filesystem.allowRead.includes('/configured/readable/path'), 'Sandbox config should preserve configured allowRead paths');
-		ok(config.filesystem.allowRead.includes('/home/user/.npm'), 'Sandbox config should re-allow reads from default write paths');
+		ok(!config.filesystem.allowWrite.includes('/home/user/.volta/'), 'Sandbox config should not include command-specific node write allow-list paths before a command is parsed');
 		ok(!config.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Sandbox config should not include command-specific git read allow-list paths before a command is parsed');
 		ok(!config.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Sandbox config should not include command-specific node read allow-list paths before a command is parsed');
 		ok(!config.filesystem.allowRead.includes('/home/user/.cache/pip'), 'Sandbox config should not include command-specific common dev read allow-list paths before a command is parsed');
@@ -419,41 +527,110 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!config.filesystem.allowRead.includes('/app/node_modules/@vscode/ripgrep'), 'Sandbox config should not redundantly include app root child paths');
 	});
 
-	test('should only add command-specific allowRead paths for the current command keywords', async () => {
+	test('should reallow reads from workspace storage', async () => {
+		remoteAgentService.remoteEnvironment = {
+			...remoteAgentService.remoteEnvironment!,
+			workspaceStorageHome: URI.file('/home/user/.vscode-server/data/User/workspaceStorage')
+		};
+
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		const configPath = await sandboxService.getSandboxConfigPath();
 
 		ok(configPath, 'Config path should be defined');
-		await sandboxService.wrapCommand('node --version', false, 'bash', ['node']);
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created');
+
+		const config = JSON.parse(configContent);
+		const expectedWorkspaceStoragePath = URI.joinPath(remoteAgentService.remoteEnvironment.workspaceStorageHome, workspaceContextService.getWorkspace().id).path;
+
+		ok(config.filesystem.denyRead.includes('/home/user'), 'Sandbox config should deny arbitrary reads from the user home');
+		ok(config.filesystem.allowRead.includes(expectedWorkspaceStoragePath), 'Sandbox config should re-allow reads from workspace storage');
+	});
+
+	test('should only add command-specific allow-list paths for the current command details', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		await sandboxService.wrapCommand('node --version', false, 'bash', undefined, [{ keyword: 'node', args: ['--version'] }]);
 		const nodeConfigContent = createdFiles.get(configPath);
 		ok(nodeConfigContent, 'Config file should be rewritten for node commands');
 
 		const nodeConfig = JSON.parse(nodeConfigContent);
 		ok(nodeConfig.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Node commands should include node-specific read allow-list paths');
+		ok(nodeConfig.filesystem.allowWrite.includes('/home/user/.volta/'), 'Node commands should include node-specific write allow-list paths');
 		ok(!nodeConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Node commands should not include git-specific read allow-list paths');
 
-		await sandboxService.wrapCommand('git status', false, 'bash', ['git']);
+		await sandboxService.wrapCommand('git status', false, 'bash', undefined, [{ keyword: 'git', args: ['status'] }]);
 		const gitConfigContent = createdFiles.get(configPath);
 		ok(gitConfigContent, 'Config file should be rewritten for git commands');
 
 		const gitConfig = JSON.parse(gitConfigContent);
 		ok(gitConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Git commands should include git-specific read allow-list paths');
-		ok(!gitConfig.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Refreshing for a new command should start allowRead from the current command keywords');
+		ok(!gitConfig.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Refreshing for a new command should start allowRead from the current command details');
+		ok(!gitConfig.filesystem.allowWrite.includes('/home/user/.volta/'), 'Refreshing for a new command should start allowWrite from the current command details');
 	});
 
-	test('should not rewrite sandbox config when the parsed command keywords are unchanged', async () => {
+	test('should apply command-detail read and write allow-list rules', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+
+		async function getConfigAfterWrap(command: string, commandDetails: readonly { keyword: string; args: readonly string[] }[]) {
+			await sandboxService.wrapCommand(command, false, 'bash', undefined, commandDetails);
+			const configContent = createdFiles.get(configPath!);
+			ok(configContent, 'Config file should be rewritten for the command');
+			return JSON.parse(configContent);
+		}
+
+		const commitConfig = await getConfigAfterWrap('git commit -S -m "test"', [{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] }]);
+		ok(commitConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Git commit should include GPG read allow-list paths');
+		ok(commitConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Git commit should include GPG write allow-list paths');
+		ok(commitConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Git commit should still include generic git read allow-list paths');
+
+		const commitWithGlobalOptionConfig = await getConfigAfterWrap('git -C repo commit -S -m "test"', [{ keyword: 'git', args: ['-C', 'repo', 'commit', '-S', '-m', 'test'] }]);
+		ok(commitWithGlobalOptionConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Git commit with global options should include GPG read allow-list paths');
+		ok(commitWithGlobalOptionConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Git commit with global options should include GPG write allow-list paths');
+
+		const gpgConfig = await getConfigAfterWrap('gpg --list-keys', [{ keyword: 'gpg', args: ['--list-keys'] }]);
+		ok(gpgConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'GPG commands should include GPG read allow-list paths');
+		ok(!gpgConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'GPG commands should not include GPG write allow-list paths');
+		ok(!gpgConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'GPG commands should not include generic git read allow-list paths');
+
+		for (const [command, args] of [
+			['git status', ['status']],
+			['git fetch', ['fetch']],
+			['git push', ['push']],
+		] as const) {
+			const config = await getConfigAfterWrap(command, [{ keyword: 'git', args }]);
+			ok(!config.filesystem.allowRead.includes('/home/user/.gnupg'), `${command} should not include GPG read allow-list paths`);
+			ok(!config.filesystem.allowWrite.includes('/home/user/.gnupg'), `${command} should not include GPG write allow-list paths`);
+			ok(config.filesystem.allowRead.includes('/home/user/.gitconfig'), `${command} should still include generic git read allow-list paths`);
+		}
+
+		const npmConfig = await getConfigAfterWrap('npm install', [{ keyword: 'npm', args: ['install'] }]);
+		ok(!npmConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Commands without a matching GPG rule should not include GPG read allow-list paths');
+		ok(!npmConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Commands without a matching GPG rule should not include GPG write allow-list paths');
+
+		const echoConfig = await getConfigAfterWrap('echo "git commit"', [{ keyword: 'echo', args: ['git commit'] }]);
+		ok(!echoConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Quoted command text should not include GPG read allow-list paths');
+		ok(!echoConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Quoted command text should not include GPG write allow-list paths');
+	});
+
+	test('should not rewrite sandbox config when the parsed command details produce unchanged allow-lists', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		const configPath = await sandboxService.getSandboxConfigPath();
 
 		ok(configPath, 'Config path should be defined');
 		const initialCreateFileCount = createFileCount;
 
-		await sandboxService.wrapCommand('node --version', false, 'bash', ['node']);
+		await sandboxService.wrapCommand('node --version', false, 'bash', undefined, [{ keyword: 'node', args: ['--version'] }]);
 		const afterFirstNodeCommandCount = createFileCount;
 		strictEqual(afterFirstNodeCommandCount, initialCreateFileCount + 1, 'First node command should rewrite the config once');
 
-		await sandboxService.wrapCommand('node app.js', false, 'bash', ['node']);
-		strictEqual(createFileCount, afterFirstNodeCommandCount, 'Second node command should not rewrite the config when keywords are unchanged');
+		await sandboxService.wrapCommand('node app.js', false, 'bash', undefined, [{ keyword: 'node', args: ['app.js'] }]);
+		strictEqual(createFileCount, afterFirstNodeCommandCount, 'Second node command should not rewrite the config when command details produce unchanged allow-lists');
 	});
 
 	test('should expand home paths in linux filesystem sandbox config paths', async () => {
@@ -625,7 +802,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const wrapResult = await sandboxService.wrapCommand('head -1 /etc/shells', false, 'bash', undefined, URI.file('/workspace-one'));
+		const wrapResult = await sandboxService.wrapCommand('head -1 /etc/shells', false, 'bash', URI.file('/workspace-one'));
 		const expectedWrappedCwd = String.raw`-c 'cd '\''/workspace-one'\'' && head -1 /etc/shells'`;
 
 		ok(wrapResult.command.startsWith(`cd '${sandboxService.getTempDir()?.path}'; `), 'Sandbox runtime should start from the sandbox temp dir on Linux');
@@ -638,6 +815,18 @@ suite('TerminalSandboxService - network domains', () => {
 		await sandboxService.getSandboxConfigPath();
 
 		strictEqual((await sandboxService.wrapCommand('echo test', true, 'bash')).command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo test'`);
+	});
+
+	test('should keep commands sandboxed when unsandboxed execution is requested but disabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('echo test', true, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Explicit unsandbox requests should be ignored when unsandboxed commands are disabled');
+		strictEqual(wrapResult.requiresUnsandboxConfirmation, undefined, 'Sandboxed command should not require unsandbox confirmation');
+		ok(wrapResult.command.includes('--settings'), 'Command should be wrapped with the sandbox runtime');
 	});
 
 	test('should preserve TMPDIR for piped unsandboxed commands', async () => {
@@ -673,6 +862,18 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapResult.command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'curl https://example.com'`);
 	});
 
+	test('should keep blocked-domain commands sandboxed when unsandboxed commands are disabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://example.com', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Blocked domains should stay sandboxed when unsandboxed commands are disabled');
+		strictEqual(wrapResult.requiresUnsandboxConfirmation, undefined, 'Blocked domains should not trigger unsandbox confirmation when unsandboxed commands are disabled');
+		strictEqual(wrapResult.blockedDomains, undefined, 'Blocked domains should not be reported as an unsandbox fallback when unsandboxed commands are disabled');
+	});
+
 	test('should allow exact allowlisted domains', async () => {
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
@@ -706,6 +907,21 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapResult.isSandboxWrapped, false, 'Denied domains should not stay sandboxed');
 		deepStrictEqual(wrapResult.blockedDomains, ['api.github.com']);
 		deepStrictEqual(wrapResult.deniedDomains, ['api.github.com']);
+	});
+
+	test('should skip domain checks when configured to allow network', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['api.github.com']);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://api.github.com/repos/microsoft/vscode', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Allow network mode should keep the command sandbox wrapped');
+		strictEqual(wrapResult.requiresUnsandboxConfirmation, undefined, 'Allow network mode should not require unsandbox confirmation for configured domains');
+		strictEqual(wrapResult.blockedDomains, undefined, 'Allow network mode should not report blocked domains');
+		strictEqual(wrapResult.deniedDomains, undefined, 'Allow network mode should not report denied domains');
 	});
 
 	test('should match uppercase hostnames when checking allowlisted domains', async () => {
@@ -859,43 +1075,6 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(await sandboxService.isEnabled(), false, 'Deprecated settings should not be used when only non-user scopes are set');
 	});
 
-	test('should fall back to deprecated chat.agent.sandbox setting in user scope', async () => {
-		const originalInspect = configurationService.inspect.bind(configurationService);
-		configurationService.inspect = <T>(key: string) => {
-			if (key === AgentSandboxSettingId.AgentSandboxEnabled) {
-				return {
-					value: undefined,
-					defaultValue: AgentSandboxEnabledValue.Off,
-					userValue: undefined,
-					userLocalValue: undefined,
-					userRemoteValue: undefined,
-					workspaceValue: undefined,
-					workspaceFolderValue: undefined,
-					memoryValue: undefined,
-					policyValue: undefined,
-				} as ReturnType<typeof originalInspect<T>>;
-			}
-			if (key === AgentSandboxSettingId.DeprecatedAgentSandboxEnabled) {
-				return {
-					value: true,
-					defaultValue: false,
-					userValue: true,
-					userLocalValue: true,
-					userRemoteValue: undefined,
-					workspaceValue: undefined,
-					workspaceFolderValue: undefined,
-					memoryValue: undefined,
-					policyValue: undefined,
-				} as ReturnType<typeof originalInspect<T>>;
-			}
-			return originalInspect<T>(key);
-		};
-
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-
-		strictEqual(await sandboxService.isEnabled(), true, 'Deprecated chat.agent.sandbox should still be respected when only the user scope is set');
-	});
-
 	test('should detect ssh style remotes as domains', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
@@ -981,5 +1160,41 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const wrappedCommand = (await sandboxService.wrapCommand(`echo 'hello'`)).command;
 		strictEqual((wrappedCommand.match(/\\''/g) ?? []).length, 2, 'Single quote escapes should be inserted for each embedded single quote');
+	});
+
+	test('should prefix wrapped command with ELECTRON_RUN_AS_NODE=1 when no remote env is available', async function () {
+		if (isWindows) {
+			// Sandbox is disabled on Windows when no remote env is available.
+			this.skip();
+		}
+		remoteAgentService.remoteEnvironment = null;
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapped = await sandboxService.wrapCommand('echo test');
+		strictEqual(wrapped.isSandboxWrapped, true);
+		ok(wrapped.command.startsWith('ELECTRON_RUN_AS_NODE=1 '), `Local workbench should run Electron as Node. Actual: ${wrapped.command}`);
+	});
+
+	test('should omit ELECTRON_RUN_AS_NODE=1 prefix when a remote env is available', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapped = await sandboxService.wrapCommand('echo test');
+		strictEqual(wrapped.isSandboxWrapped, true);
+		ok(!wrapped.command.startsWith('ELECTRON_RUN_AS_NODE='), `Remote workbench should not add the env prefix. Actual: ${wrapped.command}`);
+	});
+
+	test('should place sandbox temp dir under the local data folder when no remote env is available', async function () {
+		if (isWindows) {
+			// Sandbox is disabled on Windows when no remote env is available.
+			this.skip();
+		}
+		remoteAgentService.remoteEnvironment = null;
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const expectedTempDir = URI.joinPath(URI.file('/home/local-user'), productService.dataFolderName, 'tmp', `tmp_vscode_${windowId}`);
+		strictEqual(sandboxService.getTempDir()?.path, expectedTempDir.path, 'Local workbench should fall back to the native user home + dataFolderName for the temp dir');
 	});
 });

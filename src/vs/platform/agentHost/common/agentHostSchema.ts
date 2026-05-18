@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
+import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from './state/sessionProtocol.js';
@@ -260,6 +261,8 @@ function safeStringify(value: unknown): string {
 
 export type AutoApproveLevel = 'default' | 'autoApprove' | 'autopilot';
 
+export type SessionMode = 'interactive' | 'plan';
+
 export interface IPermissionsValue {
 	readonly allow: readonly string[];
 	readonly deny: readonly string[];
@@ -319,6 +322,22 @@ export const platformSessionSchema = createSchema({
 		sessionMutable: true,
 	}),
 	[SessionConfigKey.Permissions]: permissionsProperty,
+	[SessionConfigKey.Mode]: schemaProperty<SessionMode>({
+		type: 'string',
+		title: localize('agentHost.sessionConfig.mode', "Agent Mode"),
+		description: localize('agentHost.sessionConfig.modeDescription', "How the agent should approach this turn"),
+		enum: ['interactive', 'plan'],
+		enumLabels: [
+			localize('agentHost.sessionConfig.mode.interactive', "Interactive"),
+			localize('agentHost.sessionConfig.mode.plan', "Plan"),
+		],
+		enumDescriptions: [
+			localize('agentHost.sessionConfig.mode.interactiveDescription', "Ask for input and approval for each action"),
+			localize('agentHost.sessionConfig.mode.planDescription', "Generate a plan first, then choose how to execute it"),
+		],
+		default: 'interactive',
+		sessionMutable: true,
+	}),
 });
 
 /**
@@ -331,6 +350,43 @@ export const platformSessionSchema = createSchema({
  *   auto-approval. See `SessionPermissionManager` for the evaluation
  *   rules.
  */
+export const AgentHostTelemetryLevelConfigKey = 'telemetryLevel';
+
+export function telemetryLevelToAgentHostConfigValue(telemetryLevel: TelemetryLevel): TelemetryConfiguration {
+	switch (telemetryLevel) {
+		case TelemetryLevel.NONE:
+			return TelemetryConfiguration.OFF;
+		case TelemetryLevel.CRASH:
+			return TelemetryConfiguration.CRASH;
+		case TelemetryLevel.ERROR:
+			return TelemetryConfiguration.ERROR;
+		case TelemetryLevel.USAGE:
+			return TelemetryConfiguration.ON;
+	}
+}
+
+export function agentHostConfigValueToTelemetryLevel(value: unknown): TelemetryLevel | undefined {
+	switch (value) {
+		case TelemetryConfiguration.OFF:
+			return TelemetryLevel.NONE;
+		case TelemetryConfiguration.CRASH:
+			return TelemetryLevel.CRASH;
+		case TelemetryConfiguration.ERROR:
+			return TelemetryLevel.ERROR;
+		case TelemetryConfiguration.ON:
+			return TelemetryLevel.USAGE;
+		default:
+			return undefined;
+	}
+}
+
 export const platformRootSchema = createSchema({
 	[SessionConfigKey.Permissions]: permissionsProperty,
+	[AgentHostTelemetryLevelConfigKey]: schemaProperty<TelemetryConfiguration>({
+		type: 'string',
+		title: localize('agentHost.config.telemetryLevel.title', "Telemetry Level"),
+		description: localize('agentHost.config.telemetryLevel.description', "Most restrictive telemetry level requested by connected clients."),
+		enum: [TelemetryConfiguration.ON, TelemetryConfiguration.ERROR, TelemetryConfiguration.CRASH, TelemetryConfiguration.OFF],
+		default: TelemetryConfiguration.ON,
+	}),
 });
