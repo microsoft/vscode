@@ -1401,27 +1401,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const isStickyScrollRow = !!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row');
 
 		if (!element.confirmation) {
-			if (isStickyScrollRow) {
+			const isStickyAndEditing = isStickyScrollRow && element.id === this.viewModel?.editing?.id;
+			if (isStickyAndEditing) {
 				const store = new DisposableStore();
 				templateData.elementDisposables.add(store);
 
-				const isStickyAndEditing = element.id === this.viewModel?.editing?.id;
-
-				const message = element.message;
-				let plainTextContent: HTMLElement;
-				if (isStickyAndEditing) {
-					const editingText = this.delegate.getEditingValue?.() || '';
-					plainTextContent = dom.$('span', undefined, editingText);
-				} else if (isChatFollowup(message)) {
-					plainTextContent = dom.$('span', undefined, message.message);
-				} else {
-					plainTextContent = this.markdownDecorationsRenderer.renderParsedRequestToPlainText(message, store);
-				}
+				const editingText = this.delegate.getEditingValue?.() || '';
+				const editingTextContent = dom.$('span', undefined, editingText);
 
 				const container = dom.$('.rendered-markdown');
 				const innerContent = dom.$('.chat-request-text');
-				innerContent.classList.toggle('sticky-editing', isStickyAndEditing);
-				innerContent.appendChild(plainTextContent);
+				innerContent.classList.add('sticky-editing');
+				innerContent.appendChild(editingTextContent);
 				container.appendChild(innerContent);
 
 				if (this.rendererOptions.renderStyle === 'minimal' && !element.isComplete) {
@@ -1459,13 +1450,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}));
 
 				templateData.value.appendChild(container);
-				const plainTextPart: IChatContentPart = {
+				const editingTextPart: IChatContentPart = {
 					domNode: container,
 					hasSameContent: (other) => other.kind === 'markdownContent',
 					dispose: () => store.dispose(),
 					addDisposable: (d) => store.add(d),
 				};
-				parts.push(plainTextPart);
+				parts.push(editingTextPart);
 			} else {
 				const markdown = isChatFollowup(element.message) ?
 					element.message.message :
@@ -3252,7 +3243,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}));
 		}
 
-		this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex);
+		if (!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row')) {
+			this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex);
+		}
 
 		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
 		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off) {

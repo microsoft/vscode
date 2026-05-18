@@ -3416,7 +3416,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		position: relative;
 	}
 
-	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-text {
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-text,
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > p:first-child {
 		/* Clamp request text to 4 lines — only in sticky scroll */
 		display: -webkit-box;
 		line-clamp: 4;
@@ -3425,16 +3426,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		overflow: hidden;
 	}
 
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > p:first-child ~ * {
+		display: none;
+	}
+
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-text.sticky-editing {
 		font-style: italic;
-	}
-
-	.monaco-tree-sticky-row .interactive-item-container.interactive-request .request-hover {
-		opacity: 1 !important;
-	}
-
-	.monaco-tree-sticky-row .checkpoint-container {
-		opacity: 1 !important;
 	}
 
 	.interactive-item-container.interactive-request .value .rendered-markdown {
@@ -3663,7 +3660,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.checkpoint-container:focus-within,
 	.checkpoint-container.group-hovered,
-	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container {
+	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container,
+	.monaco-tree-sticky-row .checkpoint-container,
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .request-hover {
 		opacity: 1;
 	}
 

@@ -1735,8 +1735,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		if (!this._previousState) {
 			return 0;
 		}
-		const lastElement = this._previousState.stickyNodes[this._previousState.count - 1];
-		return lastElement.position + lastElement.height;
+		return this.getRootHeight(this._previousState);
 	}
 
 	get count(): number {
@@ -1782,13 +1781,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 		this._previousState = state;
 
-		// Set the height of the widget to the bottom of the last sticky node,
-		// capped by the max node height option if configured.
-		const maxNodeHeight = this.tree.options.stickyScrollMaxNodeHeight;
-		const widgetHeight = maxNodeHeight !== undefined
-			? lastStickyNode.position + Math.min(lastStickyNode.height, maxNodeHeight)
-			: lastStickyNode.position + lastStickyNode.height;
-		this._rootDomNode.style.height = `${widgetHeight}px`;
+		this.updateRootHeight(state);
 	}
 
 	private renderState(state: StickyScrollState<T, TFilterData, TRef>): void {
@@ -1816,7 +1809,19 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 	rerender(): void {
 		if (this._previousState) {
 			this.renderState(this._previousState);
+			this.updateRootHeight(this._previousState);
 		}
+	}
+
+	private updateRootHeight(state: StickyScrollState<T, TFilterData, TRef>): void {
+		this._rootDomNode.style.height = `${this.getRootHeight(state)}px`;
+	}
+
+	private getRootHeight(state: StickyScrollState<T, TFilterData, TRef>): number {
+		const lastStickyNode = state.stickyNodes[state.count - 1];
+		const lastStickyElement = this._previousElements[state.count - 1];
+		const lastStickyElementHeight = lastStickyElement?.offsetHeight ?? lastStickyNode.height;
+		return lastStickyNode.position + lastStickyElementHeight;
 	}
 
 	private probeDynamicHeights(state: StickyScrollState<T, TFilterData, TRef>, elements: HTMLElement[]): void {
