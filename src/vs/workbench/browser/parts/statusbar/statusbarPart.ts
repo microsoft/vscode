@@ -128,8 +128,6 @@ export function statusBarRainbowHue(index: number, total: number): number {
 
 const RAINBOW_ITEM_SATURATION = 70;
 const RAINBOW_ITEM_LIGHTNESS = 27;
-const RAINBOW_PART_BACKGROUND = '#111111';
-const RAINBOW_PART_FOREGROUND = '#ffffff';
 const RAINBOW_ITEM_CLASS = 'rainbow-color';
 
 /**
@@ -736,16 +734,11 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 		const container = assertReturnsDefined(this.getContainer());
 		const styleOverride: IStatusbarStyleOverride | undefined = [...this.styleOverrides].sort((a, b) => a.priority - b.priority)[0];
-		const isRainbow = this.configurationService.getValue<string>('workbench.statusBar.colorMode') === 'rainbow';
 
 		// Background / foreground colors
-		const backgroundColor = isRainbow
-			? RAINBOW_PART_BACKGROUND
-			: this.getColor(styleOverride?.background ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND)) || '';
+		const backgroundColor = this.getColor(styleOverride?.background ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND)) || '';
 		container.style.backgroundColor = backgroundColor;
-		const foregroundColor = isRainbow
-			? RAINBOW_PART_FOREGROUND
-			: this.getColor(styleOverride?.foreground ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND)) || '';
+		const foregroundColor = this.getColor(styleOverride?.foreground ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND)) || '';
 		container.style.color = foregroundColor;
 		const itemBorderColor = this.getColor(STATUS_BAR_ITEM_FOCUS_BORDER);
 

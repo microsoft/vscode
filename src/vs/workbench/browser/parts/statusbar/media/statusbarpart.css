@@ -135,6 +135,11 @@
 	padding-right: 8px;
 }
 
+/* Rainbow color mode: rainbow item backgrounds are picked at HSL lightness 27%, so force a light foreground so text stays readable regardless of the active theme. */
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.rainbow-color {
+	color: #ffffff;
+}
+
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left.has-background-color > .statusbar-item-label,
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left.rainbow-color > .statusbar-item-label {
 	padding-left: 3px;
