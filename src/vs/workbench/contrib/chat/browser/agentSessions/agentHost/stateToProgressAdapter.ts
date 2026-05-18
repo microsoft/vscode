@@ -11,6 +11,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange, type UserMessage } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
@@ -216,6 +217,26 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 }
 
 function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string): IChatRequestVariableEntry | undefined {
+	if (isAgentFeedbackAttachment(attachment)) {
+		const metadata = getAgentFeedbackAttachmentMetadata(attachment);
+		if (metadata) {
+			return {
+				kind: 'agentFeedback',
+				id: generateUuid(),
+				name: attachment.label,
+				value: attachment.modelRepresentation || attachment.label,
+				sessionResource: URI.parse(metadata.sessionResource),
+				feedbackItems: metadata.feedbackItems.map(item => ({
+					id: item.id,
+					text: item.text,
+					resourceUri: toAgentHostUri(URI.parse(item.resourceUri), connectionAuthority),
+					range: textRangeToIRange(item.range),
+				})),
+				_meta: attachment._meta,
+			};
+		}
+	}
+
 	if (attachment.type === MessageAttachmentKind.Resource) {
 		const uri = toAgentHostUri(URI.parse(attachment.uri), connectionAuthority);
 		const name = attachment.label;
