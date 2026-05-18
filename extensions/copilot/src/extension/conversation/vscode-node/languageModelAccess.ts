@@ -33,6 +33,8 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry'
 import { isEncryptedThinkingDelta } from '../../../platform/thinking/common/thinking';
 import { BaseTokensPerCompletion } from '../../../platform/tokenizer/node/tokenizer';
 import { TelemetryCorrelationId } from '../../../util/common/telemetryCorrelationId';
+import { raceCancellation, Throttler } from '../../../util/vs/base/common/async';
+import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Emitter } from '../../../util/vs/base/common/event';
 import { Disposable, MutableDisposable } from '../../../util/vs/base/common/lifecycle';
 import { isBoolean, isDefined, isNumber, isString, isStringArray } from '../../../util/vs/base/common/types';
@@ -249,6 +251,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	private _utilityAliasEndpoints: Map<string, IChatEndpoint> = new Map();
 	// Overrides resolved outside model-info publication, reused on the next alias publish.
 	private readonly _resolvedUtilityEndpoints = new Map<ChatEndpointFamily, { endpoint: IChatEndpoint; baseCount: number }>();
+	private readonly _refreshThrottler = this._register(new Throttler());
 	private _lmWrapper: CopilotLanguageModelWrapper;
 	private _promptBaseCountCache: LanguageModelAccessPromptBaseCountCache;
 
@@ -450,21 +453,38 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		}
 
 		// Override resolution may hang, so keep it off the model-info request path.
-		void this._refreshUtilityOverrides().catch(err => {
-			this._logService.warn(`[LanguageModelAccess] Failed to refresh utility overrides: ${err}`);
-		});
+		void this._refreshUtilityOverrides();
+	}
+
+	/**
+	 * Queues a background refresh of utility alias overrides. Concurrent calls
+	 * coalesce via {@link _refreshThrottler}, and the throttler's cancellation
+	 * token is cancelled on dispose so in-flight work can bail.
+	 */
+	private async _refreshUtilityOverrides(): Promise<void> {
+		try {
+			await this._refreshThrottler.queue(token => this._doRefreshUtilityOverrides(token));
+		} catch (err) {
+			this._logService.trace(`[LanguageModelAccess] Skipped utility overrides refresh: ${err}`);
+		}
 	}
 
 	/** Resolves configured utility model overrides for the next alias publish. */
-	private async _refreshUtilityOverrides(): Promise<void> {
+	private async _doRefreshUtilityOverrides(token: CancellationToken): Promise<void> {
 		let didChange = false;
 		for (const family of utilityAliasFamilies) {
+			if (token.isCancellationRequested) {
+				return;
+			}
 			let resolved: IChatEndpoint | undefined;
 			try {
-				resolved = await this._endpointProvider.getChatEndpoint(family);
+				resolved = await raceCancellation(this._endpointProvider.getChatEndpoint(family), token);
 			} catch (err) {
 				this._logService.warn(`[LanguageModelAccess] Failed to resolve utility alias '${family}' in background: ${err}`);
 				continue;
+			}
+			if (token.isCancellationRequested) {
+				return;
 			}
 			if (!resolved) {
 				continue;
@@ -475,17 +495,20 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			if (published && published.model === resolved.model && published.modelProvider === resolved.modelProvider) {
 				continue;
 			}
-			let baseCount: number;
+			let baseCount: number | undefined;
 			try {
-				baseCount = await this._promptBaseCountCache.getBaseCount(resolved);
+				baseCount = await raceCancellation(this._promptBaseCountCache.getBaseCount(resolved), token);
 			} catch (err) {
 				this._logService.warn(`[LanguageModelAccess] Failed to compute baseCount for utility alias '${family}' -> ${resolved.model}; keeping previously-published alias. Error: ${err}`);
 				continue;
 			}
+			if (token.isCancellationRequested || baseCount === undefined) {
+				return;
+			}
 			this._resolvedUtilityEndpoints.set(family, { endpoint: resolved, baseCount });
 			didChange = true;
 		}
-		if (didChange) {
+		if (didChange && !token.isCancellationRequested) {
 			this._onDidChange.fire();
 		}
 	}
