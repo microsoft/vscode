@@ -2108,7 +2108,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _updateTitleProperties(title: string | undefined, eventSource: TitleEventSource): string {
-		if (!title) {
+		if (title === undefined) {
 			return this._processName;
 		}
 		switch (eventSource) {
@@ -2379,6 +2379,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async rename(title?: string, source?: TitleEventSource) {
+		if (title !== undefined && !title) {
+			title = undefined;
+		}
 		this._setTitle(title, source ?? TitleEventSource.Api);
 	}
 

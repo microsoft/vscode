@@ -73,7 +73,7 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 
 		this._addAction = this._register(new Action(
 			'agentFeedback.add',
-			localize('agentFeedback.add', "Add Feedback (Enter)"),
+			localize('agentFeedback.add', "Add Feedback"),
 			ThemeIcon.asClassName(Codicon.plus),
 			false,
 			() => { this._onDidTriggerAdd.fire(); return Promise.resolve(); }
@@ -81,7 +81,7 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 
 		this._addAndSubmitAction = this._register(new Action(
 			'agentFeedback.addAndSubmit',
-			localize('agentFeedback.addAndSubmit', "Add Feedback and Submit (Alt+Enter)"),
+			localize('agentFeedback.addAndSubmit', "Add Feedback and Submit"),
 			ThemeIcon.asClassName(Codicon.send),
 			false,
 			() => { this._onDidTriggerAddAndSubmit.fire(); return Promise.resolve(); }
