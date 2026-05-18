@@ -7,6 +7,7 @@ import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { Gesture } from '../../../../../base/browser/touch.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
@@ -17,7 +18,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
@@ -2953,6 +2954,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {
 		this.listWidget.delegateScrollFromMouseWheelEvent(browserEvent);
+	}
+
+	enableNativeTouchScroll(): IDisposable {
+		const listContainer = this.listWidget.getListContainer();
+		const store = new DisposableStore();
+		// Short-circuit synthetic gesture dispatch on the transcript list container so the
+		// browser sees raw touch events: native momentum, rubber-band, long-press OS
+		// selection menu, and the copy/paste callout all work again on mobile web.
+		store.add(Gesture.ignoreTarget(listContainer));
+		this.listWidget.setUseNativeOverflowScroll(true);
+		store.add(toDisposable(() => this.listWidget.setUseNativeOverflowScroll(false)));
+		return store;
 	}
 }
 

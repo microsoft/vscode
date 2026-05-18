@@ -1098,6 +1098,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly initialSize?: Dimension;
 	readonly paddingTop?: number;
 	readonly paddingBottom?: number;
+	readonly useNativeOverflowScroll?: boolean;
 }
 
 export interface IListStyles {
@@ -1716,6 +1717,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	layout(height?: number, width?: number): void {
 		this.view.layout(height, width);
+	}
+
+	setUseNativeOverflowScroll(enabled: boolean): void {
+		this.view.setUseNativeOverflowScroll(enabled);
 	}
 
 	triggerTypeNavigation(): void {

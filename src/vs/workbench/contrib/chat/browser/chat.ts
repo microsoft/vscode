@@ -123,6 +123,11 @@ export interface IChatWidgetService {
 	readonly onDidAddWidget: Event<IChatWidget>;
 
 	/**
+	 * Fires when a chat widget is unregistered (i.e. its host editor/view has been disposed).
+	 */
+	readonly onDidRemoveWidget: Event<IChatWidget>;
+
+	/**
 	 * Fires when a chat session is no longer open in any chat widget.
 	 */
 	readonly onDidBackgroundSession: Event<URI>;
@@ -448,6 +453,17 @@ export interface IChatWidget {
 	executeHandoff(handoff: IHandOff, agentId?: string): Promise<void>;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
+
+	/**
+	 * Enable native browser touch scrolling on the chat transcript and short-circuit
+	 * synthetic gesture dispatch on its rows container so the OS handles momentum,
+	 * rubber-band, long-press selection and the copy/paste callout.
+	 *
+	 * Returned disposable reverts both effects.
+	 *
+	 * Intended for callers in `chat/browser/mobile/` only — defaults to off everywhere else.
+	 */
+	enableNativeTouchScroll(): IDisposable;
 }
 
 

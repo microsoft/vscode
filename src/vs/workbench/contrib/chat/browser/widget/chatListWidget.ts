@@ -238,6 +238,26 @@ export class ChatListWidget extends Disposable {
 		return this._lastItem;
 	}
 
+	/**
+	 * The outer `.monaco-list` DOM container for the transcript. The chat-mobile
+	 * bootstrap uses this with {@link Gesture.ignoreTarget} so synthetic gesture
+	 * dispatch short-circuits for any touch that lands anywhere inside the list,
+	 * restoring native browser touch behaviour for momentum scroll, long-press
+	 * text selection, and the OS copy/paste callout.
+	 */
+	getListContainer(): HTMLElement {
+		return this._tree.getHTMLElement();
+	}
+
+	/**
+	 * Switch the inner virtualized list to use native browser overflow scrolling
+	 * instead of the custom transform-driven scroll model. Used by mobile chat to
+	 * restore native momentum/rubber-band scrolling and OS long-press selection.
+	 */
+	setUseNativeOverflowScroll(enabled: boolean): void {
+		this._tree.setUseNativeOverflowScroll(enabled);
+	}
+
 
 
 	//#endregion
