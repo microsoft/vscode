@@ -429,6 +429,38 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 	};
 }
 
+function hasAuthenticodeSignature(filePath: string): Promise<boolean> {
+	return new Promise((resolve, reject) => {
+		const proc = cp.spawn('signtool.exe', ['verify', '/pa', filePath]);
+		proc.on('error', reject);
+		proc.on('exit', code => resolve(code === 0));
+	});
+}
+
+async function stripAuthenticodeSignature(filePath: string): Promise<void> {
+	// ESRP's `signtool /as` (append) fails with 0x800700C1 on PEs whose existing
+	// Authenticode signature was invalidated by rcedit. Strip cleanly first so
+	// rcedit operates on an unsigned PE.
+	if (!await hasAuthenticodeSignature(filePath)) {
+		return;
+	}
+	await new Promise<void>((resolve, reject) => {
+		const proc = cp.spawn('signtool.exe', ['remove', '/s', filePath]);
+		let out = '';
+		proc.stdout?.on('data', chunk => out += chunk.toString());
+		proc.stderr?.on('data', chunk => out += chunk.toString());
+		proc.on('error', reject);
+		proc.on('exit', code => {
+			if (code === 0) {
+				resolve();
+			} else {
+				process.stderr.write(out);
+				reject(new Error(`signtool remove /s failed for ${filePath} (exit ${code})`));
+			}
+		});
+	});
+}
+
 function patchWin32DependenciesTask(destinationFolderName: string) {
 	const cwd = path.join(BUILD_ROOT, destinationFolderName);
 
@@ -443,8 +475,10 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 
 		const patchPromises = deps.map<Promise<unknown>>(async dep => {
 			const basename = path.basename(dep);
+			const fullPath = path.join(cwd, dep);
 
-			await rcedit(path.join(cwd, dep), {
+			await stripAuthenticodeSignature(fullPath);
+			await rcedit(fullPath, {
 				'file-version': baseVersion,
 				'version-string': {
 					'CompanyName': 'Microsoft Corporation',
