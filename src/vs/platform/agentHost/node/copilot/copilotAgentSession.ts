@@ -5,14 +5,14 @@
 
 import type { MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
-import { hasKey, isObject, isString } from '../../../../base/common/types.js';
+import { hasKey, isDefined, isObject, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -679,16 +679,15 @@ export class CopilotAgentSession extends Disposable {
 			prompt = slashCommand.rest;
 		}
 
-		const sdkAttachments = attachments
-			? (await Promise.all(attachments.map(a => this._toSdkAttachment(a))))
-				.filter((a): a is NonNullable<typeof a> => a !== undefined)
+		const sdkAttachments = attachments?.length
+			? (await Promise.all(attachments.map(a => this._toSdkAttachment(a)))).filter(isDefined)
 			: undefined;
 		if (sdkAttachments?.length) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type })))}`);
 		}
 
 		await this.applyMode(mode);
-		await this._wrapper.session.send({ prompt, attachments: sdkAttachments });
+		await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
@@ -698,13 +697,9 @@ export class CopilotAgentSession extends Disposable {
 	 * SDK's reference-style `file`/`directory`/`selection` variants (the
 	 * {@link MessageAttachmentBase.displayKind} advisory hint controls
 	 * which one). Embedded resources (e.g. inline image bytes) map to the
-	 * SDK's `blob` variant. Resource attachments that point at a
-	 * `session-db:` URI are also forwarded as `blob` — the agent host
-	 * snapshots inline / client-resident attachment bytes into the
-	 * session database before dispatching the turn, so by the time we
-	 * see them here the bytes are local and the original URI is gone.
-	 * Simple attachments are dropped — the SDK has no equivalent shape
-	 * for them.
+	 * SDK's `blob` variant.
+	 * Simple attachments with a model representation map to `text/plain`
+	 * blob attachments.
 	 *
 	 * For selections we read the resource content from disk and slice it
 	 * by the carried range (the protocol's {@link TextSelection} only
@@ -712,6 +707,17 @@ export class CopilotAgentSession extends Disposable {
 	 * selection downgrades to a plain file reference.
 	 */
 	private async _toSdkAttachment(attachment: MessageAttachment): Promise<CopilotSdkAttachment | undefined> {
+		if (attachment.type === MessageAttachmentKind.Simple) {
+			if (attachment.modelRepresentation) {
+				return {
+					type: 'blob' as const,
+					data: encodeBase64(VSBuffer.fromString(attachment.modelRepresentation)),
+					mimeType: 'text/plain',
+					displayName: attachment.label,
+				};
+			}
+			return undefined;
+		}
 		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
 			return { type: 'blob' as const, data: attachment.data, mimeType: attachment.contentType, displayName: attachment.label };
 		}
