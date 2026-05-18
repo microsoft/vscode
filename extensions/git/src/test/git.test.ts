@@ -6,7 +6,7 @@
 import 'mocha';
 import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
-import { splitInChunks } from '../util';
+import { splitInChunks, isDescendant, pathEquals, relativePath } from '../util';
 
 suite('git', () => {
 	suite('GitStatusParser', () => {
@@ -641,6 +641,51 @@ suite('git', () => {
 				parseCoAuthors('Fix bug\n\nSigned-off-by: Admin <admin@corp.com>\nCo-authored-by: Jane Doe <jane@example.com>'),
 				[{ name: 'Jane Doe', email: 'jane@example.com' }]
 			);
+		});
+	});
+
+	suite('isDescendant', () => {
+		test('regular paths', function () {
+			if (process.platform !== 'win32') {
+				assert.strictEqual(isDescendant('/foo', '/foo/bar'), true);
+				assert.strictEqual(isDescendant('/foo/', '/foo/bar'), true);
+				assert.strictEqual(isDescendant('/foo', '/bar/baz'), false);
+				assert.strictEqual(isDescendant('/foo', '/foo'), true);
+			}
+		});
+
+		test('root path "/" (chroot environments)', function () {
+			if (process.platform !== 'win32') {
+				assert.strictEqual(isDescendant('/', '/foo'), true);
+				assert.strictEqual(isDescendant('/', '/foo/bar'), true);
+				assert.strictEqual(isDescendant('/', '/'), true);
+			}
+		});
+	});
+
+	suite('pathEquals', () => {
+		test('regular paths', function () {
+			if (process.platform !== 'win32') {
+				assert.strictEqual(pathEquals('/foo', '/foo'), true);
+				assert.strictEqual(pathEquals('/foo/', '/foo'), true);
+				assert.strictEqual(pathEquals('/foo', '/bar'), false);
+			}
+		});
+
+		test('root path "/"', function () {
+			if (process.platform !== 'win32') {
+				assert.strictEqual(pathEquals('/', '/'), true);
+				assert.strictEqual(pathEquals('/', '/foo'), false);
+			}
+		});
+	});
+
+	suite('relativePath', () => {
+		test('root path "/" as base (chroot environments)', function () {
+			if (process.platform !== 'win32') {
+				assert.strictEqual(relativePath('/', '/foo'), 'foo');
+				assert.strictEqual(relativePath('/', '/foo/bar'), 'foo/bar');
+			}
 		});
 	});
 
