@@ -85,22 +85,25 @@ suite('Copilot CLI Chat Sanity Test', function () {
 
 		await realInstaAccessor.invokeFunction(async (accessor) => {
 			const logService = accessor.get(ILogService);
-			const errorSpy = sandbox.spy(logService, 'error');
+			const errorSpy = sinon.spy(logService, 'error');
+			try {
+				const resource = SessionIdForCLI.getResource(`untitled-${generateUuid()}`);
+				await vscode.commands.executeCommand(
+					'workbench.action.chat.openSessionWithPrompt.copilotcli',
+					{ resource, prompt: 'Tell me a joke about number 8', attachedContext: [] },
+				);
 
-			const resource = SessionIdForCLI.getResource(`untitled-${generateUuid()}`);
-			await vscode.commands.executeCommand(
-				'workbench.action.chat.openSessionWithPrompt.copilotcli',
-				{ resource, prompt: 'Tell me a joke about number 8', attachedContext: [] },
-			);
-
-			const queryErrors = errorSpy.getCalls()
-				.map(call => call.args.map(formatLogArgument).join(': '))
-				.filter(message => /\[CopilotCLISession\]CopilotCLI error: \(query\)/.test(message));
-			assert.deepStrictEqual(
-				queryErrors,
-				[],
-				`Copilot CLI surfaced a query error from the SDK:\n${queryErrors.join('\n')}`
-			);
+				const queryErrors = errorSpy.getCalls()
+					.map(call => call.args.map(formatLogArgument).join(': '))
+					.filter(message => /\[CopilotCLISession\]CopilotCLI error: \(query\)/.test(message));
+				assert.deepStrictEqual(
+					queryErrors,
+					[],
+					`Copilot CLI surfaced a query error from the SDK:\n${queryErrors.join('\n')}`
+				);
+			} finally {
+				errorSpy.restore();
+			}
 		});
 	});
 
