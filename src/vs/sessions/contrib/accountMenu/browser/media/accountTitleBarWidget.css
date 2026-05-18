@@ -178,8 +178,27 @@
 	display: flex;
 	align-items: center;
 	justify-content: flex-end;
-	gap: 2px;
 	margin-left: auto;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-header-actions > .monaco-action-bar .actions-container {
+	gap: 4px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-header-actions > .monaco-action-bar .action-label {
+	padding: 3px;
+	color: var(--vscode-icon-foreground, var(--vscode-descriptionForeground));
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-header-actions > .monaco-action-bar .action-item:not(.disabled) .action-label:hover,
+.agent-sessions-workbench .sessions-account-titlebar-panel-header-actions > .monaco-action-bar .action-item:not(.disabled) .action-label:focus-visible {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-header-actions > .monaco-action-bar .action-item:not(.disabled) .action-label:active {
+	background: var(--vscode-toolbar-activeBackground);
+	color: var(--vscode-foreground);
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-cta-actions {
@@ -192,43 +211,6 @@
 	font-size: 11px;
 	line-height: 20px;
 	border-radius: var(--vscode-cornerRadius-medium);
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-header-action {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 22px;
-	height: 22px;
-	padding: 0;
-	border: none;
-	border-radius: var(--vscode-cornerRadius-medium);
-	background: transparent;
-	color: var(--vscode-icon-foreground, var(--vscode-descriptionForeground));
-	cursor: default;
-	font-size: 14px !important;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-header-action:hover {
-	background: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-foreground);
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-header-action:active {
-	background: var(--vscode-toolbar-activeBackground);
-	color: var(--vscode-foreground);
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-header-action:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-	background: var(--vscode-list-focusBackground);
-	color: var(--vscode-list-focusForeground);
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-header-action:disabled {
-	opacity: 0.5;
-	cursor: default;
 }
 
 .monaco-hover.workbench-hover.sessions-account-titlebar-panel-hover,
@@ -258,41 +240,29 @@
 	padding: 2px 0 6px 0;
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-panel-section {
-	display: flex;
-	flex-direction: column;
+.agent-sessions-workbench .sessions-account-titlebar-panel-actions > .monaco-action-bar .actions-container {
+	align-items: stretch;
 }
 
-/* The embedded chat status dashboard ships dividers/HRs and header borders
-	intended for its standalone tooltip presentation. The section headings
-	provide the only visual grouping we want here. */
-.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip hr {
-	display: none;
+.agent-sessions-workbench .sessions-account-titlebar-panel-actions > .monaco-action-bar .action-item {
+	width: 100%;
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip > div.header,
-.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .contribution > div.header {
-	border-bottom: none;
-	padding-bottom: 0;
-}
-
-/* Flatten contributed sub-sections (e.g. "Codebase Semantic Index") into
-	the parent Subscription section. The dashboard renders these non-collapsibly;
-	these rules just align the header typography with the panel's quota-title
-	style above it. */
-.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible {
-	margin-top: 4px;
-	padding: 0 28px 0 0;
-	border-top: none;
-	background: none;
+.agent-sessions-workbench .sessions-account-titlebar-panel-actions > .monaco-action-bar .action-label {
+	width: 100%;
+	min-height: 24px;
+	padding: 3px 16px;
+	justify-content: flex-start;
+	border-radius: 0;
 	font-size: 12px;
 	line-height: 18px;
-	font-weight: 400;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-foreground);
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible .collapsible-label {
-	color: var(--vscode-foreground);
+.agent-sessions-workbench .sessions-account-titlebar-panel-actions > .monaco-action-bar .action-item:not(.disabled) .action-label:hover,
+.agent-sessions-workbench .sessions-account-titlebar-panel-actions > .monaco-action-bar .action-item:not(.disabled) .action-label:focus-visible {
+	background: var(--vscode-list-hoverBackground);
+	color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible .collapsible-status {
@@ -411,7 +381,7 @@
 	font-size: 12px;
 	line-height: 1;
 	text-align: left;
-	cursor: default;
+	cursor: pointer;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-action:hover {
