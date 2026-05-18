@@ -497,7 +497,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			markdownDescription: nls.localize('chat.sessionSync.enabled', "Enable session sync to GitHub.com. When enabled, Copilot session data is synced to your GitHub account for cross-device access and richer insights. Requires `#github.copilot.chat.localIndex.enabled#` to also be enabled."),
 			type: 'boolean',
-			tags: ['experimental'],
+			tags: ['experimental', 'advanced'],
 			experiment: {
 				mode: 'auto'
 			},
