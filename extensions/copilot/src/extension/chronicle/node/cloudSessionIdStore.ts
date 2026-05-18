@@ -93,13 +93,16 @@ export class CloudSessionIdStore {
 	 * entries that aren't in the cloud list, since those may be from other
 	 * windows that haven't synced yet).
 	 */
-	mergeFromCloud(entries: Array<{ id: string; agent_task_id?: string }>): void {
+	mergeFromCloud(entries: Array<{ id: string; task_id?: string; agent_task_id?: string }>): void {
 		let changed = false;
 		for (const entry of entries) {
 			if (entry.agent_task_id && !this._map.has(entry.agent_task_id)) {
+				// Prefer the cloud-issued server task id (`task_id`) when the
+				// listing returns it; otherwise fall back to `agent_task_id` so existing
+				// reconciled entries continue to be tracked.
 				this._map.set(entry.agent_task_id, {
 					cloudSessionId: entry.id,
-					cloudTaskId: entry.agent_task_id,
+					cloudTaskId: entry.task_id ?? entry.agent_task_id,
 				});
 				changed = true;
 			}

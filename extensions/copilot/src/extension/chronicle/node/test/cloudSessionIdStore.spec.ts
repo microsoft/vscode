@@ -118,6 +118,19 @@ describe('CloudSessionIdStore', () => {
 		expect(store.has('valid-task')).toBe(true);
 	});
 
+	it('mergeFromCloud prefers task_id over agent_task_id for cloudTaskId', async () => {
+		const store = new CloudSessionIdStore(tmpDir);
+		await store.load();
+
+		store.mergeFromCloud([
+			{ id: 'cloud-with-task', agent_task_id: 'local-a', task_id: 'server-task-a' },
+			{ id: 'cloud-no-task', agent_task_id: 'local-b' },
+		]);
+
+		expect(store.get('local-a')).toEqual({ cloudSessionId: 'cloud-with-task', cloudTaskId: 'server-task-a' });
+		expect(store.get('local-b')).toEqual({ cloudSessionId: 'cloud-no-task', cloudTaskId: 'local-b' });
+	});
+
 	it('keys returns all session IDs', async () => {
 		const store = new CloudSessionIdStore(tmpDir);
 		await store.load();
