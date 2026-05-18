@@ -90,6 +90,10 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 	}
 
 	async connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): Promise<void> {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			throw new Error('Remote agent host connections are not enabled.');
+		}
+
 		const auth = authProvider
 			? await this._getTokenForProvider(authProvider, false)
 			: await this._getToken(false);
@@ -110,7 +114,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			) : undefined;
 			const transport = new TunnelRelayTransport(result.connectionId, this._mainService, logger);
 			const protocolClient = this._instantiationService.createInstance(
-				RemoteAgentHostProtocolClient, result.address, transport,
+				RemoteAgentHostProtocolClient, result.address, transport, undefined,
 			);
 
 			await protocolClient.connect();

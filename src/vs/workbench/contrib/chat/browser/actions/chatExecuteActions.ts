@@ -386,6 +386,26 @@ class SwitchToNextModelAction extends Action2 {
 	}
 }
 
+class SwitchToNextPinnedModelAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.switchToNextPinnedModel';
+
+	constructor() {
+		super({
+			id: SwitchToNextPinnedModelAction.ID,
+			title: localize2('interactive.switchToNextPinnedModel.label', "Switch to Next Pinned Model"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ChatContextKeys.enabled,
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		widget?.input.switchToNextPinnedModel();
+	}
+}
+
 export class OpenModelPickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.openModelPicker';
 
@@ -1188,6 +1208,7 @@ export function registerChatExecuteActions(): DisposableStore {
 	store.add(registerAction2(ChatSubmitWithCodebaseAction));
 	store.add(registerAction2(ToggleChatModeAction));
 	store.add(registerAction2(SwitchToNextModelAction));
+	store.add(registerAction2(SwitchToNextPinnedModelAction));
 	store.add(registerAction2(OpenModelPickerAction));
 	store.add(registerAction2(OpenPermissionPickerAction));
 	store.add(registerAction2(OpenModePickerAction));

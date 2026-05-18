@@ -278,12 +278,12 @@ export class SessionsView extends ViewPane {
 		}));
 
 		// Agent Host toolbar (bottom, below customizations). Only rendered
-		// in the sessions window on desktop layouts: electron has no host
-		// picker today (gated out at the menu level), phone layout uses
-		// the mobile titlebar pill instead, and auxiliary windows do not
-		// contribute any host actions — without this gate they would show
-		// an empty toolbar shell.
-		if (this.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(
+		// in the sessions window on web desktop layouts: electron has no
+		// host picker today (gated out at the menu level), phone layout
+		// uses the mobile titlebar pill instead, and auxiliary windows do
+		// not contribute any host actions — without this gate they would
+		// show an empty toolbar shell.
+		if (isWeb && this.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(
 			IsSessionsWindowContext,
 			IsAuxiliaryWindowContext.toNegated(),
 			IsPhoneLayoutContext.negate(),

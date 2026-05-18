@@ -158,7 +158,7 @@ class TerminalQuickFixGenerator {
 			}
 		}
 
-		const endpoint = await this._endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this._endpointProvider.getChatEndpoint('copilot-utility-small');
 
 		const promptRenderer = PromptRenderer.create(this._instantiationService, endpoint, TerminalQuickFixPrompt, {
 			commandLine: commandMatchResult.commandLine,
@@ -216,7 +216,7 @@ class TerminalQuickFixGenerator {
 	}
 
 	private async _generateTerminalQuickFixFileContext(commandMatchResult: vscode.TerminalCommandMatchResult, token: CancellationToken) {
-		const endpoint = await this._endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this._endpointProvider.getChatEndpoint('copilot-utility-small');
 
 		const promptRenderer = PromptRenderer.create(this._instantiationService, endpoint, TerminalQuickFixFileContextPrompt, {
 			commandLine: commandMatchResult.commandLine,

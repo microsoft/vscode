@@ -51,7 +51,7 @@ export class DebugCommandToConfigConverter implements IDebugCommandToConfigConve
 	public async convert(cwd: string, args: readonly string[], token: CancellationToken): Promise<IDebugConfigResult> {
 		const relCwd = getPathRelativeToWorkspaceFolder(cwd, this.workspace);
 
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility');
 		const promptRenderer = PromptRenderer.create(
 			this.instantiationService,
 			endpoint,

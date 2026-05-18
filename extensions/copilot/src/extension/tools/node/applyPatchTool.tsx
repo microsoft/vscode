@@ -521,7 +521,7 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 	 * and do another turn.
 	 */
 	private async healCommit(patch: string, docs: DocText, explanation: string, token: CancellationToken) {
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 		const prompt = await PromptRenderer.create(
 			this.instantiationService,
 			endpoint,

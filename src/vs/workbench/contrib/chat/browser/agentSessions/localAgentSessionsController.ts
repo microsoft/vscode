@@ -60,9 +60,20 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 	async refresh(token: CancellationToken): Promise<void> {
 		const newItems = await this.provideChatSessionItems(token);
 
+		const addedOrUpdated: LocalChatSessionItem[] = [];
+		for (const item of newItems) {
+			if (!this._items.has(item.resource)) {
+				addedOrUpdated.push(item);
+			}
+		}
+
 		this._items.clear();
 		for (const item of newItems) {
 			this._items.set(item.resource, item);
+		}
+
+		if (addedOrUpdated.length > 0) {
+			this._onDidChangeChatSessionItems.fire({ addedOrUpdated });
 		}
 	}
 
@@ -101,6 +112,9 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 
 			const removedSessionResources = e.sessionResources.filter(resource => getChatSessionType(resource) === this.chatSessionType);
 			if (removedSessionResources.length) {
+				for (const resource of removedSessionResources) {
+					this._items.delete(resource);
+				}
 				this._onDidChangeChatSessionItems.fire({ removed: removedSessionResources });
 			}
 		}));

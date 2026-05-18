@@ -2392,8 +2392,8 @@ export default tseslint.config(
 			'extensions/markdown-language-features/src/**/*.ts',
 			'extensions/markdown-language-features/notebook/**/*.ts',
 			'extensions/markdown-language-features/preview-src/**/*.ts',
-			'extensions/mermaid-chat-features/chat-webview-src/**/*.ts',
-			'extensions/mermaid-chat-features/src/**/*.ts',
+			'extensions/mermaid-markdown-features/preview-src/chat/**/*.ts',
+			'extensions/mermaid-markdown-features/src/**/*.ts',
 			'extensions/media-preview/src/**/*.ts',
 			'extensions/simple-browser/**/*.ts',
 			'extensions/typescript-language-features/**/*.ts',
@@ -2414,9 +2414,9 @@ export default tseslint.config(
 					'extensions/simple-browser/tsconfig.json',
 					'extensions/simple-browser/preview-src/tsconfig.json',
 
-					// Mermaid chat features
-					'extensions/mermaid-chat-features/tsconfig.json',
-					'extensions/mermaid-chat-features/chat-webview-src/tsconfig.json',
+					// Mermaid markdown features
+					'extensions/mermaid-markdown-features/tsconfig.json',
+					'extensions/mermaid-markdown-features/preview-src/chat/tsconfig.json',
 
 					// TypeScript
 					'extensions/typescript-language-features/tsconfig.json',

@@ -20,6 +20,7 @@ import { AgentSignal } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
+import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import {
 	makeContentBlockStartText,
@@ -50,10 +51,12 @@ function createRouter(disposables: Pick<DisposableStore, 'add'>): IRouterHarness
 		[IDiffComputeService, createZeroDiffComputeService()],
 	);
 	const inst: IInstantiationService = disposables.add(new InstantiationService(services));
+	const subagents = disposables.add(new SubagentRegistry());
 	const router = disposables.add(inst.createInstance(
 		ClaudeSdkMessageRouter,
 		URI.parse('claude:/sess-1'),
 		dbRef,
+		subagents,
 	));
 	const signals: AgentSignal[] = [];
 	disposables.add(router.onDidProduceSignal(s => signals.push(s)));

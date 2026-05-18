@@ -141,24 +141,27 @@ export function isAnthropicContextEditingEnabled(
 }
 
 /**
- * The extended (1 hour) prompt cache TTL is only meaningful for the 1M context
- * Claude variants. Other models keep the default 5 minute TTL even when the
- * experimental setting is enabled.
- *
- * Currently:
- * - Claude Opus 4.6 1M (`claude-opus-4.6-1m`)
- * - Claude Opus 4.7 1M (`claude-opus-4.7-1m-internal` and similar variants)
+ * The extended (1 hour) prompt cache TTL is available on all active Claude
+ * models via `cache_control: { type: 'ephemeral', ttl: '1h' }`
+ * - Claude Opus 4.7 (incl. `claude-opus-4.7-1m-internal` and similar variants)
+ * - Claude Opus 4.6 (incl. `claude-opus-4.6-1m`)
+ * - Claude Opus 4.5
+ * - Claude Sonnet 4.6
+ * - Claude Sonnet 4.5
  */
 export function modelSupportsExtendedCacheTtl(modelId: string): boolean {
 	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	return normalized.startsWith('claude-opus-4-6-1m') ||
-		normalized.startsWith('claude-opus-4-7-1m');
+	return normalized.startsWith('claude-opus-4-7') ||
+		normalized.startsWith('claude-opus-4-6') ||
+		normalized.startsWith('claude-opus-4-5') ||
+		normalized.startsWith('claude-sonnet-4-6') ||
+		normalized.startsWith('claude-sonnet-4-5');
 }
 
 /**
  * Returns true when the Anthropic Messages API request should use the extended
  * (1 hour) prompt cache TTL on its tools and system breakpoints. Gated on the
- * model (only the 1M context variants), the experiment-based setting, the chat
+ * model (see {@link modelSupportsExtendedCacheTtl}), the experiment-based setting, the chat
  * location (must be exactly {@link ChatLocation.Agent}), and the subagent flag.
  *
  * {@link ChatLocation.MessagesProxy} is intentionally out of scope — extended
@@ -183,16 +186,46 @@ export function isExtendedCacheTtlEnabled(
 	if (!modelSupportsExtendedCacheTtl(modelId)) {
 		return false;
 	}
-	if (!configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtl, experimentationService)) {
-		return false;
-	}
 	if (location !== ChatLocation.Agent) {
 		return false;
 	}
 	if (isSubagent) {
 		return false;
 	}
-	return true;
+	return configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtl, experimentationService);
+}
+
+/**
+ * Sub-toggle of {@link isExtendedCacheTtlEnabled}. When BOTH the parent gate
+ * passes (caller supplies its result as {@link parentEnabled}) and this
+ * `extendedTtlMessages` setting is on, the rolling message-level breakpoints
+ * (the ones {@link addMessagesApiCacheControl} places on the last cacheable
+ * user/tool-result blocks) also use the 1h TTL instead of the default 5m.
+ *
+ * Takes the resolved parent result rather than re-running the parent gate so
+ * callers that need both flags don't pay for the experiment-service lookup
+ * twice. The signature makes the "sub-toggle of" relationship explicit.
+ *
+ * Nested rather than orthogonal because:
+ * - Anthropic requires longer-TTL breakpoints to appear before shorter ones
+ *   in the `tools → system → messages` prefix order, so `messages=1h` while
+ *   `tools/system=5m` would be invalid.
+ * - The interesting experiment is "does extending 1h to messages help *on
+ *   top of* tools+system?", not in isolation.
+ *
+ * Message breakpoints rotate every turn, so a 1h write that gets superseded
+ * within minutes wastes the 2x write premium. Only worthwhile when
+ * conversations span large idle gaps (>5m) between turns.
+ */
+export function isExtendedCacheTtlMessagesEnabled(
+	parentEnabled: boolean,
+	configurationService: IConfigurationService,
+	experimentationService: IExperimentationService,
+): boolean {
+	if (!parentEnabled) {
+		return false;
+	}
+	return configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtlMessages, experimentationService);
 }
 
 export type ContextEditingMode = 'off' | 'clear-thinking' | 'clear-tooluse' | 'clear-both';

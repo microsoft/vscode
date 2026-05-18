@@ -17,7 +17,7 @@ import { InstructionMessage } from '../base/instructionMessage';
 import { ResponseTranslationRules } from '../base/responseTranslationRules';
 import { Tag } from '../base/tag';
 import { CodeBlockFormattingRules, EXISTING_CODE_MARKER } from '../panel/codeBlockFormattingRules';
-import { MathIntegrationRules } from '../panel/editorIntegrationRules';
+import { ResponseRenderingRules } from '../panel/editorIntegrationRules';
 
 // Types and interfaces for reusable components
 export interface ToolCapabilities extends Partial<Record<ToolName, boolean>> {
@@ -204,7 +204,7 @@ export class DefaultAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 					The function `calculateTotal` is defined in `lib/utils/math.ts`.<br />
 					You can find the configuration in `config/app.config.json`.
 				</Tag>
-				<MathIntegrationRules />
+				<ResponseRenderingRules />
 			</Tag>
 			<ResponseTranslationRules />
 		</InstructionMessage>;
@@ -374,7 +374,7 @@ export class AlternateGPTPrompt extends PromptElement<DefaultAgentPromptProps> {
 				<Tag name='example'>
 					The class `Person` is in `src/models/person.ts`.
 				</Tag>
-				<MathIntegrationRules />
+				<ResponseRenderingRules />
 			</Tag>
 			<ResponseTranslationRules />
 		</InstructionMessage>;

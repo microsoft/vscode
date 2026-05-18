@@ -158,6 +158,26 @@ suite('ChatModel', () => {
 		assert.strictEqual(request1.response.response.toString(), 'Hello');
 	});
 
+	test('acceptResponseProgress applies usage to response metadata', async function () {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'hello';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 2 });
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 2 });
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 3 });
+
+		assert.deepStrictEqual({
+			usage: request.response?.usage,
+			completionTokenCount: request.response?.completionTokenCount,
+			responseContent: request.response?.response.toString(),
+		}, {
+			usage: { kind: 'usage', promptTokens: 10, completionTokens: 3 },
+			completionTokenCount: 5,
+			responseContent: '',
+		});
+	});
+
 	test('addCompleteRequest', async function () {
 		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 

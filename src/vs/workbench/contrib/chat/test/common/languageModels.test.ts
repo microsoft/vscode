@@ -207,6 +207,55 @@ suite('LanguageModels', function () {
 		assert.ok(vendors.some(v => v.vendor === 'test-vendor'));
 		assert.ok(vendors.some(v => v.vendor === 'actual-vendor'));
 	});
+
+	test('selectLanguageModels matches by id for copilot vendor models even when isUserSelectable is false', async function () {
+		// Mirrors how the copilot extension publishes utility aliases such as
+		// `copilot-utility-small`: under the `copilot` (default) vendor, with
+		// `isUserSelectable: false`. The workbench's
+		// `chatToolRiskAssessmentService` resolves them with
+		// `selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' })`
+		// and must get a match.
+		languageModels.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'copilot', displayName: 'Copilot', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		store.add(languageModels.registerLanguageModelProvider('copilot', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => {
+				const modelMetadata: ILanguageModelChatMetadata[] = [
+					{
+						extension: nullExtensionDescription.identifier,
+						name: 'GPT 4o mini',
+						vendor: 'copilot',
+						family: 'gpt-4o-mini',
+						version: '2024-07-18',
+						id: 'gpt-4o-mini',
+						maxInputTokens: 100,
+						maxOutputTokens: 100,
+						isDefaultForLocation: {}
+					},
+					{
+						extension: nullExtensionDescription.identifier,
+						name: 'GPT 4o mini',
+						vendor: 'copilot',
+						family: 'copilot-utility-small',
+						version: '2024-07-18',
+						id: 'copilot-utility-small',
+						maxInputTokens: 100,
+						maxOutputTokens: 100,
+						isDefaultForLocation: {},
+						isUserSelectable: false
+					}
+				];
+				return modelMetadata.map(m => ({ metadata: m, identifier: `${m.vendor}/${m.id}` }));
+			},
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		const result = await languageModels.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
+		assert.deepStrictEqual(result, ['copilot/copilot-utility-small']);
+	});
 });
 
 suite('LanguageModels - When Clause', function () {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../base/browser/markdownRenderer.js';
 import { EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -57,10 +57,17 @@ export interface IChatConfirmationWidgetOptions<T> {
 	toolbarData?: { arg: unknown; partType: string; partSource?: string };
 }
 
+export interface IChatQueryTitlePartOptions {
+	readonly markdownRenderOptions?: MarkdownRenderOptions;
+	readonly renderFileWidgets?: boolean;
+}
+
 export class ChatQueryTitlePart extends Disposable {
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 	private readonly _renderedTitle = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly _fileWidgetStore = this._register(new DisposableStore());
+	private options: IChatQueryTitlePartOptions | undefined;
 
 	public get title() {
 		return this._title;
@@ -69,9 +76,7 @@ export class ChatQueryTitlePart extends Disposable {
 	public set title(value: string | IMarkdownString) {
 		this._title = value;
 
-		const next = this._renderer.render(this.toMdString(value), {
-			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-		});
+		const next = this.renderTitle(value);
 
 		const previousEl = this._renderedTitle.value?.element;
 		if (previousEl?.parentElement) {
@@ -88,20 +93,18 @@ export class ChatQueryTitlePart extends Disposable {
 		private _title: IMarkdownString | string,
 		subtitle: string | IMarkdownString | undefined,
 		@IMarkdownRendererService private readonly _renderer: IMarkdownRendererService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IChatMarkdownAnchorService private readonly _chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
 		super();
 
 		element.classList.add('chat-query-title-part');
 
-		this._renderedTitle.value = _renderer.render(this.toMdString(_title), {
-			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-		});
+		this._renderedTitle.value = this.renderTitle(_title);
 		element.append(this._renderedTitle.value.element);
 		if (subtitle) {
 			const str = this.toMdString(subtitle);
-			const renderedTitle = this._register(_renderer.render(str, {
-				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-			}));
+			const renderedTitle = this._register(_renderer.render(str, this.getRenderOptions()));
 			const wrapper = document.createElement('small');
 			wrapper.appendChild(renderedTitle.element);
 			element.append(wrapper);
@@ -114,6 +117,27 @@ export class ChatQueryTitlePart extends Disposable {
 		} else {
 			return new MarkdownString(value.value, { supportThemeIcons: true, isTrusted: value.isTrusted });
 		}
+	}
+
+	setOptions(options: IChatQueryTitlePartOptions): void {
+		this.options = options;
+		this.title = this._title;
+	}
+
+	private renderTitle(value: IMarkdownString | string): IRenderedMarkdown {
+		const renderedTitle = this._renderer.render(this.toMdString(value), this.getRenderOptions());
+		this._fileWidgetStore.clear();
+		if (this.options?.renderFileWidgets) {
+			renderFileWidgets(renderedTitle.element, this._instantiationService, this._chatMarkdownAnchorService, this._fileWidgetStore);
+		}
+		return renderedTitle;
+	}
+
+	private getRenderOptions(): MarkdownRenderOptions {
+		return {
+			...this.options?.markdownRenderOptions,
+			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
+		};
 	}
 }
 
@@ -165,7 +189,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 			ChatQueryTitlePart,
 			elements.title,
 			title,
-			subtitle
+			subtitle,
 		));
 
 		this.messageElement = elements.message;

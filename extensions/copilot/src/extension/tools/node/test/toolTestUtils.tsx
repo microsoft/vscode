@@ -23,7 +23,7 @@ export async function renderElementToString(accessor: ServicesAccessor, element:
 		}
 	};
 
-	const endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-base');
+	const endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
 	// eslint-disable-next-line local/code-no-accessor-after-await
 	const renderer = PromptRenderer.create(accessor.get(IInstantiationService), endpoint, clz, {});
 

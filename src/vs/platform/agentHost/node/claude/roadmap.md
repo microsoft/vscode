@@ -972,7 +972,7 @@ Exit criteria: customization round-trip works; toggle is defer-and-coalesce
 by default and restart-required only when tool sets diverge; workbench
 renders Claude customizations like Copilot's.
 
-### Phase 12 — Subagents
+### Phase 12 — Subagents ✅ **DONE**
 
 Subagents are inner sessions spawned by the SDK (e.g. when the model
 delegates to a sub-task). The protocol has first-class support; we need to
@@ -999,6 +999,52 @@ Scope:
 
 Tests: trigger a subagent, verify the signal fires with a valid URI,
 verify `getSessionMessages` returns the subagent transcript.
+
+Manual end-to-end validation (run before each release of this surface):
+
+1. **Live spawn renders correctly.** Launch the Agents window
+   (`./scripts/code.sh --agents`), start a fresh `claude` session, switch
+   the agent picker to **Claude**, and send a prompt that asks for two
+   parallel subagents (e.g. *"Spin up 2 subagents that do something, I
+   want to make sure they render correctly"*). Verify in the chat:
+   - Two parent rows appear, one per Task tool_use, each labeled with
+     the `subagent_type` (e.g. "Explore") rather than the literal tool
+     name. The row's description matches the `description` field from
+     the `tool_use.input` (not the prompt).
+   - Each parent row enters the **Running** state immediately (no stuck
+     `Streaming` spinner) — confirms `buildTopLevelSubagentReadyAction`
+     is emitting the synthetic `SessionToolCallReady` with
+     `_meta.toolKind: 'subagent'` even though the SDK skips `canUseTool`
+     for the Task tool.
+   - Inner tool calls (Glob / Read / etc.) are nested under their
+     parent row, with their own past-tense completion messages.
+   - Each parent row collapses to **Ran subagent** when its
+     `tool_result` lands; no orphan rows survive after the turn ends.
+   - Final assistant text from the parent appears below the subagent
+     rows.
+2. **Replay of a historical session renders correctly.** With the
+   Agents window still open, click an older session in the sidebar that
+   includes Task spawns (any prior chat where the agent delegated to a
+   subagent works). Verify:
+   - The historical parent rows render with the same labels as the
+     live path — confirms the replay mapper
+     (`claudeReplayMapper.ts`) sets `_meta.toolKind: 'subagent'` on
+     completed/cancelled Task tool_use blocks, and the workbench
+     attaches the same UI affordances.
+   - Clicking a subagent marker opens the subagent transcript inline,
+     pulled via `ClaudeAgent.getSessionMessages` →
+     `getSubagentTranscript(uri, registry, sdk, log, token)`. The
+     strategy chain (TextSuffix → PromptMatch → Native) resolves the
+     `agentId` from the parent's primed `SubagentRegistry` on first
+     open and from the cached `spawn.agentId` on subsequent opens.
+   - Inner content (text, thinking, tool calls) appears in the
+     subagent view.
+   - No console errors / no `[Claude]` warn-logs in the renderer or
+     agentHost log for the resolved sessions.
+
+Validated against this build: see the `Spin up 2 subagents...`
+run captured in the Phase 12 plan's Step 14 ("E2E validation")
+appendix; both flows rendered as specified.
 
 Exit criteria: subagent sessions are first-class for clients.
 

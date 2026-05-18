@@ -14,6 +14,7 @@ import { localize } from '../../../../../nls.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -22,7 +23,7 @@ import { type ISessionsProvider } from '../../../../services/sessions/common/ses
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 
-interface IModePickerItem {
+export interface IAgentHostSessionEnumPickerItem {
 	readonly value: string;
 	readonly label: string;
 	readonly description?: string;
@@ -38,23 +39,20 @@ function getModeIcon(value: string | undefined): ThemeIcon | undefined {
 }
 
 /**
- * Self-contained picker widget for the agent-host `mode` session-config
- * property (`interactive` / `plan` / `autopilot`).
- *
- * Mirrors the existing default-Copilot mode picker UX but is backed by the
- * active agent-host session's resolved config via
- * {@link IAgentHostSessionsProvider}. Renders nothing when the active
- * session does not advertise a {@link isWellKnownModeSchema well-known}
- * mode schema, so the generic per-property
- * {@link AgentHostSessionConfigPicker} can take over for non-conforming
- * agents.
+ * Shared active-session picker for well-known string-enum session config.
+ * Concrete subclasses provide the property key, schema guard, icon policy,
+ * and labels while this class owns the provider subscription and picker UI.
  */
-export class AgentHostModePicker extends Disposable {
+export abstract class AgentHostSessionEnumPicker extends Disposable {
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
 	private _slotElement: HTMLElement | undefined;
 	protected _triggerElement: HTMLElement | undefined;
+
+	protected abstract readonly _property: string;
+	protected abstract readonly _pickerId: string;
+	protected abstract readonly _telemetryId: string;
 
 	constructor(
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
@@ -118,7 +116,15 @@ export class AgentHostModePicker extends Disposable {
 		}
 	}
 
-	private _getActiveContext(): { provider: IAgentHostSessionsProvider; sessionId: string; currentValue: string; items: readonly IModePickerItem[] } | undefined {
+	protected abstract _isWellKnownSchema(schema: SessionConfigPropertySchema): boolean;
+	protected abstract _getTriggerIcon(value: string | undefined): ThemeIcon | undefined;
+	protected abstract _getActionItemIcon(item: IAgentHostSessionEnumPickerItem, currentValue: string): ThemeIcon | undefined;
+	protected abstract _getTriggerAriaLabel(label: string): string;
+	protected abstract _getWidgetAriaLabel(): string;
+	protected _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem>[] { return []; }
+	protected _handleFooterActionItem(_item: IAgentHostSessionEnumPickerItem): boolean { return false; }
+
+	private _getActiveContext(): { provider: IAgentHostSessionsProvider; sessionId: string; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[] } | undefined {
 		const session = this._sessionsManagementService.activeSession.get();
 		if (!session) {
 			return undefined;
@@ -128,19 +134,19 @@ export class AgentHostModePicker extends Disposable {
 			return undefined;
 		}
 		const config = rawProvider.getSessionConfig(session.sessionId);
-		const schema = config?.schema.properties[SessionConfigKey.Mode];
-		if (!schema || !isWellKnownModeSchema(schema)) {
+		const schema = config?.schema.properties[this._property];
+		if (!schema || !this._isWellKnownSchema(schema)) {
 			return undefined;
 		}
 		const enumValues = schema.enum ?? [];
 		const enumLabels = schema.enumLabels ?? [];
 		const enumDescriptions = schema.enumDescriptions ?? [];
-		const items: IModePickerItem[] = enumValues.map((value, index) => ({
+		const items: IAgentHostSessionEnumPickerItem[] = enumValues.map((value, index) => ({
 			value,
 			label: enumLabels[index] ?? value,
 			description: enumDescriptions[index],
 		}));
-		const rawCurrent = config?.values[SessionConfigKey.Mode] ?? schema.default;
+		const rawCurrent = config?.values[this._property] ?? schema.default;
 		const currentValue = typeof rawCurrent === 'string' && enumValues.includes(rawCurrent) ? rawCurrent : enumValues[0] ?? '';
 		return { provider: rawProvider, sessionId: session.sessionId, currentValue, items };
 	}
@@ -162,7 +168,7 @@ export class AgentHostModePicker extends Disposable {
 		const item = ctx.items.find(i => i.value === ctx.currentValue);
 		const label = item?.label ?? ctx.currentValue;
 
-		const icon = getModeIcon(ctx.currentValue);
+		const icon = this._getTriggerIcon(ctx.currentValue);
 		if (icon) {
 			dom.append(this._triggerElement, renderIcon(icon));
 		}
@@ -171,7 +177,7 @@ export class AgentHostModePicker extends Disposable {
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
-		this._triggerElement.ariaLabel = localize('agentHostModePicker.triggerAriaLabel', "Pick Agent Mode, {0}", label);
+		this._triggerElement.ariaLabel = this._getTriggerAriaLabel(label);
 	}
 
 	protected _showPicker(): void {
@@ -184,34 +190,41 @@ export class AgentHostModePicker extends Disposable {
 		}
 
 		const triggerElement = this._triggerElement;
-		const actionItems: IActionListItem<IModePickerItem>[] = ctx.items.map(item => ({
+		const actionItems: IActionListItem<IAgentHostSessionEnumPickerItem>[] = ctx.items.map(item => ({
 			kind: ActionListItemKind.Action,
 			label: item.label,
 			description: item.description,
-			group: { title: '', icon: item.value === ctx.currentValue ? Codicon.check : Codicon.blank },
+			group: { title: '', icon: this._getActionItemIcon(item, ctx.currentValue) },
 			item,
 		}));
+		actionItems.push(...this._getFooterActionItems());
 
-		const delegate: IActionListDelegate<IModePickerItem> = {
+		const delegate: IActionListDelegate<IAgentHostSessionEnumPickerItem> = {
 			onSelect: item => {
 				this._actionWidgetService.hide();
+				if (this._handleFooterActionItem(item)) {
+					return;
+				}
+				if (!ctx.items.some(candidate => candidate.value === item.value)) {
+					return;
+				}
 				const previousItem = ctx.items.find(i => i.value === ctx.currentValue);
 				reportNewChatPickerClosed(this._telemetryService, {
-					id: 'NewChatAgentHostModePicker',
+					id: this._telemetryId,
 					optionIdBefore: ctx.currentValue,
 					optionIdAfter: item.value,
 					optionLabelBefore: previousItem?.label ?? ctx.currentValue,
 					optionLabelAfter: item.label,
 					isPII: false,
 				});
-				ctx.provider.setSessionConfigValue(ctx.sessionId, SessionConfigKey.Mode, item.value)
+				ctx.provider.setSessionConfigValue(ctx.sessionId, this._property, item.value)
 					.catch(() => { /* best-effort */ });
 			},
 			onHide: () => triggerElement.focus(),
 		};
 
-		this._actionWidgetService.show<IModePickerItem>(
-			'agentHostModePicker',
+		this._actionWidgetService.show<IAgentHostSessionEnumPickerItem>(
+			this._pickerId,
 			false,
 			actionItems,
 			delegate,
@@ -220,8 +233,39 @@ export class AgentHostModePicker extends Disposable {
 			[],
 			{
 				getAriaLabel: i => i.label ?? '',
-				getWidgetAriaLabel: () => localize('agentHostModePicker.ariaLabel', "Agent Mode Picker"),
+				getWidgetAriaLabel: () => this._getWidgetAriaLabel(),
 			},
 		);
+	}
+}
+
+/**
+ * Picker widget for the agent-host `mode` session-config property
+ * (`interactive` / `plan` / `autopilot`).
+ */
+export class AgentHostModePicker extends AgentHostSessionEnumPicker {
+
+	protected readonly _property = SessionConfigKey.Mode;
+	protected readonly _pickerId = 'agentHostModePicker';
+	protected readonly _telemetryId = 'NewChatAgentHostModePicker';
+
+	protected _isWellKnownSchema(schema: SessionConfigPropertySchema): boolean {
+		return isWellKnownModeSchema(schema);
+	}
+
+	protected _getTriggerIcon(value: string | undefined): ThemeIcon | undefined {
+		return getModeIcon(value);
+	}
+
+	protected _getActionItemIcon(item: IAgentHostSessionEnumPickerItem, currentValue: string): ThemeIcon {
+		return item.value === currentValue ? Codicon.check : Codicon.blank;
+	}
+
+	protected _getTriggerAriaLabel(label: string): string {
+		return localize('agentHostModePicker.triggerAriaLabel', "Pick Agent Mode, {0}", label);
+	}
+
+	protected _getWidgetAriaLabel(): string {
+		return localize('agentHostModePicker.ariaLabel', "Agent Mode Picker");
 	}
 }

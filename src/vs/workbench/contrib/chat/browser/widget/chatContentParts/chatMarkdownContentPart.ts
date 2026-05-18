@@ -25,7 +25,6 @@ import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type SymbolTag } from '../../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
@@ -54,7 +53,7 @@ import { IChatProgressRenderableResponseContent } from '../../../common/model/ch
 import { IChatContentInlineReference, IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
+import { IChatCodeBlockInfo } from '../../chat.js';
 import { IChatOutputRendererService, type RenderedOutputPart } from '../../chatOutputItemRenderer.js';
 import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
 import { IMarkdownDiffBlockData, MarkdownDiffBlockPart, parseUnifiedDiff } from './chatDiffBlockPart.js';
@@ -68,6 +67,7 @@ import { IChatContentPart, IChatContentPartRenderContext } from './chatContentPa
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
 import { ChatProgressSubPart } from './chatProgressContentPart.js';
 import { IncrementalDOMMorpher } from './chatIncrementalRendering/chatIncrementalRendering.js';
+import { IChatOutputPartStateCache, IOutputPartState } from './chatOutputPartStateCache.js';
 import './media/chatMarkdownPart.css';
 
 const $ = dom.$;
@@ -192,11 +192,21 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				return;
 			}
 
-			// Dispose previous render and reset state for re-render
+			const previousRenderStore = renderStore.clearAndLeak();
+			const reusableOutputCodeBlockRefs = new Map<string, IDisposableReference<ChatOutputCodeBlockPart>>();
+			for (const ref of this.allRefs) {
+				if (ref.object instanceof ChatOutputCodeBlockPart) {
+					const outputRef = ref as IDisposableReference<ChatOutputCodeBlockPart>;
+					previousRenderStore?.deleteAndLeak(outputRef);
+					reusableOutputCodeBlockRefs.set(outputRef.object.reuseKey, outputRef);
+				}
+			}
+			previousRenderStore?.dispose();
+
+			// Reset state for re-render
 			const store = new DisposableStore();
 			renderStore.value = store;
 			dom.clearNode(this.domNode);
-			dispose(this.allRefs);
 			this.allRefs.length = 0;
 			this._codeblocks.length = 0;
 			this.mathLayoutParticipants.clear();
@@ -298,7 +308,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 					if (element.isCompleteAddedRequest || !codemapperUri || !isEdit) {
 						if (hasChatOutputRenderer) {
-							const ref = this.renderChatOutputCodeBlock(languageId, codeBlockText, globalIndex, context, isCodeBlockComplete);
+							const ref = this.renderChatOutputCodeBlock(languageId, codeBlockText, globalIndex, context, isCodeBlockComplete, reusableOutputCodeBlockRefs);
 							this._codeblocks.push({
 								...baseCodeBlockInfo,
 								codemapperUri: codeBlockInfo.codemapperUri,
@@ -398,6 +408,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			}
 
 			store.add(wrapTablesWithScrollable(this.domNode, layoutParticipants));
+			dispose(reusableOutputCodeBlockRefs.values());
 		};
 
 		// Always render immediately
@@ -455,8 +466,17 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		text: string,
 		codeBlockIndex: number,
 		context: IChatContentPartRenderContext,
-		isComplete: boolean
+		isComplete: boolean,
+		reusableOutputCodeBlockRefs: Map<string, IDisposableReference<ChatOutputCodeBlockPart>>,
 	): IDisposableReference<ChatOutputCodeBlockPart> {
+		const reuseKey = ChatOutputCodeBlockPart.reuseKey(context.element.id, codeBlockIndex, identifier);
+		const reusableRef = reusableOutputCodeBlockRefs.get(reuseKey);
+		if (reusableRef?.object.hasSameContent(identifier, text, isComplete)) {
+			reusableOutputCodeBlockRefs.delete(reuseKey);
+			this.allRefs.push(reusableRef);
+			return reusableRef;
+		}
+
 		const codeBlock = this.instantiationService.createInstance(
 			ChatOutputCodeBlockPart,
 			identifier,
@@ -669,23 +689,29 @@ export function codeblockHasClosingBackticks(str: string): boolean {
 
 class ChatOutputCodeBlockPart extends Disposable {
 
+	static reuseKey(elementId: string, codeBlockIndex: number, identifier: string): string {
+		return `${elementId}/${codeBlockIndex}/${identifier.toLowerCase()}`;
+	}
+
 	readonly element: HTMLElement;
+	readonly reuseKey: string;
 
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 	private readonly _renderedOutputPart = this._register(new MutableDisposable<RenderedOutputPart>());
 
 	constructor(
-		identifier: string,
-		text: string,
+		private readonly identifier: string,
+		private readonly text: string,
 		codeBlockIndex: number,
 		private readonly context: IChatContentPartRenderContext,
-		isComplete: boolean,
+		private readonly isComplete: boolean,
 		private readonly onDidChangeHeight: () => void,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatOutputRendererService private readonly chatOutputRendererService: IChatOutputRendererService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatOutputPartStateCache private readonly stateCache: IChatOutputPartStateCache,
 	) {
 		super();
+		this.reuseKey = ChatOutputCodeBlockPart.reuseKey(context.element.id, codeBlockIndex, identifier);
 
 		const title = localize('chat.renderedCodeBlockLabel', "Rendered code block {0}", codeBlockIndex + 1);
 		this.element = $('.interactive-result-code-block.chat-output-code-block.tool-output-part');
@@ -697,6 +723,13 @@ class ChatOutputCodeBlockPart extends Disposable {
 		parent.style.minHeight = '38px';
 		this.element.appendChild(parent);
 
+		const stateCacheKey = `codeBlock/${context.element.sessionResource.toString()}/${context.element.id}/${codeBlockIndex}/${identifier.toLowerCase()}`;
+		const partState: IOutputPartState = this.stateCache.get(stateCacheKey) ?? { height: 0 };
+		this.stateCache.set(stateCacheKey, partState);
+		if (partState.height) {
+			parent.style.height = `${partState.height}px`;
+		}
+
 		const progressMessage = $('span');
 		progressMessage.textContent = localize('chat.codeBlockOutputRendering', "Rendering code block...");
 		const progressPart = this._register(this.instantiationService.createInstance(ChatProgressSubPart, progressMessage, ThemeIcon.modify(Codicon.loading, 'spin'), undefined));
@@ -706,7 +739,11 @@ class ChatOutputCodeBlockPart extends Disposable {
 			return;
 		}
 
-		this.chatOutputRendererService.renderCodeBlock(identifier, new TextEncoder().encode(text), parent, { origin: generateUuid(), title }, this._disposeCts.token).then(renderedItem => {
+		this.chatOutputRendererService.renderCodeBlock(identifier, new TextEncoder().encode(text), parent, {
+			webviewState: partState.webviewState,
+			title,
+			chatSessionResource: this.context.element.sessionResource,
+		}, this._disposeCts.token).then(renderedItem => {
 			if (this._disposeCts.token.isCancellationRequested) {
 				renderedItem.dispose();
 				return;
@@ -717,15 +754,14 @@ class ChatOutputCodeBlockPart extends Disposable {
 			parent.style.minHeight = '';
 			this.onDidChangeHeight();
 
-			this._register(renderedItem.onDidChangeHeight(() => this.onDidChangeHeight()));
-			this._register(renderedItem.webview.onDidWheel(e => {
-				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.delegateScrollFromMouseWheelEvent({
-					...e,
-					preventDefault: () => { },
-					stopPropagation: () => { }
-				});
+			this._register(renderedItem.webview.onDidUpdateState(e => {
+				partState.webviewState = e;
 			}));
 
+			this._register(renderedItem.onDidChangeHeight(newHeight => {
+				partState.height = newHeight;
+				this.onDidChangeHeight();
+			}));
 			this._register(this.context.onDidChangeVisibility(visible => {
 				if (visible) {
 					renderedItem.reinitialize();
@@ -741,6 +777,12 @@ class ChatOutputCodeBlockPart extends Disposable {
 			parent.style.minHeight = '';
 			this.onDidChangeHeight();
 		});
+	}
+
+	hasSameContent(identifier: string, text: string, isComplete: boolean): boolean {
+		return identifier.toLowerCase() === this.identifier.toLowerCase()
+			&& text === this.text
+			&& isComplete === this.isComplete;
 	}
 
 	override dispose(): void {

@@ -124,7 +124,7 @@ describe('ChatInputNotificationContribution', () => {
 		test('hides notification when copilot token disappears (sign out)', () => {
 			setup(
 				{},
-				{ quotaExhausted: true },
+				{ quotaInfo: makeQuota(0) },
 			);
 
 			// Trigger _update with exhausted quota → shows notification
@@ -171,7 +171,7 @@ describe('ChatInputNotificationContribution', () => {
 		test('sign-out resets showingExhausted flag', () => {
 			setup(
 				{},
-				{ quotaExhausted: true },
+				{ quotaInfo: makeQuota(0) },
 			);
 
 			quotaEmitter.fire();
@@ -183,7 +183,6 @@ describe('ChatInputNotificationContribution', () => {
 
 			// Sign back in, quota no longer exhausted
 			(authService as any).copilotToken = { isFreeUser: false, isNoAuthUser: false, isUsageBasedBilling: true };
-			(quotaService as any).quotaExhausted = false;
 			(quotaService as any).quotaInfo = undefined;
 			(quotaService as any).rateLimitInfo = { session: undefined, weekly: undefined };
 			authEmitter.fire();
@@ -203,7 +202,7 @@ describe('ChatInputNotificationContribution', () => {
 		test('anonymous UBB user with no GitHub session still sees quota notifications', () => {
 			setup(
 				{ anyGitHubSession: undefined, copilotToken: { isNoAuthUser: true, isFreeUser: false, isUsageBasedBilling: true } },
-				{ quotaExhausted: true },
+				{ quotaInfo: makeQuota(0) },
 			);
 
 			quotaEmitter.fire();
@@ -216,7 +215,7 @@ describe('ChatInputNotificationContribution', () => {
 		test('anonymous PRU user does not see quota notifications', () => {
 			setup(
 				{ anyGitHubSession: undefined, copilotToken: { isNoAuthUser: true, isFreeUser: false, isUsageBasedBilling: false } },
-				{ quotaExhausted: true },
+				{ quotaInfo: makeQuota(0) },
 			);
 
 			quotaEmitter.fire();
@@ -379,7 +378,7 @@ describe('ChatInputNotificationContribution', () => {
 		test('shows exhausted notification', () => {
 			setup(
 				{ copilotToken: { isFreeUser: true, isNoAuthUser: false, isUsageBasedBilling: true } },
-				{ quotaExhausted: true },
+				{ quotaInfo: makeQuota(0) },
 			);
 
 			quotaEmitter.fire();
@@ -391,13 +390,13 @@ describe('ChatInputNotificationContribution', () => {
 		test('hides exhausted when quota is no longer exhausted', () => {
 			setup(
 				{ anyGitHubSession: { accessToken: 'tok' } },
-				{ quotaExhausted: true },
+				{ quotaInfo: makeQuota(0) },
 			);
 
 			quotaEmitter.fire();
 			expect(mockNotification.show).toHaveBeenCalled();
 
-			(quotaService as any).quotaExhausted = false;
+			(quotaService as any).quotaInfo = makeQuota(50);
 			quotaEmitter.fire();
 
 			expect(mockNotification.hide).toHaveBeenCalled();
@@ -497,7 +496,7 @@ describe('ChatInputNotificationContribution', () => {
 		test('exhausted takes priority over threshold warning', () => {
 			setup(
 				{ anyGitHubSession: { accessToken: 'tok' } },
-				{ quotaExhausted: true, quotaInfo: makeQuota(5) },
+				{ quotaInfo: makeQuota(0) },
 			);
 
 			quotaEmitter.fire();
@@ -525,7 +524,7 @@ describe('ChatInputNotificationContribution', () => {
 		test('shows exhausted notification even with no copilot token initially', () => {
 			setup(
 				{ copilotToken: undefined },
-				{ quotaExhausted: true, quotaInfo: makeQuota(5) },
+				{ quotaInfo: makeQuota(0) },
 			);
 
 			quotaEmitter.fire();
@@ -539,7 +538,7 @@ describe('ChatInputNotificationContribution', () => {
 		test('does not show exhausted notification for individual PRU user', () => {
 			setup(
 				{ copilotToken: { isFreeUser: false, isNoAuthUser: false, isManagedPlan: false, isUsageBasedBilling: false } },
-				{ quotaExhausted: true },
+				{ quotaInfo: makeQuota(0) },
 			);
 
 			quotaEmitter.fire();
@@ -550,7 +549,7 @@ describe('ChatInputNotificationContribution', () => {
 		test('does not show exhausted notification for free PRU user', () => {
 			setup(
 				{ copilotToken: { isFreeUser: true, isNoAuthUser: false, isManagedPlan: false, isUsageBasedBilling: false } },
-				{ quotaExhausted: true },
+				{ quotaInfo: makeQuota(0) },
 			);
 
 			quotaEmitter.fire();
@@ -561,7 +560,7 @@ describe('ChatInputNotificationContribution', () => {
 		test('does not show exhausted notification for managed plan PRU user', () => {
 			setup(
 				{ copilotToken: { isFreeUser: false, isNoAuthUser: false, isManagedPlan: true, isUsageBasedBilling: false } },
-				{ quotaExhausted: true },
+				{ quotaInfo: makeQuota(0) },
 			);
 
 			quotaEmitter.fire();
@@ -592,6 +591,143 @@ describe('ChatInputNotificationContribution', () => {
 
 			expect(mockNotification.show).toHaveBeenCalled();
 			expect(mockNotification.message).toContain('session');
+		});
+	});
+
+	// --- quota used up (percentRemaining <= 0) --------------------------------
+
+	describe('quota fully used (percentRemaining <= 0)', () => {
+		test('shows exhausted notification when percentRemaining hits 0', () => {
+			setup(
+				{},
+				{ quotaInfo: makeQuota(0) },
+			);
+
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).toHaveBeenCalled();
+			expect(mockNotification.message).toBe('Credit Limit Reached');
+		});
+
+		test('hides exhausted notification when percentRemaining recovers above 0', () => {
+			setup(
+				{},
+				{ quotaInfo: makeQuota(0) },
+			);
+
+			quotaEmitter.fire();
+			expect(mockNotification.show).toHaveBeenCalled();
+
+			(quotaService as any).quotaInfo = makeQuota(50);
+			quotaEmitter.fire();
+
+			expect(mockNotification.hide).toHaveBeenCalled();
+		});
+
+		test('does not show exhausted for unlimited quota at 0 percentRemaining', () => {
+			setup(
+				{},
+				{ quotaInfo: makeQuota(0, { unlimited: true, hasQuota: true }) },
+			);
+
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).not.toHaveBeenCalled();
+		});
+	});
+
+	// --- overage activation notification ------------------------------------
+
+	describe('overage activation notification', () => {
+		test('shows overage notification on live transition to 100%', () => {
+			setup(
+				{},
+				{ quotaInfo: makeQuota(10), additionalUsageEnabled: true }, // 90% used — baseline
+			);
+
+			quotaEmitter.fire();
+			expect(mockNotification.show).not.toHaveBeenCalled();
+
+			// Cross to 100%
+			(quotaService as any).quotaInfo = makeQuota(0);
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).toHaveBeenCalled();
+			expect(mockNotification.message).toBe('Credit Limit Reached');
+			expect(mockNotification.description).toBe('Additional budget is now covering extra usage.');
+		});
+
+		test('does not show overage notification on reload when already at 100%', () => {
+			setup(
+				{},
+				{ quotaInfo: makeQuota(0), additionalUsageEnabled: true },
+			);
+
+			// First data arrival at 100% — baseline, no notification
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).not.toHaveBeenCalled();
+		});
+
+		test('shows standard exhausted notification on reload at 100% without overages', () => {
+			setup(
+				{},
+				{ quotaInfo: makeQuota(0), additionalUsageEnabled: false },
+			);
+
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).toHaveBeenCalled();
+			expect(mockNotification.message).toBe('Credit Limit Reached');
+			expect(mockNotification.description).not.toBe('Additional budget is now covering extra usage.');
+		});
+
+		test('shows overage notification when overages are enabled while already at 100%', () => {
+			setup(
+				{},
+				{ quotaInfo: makeQuota(0), additionalUsageEnabled: false },
+			);
+
+			// First update: exhausted without overages
+			quotaEmitter.fire();
+			expect(mockNotification.show).toHaveBeenCalled();
+			expect(mockNotification.message).toBe('Credit Limit Reached');
+			mockNotification.show.mockClear();
+
+			// User enables overages in settings — next API response updates state
+			(quotaService as any).additionalUsageEnabled = true;
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).toHaveBeenCalled();
+			expect(mockNotification.description).toBe('Additional budget is now covering extra usage.');
+		});
+	});
+
+	// --- _fetchAndShowQuotaWarning race guard --------------------------------
+
+	describe('fetchAndShowQuotaWarning race guard', () => {
+		test('does not overwrite exhausted notification after refreshQuota', async () => {
+			setup(
+				{},
+				{ quotaInfo: makeQuota(10) }, // 90% used — baseline
+			);
+
+			quotaEmitter.fire();
+
+			// refreshQuota will make quota exhausted during the await
+			(quotaService as any).refreshQuota = vi.fn(async () => {
+				(quotaService as any).quotaInfo = makeQuota(0);
+				// Simulate the re-entrant _update from onDidChange
+				quotaEmitter.fire();
+			});
+
+			// Cross 95% → triggers _fetchAndShowQuotaWarning
+			(quotaService as any).quotaInfo = makeQuota(5);
+			quotaEmitter.fire();
+			await Promise.resolve();
+
+			// The exhausted notification from the re-entrant _update should win
+			expect(mockNotification.message).toBe('Credit Limit Reached');
 		});
 	});
 });

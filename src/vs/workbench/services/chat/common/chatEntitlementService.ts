@@ -69,6 +69,8 @@ export namespace ChatEntitlementContextKeys {
 	export const chatAnonymous = new RawContextKey<boolean>('chatAnonymous', false, true);
 
 	export const clientByokEnabled = new RawContextKey<boolean>('github.copilot.clientByokEnabled', true, true);
+
+	export const hasByokModels = new RawContextKey<boolean>('github.copilot.hasByokModels', false, true);
 }
 
 export const IChatEntitlementService = createDecorator<IChatEntitlementService>('chatEntitlementService');
@@ -166,6 +168,7 @@ export interface IChatEntitlementService {
 
 	readonly previewFeaturesDisabled: boolean;
 	readonly clientByokEnabled: boolean;
+	readonly hasByokModels: boolean;
 
 	readonly organisations: string[] | undefined;
 	readonly isInternal: boolean;
@@ -231,7 +234,7 @@ export function isProUser(chatEntitlement: ChatEntitlement): boolean {
 export function getChatPlanName(chatEntitlement: ChatEntitlement): string {
 	switch (chatEntitlement) {
 		case ChatEntitlement.EDU:
-			return localize('plan.eduName', 'Copilot EDU');
+			return localize('plan.eduName', 'Copilot Student');
 		case ChatEntitlement.Pro:
 			return localize('plan.proName', 'Copilot Pro');
 		case ChatEntitlement.ProPlus:
@@ -469,6 +472,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	get clientByokEnabled(): boolean {
 		return this.contextKeyService.getContextKeyValue<boolean>('github.copilot.clientByokEnabled') === true;
+	}
+
+	get hasByokModels(): boolean {
+		return this.contextKeyService.getContextKeyValue<boolean>('github.copilot.hasByokModels') === true;
 	}
 
 	//#endregion
@@ -900,6 +907,8 @@ export class ChatEntitlementRequests extends Disposable {
 		let entitlement: ChatEntitlement;
 		if (entitlementsData.access_type_sku === 'free_limited_copilot') {
 			entitlement = ChatEntitlement.Free;
+		} else if (entitlementsData.access_type_sku === 'free_educational_quota') {
+			entitlement = ChatEntitlement.EDU;
 		} else if (entitlementsData.can_signup_for_limited) {
 			entitlement = ChatEntitlement.Available;
 		} else if (entitlementsData.copilot_plan === 'individual_edu') {

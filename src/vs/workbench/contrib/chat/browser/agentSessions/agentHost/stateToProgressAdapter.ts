@@ -11,13 +11,14 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange, type UserMessage } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
 import type { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
-import { type IToolConfirmationMessages, type IToolData, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
@@ -114,6 +115,17 @@ export interface TurnModelLookup {
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined): string | undefined;
 }
 
+export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage | undefined {
+	if (typeof usage?.inputTokens !== 'number' && typeof usage?.outputTokens !== 'number') {
+		return undefined;
+	}
+	return {
+		kind: 'usage',
+		promptTokens: usage.inputTokens ?? 0,
+		completionTokens: usage.outputTokens ?? 0,
+	};
+}
+
 /**
  * Converts completed turns from the protocol state into session history items.
  *
@@ -135,6 +147,10 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
+		const usage = usageInfoToChatUsage(turn.usage);
+		if (usage) {
+			parts.push(usage);
+		}
 
 		for (const rp of turn.responseParts) {
 			switch (rp.kind) {
@@ -201,6 +217,26 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 }
 
 function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string): IChatRequestVariableEntry | undefined {
+	if (isAgentFeedbackAttachment(attachment)) {
+		const metadata = getAgentFeedbackAttachmentMetadata(attachment);
+		if (metadata) {
+			return {
+				kind: 'agentFeedback',
+				id: generateUuid(),
+				name: attachment.label,
+				value: attachment.modelRepresentation || attachment.label,
+				sessionResource: URI.parse(metadata.sessionResource),
+				feedbackItems: metadata.feedbackItems.map(item => ({
+					id: item.id,
+					text: item.text,
+					resourceUri: toAgentHostUri(URI.parse(item.resourceUri), connectionAuthority),
+					range: textRangeToIRange(item.range),
+				})),
+				_meta: attachment._meta,
+			};
+		}
+	}
+
 	if (attachment.type === MessageAttachmentKind.Resource) {
 		const uri = toAgentHostUri(URI.parse(attachment.uri), connectionAuthority);
 		const name = attachment.label;
@@ -286,6 +322,10 @@ function textRangeToIRange(range: TextRange): IRange {
  */
 export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string | undefined): IChatProgress[] {
 	const parts: IChatProgress[] = [];
+	const usage = usageInfoToChatUsage(activeTurn.usage);
+	if (usage) {
+		parts.push(usage);
+	}
 
 	for (const rp of activeTurn.responseParts) {
 		switch (rp.kind) {
@@ -334,6 +374,51 @@ function getTerminalOutput(tc: ToolCallState) {
 
 function getTerminalLanguage(tc: ToolCallState) {
 	return tc.toolName === 'powershell' ? 'powershell' : 'shellscript';
+}
+
+function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorString: string | undefined): IToolResultInputOutputDetails | undefined {
+	const toolInput = tc.status === ToolCallStatus.Streaming ? undefined : tc.toolInput;
+	if (!toolInput) {
+		return undefined;
+	}
+
+	const output: IToolResultInputOutputDetails['output'] = [];
+	if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running) {
+		for (const block of tc.content ?? []) {
+			switch (block.type) {
+				case ToolResultContentType.Text:
+					output.push({ type: 'embed', value: block.text, isText: true, mimeType: 'text/plain' });
+					break;
+				case ToolResultContentType.EmbeddedResource:
+					output.push({ type: 'embed', value: block.data, mimeType: block.contentType });
+					break;
+				case ToolResultContentType.Resource:
+					output.push({ type: 'ref', uri: URI.parse(block.uri), mimeType: block.contentType });
+					break;
+			}
+		}
+	}
+
+	if (output.length === 0 && errorString) {
+		output.push({ type: 'embed', value: errorString, isText: true, mimeType: 'text/plain' });
+	}
+
+	return {
+		input: toolInput,
+		inputLanguage: 'json',
+		output,
+		isError,
+	};
+}
+
+function getToolErrorString(tc: ToolCallState): string | undefined {
+	if (tc.status === ToolCallStatus.Completed) {
+		return tc.error?.message;
+	}
+	if (tc.status === ToolCallStatus.Cancelled) {
+		return typeof tc.reasonMessage === 'string' ? tc.reasonMessage : tc.reasonMessage?.markdown;
+	}
+	return undefined;
 }
 
 /**
@@ -395,6 +480,9 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	const pastTenseMsg = isSuccess
 		? stringOrMarkdownToString(tc.pastTenseMessage, connectionAuthority) ?? invocationMsg
 		: invocationMsg;
+	const resultDetails = !toolSpecificData && (tc.status !== ToolCallStatus.Completed || getToolFileEdits(tc).length === 0)
+		? getToolInputOutputDetails(tc, !isSuccess, getToolErrorString(tc))
+		: undefined;
 
 	return {
 		kind: 'toolInvocationSerialized',
@@ -411,6 +499,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		presentation: undefined,
 		subAgentInvocationId: subAgentInvocationId,
 		toolSpecificData,
+		resultDetails,
 	};
 }
 
@@ -817,7 +906,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	const terminalContentUri = tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed
 		? getTerminalContentUri(tc.content)
 		: undefined;
-	const isTerminal = invocation.toolSpecificData?.kind === 'terminal' || !!terminalContentUri;
+	const isTerminal = invocation.toolSpecificData?.kind === 'terminal' || !!terminalContentUri || getToolKind(tc) === 'terminal';
 
 	if ((isCompleted || isCancelled) && hasKey(tc, { invocationMessage: true })) {
 		invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? invocation.invocationMessage;
@@ -872,7 +961,16 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 
-	invocation.didExecuteTool(isFailure ? { content: [], toolResultError: errorString } : undefined);
+	const resultDetails = !isTerminal
+		&& invocation.toolSpecificData?.kind !== 'subagent'
+		&& getToolKind(tc) !== 'search'
+		&& fileEdits.length === 0
+		? getToolInputOutputDetails(tc, isFailure, errorString)
+		: undefined;
+	const result: IToolResult | undefined = isFailure || resultDetails
+		? { content: [], toolResultError: isFailure ? errorString : undefined, toolResultDetails: resultDetails }
+		: undefined;
+	invocation.didExecuteTool(result);
 
 	return fileEdits;
 }

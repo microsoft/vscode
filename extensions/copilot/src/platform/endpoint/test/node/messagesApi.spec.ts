@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, suite, test } from 'vitest';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
-import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME, isExtendedCacheTtlEnabled, modelSupportsExtendedCacheTtl } from '../../../networking/common/anthropic';
+import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME, isExtendedCacheTtlEnabled, isExtendedCacheTtlMessagesEnabled, modelSupportsExtendedCacheTtl } from '../../../networking/common/anthropic';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { createPlatformServices } from '../../../test/node/services';
@@ -528,7 +528,7 @@ suite('addToolsAndSystemCacheControl', function () {
 
 suite('modelSupportsExtendedCacheTtl', function () {
 
-	test('matches 1M context Opus variants and rejects everything else', function () {
+	test('matches Opus 4.5/4.6/4.7 and Sonnet 4.5/4.6 variants and rejects everything else', function () {
 		expect({
 			'claude-opus-4.6-1m': modelSupportsExtendedCacheTtl('claude-opus-4.6-1m'),
 			'claude-opus-4-6-1m': modelSupportsExtendedCacheTtl('claude-opus-4-6-1m'),
@@ -538,7 +538,10 @@ suite('modelSupportsExtendedCacheTtl', function () {
 			'claude-opus-4.6': modelSupportsExtendedCacheTtl('claude-opus-4.6'),
 			'claude-opus-4.7': modelSupportsExtendedCacheTtl('claude-opus-4.7'),
 			'claude-opus-4.5': modelSupportsExtendedCacheTtl('claude-opus-4.5'),
+			'claude-sonnet-4.6': modelSupportsExtendedCacheTtl('claude-sonnet-4.6'),
 			'claude-sonnet-4.5': modelSupportsExtendedCacheTtl('claude-sonnet-4.5'),
+			'claude-opus-4-1': modelSupportsExtendedCacheTtl('claude-opus-4-1'),
+			'claude-sonnet-4': modelSupportsExtendedCacheTtl('claude-sonnet-4'),
 			'claude-haiku-4-5': modelSupportsExtendedCacheTtl('claude-haiku-4-5'),
 			'gpt-5': modelSupportsExtendedCacheTtl('gpt-5'),
 		}).toEqual({
@@ -547,10 +550,13 @@ suite('modelSupportsExtendedCacheTtl', function () {
 			'claude-opus-4.7-1m-internal': true,
 			'claude-opus-4-7-1m-internal': true,
 			'CLAUDE-OPUS-4.6-1M': true,
-			'claude-opus-4.6': false,
-			'claude-opus-4.7': false,
-			'claude-opus-4.5': false,
-			'claude-sonnet-4.5': false,
+			'claude-opus-4.6': true,
+			'claude-opus-4.7': true,
+			'claude-opus-4.5': true,
+			'claude-sonnet-4.6': true,
+			'claude-sonnet-4.5': true,
+			'claude-opus-4-1': false,
+			'claude-sonnet-4': false,
 			'claude-haiku-4-5': false,
 			'gpt-5': false,
 		});
@@ -585,9 +591,24 @@ suite('isExtendedCacheTtlEnabled', function () {
 		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, false)).toBe(false);
 	});
 
-	test('returns true for eligible model + config + Agent location + non-subagent', function () {
+	test('composes all four gates: returns true only when model + config + Agent location + non-subagent all align', function () {
+		// Positive composition + negative on each axis. If a future refactor short-circuits
+		// before reading any single gate (e.g. drops the config check), one of these flips.
 		enableConfig();
-		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, false)).toBe(true);
+		const probe = (model: string, location: ChatLocation | undefined, sub: boolean) =>
+			isExtendedCacheTtlEnabled(model, configurationService, experimentationService, location, sub);
+
+		expect({
+			allPass: probe(ELIGIBLE_MODEL, ChatLocation.Agent, false),
+			badModel: probe('gpt-5', ChatLocation.Agent, false),
+			badLocation: probe(ELIGIBLE_MODEL, ChatLocation.Panel, false),
+			subagent: probe(ELIGIBLE_MODEL, ChatLocation.Agent, true),
+		}).toEqual({
+			allPass: true,
+			badModel: false,
+			badLocation: false,
+			subagent: false,
+		});
 	});
 
 	test('returns false when location is undefined', function () {
@@ -604,19 +625,11 @@ suite('isExtendedCacheTtlEnabled', function () {
 		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, true)).toBe(false);
 	});
 
-	test('returns false for non-1M Claude variants even when all other gates pass', function () {
+	test('delegates model gate to modelSupportsExtendedCacheTtl', function () {
+		// Full model boundaries are covered by the `modelSupportsExtendedCacheTtl` suite.
+		// Here we only verify the delegation is wired up.
 		enableConfig();
-		expect({
-			'claude-opus-4-6': isExtendedCacheTtlEnabled('claude-opus-4-6', configurationService, experimentationService, ChatLocation.Agent, false),
-			'claude-opus-4.7': isExtendedCacheTtlEnabled('claude-opus-4.7', configurationService, experimentationService, ChatLocation.Agent, false),
-			'claude-sonnet-4-5': isExtendedCacheTtlEnabled('claude-sonnet-4-5', configurationService, experimentationService, ChatLocation.Agent, false),
-			'gpt-5': isExtendedCacheTtlEnabled('gpt-5', configurationService, experimentationService, ChatLocation.Agent, false),
-		}).toEqual({
-			'claude-opus-4-6': false,
-			'claude-opus-4.7': false,
-			'claude-sonnet-4-5': false,
-			'gpt-5': false,
-		});
+		expect(isExtendedCacheTtlEnabled('gpt-5', configurationService, experimentationService, ChatLocation.Agent, false)).toBe(false);
 	});
 
 	test('returns false for non-Agent chat locations', function () {
@@ -642,6 +655,38 @@ suite('isExtendedCacheTtlEnabled', function () {
 			MessagesProxy: false,
 			ResponsesProxy: false,
 		});
+	});
+});
+
+suite('isExtendedCacheTtlMessagesEnabled', function () {
+
+	let disposables: DisposableStore;
+	let configurationService: InMemoryConfigurationService;
+	let experimentationService: IExperimentationService;
+
+	beforeEach(() => {
+		disposables = new DisposableStore();
+		const services = disposables.add(createPlatformServices(disposables));
+		const accessor = services.createTestingAccessor();
+		configurationService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
+		experimentationService = accessor.get(IExperimentationService);
+	});
+
+	test('parent on/off x sub on/off matrix', function () {
+		// [parentEnabled, sub, expected]
+		const cases: ReadonlyArray<readonly [boolean, boolean, boolean]> = [
+			[false, false, false],
+			[true, false, false],
+			[false, true, false],
+			[true, true, true],
+		];
+		const actual = cases.map(([parent, sub]) => {
+			configurationService.setConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtlMessages, sub);
+			return [parent, sub, isExtendedCacheTtlMessagesEnabled(parent, configurationService, experimentationService)] as const;
+		});
+		// Only "both on" produces true — sub is a strict sub-toggle of parent.
+		// Model/location/subagent gates are inherited via the parent and covered in its suite.
+		expect(actual).toEqual(cases);
 	});
 });
 
@@ -803,6 +848,34 @@ suite('addMessagesApiCacheControl', function () {
 		];
 		addMessagesApiCacheControl({ messages: iterB });
 		expect(ccPositions({ messages: iterB })).toEqual(['messages[3].block[0]', 'messages[4].block[0]']);
+	});
+
+	test('propagates cacheTtl to the emitted cache_control blocks', function () {
+		const makeMessages = (): MessageParam[] => [
+			{ role: 'user', content: [{ type: 'text', text: 'hello' }] },
+			{ role: 'assistant', content: [{ type: 'text', text: 'response' }] },
+		];
+
+		const collect = (messages: MessageParam[]): unknown[] => {
+			const out: unknown[] = [];
+			messages.forEach(m => Array.isArray(m.content) && m.content.forEach(b => {
+				if (typeof b === 'object' && 'cache_control' in b && b.cache_control) {
+					out.push(b.cache_control);
+				}
+			}));
+			return out;
+		};
+
+		const withTtl = makeMessages();
+		addMessagesApiCacheControl({ messages: withTtl }, '1h');
+
+		const withoutTtl = makeMessages();
+		addMessagesApiCacheControl({ messages: withoutTtl });
+
+		expect({ withTtl: collect(withTtl), withoutTtl: collect(withoutTtl) }).toEqual({
+			withTtl: [{ type: 'ephemeral', ttl: '1h' }, { type: 'ephemeral', ttl: '1h' }],
+			withoutTtl: [{ type: 'ephemeral' }, { type: 'ephemeral' }],
+		});
 	});
 });
 

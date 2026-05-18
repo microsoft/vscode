@@ -10,6 +10,9 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { ChatQueryTitlePart } from '../../../../browser/widget/chatContentParts/chatConfirmationWidget.js';
+import { getChatMarkdownRenderOptions } from '../../../../browser/widget/chatContentMarkdownRenderer.js';
 
 suite('ChatInlineAnchorWidget Metadata Validation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,6 +58,21 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 
 		const widget = element.querySelector('.chat-inline-anchor-widget');
 		assert.ok(widget, 'Widget should be rendered for empty link text');
+	});
+
+	test('renders widget for empty vscode-agent-host link in chat query title', () => {
+		const container = mainWindow.document.createElement('div');
+		const titlePart = disposables.add(instantiationService.createInstance(
+			ChatQueryTitlePart,
+			container,
+			new MarkdownString('Read [](vscode-agent-host://my-host/file/-/path/to/foo.ts), lines 1 to 2'),
+			undefined,
+		));
+		titlePart.setOptions({ markdownRenderOptions: getChatMarkdownRenderOptions(), renderFileWidgets: true });
+
+		const widget = container.querySelector('.chat-inline-anchor-widget');
+		assert.ok(widget, 'Widget should be rendered for empty vscode-agent-host link in chat query title');
+		assert.strictEqual(widget.querySelector('.icon-label')?.textContent, 'foo.ts');
 	});
 
 	test('renders widget for vscodeLinkType=file', () => {

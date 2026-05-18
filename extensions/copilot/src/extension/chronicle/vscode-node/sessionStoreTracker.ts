@@ -158,8 +158,20 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 
 	private _handleSpan(span: ICompletedSpanData): void {
 		try {
-			const sessionId = this._getSessionId(span);
 			const operationName = span.attributes[GenAiAttr.OPERATION_NAME] as string | undefined;
+
+			// Sub-agent spans have no row of their own (schema has no sub-agent concept).
+			// Attribute their tool calls to the parent so we don't lose file/ref signal;
+			// drop their invoke_agent span — the parent's covers that turn.
+			const parentChatSessionId = span.attributes[CopilotChatAttr.PARENT_CHAT_SESSION_ID] as string | undefined;
+			if (parentChatSessionId) {
+				if (operationName === GenAiOperationName.EXECUTE_TOOL && this._initializedSessions.has(parentChatSessionId)) {
+					this._handleToolSpan(parentChatSessionId, span);
+				}
+				return;
+			}
+
+			const sessionId = this._getSessionId(span);
 			if (!sessionId) {
 				return;
 			}

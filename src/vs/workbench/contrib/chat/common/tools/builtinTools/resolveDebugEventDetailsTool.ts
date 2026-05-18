@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { localize } from '../../../../../../nls.js';
-import { ChatContextKeys } from '../../actions/chatContextKeys.js';
 import { ChatDebugHookResult, IChatDebugEvent, IChatDebugResolvedEventContent, IChatDebugService } from '../../chatDebugService.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../languageModelToolsService.js';
 
@@ -15,7 +14,6 @@ export const ResolveDebugEventDetailsToolData: IToolData = {
 	id: ResolveDebugEventDetailsToolId,
 	toolReferenceName: 'resolveDebugEventDetails',
 	displayName: localize('resolveDebugEventDetails.displayName', "Resolve Debug Event Details"),
-	when: ChatContextKeys.chatSessionHasDebugTools,
 	canBeReferencedInPrompt: false,
 	modelDescription: 'Resolves the full details for a specific chat debug event by its event ID. Use this tool to get detailed information about a debug event such as tool call input/output, model turn details, user message sections, or file lists. The event ID can be found in the debug event log summary provided in the conversation context.',
 	source: ToolDataSource.Internal,

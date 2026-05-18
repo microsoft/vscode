@@ -148,24 +148,6 @@ export function isGpt55LargePromptSectionsExp(
 	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55LargePromptSections, experimentationService);
 }
 
-export function isGpt54ConcisePromptExp(
-	accessor: ServicesAccessor,
-	model: LanguageModelChat | IChatEndpoint | string,
-) {
-	const configurationService = accessor.get(IConfigurationService);
-	const experimentationService = accessor.get(IExperimentationService);
-	return isGpt54(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt54ConcisePromptExp, experimentationService);
-}
-
-export function isGpt54LargePromptExp(
-	accessor: ServicesAccessor,
-	model: LanguageModelChat | IChatEndpoint | string,
-) {
-	const configurationService = accessor.get(IConfigurationService);
-	const experimentationService = accessor.get(IExperimentationService);
-	return isGpt54(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt54LargePromptExp, experimentationService);
-}
-
 export function isHiddenModelM(model: LanguageModelChat | IChatEndpoint | string) {
 	const family_hash = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
 	return HIDDEN_FAMILY_M_HASHES.includes(family_hash);

@@ -739,7 +739,7 @@ class Queue<T> {
 	}
 }
 
-class LoadEstimator {
+export class LoadEstimator {
 
 	private static _HISTORY_LENGTH = 10;
 	private static _INSTANCE: LoadEstimator | null = null;

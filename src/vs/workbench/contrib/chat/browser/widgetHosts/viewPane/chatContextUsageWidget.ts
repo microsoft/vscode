@@ -266,7 +266,8 @@ export class ChatContextUsageWidget extends Disposable {
 		const maxInputTokens = modelMetadata?.maxInputTokens;
 		const maxOutputTokens = modelMetadata?.maxOutputTokens;
 
-		if (!usage || !maxInputTokens || maxInputTokens <= 0 || !maxOutputTokens || maxOutputTokens <= 0) {
+		const totalContextWindow = (maxInputTokens ?? 0) + (maxOutputTokens ?? 0);
+		if (!usage || totalContextWindow <= 0) {
 			if (!this.currentData) {
 				this.hide();
 			}
@@ -277,7 +278,6 @@ export class ChatContextUsageWidget extends Disposable {
 		const completionTokens = usage.completionTokens;
 		const promptTokenDetails = usage.promptTokenDetails;
 		const outputBuffer = usage.outputBuffer;
-		const totalContextWindow = maxInputTokens + maxOutputTokens;
 		const usedTokens = promptTokens + completionTokens;
 		const percentage = (usedTokens / totalContextWindow) * 100;
 

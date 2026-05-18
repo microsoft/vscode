@@ -14,7 +14,7 @@ import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, TerminalAction } from './protocol/action-origin.generated.js';
 import type { RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
-import { StateComponents } from './sessionState.js';
+import { ROOT_STATE_URI, StateComponents } from './sessionState.js';
 
 // --- Public API --------------------------------------------------------------
 
@@ -201,6 +201,11 @@ interface IPendingAction {
 	readonly action: SessionAction;
 }
 
+export interface IPendingSessionAction extends IPendingAction {
+	/** URI of the session this action targets, as stored on the subscription. */
+	readonly sessionUri: string;
+}
+
 /**
  * Subscription to a session at `copilot:/<uuid>`.
  * Supports write-ahead reconciliation for client-dispatchable actions.
@@ -310,6 +315,31 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 	clearPending(): void {
 		this._pendingActions.length = 0;
 		this._optimisticState = undefined;
+	}
+
+	/**
+	 * Snapshot of the currently-pending optimistic actions, with the session
+	 * URI included so callers can re-issue them across a reconnect. The
+	 * actions remain in the subscription so the optimistic state continues
+	 * to reflect them — the client must explicitly drop entries echoed back
+	 * by the server.
+	 */
+	getPendingActions(): IPendingSessionAction[] {
+		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action, sessionUri: this._sessionUri }));
+	}
+
+	/**
+	 * Drop the pending entry whose `clientSeq` matches the supplied value.
+	 * Used during reconnect to evict actions the server already echoed back
+	 * in the replay buffer so they're not resent.
+	 */
+	dropPendingByClientSeq(clientSeq: number): boolean {
+		const idx = this._pendingActions.findIndex(p => p.clientSeq === clientSeq);
+		if (idx === -1) {
+			return false;
+		}
+		this._pendingActions.splice(idx, 1);
+		return true;
 	}
 }
 
@@ -462,6 +492,90 @@ export class AgentSubscriptionManager extends Disposable {
 			}
 		}
 		return this._seqAllocator();
+	}
+
+	/**
+	 * URIs currently subscribed to via {@link getSubscription}. Used to
+	 * build the `subscriptions` payload for a `reconnect` RPC so the
+	 * server can restore them in one round-trip.
+	 *
+	 * Does NOT include the always-live root state, which the protocol
+	 * client manages separately.
+	 */
+	currentSubscriptionUris(): URI[] {
+		return [...this._subscriptions.keys()];
+	}
+
+	/**
+	 * Snapshot of every pending optimistic action across all session
+	 * subscriptions. Callers use this to replay actions after a transport
+	 * reconnect; entries are kept on their subscriptions until they're
+	 * either echoed back by the server or explicitly dropped via
+	 * {@link dropPendingSessionAction}.
+	 */
+	getPendingSessionActions(): IPendingSessionAction[] {
+		const out: IPendingSessionAction[] = [];
+		for (const { sub } of this._subscriptions.values()) {
+			if (sub instanceof SessionStateSubscription) {
+				out.push(...sub.getPendingActions());
+			}
+		}
+		return out;
+	}
+
+	/**
+	 * Remove a single pending optimistic action for a session by its
+	 * `clientSeq`. Used during reconnect to evict actions the server
+	 * already processed (and replayed back to us) so they're not resent.
+	 */
+	dropPendingSessionAction(sessionUri: string, clientSeq: number): void {
+		const entry = this._subscriptions.get(URI.parse(sessionUri));
+		if (entry?.sub instanceof SessionStateSubscription) {
+			entry.sub.dropPendingByClientSeq(clientSeq);
+		}
+	}
+
+	/**
+	 * Apply a fresh snapshot to a subscribed resource — used when the server
+	 * responds to a `reconnect` request with `type: 'snapshot'` because the
+	 * replay buffer no longer covers the client's gap. Routes to the root
+	 * subscription when {@link ROOT_STATE_URI} matches, otherwise reseats the
+	 * matching entry in {@link _subscriptions}. Unknown resources are ignored.
+	 */
+	applyReconnectSnapshot(resource: URI, state: unknown, fromSeq: number): void {
+		if (resource.toString() === ROOT_STATE_URI) {
+			this._rootState.handleSnapshot(state as RootState, fromSeq);
+			return;
+		}
+		const entry = this._subscriptions.get(resource);
+		if (!entry) {
+			return;
+		}
+		// Clear any pending optimistic actions before reseating confirmed
+		// state \u2014 they were predicated on the pre-disconnect confirmed
+		// state and won't reconcile correctly against a fresh snapshot.
+		if (entry.sub instanceof SessionStateSubscription) {
+			entry.sub.clearPending();
+		}
+		entry.sub.handleSnapshot(state as never, fromSeq);
+	}
+
+	/**
+	 * Mark a set of subscriptions as no longer resumable on the server
+	 * (reported via `ReconnectReplayResult.missing`). The subscriptions
+	 * themselves stay alive so consumers continue to hold valid references,
+	 * but their value transitions to an `Error` until they're recreated.
+	 */
+	markSubscriptionsMissing(missing: readonly URI[]): void {
+		for (const resource of missing) {
+			const entry = this._subscriptions.get(resource);
+			if (entry) {
+				if (entry.sub instanceof SessionStateSubscription) {
+					entry.sub.clearPending();
+				}
+				entry.sub.setError(new Error(`Subscription no longer available after reconnect: ${resource.toString()}`));
+			}
+		}
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any

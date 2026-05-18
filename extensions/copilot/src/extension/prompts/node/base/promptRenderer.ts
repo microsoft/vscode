@@ -213,7 +213,7 @@ export async function renderPromptElementJSON<P extends BasePromptElementProps>(
 	// todo@lramos15: We should pass in endpoint provider rather than doing invoke function, but this was easier
 	const endpoint = await instantiationService.invokeFunction(async (accessor) => {
 		const endpointProvider = accessor.get(IEndpointProvider);
-		return await endpointProvider.getChatEndpoint('copilot-base');
+		return await endpointProvider.getChatEndpoint('copilot-utility');
 	});
 	const hydratedInstaService = instantiationService.createChild(new ServiceCollection([IPromptEndpoint, endpoint]));
 	const renderer = new PromptRendererForJSON(ctor as any, props, tokenOptions, endpoint, hydratedInstaService);

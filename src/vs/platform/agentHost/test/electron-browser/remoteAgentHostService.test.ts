@@ -18,6 +18,7 @@ import { RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl
 import { parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, entryToRawEntry, type IRawRemoteAgentHostEntry, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 
 // ---- Mock transport ---------------------------------------------------------
 
@@ -40,6 +41,7 @@ class MockProtocolClient extends Disposable {
 	readonly onDidClose = this._onDidClose.event;
 	readonly onDidAction = Event.None;
 	readonly onDidNotification = Event.None;
+	readonly onDidChangeConnectionState = Event.None;
 
 	public connectDeferred = new DeferredPromise<void>();
 
@@ -79,7 +81,12 @@ class TestConfigurationService {
 	}
 
 	async updateValue(_key: string, value: unknown): Promise<void> {
-		this._entries = (value as IRawRemoteAgentHostEntry[] | undefined) ?? [];
+		const entries = (value as IRawRemoteAgentHostEntry[] | undefined) ?? [];
+		const changed = JSON.stringify(this._entries) !== JSON.stringify(entries);
+		this._entries = entries;
+		if (!changed) {
+			return;
+		}
 		this._onDidChangeConfiguration.fire({
 			affectsConfiguration: (key: string) => key === RemoteAgentHostsSettingId || key === RemoteAgentHostsEnabledSettingId,
 		});
@@ -91,6 +98,13 @@ class TestConfigurationService {
 
 	setEntries(entries: IRemoteAgentHostEntry[]): void {
 		this._entries = entries.map(entryToRawEntry).filter((e): e is IRawRemoteAgentHostEntry => e !== undefined);
+		this._onDidChangeConfiguration.fire({
+			affectsConfiguration: (key: string) => key === RemoteAgentHostsSettingId || key === RemoteAgentHostsEnabledSettingId,
+		});
+	}
+
+	setRawEntries(entries: IRawRemoteAgentHostEntry[]): void {
+		this._entries = entries;
 		this._onDidChangeConfiguration.fire({
 			affectsConfiguration: (key: string) => key === RemoteAgentHostsSettingId || key === RemoteAgentHostsEnabledSettingId,
 		});
@@ -114,6 +128,7 @@ suite('RemoteAgentHostService', () => {
 	let configService: TestConfigurationService;
 	let createdClients: MockProtocolClient[];
 	let registeredFormatters: ResourceLabelFormatter[];
+	let instantiationService: TestInstantiationService;
 	let service: RemoteAgentHostService;
 
 	setup(() => {
@@ -122,10 +137,12 @@ suite('RemoteAgentHostService', () => {
 
 		createdClients = [];
 
-		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(IConfigurationService, configService as Partial<IConfigurationService>);
+		const storageService = disposables.add(new InMemoryStorageService());
+		instantiationService.stub(IStorageService, storageService);
 		registeredFormatters = [];
 		instantiationService.stub(ILabelService, {
 			registerFormatter(formatter: ResourceLabelFormatter) {
@@ -507,6 +524,15 @@ suite('RemoteAgentHostService', () => {
 			assert.strictEqual(service.getConnection('ws://managed:1234'), undefined);
 		});
 
+		test('throws when disabled', async () => {
+			configService.setEnabled(false);
+
+			await assert.rejects(
+				() => addManaged('Managed', 'managed:1234'),
+				/not enabled/,
+			);
+		});
+
 		test('does NOT dispose previous transportDisposable when entry is replaced', async () => {
 			// When the entry is replaced (e.g. on reconnect to the same address),
 			// the new entry takes ownership of the same underlying connectionId.
@@ -535,6 +561,123 @@ suite('RemoteAgentHostService', () => {
 			service.dispose();
 
 			assert.strictEqual(t.disposed(), true, 'transport disposable runs when service is disposed');
+		});
+
+		test('stores SSH connection details outside the remote hosts setting', async () => {
+			const mockClient = disposables.add(new MockProtocolClient('ssh:remote.example'));
+			await service.addManagedConnection(
+				{
+					name: 'SSH Host',
+					connectionToken: 'ssh-token',
+					connection: {
+						type: RemoteAgentHostEntryType.SSH,
+						address: 'ssh:remote.example',
+						sshConfigHost: 'remote',
+						hostName: 'remote.example',
+						user: 'me',
+						port: 2222,
+					},
+				},
+				mockClient as unknown as Parameters<typeof service.addManagedConnection>[1],
+			);
+
+			assert.deepStrictEqual({
+				settings: configService.entries,
+				configured: service.configuredEntries,
+			}, {
+				settings: [],
+				configured: [{
+					name: 'SSH Host',
+					connectionToken: 'ssh-token',
+					connection: {
+						type: RemoteAgentHostEntryType.SSH,
+						address: 'ssh:remote.example',
+						sshConfigHost: 'remote',
+						hostName: 'remote.example',
+						user: 'me',
+						port: 2222,
+					},
+				}],
+			});
+		});
+
+		test('migrates legacy SSH connection details from settings to storage', async () => {
+			service.dispose();
+			configService.setRawEntries([{
+				address: 'ssh:legacy',
+				name: 'Legacy SSH Host',
+				connectionToken: 'ssh-token',
+				sshConfigHost: 'legacy',
+				sshHostName: 'legacy.example',
+				sshUser: 'me',
+				sshPort: 2222,
+			}]);
+
+			service = disposables.add(instantiationService.createInstance(RemoteAgentHostService));
+
+			assert.deepStrictEqual({
+				settings: configService.entries,
+				configured: service.configuredEntries,
+			}, {
+				settings: [],
+				configured: [{
+					name: 'Legacy SSH Host',
+					connectionToken: 'ssh-token',
+					connection: {
+						type: RemoteAgentHostEntryType.SSH,
+						address: 'ssh:legacy',
+						sshConfigHost: 'legacy',
+						hostName: 'legacy.example',
+						user: 'me',
+						port: 2222,
+					},
+				}],
+			});
+
+			service.dispose();
+			service = disposables.add(instantiationService.createInstance(RemoteAgentHostService));
+
+			assert.deepStrictEqual({
+				settings: configService.entries,
+				configured: service.configuredEntries,
+			}, {
+				settings: [],
+				configured: [{
+					name: 'Legacy SSH Host',
+					connectionToken: 'ssh-token',
+					connection: {
+						type: RemoteAgentHostEntryType.SSH,
+						address: 'ssh:legacy',
+						sshConfigHost: 'legacy',
+						hostName: 'legacy.example',
+						user: 'me',
+						port: 2222,
+					},
+				}],
+			});
+		});
+
+		test('fires change when removing a storage-only SSH entry', async () => {
+			service.dispose();
+			configService.setRawEntries([{
+				address: 'ssh:legacy',
+				name: 'Legacy SSH Host',
+				sshConfigHost: 'legacy',
+				sshHostName: 'legacy.example',
+			}]);
+			service = disposables.add(instantiationService.createInstance(RemoteAgentHostService));
+
+			const changed = Event.toPromise(service.onDidChangeConnections);
+			await service.removeRemoteAgentHost('ssh:legacy');
+			await changed;
+
+			assert.deepStrictEqual({
+				settings: configService.entries,
+				configured: service.configuredEntries,
+			}, {
+				settings: [],
+				configured: [],
+			});
 		});
 	});
 

@@ -19,8 +19,7 @@ import { ILogService } from '../../log/common/logService';
 import { getRequest } from '../../networking/common/networking';
 import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
-import { ChatEndpointFamily, IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IModelAPIResponse, isChatModelInformation, isCompletionModelInformation, isEmbeddingModelInformation } from '../common/endpointProvider';
-import { ModelAliasRegistry } from '../common/modelAliasRegistry';
+import { IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IModelAPIResponse, isChatModelInformation, isCompletionModelInformation, isEmbeddingModelInformation } from '../common/endpointProvider';
 
 export interface IModelMetadataFetcher {
 
@@ -41,10 +40,20 @@ export interface IModelMetadataFetcher {
 	getAllChatModels(): Promise<IChatModelInformation[]>;
 
 	/**
-	 * Retrieves a chat model by its family name
-	 * @param family The family of the model to fetch
+	 * Retrieves the API-marked default Copilot utility model — the model
+	 * the CAPI `/models` response flags with `is_chat_fallback === true`.
+	 * Used to back the `copilot-utility` internal endpoint family.
 	 */
-	getChatModelFromFamily(family: ChatEndpointFamily): Promise<IChatModelInformation>;
+	getCopilotUtilityModel(): Promise<IChatModelInformation>;
+
+	/**
+	 * Retrieves a chat model by its CAPI family identifier (e.g.
+	 * `gpt-4o-mini`, `claude-sonnet-4`). The family must match
+	 * `IChatModelCapabilities.family` of a model returned from the
+	 * `/models` endpoint.
+	 * @param family The CAPI family identifier of the model to fetch
+	 */
+	getChatModelFromCapiFamily(family: string): Promise<IChatModelInformation>;
 
 	/**
 	 * Retrieves a chat model by its id
@@ -71,7 +80,7 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 
 	private _familyMap: Map<string, IModelAPIResponse[]> = new Map();
 	private _completionsFamilyMap: Map<string, IModelAPIResponse[]> = new Map();
-	private _copilotBaseModel: IModelAPIResponse | undefined;
+	private _copilotUtilityModel: IModelAPIResponse | undefined;
 	private _lastFetchTime: number = 0;
 	private readonly _taskSingler = new TaskSingler<IModelAPIResponse | undefined | void>();
 	private _lastFetchError: any;
@@ -161,18 +170,20 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		return resolvedModel;
 	}
 
-	public async getChatModelFromFamily(family: ChatEndpointFamily): Promise<IChatModelInformation> {
+	public async getCopilotUtilityModel(): Promise<IChatModelInformation> {
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
-		let resolvedModel: IModelAPIResponse | undefined;
-		family = ModelAliasRegistry.resolveAlias(family) as ChatEndpointFamily;
-
-		if (family === 'copilot-base') {
-			resolvedModel = this._copilotBaseModel;
-		} else {
-			resolvedModel = this._familyMap.get(family)?.[0];
-		}
+		const resolvedModel = this._copilotUtilityModel;
 		if (!resolvedModel || !isChatModelInformation(resolvedModel)) {
-			throw new Error(await this._getErrorMessage(`Unable to resolve chat model with family selection: ${family}`));
+			throw new Error(await this._getErrorMessage('Unable to resolve Copilot utility chat model (server did not mark a chat fallback model)'));
+		}
+		return resolvedModel;
+	}
+
+	public async getChatModelFromCapiFamily(family: string): Promise<IChatModelInformation> {
+		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
+		const resolvedModel = this._familyMap.get(family)?.[0];
+		if (!resolvedModel || !isChatModelInformation(resolvedModel)) {
+			throw new Error(await this._getErrorMessage(`Unable to resolve chat model with CAPI family selection: ${family}`));
 		}
 		return resolvedModel;
 	}
@@ -267,9 +278,9 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 			for (let model of data) {
 				model = await this._hydrateResolvedModel(model);
 				const isCompletionModel = isCompletionModelInformation(model);
-				// The base model is whatever model is deemed "fallback" by the server
+				// The utility model is whatever model is deemed "fallback" by the server
 				if (model.is_chat_fallback && !isCompletionModel) {
-					this._copilotBaseModel = model;
+					this._copilotUtilityModel = model;
 				}
 				const family = model.capabilities.family;
 				const familyMap = isCompletionModel ? this._completionsFamilyMap : this._familyMap;

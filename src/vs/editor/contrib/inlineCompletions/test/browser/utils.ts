@@ -296,6 +296,7 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					getDefaultAccount: async () => null,
 					setDefaultAccountProvider: () => { },
 					getDefaultAccountAuthenticationProvider: () => { return { id: 'mockProvider', name: 'Mock Provider', enterprise: false }; },
+					resolveGitHubUrl: (path: string) => `https://github.com/${path}`,
 					refresh: async () => { return null; },
 					signIn: async () => { return null; },
 					signOut: async () => { },

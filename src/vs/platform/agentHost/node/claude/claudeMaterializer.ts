@@ -192,6 +192,13 @@ export class ClaudeMaterializer {
 			},
 			disallowedTools: ['WebSearch'],
 			includePartialMessages: true,
+			// Phase 12: forward subagent text + thinking blocks through the
+			// live message stream. Without this the SDK emits only
+			// `tool_use` / `tool_result` from subagent contexts and the
+			// child session shows up content-empty live, while replay via
+			// `getSubagentMessages` returns the full transcript — a silent
+			// UX asymmetry. Startup-only option, not user-bypassable.
+			forwardSubagentText: true,
 			// Phase 8: enable the SDK's per-session checkpoint store so
 			// `Query.rewindFiles` can revert tool-applied edits without
 			// re-running the agent. The session restore UX (smoke row R8)

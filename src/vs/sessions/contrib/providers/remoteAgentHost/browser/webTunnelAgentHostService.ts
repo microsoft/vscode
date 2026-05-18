@@ -123,6 +123,9 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		if (!this._discoveryProvider) {
 			throw new Error('No tunnelDiscoveryProvider available');
 		}
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			throw new Error('Remote agent host connections are not enabled.');
+		}
 
 		const { tunnelId, clusterId } = tunnel;
 		this._logService.info(`${LOG_PREFIX} Connecting to tunnel '${tunnel.name}' (${tunnelId})`);
@@ -136,7 +139,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		const transport = new TunnelConnectionTransport(connection, this._logService);
 		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
 		const protocolClient = this._instantiationService.createInstance(
-			RemoteAgentHostProtocolClient, address, transport,
+			RemoteAgentHostProtocolClient, address, transport, undefined,
 		);
 
 		try {

@@ -67,6 +67,13 @@ export interface SessionEvent {
 	parentId: string | null;
 	/** When true, the event is transient and not persisted. */
 	ephemeral?: boolean;
+	/**
+	 * Sub-agent instance identifier. Absent for events from the root/main agent
+	 * and for session-level events. Used by the cloud renderer to scope events
+	 * (assistant.message, tool.execution_*) under a sub-agent envelope so they
+	 * are not displayed as standalone sessions.
+	 */
+	agentId?: string;
 	/** Event type discriminator. */
 	type: string;
 	/** Event-specific payload. */

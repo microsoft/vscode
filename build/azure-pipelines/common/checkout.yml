@@ -2,4 +2,5 @@ steps:
   - checkout: self
     fetchDepth: 1
     fetchTags: false
+    retryCountOnTaskFailure: 3
     displayName: Checkout microsoft/vscode

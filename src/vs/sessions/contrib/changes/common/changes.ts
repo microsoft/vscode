@@ -13,14 +13,6 @@ export const enum ChangesViewMode {
 	Tree = 'tree'
 }
 
-export const enum ChangesVersionMode {
-	BranchChanges = 'branchChanges',
-	UncommittedChanges = 'uncommittedChanges',
-	OutgoingChanges = 'outgoingChanges',
-	AllChanges = 'allChanges',
-	LastTurn = 'lastTurn'
-}
-
 export const enum IsolationMode {
 	Workspace = 'workspace',
 	Worktree = 'worktree'
@@ -28,7 +20,7 @@ export const enum IsolationMode {
 
 export const ChangesContextKeys = {
 	ChangeKind: new RawContextKey<'root' | 'folder' | 'file'>('sessions.changeKind', 'file'),
-	VersionMode: new RawContextKey<ChangesVersionMode>('sessions.changesVersionMode', ChangesVersionMode.BranchChanges),
+	VersionMode: new RawContextKey<string>('sessions.changesVersionMode', ''),
 	ViewMode: new RawContextKey<ChangesViewMode>('sessions.changesViewMode', ChangesViewMode.List)
 };
 

@@ -30,6 +30,14 @@ export interface IAgentPluginManager {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Root directory under which all agent plugin data is materialized.
+	 * Exposed so other host-side components can carve out sibling
+	 * directories for their own bundles (e.g. session-discovered
+	 * customizations) without having to thread `userDataPath` separately.
+	 */
+	readonly basePath: URI;
+
+	/**
 	 * Syncs a set of client-provided customization refs to local storage.
 	 *
 	 * Each ref is copied to a local directory, respecting nonce-based

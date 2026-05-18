@@ -176,7 +176,11 @@ export class ConversationFeature implements IExtensionContribution {
 				return;
 			}
 
-			return vscode.workspace.registerAITextSearchProvider('file', this.instantiationService.createInstance(SemanticSearchTextSearchProvider));
+			const provider = this.instantiationService.createInstance(SemanticSearchTextSearchProvider);
+			return combinedDisposable(
+				provider,
+				vscode.workspace.registerAITextSearchProvider('file', provider),
+			);
 		}
 	}
 

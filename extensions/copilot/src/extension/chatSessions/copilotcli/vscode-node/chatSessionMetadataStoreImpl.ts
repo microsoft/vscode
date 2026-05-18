@@ -393,6 +393,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 			parentSessionId: sourceSessionId,
 			origin: 'vscode',
 			kind: 'forked',
+			archived: false,
 		};
 		await this.updateMetadataFields(targetSessionId, forkedMetadata);
 	}
@@ -423,9 +424,22 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		await this.updateMetadataFields(sessionId, { parentSessionId, kind: 'sub-session' });
 	}
 
-	public async getSessionParentId(sessionId: string): Promise<string | undefined> {
+	public async getSessionParentId(sessionId: string): Promise<{ parentSessionId: string; kind: 'forked' | 'sub-session' } | undefined> {
 		const metadata = await this.getSessionMetadata(sessionId, false);
-		return metadata?.parentSessionId;
+		if (!metadata?.parentSessionId || !metadata.kind) {
+			return undefined;
+		}
+		return { parentSessionId: metadata.parentSessionId, kind: metadata.kind };
+	}
+
+	public async setSessionArchived(sessionId: string, archived: boolean): Promise<void> {
+		await this._ready;
+		await this.updateMetadataFields(sessionId, { archived });
+	}
+
+	public async getSessionArchived(sessionId: string): Promise<boolean> {
+		const metadata = await this.getSessionMetadata(sessionId, false);
+		return metadata?.archived === true;
 	}
 
 	private async getSessionMetadata(sessionId: string, createMetadataFileIfNotFound = true): Promise<ChatSessionMetadataFile | undefined> {

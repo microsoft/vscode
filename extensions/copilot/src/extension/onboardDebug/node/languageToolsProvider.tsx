@@ -30,7 +30,7 @@ export class LanguageToolsProvider {
 	}
 
 	public async getToolsForLanguages(languages: string[], token: CancellationToken) {
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility');
 		const promptRenderer = PromptRenderer.create(
 			this.instantiationService,
 			endpoint,

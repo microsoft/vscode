@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../b
 import { localize } from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../../services/statusbar/browser/statusbar.js';
-import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContextKeys, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -32,7 +32,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	static readonly ID = 'workbench.contrib.chatStatusBarEntry';
 
-	private static readonly TITLE_BAR_CONTEXT_KEYS = new Set(['updateTitleBar', InEditorZenModeContext.key]);
+	private static readonly TITLE_BAR_CONTEXT_KEYS = new Set(['updateTitleBar', InEditorZenModeContext.key, ChatEntitlementContextKeys.hasByokModels.key]);
 
 	private entry: IStatusbarEntryAccessor | undefined = undefined;
 
@@ -158,7 +158,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			}
 
 			// Signed out
-			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
+			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown && !this.chatEntitlementService.hasByokModels) {
 				return this.getSetupEntryProps();
 			}
 

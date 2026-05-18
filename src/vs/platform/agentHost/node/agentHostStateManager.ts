@@ -8,11 +8,12 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
+import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { ActionType, NotificationType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, RootAction, StateAction, TerminalAction, isRootAction, isSessionAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer } from '../common/state/sessionReducers.js';
 import { createRootState, createSessionState, SessionLifecycle, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI } from '../common/state/sessionState.js';
-import { IPermissionsValue, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 
 /**
@@ -67,6 +68,7 @@ export class AgentHostStateManager extends Disposable {
 				schema: platformRootSchema.toProtocol(),
 				values: platformRootSchema.validateOrDefault({}, {
 					[SessionConfigKey.Permissions]: { allow: [], deny: [] } satisfies IPermissionsValue,
+					[AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(TelemetryLevel.USAGE),
 				}),
 			},
 		};

@@ -105,6 +105,12 @@ export interface ChatSessionMetadataFile {
 	 * session or if the session is a child session created from the Agents app.
 	 */
 	parentSessionId?: string;
+	/**
+	 * Whether the session is currently archived. Tracked here so worktree-sharing
+	 * checks can ignore archived siblings (whose worktrees are reconstructed on
+	 * un-archive via {@link IChatSessionWorktreeService.recreateWorktreeOnUnarchive}).
+	 */
+	archived?: boolean;
 	/** Milliseconds since epoch when this metadata was first written. */
 	created?: number;
 	/** Milliseconds since epoch of the last write. Used for top-N trim sort and cross-process merge. */
@@ -152,7 +158,19 @@ export interface IChatSessionMetadataStore {
 	setSessionOrigin(sessionId: string): Promise<void>;
 	getSessionOrigin(sessionId: string): Promise<'vscode' | 'other'>;
 	setSessionParentId(sessionId: string, parentSessionId: string): Promise<void>;
-	getSessionParentId(sessionId: string): Promise<string | undefined>;
+	/**
+	 * Returns the parent lineage info for a session, distinguishing forked sessions
+	 * (created via the fork action) from sub-sessions (spawned by a parent session
+	 * to do work on its behalf). Returns `undefined` for top-level sessions with no
+	 * stored parent.
+	 */
+	getSessionParentId(sessionId: string): Promise<{ parentSessionId: string; kind: 'forked' | 'sub-session' } | undefined>;
+	/**
+	 * Persist the archived state of a session. Called from the chat session item state
+	 * change handler so worktree-sharing checks can later ignore archived siblings.
+	 */
+	setSessionArchived(sessionId: string, archived: boolean): Promise<void>;
+	getSessionArchived(sessionId: string): Promise<boolean>;
 	/**
 	 * Re-read the shared bulk metadata file from disk and merge into the in-memory cache.
 	 * Wired to the chat-sessions UI refresh action so cross-process writes become visible

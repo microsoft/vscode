@@ -119,7 +119,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 
 		if (useAgenticProxy) {
 			// Our custom models are not trained for PowerShell yet. Fall back to main agent endpoint.
-			if (shellType === 'powershell') {
+			if (shellType === 'powershell' || shellType === 'pwsh') {
 				return await this.endpointProvider.getChatEndpoint(this.options.request);
 			}
 			// Use agentic proxy with ExecutionSubagentModel or default to DEFAULT_AGENTIC_PROXY_MODEL

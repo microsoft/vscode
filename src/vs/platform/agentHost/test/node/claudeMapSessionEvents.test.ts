@@ -11,6 +11,7 @@ import type { AgentSignal } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claude/claudeMapSessionEvents.js';
+import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import {
 	makeAssistantMessage,
 	makeContentBlockStartText,
@@ -37,7 +38,7 @@ import {
  */
 suite('claudeMapSessionEvents — direct mapper tests', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const SESSION = URI.parse('agent-session://test/abc');
 	const SESSION_STR = SESSION.toString();
@@ -55,6 +56,17 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		}
 	}
 
+	/**
+	 * Fresh real {@link SubagentRegistry} so the per-test registry can
+	 * record subagent state writes the mapper makes (Phase 12: spawning
+	 * entries, inner-tool→parent edges, etc). Tests that don't touch
+	 * subagent paths simply pass `r()` through to satisfy the mapper
+	 * signature.
+	 */
+	function r(): SubagentRegistry {
+		return disposables.add(new SubagentRegistry());
+	}
+
 	test('message_start emits no signals', () => {
 		const signals = mapSDKMessageToAgentSignals(
 			makeStreamEvent(SESSION_ID, makeMessageStart()),
@@ -62,6 +74,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			TURN_ID,
 			new ClaudeMapperState(),
 			new NullLogService(),
+			r(),
 		);
 
 		assert.deepStrictEqual(signals, []);
@@ -71,13 +84,14 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const out: AgentSignal[] = [];
 		const log = new NullLogService();
 		const state = new ClaudeMapperState();
+		const resolver = r();
 		const push = (msgs: AgentSignal[]) => out.push(...msgs);
 
-		push(mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeMessageStart()), SESSION, TURN_ID, state, log));
-		push(mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartText(0)), SESSION, TURN_ID, state, log));
-		push(mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeTextDelta(0, 'Hello, ')), SESSION, TURN_ID, state, log));
-		push(mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeTextDelta(0, 'world!')), SESSION, TURN_ID, state, log));
-		push(mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStop(0)), SESSION, TURN_ID, state, log));
+		push(mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeMessageStart()), SESSION, TURN_ID, state, log, resolver));
+		push(mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartText(0)), SESSION, TURN_ID, state, log, resolver));
+		push(mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeTextDelta(0, 'Hello, ')), SESSION, TURN_ID, state, log, resolver));
+		push(mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeTextDelta(0, 'world!')), SESSION, TURN_ID, state, log, resolver));
+		push(mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStop(0)), SESSION, TURN_ID, state, log, resolver));
 
 		assert.strictEqual(out.length, 3);
 		const start = out[0];
@@ -118,12 +132,14 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const log = new NullLogService();
 		const state = new ClaudeMapperState();
 
+
 		const startSignals = mapSDKMessageToAgentSignals(
 			makeStreamEvent(SESSION_ID, makeContentBlockStartThinking(0)),
 			SESSION,
 			TURN_ID,
 			state,
 			log,
+			r(),
 		);
 		assert.strictEqual(startSignals.length, 1);
 		const start = startSignals[0];
@@ -137,6 +153,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			TURN_ID,
 			state,
 			log,
+			r(),
 		);
 		assert.deepStrictEqual(deltaSignals, [{
 			kind: 'action',
@@ -157,12 +174,14 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();
 
+
 		const signals = mapSDKMessageToAgentSignals(
 			makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_1', 'Read')),
 			SESSION,
 			TURN_ID,
 			state,
 			log,
+			r(),
 		);
 
 		assert.deepStrictEqual(signals, [{
@@ -183,9 +202,10 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	test('Test 9 — input_json_delta emits SessionToolCallDelta scoped to the open tool_use block', () => {
 		const log = new NullLogService();
 		const state = new ClaudeMapperState();
+		const resolver = r();
 
 		// Open the block first so the per-message map knows about index 0.
-		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_1', 'Read')), SESSION, TURN_ID, state, log);
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_1', 'Read')), SESSION, TURN_ID, state, log, resolver);
 
 		const signals = mapSDKMessageToAgentSignals(
 			makeStreamEvent(SESSION_ID, makeInputJsonDelta(0, '{"file_pa')),
@@ -193,6 +213,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			TURN_ID,
 			state,
 			log,
+			r(),
 		);
 
 		assert.deepStrictEqual(signals, [{
@@ -211,14 +232,15 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	test('Test 10 — synthetic user tool_result emits SessionToolCallComplete with the originating turnId', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();
+		const resolver = r();
 
 		// Drive the tool_use through state, simulating the multi-message
 		// flow: the tool_use lands on TURN_ID, content_block_stop drains
 		// the per-message map, then a synthetic user message in the next
 		// (separate) turn carries the tool_result. Cross-message lookup
 		// must recover the original turnId.
-		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_1', 'Read')), SESSION, TURN_ID, state, log);
-		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStop(0)), SESSION, TURN_ID, state, log);
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_1', 'Read')), SESSION, TURN_ID, state, log, resolver);
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStop(0)), SESSION, TURN_ID, state, log, resolver);
 
 		const signals = mapSDKMessageToAgentSignals(
 			makeUserToolResultMessage(SESSION_ID, 'tu_1', 'file contents'),
@@ -226,6 +248,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			'turn-2-irrelevant',
 			state,
 			log,
+			r(),
 		);
 
 		assert.deepStrictEqual(signals, [{
@@ -250,12 +273,14 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();
 
+
 		const signals = mapSDKMessageToAgentSignals(
 			makeUserToolResultMessage(SESSION_ID, 'unknown-id', 'orphan content'),
 			SESSION,
 			TURN_ID,
 			state,
 			log,
+			r(),
 		);
 
 		assert.deepStrictEqual(signals, []);
@@ -266,8 +291,9 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	test('tool_result with is_error: true reports success=false', () => {
 		const log = new NullLogService();
 		const state = new ClaudeMapperState();
+		const resolver = r();
 
-		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_err', 'Bash')), SESSION, TURN_ID, state, log);
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_err', 'Bash')), SESSION, TURN_ID, state, log, resolver);
 
 		const signals = mapSDKMessageToAgentSignals(
 			makeUserToolResultMessage(SESSION_ID, 'tu_err', 'permission denied', { isError: true }),
@@ -275,6 +301,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			TURN_ID,
 			state,
 			log,
+			r(),
 		);
 
 		assert.strictEqual(signals.length, 1);
@@ -286,8 +313,9 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	test('tool_result content as TextBlock array unwraps to ToolResultTextContent[]', () => {
 		const log = new NullLogService();
 		const state = new ClaudeMapperState();
+		const resolver = r();
 
-		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_2', 'Read')), SESSION, TURN_ID, state, log);
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_2', 'Read')), SESSION, TURN_ID, state, log, resolver);
 
 		const signals = mapSDKMessageToAgentSignals(
 			makeUserToolResultMessage(SESSION_ID, 'tu_2', [
@@ -298,6 +326,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			TURN_ID,
 			state,
 			log,
+			r(),
 		);
 
 		const complete = signals[0];
@@ -315,8 +344,9 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	test('Phase 8 — cached file edit is appended to SessionToolCallComplete.result.content', () => {
 		const log = new NullLogService();
 		const state = new ClaudeMapperState();
+		const resolver = r();
 
-		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_edit', 'Write')), SESSION, TURN_ID, state, log);
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_edit', 'Write')), SESSION, TURN_ID, state, log, resolver);
 
 		const fileEdit = {
 			type: ToolResultContentType.FileEdit as const,
@@ -332,6 +362,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			TURN_ID,
 			state,
 			log,
+			r(),
 		);
 
 		const complete = signals[0];
@@ -345,8 +376,9 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	test('Phase 8 — no cached edit leaves content text-only (no regression)', () => {
 		const log = new NullLogService();
 		const state = new ClaudeMapperState();
+		const resolver = r();
 
-		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_read', 'Read')), SESSION, TURN_ID, state, log);
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_read', 'Read')), SESSION, TURN_ID, state, log, resolver);
 
 		const signals = mapSDKMessageToAgentSignals(
 			makeUserToolResultMessage(SESSION_ID, 'tu_read', 'file contents'),
@@ -354,6 +386,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			TURN_ID,
 			state,
 			log,
+			r(),
 		);
 
 		const complete = signals[0];
@@ -386,6 +419,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();
 
+
 		const signals = mapSDKMessageToAgentSignals(
 			makeAssistantMessage(SESSION_ID, [
 				{ type: 'text', text: 'final', citations: null },
@@ -395,6 +429,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			TURN_ID,
 			state,
 			log,
+			r(),
 		);
 
 		assert.deepStrictEqual(signals, []);
@@ -405,12 +440,14 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();
 
+
 		const signals = mapSDKMessageToAgentSignals(
 			makeAssistantMessage(SESSION_ID, [{ type: 'text', text: 'final answer', citations: null }]),
 			SESSION,
 			TURN_ID,
 			state,
 			log,
+			r(),
 		);
 
 		assert.deepStrictEqual(signals, []);
@@ -435,7 +472,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			},
 		};
 
-		const signals = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService());
+		const signals = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService(), r());
 
 		// Pipeline (Phase 9 refactor) owns the protocol-Turn boundary; it
 		// fires SessionTurnComplete via `onTurnComplete` only on the FINAL
@@ -465,7 +502,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const result = makeResultSuccess(SESSION_ID);
 		result.modelUsage = {};
 
-		const signals = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService());
+		const signals = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService(), r());
 
 		assert.strictEqual(signals.length, 1);
 		const usage = signals[0];
@@ -476,6 +513,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	test('result drains pending tool_use entries that never received a tool_result and warns once per orphan', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();
+
 		const TOOL_USE_ID = 'toolu_orphan_1';
 
 		// Open a tool_use block that will never be paired with a tool_result.
@@ -485,6 +523,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			TURN_ID,
 			state,
 			log,
+			r(),
 		);
 
 		// Turn ends with no tool_result for the tool_use.
@@ -494,6 +533,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			TURN_ID,
 			state,
 			log,
+			r(),
 		);
 
 		assert.strictEqual(resultSignals.length, 1);
@@ -509,6 +549,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			TURN_ID,
 			state,
 			log,
+			r(),
 		);
 
 		assert.deepStrictEqual(lateSignals, []);
@@ -516,9 +557,11 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.ok(log.warns[1].includes(`tool_result for unknown tool_use_id ${TOOL_USE_ID}`));
 	});
 
+
 	test('message_stop and unknown stream events emit nothing', () => {
 		const log = new NullLogService();
 		const state = new ClaudeMapperState();
+
 
 		const stop = mapSDKMessageToAgentSignals(
 			makeStreamEvent(SESSION_ID, makeMessageStop()),
@@ -526,6 +569,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			TURN_ID,
 			state,
 			log,
+			r(),
 		);
 		assert.deepStrictEqual(stop, []);
 	});
@@ -533,9 +577,10 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	test('multi-block ordering: text @0 then thinking @1 keep distinct part ids and route deltas correctly', () => {
 		const log = new NullLogService();
 		const state = new ClaudeMapperState();
+		const resolver = r();
 
-		const text0 = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartText(0)), SESSION, TURN_ID, state, log);
-		const think1 = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartThinking(1)), SESSION, TURN_ID, state, log);
+		const text0 = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartText(0)), SESSION, TURN_ID, state, log, resolver);
+		const think1 = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartThinking(1)), SESSION, TURN_ID, state, log, resolver);
 
 		const text0Start = text0[0];
 		const think1Start = think1[0];
@@ -547,8 +592,8 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const thinkPartId = think1Start.action.part.id;
 		assert.notStrictEqual(textPartId, thinkPartId);
 
-		const dText = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeTextDelta(0, 'A')), SESSION, TURN_ID, state, log);
-		const dThink = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeThinkingDelta(1, 'B')), SESSION, TURN_ID, state, log);
+		const dText = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeTextDelta(0, 'A')), SESSION, TURN_ID, state, log, resolver);
+		const dThink = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeThinkingDelta(1, 'B')), SESSION, TURN_ID, state, log, resolver);
 
 		assert.ok(dText[0].kind === 'action' && dText[0].action.type === ActionType.SessionDelta);
 		assert.strictEqual(dText[0].action.partId, textPartId);
@@ -565,14 +610,15 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		// the reducer to drop the new Markdown part as a duplicate).
 		const log = new NullLogService();
 		const state = new ClaudeMapperState();
+		const resolver = r();
 
-		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeMessageStart('msg_a')), SESSION, TURN_ID, state, log);
-		const thinkStart = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartThinking(0)), SESSION, TURN_ID, state, log);
-		const thinkDelta = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeThinkingDelta(0, 'plan')), SESSION, TURN_ID, state, log);
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeMessageStart('msg_a')), SESSION, TURN_ID, state, log, resolver);
+		const thinkStart = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartThinking(0)), SESSION, TURN_ID, state, log, resolver);
+		const thinkDelta = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeThinkingDelta(0, 'plan')), SESSION, TURN_ID, state, log, resolver);
 
-		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeMessageStart('msg_b')), SESSION, TURN_ID, state, log);
-		const textStart = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartText(0)), SESSION, TURN_ID, state, log);
-		const textDelta = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeTextDelta(0, 'done')), SESSION, TURN_ID, state, log);
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeMessageStart('msg_b')), SESSION, TURN_ID, state, log, resolver);
+		const textStart = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartText(0)), SESSION, TURN_ID, state, log, resolver);
+		const textDelta = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeTextDelta(0, 'done')), SESSION, TURN_ID, state, log, resolver);
 
 		const thinkStartSignal = thinkStart[0];
 		const textStartSignal = textStart[0];

@@ -35,6 +35,9 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, type IIncrementalDiffOptions } from './sessionDiffAggregator.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
+import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -103,6 +106,7 @@ export class AgentSideEffects extends Disposable {
 	 * Key: `${parentSession}:${parentToolCallId}`.
 	 */
 	private readonly _pendingSubagentSignals = new Map<string, IPendingSubagentSignal[]>();
+	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -110,8 +114,10 @@ export class AgentSideEffects extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
+		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 		this._diffComputeService = this._register(new NodeWorkerDiffComputeService(this._logService));
 		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager));
 
@@ -712,6 +718,7 @@ export class AgentSideEffects extends Disposable {
 					return;
 				}
 				const attachments = action.userMessage.attachments;
+				this._telemetryReporter.userMessageSent(agent.id, action.session, state, 'direct', attachments);
 				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments, action.turnId).catch(err => {
 					const errCode = (err as { code?: number })?.code;
 					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${action.session}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
@@ -806,6 +813,7 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.RootConfigChanged: {
+				updateAgentHostTelemetryLevelFromConfig(this._telemetryService, action.config);
 				// Host customizations are self-managed by each agent's
 				// PluginController via IAgentConfigurationService.onDidRootConfigChange.
 				// Republish agent infos for non-customization schema changes
@@ -943,6 +951,7 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		const attachments = msg.userMessage.attachments;
+		this._telemetryReporter.userMessageSent(agent.id, session, this._stateManager.getSessionState(session), 'queued', attachments);
 		agent.sendMessage(URI.parse(session), msg.userMessage.text, attachments, turnId).catch(err => {
 			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
 			this._stateManager.dispatchServerAction({

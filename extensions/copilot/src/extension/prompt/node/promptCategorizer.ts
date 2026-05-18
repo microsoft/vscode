@@ -172,13 +172,13 @@ export class PromptCategorizerService implements IPromptCategorizerService {
 		// Gather context signals (outside try block for telemetry access)
 		const currentLanguage = this.tabsAndEditorsService.activeTextEditor?.document.languageId;
 
-		// Use 10 second timeout - classification should be fast with copilot-fast model
+		// Use 10 second timeout - classification should be fast with copilot-utility-small model
 		const CATEGORIZATION_TIMEOUT_MS = 10_000;
 		const cts = new CancellationTokenSource();
 		const timeoutHandle = setTimeout(() => cts.cancel(), CATEGORIZATION_TIMEOUT_MS);
 
 		try {
-			const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+			const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 
 			const { messages } = await renderPromptElement(
 				this.instantiationService,

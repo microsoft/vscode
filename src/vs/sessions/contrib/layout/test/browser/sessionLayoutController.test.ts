@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -47,7 +47,6 @@ function makeSession(resource: URI, opts?: {
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: observableValue('status', opts?.status ?? SessionStatus.Completed),
 		checkpoints: observableValue('checkpoints', undefined),
-		changesets: observableValue('changesets', []),
 		changes: observableValue('changes', opts?.changes ?? []),
 		modelId: observableValue('modelId', undefined),
 		mode: observableValue('mode', undefined),
@@ -81,7 +80,7 @@ function makeSession(resource: URI, opts?: {
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
-		changesets: chat.changesets,
+		changesets: constObservable([]),
 		changes: chat.changes,
 		modelId: chat.modelId,
 		mode: chat.mode,

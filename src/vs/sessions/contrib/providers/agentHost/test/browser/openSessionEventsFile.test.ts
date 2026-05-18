@@ -6,8 +6,14 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import type { ContextKeyValue, IContext } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IRemoteAgentHostConnectionInfo, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
+import { OpenCopilotCliStateFileAction } from '../../../../../../workbench/contrib/chat/browser/actions/openCopilotCliStateFileAction.js';
+import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { resolveEventsUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { IsAgentHostSession } from '../../browser/agentHostSkillButtons.js';
+import { OpenSessionEventsFileAction } from '../../browser/openSessionEventsFileActions.js';
 
 suite('openSessionEventsFile resolveEventsUri', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -23,6 +29,41 @@ suite('openSessionEventsFile resolveEventsUri', () => {
 			status: RemoteAgentHostConnectionStatus.connected,
 		};
 	}
+
+	function context(values: Record<string, ContextKeyValue>): IContext {
+		return {
+			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string): T | undefined => values[key] as T | undefined,
+		};
+	}
+
+	test('workbench command is disabled in the Agents window', () => {
+		const workbenchPrecondition = new OpenCopilotCliStateFileAction().desc.precondition;
+		const sessionsPrecondition = new OpenSessionEventsFileAction().desc.precondition;
+
+		assert.deepStrictEqual({
+			workbenchVSCodeWindow: workbenchPrecondition?.evaluate(context({
+				[ChatContextKeys.enabled.key]: true,
+				[IsSessionsWindowContext.key]: false,
+			})),
+			workbenchAgentsWindow: workbenchPrecondition?.evaluate(context({
+				[ChatContextKeys.enabled.key]: true,
+				[IsSessionsWindowContext.key]: true,
+			})),
+			sessionsCopilotCliSession: sessionsPrecondition?.evaluate(context({
+				[ChatContextKeys.enabled.key]: true,
+				[IsAgentHostSession.key]: false,
+			})),
+			sessionsAgentHostSession: sessionsPrecondition?.evaluate(context({
+				[ChatContextKeys.enabled.key]: true,
+				[IsAgentHostSession.key]: true,
+			})),
+		}, {
+			workbenchVSCodeWindow: true,
+			workbenchAgentsWindow: false,
+			sessionsCopilotCliSession: false,
+			sessionsAgentHostSession: true,
+		});
+	});
 
 	test('local AH copilotcli session resolves to ~/.copilot/session-state/<id>/events.jsonl', () => {
 		const result = resolveEventsUri(URI.parse('agent-host-copilotcli:/abc'), userHome, () => undefined);

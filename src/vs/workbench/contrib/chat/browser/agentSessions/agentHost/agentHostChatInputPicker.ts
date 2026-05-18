@@ -154,8 +154,6 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
  */
 export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>([
 	SessionConfigKey.Mode,
-	SessionConfigKey.Branch,
-	SessionConfigKey.Isolation,
 	SessionConfigKey.AutoApprove,
 	SessionConfigKey.Permissions,
 	ClaudeSessionConfigKey.PermissionMode,
@@ -208,7 +206,9 @@ export class AgentHostChatInputPicker extends Disposable {
 	) {
 		super();
 
-		this._register(this._widget.onDidChangeViewModel(() => this._reattach()));
+		this._register(this._widget.onDidChangeViewModel(() => {
+			this._reattach();
+		}));
 		const opts = this._pickerOptions;
 		if (opts) {
 			this._register(autorun(reader => {
@@ -401,11 +401,20 @@ export class AgentHostChatInputPicker extends Disposable {
 			if (!state || state instanceof Error) {
 				return undefined;
 			}
-			const schema = state.config?.schema.properties[this._property];
+			// Prefer the workbench-side re-resolved config so dependent
+			// properties (e.g. branch.readOnly when isolation flips) refresh
+			// without waiting for a protocol-level schema-update channel. Use
+			// overlay.values too: `validateOrDefault` may clamp stale values
+			// or inject derived defaults the chip should display.
+			const overlay = this._provisional.getResolvedConfig(sessionResource);
+			const schemaSource = overlay?.schema ?? state.config?.schema;
+			const schema = schemaSource?.properties[this._property];
 			if (!schema) {
 				return undefined;
 			}
-			const value = state.config?.values?.[this._property] ?? schema.default;
+			const value = overlay?.values?.[this._property]
+				?? state.config?.values?.[this._property]
+				?? schema.default;
 			return { backendSession: this._subRef.value.backendSession, schema, value };
 		}
 
@@ -542,27 +551,33 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 
-		let dispatchTarget = backendSession;
+		const partial = { [this._property]: value };
+
 		if (isUntitledChatSession(sessionResource)) {
+			// Route through the provisional service so the workbench-owned
+			// config cache is updated synchronously. `tryRebind` reads from
+			// that cache, so a Send racing with this dispatch picks up the
+			// new value without waiting for the agent to echo it back.
 			const provider = backendSession.scheme;
-			const created = await this._provisional.getOrCreate(
+			const created = await this._provisional.applyConfigChange(
 				sessionResource,
 				provider,
 				this._readWorkingDirectory(),
+				partial,
 			);
 			if (!created) {
 				return;
 			}
-			dispatchTarget = created;
 			if (!this._subRef.value || this._subRef.value.backendSession.toString() !== created.toString()) {
 				this._reattach();
 			}
+			return;
 		}
 
 		this._agentHostService.dispatch({
 			type: ActionType.SessionConfigChanged,
-			session: dispatchTarget.toString(),
-			config: { [this._property]: value },
+			session: backendSession.toString(),
+			config: partial,
 		});
 	}
 }

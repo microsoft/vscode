@@ -436,7 +436,7 @@ export class ChatToolReferences extends PromptElement<ChatToolCallProps, void> {
 				continue;
 			}
 
-			const toolArgsEndpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+			const toolArgsEndpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 			const internalToolArgs = toolReference.input ?? {};
 			const toolArgs = await this.fetchToolArgs(tool, toolArgsEndpoint);
 

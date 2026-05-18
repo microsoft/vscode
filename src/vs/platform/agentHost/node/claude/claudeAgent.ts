@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CCAModel } from '@vscode/copilot-api';
-import type { Options, PermissionMode, SDKSessionInfo, SDKUserMessage, SessionMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { Options, PermissionMode, SDKSessionInfo, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { SequencerByKey } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -23,14 +24,15 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { mapSessionMessagesToTurns } from './claudeReplayMapper.js';
 import { PolicyState, ProtectedResourceMetadata, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { CustomizationRef, isSubagentSession, SessionInputResponseKind, type MessageAttachment, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { CustomizationRef, isSubagentSession, parseSubagentSessionUri, SessionInputResponseKind, type MessageAttachment, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitService } from '../agentHostGitService.js';
 import { projectFromCopilotContext } from '../copilot/copilotGitProject.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
+import { mapSessionMessagesToTurns } from './claudeReplayMapper.js';
+import { getSubagentTranscript } from './claudeSubagentResolver.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { handleCanUseTool } from './claudeCanUseTool.js';
 import { ClaudeMaterializer } from './claudeMaterializer.js';
@@ -607,26 +609,55 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * and returns `[]` rather than propagating — mirrors `listSessions`.
 	 */
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
-		if (isSubagentSession(session)) {
-			throw new Error('TODO: Phase 12: subagent transcript fetch not yet implemented');
-		}
 		const sessionId = AgentSession.id(session);
 		if (this._provisionalSessions.has(sessionId)) {
 			return [];
 		}
-		let transcript: readonly SessionMessage[];
+		if (isSubagentSession(session)) {
+			const parsed = parseSubagentSessionUri(session);
+			const parentSession = parsed ? this._sessions.get(AgentSession.id(parsed.parentSession))?.session : undefined;
+			if (!parentSession) {
+				// Parent session is gone (disposed or never materialized).
+				// The registry that holds the agentId cache lives on the
+				// parent session, so we cannot resolve the subagent.
+				this._logService.warn(`[Claude] getSessionMessages: parent session not found for subagent ${session.toString()} (registry unavailable)`);
+				return [];
+			}
+			try {
+				return await getSubagentTranscript(session, parentSession.subagents, this._sdkService, this._logService, CancellationToken.None);
+			} catch (err) {
+				this._logService.warn(`[Claude] getSubagentTranscript threw for ${session.toString()}`, err);
+				return [];
+			}
+		}
+		const parentSession = this._sessions.get(sessionId)?.session;
+		let messages;
 		try {
-			transcript = await this._sdkService.getSessionMessages(sessionId, { includeSystemMessages: true });
+			messages = await this._sdkService.getSessionMessages(sessionId, { includeSystemMessages: true });
 		} catch (err) {
 			this._logService.warn(`[Claude] getSessionMessages SDK fetch failed for ${sessionId}`, err);
 			return [];
 		}
+		let turns: readonly Turn[];
 		try {
-			return mapSessionMessagesToTurns(transcript, session, this._logService);
+			turns = mapSessionMessagesToTurns(messages, session, this._logService);
 		} catch (err) {
+			// Defensive boundary: a single malformed SDK message must not
+			// blow up the entire transcript read.
 			this._logService.warn(`[Claude] replay mapper threw for ${sessionId}`, err);
 			return [];
 		}
+		// If the parent session is materialized, prime its registry from
+		// any agentId suffixes the SDK encoded in Task tool_result text
+		// blocks so subsequent subagent transcript reads can short-circuit
+		// the strategy chain. A bug in `primeFromTranscript` MUST NOT
+		// break an otherwise-successful parent transcript read.
+		try {
+			parentSession?.subagents.primeFromTranscript(turns);
+		} catch (err) {
+			this._logService.warn(`[Claude] primeFromTranscript threw for ${sessionId}`, err);
+		}
+		return turns;
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {

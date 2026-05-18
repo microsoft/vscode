@@ -98,6 +98,7 @@ export function translateSpan(
 	span: ICompletedSpanData,
 	state: SessionTranslationState,
 	context?: WorkingDirectoryContext,
+	subagentId?: string,
 ): SessionEvent[] {
 	const operationName = span.attributes[GenAiAttr.OPERATION_NAME] as string | undefined;
 	const events: SessionEvent[] = [];
@@ -106,8 +107,10 @@ export function translateSpan(
 		// Extract user message first — needed for session.start summary
 		const userRequest = span.attributes[CopilotChatAttr.USER_REQUEST] as string | undefined;
 
-		// First invoke_agent span → session.start
-		if (!state.started) {
+		// First invoke_agent span → session.start.
+		// Skip when this span is from a sub-agent: the parent session owns
+		// session.start, and sub-agent events fold into the parent's timeline.
+		if (!state.started && !subagentId) {
 			state.started = true;
 			pushEvent(events, state, 'session.start', {
 				sessionId: getSessionId(span) ?? generateUuid(),
@@ -126,11 +129,19 @@ export function translateSpan(
 			});
 		}
 
-		// Emit user.message (matches CLI format)
-		if (userRequest) {
+		// Emit user.message (matches CLI canonical format).
+		// NOTE: do NOT set `source` — the cloud timeline filter treats any
+		// `source` other than "user" (per UserMessageSource enum) as a
+		// skill/system-injected message and hides it from the timeline.
+		// Omitting `source` is normalized to `"user"` on the cloud side.
+		//
+		// Skip user.message for sub-agent spans — the "user request" of a
+		// sub-agent is the synthetic prompt produced by the parent's tool
+		// invocation, not a real user turn. The CLI explicitly does NOT bridge
+		// user.message events from sub-agents to the parent session.
+		if (userRequest && !subagentId) {
 			pushEvent(events, state, 'user.message', {
 				content: userRequest,
-				source: 'chat',
 				agentMode: 'interactive',
 			});
 		}
@@ -143,7 +154,7 @@ export function translateSpan(
 				messageId: generateUuid(),
 				content: assistantText ?? '',
 				toolRequests: toolRequests.length > 0 ? toolRequests : undefined,
-			});
+			}, /*ephemeral*/ false, subagentId);
 
 			// Emit tool.execution_start for each tool request (matches CLI pattern)
 			for (const req of toolRequests) {
@@ -151,7 +162,7 @@ export function translateSpan(
 					toolCallId: req.toolCallId,
 					toolName: req.name,
 					arguments: req.arguments,
-				});
+				}, /*ephemeral*/ false, subagentId);
 			}
 		}
 	}
@@ -176,7 +187,7 @@ export function translateSpan(
 					message: resultContent || 'Tool execution failed',
 					code: 'failure',
 				} : undefined,
-			});
+			}, /*ephemeral*/ false, subagentId);
 		}
 	}
 
@@ -245,9 +256,10 @@ export function translateDebugLogEntry(
 					? entry.attrs.userRequest
 					: undefined;
 			if (content) {
+				// See translateSpan: do not set `source`, or the cloud renderer
+				// will treat the message as synthetic and hide it.
 				pushEventAt(events, state, ts, 'user.message', {
 					content,
-					source: 'chat',
 					agentMode: 'interactive',
 				});
 			}
@@ -340,8 +352,9 @@ function pushEvent(
 	type: string,
 	data: Record<string, unknown>,
 	ephemeral?: boolean,
+	agentId?: string,
 ): void {
-	pushEventAt(events, state, new Date().toISOString(), type, data, ephemeral);
+	pushEventAt(events, state, new Date().toISOString(), type, data, ephemeral, agentId);
 }
 
 function pushEventAt(
@@ -351,6 +364,7 @@ function pushEventAt(
 	type: string,
 	data: Record<string, unknown>,
 	ephemeral?: boolean,
+	agentId?: string,
 ): void {
 	const event: SessionEvent = {
 		id: generateUuid(),
@@ -361,6 +375,9 @@ function pushEventAt(
 	};
 	if (ephemeral) {
 		event.ephemeral = true;
+	}
+	if (agentId) {
+		event.agentId = agentId;
 	}
 	if (estimateEventSize(event, MAX_EVENT_SIZE + 1) > MAX_EVENT_SIZE) {
 		state.droppedCount++;

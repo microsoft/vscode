@@ -30,6 +30,8 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../nod
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
+import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotBranchNameHintFromMessage, getCopilotWorktreeBranchName, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
 import { CopilotAgentSession, type SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
@@ -39,6 +41,8 @@ import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 
 class TestAgentPluginManager implements IAgentPluginManager {
 	declare readonly _serviceBrand: undefined;
+
+	readonly basePath = URI.from({ scheme: 'inmemory', path: '/agentPlugins' });
 
 	async syncCustomizations(_clientId: string, _customizations: CustomizationRef[], _progress?: (status: SessionCustomization[]) => void): Promise<ISyncedCustomization[]> {
 		return [];
@@ -216,6 +220,20 @@ class MockCopilotSession {
 	async destroy(): Promise<void> { }
 }
 
+class MockAgentHostOTelService implements IAgentHostOTelService {
+	readonly _serviceBrand: undefined;
+
+	async getSdkTelemetryConfig() {
+		return undefined;
+	}
+	getSpansDbPath() {
+		return undefined;
+	}
+	async flush() {
+		//
+	}
+}
+
 class TestableCopilotAgent extends CopilotAgent {
 	private readonly _fakeSessions = new Map<string, IFakeAgentSession>();
 	readonly resumeCalls: string[] = [];
@@ -229,8 +247,9 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentHostTerminalManager terminalManager: IAgentHostTerminalManager,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
+		@IAgentHostCompletions completions: IAgentHostCompletions,
 	) {
-		super(logService, instantiationService, fileService, sessionDataService, gitService, terminalManager, configurationService);
+		super(logService, instantiationService, fileService, sessionDataService, gitService, terminalManager, configurationService, new MockAgentHostOTelService(), completions);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -294,6 +313,13 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentPluginManager, options?.pluginManager ?? new TestAgentPluginManager());
 	services.set(IAgentHostGitService, options?.gitService ?? new TestAgentHostGitService());
 	services.set(IAgentHostTerminalManager, new TestAgentHostTerminalManager());
+	services.set(IAgentHostOTelService, {
+		_serviceBrand: undefined,
+		getSdkTelemetryConfig: async () => undefined,
+		getSpansDbPath: () => undefined,
+		flush: async () => undefined,
+	});
+	services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService)));
 	if (options?.environmentServiceRegistration !== 'none') {
 		const environmentService = {
 			_serviceBrand: undefined,

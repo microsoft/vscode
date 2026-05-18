@@ -1690,7 +1690,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 */
 	private async _onProcessExit(exitCodeOrError?: number | ITerminalLaunchError): Promise<void> {
 		// Prevent dispose functions being triggered multiple times
-		if (this._isExiting) {
+		if (this._isExiting || this.isDisposed) {
 			return;
 		}
 		const parsedExitResult = parseExitResult(exitCodeOrError, this.shellLaunchConfig, this._processManager.processState, this._initialCwd);

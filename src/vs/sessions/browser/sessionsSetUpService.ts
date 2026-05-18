@@ -14,7 +14,7 @@ import { IUserDataProfilesService } from '../../platform/userDataProfile/common/
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ChatEntitlementContext, IChatEntitlementService } from '../../workbench/services/chat/common/chatEntitlementService.js';
 import { isWeb } from '../../base/common/platform.js';
-import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
+import { GitHubPaths, IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
 import { IProductService } from '../../platform/product/common/productService.js';
 import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchEnvironmentService } from '../../workbench/services/environment/common/environmentService.js';
@@ -375,7 +375,7 @@ class SessionsSetUpWidget extends Disposable {
 		const termsUrl = defaultChatAgent?.termsStatementUrl ?? '';
 		const privacyUrl = defaultChatAgent?.privacyStatementUrl ?? '';
 		const publicCodeUrl = defaultChatAgent?.publicCodeMatchesUrl ?? '';
-		const settingsUrl = defaultChatAgent?.manageSettingsUrl ?? '';
+		const settingsUrl = this.defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings);
 
 		const footer = localize(
 			{ key: 'welcomeFooter', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}', '{Locked="]({4})"}', '{Locked="]({5})"}'] },

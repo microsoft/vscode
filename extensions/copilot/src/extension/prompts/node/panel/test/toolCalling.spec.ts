@@ -240,7 +240,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		const accessor = testingServiceCollection.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
 		const endpointProvider = accessor.get(IEndpointProvider);
-		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 
 		const round: IToolCallRound = {
 			id: 'round-1',
@@ -314,7 +314,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		const accessor = testingServiceCollection.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
 		const endpointProvider = accessor.get(IEndpointProvider);
-		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 
 		const round: IToolCallRound = {
 			id: 'round-1',
@@ -400,7 +400,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		const accessor = testingServiceCollection.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
 		const endpointProvider = accessor.get(IEndpointProvider);
-		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 
 		const round: IToolCallRound = {
 			id: 'round-1',
@@ -472,7 +472,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		const accessor = testingServiceCollection.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
 		const endpointProvider = accessor.get(IEndpointProvider);
-		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 
 		const imageData = new Uint8Array(1024);
 		const toolCallResults: Record<string, vscode.LanguageModelToolResult> = {
@@ -536,7 +536,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		const accessor = testingServiceCollection.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
 		const endpointProvider = accessor.get(IEndpointProvider);
-		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 
 		// Disable image uploads so images go through the base64 path where the budget applies
 		const configService = accessor.get(IConfigurationService);
@@ -598,7 +598,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		const accessor = testingServiceCollection.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
 		const endpointProvider = accessor.get(IEndpointProvider);
-		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 		const telemetryService = accessor.get(ITelemetryService);
 		const configService = accessor.get(IConfigurationService);
 

@@ -205,8 +205,8 @@ describe('SessionStoreSqlTool', () => {
 				'DELETE FROM sessions WHERE 1=1',
 				'INSERT INTO sessions VALUES (1)',
 				'UPDATE sessions SET summary = "hacked"',
-				'CREATE TABLE evil (id INT)',
-				'ATTACH DATABASE "evil.db" AS evil',
+				'CREATE TABLE extra (id INT)',
+				'ATTACH DATABASE "other.db" AS other',
 			];
 
 			for (const sql of mutations) {
@@ -216,6 +216,63 @@ describe('SessionStoreSqlTool', () => {
 				);
 				expect(extractText(result)).toContain('Blocked SQL');
 			}
+		});
+
+		it('blocks side-effecting and unsafe statements', async () => {
+			const { tool } = createToolInstance();
+			const cts = new CancellationTokenSource();
+
+			const unsafe = [
+				// The originally reported bypass: VACUUM INTO copies the DB to a chosen path.
+				`VACUUM INTO '/tmp/copy.db'`,
+				'REINDEX',
+				'ANALYZE',
+				// load_extension would execute native code if SQLite is built with extensions enabled.
+				`SELECT load_extension('/tmp/lib.so')`,
+				'BEGIN',
+				'COMMIT',
+				'ROLLBACK',
+			];
+
+			for (const sql of unsafe) {
+				const result = await tool.invoke(
+					makeOptions({ action: 'query', query: sql, description: 'test' }),
+					cts.token,
+				);
+				expect(extractText(result)).toContain('Blocked SQL');
+			}
+		});
+
+		it('rejects statements that do not start with SELECT or WITH', async () => {
+			const { tool } = createToolInstance();
+			const cts = new CancellationTokenSource();
+
+			const nonQuery = [
+				'PRAGMA data_version', // not blocked by regex carve-out but still not a SELECT/WITH
+				`/* hide me */ VACUUM INTO '/tmp/copy.db'`, // comment prefix must not smuggle
+				'-- comment\nDROP TABLE sessions', // blocklist also catches DROP, but allowlist is the anchor
+				'EXPLAIN SELECT * FROM sessions',
+			];
+
+			for (const sql of nonQuery) {
+				const result = await tool.invoke(
+					makeOptions({ action: 'query', query: sql, description: 'test' }),
+					cts.token,
+				);
+				expect(extractText(result)).toContain('Blocked SQL');
+			}
+		});
+
+		it('allows WITH (CTE) queries through to executeReadOnly', async () => {
+			const { tool, store } = createToolInstance();
+			const cts = new CancellationTokenSource();
+
+			await tool.invoke(
+				makeOptions({ action: 'query', query: 'WITH x AS (SELECT 1 AS n) SELECT * FROM x', description: 'test' }),
+				cts.token,
+			);
+
+			expect(store.executeReadOnly).toHaveBeenCalled();
 		});
 
 		it('blocks multiple statements', async () => {
@@ -271,21 +328,17 @@ describe('SessionStoreSqlTool', () => {
 			expect(text).toContain('source: local');
 		});
 
-		it('falls back to executeReadOnlyFallback on authorizer error', async () => {
-			const store = createMockStore();
-			(store.executeReadOnly as any).mockImplementation(() => {
-				throw new Error('authorizer denied');
-			});
-			const { tool } = createToolInstance({ store });
+		it('routes model-supplied SQL through executeReadOnly (never executeReadOnlyFallback)', async () => {
+			const { tool, store } = createToolInstance();
 			const cts = new CancellationTokenSource();
 
-			const result = await tool.invoke(
+			await tool.invoke(
 				makeOptions({ action: 'query', query: 'SELECT * FROM sessions', description: 'test' }),
 				cts.token,
 			);
 
-			expect(store.executeReadOnlyFallback).toHaveBeenCalled();
-			expect(extractText(result)).toContain('Results:');
+			expect(store.executeReadOnly).toHaveBeenCalled();
+			expect(store.executeReadOnlyFallback).not.toHaveBeenCalled();
 		});
 	});
 

@@ -10,7 +10,7 @@ import { InstructionMessage } from '../base/instructionMessage';
 import { ResponseTranslationRules } from '../base/responseTranslationRules';
 import { Tag } from '../base/tag';
 import { EXISTING_CODE_MARKER } from '../panel/codeBlockFormattingRules';
-import { MathIntegrationRules } from '../panel/editorIntegrationRules';
+import { ResponseRenderingRules } from '../panel/editorIntegrationRules';
 import { ApplyPatchInstructions, CodesearchModeInstructions, DefaultAgentPromptProps, DefaultReminderInstructions, detectToolCapabilities, GenericEditingTips, McpToolInstructions, NotebookInstructions } from './defaultAgentInstructions';
 import { FileLinkificationInstructions } from './fileLinkificationInstructions';
 import { IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SystemPrompt } from './promptRegistry';
@@ -157,7 +157,7 @@ class DefaultZaiAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 					The function `calculateTotal` is defined in `lib/utils/math.ts`.
 				</Tag>
 				<FileLinkificationInstructions />
-				<MathIntegrationRules />
+				<ResponseRenderingRules />
 			</Tag>
 			<ResponseTranslationRules />
 		</InstructionMessage>;

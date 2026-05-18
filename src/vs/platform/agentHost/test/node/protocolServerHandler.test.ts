@@ -255,11 +255,76 @@ suite('ProtocolServerHandler', () => {
 			clientId: 'client-incompat',
 		}));
 
-		const resp = findResponse(transport.sent, 1) as { error?: { code: number; message: string } } | undefined;
+		const resp = findResponse(transport.sent, 1) as { error?: { code: number; message: string; data?: unknown } } | undefined;
 		assert.ok(resp, 'should have sent error response');
 		assert.strictEqual(resp.error?.code, AHP_UNSUPPORTED_PROTOCOL_VERSION);
 		assert.match(resp.error!.message, /0\.0\.0/);
 		assert.match(resp.error!.message, new RegExp(PROTOCOL_VERSION.replace(/\./g, '\\.')));
+		// Without the upgrade-socket env var, no _meta should be advertised.
+		const data = resp.error!.data as { _meta?: { vscodeUpgradeMethod?: string } } | undefined;
+		assert.strictEqual(data?._meta?.vscodeUpgradeMethod, undefined);
+
+		transport.simulateClose();
+		transport.dispose();
+	});
+
+	test('handshake leniently picks the highest compatible offered version', () => {
+		// Mix an incompatible version with a compatible one — the server
+		// must pick the compatible one rather than rejecting on the first
+		// unknown entry.
+		const transport = new MockProtocolTransport();
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: ['0.0.0', PROTOCOL_VERSION, '9.9.9'],
+			clientId: 'client-lenient',
+		}));
+
+		const resp = findResponse(transport.sent, 1) as { result?: InitializeResult } | undefined;
+		assert.ok(resp?.result, 'should have negotiated successfully');
+		assert.strictEqual(resp.result.protocolVersion, PROTOCOL_VERSION);
+
+		transport.simulateClose();
+		transport.dispose();
+	});
+
+	test('upgrade method advertised when management socket env var is set', () => {
+		const originalEnv = process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
+		process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET = '/tmp/mock-supervisor.sock';
+		try {
+			const transport = new MockProtocolTransport();
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: ['9.9.9'],
+				clientId: 'client-incompat-with-cli',
+			}));
+
+			const resp = findResponse(transport.sent, 1) as { error?: { code: number; data?: unknown } } | undefined;
+			assert.strictEqual(resp?.error?.code, AHP_UNSUPPORTED_PROTOCOL_VERSION);
+			const data = resp.error!.data as { _meta?: { vscodeUpgradeMethod?: string } } | undefined;
+			assert.strictEqual(data?._meta?.vscodeUpgradeMethod, '_vscodeUpgrade');
+
+			transport.simulateClose();
+			transport.dispose();
+		} finally {
+			if (originalEnv === undefined) {
+				delete process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
+			} else {
+				process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET = originalEnv;
+			}
+		}
+	});
+
+	test('_vscodeUpgrade RPC returns MethodNotFound when no supervisor is available', async () => {
+		const transport = new MockProtocolTransport();
+		server.simulateConnection(transport);
+		// Note: NOT going through initialize first — the upgrade method must
+		// also be callable pre-handshake.
+		const responsePromise = waitForResponse(transport, 42);
+		transport.simulateMessage(request(42, '_vscodeUpgrade', {}));
+
+		const resp = await responsePromise as { error?: { code: number; message: string } };
+		assert.ok(resp.error, 'should have responded with an error');
+		assert.strictEqual(resp.error!.code, -32601 /* MethodNotFound */);
 
 		transport.simulateClose();
 		transport.dispose();
@@ -275,6 +340,30 @@ suite('ProtocolServerHandler', () => {
 		const result = (resp as { result: InitializeResult }).result;
 		assert.strictEqual(result.snapshots.length, 1);
 		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
+	});
+
+	test('ping responds before initialize', async () => {
+		const transport = new MockProtocolTransport();
+		disposables.add(transport);
+		server.simulateConnection(transport);
+		const responsePromise = waitForResponse(transport, 7);
+		transport.simulateMessage(request(7, 'ping', {}));
+		const resp = await responsePromise as { id: number; result: null };
+
+		assert.strictEqual(resp.id, 7);
+		assert.strictEqual(resp.result, null);
+		transport.simulateClose();
+	});
+
+	test('ping responds after initialize', async () => {
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 9);
+		transport.simulateMessage(request(9, 'ping', {}));
+		const resp = await responsePromise as { id: number; result: null };
+
+		assert.strictEqual(resp.id, 9);
+		assert.strictEqual(resp.result, null);
 	});
 
 	test('subscribe request returns snapshot', async () => {

@@ -289,6 +289,9 @@ export class ChatService extends Disposable implements IChatService {
 	 * Only persist local sessions from chat that are not imported.
 	 */
 	private shouldStoreSession(session: ChatModel): boolean {
+		if (session.isDeleted) {
+			return false;
+		}
 		if (!LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
 			return false;
 		}
@@ -437,11 +440,15 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private shouldBeInHistory(entry: ChatModel): boolean {
-		return !entry.isImported && !!LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation === ChatAgentLocation.Chat;
+		return !entry.isImported && !entry.isDeleted && !!LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation === ChatAgentLocation.Chat;
 	}
 
 	async removeHistoryEntry(sessionResource: URI): Promise<void> {
 		await this._chatSessionStore.deleteSession(this.toLocalSessionId(sessionResource));
+		const model = this._sessionModels.get(sessionResource);
+		if (model) {
+			model.markDeleted();
+		}
 		this._onDidDisposeSession.fire({ sessionResources: [sessionResource], reason: 'cleared' });
 	}
 
