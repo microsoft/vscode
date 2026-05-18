@@ -15,8 +15,6 @@ import { AgentNetworkDomainSettingId } from './settings.js';
 
 export const IAgentNetworkFilterService = createDecorator<IAgentNetworkFilterService>('agentNetworkFilterService');
 
-export const AgentNetworkFilterFetchWebToolName = 'fetchWebTool';
-
 /**
  * Service that filters network requests made by agent tools (fetch tool,
  * integrated browser) based on the configured allowed/denied domain lists.
@@ -36,7 +34,7 @@ export interface IAgentNetworkFilterService {
 	 * File URIs and URIs without an authority always pass.
 	 * @returns `true` if the URI's domain is allowed, `false` if blocked.
 	 */
-	isUriAllowed(uri: URI, toolName?: string): boolean;
+	isUriAllowed(uri: URI): boolean;
 
 	/**
 	 * Formats an error message for a blocked URI based on the current filter configuration.
@@ -64,7 +62,6 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		_terminalSandboxService?: unknown,
 	) {
 		super();
 		this.readConfiguration();
@@ -90,7 +87,7 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 		this.domainCache.clear();
 	}
 
-	isUriAllowed(uri: URI, _toolName?: string): boolean {
+	isUriAllowed(uri: URI): boolean {
 		// When domain filtering is inactive, allow all requests.
 		if (!this.shouldFilter()) {
 			return true;
