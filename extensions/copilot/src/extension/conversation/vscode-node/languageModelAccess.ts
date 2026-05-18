@@ -459,6 +459,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 
 	/** Refreshes utility alias overrides in the background. Newer attempts supersede older ones. */
 	private async _refreshUtilityOverrides(): Promise<void> {
+		this._store.assertNotDisposed();
 		this._cancelUtilityOverrideRefresh();
 		const cancellationTokenSource = new CancellationTokenSource();
 		this._utilityOverrideRefreshCancellation.value = cancellationTokenSource;
