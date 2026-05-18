@@ -3516,6 +3516,22 @@
 							"experimental"
 						]
 					},
+					"github.copilot.chat.cloudAgentBackend.version": {
+						"type": "string",
+						"default": "v1",
+						"enum": [
+							"v1",
+							"v2"
+						],
+						"enumDescriptions": [
+							"%github.copilot.config.cloudAgentBackend.version.v1%",
+							"%github.copilot.config.cloudAgentBackend.version.v2%"
+						],
+						"markdownDescription": "%github.copilot.config.cloudAgentBackend.version%",
+						"tags": [
+							"experimental"
+						]
+					},
 					"github.copilot.chat.switchAgent.enabled": {
 						"type": "boolean",
 						"default": false,
