@@ -166,6 +166,34 @@ jobs:
               echo "content<<BLOCKS_CI_EOF" >> "$GITHUB_OUTPUT"
               echo "$CONTENT" >> "$GITHUB_OUTPUT"
               echo "BLOCKS_CI_EOF" >> "$GITHUB_OUTPUT"
+              # Capture the patch between the committed and updated markdown so
+              # fork PRs (where screenshots can't be uploaded and image URLs
+              # 404) can still see what changed.
+              PATCH=$(diff -u test/componentFixtures/blocks-ci-screenshots.md /tmp/blocks-ci-updated.md || true)
+              echo "patch<<BLOCKS_CI_PATCH_EOF" >> "$GITHUB_OUTPUT"
+              echo "$PATCH" >> "$GITHUB_OUTPUT"
+              echo "BLOCKS_CI_PATCH_EOF" >> "$GITHUB_OUTPUT"
+              # Surface per-fixture rendering errors for blocks-ci fixtures so
+              # they are visible in fork PRs (where broken screenshot URLs
+              # otherwise hide the root cause of the diff).
+              ERRORS=$(node -e "
+                const m = require('./test/componentFixtures/.screenshots/current/manifest.json');
+                const lines = [];
+                const sorted = [...m.fixtures].sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
+                for (const f of sorted) {
+                  if (!(f.labels || []).includes('blocks-ci')) { continue; }
+                  if (!f.hasError) { continue; }
+                  const errEvents = (f.events || []).filter(e => e.isError);
+                  const msg = errEvents.map(e => e.message).join('; ') || 'unknown error';
+                  lines.push('⚠ ' + f.fixtureId + ' (error: ' + msg + ')');
+                }
+                process.stdout.write(lines.join('\n'));
+              ")
+              if [ -n "$ERRORS" ]; then
+                echo "errors<<BLOCKS_CI_ERRORS_EOF" >> "$GITHUB_OUTPUT"
+                echo "$ERRORS" >> "$GITHUB_OUTPUT"
+                echo "BLOCKS_CI_ERRORS_EOF" >> "$GITHUB_OUTPUT"
+              fi
             }
 
       - name: Upload screenshots as artifact
@@ -287,15 +315,26 @@ jobs:
           if [ -n "$BLOCKS_CI_CONTENT" ]; then
             if [ -n "$BODY" ]; then BODY+=$'\n\n---\n\n'; fi
             BODY+="### blocks-ci screenshots changed"$'\n\n'
+            if [ -n "$BLOCKS_CI_ERRORS" ]; then
+              BODY+="**Fixture rendering errors:**"$'\n\n'
+              BODY+='```'$'\n'"${BLOCKS_CI_ERRORS}"$'\n''```'$'\n\n'
+            fi
             BODY+="Replace the contents of \`test/componentFixtures/blocks-ci-screenshots.md\` with:"$'\n\n'
             BODY+="<details>"$'\n'"<summary>Updated blocks-ci-screenshots.md</summary>"$'\n\n'
             BODY+="\`\`\`md"$'\n'"${BLOCKS_CI_CONTENT}"$'\n'"\`\`\`"$'\n\n'
             BODY+="</details>"
+            if [ -n "$BLOCKS_CI_PATCH" ]; then
+              BODY+=$'\n\n'"<details open>"$'\n'"<summary>Patch</summary>"$'\n\n'
+              BODY+="\`\`\`diff"$'\n'"${BLOCKS_CI_PATCH}"$'\n'"\`\`\`"$'\n\n'
+              BODY+="</details>"
+            fi
           fi
           echo "$BODY" >> "$GITHUB_STEP_SUMMARY"
         env:
           COMMENT_BODY: ${{ steps.diff.outputs.body }}
           BLOCKS_CI_CONTENT: ${{ steps.blocks-ci.outputs.content }}
+          BLOCKS_CI_PATCH: ${{ steps.blocks-ci.outputs.patch }}
+          BLOCKS_CI_ERRORS: ${{ steps.blocks-ci.outputs.errors }}
 
       - name: Post PR comment (non-fork PR only)
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
@@ -305,14 +344,25 @@ jobs:
             const marker = '<!-- screenshot-diff-report -->';
             let body = process.env.COMMENT_BODY || '';
             const blocksCiContent = process.env.BLOCKS_CI_CONTENT;
+            const blocksCiPatch = process.env.BLOCKS_CI_PATCH;
+            const blocksCiErrors = process.env.BLOCKS_CI_ERRORS;
 
             if (blocksCiContent) {
               if (body) { body += '\n\n---\n\n'; }
               body += '### blocks-ci screenshots changed\n\n';
+              if (blocksCiErrors) {
+                body += '**Fixture rendering errors:**\n\n';
+                body += '```\n' + blocksCiErrors + '\n```\n\n';
+              }
               body += 'Replace the contents of `test/componentFixtures/blocks-ci-screenshots.md` with:\n\n';
               body += '<details>\n<summary>Updated blocks-ci-screenshots.md</summary>\n\n';
               body += '```md\n' + blocksCiContent + '\n```\n\n';
               body += '</details>';
+              if (blocksCiPatch) {
+                body += '\n\n<details open>\n<summary>Patch</summary>\n\n';
+                body += '```diff\n' + blocksCiPatch + '\n```\n\n';
+                body += '</details>';
+              }
             }
 
             const hasContent = body || blocksCiContent;
@@ -364,6 +414,8 @@ jobs:
         env:
           COMMENT_BODY: ${{ steps.diff.outputs.body }}
           BLOCKS_CI_CONTENT: ${{ steps.blocks-ci.outputs.content }}
+          BLOCKS_CI_PATCH: ${{ steps.blocks-ci.outputs.patch }}
+          BLOCKS_CI_ERRORS: ${{ steps.blocks-ci.outputs.errors }}
           BASE_SHA: ${{ steps.base.outputs.base_sha }}
           CURRENT_SHA: ${{ github.sha }}
 
