@@ -145,7 +145,7 @@
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "^9.3.2",
-    "ws": "^8.19.0",
+    "ws": "^8.20.1",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
   },
