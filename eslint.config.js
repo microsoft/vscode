@@ -1495,7 +1495,7 @@ export default tseslint.config(
 						'@parcel/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',
-						'@vscode/ripgrep',
+						'@vscode/ripgrep-universal',
 						'@vscode/iconv-lite-umd',
 						'@vscode/native-watchdog',
 						'@vscode/policy-watcher',

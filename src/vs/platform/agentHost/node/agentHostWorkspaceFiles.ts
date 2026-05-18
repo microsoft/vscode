@@ -4,22 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import { rgPath } from '@vscode/ripgrep';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
+import { rgDiskPath } from '../../../base/node/ripgrep.js';
 
 /** Maximum number of files cached per working directory. */
 const MAX_FILES = 50_000;
 
 /** TTL for a cached file list before we re-enumerate. */
 const CACHE_TTL_MS = 30_000;
-
-/** ripgrep binary path with `.asar` → `.asar.unpacked` fix applied. */
-const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
 interface ICacheEntry {
 	readonly promise: Promise<readonly URI[]>;
@@ -118,7 +115,8 @@ export class AgentHostWorkspaceFiles extends Disposable {
 		});
 	}
 
-	private _enumerate(workingDirectory: URI): Promise<readonly URI[]> {
+	private async _enumerate(workingDirectory: URI): Promise<readonly URI[]> {
+		const resolvedRgDiskPath = await rgDiskPath();
 		return new Promise<readonly URI[]>(resolve => {
 			const cwd = workingDirectory.fsPath;
 			// Mirror the workbench's `ripgrepFileSearch.ts` invocation: pass
@@ -128,7 +126,7 @@ export class AgentHostWorkspaceFiles extends Disposable {
 
 			let child: cp.ChildProcessWithoutNullStreams;
 			try {
-				child = cp.spawn(rgDiskPath, args, { cwd });
+				child = cp.spawn(resolvedRgDiskPath, args, { cwd });
 			} catch (err) {
 				this._logService.warn(`[AgentHostWorkspaceFiles] Failed to spawn ripgrep: ${err}`);
 				resolve([]);

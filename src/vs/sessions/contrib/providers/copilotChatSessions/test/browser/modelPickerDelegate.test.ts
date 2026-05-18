@@ -22,6 +22,7 @@ import { ISessionsProvider } from '../../../../../services/sessions/common/sessi
 import { getAvailableModels, modelPickerStorageKey, SessionModelPicker } from '../../browser/copilotChatSessionsActions.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { ClaudeCodeSessionType } from '../../browser/copilotChatSessionsProvider.js';
+import { INewChatModelPickerService, NewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
 
 function makeModel(id: string, sessionType: string): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -101,6 +102,7 @@ function stubServices(
 	} as Partial<IChatEntitlementService>);
 
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(INewChatModelPickerService, new NewChatModelPickerService());
 
 	return { instantiationService, storage, activeSession, fireLanguageModelsChanged: () => onDidChangeLanguageModelsEmitter.fire({}) };
 }
