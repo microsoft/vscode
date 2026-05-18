@@ -13,7 +13,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IAgentSubscription } from './state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
-import { ProtectedResourceMetadata, type ConfigSchema, type FileEdit, type MessageAttachment, type ModelSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
+import { ProtectedResourceMetadata, type ChangesetSummary, type ConfigSchema, type MessageAttachment, type ModelSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionCustomization, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
@@ -226,7 +226,15 @@ export interface IAgentSessionMetadata {
 	readonly customizationDirectory?: URI;
 	readonly isRead?: boolean;
 	readonly isArchived?: boolean;
-	readonly diffs?: readonly FileEdit[];
+	/**
+	 * Catalogue of changesets the agent can produce for this session — the
+	 * {@link ChangesetSummary | catalogue} that travels on
+	 * `SessionSummary.changesets`. Lightweight summary entries (id / label /
+	 * URI template / aggregate counts) without per-file detail; clients
+	 * subscribe to a specific expanded changeset URI when they need the full
+	 * file list.
+	 */
+	readonly changesets?: readonly ChangesetSummary[];
 	/**
 	 * Side-channel metadata mirroring {@link SessionState._meta}, propagated
 	 * to clients via per-session state subscriptions.

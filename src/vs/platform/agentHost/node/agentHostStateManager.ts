@@ -9,12 +9,37 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
-import { ActionType, NotificationType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, RootAction, StateAction, TerminalAction, isRootAction, isSessionAction } from '../common/state/sessionActions.js';
+import { ActionType, NotificationType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, RootAction, StateAction, TerminalAction, ChangesetAction, isRootAction, isSessionAction, isChangesetAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { rootReducer, sessionReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, SessionLifecycle, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI } from '../common/state/sessionState.js';
+import { rootReducer, sessionReducer, changesetReducer } from '../common/state/sessionReducers.js';
+import { createRootState, createSessionState, SessionLifecycle, type ChangesetState, type ChangesetSummary, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { parseChangesetUri } from '../common/changesetUri.js';
+
+/**
+ * Field-level equality for two changeset catalogue arrays. Used by
+ * {@link AgentHostStateManager.setSessionChangesets} to skip a redundant
+ * dispatch when the catalogue has not changed in any user-visible way.
+ */
+function changesetCataloguesEqual(a: readonly ChangesetSummary[] | undefined, b: readonly ChangesetSummary[] | undefined): boolean {
+	if (a === b) { return true; }
+	if (!a || !b) { return false; }
+	if (a.length !== b.length) { return false; }
+	for (let i = 0; i < a.length; i++) {
+		const x = a[i];
+		const y = b[i];
+		if (x.label !== y.label
+			|| x.uriTemplate !== y.uriTemplate
+			|| x.description !== y.description
+			|| x.additions !== y.additions
+			|| x.deletions !== y.deletions
+			|| x.files !== y.files) {
+			return false;
+		}
+	}
+	return true;
+}
 
 /**
  * Server-side state manager for the sessions process protocol.
@@ -29,6 +54,13 @@ export class AgentHostStateManager extends Disposable {
 
 	private _rootState: RootState;
 	private readonly _sessionStates = new Map<string, SessionState>();
+
+	/**
+	 * Per-changeset state, keyed by the **expanded** changeset URI (the
+	 * value the client will pass to `subscribe` after expanding the
+	 * `uriTemplate` from the catalogue).
+	 */
+	private readonly _changesetStates = new Map<string, ChangesetState>();
 
 	/**
 	 * Sessions whose authoritative state has an active turn. Derived from
@@ -127,6 +159,18 @@ export class AgentHostStateManager extends Disposable {
 			};
 		}
 
+		// Changeset URIs are nested under their session URI; check them
+		// before falling back to the session map so a session whose URI
+		// happens to share a prefix with a changeset never collides.
+		const changesetState = this._changesetStates.get(resource);
+		if (changesetState) {
+			return {
+				resource,
+				state: changesetState,
+				fromSeq: this._serverSeq,
+			};
+		}
+
 		const sessionState = this._sessionStates.get(resource);
 		if (!sessionState) {
 			return undefined;
@@ -137,6 +181,11 @@ export class AgentHostStateManager extends Disposable {
 			state: sessionState,
 			fromSeq: this._serverSeq,
 		};
+	}
+
+	/** Read-only accessor for callers that only need to inspect a changeset (not subscribe). */
+	getChangesetState(changeset: URI): ChangesetState | undefined {
+		return this._changesetStates.get(changeset);
 	}
 
 	// ---- Session lifecycle --------------------------------------------------
@@ -257,6 +306,15 @@ export class AgentHostStateManager extends Disposable {
 	 * completes) even when the session is evicted before the scheduler fires.
 	 * A {@link NotificationType.SessionSummaryChanged} notification may therefore
 	 * be emitted as a side-effect of this call.
+	 *
+	 * Per-session changesets are intentionally NOT torn down here: this method
+	 * is also used as an idle-eviction (LRU) hook (see
+	 * `AgentService._maybeEvictIdleSession`) and the session list view keeps a
+	 * changeset subscription open per visible row to render the diff chip.
+	 * Tearing down on eviction would clear the chip on the list while the row
+	 * is still on screen. Permanent-delete paths (`deleteSession`,
+	 * `removeSubagentSessions`) call `disposeSessionChangesets` explicitly
+	 * before invoking `removeSession`.
 	 */
 	removeSession(session: URI): void {
 		const state = this._sessionStates.get(session);
@@ -304,6 +362,12 @@ export class AgentHostStateManager extends Disposable {
 		// supersedes it and we don't want to emit spurious SessionSummaryChanged
 		// events just before the session disappears from the client's view.
 		this._dirtySummaries.delete(session);
+		// Tear down per-session changesets first so subscribers see the
+		// final `changeset/cleared` envelope before the session itself goes
+		// away. The envelopes flow through the same emitter as everything
+		// else, so callers observing `onDidEmitEnvelope` get a deterministic
+		// order: changeset/cleared (per changeset) → session removal.
+		this.disposeSessionChangesets(session);
 		this.removeSession(session);
 		if (wasAnnounced) {
 			this._onDidEmitNotification.fire({
@@ -326,6 +390,115 @@ export class AgentHostStateManager extends Disposable {
 	 */
 	setSessionMeta(session: URI, meta: SessionMeta | undefined): void {
 		this.dispatchServerAction({ type: ActionType.SessionMetaChanged, session, _meta: meta });
+	}
+
+	// ---- Changeset registry -------------------------------------------------
+
+	/**
+	 * Registers a server-side changeset so that subscribers can attach to its
+	 * URI. The changeset is created with the supplied initial status (default
+	 * {@link ChangesetStatus.Computing}); subsequent file/operation/status
+	 * mutations flow through {@link dispatchChangesetAction} on the
+	 * canonical `<sessionUri>/changeset/<changesetId>` URI.
+	 *
+	 * Idempotent: a second call with the same URI is a no-op so producers
+	 * can safely re-register on session resume without double-creating
+	 * state.
+	 *
+	 * Callers construct `changesetUri` via {@link buildSessionChangesetUri}
+	 * for the session-wide entry, or {@link buildChangesetUri} for any
+	 * other catalogue entry.
+	 *
+	 * Returns the supplied changeset URI for caller convenience.
+	 */
+	registerChangeset(changesetUri: URI, initialStatus: ChangesetStatus = ChangesetStatus.Computing): URI {
+		if (this._changesetStates.has(changesetUri)) {
+			return changesetUri;
+		}
+		this._changesetStates.set(changesetUri, { status: initialStatus, files: [] });
+		return changesetUri;
+	}
+
+	/**
+	 * Replaces the catalogue entries on `summary.changesets` for `session`
+	 * by dispatching a {@link ActionType.SessionChangesetsChanged} action.
+	 * The change is applied through the session reducer so subscribers see
+	 * the mutation in the standard action stream alongside the regular
+	 * `notify/sessionSummaryChanged` notification — the catalogue is not
+	 * its own subscribable resource.
+	 *
+	 * Producers call this after each compute pass to keep the lightweight
+	 * chip-row counts (`additions`, `deletions`, `files`) in sync without
+	 * forcing every observer to subscribe to the full changeset.
+	 */
+	setSessionChangesets(session: URI, changesets: readonly ChangesetSummary[] | undefined): void {
+		const state = this._sessionStates.get(session);
+		if (!state) {
+			this._logService.warn(`[AgentHostStateManager] setSessionChangesets: unknown session ${session}`);
+			return;
+		}
+		// Skip dispatch when the catalogue is field-equal to the existing
+		// one. The reducer would otherwise allocate a new summary on every
+		// call, dirtying `_dirtySummaries` and broadcasting a redundant
+		// envelope. Producers call this after every compute pass, so
+		// duplicate calls are common.
+		if (changesetCataloguesEqual(state.summary.changesets, changesets)) {
+			return;
+		}
+		// Take a defensive copy so callers can't mutate the catalogue array
+		// after dispatch; the reducer otherwise stores the reference as-is.
+		const next: ChangesetSummary[] | undefined = changesets ? [...changesets] : undefined;
+		this.dispatchServerAction({
+			type: ActionType.SessionChangesetsChanged,
+			session,
+			changesets: next,
+		});
+	}
+
+	/**
+	 * Tear down a changeset. Dispatches {@link ActionType.ChangesetCleared}
+	 * so subscribers see an empty file list, then deletes the local state
+	 * so a fresh `getChangesetState` returns `undefined` and forces the
+	 * producer to re-create the changeset on next subscribe.
+	 *
+	 * Per the spec, the server SHOULD also unsubscribe its clients after
+	 * dispatching this action; for VS Code-internal clients that happens
+	 * via the `notify/sessionRemoved` notification, which the workbench-side
+	 * provider correlates to release any held subscriptions.
+	 *
+	 * Safe to call for a URI that was never registered: producers typically
+	 * iterate over a candidate set on session disposal and emit dispose
+	 * actions defensively.
+	 */
+	disposeChangeset(changeset: URI): void {
+		if (!this._changesetStates.has(changeset)) {
+			return;
+		}
+		this.dispatchServerAction({
+			type: ActionType.ChangesetCleared,
+			changeset,
+		});
+		this._changesetStates.delete(changeset);
+	}
+
+	/**
+	 * Disposes every changeset whose URI is nested under `session` (i.e.
+	 * matches `<session>/changeset/...`). Used to cascade cleanup when a
+	 * session itself is removed.
+	 */
+	disposeSessionChangesets(session: URI): void {
+		// Collect first because `disposeChangeset` mutates the underlying
+		// map via its envelope handler.
+		const toDispose: URI[] = [];
+		for (const uri of this._changesetStates.keys()) {
+			const parsed = parseChangesetUri(uri);
+			if (parsed && parsed.sessionUri === session) {
+				toDispose.push(uri);
+			}
+		}
+		for (const uri of toDispose) {
+			this.disposeChangeset(uri);
+		}
 	}
 
 	// ---- Turn tracking ------------------------------------------------------
@@ -423,6 +596,25 @@ export class AgentHostStateManager extends Disposable {
 			}
 		}
 
+		if (isChangesetAction(action)) {
+			const changesetAction = action as ChangesetAction;
+			const key = changesetAction.changeset;
+			const state = this._changesetStates.get(key);
+			if (!state) {
+				// Unknown changeset: log and bail before envelope creation.
+				// Routing the action to subscribers (Issue 1) makes
+				// orphan envelopes client-visible, so we must drop them
+				// here rather than letting them advance `_serverSeq`.
+				this._logService.warn(`[AgentHostStateManager] Action for unknown changeset: ${key}, type=${action.type}`);
+				return undefined;
+			}
+			const newState = changesetReducer(state, changesetAction, this._log);
+			if (newState !== state) {
+				this._changesetStates.set(key, newState);
+			}
+			resultingState = newState;
+		}
+
 		// Emit envelope
 		const envelope: ActionEnvelope = {
 			action,
@@ -467,7 +659,7 @@ export class AgentHostStateManager extends Disposable {
 		if (current.project !== lastNotified.project) { changes.project = current.project; }
 		if (current.model !== lastNotified.model) { changes.model = current.model; }
 		if (current.workingDirectory !== lastNotified.workingDirectory) { changes.workingDirectory = current.workingDirectory; }
-		if (current.diffs !== lastNotified.diffs) { changes.diffs = current.diffs; }
+		if (current.changesets !== lastNotified.changesets) { changes.changesets = current.changesets; }
 
 		this._lastNotifiedSummaries.set(session, current);
 
