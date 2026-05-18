@@ -5,7 +5,6 @@
 	"command.openInEditor.title": "Open Diagram in Editor",
 	"command.copySource.title": "Copy Diagram Source",
 	"config.title": "Mermaid",
-	"config.enabled.description": "Enable a tool for Mermaid diagram rendering in chat responses.",
 	"config.markdown-mermaid.lightModeTheme.description": "Default Mermaid theme for light mode.",
 	"config.markdown-mermaid.darkModeTheme.description": "Default Mermaid theme for dark mode.",
 	"config.markdown-mermaid.languages.description": "Default languages in Markdown.",

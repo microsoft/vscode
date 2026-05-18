@@ -15,7 +15,7 @@ import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadR
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
+import { ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -429,6 +429,63 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(findNotifications(transportB.sent, 'action').length, 0);
 	});
 
+	test('changeset actions are scoped to subscribed changeset URIs', () => {
+		const changesetUri = `${sessionUri}/changeset/session`;
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		stateManager.registerChangeset(changesetUri);
+
+		const transportA = connectClient('client-a-cs', [changesetUri]);
+		// Session-only subscriber: must NOT receive changeset envelopes.
+		const transportB = connectClient('client-b-cs', [sessionUri]);
+
+		transportA.sent.length = 0;
+		transportB.sent.length = 0;
+
+		stateManager.dispatchServerAction({
+			type: ActionType.ChangesetFileSet,
+			changeset: changesetUri,
+			file: {
+				id: 'file:///test/changed.ts',
+				edit: {
+					after: { uri: 'file:///test/changed.ts', content: { uri: 'file:///test/changed.ts' } },
+					diff: { added: 1, removed: 0 },
+				},
+			},
+		});
+
+		const aActions = findNotifications(transportA.sent, 'action');
+		const bActions = findNotifications(transportB.sent, 'action');
+		assert.strictEqual(aActions.length, 1, 'changeset subscriber should receive 1 envelope');
+		assert.strictEqual(bActions.length, 0, 'session-only subscriber should receive 0 changeset envelopes');
+
+		const params = aActions[0].params as { action: { type: string; changeset: string } };
+		assert.deepStrictEqual(
+			{ type: params.action.type, changeset: params.action.changeset },
+			{ type: ActionType.ChangesetFileSet, changeset: changesetUri },
+		);
+	});
+
+	test('changeset/cleared reaches changeset subscribers', () => {
+		const changesetUri = `${sessionUri}/changeset/session`;
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		stateManager.registerChangeset(changesetUri);
+
+		const transport = connectClient('client-clear', [changesetUri]);
+		transport.sent.length = 0;
+
+		stateManager.dispatchServerAction({
+			type: ActionType.ChangesetCleared,
+			changeset: changesetUri,
+		});
+
+		const actions = findNotifications(transport.sent, 'action');
+		assert.strictEqual(actions.length, 1);
+		const params = actions[0].params as { action: { type: string } };
+		assert.strictEqual(params.action.type, ActionType.ChangesetCleared);
+	});
+
 	test('notifications are broadcast to all clients', () => {
 		const transportA = connectClient('client-a');
 		const transportB = connectClient('client-b');
@@ -481,28 +538,24 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(result.items.map(item => item.project), [undefined]);
 	});
 
-	test('listSessions includes diffs with before/after URIs and content refs', async () => {
+	test('listSessions surfaces the changeset catalogue from the agent', async () => {
 		agentService.listedSessions.push({
 			session: URI.parse(sessionUri),
 			startTime: 1000,
 			modifiedTime: 2000,
-			summary: 'Session With Diffs',
-			diffs: [
+			summary: 'Session With Changesets',
+			changesets: [
 				{
-					before: { uri: URI.file('/workspace/file.ts').toString(), content: { uri: 'content://before-ref' } },
-					after: { uri: URI.file('/workspace/file.ts').toString(), content: { uri: 'content://after-ref' } },
-					diff: { added: 5, removed: 2 },
-				},
-				{
-					after: { uri: URI.file('/workspace/new-file.ts').toString(), content: { uri: 'content://new-ref' } },
-				},
-				{
-					before: { uri: URI.file('/workspace/deleted.ts').toString(), content: { uri: 'content://deleted-ref' } },
+					label: 'Session Changes',
+					uriTemplate: `${sessionUri}/changeset/session`,
+					additions: 5,
+					deletions: 2,
+					files: 3,
 				},
 			],
 		});
 
-		const transport = connectClient('client-list-diffs');
+		const transport = connectClient('client-list-changesets');
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 2);
 
@@ -510,17 +563,13 @@ suite('ProtocolServerHandler', () => {
 		const resp = await responsePromise;
 
 		const result = (resp as unknown as { result: ListSessionsResult }).result;
-		assert.deepStrictEqual(result.items[0].diffs, [
+		assert.deepStrictEqual(result.items[0].changesets, [
 			{
-				before: { uri: URI.file('/workspace/file.ts').toString(), content: { uri: 'content://before-ref' } },
-				after: { uri: URI.file('/workspace/file.ts').toString(), content: { uri: 'content://after-ref' } },
-				diff: { added: 5, removed: 2 },
-			},
-			{
-				after: { uri: URI.file('/workspace/new-file.ts').toString(), content: { uri: 'content://new-ref' } },
-			},
-			{
-				before: { uri: URI.file('/workspace/deleted.ts').toString(), content: { uri: 'content://deleted-ref' } },
+				label: 'Session Changes',
+				uriTemplate: `${sessionUri}/changeset/session`,
+				additions: 5,
+				deletions: 2,
+				files: 3,
 			},
 		]);
 	});
@@ -573,6 +622,57 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(result.type, 'replay');
 		if (result.type === 'replay') {
 			assert.strictEqual(result.actions.length, 2);
+		}
+	});
+
+	test('reconnect replays missed changeset actions to changeset subscribers', async () => {
+		const changesetUri = `${sessionUri}/changeset/session`;
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		// Register the changeset before the first connection so the initial
+		// subscription succeeds.
+		stateManager.registerChangeset(changesetUri);
+
+		const transport1 = connectClient('client-rc', [changesetUri]);
+		const resp = findResponse(transport1.sent, 1);
+		const initSeq = (resp as { result: InitializeResult }).result.serverSeq;
+		transport1.simulateClose();
+
+		// Dispatch two changeset actions while client is disconnected.
+		stateManager.dispatchServerAction({
+			type: ActionType.ChangesetFileSet,
+			changeset: changesetUri,
+			file: {
+				id: 'file:///a.ts',
+				edit: {
+					after: { uri: 'file:///a.ts', content: { uri: 'file:///a.ts' } },
+					diff: { added: 2, removed: 0 },
+				},
+			},
+		});
+		stateManager.dispatchServerAction({
+			type: ActionType.ChangesetStatusChanged,
+			changeset: changesetUri,
+			status: ChangesetStatus.Ready,
+		});
+
+		// Reconnect with same clientId and the changeset URI in subscriptions.
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-rc',
+			lastSeenServerSeq: initSeq,
+			subscriptions: [changesetUri],
+		}));
+
+		const reconnectResp = await reconnectRespPromise;
+		const result = (reconnectResp as { result: ReconnectResult }).result;
+		assert.strictEqual(result.type, 'replay');
+		if (result.type === 'replay') {
+			const replayedTypes = result.actions.map(e => e.action.type);
+			assert.ok(replayedTypes.includes(ActionType.ChangesetFileSet), 'replay should include ChangesetFileSet');
+			assert.ok(replayedTypes.includes(ActionType.ChangesetStatusChanged), 'replay should include ChangesetStatusChanged');
 		}
 	});
 

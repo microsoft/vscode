@@ -528,7 +528,7 @@ suite('addToolsAndSystemCacheControl', function () {
 
 suite('modelSupportsExtendedCacheTtl', function () {
 
-	test('matches Opus 4.5/4.6/4.7 and Sonnet 4.5/4.6 variants and rejects everything else', function () {
+	test('matches Opus 4.5/4.6/4.7, Sonnet 4.5/4.6, and Haiku 4.5 variants and rejects everything else', function () {
 		expect({
 			'claude-opus-4.6-1m': modelSupportsExtendedCacheTtl('claude-opus-4.6-1m'),
 			'claude-opus-4-6-1m': modelSupportsExtendedCacheTtl('claude-opus-4-6-1m'),
@@ -557,7 +557,7 @@ suite('modelSupportsExtendedCacheTtl', function () {
 			'claude-sonnet-4.5': true,
 			'claude-opus-4-1': false,
 			'claude-sonnet-4': false,
-			'claude-haiku-4-5': false,
+			'claude-haiku-4-5': true,
 			'gpt-5': false,
 		});
 	});
