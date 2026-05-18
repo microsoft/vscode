@@ -604,7 +604,6 @@ export class AgentSideEffects extends Disposable {
 		const toRemove: string[] = [];
 		for (const [key, subagentUri] of this._subagentSessions) {
 			if (key.startsWith(`${parentSession}:`)) {
-				this._stateManager.disposeSessionChangesets(subagentUri);
 				this._stateManager.removeSession(subagentUri);
 				toRemove.push(key);
 			}
@@ -617,7 +616,6 @@ export class AgentSideEffects extends Disposable {
 		// but not tracked (e.g. restored sessions)
 		const prefix = `${parentSession}/subagent/`;
 		for (const uri of this._stateManager.getSessionUrisWithPrefix(prefix)) {
-			this._stateManager.disposeSessionChangesets(uri);
 			this._stateManager.removeSession(uri);
 		}
 
