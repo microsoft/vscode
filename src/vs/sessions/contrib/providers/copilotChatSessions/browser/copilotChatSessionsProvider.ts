@@ -3122,6 +3122,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			mainChat,
 			capabilities: {
 				supportsMultipleChats: primaryChat.sessionType === CopilotCLISessionType.id && this._isMultiChatEnabled(),
+				// Cloud-agent sessions run worktreeCreated tasks server-side during
+				// environment provisioning, so the agents-window dispatcher must
+				// not re-run them. CLI / local sessions don't.
+				runsWorktreeCreatedTasks: primaryChat.sessionType === CopilotCloudSessionType.id,
 			},
 		};
 		this._sessionGroupCache.set(sessionId, session);
@@ -3155,7 +3159,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			lastTurnEnd: chat.lastTurnEnd,
 			chats: chatsObs,
 			mainChat,
-			capabilities: { supportsMultipleChats: false },
+			capabilities: {
+				supportsMultipleChats: false,
+				runsWorktreeCreatedTasks: chat.sessionType === CopilotCloudSessionType.id,
+			},
 		};
 	}
 
