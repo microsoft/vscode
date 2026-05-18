@@ -287,7 +287,7 @@ suite('LanguageModelAccess model info', () => {
 			// resolves even though the upstream `getChatEndpoint`
 			// promise never settles.
 			languageModelAccess.dispose();
-			const settled = await raceTimeout(refresh, 2_000);
+			const settled = await raceTimeout(refresh.then(() => true), 2_000);
 			assert.ok(settled, 'expected the pending refresh to resolve after dispose cancelled it');
 			assert.strictEqual(internals._resolvedUtilityEndpoints.size, 0, 'expected no overrides to be recorded once cancelled');
 		} finally {
