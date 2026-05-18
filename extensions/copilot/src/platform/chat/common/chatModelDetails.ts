@@ -38,8 +38,8 @@ export function formatModelDetailsWithCredits(modelName: string, creditsUsed: nu
 
 /**
  * Formats model details with a multiplier suffix for display.
- * Returns "Model Name • 2x" when multiplier is truthy, or just "Model Name" otherwise.
+ * Returns "Model Name • 2x" when multiplier is defined, or just "Model Name" otherwise.
  */
 export function formatModelDetailsWithMultiplier(modelName: string, multiplier: number | undefined): string {
-	return multiplier ? `${modelName} \u2022 ${multiplier}x` : modelName;
+	return multiplier !== undefined ? `${modelName} \u2022 ${multiplier}x` : modelName;
 }

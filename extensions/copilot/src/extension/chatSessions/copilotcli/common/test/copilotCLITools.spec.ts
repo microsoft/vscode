@@ -119,8 +119,8 @@ describe('CopilotCLITools', () => {
 			expect(formatModelDetailsWithMultiplier('GPT 5.4', 2)).toBe('GPT 5.4 \u2022 2x');
 		});
 
-		it('returns just the model name when multiplier is 0', () => {
-			expect(formatModelDetailsWithMultiplier('GPT 5.4', 0)).toBe('GPT 5.4');
+		it('formats 0x multiplier for included models', () => {
+			expect(formatModelDetailsWithMultiplier('GPT 5.4', 0)).toBe('GPT 5.4 \u2022 0x');
 		});
 
 		it('returns just the model name when multiplier is undefined', () => {
