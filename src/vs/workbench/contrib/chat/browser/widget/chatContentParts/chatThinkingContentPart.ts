@@ -1162,7 +1162,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		const timeout = setTimeout(() => cts.cancel(), 5000);
 
 		try {
-			const models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
+			const models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
 			if (!models.length) {
 				this.setFallbackTitle();
 				return;

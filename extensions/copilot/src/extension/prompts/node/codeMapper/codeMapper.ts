@@ -324,7 +324,7 @@ export class CodeMapper {
 		}
 		// continue with "slow rewrite endpoint" when fast rewriting was not possible
 		// use copilot base as fallback
-		const chatEndpoint = await this.endpointProvider.getChatEndpoint('copilot-base');
+		const chatEndpoint = await this.endpointProvider.getChatEndpoint('copilot-utility');
 
 		// Only attempt a full file rewrite if the original document fits into 3/4 of the max output token limit, leaving space for the model to add code. The limit is currently a flat 4K tokens from CAPI across all our models.
 		// If there are multiple input documents, pick the longest one to base the limit on

@@ -20,13 +20,16 @@ import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js
 import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { StateComponents, ROOT_STATE_URI, type RootState } from '../common/state/sessionState.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AgentHostClientResourceChannel } from '../common/agentHostClientResourceChannel.js';
+import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
+import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
+import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 
 /**
  * Renderer-side implementation of {@link IAgentHostService} that connects
@@ -76,7 +79,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -92,7 +95,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		// Optionally wrap the proxy with a logging layer that synthesizes JSON-RPC
 		// frames for every request/response/notification on the in-process MessagePort
 		// channel, mirroring the AHP transport JSONL logs produced by remote agent hosts.
-		this._ahpLogger = configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
+		this._ahpLogger = this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
 			? this._register(instantiationService.createInstance(AhpJsonlLogger, {
 				logsHome: environmentService.logsHome,
 				connectionId: this.clientId,
@@ -113,7 +116,13 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			resource => this.unsubscribe(resource),
 		));
 
-		if (configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID) || e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)) {
+				this._updateTelemetryLevel();
+			}
+		}));
+
+		if (this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
 			this._connect();
 		}
 	}
@@ -133,6 +142,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		// AgentHostClientFileSystemProvider that calls back through this channel.
 		client.registerChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, new AgentHostClientResourceChannel(this._fileService, this._ahpLogger));
 		this._clientEventually.complete(client);
+		this._updateTelemetryLevel();
 
 		store.add(this._proxy.onDidAction(e => {
 			const revived = revive(e) as ActionEnvelope;
@@ -159,6 +169,13 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		}).catch(err => {
 			this._logService.error('[AgentHost:renderer] Failed to subscribe to root state', err);
 		});
+	}
+
+	private _updateTelemetryLevel(): void {
+		this.dispatchAction({
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(getTelemetryLevel(this._configurationService)) },
+		}, this.clientId, 0);
 	}
 
 	// ---- IAgentService forwarding (no await needed, delayed channel handles queuing) ----

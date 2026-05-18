@@ -101,6 +101,8 @@ The welcome/new-session view (`NewChatInputWidget`) renders three toolbar menus 
 2. **Action view item** — `actionViewItemService.register()` to provide a custom widget instead of a button
 3. **Picker widget** — A `Disposable` class with a `render(container)` method, wrapped in `PickerActionViewItem`
 
+Model picker widgets that back the new-chat `/models` slash command also inject `INewChatModelPickerService` and register their opener with it. `NewChatInputWidget` scopes that service per input, so action view item factories must instantiate those model picker widgets from the factory's `instantiationService` argument rather than a contribution-level service.
+
 ### Toolbar Menus
 
 | Menu | Purpose | Examples |
@@ -145,8 +147,8 @@ registerAction2(class extends Action2 {
 // 2. Register the action view item (in CopilotPickerActionViewItemContribution)
 this._register(actionViewItemService.register(
     Menus.NewSessionControl, 'sessions.defaultCopilot.myPicker',
-    () => {
-        const picker = instantiationService.createInstance(MyPicker);
+    (_action, _options, scopedInstantiationService) => {
+        const picker = scopedInstantiationService.createInstance(MyPicker);
         return new PickerActionViewItem(picker);
     },
 ));
