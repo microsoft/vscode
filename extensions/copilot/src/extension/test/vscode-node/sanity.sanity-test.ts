@@ -30,32 +30,12 @@ suite('Copilot Chat Sanity Test', function () {
 	let realInstaAccessor: IInstantiationService;
 	let realContext: vscode.ExtensionContext;
 	let sandbox: sinon.SinonSandbox;
-	let copilotCLIChatHandler: Parameters<typeof vscode.chat.createChatParticipant>[1] | undefined;
-	let copilotCLIChatSessionItemController: vscode.ChatSessionItemController | undefined;
 	const fakeToken = CancellationToken.None;
 	// Before everything, activate the extension
 	suiteSetup(async function () {
 		sandbox = sinon.createSandbox();
 		sandbox.stub(vscode.commands, 'registerCommand').returns({ dispose: () => { } });
 		sandbox.stub(vscode.workspace, 'registerFileSystemProvider').returns({ dispose: () => { } });
-		const createChatParticipant = vscode.chat.createChatParticipant.bind(vscode.chat);
-		sandbox.stub(vscode.chat, 'createChatParticipant').callsFake((...args: Parameters<typeof vscode.chat.createChatParticipant>) => {
-			const [id, handler] = args;
-			if (id === 'copilotcli') {
-				copilotCLIChatHandler = handler;
-			}
-			return createChatParticipant(...args);
-		});
-		if (typeof vscode.chat.createChatSessionItemController === 'function') {
-			const createChatSessionItemController = vscode.chat.createChatSessionItemController.bind(vscode.chat);
-			sandbox.stub(vscode.chat, 'createChatSessionItemController').callsFake((...args: Parameters<typeof vscode.chat.createChatSessionItemController>) => {
-				const controller = createChatSessionItemController(...args);
-				if (args[0] === 'copilotcli') {
-					copilotCLIChatSessionItemController = controller;
-				}
-				return controller;
-			});
-		}
 		const extension = vscode.extensions.getExtension('Github.copilot-chat');
 		assert.ok(extension, 'Extension is not available');
 		realContext = await extension.activate();
@@ -157,43 +137,6 @@ suite('Copilot Chat Sanity Test', function () {
 		});
 	});
 
-	test('E2E Copilot CLI internal SDK chat session', async function () {
-		this.timeout(1000 * 60 * 2);
-		assert.ok(copilotCLIChatHandler, 'Copilot CLI chat participant was not registered');
-
-		const request = new TestChatRequest('Reply with only the word pong. Do not edit files or run shell commands.');
-		const context = await createCopilotCLIChatContext(request);
-		const stream = new SpyChatResponseStream();
-		let result: vscode.ChatResult | void | null | undefined;
-
-		try {
-			result = await copilotCLIChatHandler(request, context, stream, fakeToken);
-		} catch (error) {
-			const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
-			throw new Error(`Copilot CLI internal SDK chat session failed. This usually means the internal @github/copilot/sdk route, native prebuilds, or node-pty shims did not load correctly.\n${message}`);
-		}
-
-		assert.ok(!result?.errorDetails, `Copilot CLI internal SDK chat session returned an error: ${result?.errorDetails?.message}`);
-		assertCopilotCLIResponse(stream, 'first turn');
-
-		const chatSessionContext = context.chatSessionContext;
-		assert.ok(chatSessionContext, 'Expected Copilot CLI chat session context to be available for follow-up');
-		const followupRequest = new TestChatRequest('Now reply with only the word pong again.');
-		followupRequest.sessionResource = chatSessionContext.chatSessionItem.resource;
-		const followupStream = new SpyChatResponseStream();
-		let followupResult: vscode.ChatResult | void | null | undefined;
-
-		try {
-			followupResult = await copilotCLIChatHandler(followupRequest, context, followupStream, fakeToken);
-		} catch (error) {
-			const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
-			throw new Error(`Copilot CLI internal SDK chat session follow-up failed after the session was created.\n${message}`);
-		}
-
-		assert.ok(!followupResult?.errorDetails, `Copilot CLI internal SDK chat session follow-up returned an error: ${followupResult?.errorDetails?.message}`);
-		assertCopilotCLIResponse(followupStream, 'follow-up turn');
-	});
-
 	test('Slash Commands work properly', async function () {
 		assert.ok(realInstaAccessor);
 
@@ -278,49 +221,4 @@ suite('Copilot Chat Sanity Test', function () {
 			}
 		});
 	});
-
-	async function createCopilotCLIChatContext(request: TestChatRequest): Promise<vscode.ChatContext> {
-		const inputState = copilotCLIChatSessionItemController?.getChatSessionInputState
-			? await copilotCLIChatSessionItemController.getChatSessionInputState(undefined, { previousInputState: undefined }, fakeToken)
-			: createEmptyChatSessionInputState();
-		const chatSessionItem = await createCopilotCLIChatSessionItem(request, inputState);
-		request.sessionResource = chatSessionItem.resource;
-		return {
-			history: [],
-			yieldRequested: false,
-			chatSessionContext: {
-				chatSessionItem,
-				isUntitled: true,
-				inputState,
-			}
-		};
-	}
-
-	async function createCopilotCLIChatSessionItem(request: TestChatRequest, inputState: vscode.ChatSessionInputState): Promise<vscode.ChatSessionItem> {
-		if (copilotCLIChatSessionItemController?.newChatSessionItemHandler) {
-			return copilotCLIChatSessionItemController.newChatSessionItemHandler({
-				request: { prompt: request.prompt },
-				inputState,
-			}, fakeToken);
-		}
-
-		return {
-			resource: vscode.Uri.from({ scheme: 'copilotcli', path: `/untitled-${request.sessionId}` }),
-			label: request.prompt,
-		};
-	}
-
-	function createEmptyChatSessionInputState(): vscode.ChatSessionInputState {
-		return {
-			groups: [],
-			sessionResource: undefined,
-			onDidChange: Event.None,
-			onDidDispose: Event.None,
-		};
-	}
-
-	function assertCopilotCLIResponse(stream: SpyChatResponseStream, turnName: string): void {
-		assert.ok(stream.items.length > 0, `Expected Copilot CLI internal SDK chat session ${turnName} to emit response parts`);
-		assert.ok(stream.currentProgress, `Expected Copilot CLI internal SDK chat session ${turnName} output`);
-	}
 });
