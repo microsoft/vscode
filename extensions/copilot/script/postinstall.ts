@@ -130,73 +130,6 @@ async function copyCopilotCLIFolders(sourceDir: string, targetDir: string) {
 	await fs.promises.cp(sourceDir, targetDir, { recursive: true, force: true });
 }
 
-// Strip GitHub's Authenticode signature from copilot CLI Windows .node prebuilds.
-// ESRP's `signtool /as` (append) fails with 0x800700C1 on these pre-signed binaries;
-// truncating the embedded Certificate Table lets the build's codesign step sign them.
-async function stripCopilotCliPrebuildSignatures() {
-	const prebuildsDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'prebuilds');
-	if (!fs.existsSync(prebuildsDir)) {
-		return;
-	}
-
-	const stack: string[] = [prebuildsDir];
-	while (stack.length > 0) {
-		const current = stack.pop()!;
-		const entries = await fs.promises.readdir(current, { withFileTypes: true });
-		for (const entry of entries) {
-			const full = path.join(current, entry.name);
-			if (entry.isDirectory()) {
-				stack.push(full);
-			} else if (entry.isFile() && entry.name.endsWith('.node')) {
-				await stripAuthenticodeSignature(full);
-			}
-		}
-	}
-}
-
-async function stripAuthenticodeSignature(file: string) {
-	const handle = await fs.promises.open(file, 'r+');
-	try {
-		const dosHeader = Buffer.alloc(2);
-		await handle.read(dosHeader, 0, 2, 0);
-		if (dosHeader[0] !== 0x4d || dosHeader[1] !== 0x5a) {
-			return; // Not a PE binary (no "MZ"); leave Mach-O / ELF prebuilds alone.
-		}
-
-		const eLfanew = Buffer.alloc(4);
-		await handle.read(eLfanew, 0, 4, 0x3c);
-		const peOff = eLfanew.readUInt32LE(0);
-
-		const peSig = Buffer.alloc(4);
-		await handle.read(peSig, 0, 4, peOff);
-		if (peSig.toString('ascii') !== 'PE\0\0') {
-			return;
-		}
-
-		const optMagic = Buffer.alloc(2);
-		await handle.read(optMagic, 0, 2, peOff + 24);
-		// Certificate Table is data directory index 4 (each entry 8 bytes).
-		// Data dirs start at OptionalHeader+96 (PE32) or +112 (PE32+), so the
-		// cert table entry is at peOff+24+128 (PE32) or peOff+24+144 (PE32+).
-		const isPE32Plus = optMagic.readUInt16LE(0) === 0x20b;
-		const certDirOffset = peOff + 24 + (isPE32Plus ? 144 : 128);
-
-		const certDir = Buffer.alloc(8);
-		await handle.read(certDir, 0, 8, certDirOffset);
-		const certVA = certDir.readUInt32LE(0);
-		const certSize = certDir.readUInt32LE(4);
-		if (certSize === 0 || certVA === 0) {
-			return;
-		}
-
-		await handle.write(Buffer.alloc(8), 0, 8, certDirOffset);
-		await handle.truncate(certVA);
-		console.log(`[postinstall] Stripped Authenticode signature from ${path.relative(REPO_ROOT, file)} (${certSize} bytes)`);
-	} finally {
-		await handle.close();
-	}
-}
-
 /**
  * Creates symlinks so that `.claude/` mirrors canonical locations (for testing Claude Agent harness):
  *   .claude/CLAUDE.md  →  .github/copilot-instructions.md
@@ -250,7 +183,6 @@ async function main() {
 	await copyCopilotCliSkillsFiles();
 	await copyCopilotCliQueryFiles();
 	await copyCopilotCliPrebuildFiles();
-	await stripCopilotCliPrebuildSignatures();
 
 	// Check if the base cache file exists (dev-only sanity check, non-fatal in CI)
 	const baseCachePath = path.join('test', 'simulation', 'cache', 'base.sqlite');
