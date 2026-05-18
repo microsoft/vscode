@@ -342,7 +342,6 @@ export class AgentHostStateManager extends Disposable {
 		this._sessionStates.delete(session);
 		this._lastNotifiedSummaries.delete(session);
 		this._dirtySummaries.delete(session);
-		this._disposeSessionChangesets(session, true);
 		this._logService.trace(`[AgentHostStateManager] Removed session: ${session}`);
 	}
 
@@ -368,6 +367,7 @@ export class AgentHostStateManager extends Disposable {
 		// away. The envelopes flow through the same emitter as everything
 		// else, so callers observing `onDidEmitEnvelope` get a deterministic
 		// order: changeset/cleared (per changeset) → session removal.
+		this.disposeSessionChangesets(session);
 		this.removeSession(session);
 		if (wasAnnounced) {
 			this._onDidEmitNotification.fire({
@@ -486,18 +486,18 @@ export class AgentHostStateManager extends Disposable {
 	 * matches `<session>/changeset/...`). Used to cascade cleanup when a
 	 * session itself is removed.
 	 */
-	private _disposeSessionChangesets(session: URI, silent: boolean): void {
+	disposeSessionChangesets(session: URI): void {
+		// Collect first because `disposeChangeset` mutates the underlying
+		// map via its envelope handler.
+		const toDispose: URI[] = [];
 		for (const uri of this._changesetStates.keys()) {
 			const parsed = parseChangesetUri(uri);
 			if (parsed && parsed.sessionUri === session) {
-				this._changesetStates.delete(uri);
-				if (!silent) {
-					this.dispatchServerAction({
-						type: ActionType.ChangesetCleared,
-						changeset: uri,
-					});
-				}
+				toDispose.push(uri);
 			}
+		}
+		for (const uri of toDispose) {
+			this.disposeChangeset(uri);
 		}
 	}
 
