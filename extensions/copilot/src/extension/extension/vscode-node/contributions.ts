@@ -14,6 +14,7 @@ import { SessionStoreTracker } from '../../chronicle/vscode-node/sessionStoreTra
 import * as sessionSyncContribution from '../../chronicle/vscode-node/sessionSync.contribution';
 import * as chatBlockLanguageContribution from '../../codeBlocks/vscode-node/chatBlockLanguageFeatures.contribution';
 import { IExtensionContributionFactory, asContributionFactory } from '../../common/contributions';
+import { GlassBoxContribution } from '../../glassBox/vscode-node/glassBoxContribution';
 import { CompletionsUnificationContribution } from '../../completions/vscode-node/completionsUnificationContribution';
 import { ConfigurationMigrationContribution } from '../../configuration/vscode-node/configurationMigration';
 import { ContextKeysContribution } from '../../contextKeys/vscode-node/contextKeys.contribution';
@@ -131,4 +132,5 @@ export const vscodeNodeChatContributions: IExtensionContributionFactory[] = [
 	newWorkspaceContribution,
 	asContributionFactory(OTelChatDebugLogProviderContribution),
 	asContributionFactory(ChatDebugFileLoggerContribution),
+	asContributionFactory(GlassBoxContribution),
 ];

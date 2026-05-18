@@ -147,6 +147,8 @@ import { LanguageContextServiceImpl } from '../../typescriptContext/vscode-node/
 import { IWorkspaceListenerService } from '../../workspaceRecorder/common/workspaceListenerService';
 import { WorkspacListenerService } from '../../workspaceRecorder/vscode-node/workspaceListenerService';
 import { ISimilarFilesContextService } from '../../xtab/common/similarFilesContextService';
+import { IGlassBoxService } from '../../glassBox/common/glassBoxService';
+import { GlassBoxServiceImpl } from '../../glassBox/vscode-node/glassBoxServiceImpl';
 import { registerServices as registerCommonServices } from '../vscode/services';
 import { PromptsServiceImpl } from '../../../platform/promptFiles/vscode-node/promptsServiceImpl';
 import { IPromptsService } from '../../../platform/promptFiles/common/promptsService';
@@ -269,6 +271,7 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(ISimilarFilesContextService, new SyncDescriptor(SimilarFilesContextService));
 	builder.define(IGitHubOrgChatResourcesService, new SyncDescriptor(GitHubOrgChatResourcesService));
 	builder.define(IToolResultContentRenderer, new SyncDescriptor(ToolResultContentRenderer));
+	builder.define(IGlassBoxService, new SyncDescriptor(GlassBoxServiceImpl));
 
 	// Chronicle session store — tracks sessions, turns, files, and refs for /standup
 	const sessionStoreDbPath = extensionContext.globalStorageUri
