@@ -148,6 +148,7 @@ export function isAnthropicContextEditingEnabled(
  * - Claude Opus 4.5
  * - Claude Sonnet 4.6
  * - Claude Sonnet 4.5
+ * - Claude Haiku 4.5
  */
 export function modelSupportsExtendedCacheTtl(modelId: string): boolean {
 	const normalized = modelId.toLowerCase().replace(/\./g, '-');
@@ -155,7 +156,8 @@ export function modelSupportsExtendedCacheTtl(modelId: string): boolean {
 		normalized.startsWith('claude-opus-4-6') ||
 		normalized.startsWith('claude-opus-4-5') ||
 		normalized.startsWith('claude-sonnet-4-6') ||
-		normalized.startsWith('claude-sonnet-4-5');
+		normalized.startsWith('claude-sonnet-4-5') ||
+		normalized.startsWith('claude-haiku-4-5');
 }
 
 /**
