@@ -8,10 +8,10 @@
 AppId={#AppId}
 AppName={#NameLong}
 AppVerName={#NameVersion}
-AppPublisher=Microsoft Corporation
-AppPublisherURL=https://code.visualstudio.com/
-AppSupportURL=https://code.visualstudio.com/
-AppUpdatesURL=https://code.visualstudio.com/
+AppPublisher=David kivyuo
+AppPublisherURL=https://github.com/davidkivuyo/vscode
+AppSupportURL=https://github.com/davidkivuyo/vscode
+AppUpdatesURL=https://github.com/davidkivuyo/vscode
 DefaultGroupName={#NameLong}
 AllowNoIcons=yes
 OutputDir={#OutputDir}
