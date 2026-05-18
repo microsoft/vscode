@@ -9,6 +9,7 @@ import * as stream from 'stream';
 import * as objects from '../../../../base/common/objects.js';
 import * as path from '../../../../base/common/path.js';
 import * as platform from '../../../../base/common/platform.js';
+import { escapeCmdExeArg } from '../../../../base/common/processes.js';
 import * as strings from '../../../../base/common/strings.js';
 import { Promises } from '../../../../base/node/pfs.js';
 import * as nls from '../../../../nls.js';
@@ -236,15 +237,11 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				if (options.cwd) {
 					spawnOptions.cwd = options.cwd;
 				}
-				if (platform.isWindows && (command.endsWith('.bat') || command.endsWith('.cmd'))) {
+				if (platform.isWindows && /\.(bat|cmd)$/i.test(command)) {
 					// https://github.com/microsoft/vscode/issues/224184
 					spawnOptions.shell = true;
-					spawnCommand = `"${command}"`;
-					spawnArgs = args.map(a => {
-						a = a.replace(/"/g, '\\"'); // Escape existing double quotes with \
-						// Wrap in double quotes
-						return `"${a}"`;
-					});
+					spawnCommand = escapeCmdExeArg(command);
+					spawnArgs = args.map(escapeCmdExeArg);
 				}
 
 				this.serverProcess = cp.spawn(spawnCommand, spawnArgs, spawnOptions);

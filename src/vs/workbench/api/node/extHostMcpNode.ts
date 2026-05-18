@@ -12,6 +12,7 @@ import { untildify } from '../../../base/common/labels.js';
 import { Lazy } from '../../../base/common/lazy.js';
 import { DisposableMap } from '../../../base/common/lifecycle.js';
 import * as path from '../../../base/common/path.js';
+import { escapeCmdExeArg } from '../../../base/common/processes.js';
 import { URI } from '../../../base/common/uri.js';
 import { StreamSplitter } from '../../../base/node/nodeStreams.js';
 import { findExecutable } from '../../../base/node/processes.js';
@@ -204,10 +205,9 @@ export const formatSubprocessArguments = async (
 
 	const found = await findExecutable(executable, cwd, undefined, env);
 	if (found && windowsShellScriptRe.test(found)) {
-		const quote = (s: string) => s.includes(' ') ? `"${s}"` : s;
 		return {
-			executable: quote(found),
-			args: args.map(quote),
+			executable: escapeCmdExeArg(found),
+			args: args.map(escapeCmdExeArg),
 			shell: true,
 		};
 	}
