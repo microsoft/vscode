@@ -656,7 +656,6 @@ export class BackgroundTodoProcessor {
 			location: ChatLocation.Other,
 			requestOptions: {
 				temperature: 0,
-				stream: false,
 				tools: normalizedTools,
 			},
 			userInitiatedRequest: false,

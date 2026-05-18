@@ -994,7 +994,6 @@
 				"icon": "$(notebook-render-output)",
 				"modelDescription": "This tool will retrieve the output for a notebook cell from its most recent execution or restored from disk. The cell may have output even when it has not been run in the current kernel session. This tool has a higher token limit for output length than the runNotebookCell tool.",
 				"userDescription": "%copilot.tools.getNotebookCellOutput.description%",
-				"when": "userHasOpenedNotebook",
 				"tags": [],
 				"inputSchema": {
 					"type": "object",
@@ -2744,7 +2743,7 @@
 				"command": "github.copilot.deleteExternalIngestWorkspaceIndex",
 				"title": "%github.copilot.command.deleteExternalIngestWorkspaceIndex%",
 				"category": "Developer",
-				"enablement": "github.copilot-chat.activated"
+				"enablement": "github.copilot-chat.activated && !github.copilot.blackbirdExternalIndexingDisabled"
 			},
 			{
 				"command": "github.copilot.report",
@@ -4009,24 +4008,6 @@
 							"onExp"
 						]
 					},
-					"github.copilot.chat.gpt54ConcisePrompt.enabled": {
-						"type": "boolean",
-						"default": false,
-						"markdownDescription": "%github.copilot.config.gpt54ConcisePrompt.enabled%",
-						"tags": [
-							"experimental",
-							"onExp"
-						]
-					},
-					"github.copilot.chat.gpt54LargePrompt.enabled": {
-						"type": "boolean",
-						"default": false,
-						"markdownDescription": "%github.copilot.config.gpt54LargePrompt.enabled%",
-						"tags": [
-							"experimental",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.gpt55GetChangedFilesTool.enabled": {
 						"type": "boolean",
 						"default": true,
@@ -4270,9 +4251,19 @@
 						],
 						"description": "%github.copilot.config.anthropic.promptCaching.extendedTtl%"
 					},
-					"github.copilot.chat.freezeCustomizationsIndex": {
+					"github.copilot.chat.anthropic.promptCaching.extendedTtlMessages": {
 						"type": "boolean",
 						"default": false,
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						],
+						"description": "%github.copilot.config.anthropic.promptCaching.extendedTtlMessages%"
+					},
+					"github.copilot.chat.freezeCustomizationsIndex": {
+						"type": "boolean",
+						"default": true,
 						"tags": [
 							"advanced",
 							"experimental",
@@ -5184,7 +5175,7 @@
 					},
 					"github.copilot.chat.workspace.codeSearchExternalIngest.enabled": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.workspace.codeSearchExternalIngest.enabled%",
 						"tags": [
 							"advanced",
@@ -6865,7 +6856,7 @@
 		"@anthropic-ai/claude-agent-sdk": "0.2.112",
 		"@anthropic-ai/sdk": "^0.82.0",
 		"@github/blackbird-external-ingest-utils": "^0.3.0",
-		"@github/copilot": "1.0.48",
+		"@github/copilot": "1.0.39",
 		"@google/genai": "^1.22.0",
 		"@humanwhocodes/gitignore-to-minimatch": "1.0.2",
 		"@microsoft/tiktokenizer": "^1.0.10",

@@ -45,8 +45,7 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
-// eslint-disable-next-line local/code-import-patterns -- TODO: move IAgentHostFilterService out of providers
-import { IAgentHostFilterService } from '../../../providers/remoteAgentHost/common/agentHostFilter.js';
+import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 
 const $ = DOM.$;
 
