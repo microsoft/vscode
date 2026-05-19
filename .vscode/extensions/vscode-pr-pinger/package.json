@@ -3,7 +3,7 @@
   "displayName": "VSCode PR Pinger",
   "description": "PR Pinger shows a PR in the statusbar for you to review (VS Code Team Only)",
   "engines": {
-    "vscode": "^1.122.0"
+    "vscode": "^1.67.0"
   },
   "version": "0.0.6",
   "publisher": "ms-vscode",
@@ -37,6 +37,6 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@octokit/graphql": "^9.0.3"
+    "@octokit/graphql": "^5.0.1"
   }
 }

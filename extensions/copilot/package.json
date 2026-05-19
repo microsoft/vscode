@@ -6774,7 +6774,7 @@
 		"@fluentui/react-icons": "^2.0.305",
 		"@hediet/node-reload": "^0.8.0",
 		"@keyv/sqlite": "^4.0.5",
-		"@octokit/types": "^16.0.0",
+		"@octokit/types": "^14.1.0",
 		"@stylistic/eslint-plugin": "^3.0.1",
 		"@types/eslint": "^9.0.0",
 		"@types/express": "^5.0.6",
