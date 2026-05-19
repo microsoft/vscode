@@ -9,10 +9,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
+import { IChat, ISession, ISessionType } from './session.js';
 import { ISendRequestOptions } from './sessionsProvider.js';
 
-export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session's provider supports multiple chats per session"));
+export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session supports multiple chats"));
 
 /**
  * Event fired when sessions change within a provider.
@@ -54,11 +54,6 @@ export interface ISessionsManagementService {
 	/**
 	 * Get all session types from all registered providers.
 	 */
-	getSessionTypes(session: ISession): ISessionType[];
-
-	/**
-	 * Get all session types from all registered providers.
-	 */
 	getAllSessionTypes(): ISessionType[];
 
 	/**
@@ -79,17 +74,6 @@ export interface ISessionsManagementService {
 	readonly activeSession: IObservable<IActiveSession | undefined>;
 
 	/**
-	 * Observable for the currently active sessions provider ID.
-	 * When only one provider exists, it is selected automatically.
-	 */
-	readonly activeProviderId: IObservable<string | undefined>;
-
-	/**
-	 * Set the active sessions provider by ID.
-	 */
-	setActiveProvider(providerId: string): void;
-
-	/**
 	 * Select an existing session as the active session.
 	 * Sets `isNewChatSession` context to false and opens the active chat belonging to the session.
 	 */
@@ -102,6 +86,13 @@ export interface ISessionsManagementService {
 	openChat(session: ISession, chatUri: URI): Promise<void>;
 
 	/**
+	 * Restore the last active session from persisted state.
+	 * Waits until the session provider is available and then opens the session.
+	 * Falls back to the new-session view if the session is not found.
+	 */
+	restoreLastActiveSession(): Promise<void>;
+
+	/**
 	 * Switch to the new-session view.
 	 * No-op if the current session is already a new session.
 	 */
@@ -111,7 +102,12 @@ export interface ISessionsManagementService {
 	 * Create a new session for the given workspace.
 	 * Delegates to the provider identified by providerId.
 	 */
-	createNewSession(providerId: string, workspace: ISessionWorkspace): ISession;
+	createNewSession(providerId: string, workspaceUri: URI, sessionTypeId?: string): ISession;
+
+	/**
+	 * Unset the new session
+	 */
+	unsetNewSession(): void;
 
 	/**
 	 * Send a request, creating a new chat in the session.
@@ -119,9 +115,22 @@ export interface ISessionsManagementService {
 	sendAndCreateChat(session: ISession, options: ISendRequestOptions): Promise<void>;
 
 	/**
-	 * Update the session type for a new session.
+	 * Send a request for an existing chat within a session.
 	 */
-	setSessionType(session: ISession, type: ISessionType): Promise<void>;
+	sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void>;
+
+	/**
+	 * Switch to the new-chat-in-session view.
+	 * Adds a new chat to the session via the provider, makes it the active chat,
+	 * and shows a rich input for composing a message.
+	 */
+	openNewChatInSession(session: ISession): void;
+
+	/** Navigate to the previous session in the navigation history. */
+	openPreviousSession(): Promise<void>;
+
+	/** Navigate to the next session in the navigation history. */
+	openNextSession(): Promise<void>;
 
 	// -- Session Actions --
 
@@ -135,8 +144,6 @@ export interface ISessionsManagementService {
 	deleteChat(session: ISession, chatUri: URI): Promise<void>;
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;
-	/** Mark a session as read or unread. */
-	setRead(session: ISession, read: boolean): void;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

@@ -95,12 +95,9 @@ Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{
 Name: "{app}"; AfterInstall: DisableAppDirInheritance
 
 [Files]
-Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\policies,\policies\*,\appx,\appx\*,\resources\app\product.json,\{#ExeBasename}.exe,{#ifdef ProxyExeBasename}\{#ProxyExeBasename}.exe,{#endif}\{#ExeBasename}.VisualElementsManifest.xml,\bin,\bin\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\policies,\policies\*,\appx,\appx\*,\resources\app\product.json,\{#ExeBasename}.exe,\{#ExeBasename}.VisualElementsManifest.xml,\bin,\bin\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#ExeBasename}.exe"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetExeBasename}"; Flags: ignoreversion
 Source: "{#ExeBasename}.VisualElementsManifest.xml"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetVisualElementsManifest}"; Flags: ignoreversion
-#ifdef ProxyExeBasename
-Source: "{#ProxyExeBasename}.exe"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetProxyExeBasename}"; Flags: ignoreversion
-#endif
 Source: "tools\*"; DestDir: "{app}\{#VersionedResourcesFolder}\tools"; Flags: ignoreversion
 Source: "policies\*"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\policies"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "bin\{#TunnelApplicationName}.exe"; DestDir: "{code:GetDestDir}\bin"; DestName: "{code:GetBinDirTunnelApplicationFilename}"; Flags: ignoreversion skipifsourcedoesntexist
@@ -116,11 +113,6 @@ Source: "appx\{#AppxPackageDll}"; DestDir: "{code:GetDestDir}\{#VersionedResourc
 Name: "{group}\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; AppUserModelID: "{#AppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{group}\{#NameLong}.lnk'))
 Name: "{autodesktop}\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; Tasks: desktopicon; AppUserModelID: "{#AppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{autodesktop}\{#NameLong}.lnk'))
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; Tasks: quicklaunchicon; AppUserModelID: "{#AppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}.lnk'))
-#ifdef ProxyExeBasename
-Name: "{group}\{#ProxyExeBasename}"; Filename: "{app}\{#ProxyExeBasename}.exe"; AppUserModelID: "{#ProxyAppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{group}\{#ProxyExeBasename}.lnk'))
-Name: "{autodesktop}\{#ProxyNameLong}"; Filename: "{app}\{#ProxyExeBasename}.exe"; Tasks: desktopicon; AppUserModelID: "{#ProxyAppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{autodesktop}\{#ProxyNameLong}.lnk'))
-Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#ProxyNameLong}"; Filename: "{app}\{#ProxyExeBasename}.exe"; Tasks: quicklaunchicon; AppUserModelID: "{#ProxyAppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#ProxyNameLong}.lnk'))
-#endif
 
 [Run]
 Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Tasks: runcode; Flags: nowait postinstall; Check: ShouldRunAfterUpdate
@@ -1294,15 +1286,6 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValu
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValueName}"; ValueType: expandsz; ValueName: "Icon"; ValueData: "{app}\{#ExeBasename}.exe"; Check: ShouldInstallLegacyFolderContextMenu
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValueName}\command"; ValueType: expandsz; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%V"""; Check: ShouldInstallLegacyFolderContextMenu
 
-; URL Protocol handler for proxy executable
-#ifdef ProxyExeBasename
-#ifdef ProxyExeUrlProtocol
-Root: HKCU; Subkey: "Software\Classes\{#ProxyExeUrlProtocol}"; ValueType: string; ValueName: ""; ValueData: "URL:{#ProxyExeUrlProtocol}"; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Classes\{#ProxyExeUrlProtocol}"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Classes\{#ProxyExeUrlProtocol}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#ProxyExeBasename}.exe"" --open-url -- ""%1"""; Flags: uninsdeletekey
-#endif
-#endif
-
 ; Environment
 #if "user" == InstallTarget
 #define EnvironmentRootKey "HKCU"
@@ -1320,7 +1303,8 @@ Root: {#EnvironmentRootKey}; Subkey: "{#EnvironmentKey}"; ValueType: expandsz; V
 
 ; App Paths - allows running code from Explorer address bar
 Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#ApplicationName}.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\{#ExeBasename}.exe"; Flags: uninsdeletekey
-Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#ApplicationName}.exe"; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletekey
+; Remove the "Path" value previously written here; ShellExecute appends it to the launched process PATH, polluting the env. Default value above is enough to resolve `code` from Explorer/Run.
+Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#ApplicationName}.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue
 
 [Code]
 function IsBackgroundUpdate(): Boolean;
@@ -1641,16 +1625,6 @@ begin
     Result := ExpandConstant('{#ExeBasename}.exe');
 end;
 
-#ifdef ProxyExeBasename
-function GetProxyExeBasename(Value: string): string;
-begin
-  if IsBackgroundUpdate() and IsVersionedUpdate() then
-    Result := ExpandConstant('new_{#ProxyExeBasename}.exe')
-  else
-    Result := ExpandConstant('{#ProxyExeBasename}.exe');
-end;
-#endif
-
 function GetBinDirTunnelApplicationFilename(Value: string): string;
 begin
   if IsBackgroundUpdate() and IsVersionedUpdate() then
@@ -1681,6 +1655,32 @@ begin
     Result := True
   else
     Result := False;
+end;
+
+// Unblock inno_updater --gc when our context-menu COM surrogate keeps a
+// handle on the orphan commit folder. See https://github.com/microsoft/vscode/issues/294546.
+// No-op when FileExplorerContextMenuCLSID is not defined (e.g. OSS builds).
+procedure KillContextMenuComSurrogate();
+var
+  KillErrorCode: Integer;
+  Command: String;
+begin
+#ifdef FileExplorerContextMenuCLSID
+  Log('KillContextMenuComSurrogate: stopping COM surrogate(s) hosting context-menu DLL ({#FileExplorerContextMenuCLSID})');
+
+  Command :=
+    '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command "' +
+    'Get-CimInstance Win32_Process -Filter ""Name = ''dllhost.exe''"" | ' +
+    'Where-Object { $_.CommandLine -like ''*/Processid:{#FileExplorerContextMenuCLSID}*'' } | ' +
+    'ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop } catch {} }"';
+
+  if not ShellExec('', 'powershell.exe', Command, '', SW_HIDE, ewWaitUntilTerminated, KillErrorCode) then
+    Log('KillContextMenuComSurrogate: ShellExec failed with error code ' + IntToStr(KillErrorCode))
+  else if KillErrorCode <> 0 then
+    Log('KillContextMenuComSurrogate: PowerShell exited with non-zero code ' + IntToStr(KillErrorCode))
+  else
+    Log('KillContextMenuComSurrogate: complete');
+#endif
 end;
 
 #ifdef AppxPackageName
@@ -1741,6 +1741,7 @@ procedure RemoveAppxPackage();
 var
   RemoveAppxPackageResultCode: Integer;
 begin
+  KillContextMenuComSurrogate();
   // Remove the old context menu package
   // Following condition can be removed in v1.111.
   if QualityIsInsiders() and not SessionEndFileExists() and AppxPackageInstalled('Microsoft.VSCodeInsiders', RemoveAppxPackageResultCode) then begin
@@ -1808,13 +1809,14 @@ begin
       if not SessionEndFileExists() and not CancelFileExists() then begin
         StopTunnelServiceIfNeeded();
         Log('Invoking inno_updater for background update');
-        Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists()) + ' "{cm:UpdatingVisualStudioCode}"' {#ifdef ProxyExeBasename} + ' "{#ProxyExeBasename}.exe"' {#endif}), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+        Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists()) + ' "{cm:UpdatingVisualStudioCode}"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
         DeleteFile(ExpandConstant('{app}\updating_version'));
         Log('inno_updater completed successfully');
         #if "system" == InstallTarget
           if IsVersionedUpdate() then begin
+            KillContextMenuComSurrogate();
             Log('Invoking inno_updater to remove previous installation folder');
-            Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"--gc" "{app}\{#ExeBasename}.exe" "{#VersionedResourcesFolder}" "{#ExeBasename}.exe"' {#ifdef ProxyExeBasename} + ' "{#ProxyExeBasename}.exe"' {#endif}), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+            Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"--gc" "{app}\{#ExeBasename}.exe" "{#VersionedResourcesFolder}" "{#ExeBasename}.exe"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
             Log('inno_updater completed gc successfully');
           end;
         #endif
@@ -1823,8 +1825,9 @@ begin
       end;
     end else begin
       if IsVersionedUpdate() then begin
+        KillContextMenuComSurrogate();
         Log('Invoking inno_updater to remove previous installation folder');
-        Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"--gc" "{app}\{#ExeBasename}.exe" "{#VersionedResourcesFolder}" "{#ExeBasename}.exe"' {#ifdef ProxyExeBasename} + ' "{#ProxyExeBasename}.exe"' {#endif}), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+        Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"--gc" "{app}\{#ExeBasename}.exe" "{#VersionedResourcesFolder}" "{#ExeBasename}.exe"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
         Log('inno_updater completed gc successfully');
       end;
     end;

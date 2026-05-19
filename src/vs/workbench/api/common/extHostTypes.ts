@@ -3273,6 +3273,17 @@ export class ChatResponseWarningPart {
 	}
 }
 
+export class ChatResponseInfoPart {
+	value: vscode.MarkdownString;
+	constructor(value: string | vscode.MarkdownString) {
+		if (typeof value !== 'string' && value.isTrusted === true) {
+			throw new Error('The boolean form of MarkdownString.isTrusted is NOT supported for chat participants.');
+		}
+
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+	}
+}
+
 export class ChatResponseCommandButtonPart {
 	value: vscode.Command;
 	constructor(value: vscode.Command) {
@@ -3623,10 +3634,13 @@ export class ChatDebugModelTurnEvent {
 	created: Date;
 	parentEventId?: string;
 	model?: string;
+	requestName?: string;
 	inputTokens?: number;
 	outputTokens?: number;
+	cachedTokens?: number;
 	totalTokens?: number;
 	cost?: number;
+	copilotUsageNanoAiu?: number;
 	durationInMillis?: number;
 
 	constructor(created: Date) {
@@ -3760,12 +3774,14 @@ export class ChatDebugEventModelTurnContent {
 	status?: string;
 	durationInMillis?: number;
 	timeToFirstTokenInMillis?: number;
+	requestId?: string;
 	maxInputTokens?: number;
 	maxOutputTokens?: number;
 	inputTokens?: number;
 	outputTokens?: number;
 	cachedTokens?: number;
 	totalTokens?: number;
+	requestOptions?: string;
 	errorMessage?: string;
 	sections?: ChatDebugMessageSection[];
 
@@ -3791,10 +3807,6 @@ export class ChatDebugEventHookContent {
 }
 
 export class ChatSessionChangedFile {
-	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
-}
-
-export class ChatSessionChangedFile2 {
 	constructor(public readonly uri: vscode.Uri, public readonly originalUri: vscode.Uri | undefined, public readonly modifiedUri: vscode.Uri | undefined, public readonly insertions: number, public readonly deletions: number) { }
 }
 
@@ -3864,6 +3876,12 @@ export enum ChatErrorLevel {
 	Info = 0,
 	Warning = 1,
 	Error = 2
+}
+
+export enum ChatInputNotificationSeverity {
+	Info = 0,
+	Warning = 1,
+	Error = 2,
 }
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {

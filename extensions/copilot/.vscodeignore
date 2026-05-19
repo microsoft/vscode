@@ -9,10 +9,10 @@ assets/walkthroughs/**
 !dist/*.bpe
 !dist/*.tiktoken
 !dist/node_modules/**
-!dist/tfidfWorker.js
 !dist/worker2.js
 !dist/tikTokenizerWorker.js
 !dist/diffWorker.js
+!dist/copilotCLITodoWorker.js
 !dist/webview.js
 !dist/copilotDebugCommand.js
 !dist/copilotCLIShim.js
@@ -30,6 +30,10 @@ node_modules/@github/copilot/sharp/**
 !node_modules/@github/copilot/sdk/worker/*.js
 !node_modules/@github/copilot/sdk/sharp/**
 !node_modules/@github/copilot/sdk/definitions/*.yaml
+!node_modules/@github/copilot/sdk/definitions/sidekick/*.yaml
+!node_modules/@github/copilot/sdk/prebuilds/*/runtime.node
+!node_modules/@github/copilot/sdk/prebuilds/*/icu-native.node
+!node_modules/@github/copilot/sdk/prebuilds/*/win32-native.node
 !CHANGELOG.md
 !README.md
 !package.json

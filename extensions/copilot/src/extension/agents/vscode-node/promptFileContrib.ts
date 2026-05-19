@@ -5,7 +5,8 @@
 
 import * as vscode from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { Disposable, MutableDisposable } from '../../../util/vs/base/common/lifecycle';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
+import { combinedDisposable, Disposable, MutableDisposable } from '../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { IExtensionContribution } from '../../common/contributions';
@@ -22,6 +23,7 @@ export class PromptFileContribution extends Disposable implements IExtensionCont
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IExperimentationService experimentationService: IExperimentationService,
 	) {
 		super();
 
@@ -62,8 +64,25 @@ export class PromptFileContribution extends Disposable implements IExtensionCont
 			this._register(vscode.chat.registerCustomAgentProvider(askProvider));
 
 			// Register Explore agent provider for code research subagent
-			const exploreProvider = instantiationService.createInstance(ExploreAgentProvider);
-			this._register(vscode.chat.registerCustomAgentProvider(exploreProvider));
+			const exploreProviderRegistration = this._register(new MutableDisposable<vscode.Disposable>());
+			const updateExploreProvider = () => {
+				const isEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
+				if (isEnabled) {
+					if (!exploreProviderRegistration.value) {
+						const provider = instantiationService.createInstance(ExploreAgentProvider);
+						const registration = vscode.chat.registerCustomAgentProvider(provider);
+						exploreProviderRegistration.value = combinedDisposable(registration, provider);
+					}
+				} else {
+					exploreProviderRegistration.clear();
+				}
+			};
+			updateExploreProvider();
+			this._register(configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(ConfigKey.ExploreAgentEnabled.fullyQualifiedId)) {
+					updateExploreProvider();
+				}
+			}));
 		}
 
 		// Register instructions provider

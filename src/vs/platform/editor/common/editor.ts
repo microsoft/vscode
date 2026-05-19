@@ -283,6 +283,18 @@ export interface IEditorOptions {
 	source?: EditorOpenSource;
 
 	/**
+	 * Indicates whether the editor is being opened due to an explicit user
+	 * action (`true`) or automatically (`false`) as a side effect of another
+	 * action (e.g. the chat agent opening files it has edited).
+	 *
+	 * When omitted, callers should be treated as explicit. Layout logic may
+	 * use this to decide whether to react to the visibility change (for
+	 * example, by leaving the auxiliary side bar maximized when the change
+	 * was not initiated by the user).
+	 */
+	isExplicit?: boolean;
+
+	/**
 	 * An optional property to signal that certain view state should be
 	 * applied when opening the editor.
 	 */

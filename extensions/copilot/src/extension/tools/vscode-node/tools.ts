@@ -5,11 +5,9 @@
 
 import * as vscode from 'vscode';
 import { l10n } from 'vscode';
-import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { FileType } from '../../../platform/filesystem/common/fileTypes';
-import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { Disposable, DisposableMap } from '../../../util/vs/base/common/lifecycle';
 import { autorun, autorunIterableDelta } from '../../../util/vs/base/common/observableInternal';
 import { URI } from '../../../util/vs/base/common/uri';
@@ -27,8 +25,6 @@ export class ToolsContribution extends Disposable {
 		@IToolGroupingCache toolGrouping: IToolGroupingCache,
 		@IToolGroupingService toolGroupingService: IToolGroupingService,
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExperimentationService private readonly experimentationService: IExperimentationService,
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
 	) {
 		super();
@@ -91,9 +87,8 @@ export class ToolsContribution extends Disposable {
 				}
 			}
 
-			// Collect local repo-scoped memories only when CAPI memory is disabled
-			const capiMemoryEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, this.experimentationService);
-			if (storageUri && !capiMemoryEnabled) {
+			// Collect local repo-scoped memories
+			if (storageUri) {
 				const repoMemoryUri = URI.joinPath(storageUri, 'memory-tool/memories/repo');
 				try {
 					const entries = await this.fileSystemService.readDirectory(repoMemoryUri);
@@ -148,6 +143,52 @@ export class ToolsContribution extends Disposable {
 			if (selected?.fileUri) {
 				await vscode.commands.executeCommand('vscode.open', vscode.Uri.from(selected.fileUri));
 			}
+		}));
+
+		// Needed by the artifact feature to resolve memory file URIs to open them, since they use a custom URI scheme that vscode doesn't know about
+		this._register(vscode.commands.registerCommand('github.copilot.chat.tools.memory.resolveMemoryFileUri', (memoryPath: string, sessionResource?: string): string | undefined => {
+			if (!memoryPath || !memoryPath.startsWith('/memories/')) {
+				return undefined;
+			}
+			if (memoryPath.includes('..')) {
+				return undefined;
+			}
+
+			const MEMORY_BASE_DIR = 'memory-tool/memories';
+			const segments = memoryPath.split('/').filter(s => s.length > 0);
+
+			let resolved: URI;
+
+			if (memoryPath.startsWith('/memories/session/') || memoryPath === '/memories/session') {
+				const storageUri = this.extensionContext.storageUri;
+				if (!storageUri) {
+					return undefined;
+				}
+				const relativeSegments = segments.slice(2);
+				const baseUri = URI.from(storageUri);
+				if (sessionResource) {
+					const sessionId = extractSessionId(sessionResource);
+					resolved = URI.joinPath(baseUri, MEMORY_BASE_DIR, sessionId, ...relativeSegments);
+				} else {
+					resolved = URI.joinPath(baseUri, MEMORY_BASE_DIR, ...relativeSegments);
+				}
+			} else if (memoryPath.startsWith('/memories/repo/') || memoryPath === '/memories/repo') {
+				const storageUri = this.extensionContext.storageUri;
+				if (!storageUri) {
+					return undefined;
+				}
+				const relativeSegments = segments.slice(2);
+				resolved = URI.joinPath(URI.from(storageUri), MEMORY_BASE_DIR, 'repo', ...relativeSegments);
+			} else {
+				const globalStorageUri = this.extensionContext.globalStorageUri;
+				if (!globalStorageUri) {
+					return undefined;
+				}
+				const relativeSegments = segments.slice(1);
+				resolved = URI.joinPath(globalStorageUri, MEMORY_BASE_DIR, ...relativeSegments);
+			}
+
+			return resolved.toString();
 		}));
 
 		this._register(vscode.commands.registerCommand('github.copilot.chat.tools.memory.clearMemories', async () => {

@@ -119,6 +119,98 @@ pub fn new_std_command(exe: impl AsRef<OsStr>) -> std::process::Command {
 	std::process::Command::new(exe)
 }
 
+/// Configure a [`std::process::Command`] / [`tokio::process::Command`] so the
+/// spawned child detaches from the parent's session / process group and
+/// therefore survives the parent process exiting.
+///
+/// * **Unix** — registers a `pre_exec` hook that calls `setsid()` so the
+///   child runs in its own session, with no controlling terminal, and
+///   does not receive `SIGHUP` / `SIGINT` propagated from the CLI's
+///   terminal.
+/// * **Windows** — sets `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`
+///   creation flags. `CREATE_NEW_PROCESS_GROUP` makes the child immune to
+///   the parent's `Ctrl+C` / `Ctrl+Break`; `CREATE_NO_WINDOW` gives the
+///   child its own (hidden) console so it survives the parent console
+///   closing AND prevents `cmd.exe`-based scripts from popping a
+///   visible window the way `DETACHED_PROCESS` would (cmd.exe calls
+///   `AllocConsole` when it has no console at all).
+///
+/// Callers that need the child to truly outlive the parent should also
+/// set `kill_on_drop(false)` on tokio commands and avoid retaining the
+/// `Child` handle across the parent's exit (the OS will reap the
+/// detached child as an orphan).
+pub trait DetachFromParent {
+	fn detach_from_parent(&mut self) -> &mut Self;
+}
+
+impl DetachFromParent for std::process::Command {
+	fn detach_from_parent(&mut self) -> &mut Self {
+		apply_detach_flags_std(self);
+		self
+	}
+}
+
+impl DetachFromParent for tokio::process::Command {
+	fn detach_from_parent(&mut self) -> &mut Self {
+		apply_detach_flags_tokio(self);
+		self
+	}
+}
+
+#[cfg(unix)]
+fn apply_detach_flags_std(cmd: &mut std::process::Command) {
+	use std::os::unix::process::CommandExt as _;
+	// SAFETY: setsid() is async-signal-safe and only manipulates the new
+	// child's session/process group. We return the syscall error so the
+	// caller sees the failure instead of silently leaving the child in
+	// the parent's session (where it would still receive the parent's
+	// SIGHUP/SIGINT — the exact thing the detach is meant to prevent).
+	unsafe {
+		cmd.pre_exec(|| {
+			if libc::setsid() == -1 {
+				return Err(std::io::Error::last_os_error());
+			}
+			Ok(())
+		});
+	}
+}
+
+#[cfg(windows)]
+fn apply_detach_flags_std(cmd: &mut std::process::Command) {
+	use std::os::windows::process::CommandExt as _;
+	cmd.creation_flags(
+		winapi::um::winbase::CREATE_NEW_PROCESS_GROUP | winapi::um::winbase::CREATE_NO_WINDOW,
+	);
+}
+
+#[cfg(unix)]
+fn apply_detach_flags_tokio(cmd: &mut tokio::process::Command) {
+	// SAFETY: setsid() is async-signal-safe and only manipulates the new
+	// child's session/process group. We return the syscall error so the
+	// caller sees the failure instead of silently leaving the child in
+	// the parent's session.
+	unsafe {
+		cmd.pre_exec(|| {
+			if libc::setsid() == -1 {
+				return Err(std::io::Error::last_os_error());
+			}
+			Ok(())
+		});
+	}
+}
+
+#[cfg(windows)]
+fn apply_detach_flags_tokio(cmd: &mut tokio::process::Command) {
+	// `tokio::process::Command::creation_flags` is an inherent
+	// Windows-only method; no trait import needed. Note: this REPLACES
+	// any prior flags, so we re-include `CREATE_NO_WINDOW` (which
+	// `new_tokio_command` originally set) instead of relying on it
+	// being preserved.
+	cmd.creation_flags(
+		winapi::um::winbase::CREATE_NEW_PROCESS_GROUP | winapi::um::winbase::CREATE_NO_WINDOW,
+	);
+}
+
 /// Kills and processes and all of its children.
 #[cfg(windows)]
 pub async fn kill_tree(process_id: u32) -> Result<(), CodeError> {

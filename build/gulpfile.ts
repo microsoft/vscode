@@ -6,49 +6,48 @@ import { EventEmitter } from 'events';
 EventEmitter.defaultMaxListeners = 100;
 
 import glob from 'glob';
-import gulp from 'gulp';
 import { createRequire } from 'node:module';
 import { monacoTypecheckTask /* , monacoTypecheckWatchTask */ } from './gulpfile.editor.ts';
 import { compileExtensionMediaTask, compileExtensionsTask, watchExtensionsTask } from './gulpfile.extensions.ts';
 import * as compilation from './lib/compilation.ts';
-import * as task from './lib/task.ts';
+import * as task from './lib/gulp/task.ts';
 import * as util from './lib/util.ts';
-import { useEsbuildTranspile } from './buildConfig.ts';
+import { runEsbuildTranspile } from './lib/esbuild.ts';
 
 // Extension point names
-gulp.task(compilation.compileExtensionPointNamesTask);
+task.task(compilation.compileExtensionPointNamesTask);
 
 const require = createRequire(import.meta.url);
 
 // API proposal names
-gulp.task(compilation.compileApiProposalNamesTask);
-gulp.task(compilation.watchApiProposalNamesTask);
+task.task(compilation.compileApiProposalNamesTask);
+task.task(compilation.watchApiProposalNamesTask);
 
-// SWC Client Transpile
-const transpileClientSWCTask = task.define('transpile-client-esbuild', task.series(util.rimraf('out'), compilation.transpileTask('src', 'out', true)));
-gulp.task(transpileClientSWCTask);
+// Client Transpile
+task.task(task.define('transpile-client-esbuild', task.series(
+	compilation.copyCodiconsTask,
+	task.define('esbuild-out-build', () => runEsbuildTranspile('out', false)),
+)));
 
 // Transpile only
 const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), compilation.transpileTask('src', 'out')));
-gulp.task(transpileClientTask);
+task.task(transpileClientTask);
 
 // Fast compile for development time
 const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compilation.copyCodiconsTask, compilation.compileApiProposalNamesTask, compilation.compileExtensionPointNamesTask, compilation.compileTask('src', 'out', false)));
-gulp.task(compileClientTask);
+task.task(compileClientTask);
 
-const watchClientTask = useEsbuildTranspile
-	? task.define('watch-client', task.parallel(compilation.watchTask('out', false, 'src', { noEmit: true }), compilation.watchApiProposalNamesTask, compilation.watchExtensionPointNamesTask, compilation.watchCodiconsTask))
-	: task.define('watch-client', task.series(util.rimraf('out'), task.parallel(compilation.watchTask('out', false), compilation.watchApiProposalNamesTask, compilation.watchExtensionPointNamesTask, compilation.watchCodiconsTask)));
-gulp.task(watchClientTask);
+const watchClientTask = task.define('watch-client', task.parallel(compilation.watchTypeCheckTask('src'), compilation.watchApiProposalNamesTask, compilation.watchExtensionPointNamesTask, compilation.watchCodiconsTask));
+task.task(watchClientTask);
 
 // All
 const _compileTask = task.define('compile', task.parallel(monacoTypecheckTask, compileClientTask, compileExtensionsTask, compileExtensionMediaTask));
-gulp.task(_compileTask);
+task.task(_compileTask);
 
-gulp.task(task.define('watch', task.parallel(/* monacoTypecheckWatchTask, */ watchClientTask, watchExtensionsTask)));
+task.task(task.define('watch', task.parallel(/* monacoTypecheckWatchTask, */ watchClientTask, watchExtensionsTask)));
 
 // Default
-gulp.task('default', _compileTask);
+task.task('default', _compileTask);
 
 process.on('unhandledRejection', (reason, p) => {
 	console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);

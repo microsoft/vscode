@@ -10,7 +10,7 @@ import { IEndpointProvider } from '../../../platform/endpoint/common/endpointPro
 import { ILogService } from '../../../platform/log/common/logService';
 import { ICopilotToolCall } from '../../../platform/networking/common/fetch';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
-import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { ITabsAndEditorsService } from '../../../platform/tabs/common/tabsAndEditorsService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -172,13 +172,13 @@ export class PromptCategorizerService implements IPromptCategorizerService {
 		// Gather context signals (outside try block for telemetry access)
 		const currentLanguage = this.tabsAndEditorsService.activeTextEditor?.document.languageId;
 
-		// Use 10 second timeout - classification should be fast with copilot-fast model
+		// Use 10 second timeout - classification should be fast with copilot-utility-small model
 		const CATEGORIZATION_TIMEOUT_MS = 10_000;
 		const cts = new CancellationTokenSource();
 		const timeoutHandle = setTimeout(() => cts.cancel(), CATEGORIZATION_TIMEOUT_MS);
 
 		try {
-			const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+			const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 
 			const { messages } = await renderPromptElement(
 				this.instantiationService,
@@ -214,6 +214,7 @@ export class PromptCategorizerService implements IPromptCategorizerService {
 				location: ChatLocation.Panel,
 				userInitiatedRequest: false,
 				isConversationRequest: false,
+				interactionTypeOverride: 'conversation-background',
 				requestOptions: {
 					tools: [{
 						type: 'function',
