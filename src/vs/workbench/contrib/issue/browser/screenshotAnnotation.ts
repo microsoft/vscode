@@ -47,6 +47,8 @@ const FONT_FAMILIES = [
 const DEFAULT_TEXT_BOX_WIDTH = 240;
 const MIN_TEXT_BOX_WIDTH = 48;
 const TEXT_DRAG_THRESHOLD = 4;
+/** Padding on each side of the displayed image inside the canvas container at fit-to-window scale. */
+const CANVAS_BREATHING_ROOM = 64;
 const FILL_COLORS = ['transparent', ...COLORS];
 const STROKE_WIDTHS = [2, 4, 8, 12];
 const TEXT_SIZES = [14, 18, 24, 32, 48];
@@ -224,6 +226,9 @@ export class ScreenshotAnnotationEditor {
 	private cropDragStart = { x: 0, y: 0 };
 	private cropRegionStart: { x: number; y: number; width: number; height: number } | null = null;
 	private hasUserZoomed = false;
+	/** Pending wheel-zoom delta accumulated across rapid wheel events; flushed on rAF. */
+	private pendingZoom: { factor: number; cx: number; cy: number } | null = null;
+	private pendingZoomRaf = 0;
 
 	// Original image preserved so crops can be expanded back
 	private originalImage: { element: HTMLImageElement; width: number; height: number } | null = null;
@@ -428,24 +433,30 @@ export class ScreenshotAnnotationEditor {
 		this.disposables.add(addDisposableListener(canvasContainer, EventType.WHEEL, (e: WheelEvent) => {
 			e.preventDefault();
 			if (e.ctrlKey) {
-				// Pinch-to-zoom on touchpad (browser synthesises ctrlKey) or Ctrl+scroll
+				// Pinch-to-zoom on touchpad (browser synthesises ctrlKey) or Ctrl+scroll.
+				// Wheel events can fire faster than we can redraw at high zoom levels,
+				// so we coalesce the deltas and flush once per animation frame. This keeps
+				// the canvas reallocation/redraw cost bounded and lets other input (like
+				// drawing) interleave responsively.
 				const delta = e.deltaY !== 0 ? e.deltaY : e.deltaX;
-				const zoomFactor = delta < 0 ? 1.1 : 0.9;
-				const newScale = Math.max(0.1, Math.min(8, this.scale * zoomFactor));
-				// Zoom around the cursor: pan is relative to the flex-centered container,
-				// so offset from the container center determines the pan adjustment.
+				const factor = delta < 0 ? 1.1 : 0.9;
 				const containerRect = canvasContainer.getBoundingClientRect();
-				const ax = e.clientX - (containerRect.left + containerRect.width / 2);
-				const ay = e.clientY - (containerRect.top + containerRect.height / 2);
-				const r = newScale / this.scale;
-				this.panX = ax * (1 - r) + this.panX * r;
-				this.panY = ay * (1 - r) + this.panY * r;
-				this.scale = newScale;
-				this.hasUserZoomed = true;
-				this.sizeCanvas();
-				this.clampPan();
-				this.canvas.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
-				this.redraw();
+				const cx = e.clientX - (containerRect.left + containerRect.width / 2);
+				const cy = e.clientY - (containerRect.top + containerRect.height / 2);
+				if (this.pendingZoom) {
+					this.pendingZoom.factor *= factor;
+					this.pendingZoom.cx = cx;
+					this.pendingZoom.cy = cy;
+				} else {
+					this.pendingZoom = { factor, cx, cy };
+				}
+				if (!this.pendingZoomRaf) {
+					const targetWindow = getWindow(this.canvas);
+					this.pendingZoomRaf = targetWindow.requestAnimationFrame(() => {
+						this.pendingZoomRaf = 0;
+						this.flushPendingZoom();
+					});
+				}
 			} else {
 				// Two-finger scroll on touchpad (or plain scroll wheel) → pan
 				this.panX -= e.deltaX;
@@ -509,6 +520,15 @@ export class ScreenshotAnnotationEditor {
 		// Re-fit canvas when container resizes
 		const resizeObserver = new ResizeObserver(() => {
 			if (this.imageElement) {
+				// On resize, ensure the user's current zoom is still at least the new fit-to-window
+				// scale. Without this, growing the window after zooming out could leave the image
+				// orphaned in the centre with empty space around it that can't be filled.
+				if (this.hasUserZoomed) {
+					const minScale = this.getFitScale();
+					if (this.scale < minScale) {
+						this.scale = minScale;
+					}
+				}
 				this.sizeCanvas();
 				this.clampPan();
 				this.canvas.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
@@ -904,8 +924,8 @@ export class ScreenshotAnnotationEditor {
 
 		const targetWindow = getWindow(this.canvas);
 		const dpr = targetWindow.devicePixelRatio || 1;
-		const maxWidth = container.clientWidth - 32;
-		const maxHeight = container.clientHeight - 32;
+		const maxWidth = container.clientWidth - CANVAS_BREATHING_ROOM * 2;
+		const maxHeight = container.clientHeight - CANVAS_BREATHING_ROOM * 2;
 
 		// Only auto-fit on initial load; respect user zoom after that
 		if (!this.hasUserZoomed) {
@@ -919,10 +939,20 @@ export class ScreenshotAnnotationEditor {
 
 		this.canvas.style.width = `${displayWidth}px`;
 		this.canvas.style.height = `${displayHeight}px`;
-		this.canvas.width = displayWidth * dpr;
-		this.canvas.height = displayHeight * dpr;
 
-		this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		// Cap the backing buffer so a 1920×1080 image at 8× zoom + dpr 2 doesn't try to
+		// allocate a 30k×17k canvas (~2GB GPU memory) per wheel tick. When the natural
+		// backing size exceeds the cap, the browser CSS-stretches the canvas (slight
+		// pixelation at extreme zoom) but allocation and drawing stay cheap.
+		const MAX_BACKING_DIM = 4096;
+		const naturalW = displayWidth * dpr;
+		const naturalH = displayHeight * dpr;
+		const overage = Math.max(1, naturalW / MAX_BACKING_DIM, naturalH / MAX_BACKING_DIM);
+		const effectiveDpr = dpr / overage;
+		this.canvas.width = Math.max(1, Math.floor(displayWidth * effectiveDpr));
+		this.canvas.height = Math.max(1, Math.floor(displayHeight * effectiveDpr));
+
+		this.ctx.setTransform(effectiveDpr, 0, 0, effectiveDpr, 0, 0);
 	}
 
 	private canvasCoords(e: PointerEvent): { x: number; y: number } {
@@ -2268,6 +2298,60 @@ export class ScreenshotAnnotationEditor {
 		this.ctx.fill();
 	}
 
+	private flushPendingZoom(): void {
+		const pending = this.pendingZoom;
+		this.pendingZoom = null;
+		if (!pending) {
+			return;
+		}
+		const minScale = this.getFitScale();
+		const maxScale = 8;
+		const desiredScale = this.scale * pending.factor;
+		const newScale = Math.max(minScale, Math.min(maxScale, desiredScale));
+		if (newScale === this.scale) {
+			return;
+		}
+		// Cursor-anchored zoom: keep the image pixel under the cursor under the
+		// cursor after zoom. Clamp the cursor's image-space coord to the actual
+		// image extent so an off-image cursor (in breathing-room padding) still
+		// pivots on the nearest real image pixel.
+		const halfImgW = (this.imageWidth * this.scale) / 2;
+		const halfImgH = (this.imageHeight * this.scale) / 2;
+		const anchorCx = this.panX + Math.max(-halfImgW, Math.min(halfImgW, pending.cx - this.panX));
+		const anchorCy = this.panY + Math.max(-halfImgH, Math.min(halfImgH, pending.cy - this.panY));
+		const r = newScale / this.scale;
+		this.panX = anchorCx * (1 - r) + this.panX * r;
+		this.panY = anchorCy * (1 - r) + this.panY * r;
+		this.scale = newScale;
+		this.hasUserZoomed = true;
+		// Deliberately do NOT call clampPan() here. With rAF-coalesced wheel events
+		// a single flush can produce a large zoom factor (e.g. trackpad pinch firing
+		// 10+ events in one frame ⇒ r ≈ 2-3); the cursor-anchored pan that needs to
+		// be applied at large r can exceed the strict clamp, and clamping then
+		// drifts the cursor away from the anchor pixel. The cursor anchor itself
+		// ensures at least one image pixel stays visible (the one under the cursor),
+		// so unbounded zoom pan is safe.
+		// When zooming back out to fit, snap pan to centered so the breathing-room
+		// layout looks symmetric instead of carrying over any accumulated offset.
+		if (newScale === minScale) {
+			this.panX = 0;
+			this.panY = 0;
+		}
+		this.sizeCanvas();
+		this.canvas.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
+		this.redraw();
+	}
+
+	private getFitScale(): number {
+		const container = this.canvas.parentElement;
+		if (!container || !this.imageWidth || !this.imageHeight) {
+			return 1;
+		}
+		const maxWidth = Math.max(1, container.clientWidth - CANVAS_BREATHING_ROOM * 2);
+		const maxHeight = Math.max(1, container.clientHeight - CANVAS_BREATHING_ROOM * 2);
+		return Math.min(maxWidth / this.imageWidth, maxHeight / this.imageHeight, 1);
+	}
+
 	private clampPan(): void {
 		const container = this.canvas.parentElement;
 		if (!container) {
@@ -2277,10 +2361,13 @@ export class ScreenshotAnnotationEditor {
 		const imgH = this.imageHeight * this.scale;
 		const cW = container.clientWidth;
 		const cH = container.clientHeight;
-		// Allow panning freely but reset if less than 10% of image is visible
-		const minVisiblePx = 50;
-		const maxPanX = Math.max(imgW - minVisiblePx, cW - minVisiblePx);
-		const maxPanY = Math.max(imgH - minVisiblePx, cH - minVisiblePx);
+		// Manual-pan clamp: image edge can't travel past container edge in either
+		// direction. When image is smaller than container (fit / zoomed-out), the
+		// bound shrinks symmetrically toward 0 so pan can shift the image around
+		// inside the container without sliding off either edge. When zoomed in,
+		// allows full pan within the zoomed content.
+		const maxPanX = Math.abs(cW - imgW) / 2;
+		const maxPanY = Math.abs(cH - imgH) / 2;
 		this.panX = Math.max(-maxPanX, Math.min(maxPanX, this.panX));
 		this.panY = Math.max(-maxPanY, Math.min(maxPanY, this.panY));
 	}
@@ -2320,6 +2407,11 @@ export class ScreenshotAnnotationEditor {
 	}
 
 	dispose(): void {
+		if (this.pendingZoomRaf) {
+			getWindow(this.canvas).cancelAnimationFrame(this.pendingZoomRaf);
+			this.pendingZoomRaf = 0;
+			this.pendingZoom = null;
+		}
 		this.cancelTextPlacement();
 		this.cleanupTextEditor();
 		this.container.remove();

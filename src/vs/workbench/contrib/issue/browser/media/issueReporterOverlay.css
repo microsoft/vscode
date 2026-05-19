@@ -1533,7 +1533,7 @@
 	justify-content: center;
 	overflow: hidden;
 	position: relative;
-	background: #111;
+	background: var(--vscode-editorWidget-background, var(--vscode-editor-background, #1e1e1e));
 }
 
 .issue-reporter-annotation-overlay .annotation-canvas-container canvas {
