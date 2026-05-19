@@ -537,8 +537,9 @@ export class IssueReporterOverlay {
 		const heading = append(page, $('h2.wizard-heading'));
 		heading.textContent = localize('describeHeading', "Describe your feedback");
 
-		// Issue source selection
-		const sourceField = append(page, $('div.wizard-field.wizard-source-field'));
+		// Issue source selection + extension dropdown share a row when both are visible
+		const targetRow = append(page, $('div.wizard-target-row'));
+		const sourceField = append(targetRow, $('div.wizard-field.wizard-source-field'));
 		const sourceLabel = append(sourceField, $('label.wizard-field-label'));
 		sourceLabel.textContent = localize('target', "Target");
 		this.sourceButtonGroup = append(sourceField, $('div.wizard-type-buttons.wizard-source-buttons'));
@@ -559,7 +560,7 @@ export class IssueReporterOverlay {
 		this.sourceError = this.createFieldError(sourceField, localize('targetRequired', "Select a target to continue."));
 		this.targetStatus = append(sourceField, $('div.wizard-target-status'));
 
-		this.extensionField = append(page, $('div.wizard-field.wizard-extension-field'));
+		this.extensionField = append(targetRow, $('div.wizard-field.wizard-extension-field'));
 		const extensionLabel = append(this.extensionField, $('label.wizard-field-label'));
 		extensionLabel.textContent = localize('extension', "Extension");
 		const extensionSelectContainer = append(this.extensionField, $('div.wizard-extension-select'));

@@ -427,6 +427,12 @@
 	margin-top: 8px;
 }
 
+/* Inside a flex-column .wizard-field the parent already supplies the
+   label/control gap, so the buttons must not add their own margin. */
+.wizard-field > .wizard-type-buttons {
+	margin-top: 0;
+}
+
 .monaco-button.wizard-type-btn {
 	display: inline-flex;
 	flex: 0 0 auto;
@@ -771,8 +777,8 @@
 }
 
 .wizard-extension-select .monaco-select-box {
-	min-height: 26px;
-	padding: 2px 23px 2px 8px;
+	min-height: 32px;
+	padding: 5px 23px 5px 8px;
 }
 
 .wizard-extension-select .monaco-select-box-dropdown-container .monaco-list-row.option-disabled {
@@ -788,15 +794,33 @@
 	color: var(--vscode-descriptionForeground, #999);
 	font-size: 12px;
 	line-height: 1.4;
-	min-height: 1.4em;
+	/* Reserve two lines so switching targets (or status text wrapping) does not
+	   shift the rest of the form vertically. */
+	min-height: 2.8em;
 }
 
-/* Reserve space for the extension field even when hidden so the layout
-   does not shift when switching between target options. */
-.wizard-extension-field.hidden {
+/* Target row: source field + extension dropdown sit side-by-side.
+   Wraps to a new line on narrow widths; collapses naturally when the
+   extension field is hidden (no fixed-width placeholder needed). */
+.wizard-target-row {
 	display: flex;
-	visibility: hidden;
-	pointer-events: none;
+	flex-wrap: wrap;
+	gap: 16px 24px;
+	align-items: flex-start;
+}
+
+.wizard-target-row .wizard-source-field {
+	flex: 0 0 auto;
+}
+
+.wizard-target-row .wizard-extension-field {
+	flex: 1 1 320px;
+	min-width: 240px;
+	max-width: 480px;
+}
+
+.wizard-extension-field.hidden {
+	display: none;
 }
 
 /* Title label row: label + AI generate button */
