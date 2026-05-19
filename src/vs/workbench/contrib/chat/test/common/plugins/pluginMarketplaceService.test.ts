@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -354,6 +356,89 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		const remaining = service.installedPlugins.get();
 		assert.strictEqual(remaining.length, 1);
 		assert.strictEqual(remaining[0].plugin.name, 'plugin-b');
+	});
+
+	test('hydrates installed url-source plugins from installed.json on startup', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const storageService = store.add(new InMemoryStorageService());
+		const agentPluginsHome = URI.file('/agent-plugins');
+		const repoDir = URI.file('/agent-plugins/github.com/obra/superpowers-marketplace');
+		const pluginInstallUri = URI.file('/agent-plugins/github.com/obra/superpowers');
+		const installedJson = URI.joinPath(agentPluginsHome, 'installed.json');
+		const marketplaceJson = URI.joinPath(repoDir, '.claude-plugin/marketplace.json');
+		const files = new Map<string, string>([
+			[installedJson.toString(), JSON.stringify({
+				version: 1,
+				installed: [{
+					pluginUri: pluginInstallUri.toString(),
+					marketplace: 'obra/superpowers-marketplace',
+				}],
+			})],
+			[marketplaceJson.toString(), JSON.stringify({
+				plugins: [{
+					name: 'superpowers',
+					description: 'Core skills',
+					version: '5.0.7',
+					source: {
+						source: 'url',
+						url: 'https://github.com/obra/superpowers.git',
+					},
+				}],
+			})],
+		]);
+
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: ['obra/superpowers-marketplace'],
+			[ChatConfiguration.PluginsEnabled]: true,
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
+		instantiationService.stub(IFileService, {
+			exists: async (resource: URI) => files.has(resource.toString()),
+			readFile: async (resource: URI) => {
+				const value = files.get(resource.toString());
+				if (value === undefined) {
+					throw new Error(`Missing file: ${resource.toString()}`);
+				}
+				return { value: VSBuffer.fromString(value) };
+			},
+			writeFile: async (resource: URI, content: VSBuffer) => {
+				files.set(resource.toString(), content.toString());
+				return undefined;
+			},
+			createFolder: async () => undefined,
+			createWatcher: () => ({
+				onDidChange: Event.None,
+				dispose: () => { },
+			}),
+		} as unknown as IFileService);
+		instantiationService.stub(IAgentPluginRepositoryService, {
+			agentPluginsHome,
+			getRepositoryUri: () => repoDir,
+			getPluginInstallUri: () => URI.file('/wrong/install/path'),
+			getPluginSourceInstallUri: () => pluginInstallUri,
+		} as unknown as IAgentPluginRepositoryService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+
+		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
+
+		for (let i = 0; i < 40 && service.installedPlugins.get().length === 0; i++) {
+			await timeout(10);
+		}
+
+		const installed = service.installedPlugins.get();
+		assert.strictEqual(installed.length, 1);
+		assert.strictEqual(installed[0].plugin.name, 'superpowers');
+		assert.strictEqual(installed[0].pluginUri.toString(), pluginInstallUri.toString());
 	});
 });
 
