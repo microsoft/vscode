@@ -1859,6 +1859,93 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('sendMessage on a disk-only session (created in another window) resumes from disk', async () => {
+		// Regression for: "Open a session that was not started in the
+		// active window, send it a message → Error: Cannot send to
+		// unknown session: <id>". Before the fix, sendMessage's else
+		// branch (no `_sessions` entry AND no `_provisionalSessions`
+		// entry) threw outright. After the fix it routes through
+		// `_resumeSession`, which mirrors CopilotAgent._resumeSession:
+		// read `cwd` from `sdkService.getSessionInfo`, model + permission
+		// mode from the metadata overlay, build an on-the-fly provisional
+		// record, and materialize with `startMode: 'resume'` so the SDK
+		// loads the existing transcript via `Options.resume` instead of
+		// minting a fresh sessionId via `Options.sessionId`.
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		// Stage a session that exists on disk (in the SDK's transcript
+		// store) but was never createSession'd on this agent instance.
+		const sessionId = 'cross-window-session-id';
+		const sessionUri = AgentSession.uri('claude', sessionId);
+		sdk.sessionList = [{
+			sessionId,
+			summary: 'From another window',
+			lastModified: 5000,
+			createdAt: 4900,
+			cwd: URI.file('/work').fsPath,
+		}];
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId),
+			makeResultSuccess(sessionId),
+		];
+
+		const events: IAgentMaterializeSessionEvent[] = [];
+		disposables.add(agent.onDidMaterializeSession(e => events.push(e)));
+
+		await agent.sendMessage(sessionUri, 'hi', undefined, 'turn-1');
+
+		assert.deepStrictEqual({
+			startupCallCount: sdk.startupCallCount,
+			materializeEventCount: events.length,
+			eventSession: events[0]?.session.toString(),
+			eventCwd: events[0]?.workingDirectory?.fsPath,
+			startupOptionsCwd: sdk.capturedStartupOptions[0]?.cwd,
+			// In resume mode the SDK gets `Options.resume = <id>` and
+			// MUST NOT get `Options.sessionId`.
+			startupOptionsResume: sdk.capturedStartupOptions[0]?.resume,
+			startupOptionsSessionId: sdk.capturedStartupOptions[0]?.sessionId,
+			sessionInMap: agent.getSessionForTesting(sessionUri) !== undefined,
+		}, {
+			startupCallCount: 1,
+			materializeEventCount: 1,
+			eventSession: sessionUri.toString(),
+			eventCwd: URI.file('/work').fsPath,
+			startupOptionsCwd: URI.file('/work').fsPath,
+			startupOptionsResume: sessionId,
+			startupOptionsSessionId: undefined,
+			sessionInMap: true,
+		});
+	});
+
+	test('sendMessage on a disk-only session whose SDK record is missing throws "unknown session"', async () => {
+		// Defense-in-depth pair to the resume-from-disk test above. If
+		// the SDK has no record of the session id at all (e.g. the
+		// transcript file was deleted out from under us), `_resumeSession`
+		// must surface a clear error rather than silently fabricating a
+		// fresh session bound to the wrong cwd. Also pins: no SDK startup
+		// is performed in this failure path (no subprocess spawn for a
+		// session we can't actually resume).
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const sessionUri = AgentSession.uri('claude', 'ghost-session-id');
+		// sdk.sessionList stays empty — getSessionInfo resolves undefined.
+
+		const sendErr = await agent.sendMessage(sessionUri, 'hi', undefined, 'turn-1')
+			.then(() => undefined, err => err);
+
+		assert.deepStrictEqual({
+			startupCallCount: sdk.startupCallCount,
+			sendThrewUnknown: sendErr instanceof Error && /unknown session/i.test(sendErr.message),
+			sessionAbsent: agent.getSessionForTesting(sessionUri) === undefined,
+		}, {
+			startupCallCount: 0,
+			sendThrewUnknown: true,
+			sessionAbsent: true,
+		});
+	});
+
 	test('shutdown drains a mix of provisional and materialized sessions', async () => {
 		// Phase 6 §5.1 Test 13. The shutdown spec is two-phase:
 		//  1) Provisional sessions: abort each AbortController + clear
