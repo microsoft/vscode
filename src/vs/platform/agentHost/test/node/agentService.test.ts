@@ -1995,13 +1995,23 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(sessionResource.toString());
 			assert.ok(state);
-			// The session has no working directory and the noop git service
-			// reports the folder is not a git repo, so `_attachGitState`
-			// strips the two git-only catalogue entries (`Branch Changes`,
-			// `Uncommitted Changes`), leaving only `This Turn`. The backing
-			// per-changeset state still receives the persisted diffs —
-			// verified by the snapshot check below.
+			// The session has no working directory, so `_attachGitState`
+			// treats it as transient and does NOT strip the two git-only
+			// catalogue entries. The Branch Changes entry receives the
+			// persisted diff counts seeded by the changeset coordinator.
 			assert.deepStrictEqual(state!.summary.changesets, [
+				{
+					additions: 5,
+					deletions: 2,
+					files: 1,
+					label: 'Branch Changes',
+					uriTemplate: `${sessionResource.toString()}/changeset/session`,
+				},
+				{
+					description: 'Show uncommitted changes in this session',
+					label: 'Uncommitted Changes',
+					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
+				},
 				{
 					label: 'This Turn',
 					uriTemplate: `${sessionResource.toString()}/changeset/turn/{turnId}`,
@@ -2038,10 +2048,20 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(sessionResource.toString());
 			assert.ok(state);
-			// Catalogue is seeded by `_buildInitialSummary` / `restoreSession`
-			// then immediately stripped of the two git-only entries by
-			// `_attachGitState` (noop git service → not a git repo).
+			// Catalogue is seeded by `_buildInitialSummary` / `restoreSession`.
+			// The session has no working directory, so `_attachGitState` does
+			// NOT strip the git-only entries — they remain advertised but
+			// without counts until a real compute lands.
 			assert.deepStrictEqual(state!.summary.changesets, [
+				{
+					label: 'Branch Changes',
+					uriTemplate: `${sessionResource.toString()}/changeset/session`,
+				},
+				{
+					description: 'Show uncommitted changes in this session',
+					label: 'Uncommitted Changes',
+					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
+				},
 				{
 					label: 'This Turn',
 					uriTemplate: `${sessionResource.toString()}/changeset/turn/{turnId}`,
@@ -2209,11 +2229,13 @@ suite('AgentService (node dispatcher)', () => {
 		}
 
 		function defaultCatalogue(sessionStr: string) {
-			// These tests use `createNoopGitService` whose `getSessionGitState`
-			// returns `undefined`, so `_attachGitState` synchronously strips
-			// the two git-only entries (`Branch Changes`, `Uncommitted Changes`),
-			// leaving only the `This Turn` template entry.
+			// These tests have no working directory resolved, so
+			// `_attachGitState` treats it as transient and does NOT strip
+			// the two git-only entries. All three default entries are
+			// advertised (without counts) until a real compute lands.
 			return [
+				{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
+				{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 				{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
 			];
 		}
