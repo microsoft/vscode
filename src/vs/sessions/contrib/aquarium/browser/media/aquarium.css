@@ -11,11 +11,11 @@
 /* Make the chat bar a positioning context for the water layer (its first
  * child) and keep its real children above the decorative water — without
  * explicit z-index, positioned siblings paint after non-positioned ones. */
-.monaco-workbench .part.chatbar {
+.monaco-workbench .part.sessionspart {
 	position: relative;
 }
-.monaco-workbench .part.chatbar > .title,
-.monaco-workbench .part.chatbar > .content {
+.monaco-workbench .part.sessionspart > .title,
+.monaco-workbench .part.sessionspart > .content {
 	position: relative;
 	z-index: 1;
 }

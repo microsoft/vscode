@@ -9,7 +9,7 @@ import { MenuId } from '../../platform/actions/common/actions.js';
  * Menu IDs for the Agent Sessions workbench layout.
  */
 export const Menus = {
-	ChatBarTitle: new MenuId('ChatBarTitle'),
+	SessionsTitle: new MenuId('SessionsTitle'),
 	CommandCenter: new MenuId('SessionsCommandCenter'),
 	CommandCenterCenter: new MenuId('SessionsCommandCenterCenter'),
 	TitleBarContext: new MenuId('SessionsTitleBarContext'),

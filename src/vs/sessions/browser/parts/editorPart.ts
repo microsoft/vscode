@@ -29,7 +29,7 @@ export class MainEditorPart extends MainEditorPartBase {
 		// 5px top margin to center the sash). When the panel is hidden the card fills its
 		// cell; the workbench grid's 10px bottom gutter provides the visible gap.
 		const marginLeft = this.layoutService.isVisible(Parts.SIDEBAR_PART) ||
-			this.layoutService.isVisible(Parts.CHATBAR_PART)
+			this.layoutService.isVisible(Parts.SESSIONS_PART)
 			? 0
 			: MainEditorPart.MARGIN_LEFT;
 		const marginBottom = this.layoutService.isVisible(Parts.PANEL_PART)

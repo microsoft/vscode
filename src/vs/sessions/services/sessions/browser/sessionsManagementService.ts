@@ -12,8 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ChatViewId, ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IProgressService } from '../../../../platform/progress/common/progress.js';
+import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, ActiveSessionWorkspaceIsVirtualContext, IsNewChatInSessionContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
@@ -81,7 +80,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
-		@IProgressService private readonly progressService: IProgressService,
 	) {
 		super();
 
@@ -714,7 +712,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					restorePromise,
 					openNewSessionViewPromise
 				]);
-				this.progressService.withProgress({ location: ChatViewId, delay: 200 }, () => progressPromise);
+				// TODO: show progress in the sessions part once it has a content area
+				// wired up. The previous progress location (ChatViewId) was tied to a
+				// view container hosted in the removed ViewContainerLocation.ChatBar.
+				void progressPromise;
 			}
 			await restorePromise;
 		} finally {

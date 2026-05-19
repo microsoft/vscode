@@ -350,8 +350,8 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 
 	// Host inside the chat bar so chat input UI naturally paints on top —
 	// no z-index gymnastics required.
-	const chatBar = layoutService.getContainer(targetWindow, Parts.CHATBAR_PART);
-	if (!chatBar || !layoutService.isVisible(Parts.CHATBAR_PART, targetWindow)) {
+	const sessionsContainer = layoutService.getContainer(targetWindow, Parts.SESSIONS_PART);
+	if (!sessionsContainer || !layoutService.isVisible(Parts.SESSIONS_PART, targetWindow)) {
 		return undefined;
 	}
 
@@ -362,7 +362,7 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	// Decorative: hide the entire subtree from a11y tree.
 	water.setAttribute('aria-hidden', 'true');
 	// First child so subsequent chat bar content paints over it.
-	chatBar.insertBefore(water, chatBar.firstChild);
+	sessionsContainer.insertBefore(water, sessionsContainer.firstChild);
 	store.add(toDisposable(() => water.remove()));
 
 	const fishLayer = doc.createElement('div');

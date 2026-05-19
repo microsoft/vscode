@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { AbstractPaneCompositePart } from '../../../../workbench/browser/parts/paneCompositePart.js';
-import { ChatBarPart } from '../chatBarPart.js';
+import { Part } from '../../../../workbench/browser/part.js';
+import { SessionsPart } from '../sessionsPart.js';
 import { isPhoneLayout } from './mobileLayout.js';
 
 /**
- * Mobile variant of ChatBarPart.
+ * Mobile variant of SessionsPart.
  *
- * On phone-sized viewports the chat bar fills the full grid cell without
+ * On phone-sized viewports the sessions part fills the full grid cell without
  * card margins, border insets, or session-bar height adjustments. When
  * the viewport transitions to tablet/desktop (e.g., device rotation
  * crossing the phone breakpoint) this delegates to the desktop
  * implementation so layout math stays correct.
  */
-export class MobileChatBarPart extends ChatBarPart {
+export class MobileSessionsPart extends SessionsPart {
 
 	override updateStyles(): void {
 		// Always run the desktop implementation first so inline styles are
@@ -44,15 +44,14 @@ export class MobileChatBarPart extends ChatBarPart {
 			return;
 		}
 
-		if (!this.layoutService.isVisible(Parts.CHATBAR_PART)) {
+		if (!this.layoutService.isVisible(Parts.SESSIONS_PART)) {
 			return;
 		}
 
 		this._lastLayout = { width, height, top, left };
 
-		// Full dimensions — no card margins or session-bar subtraction.
-		// AbstractPaneCompositePart.layout internally calls Part.layout so
-		// there is no need to invoke Part.prototype.layout separately.
-		AbstractPaneCompositePart.prototype.layout.call(this, width, height, top, left);
+		// Full dimensions - no card margins or session-bar subtraction.
+		this.layoutContents(width, height);
+		Part.prototype.layout.call(this, width, height, top, left);
 	}
 }

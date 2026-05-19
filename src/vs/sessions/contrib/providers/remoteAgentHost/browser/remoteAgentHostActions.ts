@@ -24,13 +24,11 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { NewChatViewPane, SessionsViewId } from '../../../chat/browser/newChatViewPane.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
@@ -572,7 +570,6 @@ async function promptForRemoteFolder(
 	accessor: ServicesAccessor,
 	connection: ISSHAgentHostConnection,
 ): Promise<void> {
-	const viewsService = accessor.get(IViewsService);
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
 
@@ -595,8 +592,12 @@ async function promptForRemoteFolder(
 	}
 
 	sessionsManagementService.openNewSessionView();
-	const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
-	view?.selectWorkspace({ providerId: provider.id, workspace });
+	// TODO: open the new-chat view and call selectWorkspace once the sessions
+	// part has a content area wired up. The previous call opened the
+	// `NewChatViewPane` view which was hosted in the removed
+	// ViewContainerLocation.ChatBar.
+	void provider;
+	void workspace;
 }
 
 registerAction2(class extends Action2 {
@@ -916,7 +917,6 @@ async function promptForTunnelFolder(
 	accessor: ServicesAccessor,
 	tunnel: ITunnelInfo,
 ): Promise<void> {
-	const viewsService = accessor.get(IViewsService);
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
 
@@ -941,8 +941,12 @@ async function promptForTunnelFolder(
 	}
 
 	sessionsManagementService.openNewSessionView();
-	const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
-	view?.selectWorkspace({ providerId: provider.id, workspace });
+	// TODO: open the new-chat view and call selectWorkspace once the sessions
+	// part has a content area wired up. The previous call opened the
+	// `NewChatViewPane` view which was hosted in the removed
+	// ViewContainerLocation.ChatBar.
+	void provider;
+	void workspace;
 }
 
 registerAction2(class extends Action2 {

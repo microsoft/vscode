@@ -11,7 +11,6 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { NewChatViewPane, SessionsViewId } from '../browser/newChatViewPane.js';
 import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
 
@@ -62,9 +61,12 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		for (const provider of this.sessionsProvidersService.getProviders()) {
 			const workspace = provider.resolveWorkspace(folderUri);
 			if (workspace) {
-				this.viewsService.openView<NewChatViewPane>(SessionsViewId).then(view => {
-					view?.selectWorkspace({ providerId: provider.id, workspace });
-				});
+				// TODO: open the new-chat view and call selectWorkspace once the sessions
+				// part has a content area wired up. The previous call opened the
+				// `NewChatViewPane` view (SessionsViewId) which was hosted in the removed
+				// ViewContainerLocation.ChatBar.
+				void workspace;
+				void provider;
 				return true;
 			}
 		}
