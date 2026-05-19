@@ -23,6 +23,7 @@ steps:
         APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
         APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
         echo "##vso[task.setvariable variable=VSCODE_UNDER_TEST]$APP_ROOT/$APP_NAME"
+        echo "##vso[task.setvariable variable=COPILOT_TEST_EXTENSION_PATH]$APP_ROOT/resources/app/extensions/copilot"
       displayName: Compute VS Code build path
 
   - ${{ if eq(parameters.OS, 'darwin') }}:
@@ -33,6 +34,7 @@ steps:
         ProductJsonPath=$(find "$APP_ROOT" -name "product.json" -type f | head -n 1)
         BINARY_NAME=$(jq -r '.nameShort' "$ProductJsonPath")
         echo "##vso[task.setvariable variable=VSCODE_UNDER_TEST]$APP_ROOT/$APP_NAME/Contents/MacOS/$BINARY_NAME"
+        echo "##vso[task.setvariable variable=COPILOT_TEST_EXTENSION_PATH]$APP_ROOT/$APP_NAME/Contents/Resources/app/extensions/copilot"
       displayName: Compute VS Code build path
 
   - ${{ if eq(parameters.OS, 'win32') }}:
@@ -42,6 +44,7 @@ steps:
         $AppProductJson = Get-Content -Raw -Path "$AppRoot\$ProductJsonPath" | ConvertFrom-Json
         $AppNameShort = $AppProductJson.nameShort
         Write-Host "##vso[task.setvariable variable=VSCODE_UNDER_TEST]$AppRoot\$AppNameShort.exe"
+        Write-Host "##vso[task.setvariable variable=COPILOT_TEST_EXTENSION_PATH]$AppRoot\resources\app\extensions\copilot"
       displayName: Compute VS Code build path
 
   # Compile copilot extension for tests
@@ -71,6 +74,7 @@ steps:
       timeoutInMinutes: 15
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+        COPILOT_TEST_EXTENSION_PATH: $(COPILOT_TEST_EXTENSION_PATH)
 
   - ${{ if eq(parameters.OS, 'darwin') }}:
     - script: npm run test:extension
@@ -93,6 +97,7 @@ steps:
       timeoutInMinutes: 15
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+        COPILOT_TEST_EXTENSION_PATH: $(COPILOT_TEST_EXTENSION_PATH)
 
   - ${{ if eq(parameters.OS, 'win32') }}:
     - powershell: npm run test:extension
@@ -116,3 +121,4 @@ steps:
       timeoutInMinutes: 15
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+        COPILOT_TEST_EXTENSION_PATH: $(COPILOT_TEST_EXTENSION_PATH)

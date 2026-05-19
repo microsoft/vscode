@@ -17,20 +17,33 @@ if (isSanity) {
 }
 
 const packageJsonPath = resolve(__dirname, 'package.json');
-const raw = readFileSync(packageJsonPath, 'utf8');
-const pkg = JSON.parse(raw);
-pkg.engines.vscode = pkg.engines.vscode.split('-')[0];
+const extensionDevelopmentPath = process.env.COPILOT_TEST_EXTENSION_PATH
+	? resolve(process.env.COPILOT_TEST_EXTENSION_PATH)
+	: __dirname;
+const sourcePackageJson = patchPackageJson(packageJsonPath, pkg => {
+	pkg.engines.vscode = pkg.engines.vscode.split('-')[0];
+});
+const patchedPackageJsons = [sourcePackageJson.revert];
+const pkg = sourcePackageJson.pkg;
 
-// remove the date from the vscode engine version
-writeFileSync(packageJsonPath, JSON.stringify(pkg, null, '\t'));
+if (extensionDevelopmentPath !== __dirname) {
+	patchedPackageJsons.push(patchPackageJson(resolve(extensionDevelopmentPath, 'package.json'), pkg => {
+		pkg.activationEvents = pkg.activationEvents?.filter(event => event !== 'onStartupFinished');
+	}).revert);
+}
 
-// and revert it once done
-process.on('exit', () => writeFileSync(packageJsonPath, raw));
+// and revert once done
+process.on('exit', () => patchedPackageJsons.forEach(revert => revert()));
 
 const isRecoveryBuild = !pkg.version.endsWith('.0');
 
 const config = {
 	files: __dirname + (isSanity ? '/dist/sanity-test-extension.js' : '/dist/test-extension.js'),
+	extensionDevelopmentPath,
+	env: {
+		COPILOT_API_URL: process.env.COPILOT_API_URL ?? 'https://api.githubcopilot.com',
+		IS_SCENARIO_AUTOMATION: extensionDevelopmentPath !== __dirname ? '1' : process.env.IS_SCENARIO_AUTOMATION,
+	},
 	launchArgs: [
 		'--disable-extensions',
 		'--profile-temp'
@@ -51,3 +64,11 @@ if (process.env.VSCODE_UNDER_TEST) {
 }
 
 export default defineConfig(config);
+
+function patchPackageJson(path, mutate) {
+	const raw = readFileSync(path, 'utf8');
+	const pkg = JSON.parse(raw);
+	mutate(pkg);
+	writeFileSync(path, JSON.stringify(pkg, null, '\t'));
+	return { pkg, revert: () => writeFileSync(path, raw) };
+}
