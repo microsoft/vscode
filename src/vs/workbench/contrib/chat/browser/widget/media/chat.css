@@ -38,6 +38,18 @@
 
 .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container .monaco-tree-sticky-row {
 	overflow: hidden;
+	animation: chat-sticky-row-fade-in 250ms ease-out;
+}
+
+@keyframes chat-sticky-row-fade-in {
+	from {
+		filter: opacity(0);
+		transform: translateY(-4px);
+	}
+	to {
+		filter: opacity(1);
+		transform: translateY(0);
+	}
 }
 
 .interactive-list > .chat-scroll-down {
