@@ -125,7 +125,24 @@ steps:
     condition: succeededOrFailed()
 
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
-    - powershell: npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: 'VS Code Development WIF'
+        scriptType: 'pscore'
+        scriptLocation: 'inlineScript'
+        inlineScript: npm run get_env
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: Setup Copilot smoke test environment
+
+    - powershell: |
+        Get-Content "$(Build.SourcesDirectory)\extensions\copilot\.env" | ForEach-Object {
+          if ($_ -match '^\s*([^#=]+)=(.*)$') {
+            [Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2], 'Process')
+          }
+        }
+        $env:IS_SCENARIO_AUTOMATION = '1'
+        $env:COPILOT_CLI_UI_SMOKE = '1'
+        npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
       displayName: 🧪 Run smoke tests (Electron)
       timeoutInMinutes: 20
 
