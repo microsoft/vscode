@@ -795,6 +795,8 @@ export class WorkspacePicker extends Disposable {
 		dom.append(this._triggerElement, renderIcon(icon));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
+		const chevron = dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+		chevron.classList.add('sessions-chat-dropdown-chevron');
 	}
 
 	/**
