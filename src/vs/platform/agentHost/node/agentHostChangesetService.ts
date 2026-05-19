@@ -427,12 +427,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	onTurnComplete(session: ProtocolURI, turnId: string | undefined): void {
-		// Ordering matters: cancel any pending mid-turn debounces first so
-		// the final turn-complete computes supersede them; then schedule
-		// the per-turn recompute (so the turn snapshot is up-to-date before
-		// the static `session` recompute consumes it as the incremental
-		// reuse anchor); then the session-wide recompute with the changed
-		// turn id; then the uncommitted recompute with no turn id.
+		// Ordering matters for cancellation: cancel any pending mid-turn
+		// debounces first so the final turn-complete computes supersede
+		// them. After that, schedule the final recomputes for the turn
+		// (when observed), the session-wide changeset with the changed
+		// turn id, and the uncommitted changeset with no turn id.
 		this._cancelDebouncedDiffComputation(session);
 		if (turnId !== undefined) {
 			this._cancelDebouncedTurnDiffComputation(session, turnId);
