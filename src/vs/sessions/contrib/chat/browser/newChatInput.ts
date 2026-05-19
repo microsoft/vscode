@@ -54,6 +54,7 @@ import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { ChatBillingBannerVariant, ChatBillingBannerWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatBillingBannerWidget.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 
@@ -200,6 +201,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// completions use that kind and rely on the chat module's CSS rule scoped to this class.
 		editorOverflowWidgetsDomNode.classList.add('hideSuggestTextIcons');
 		this._register({ dispose: () => editorOverflowWidgetsDomNode.remove() });
+
+		// Copilot usage-based billing banner — sits above the notification
+		// widget and replaces all other above-input UI when visible.
+		const billingBannerContainer = dom.append(chatInputContainer, dom.$('.chat-billing-banner-container'));
+		const billingBannerWidget = this._register(this.instantiationService.createInstance(ChatBillingBannerWidget, ChatBillingBannerVariant.Agents));
+		billingBannerContainer.appendChild(billingBannerWidget.domNode);
 
 		// Notification widget above the input area
 		const notificationContainer = dom.append(chatInputContainer, dom.$('.chat-input-notification-container'));

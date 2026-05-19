@@ -499,3 +499,17 @@
 	border-top-right-radius: 0;
 	border-top: none;
 }
+
+/* --- Copilot usage billing banner (agents window) --- */
+
+/* Match the workbench-side input-notification convention: the banner
+ * coexists with the notification widget. Only adjust layout so the banner
+ * attaches to the input area.
+ */
+.new-chat-input-container > .chat-billing-banner-container {
+	margin-bottom: -10px;
+}
+
+.new-chat-input-container > .chat-billing-banner-container:empty {
+	display: none;
+}

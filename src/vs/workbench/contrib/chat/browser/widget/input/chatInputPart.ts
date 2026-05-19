@@ -125,6 +125,7 @@ import { ChatArtifactsWidget } from '../chatArtifactsWidget.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatInputNotificationService } from './chatInputNotificationService.js';
+import { ChatBillingBannerVariant, ChatBillingBannerWidget } from './chatBillingBannerWidget.js';
 import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
@@ -331,8 +332,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatPlanReviewContainer!: HTMLElement;
 	private chatToolConfirmationCarouselContainer!: HTMLElement;
 	private chatInputNotificationContainer!: HTMLElement;
+	private chatBillingBannerContainer!: HTMLElement;
 	private inputContainer!: HTMLElement;
 	private readonly _notificationWidget = this._register(new MutableDisposable<ChatInputNotificationWidget>());
+	private readonly _billingBannerWidget = this._register(new MutableDisposable<ChatBillingBannerWidget>());
 
 	private contextUsageWidget?: ChatContextUsageWidget;
 	private contextUsageWidgetContainer!: HTMLElement;
@@ -2190,6 +2193,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h('.interactive-input-part', [
 				dom.h('.interactive-input-and-edit-session', [
+					dom.h('.chat-billing-banner-container@chatBillingBannerContainer'),
 					dom.h('.chat-plan-review-widget-container@chatPlanReviewContainer'),
 					dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
 					dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
@@ -2215,6 +2219,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			]);
 		} else {
 			elements = dom.h('.interactive-input-part', [
+				dom.h('.chat-billing-banner-container@chatBillingBannerContainer'),
 				dom.h('.chat-plan-review-widget-container@chatPlanReviewContainer'),
 				dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
 				dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
@@ -2270,6 +2275,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatToolConfirmationCarouselContainer = elements.chatToolConfirmationCarouselContainer;
 		dom.hide(this.chatToolConfirmationCarouselContainer);
 		this.chatInputNotificationContainer = elements.chatInputNotificationContainer;
+		this.chatBillingBannerContainer = elements.chatBillingBannerContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
 
 		if (this.options.isSessionsWindow || this.options.renderStyle === 'compact') {
@@ -2296,6 +2302,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		this.ensureNotificationWidget();
+
+		if (!this._billingBannerWidget.value) {
+			this._billingBannerWidget.value = this.instantiationService.createInstance(ChatBillingBannerWidget, ChatBillingBannerVariant.Panel);
+			this.chatBillingBannerContainer.appendChild(this._billingBannerWidget.value.domNode);
+		}
 
 		this._register(this._attachmentModel.onDidChange((e) => {
 			if (e.added.length > 0) {

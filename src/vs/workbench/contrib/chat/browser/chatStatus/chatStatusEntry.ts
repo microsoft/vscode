@@ -27,6 +27,14 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { isWeb } from '../../../../../base/common/platform.js';
 import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+
+/**
+ * Opens the Copilot status dashboard (the popover anchored on the Copilot
+ * status bar entry). Used by the chat billing banner CTA so users can land
+ * directly in the dashboard without having to find the status bar icon.
+ */
+export const CHAT_OPEN_STATUS_DASHBOARD_ACTION_ID = 'workbench.action.chat.openStatusDashboard';
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -58,6 +66,26 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this.update();
 
 		this.registerListeners();
+
+		this._register(CommandsRegistry.registerCommand({
+			id: CHAT_OPEN_STATUS_DASHBOARD_ACTION_ID,
+			handler: () => this.openStatusDashboard(),
+		}));
+	}
+
+	/**
+	 * Programmatically opens the Copilot status dashboard tooltip by clicking
+	 * the status bar entry. The entry uses `ShowTooltipCommand`, which shows
+	 * the dashboard hover. No-ops if the entry isn't visible (e.g. the user
+	 * hid the Copilot status bar item).
+	 */
+	private openStatusDashboard(): void {
+		let el: HTMLElement | null = this.entryAnchor;
+		while (el && !el.classList?.contains('statusbar-item')) {
+			el = el.parentElement;
+		}
+		const label = el?.querySelector<HTMLElement>('a.statusbar-item-label');
+		label?.click();
 	}
 
 	private update(): void {
