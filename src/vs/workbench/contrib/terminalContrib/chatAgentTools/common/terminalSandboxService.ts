@@ -732,7 +732,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 	private _updateAllowWritePathsWithWorkspaceFolders(configuredAllowWrite: string[] | undefined, commandRuntimeAllowWrite: string[] = []): string[] {
 		const workspaceFolderPaths = this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri.path);
-		return [...new Set([...workspaceFolderPaths, ...this._defaultWritePaths, ...(configuredAllowWrite ?? []), ...commandRuntimeAllowWrite])];
+		return [...new Set([...workspaceFolderPaths, ...this._defaultWritePaths, ...this._getWorkspaceStoragePaths(), ...(configuredAllowWrite ?? []), ...commandRuntimeAllowWrite])];
 	}
 
 	private _updateDenyReadPathsWithHome(configuredDenyRead: string[] | undefined): string[] {
@@ -741,7 +741,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	}
 
 	private _updateAllowReadPathsWithAllowWrite(configuredAllowRead: string[] | undefined, allowWrite: string[], commandRuntimeAllowRead: string[] = []): string[] {
-		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails), ...commandRuntimeAllowRead, ...this._getSandboxRuntimeReadPaths(), ...this._getWorkspaceStorageReadPaths(), ...allowWrite])];
+		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails), ...commandRuntimeAllowRead, ...this._getSandboxRuntimeReadPaths(), ...allowWrite])];
 	}
 
 	private _resolveLinuxFileSystemPaths(paths: string[] | undefined): string[] {
@@ -778,7 +778,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return path === this._appRoot || path.startsWith(`${this._appRoot}${this._os === OperatingSystem.Windows ? win32.sep : posix.sep}`);
 	}
 
-	private _getWorkspaceStorageReadPaths(): string[] {
+	private _getWorkspaceStoragePaths(): string[] {
 		const workspaceStorageHome = this._remoteEnvDetails?.workspaceStorageHome ?? this._environmentService.workspaceStorageHome;
 		const workspaceId = this._workspaceContextService.getWorkspace().id;
 		return [URI.joinPath(workspaceStorageHome, workspaceId).path];
