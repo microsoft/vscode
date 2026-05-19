@@ -422,6 +422,10 @@ export class HoverService extends Disposable implements IHoverService {
 		// Set up layout handling
 		store.add(hover.onRequestLayout(() => contextView.layout()));
 
+		// Re-layout when the window resizes so the hover tracks its anchor
+		const targetWindow = getWindow(container);
+		store.add(addDisposableListener(targetWindow, EventType.RESIZE, () => contextView.layout()));
+
 		options.onDidShow?.();
 	}
 
