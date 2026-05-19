@@ -47,8 +47,8 @@ export class Chat {
 		await this.code.waitForElement(CHAT_VIEW);
 	}
 
-	async waitForChatEditor(): Promise<void> {
-		await this.code.waitForElement(CHAT_EDITOR);
+	async waitForChatEditor(retryCount?: number): Promise<void> {
+		await this.code.waitForElement(CHAT_EDITOR, undefined, retryCount);
 	}
 
 	async waitForInputFocus(location: ChatLocation = 'panel'): Promise<void> {
