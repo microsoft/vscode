@@ -454,10 +454,10 @@ export class AgentService extends Disposable implements IAgentService {
 		// to a `status: computing` snapshot rather than a 404 even on
 		// provisional sessions, and so the catalogue chip renders the
 		// default entries (`Branch Changes`, `Uncommitted Changes`,
-		// `This Turn`) immediately. The first two are git-only and are
-		// stripped asynchronously by `_attachGitState` for non-git
-		// working directories. Pinned by item-2 regression tests in
-		// `agentService.test.ts`.
+		// `This Turn`) immediately. The first two are git-only: a later
+		// `_attachGitState` strips them once the git probe confirms the
+		// resolved working directory is not a git repo. Pinned by item-2
+		// regression tests in `agentService.test.ts`.
 		this._changesetCoordinator.onSessionCreated(session.toString());
 
 		if (!created.provisional) {
@@ -546,15 +546,21 @@ export class AgentService extends Disposable implements IAgentService {
 	 *
 	 * Also gates the two git-only default catalogue entries
 	 * (`Branch Changes`, `Uncommitted Changes`): when the working
-	 * directory is absent or not a git repo, those entries are stripped
-	 * from `summary.changesets`, leaving only `This Turn`.
+	 * directory is resolved AND the git probe confirms it is not a git
+	 * repo, those entries are stripped from `summary.changesets`, leaving
+	 * only `This Turn`. An absent working directory is treated as
+	 * transient (provisional / pre-materialize / pre-restore) — we do NOT
+	 * strip in that case because there is no path that re-adds the
+	 * entries when a subsequent `onSessionMaterialized` / restore call
+	 * resolves the working directory and the probe succeeds. The
+	 * entries' counts remain unset until a real compute lands, so chip
+	 * rendering naturally skips them in the meantime.
 	 */
 	private _attachGitState(session: URI, workingDirectory: URI | undefined): void {
-		const sessionKey = session.toString();
 		if (!workingDirectory) {
-			this._stripGitOnlyChangesetEntries(sessionKey);
 			return;
 		}
+		const sessionKey = session.toString();
 		this._gitService.getSessionGitState(workingDirectory).then(
 			gitState => {
 				if (!gitState) {
@@ -578,10 +584,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Drops the `Branch Changes` and `Uncommitted Changes` entries from
-	 * the session's catalogue. Called when the git probe determines the
-	 * working directory is absent or not a git repo. Backing per-changeset
-	 * states (registered unconditionally) are left in place — only the
-	 * catalogue advertisements are stripped.
+	 * the session's catalogue. Called only when the git probe has
+	 * definitively determined the working directory is not a git repo.
+	 * An absent / unresolved working directory is treated as transient
+	 * and does NOT trigger a strip — see {@link _attachGitState}.
+	 * Backing per-changeset states (registered unconditionally) are left
+	 * in place — only the catalogue advertisements are stripped.
 	 */
 	private _stripGitOnlyChangesetEntries(sessionKey: string): void {
 		const state = this._stateManager.getSessionState(sessionKey);
