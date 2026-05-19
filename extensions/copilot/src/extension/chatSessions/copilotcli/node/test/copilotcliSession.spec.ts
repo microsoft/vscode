@@ -1827,9 +1827,9 @@ describe('CopilotCLISession', () => {
 			await Promise.all([firstRequest, remoteRequest]);
 
 			firstTokenSource.dispose(true);
-			expect(firstStream.output.join('')).toContain('Echo: First prompt');
+			expect(firstStream.output.join('')).toEqual('');
 			const output = remoteStream.output.join('');
-			expect(output).not.toContain('Echo: First prompt');
+			expect(output).toContain('Echo: First prompt');
 			expect(output).toContain('Remote control is disabled. Use /remote on to enable it.');
 		});
 
