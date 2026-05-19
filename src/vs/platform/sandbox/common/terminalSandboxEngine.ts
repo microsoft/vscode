@@ -520,15 +520,15 @@ export class TerminalSandboxEngine extends Disposable {
 		let denyReadPaths: string[] = [];
 		let denyWritePaths: string[] | undefined;
 		if (this._os === OperatingSystem.Macintosh) {
-			allowWritePaths = this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths);
-			allowReadPaths = await this._updateAllowReadPathsWithAllowWrite(macFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths);
-			denyReadPaths = this._updateDenyReadPathsWithHome(macFileSystemSetting.denyRead);
-			denyWritePaths = macFileSystemSetting.denyWrite;
+			allowWritePaths = await this._resolveFileSystemPaths(this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths));
+			allowReadPaths = await this._resolveFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(macFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
+			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome(macFileSystemSetting.denyRead));
+			denyWritePaths = macFileSystemSetting.denyWrite ? await this._resolveFileSystemPaths(macFileSystemSetting.denyWrite) : undefined;
 		} else if (this._os === OperatingSystem.Linux) {
-			allowWritePaths = this._resolveLinuxFileSystemPaths(this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths));
-			allowReadPaths = this._resolveLinuxFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(linuxFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
-			denyReadPaths = this._resolveLinuxFileSystemPaths(this._updateDenyReadPathsWithHome(linuxFileSystemSetting.denyRead));
-			denyWritePaths = this._resolveLinuxFileSystemPaths(linuxFileSystemSetting.denyWrite);
+			allowWritePaths = await this._resolveFileSystemPaths(this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths));
+			allowReadPaths = await this._resolveFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(linuxFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
+			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome(linuxFileSystemSetting.denyRead));
+			denyWritePaths = await this._resolveFileSystemPaths(linuxFileSystemSetting.denyWrite);
 		}
 		const sandboxSettings = {
 			network: allowNetwork ? { allowedDomains: [], deniedDomains: [], enabled: false } : this.getResolvedNetworkDomains(),
@@ -617,8 +617,31 @@ export class TerminalSandboxEngine extends Disposable {
 		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails), ...commandRuntimeAllowRead, ...this._getSandboxRuntimeReadPaths(), ...await this._getWorkspaceStorageReadPaths(), ...allowWrite])];
 	}
 
-	private _resolveLinuxFileSystemPaths(paths: string[] | undefined): string[] {
-		return (paths ?? []).map(path => this._expandHomePath(path));
+	private async _resolveFileSystemPaths(paths: string[] | undefined): Promise<string[]> {
+		const resolvedPaths = await Promise.all((paths ?? []).map(path => this._resolveFileSystemPath(path)));
+		return [...new Set(resolvedPaths)];
+	}
+
+	private async _resolveFileSystemPath(path: string): Promise<string> {
+		const expandedPath = this._os === OperatingSystem.Linux ? this._expandHomePath(path) : path;
+		if (!this._isAbsoluteFileSystemPath(expandedPath)) {
+			return expandedPath;
+		}
+
+		try {
+			const realpath = await this._fileService.realpath(this._toFileSystemResource(expandedPath));
+			return realpath?.path && realpath.path !== expandedPath ? realpath.path : expandedPath;
+		} catch {
+			return expandedPath;
+		}
+	}
+
+	private _isAbsoluteFileSystemPath(path: string): boolean {
+		return (this._os === OperatingSystem.Windows ? win32 : posix).isAbsolute(path);
+	}
+
+	private _toFileSystemResource(path: string): URI {
+		return this._userHome?.with({ path }) ?? this._tempDir?.with({ path }) ?? this._host.getWriteRoots()[0]?.with({ path }) ?? URI.file(path);
 	}
 
 	private _expandHomePath(path: string): string {

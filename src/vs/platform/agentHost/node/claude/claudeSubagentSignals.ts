@@ -157,7 +157,6 @@ export function buildTopLevelSubagentReadyAction(
 		session,
 		action: {
 			type: ActionType.SessionToolCallReady,
-			session: session.toString(),
 			turnId,
 			toolCallId: block.id,
 			invocationMessage: getClaudeInvocationMessage(block.name, getClaudeToolDisplayName(block.name), block.input),
@@ -196,7 +195,6 @@ export function emitInnerAssistantSignals(
 	parentToolUseId: string,
 	registry: SubagentRegistry,
 ): AgentSignal[] {
-	const sessionStr = session.toString();
 	const messageId = message.message.id;
 	const signals: AgentSignal[] = [];
 	for (let index = 0; index < message.message.content.length; index++) {
@@ -207,7 +205,6 @@ export function emitInnerAssistantSignals(
 				session,
 				action: {
 					type: ActionType.SessionResponsePart,
-					session: sessionStr,
 					turnId,
 					part: {
 						kind: ResponsePartKind.Markdown,
@@ -224,7 +221,6 @@ export function emitInnerAssistantSignals(
 				session,
 				action: {
 					type: ActionType.SessionResponsePart,
-					session: sessionStr,
 					turnId,
 					part: {
 						kind: ResponsePartKind.Reasoning,
@@ -253,7 +249,6 @@ export function emitInnerAssistantSignals(
 				session,
 				action: {
 					type: ActionType.SessionToolCallStart,
-					session: sessionStr,
 					turnId,
 					toolCallId: block.id,
 					toolName: block.name,
@@ -266,7 +261,6 @@ export function emitInnerAssistantSignals(
 				session,
 				action: {
 					type: ActionType.SessionToolCallReady,
-					session: sessionStr,
 					turnId,
 					toolCallId: block.id,
 					invocationMessage: getClaudeInvocationMessage(block.name, displayName, block.input),

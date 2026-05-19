@@ -45,7 +45,7 @@ suite('localAhpJsonlLogging', () => {
 			async createSession(config: unknown) { return URI.parse(`agent-host://session/1?cfg=${JSON.stringify(config)}`); },
 			async disposeTerminal() { return undefined; },
 			async resourceRead(uri: URI) { throw new Error('boom: ' + uri.toString()); },
-			dispatchAction(action: unknown, clientId: string, clientSeq: number) { void action; void clientId; void clientSeq; },
+			dispatchAction(channel: URI, action: unknown, clientId: string, clientSeq: number) { void channel; void action; void clientId; void clientSeq; },
 			get onDidAction() { return () => ({ dispose() { } }); },
 		} as unknown as IAgentService;
 
@@ -56,7 +56,7 @@ suite('localAhpJsonlLogging', () => {
 		await wrapped.createSession({ kind: 'demo' } as never);
 		await wrapped.disposeTerminal(URI.parse('agent-host://terminal/1'));
 		await assert.rejects(() => wrapped.resourceRead(URI.parse('agent-host://x/y')));
-		wrapped.dispatchAction({ type: 'noop' } as never, 'client-1', 7);
+		wrapped.dispatchAction('agent-host://session/1', { type: 'noop' } as never, 'client-1', 7);
 
 		// Event accessors must pass through untouched (no log emitted, no wrapping).
 		const eventFn = wrapped.onDidAction;

@@ -294,7 +294,6 @@ export class PermissionPicker extends Disposable {
 		dom.append(trigger, renderIcon(icon));
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
-		dom.append(trigger, renderIcon(Codicon.chevronDown));
 
 		trigger.ariaLabel = localize('permissionPicker.triggerAriaLabel', "Pick Permission Level, {0}", label);
 
