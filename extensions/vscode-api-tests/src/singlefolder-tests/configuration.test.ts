@@ -46,4 +46,36 @@ suite('vscode API - configuration', () => {
 		assert.deepStrictEqual(config['get'], config.get);
 		assert.throws(() => (config as Mutable<typeof config>)['get'] = 'get-prop' as unknown as typeof config.get);
 	});
+
+	// Regression test for https://github.com/microsoft/vscode/pull/316249.
+	// Integration tests launch with `--disable-extensions`, so built-in
+	// extensions like Copilot are disabled at startup. The command must
+	// re-enable them and wait for their contributions to register so that
+	// their settings show up in the dump.
+	test('_developer.getConfigurationInformation includes settings from disabled built-in extensions', async () => {
+		const copilotId = 'GitHub.copilot-chat';
+
+		// Disabled extensions are not exposed via `vscode.extensions.getExtension`,
+		// so this confirms Copilot starts out disabled in this test run.
+		assert.strictEqual(
+			vscode.extensions.getExtension(copilotId),
+			undefined,
+			`Expected '${copilotId}' to be disabled before the command runs.`
+		);
+
+		const content = await vscode.commands.executeCommand<string>('_developer.getConfigurationInformation');
+
+		// The command must have enabled Copilot in order to read its configuration contributions.
+		assert.ok(
+			vscode.extensions.getExtension(copilotId),
+			`Expected '${copilotId}' to be enabled after the command runs.`
+		);
+
+		assert.strictEqual(typeof content, 'string', 'command should return a JSON string when no path is provided');
+		const information = JSON.parse(content) as { [key: string]: unknown };
+		assert.ok(
+			Object.prototype.hasOwnProperty.call(information, 'github.copilot.chat.codeGeneration.useInstructionFiles'),
+			`Expected 'github.copilot.chat.codeGeneration.useInstructionFiles' to be present in the configuration dump. Got ${Object.keys(information).length} keys.`
+		);
+	});
 });

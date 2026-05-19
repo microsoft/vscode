@@ -263,7 +263,6 @@
 	"github.copilot.tools.createAndRunTask.userDescription": "Create and run a task in the workspace",
 	"github.copilot.config.newWorkspaceCreation.enabled": "Whether to enable new agentic workspace creation.",
 	"github.copilot.config.installExtensionSkill.enabled": "Whether to enable the install extension skill for Copilot.",
-	"github.copilot.config.projectSetupInfoSkill.enabled": "Whether to enable the project setup info skill for Copilot.",
 	"github.copilot.config.newWorkspace.useContext7": "Whether to use the [Context7](command:github.copilot.mcp.viewContext7) tools to scaffold project for new workspace creation.",
 	"github.copilot.config.editsNewNotebook.enabled": "Whether to enable the new notebook tool in Copilot Edits.",
 	"github.copilot.config.notebook.inlineEditAgent.enabled": "Enable agent-like behavior from the notebook inline chat widget.",
