@@ -12,6 +12,7 @@ import {
 	type JsonRpcErrorResponse,
 } from '../../../common/state/sessionProtocol.js';
 import { IServerHandle, nextSessionUri, startServer, TestProtocolClient } from './testHelpers.js';
+import { ROOT_STATE_URI } from '../../../common/state/sessionState.js';
 
 suite('Protocol WebSocket — Handshake & Errors', function () {
 
@@ -43,7 +44,7 @@ suite('Protocol WebSocket — Handshake & Errors', function () {
 		const result = await client.call<InitializeResult>('initialize', {
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId: 'test-handshake',
-			initialSubscriptions: [URI.from({ scheme: 'agenthost', path: '/root' }).toString()],
+			initialSubscriptions: [ROOT_STATE_URI],
 		});
 
 		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);

@@ -93,8 +93,9 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		dispatchTurnStarted(client, sessionUri, 'turn-cancel', 'slow', 1);
 
 		client.notify('dispatchAction', {
+			channel: sessionUri,
 			clientSeq: 2,
-			action: { type: 'session/turnCancelled', session: sessionUri, turnId: 'turn-cancel' },
+			action: { type: 'session/turnCancelled', turnId: 'turn-cancel' },
 		});
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnCancelled'));
@@ -136,7 +137,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		await new Promise(resolve => setTimeout(resolve, 200));
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const result = await client.call<FetchTurnsResult>('fetchTurns', { session: sessionUri, limit: 10 });
+		const result = await client.call<FetchTurnsResult>('fetchTurns', { channel: sessionUri, limit: 10 });
 		assert.ok(result.turns.length >= 2);
 		assert.strictEqual(typeof result.hasMore, 'boolean');
 	});

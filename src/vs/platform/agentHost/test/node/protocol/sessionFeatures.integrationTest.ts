@@ -9,7 +9,7 @@ import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { IModelChangedAction, IResponsePartAction, SessionAddedParams, ITitleChangedAction } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { ListSessionsResult } from '../../../common/state/sessionProtocol.js';
-import { PendingMessageKind, ResponsePartKind, type SessionState } from '../../../common/state/sessionState.js';
+import { PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, type SessionState } from '../../../common/state/sessionState.js';
 import { MOCK_AUTO_TITLE } from '../mockAgent.js';
 import {
 	createAndSubscribeSession,
@@ -54,10 +54,10 @@ suite('Protocol WebSocket — Session Features', function () {
 		const sessionUri = await createAndSubscribeSession(client, 'test-titleChanged');
 
 		client.notify('dispatchAction', {
+			channel: sessionUri,
 			clientSeq: 1,
 			action: {
 				type: 'session/titleChanged',
-				session: sessionUri,
 				title: 'My Custom Title',
 			},
 		});
@@ -115,7 +115,7 @@ suite('Protocol WebSocket — Session Features', function () {
 		assert.strictEqual(titleAction.title, 'Fix the login bug');
 
 		// listSessions should also reflect the updated title
-		const result = await client.call<ListSessionsResult>('listSessions');
+		const result = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
 		const session = result.items.find(s => s.resource === sessionUri);
 		assert.ok(session, 'session should appear in listSessions');
 		assert.strictEqual(session.title, 'Fix the login bug');
@@ -127,10 +127,10 @@ suite('Protocol WebSocket — Session Features', function () {
 		const sessionUri = await createAndSubscribeSession(client, 'test-title-list');
 
 		client.notify('dispatchAction', {
+			channel: sessionUri,
 			clientSeq: 1,
 			action: {
 				type: 'session/titleChanged',
-				session: sessionUri,
 				title: 'Persisted Title',
 			},
 		});
@@ -140,7 +140,7 @@ suite('Protocol WebSocket — Session Features', function () {
 		// Poll listSessions until the persisted title appears (async DB write)
 		let session: { title: string } | undefined;
 		for (let i = 0; i < 20; i++) {
-			const result = await client.call<ListSessionsResult>('listSessions');
+			const result = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
 			session = result.items.find(s => s.resource === sessionUri);
 			if (session?.title === 'Persisted Title') {
 				break;
@@ -156,7 +156,7 @@ suite('Protocol WebSocket — Session Features', function () {
 	test('session model flows through create, subscribe, listSessions, and modelChanged', async function () {
 		this.timeout(10_000);
 
-		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-model-summary' });
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-model-summary' });
 
 		const sessionUri = nextSessionUri();
 		await client.call('createSession', { channel: sessionUri, provider: 'mock', model: { id: 'mock-model' } });
@@ -172,14 +172,14 @@ suite('Protocol WebSocket — Session Features', function () {
 		const initialState = initialSnapshot.snapshot!.state as SessionState;
 		assert.deepStrictEqual(initialState.summary.model, { id: 'mock-model' });
 
-		const initialList = await client.call<ListSessionsResult>('listSessions');
+		const initialList = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
 		assert.deepStrictEqual(initialList.items.find(s => s.resource === createdSessionUri)?.model, { id: 'mock-model' });
 
 		client.notify('dispatchAction', {
+			channel: createdSessionUri,
 			clientSeq: 1,
 			action: {
 				type: 'session/modelChanged',
-				session: createdSessionUri,
 				model: { id: 'mock-model-2' },
 			},
 		});
@@ -192,7 +192,7 @@ suite('Protocol WebSocket — Session Features', function () {
 		const updatedState = updatedSnapshot.snapshot!.state as SessionState;
 		assert.deepStrictEqual(updatedState.summary.model, { id: 'mock-model-2' });
 
-		const updatedList = await client.call<ListSessionsResult>('listSessions');
+		const updatedList = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
 		assert.deepStrictEqual(updatedList.items.find(s => s.resource === createdSessionUri)?.model, { id: 'mock-model-2' });
 	});
 
@@ -246,10 +246,10 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Queue a message when the session is idle — server should immediately consume it
 		client.notify('dispatchAction', {
+			channel: sessionUri,
 			clientSeq: 1,
 			action: {
 				type: 'session/pendingMessageSet',
-				session: sessionUri,
 				kind: PendingMessageKind.Queued,
 				id: 'q-1',
 				userMessage: { text: 'hello' },
@@ -283,10 +283,10 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Queue a message while the turn is in progress
 		client.notify('dispatchAction', {
+			channel: sessionUri,
 			clientSeq: 2,
 			action: {
 				type: 'session/pendingMessageSet',
-				session: sessionUri,
 				kind: PendingMessageKind.Queued,
 				id: 'q-wait-1',
 				userMessage: { text: 'hello' },
@@ -330,10 +330,10 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Set a steering message while the turn is in progress
 		client.notify('dispatchAction', {
+			channel: sessionUri,
 			clientSeq: 2,
 			action: {
 				type: 'session/pendingMessageSet',
-				session: sessionUri,
 				kind: PendingMessageKind.Steering,
 				id: 'steer-1',
 				userMessage: { text: 'Please be concise' },
@@ -381,8 +381,9 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Truncate: keep only turn-t1
 		client.notify('dispatchAction', {
+			channel: sessionUri,
 			clientSeq: 3,
-			action: { type: 'session/truncated', session: sessionUri, turnId: 'turn-t1' },
+			action: { type: 'session/truncated', turnId: 'turn-t1' },
 		});
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/truncated'));
@@ -405,8 +406,9 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Truncate all (no turnId)
 		client.notify('dispatchAction', {
+			channel: sessionUri,
 			clientSeq: 2,
-			action: { type: 'session/truncated', session: sessionUri },
+			action: { type: 'session/truncated' },
 		});
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/truncated'));
@@ -432,8 +434,9 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Truncate to turn-tr1
 		client.notify('dispatchAction', {
+			channel: sessionUri,
 			clientSeq: 3,
-			action: { type: 'session/truncated', session: sessionUri, turnId: 'turn-tr1' },
+			action: { type: 'session/truncated', turnId: 'turn-tr1' },
 		});
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/truncated'));
@@ -469,7 +472,7 @@ suite('Protocol WebSocket — Session Features', function () {
 		// Fork at turn-f1 (keep turns up to and including turn-f1)
 		const forkedSessionUri = nextSessionUri();
 		await client.call('createSession', {
-			session: forkedSessionUri,
+			channel: forkedSessionUri,
 			provider: 'mock',
 			fork: { session: sessionUri, turnId: 'turn-f1' },
 		});
@@ -499,7 +502,7 @@ suite('Protocol WebSocket — Session Features', function () {
 		let gotError = false;
 		try {
 			await client.call('createSession', {
-				session: nextSessionUri(),
+				channel: nextSessionUri(),
 				provider: 'mock',
 				fork: { session: sessionUri, turnId: 'nonexistent-turn' },
 			});
@@ -512,12 +515,12 @@ suite('Protocol WebSocket — Session Features', function () {
 	test('fork with invalid source session returns error', async function () {
 		this.timeout(10_000);
 
-		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-fork-no-source' });
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-fork-no-source' });
 
 		let gotError = false;
 		try {
 			await client.call('createSession', {
-				session: nextSessionUri(),
+				channel: nextSessionUri(),
 				provider: 'mock',
 				fork: { session: 'mock://nonexistent-session', turnId: 'turn-1' },
 			});
