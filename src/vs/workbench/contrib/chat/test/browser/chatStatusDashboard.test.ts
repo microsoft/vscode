@@ -24,7 +24,6 @@ interface IQuotaConfig {
 	usageBasedBilling?: boolean;
 	resetAt?: number;
 	entitlement?: number;
-	quotaRemaining?: number;
 }
 
 function createEntitlementService(opts: {
@@ -659,25 +658,6 @@ suite('ChatStatusDashboard', () => {
 		svc.fireQuotaExceeded();
 
 		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
-	});
-
-	test('Hover shows exact credits from quotaRemaining instead of percent-based rounding', () => {
-		const dashboard = createDashboard(createEntitlementService({
-			premiumChat: { percentRemaining: 7.5, unlimited: false, usageBasedBilling: true, entitlement: 20000, quotaRemaining: 1501 },
-			completions: { percentRemaining: 100, unlimited: true },
-			entitlement: ChatEntitlement.Pro,
-		}));
-
-		const quotaPercentage = dashboard.element.querySelector('.quota-indicator:not(.included) .quota-percentage') as HTMLElement;
-		assert.ok(quotaPercentage);
-
-		// Hover to show credits
-		quotaPercentage.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-		const quotaValue = quotaPercentage.querySelector('.quota-value');
-		// Should show 18,499 / 20,000 (from entitlement - quotaRemaining)
-		// NOT 18,500 / 20,000 (from percent-based calculation)
-		assert.ok(quotaValue?.textContent?.includes('18,499'));
-		assert.ok(quotaValue?.textContent?.includes('20,000'));
 	});
 
 	test('Live update: header button visibility updates when quota changes', () => {
