@@ -306,12 +306,15 @@ export class SearchView extends ViewPane {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
 		const updateChangedFilesToggleEnabled = () => {
-			const hasRepositories = [...this.scmService.repositories].length > 0;
-			this.inputPatternIncludes?.setOnlySearchInChangedFilesEnabled(hasRepositories);
+			const hasChanges = [...this.scmService.repositories].some(
+				repo => repo.provider.groups.some(group => group.resources.length > 0)
+			);
+			this.inputPatternIncludes?.setOnlySearchInChangedFilesEnabled(hasChanges);
 		};
 		const scmRepositoryListeners = this._register(new DisposableMap<ISCMRepository>());
 		const registerScmRepositoryListeners = (repository: ISCMRepository) => {
 			scmRepositoryListeners.set(repository, repository.provider.onDidChangeResources(() => {
+				updateChangedFilesToggleEnabled();
 				if (this.inputPatternIncludes?.onlySearchInChangedFiles()) {
 					this.triggerQueryChange();
 				}
@@ -546,7 +549,9 @@ export class SearchView extends ViewPane {
 
 		this.inputPatternIncludes.setValue(patternIncludes);
 		this.inputPatternIncludes.setOnlySearchInOpenEditors(onlyOpenEditors);
-		this.inputPatternIncludes.setOnlySearchInChangedFilesEnabled([...this.scmService.repositories].length > 0);
+		this.inputPatternIncludes.setOnlySearchInChangedFilesEnabled(
+			[...this.scmService.repositories].some(repo => repo.provider.groups.some(group => group.resources.length > 0))
+		);
 
 		this._register(this.inputPatternIncludes.onCancel(() => this.cancelSearch(false)));
 		this._register(this.inputPatternIncludes.onChangeSearchInEditorsBox(() => this.triggerQueryChange()));
