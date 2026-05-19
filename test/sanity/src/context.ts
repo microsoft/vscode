@@ -183,10 +183,10 @@ export class TestContext {
 	 * Creates a new temporary directory in WSL and returns its path.
 	 */
 	public createWslTempDir(): string {
-		const tempDir = `/tmp/vscode-sanity-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-		this.log(`Creating WSL temp directory: ${tempDir}`);
-		this.runNoErrors('wsl', 'mkdir', '-p', tempDir);
+		this.log(`Creating WSL temp directory`);
+		const tempDir = this.runNoErrors('wsl', 'sh', '-lc', 'mkdir -p "$HOME/.vscode-sanity" && mktemp -d "$HOME/.vscode-sanity/vscode-sanity-XXXXXX"').stdout.trim();
 		this.wslTempDirs.add(tempDir);
+		this.log(`Created WSL temp directory: ${tempDir}`);
 		return tempDir;
 	}
 
@@ -595,6 +595,16 @@ export class TestContext {
 	}
 
 	/**
+	 * Downloads and unpacks the specified VS Code release target in WSL.
+	 * @param target The target platform (e.g., 'server-linux-x64').
+	 * @returns The WSL path to the unpacked directory.
+	 */
+	public async downloadAndUnpackInWsl(target: string): Promise<string> {
+		const filePath = await this.downloadTarget(target);
+		return this.unpackArchiveInWsl(filePath);
+	}
+
+	/**
 	 * Unpacks a .zip or .tar.gz archive to a temporary directory.
 	 * @param archivePath The path to the archive file.
 	 * @returns The path to the temporary directory where the archive was unpacked.
@@ -605,6 +615,22 @@ export class TestContext {
 		this.log(`Unpacking ${archivePath} to ${dir}`);
 		this.runNoErrors('tar', '-xzf', archivePath, '-C', dir, '--no-same-permissions');
 		this.log(`Unpacked ${archivePath} to ${dir}`);
+
+		return dir;
+	}
+
+	/**
+	 * Unpacks a .tar.gz archive to a WSL temporary directory.
+	 * @param archivePath The Windows path to the archive file.
+	 * @returns The WSL path to the temporary directory where the archive was unpacked.
+	 */
+	public unpackArchiveInWsl(archivePath: string): string {
+		const dir = this.createWslTempDir();
+		const wslArchivePath = this.toWslPath(archivePath);
+
+		this.log(`Unpacking ${archivePath} to ${dir} in WSL`);
+		this.runNoErrors('wsl', 'tar', '-xzf', wslArchivePath, '-C', dir, '--no-same-permissions');
+		this.log(`Unpacked ${archivePath} to ${dir} in WSL`);
 
 		return dir;
 	}
@@ -1055,6 +1081,39 @@ export class TestContext {
 		const entryPoint = path.join(this.getFirstSubdirectory(dir), 'bin', filename);
 		if (!fs.existsSync(entryPoint)) {
 			this.error(`Server entry point does not exist: ${entryPoint}`);
+		}
+
+		return entryPoint;
+	}
+
+	/**
+	 * Returns the WSL entry point executable for the VS Code server in the specified WSL directory.
+	 * @param dir The WSL directory containing unpacked server files.
+	 * @returns The WSL path to the server entry point executable.
+	 */
+	public getWslServerEntryPoint(dir: string): string {
+		let filename: string;
+		switch (this.options.quality) {
+			case 'stable':
+				filename = 'code-server';
+				break;
+			case 'insider':
+				filename = 'code-server-insiders';
+				break;
+			case 'exploration':
+				filename = 'code-server-exploration';
+				break;
+		}
+
+		const subDir = this.runNoErrors('wsl', 'find', dir, '-mindepth', '1', '-maxdepth', '1', '-type', 'd').stdout.trim().split(/\r?\n/).at(0);
+		if (!subDir) {
+			this.error(`No subdirectories found in WSL directory: ${dir}`);
+		}
+
+		const entryPoint = path.posix.join(subDir, 'bin', filename);
+		const result = this.run('wsl', 'test', '-f', entryPoint);
+		if (result.status !== 0) {
+			this.error(`WSL server entry point does not exist: ${entryPoint}`);
 		}
 
 		return entryPoint;

@@ -12,26 +12,26 @@ const serverNodeOptions = 'NODE_OPTIONS=--no-deprecation';
 
 export function setup(context: TestContext) {
 	context.test('wsl-server-arm64', ['windows', 'arm64', 'wsl'], async () => {
-		const dir = await context.downloadAndUnpack('server-linux-arm64');
-		const entryPoint = context.getServerEntryPoint(dir, true);
+		const dir = await context.downloadAndUnpackInWsl('server-linux-arm64');
+		const entryPoint = context.getWslServerEntryPoint(dir);
 		await testServer(entryPoint);
 	});
 
 	context.test('wsl-server-x64', ['windows', 'x64', 'wsl'], async () => {
-		const dir = await context.downloadAndUnpack('server-linux-x64');
-		const entryPoint = context.getServerEntryPoint(dir, true);
+		const dir = await context.downloadAndUnpackInWsl('server-linux-x64');
+		const entryPoint = context.getWslServerEntryPoint(dir);
 		await testServer(entryPoint);
 	});
 
 	context.test('wsl-server-web-arm64', ['windows', 'arm64', 'wsl', 'browser'], async () => {
-		const dir = await context.downloadAndUnpack('server-linux-arm64-web');
-		const entryPoint = context.getServerEntryPoint(dir, true);
+		const dir = await context.downloadAndUnpackInWsl('server-linux-arm64-web');
+		const entryPoint = context.getWslServerEntryPoint(dir);
 		await testServerWeb(entryPoint);
 	});
 
 	context.test('wsl-server-web-x64', ['windows', 'x64', 'wsl', 'browser'], async () => {
-		const dir = await context.downloadAndUnpack('server-linux-x64-web');
-		const entryPoint = context.getServerEntryPoint(dir, true);
+		const dir = await context.downloadAndUnpackInWsl('server-linux-x64-web');
+		const entryPoint = context.getWslServerEntryPoint(dir);
 		await testServerWeb(entryPoint);
 	});
 
@@ -65,7 +65,7 @@ export function setup(context: TestContext) {
 		await context.runCliApp('WSL Server', 'wsl',
 			[
 				'env', serverNodeOptions,
-				context.toWslPath(entryPoint),
+				entryPoint,
 				'--accept-server-license-terms',
 				'--connection-token', context.getRandomToken(),
 				'--host', '0.0.0.0',
@@ -104,7 +104,7 @@ export function setup(context: TestContext) {
 		await context.runCliApp('WSL Server', 'wsl',
 			[
 				'env', serverNodeOptions,
-				context.toWslPath(entryPoint),
+				entryPoint,
 				'--accept-server-license-terms',
 				'--connection-token', token,
 				'--host', '0.0.0.0',
