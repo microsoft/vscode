@@ -368,7 +368,7 @@ export class OpenAIEndpoint extends ChatEndpoint {
 
 	public override async makeChatRequest2(options: IMakeChatRequestOptions, token: CancellationToken): Promise<ChatResponse> {
 		// Use ignoreStatefulMarker: false as the initial request default; the parent retry flow can override it on InvalidStatefulMarker retries.
-		const modifiedOptions: IMakeChatRequestOptions = { ...options, ignoreStatefulMarker: false };
+		const modifiedOptions: IMakeChatRequestOptions = { ...options, ignoreStatefulMarker: options.ignoreStatefulMarker ?? false };
 		const response = await super.makeChatRequest2(modifiedOptions, token);
 		return hydrateBYOKErrorMessages(response);
 	}
