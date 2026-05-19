@@ -54,7 +54,7 @@ export class NodeHookExecutor implements IHookExecutor {
 		const child = spawn(command, args, {
 			stdio: 'pipe',
 			cwd,
-			env: { ...env, ...shellEnv },
+			env: { ...env, ...(shellEnv ?? {}) },
 			shell,
 		});
 
@@ -183,7 +183,7 @@ function uriToFsPath(uri: Uri): string {
 /**
  * Returns the shell command and arguments to use for executing a hook command.
  * On Windows when ComSpec is cmd.exe, uses PowerShell with -ExecutionPolicy Bypass.
- * Otherwise uses the default system shell via /bin/sh -c.
+ * Otherwise uses the platform default shell via `shell: true`.
  */
 function getShellCommand(hookCommand: string): { command: string; args: string[]; shell?: boolean; env?: Record<string, string> } {
 	if (!isWindows) {

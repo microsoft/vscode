@@ -26,6 +26,8 @@ vi.mock('../../../../util/vs/base/common/platform', () => ({
 	isWindows: false,
 }));
 
+import * as platform from '../../../../util/vs/base/common/platform';
+
 interface MockChildProcess extends EventEmitter {
 	stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
 	stdout: EventEmitter;
@@ -218,10 +220,9 @@ describe('NodeHookExecutor', () => {
 	});
 
 	describe('shell selection', () => {
-		const platform = vi.mocked(await import('../../../../util/vs/base/common/platform'));
 
 		test('uses shell: true on non-Windows', async () => {
-			platform.isWindows = false;
+			vi.mocked(platform).isWindows = false;
 			const promise = executor.executeCommand(cmd('echo hello'), undefined, CancellationToken.None);
 			completeChild(child, { exitCode: 0 });
 			await promise;
@@ -230,7 +231,7 @@ describe('NodeHookExecutor', () => {
 		});
 
 		test('uses PowerShell with -ExecutionPolicy Bypass on Windows when ComSpec is cmd.exe', async () => {
-			platform.isWindows = true;
+			vi.mocked(platform).isWindows = true;
 			const origComSpec = process.env.ComSpec;
 			const origSystemRoot = process.env.SystemRoot;
 			try {
@@ -255,7 +256,7 @@ describe('NodeHookExecutor', () => {
 		});
 
 		test('uses shell: true on Windows when ComSpec is not cmd.exe', async () => {
-			platform.isWindows = true;
+			vi.mocked(platform).isWindows = true;
 			const origComSpec = process.env.ComSpec;
 			try {
 				process.env.ComSpec = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
