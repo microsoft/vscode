@@ -1,15 +1,15 @@
 # CopilotChatSessionsProvider — Default Copilot Provider
 
-**File:** `src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessionsProvider.ts`
+**File:** `src/vs/sessions/contrib/copilotChatSessions/browser/copilotChatSessionsProvider.ts`
 
-The default sessions provider, registered with ID `'default-copilot'`. Wraps the existing agent session infrastructure into the extensible provider model. Supports **Copilot CLI** (local), **Copilot Cloud** (remote), **Claude** (local, gated by `sessions.chat.claudeAgent.enabled`), and **Local** in-process chat sessions (gated by `sessions.chat.localAgent.enabled`).
+The default sessions provider, registered with ID `'default-copilot'`. Wraps the existing agent session infrastructure into the extensible provider model. Supports three session types: **Copilot CLI** (local), **Copilot Cloud** (remote), and **Claude** (local, gated by `sessions.chat.claudeAgent.enabled`).
 
 ## Registration
 
 Registered via `DefaultSessionsProviderContribution` workbench contribution at `WorkbenchPhase.AfterRestored`:
 
-```text
-src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.ts
+```
+src/vs/sessions/contrib/copilotChatSessions/browser/copilotChatSessions.contribution.ts
 ```
 
 ```typescript
@@ -24,11 +24,11 @@ class DefaultSessionsProviderContribution extends Disposable {
 ## Identity
 
 | Property | Value |
-| --- | --- |
+|----------|-------|
 | `id` | `'default-copilot'` |
 | `label` | `'Copilot Chat'` |
 | `icon` | `Codicon.copilot` |
-| `sessionTypes` | `[CopilotCLISessionType, CopilotCloudSessionType]` (+ `ClaudeCodeSessionType` and `LocalSessionType` when enabled) |
+| `sessionTypes` | `[CopilotCLISessionType, CopilotCloudSessionType]` (+ `ClaudeCodeSessionType` when enabled) |
 
 ## Browse Actions
 
@@ -37,10 +37,9 @@ class DefaultSessionsProviderContribution extends Disposable {
 
 ## New Session Classes
 
-When `createNewSession(workspace)` is called, the provider creates the concrete `ISession` implementation that matches the selected session type and workspace URI scheme:
+When `createNewSession(workspace)` is called, the provider creates one of two concrete `ISession` implementations based on the workspace URI scheme:
 
 **`CopilotCLISession`** — For local `file://` workspaces:
-
 - Implements `ISession` plus provider-specific observable fields (`permissionLevel`, `branchObservable`, `isolationModeObservable`)
 - Performs async git repository resolution during construction (sets `loading` to true until resolved)
 - Configuration methods: `setIsolationMode()`, `setBranch()`, `setModelId()`, `setMode()`, `setPermissionLevel()`, `setModeById()`
@@ -48,7 +47,6 @@ When `createNewSession(workspace)` is called, the provider creates the concrete 
 - Uses `IGitService` to open the repository and resolve branch information
 
 **`RemoteNewSession`** — For cloud `github-remote-file://` workspaces:
-
 - Implements `ISession`
 - Manages dynamic option groups from `IChatSessionsService.getOptionGroupsForSessionType()` with `when` clause visibility
 - No-ops for isolation/branch/client mode (cloud-managed)
@@ -56,22 +54,14 @@ When `createNewSession(workspace)` is called, the provider creates the concrete 
 - Watches context key changes to dynamically show/hide option groups
 
 **`ClaudeCodeNewSession`** — For Claude agent sessions (local `file://` workspaces):
-
 - Implements `ISession` with simplified configuration (Claude manages its own worktrees and branches)
 - No-ops for `setIsolationMode()` and `setBranch()`
 - `setOption()` writes to `selectedOptions` map; options are propagated to `IChatSessionsService` during `_sendFirstChat()` via `updateSessionOptions()`
 - Gated by the `sessions.chat.claudeAgent.enabled` setting (default: `true`)
 
-**`LocalNewSession`** — For in-process VS Code chat sessions (local `file://` workspaces):
-
-- Implements `ISession` backed by a local chat model created through the chat service
-- Tracks the selected general-purpose language model for the pending session
-- Gated by the `sessions.chat.localAgent.enabled` setting
-
 ## `AgentSessionAdapter` — Wrapping Existing Sessions
 
 Adapts an existing `IAgentSession` from the chat layer into the `ISession` facade:
-
 - Constructs with initial values from the agent session's metadata and timing
 - `update(session)` performs a batched observable transaction to update all reactive properties
 - Extracts workspace info, changes, description, and GitHub info from session metadata
@@ -81,7 +71,6 @@ Adapts an existing `IAgentSession` from the chat layer into the `ISession` facad
 ## Session Cache & Change Events
 
 The provider maintains a `Map<string, AgentSessionAdapter>` cache keyed by resource URI:
-
 - `_ensureSessionCache()` performs lazy initialization
 - `_refreshSessionCache()` diffs current `IAgentSession` list against the cache, producing `added`, `removed`, and `changed` arrays
 - Changed adapters are updated in-place via `adapter.update(session)`
@@ -89,7 +78,7 @@ The provider maintains a `Map<string, AgentSessionAdapter>` cache keyed by resou
 
 ## Send Flow
 
-1. Validate the session is a current new session (`CopilotCLISession`, `RemoteNewSession`, `ClaudeCodeNewSession`, or `LocalNewSession`)
+1. Validate the session is a current new session (`CopilotCLISession`, `RemoteNewSession`, or `ClaudeCodeNewSession`)
 2. For the first chat, call `_sendFirstChat()`:
    a. Resolve mode, permission level, and send options from session configuration
    b. Open the chat widget via `IChatWidgetService.openSession()`
@@ -104,7 +93,7 @@ The provider maintains a `Map<string, AgentSessionAdapter>` cache keyed by resou
 
 ## New-Session Picker Contribution Model
 
-**File:** `src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessionsActions.ts`
+**File:** `src/vs/sessions/contrib/copilotChatSessions/browser/copilotChatSessionsActions.ts`
 
 The welcome/new-session view (`NewChatInputWidget`) renders three toolbar menus for configuration pickers. Each picker requires a three-part registration:
 
@@ -112,13 +101,13 @@ The welcome/new-session view (`NewChatInputWidget`) renders three toolbar menus 
 2. **Action view item** — `actionViewItemService.register()` to provide a custom widget instead of a button
 3. **Picker widget** — A `Disposable` class with a `render(container)` method, wrapped in `PickerActionViewItem`
 
-Model picker widgets that back the new-chat `/models` slash command also inject `INewChatModelPickerService` and register their opener with it. `NewChatInputWidget` scopes that service per input, so action view item factories must instantiate those model picker widgets from the factory's `instantiationService` argument rather than a contribution-level service. The unified picker also opts **Local** sessions into the shared `Manage Models...` action, which opens the existing language-model management editor.
+Model picker widgets that back the new-chat `/models` slash command also inject `INewChatModelPickerService` and register their opener with it. `NewChatInputWidget` scopes that service per input, so action view item factories must instantiate those model picker widgets from the factory's `instantiationService` argument rather than a contribution-level service.
 
 ### Toolbar Menus
 
 | Menu | Purpose | Examples |
-| --- | --- | --- |
-| `Menus.NewSessionConfig` | Session configuration (mode, model) | `ModePicker`, `CloudModelPicker`, unified model picker (CLI + Claude + Local) |
+|------|---------|----------|
+| `Menus.NewSessionConfig` | Session configuration (mode, model) | `ModePicker`, `CloudModelPicker`, unified model picker (CLI + Claude) |
 | `Menus.NewSessionControl` | Session controls (permissions) | `PermissionPicker`, `ClaudePermissionModePicker` |
 | `Menus.NewSessionRepositoryConfig` | Repository configuration | `IsolationPicker`, `BranchPicker` |
 
@@ -127,11 +116,10 @@ Model picker widgets that back the new-chat `/models` slash command also inject 
 Each picker action uses a `when` clause to show only for the correct session type:
 
 | Expression | Matches |
-| --- | --- |
+|------------|---------|
 | `IsActiveSessionCopilotChatCLI` | Copilot CLI sessions |
 | `IsActiveSessionCopilotChatCloud` | Copilot Cloud sessions |
 | `IsActiveSessionCopilotChatClaudeCode` | Claude sessions |
-| `IsActiveSessionCopilotChatLocal` | Local in-process chat sessions |
 
 These are composed from `ActiveSessionTypeContext` (the session type ID) and `ActiveSessionProviderIdContext` (the provider ID).
 
