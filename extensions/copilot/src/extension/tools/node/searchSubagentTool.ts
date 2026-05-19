@@ -25,6 +25,7 @@ import { IBuildPromptContext } from '../../prompt/common/intents';
 import { SearchSubagentToolCallingLoop } from '../../prompt/node/searchSubagentToolCallingLoop';
 import { ToolName } from '../common/toolNames';
 import { CopilotToolMode, ICopilotTool, ICopilotToolCtor, ToolRegistry } from '../common/toolsRegistry';
+import { assertFileOkForTool } from './toolUtils';
 
 export interface ISearchSubagentParams {
 
@@ -174,7 +175,7 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 			subagentResponse = `The search subagent request failed with this message:\n${loopResult.response.type}: ${loopResult.response.reason}`;
 		}
 		// Parse and hydrate code snippets from <final_answer> tags
-		const hydratedResponse = await this.parseFinalAnswerAndHydrate(subagentResponse, cwd, token);
+		const hydratedResponse = await this.parseFinalAnswerAndHydrate(subagentResponse, cwd, options.workingDirectory, token);
 
 		// toolMetadata will be automatically included in exportAllPromptLogsAsJsonCommand
 		const result = new ExtendedLanguageModelToolResult([new LanguageModelTextPart(hydratedResponse)]);
@@ -187,10 +188,11 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 	 * Parse the path and line range subagent response and hydrate code snippets
 	 * @param response The subagent response containing paths and line ranges
 	 * @param cwd The current working directory to prepend to relative paths
+	 * @param workingDirectory The working directory URI from tool invocation context
 	 * @param token Cancellation token
 	 * @returns The response with actual code snippets appended to file paths
 	 */
-	private async parseFinalAnswerAndHydrate(response: string, cwd: string | undefined, token: vscode.CancellationToken): Promise<string> {
+	private async parseFinalAnswerAndHydrate(response: string, cwd: string | undefined, workingDirectory: URI | undefined, token: vscode.CancellationToken): Promise<string> {
 		const lines = response.split('\n');
 
 		// Parse file:line-line format
@@ -212,11 +214,15 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 			const endLine = parseInt(endLineStr, 10);
 
 			try {
-				// For relative paths, immediately resolve against cwd.
-				// For absolute paths, use as-is and let openTextDocument throw if not found.
+				// Resolve candidate path first, then enforce read-only file access
+				// via shared toolUtils guards before hydrating
 				const uri = (!path.isAbsolute(filePath) && cwd)
 					? URI.joinPath(URI.file(cwd), filePath)
 					: URI.file(filePath);
+
+				await this.instantiationService.invokeFunction(accessor =>
+					assertFileOkForTool(accessor, uri, this._inputContext, { readOnly: true, workingDirectory })
+				);
 				const document = await this.workspaceService.openTextDocument(uri);
 
 				const snapshot = TextDocumentSnapshot.create(document);
