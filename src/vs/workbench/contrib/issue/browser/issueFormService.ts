@@ -223,7 +223,14 @@ export class IssueFormService implements IIssueFormService {
 			url = this.createIssuePreviewUrl(baseUrl, localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."), gitHubDetails, data.issueSource);
 		}
 
-		return this.openerService.open(url, { openExternal: true });
+		// Skip the trusted-domains prompt for github.com URLs the issue reporter
+		// itself generates. The auto-populated body can produce extremely long
+		// URLs that overflow the native confirmation dialog on macOS, and the
+		// destination is one we constructed ourselves so the trust check would
+		// always be a yes anyway.
+		const uri = URI.parse(url);
+		const skipValidation = uri.scheme === 'https' && uri.authority === 'github.com';
+		return this.openerService.open(uri, { openExternal: true, skipValidation });
 	}
 
 	private async tryCreateBodyWithIssueDataAttachment(

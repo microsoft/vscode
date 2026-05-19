@@ -233,7 +233,7 @@ export class IssueReporterOverlay {
 		this.backButton.element.classList.add('wizard-back');
 		this.backButton.element.title = localize('backEscape', "Back (Escape)");
 
-		this.nextButton = this.disposables.add(new Button(nav, { ...defaultButtonStyles }));
+		this.nextButton = this.disposables.add(new Button(nav, { ...defaultButtonStyles, supportIcons: true }));
 		this.nextButton.label = localize('next', "Next");
 		this.nextButton.element.classList.add('wizard-next');
 		const ctrlKey = isMacintosh ? '\u2318' : 'Ctrl';
@@ -1242,6 +1242,12 @@ export class IssueReporterOverlay {
 		}
 
 		if (this.currentStep === WizardStep.Review) {
+			// Defensive: if user managed to invoke goNext while diagnostics are
+			// still loading (e.g. via Cmd/Ctrl+Enter), block the submit. The
+			// Preview button is also visually disabled in this state.
+			if (this.selectedIssueType === IssueType.PerformanceIssue && (!this.performanceInfoLoaded || this.performanceInfoRefreshing)) {
+				return;
+			}
 			this.submit();
 			return;
 		}
@@ -1313,13 +1319,20 @@ export class IssueReporterOverlay {
 		const ctrlKey = isMacintosh ? '\u2318' : 'Ctrl';
 		if (this.currentStep === WizardStep.Review) {
 			const externalExtensionUrl = this.selectedIssueSource === IssueSource.Extension && this.getIssueTargetUrl() && !this.isGitHubUrl(this.getIssueTargetUrl()!);
-			this.nextButton.label = externalExtensionUrl
-				? localize('openExternalIssueReporter', "Open External Issue Reporter")
-				: localize('previewOnGitHub', "Preview on GitHub");
-			this.nextButton.element.title = externalExtensionUrl
-				? localize('openExternalIssueReporterCtrlEnter', "Open External Issue Reporter ({0}+Enter)", ctrlKey)
-				: localize('submitCtrlEnter', "Preview on GitHub ({0}+Enter)", ctrlKey);
-			this.nextButton.enabled = true;
+			const waitingForData = this.selectedIssueType === IssueType.PerformanceIssue && (!this.performanceInfoLoaded || this.performanceInfoRefreshing);
+			if (waitingForData) {
+				this.nextButton.label = `$(loading~spin) ${localize('loadingDiagnostics', "Loading diagnostics...")}`;
+				this.nextButton.element.title = localize('waitingForDiagnostics', "Waiting for performance diagnostics to finish loading");
+				this.nextButton.enabled = false;
+			} else {
+				this.nextButton.label = externalExtensionUrl
+					? localize('openExternalIssueReporter', "Open External Issue Reporter")
+					: localize('previewOnGitHub', "Preview on GitHub");
+				this.nextButton.element.title = externalExtensionUrl
+					? localize('openExternalIssueReporterCtrlEnter', "Open External Issue Reporter ({0}+Enter)", ctrlKey)
+					: localize('submitCtrlEnter', "Preview on GitHub ({0}+Enter)", ctrlKey);
+				this.nextButton.enabled = true;
+			}
 		} else if (this.currentStep === WizardStep.Attachments) {
 			this.nextButton.label = this.getTotalAttachments() === 0
 				? localize('skip', "Skip")
@@ -1607,6 +1620,7 @@ export class IssueReporterOverlay {
 					this.performanceInfoRefreshing = true;
 					refreshBtn.enabled = false;
 					performanceContainer.classList.add('refreshing');
+					this.updateStepUI();
 					try {
 						await this.refreshPerformanceInfo();
 					} finally {
@@ -1619,6 +1633,7 @@ export class IssueReporterOverlay {
 						if (this.currentStep === WizardStep.Review) {
 							this.updateReviewDetails();
 						}
+						this.updateStepUI();
 					}
 				}));
 			}
@@ -2387,6 +2402,8 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		this.performanceInfoLoaded = true;
 		if (this.currentStep === WizardStep.Review) {
 			this.updateReviewDetails();
+			// Re-enable the Preview button now that diagnostics are ready.
+			this.updateStepUI();
 		}
 	}
 

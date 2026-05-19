@@ -320,25 +320,28 @@ export class IssueReporterEditorPane extends EditorPane {
 		}));
 	}
 
-	private async refreshPerformanceInfo(): Promise<void> {
+	private async fetchPerformanceInfo(options?: { skipCache?: boolean; unbounded?: boolean }): Promise<void> {
 		if (!this.wizard) {
 			return;
 		}
 		try {
-			// User-initiated refresh: bypass the workspace-stats cache and walk the
-			// full filesystem (no cap) so the reported file counts and file-type
-			// breakdown reflect the actual workspace. Initial-load still uses the
-			// default cap so the issue reporter opens quickly.
-			const performanceInfo = await this.processService.getPerformanceInfo({ skipCache: true, maxFiles: Number.POSITIVE_INFINITY });
+			const performanceInfo = await this.processService.getPerformanceInfo(options);
 			this.wizard.updateModel({
 				processInfo: performanceInfo.processInfo,
 				workspaceInfo: performanceInfo.workspaceInfo,
 			});
 		} catch (err) {
-			this.logService.error('[IssueReporterEditorPane] Failed to refresh performance info:', err);
+			this.logService.error('[IssueReporterEditorPane] Failed to fetch performance info:', err);
 		} finally {
 			this.wizard?.markPerformanceInfoLoaded();
 		}
+	}
+
+	private async refreshPerformanceInfo(): Promise<void> {
+		// User-initiated refresh: bypass the workspace-stats cache and walk the
+		// full filesystem (no cap) so the reported file counts and file-type
+		// breakdown reflect the actual workspace.
+		await this.fetchPerformanceInfo({ skipCache: true, unbounded: true });
 	}
 
 	private async populateSystemInfo(): Promise<void> {
@@ -359,7 +362,7 @@ export class IssueReporterEditorPane extends EditorPane {
 				systemInfoWeb: navigator.userAgent,
 			});
 
-			await this.refreshPerformanceInfo();
+			await this.fetchPerformanceInfo();
 		} catch (err) {
 			this.logService.error('[IssueReporterEditorPane] Failed to collect system info:', err);
 			this.wizard?.markPerformanceInfoLoaded();

@@ -42,7 +42,7 @@ export function invalidateWorkspaceStatsCache(): void {
 	workspaceStatsCache.clear();
 }
 
-export async function collectWorkspaceStats(folder: string, filter: string[], options?: { skipCache?: boolean; maxFiles?: number }): Promise<WorkspaceStats> {
+export async function collectWorkspaceStats(folder: string, filter: string[], options?: { skipCache?: boolean; unbounded?: boolean }): Promise<WorkspaceStats> {
 	const cacheKey = `${folder}::${filter.join(':')}`;
 	if (!options?.skipCache) {
 		const cached = workspaceStatsCache.get(cacheKey);
@@ -97,7 +97,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[], op
 	const fileTypes = new Map<string, number>();
 	const configFiles = new Map<string, number>();
 
-	const MAX_FILES = options?.maxFiles ?? 20000;
+	const MAX_FILES = options?.unbounded ? Number.POSITIVE_INFINITY : 20000;
 
 	function collect(root: string, dir: string, filter: string[], token: { count: number; maxReached: boolean; readdirCount: number }): Promise<void> {
 		const relativePath = dir.substring(root.length + 1);
@@ -290,7 +290,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		return output.join('\n');
 	}
 
-	public async getPerformanceInfo(info: IMainProcessDiagnostics, remoteData: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[], options?: { skipCache?: boolean; maxFiles?: number }): Promise<PerformanceInfo> {
+	public async getPerformanceInfo(info: IMainProcessDiagnostics, remoteData: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[], options?: { skipCache?: boolean; unbounded?: boolean }): Promise<PerformanceInfo> {
 		return Promise.all([listProcesses(info.mainPID), this.formatWorkspaceMetadata(info, options)]).then(async result => {
 			let [rootProcess, workspaceInfo] = result;
 			let processInfo = this.formatProcessList(info, rootProcess);
@@ -481,7 +481,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		return Object.keys(gpuFeatures).map(feature => `${feature}:  ${' '.repeat(longestFeatureName - feature.length)}  ${gpuFeatures[feature]}`).join('\n                  ');
 	}
 
-	private formatWorkspaceMetadata(info: IMainProcessDiagnostics, options?: { skipCache?: boolean; maxFiles?: number }): Promise<string> {
+	private formatWorkspaceMetadata(info: IMainProcessDiagnostics, options?: { skipCache?: boolean; unbounded?: boolean }): Promise<string> {
 		const output: string[] = [];
 		const workspaceStatPromises: Promise<void>[] = [];
 

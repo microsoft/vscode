@@ -51,8 +51,8 @@ export interface IProcessService {
 	 * Get performance info. Pass `options.skipCache = true` to bypass the
 	 * workspace-stats cache so a fresh filesystem walk is performed; without it
 	 * the cached file counts will be returned for previously-walked folders.
-	 * Pass `options.maxFiles` to override the default 20k file walk cap (useful
-	 * for user-initiated refreshes where the spinner gates the wait).
+	 * Pass `options.unbounded = true` to disable the default 20k file walk cap
+	 * (useful for user-initiated refreshes where a spinner gates the wait).
 	 */
-	getPerformanceInfo(options?: { skipCache?: boolean; maxFiles?: number }): Promise<PerformanceInfo>;
+	getPerformanceInfo(options?: { skipCache?: boolean; unbounded?: boolean }): Promise<PerformanceInfo>;
 }
