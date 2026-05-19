@@ -188,6 +188,12 @@ export interface IChatInputPartOptions {
 	 * When true, the secondary toolbar (permissions picker) is hidden.
 	 */
 	isSessionsWindow?: boolean;
+	/**
+	 * Suppresses the Copilot usage-based billing onboarding banner.
+	 * Set by launcher-style surfaces (welcome editor, quick chat) where
+	 * the 3-slide carousel would compete with the primary call-to-action.
+	 */
+	suppressBillingBanner?: boolean;
 }
 
 export interface IWorkingSetEntry {
@@ -2307,9 +2313,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.ensureNotificationWidget();
 
 		// The billing banner's 3-slide carousel is too tall for compact surfaces
-		// (inline chat, narrow popovers). Skip creating it there; the unused
-		// container collapses via the `:not(.has-billing-banner)` CSS rule.
-		if (!this._billingBannerWidget.value && this.options.renderStyle !== 'compact') {
+		// (inline chat, narrow popovers) and competes for attention on launcher
+		// surfaces (welcome editor, quick chat). Skip creating it there; the
+		// unused container collapses via the `:not(.has-billing-banner)` CSS rule.
+		if (!this._billingBannerWidget.value && this.options.renderStyle !== 'compact' && !this.options.suppressBillingBanner) {
 			this._billingBannerWidget.value = this.instantiationService.createInstance(ChatBillingBannerWidget, ChatBillingBannerVariant.Panel);
 			this.chatBillingBannerContainer.appendChild(this._billingBannerWidget.value.domNode);
 		}
