@@ -100,6 +100,16 @@ export interface CrossChatSessionWithPR {
 }
 
 const CLOSE_SESSION_PR_CMD = 'github.copilot.cloud.sessions.proxy.closeChatSessionPullRequest';
+
+// Test-only registry: chat participant request handlers indexed by session type.
+// Allows sanity / integration tests to invoke the CLI participant directly without
+// going through the chat UI. Populated during contribution activation and cleared
+// on dispose.
+const __testParticipantHandlers = new Map<string, vscode.ChatExtendedRequestHandler>();
+export function __getTestParticipantHandler(sessionType: string): vscode.ChatExtendedRequestHandler | undefined {
+	return __testParticipantHandlers.get(sessionType);
+}
+
 export class ChatSessionsContrib extends Disposable implements IExtensionContribution {
 	readonly id = 'chatSessions';
 	readonly copilotcliSessionType = 'copilotcli';
@@ -239,7 +249,10 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 
 		copilotModels.registerLanguageModelChatProvider(vscode.lm);
 
-		const copilotcliParticipant = vscode.chat.createChatParticipant(this.copilotcliSessionType, copilotcliChatSessionParticipant.createHandler());
+		const copilotcliHandler = copilotcliChatSessionParticipant.createHandler();
+		const copilotcliParticipant = vscode.chat.createChatParticipant(this.copilotcliSessionType, copilotcliHandler);
+		__testParticipantHandlers.set(this.copilotcliSessionType, copilotcliHandler);
+		this._register({ dispose: () => __testParticipantHandlers.delete(this.copilotcliSessionType) });
 		this._register(vscode.chat.registerChatSessionContentProvider(this.copilotcliSessionType, copilotcliChatSessionContentProvider, copilotcliParticipant));
 		const copilotcliCustomizationProvider = this._register(copilotcliAgentInstaService.createInstance(CopilotCLICustomizationProvider));
 		this._register(vscode.chat.registerChatSessionCustomizationProvider(this.copilotcliSessionType, CopilotCLICustomizationProvider.metadata, copilotcliCustomizationProvider));
@@ -360,7 +373,10 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 
 		copilotModels.registerLanguageModelChatProvider(vscode.lm);
 
-		const copilotcliParticipant = vscode.chat.createChatParticipant(this.copilotcliSessionType, copilotcliChatSessionParticipant.createHandler());
+		const copilotcliHandler = copilotcliChatSessionParticipant.createHandler();
+		const copilotcliParticipant = vscode.chat.createChatParticipant(this.copilotcliSessionType, copilotcliHandler);
+		__testParticipantHandlers.set(this.copilotcliSessionType, copilotcliHandler);
+		this._register({ dispose: () => __testParticipantHandlers.delete(this.copilotcliSessionType) });
 		this._register(vscode.chat.registerChatSessionContentProvider(this.copilotcliSessionType, copilotcliChatSessionContentProvider, copilotcliParticipant));
 		const copilotcliCustomizationProvider = this._register(copilotcliAgentInstaService.createInstance(CopilotCLICustomizationProvider));
 		this._register(vscode.chat.registerChatSessionCustomizationProvider(this.copilotcliSessionType, CopilotCLICustomizationProvider.metadata, copilotcliCustomizationProvider));

@@ -15,6 +15,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { Intent } from '../../common/constants';
 import { IConversationStore } from '../../conversationStore/node/conversationStore';
 import { activate } from '../../extension/vscode-node/extension';
+import { __getTestParticipantHandler } from '../../chatSessions/vscode-node/chatSessions';
 import { ChatParticipantRequestHandler } from '../../prompt/node/chatParticipantRequestHandler';
 import { ContributedToolName } from '../../tools/common/toolNames';
 import { IToolsService } from '../../tools/common/toolsService';
@@ -144,6 +145,38 @@ suite('Copilot Chat Sanity Test', function () {
 			await interactiveSession.getResult();
 			assert.ok(progressReport.currentProgress);
 		});
+	});
+
+	test('E2E Production Copilot CLI session', async function () {
+		assert.ok(realInstaAccessor, 'Instantiation service accessor is not available');
+
+		const handler = __getTestParticipantHandler('copilotcli');
+		assert.ok(handler, 'Copilot CLI participant handler not registered');
+
+		const sessionId = `untitled:sanity-${Date.now()}`;
+		const resource = vscode.Uri.from({ scheme: 'copilotcli', path: `/${sessionId}` });
+
+		const request = new TestChatRequest('what is 1+2');
+		request.sessionResource = resource;
+
+		const context = {
+			history: [],
+			yieldRequested: false,
+			chatSessionContext: {
+				chatSessionItem: { resource, label: 'sanity' } as vscode.ChatSessionItem,
+				isUntitled: true,
+				initialSessionOptions: [{ optionId: 'permissionLevel', value: 'autopilot' }],
+			} as unknown as vscode.ChatSessionContext,
+		} as vscode.ChatContext;
+
+		const stream = new SpyChatResponseStream();
+		await handler(request, context, stream, fakeToken);
+
+		assert.ok(stream.currentProgress, 'Expected response from Copilot CLI session');
+		assert.ok(
+			stream.currentProgress.includes('3'),
+			`Expected response to contain "3", got: ${stream.currentProgress}`
+		);
 	});
 
 	test.skip('E2E Production Inline Chat Test', async function () {
