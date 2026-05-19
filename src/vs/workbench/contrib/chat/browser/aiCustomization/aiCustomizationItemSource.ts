@@ -315,7 +315,7 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		);
 
 		// Invalidate cache when provider or skills change
-		this._register(this.onDidChange(() => {
+		this._register(this.itemProvider.onDidChange(() => {
 			this.cachedPromise = undefined;
 		}));
 	}
@@ -481,12 +481,15 @@ export class PromptServiceItemSource implements IAICustomizationItemSource {
 			return [];
 		}
 
+		const disabledPromptFiles = this.promptsService.getDisabledPromptFiles(promptType);
+
 		const toProviderItem = (file: typeof files[number]): ICustomizationItem => ({
 			uri: file.uri,
 			type: promptType,
-			name: getFriendlyName(basename(file.uri)),
-			groupKey: 'sync-local',
-			enabled: true,
+			name: file.name ?? getFriendlyName(basename(file.uri)),
+			description: file.description,
+			storage: file.storage,
+			enabled: !disabledPromptFiles.has(file.uri),
 			extensionId: file.extension?.id,
 			pluginUri: file.pluginUri,
 			userInvocable: undefined
@@ -500,12 +503,18 @@ export class PromptServiceItemSource implements IAICustomizationItemSource {
 		const pluginFiles = files.filter(file => file.storage === PromptsStorage.plugin);
 
 		const syncEligibleItems = this.itemNormalizer.normalizeItems(syncEligibleFiles.map(toProviderItem), promptType)
-			.map(item => ({
-				...item,
-				id: `sync-${item.id}`,
-				syncable: true,
-				synced: !(this.syncProvider?.isDisabled(item.uri)),
-			}));
+			.map(item => {
+				if (!this.syncProvider) {
+					return item;
+				}
+
+				return {
+					...item,
+					id: `sync-${item.id}`,
+					syncable: true,
+					synced: !this.syncProvider.isDisabled(item.uri),
+				};
+			});
 		const pluginItems = this.itemNormalizer.normalizeItems(pluginFiles.map(toProviderItem), promptType);
 
 		return [...syncEligibleItems, ...pluginItems];

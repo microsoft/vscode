@@ -20,8 +20,8 @@ import { AICustomizationManagementSection, BUILTIN_STORAGE, IAICustomizationWork
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSyncProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
+import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
-import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 
 suite('AICustomizationItemsModel', () => {
@@ -40,9 +40,10 @@ suite('AICustomizationItemsModel', () => {
 		let providerA_callCount: number;
 		let providerA_items: ICustomizationItem[];
 		let plugins: ISettableObservable<readonly IAgentPlugin[]>;
-		let listPromptFilesResult: { uri: URI; storage: PromptsStorage.user; type: PromptsType }[];
+		let listPromptFilesResult: Awaited<ReturnType<IPromptsService['listPromptFiles']>>;
+		let disabledPromptFilesResult: ResourceSet;
 
-		function createDescriptor(id: string, provider: ICustomizationItemProvider, syncProvider?: ICustomizationSyncProvider): IHarnessDescriptor {
+		function createDescriptor(id: string, provider: ICustomizationItemProvider | undefined, syncProvider?: ICustomizationSyncProvider): IHarnessDescriptor {
 			return {
 				id,
 				label: id,
@@ -59,6 +60,7 @@ suite('AICustomizationItemsModel', () => {
 			providerA_callCount = 0;
 			providerA_items = [];
 			listPromptFilesResult = [];
+			disabledPromptFilesResult = new ResourceSet();
 
 			const providerA: ICustomizationItemProvider = {
 				onDidChange: providerA_didChange.event,
@@ -92,7 +94,7 @@ suite('AICustomizationItemsModel', () => {
 				findAgentSkills: async () => [],
 				getHooks: async () => undefined,
 				getInstructionFiles: async () => [],
-				getDisabledPromptFiles: () => new ResourceSet(),
+				getDisabledPromptFiles: () => disabledPromptFilesResult,
 			});
 
 			instaService.stub(IAICustomizationWorkspaceService, {
@@ -286,6 +288,109 @@ suite('AICustomizationItemsModel', () => {
 				name: 'Coder',
 				groupKey: BUILTIN_STORAGE,
 				isBuiltin: true,
+			}]);
+		});
+
+		test('prompt service items preserve storage grouping, metadata, and disabled state without sync provider', async () => {
+			availableHarnesses.set([createDescriptor('A', undefined), descriptorB], undefined);
+			listPromptFilesResult = [{
+				uri: URI.parse('file:///workspace/agents/team-agent.agent.md'),
+				storage: PromptsStorage.local,
+				type: PromptsType.agent,
+				name: 'Team Agent',
+				description: 'Workspace agent description',
+			}];
+			disabledPromptFilesResult = new ResourceSet([listPromptFilesResult[0].uri]);
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const items = model.getItems(AICustomizationManagementSection.Agents);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Agents);
+
+			assert.deepStrictEqual(items.get().map(item => ({
+				id: item.id,
+				uri: item.uri.toString(),
+				name: item.name,
+				description: item.description,
+				storage: item.storage,
+				disabled: item.disabled,
+				groupKey: item.groupKey,
+				syncable: item.syncable,
+				synced: item.synced,
+			})), [{
+				id: 'file:///workspace/agents/team-agent.agent.md',
+				uri: 'file:///workspace/agents/team-agent.agent.md',
+				name: 'Team Agent',
+				description: 'Workspace agent description',
+				storage: PromptsStorage.local,
+				disabled: true,
+				groupKey: undefined,
+				syncable: undefined,
+				synced: undefined,
+			}]);
+		});
+
+		test('prompt service items only get sync decoration when a sync provider exists', async () => {
+			const syncProvider: ICustomizationSyncProvider = {
+				onDidChange: Event.None,
+				isDisabled: uri => uri.toString() === 'file:///user/agents/user-agent.agent.md',
+				setDisabled: () => { },
+			};
+			availableHarnesses.set([createDescriptor('A', undefined, syncProvider), descriptorB], undefined);
+			listPromptFilesResult = [{
+				uri: URI.parse('file:///workspace/agents/workspace-agent.agent.md'),
+				storage: PromptsStorage.local,
+				type: PromptsType.agent,
+				name: 'Workspace Agent',
+			}, {
+				uri: URI.parse('file:///user/agents/user-agent.agent.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.agent,
+				name: 'User Agent',
+			}, {
+				uri: URI.parse('file:///plugins/helper/agents/plugin-agent.agent.md'),
+				storage: PromptsStorage.plugin,
+				type: PromptsType.agent,
+				name: 'Plugin Agent',
+				pluginUri: URI.parse('file:///plugins/helper'),
+				source: PromptFileSource.Plugin,
+			}];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const items = model.getItems(AICustomizationManagementSection.Agents);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Agents);
+
+			assert.deepStrictEqual(items.get().map(item => ({
+				id: item.id,
+				name: item.name,
+				storage: item.storage,
+				syncable: item.syncable,
+				synced: item.synced,
+				groupKey: item.groupKey,
+				disabled: item.disabled,
+			})), [{
+				id: 'sync-file:///user/agents/user-agent.agent.md',
+				name: 'User Agent',
+				storage: PromptsStorage.user,
+				syncable: true,
+				synced: false,
+				groupKey: undefined,
+				disabled: false,
+			}, {
+				id: 'sync-file:///workspace/agents/workspace-agent.agent.md',
+				name: 'Workspace Agent',
+				storage: PromptsStorage.local,
+				syncable: true,
+				synced: true,
+				groupKey: undefined,
+				disabled: false,
+			}, {
+				id: 'file:///plugins/helper/agents/plugin-agent.agent.md',
+				name: 'Plugin Agent',
+				storage: PromptsStorage.plugin,
+				syncable: undefined,
+				synced: undefined,
+				groupKey: undefined,
+				disabled: false,
 			}]);
 		});
 
