@@ -929,7 +929,7 @@ export function parseGitRemotes(raw: string): MutableRemote[] {
 	return remotes;
 }
 
-const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)(?:\n((?:.*)files? changed(?:.*))$)?/gm;
+const commitRegex = /([0-9a-f]{40}|[0-9a-f]{64})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)(?:\n((?:.*)files? changed(?:.*))$)?/gm;
 
 export function parseGitCommits(data: string): Commit[] {
 	const commits: Commit[] = [];
@@ -1042,7 +1042,7 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
-const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)?on\s([^:]+):\s(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
+const stashRegex = /([0-9a-f]{40}|[0-9a-f]{64})\n(.*)\nstash@{(\d+)}\n(WIP\s)?on\s([^:]+):\s(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
 
 function parseGitStashes(raw: string): Stash[] {
 	const result: Stash[] = [];
@@ -1229,7 +1229,7 @@ export interface BlameInformation {
 
 function parseGitBlame(data: string): BlameInformation[] {
 	const lineSeparator = /\r?\n/;
-	const commitRegex = /^([0-9a-f]{40})/gm;
+	const commitRegex = /^([0-9a-f]{40}|[0-9a-f]{64})/gm;
 
 	const blameInformation = new Map<string, BlameInformation>();
 
@@ -1289,7 +1289,7 @@ const REFS_FORMAT = '%(refname)%00%(objectname)%00%(*objectname)';
 const REFS_WITH_DETAILS_FORMAT = `${REFS_FORMAT}%00%(parent)%00%(*parent)%00%(authorname)%00%(*authorname)%00%(committerdate:unix)%00%(*committerdate:unix)%00%(subject)%00%(*subject)`;
 
 function parseRefs(data: string): (Ref | Branch)[] {
-	const refRegex = /^(refs\/[^\0]+)\0([0-9a-f]{40})\0([0-9a-f]{40})?(?:\0(.*))?$/gm;
+	const refRegex = /^(refs\/[^\0]+)\0([0-9a-f]{40}|[0-9a-f]{64})\0([0-9a-f]{40}|[0-9a-f]{64})?(?:\0(.*))?$/gm;
 
 	const headRegex = /^refs\/heads\/([^ ]+)$/;
 	const remoteHeadRegex = /^refs\/remotes\/([^/]+)\/([^ ]+)$/;
@@ -2978,7 +2978,7 @@ export class Repository {
 		}
 
 		// Detached
-		const commitMatch = raw.match(/^(?<commit>[0-9a-f]{40})$/m);
+		const commitMatch = raw.match(/^(?<commit>[0-9a-f]{40}|[0-9a-f]{64})$/m);
 		if (commitMatch?.groups?.commit) {
 			return { name: undefined, commit: commitMatch.groups.commit, type: RefType.Head };
 		}
