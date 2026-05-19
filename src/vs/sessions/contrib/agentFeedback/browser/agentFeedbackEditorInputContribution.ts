@@ -96,6 +96,20 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 			this._updateActionForAlt(status.altKey);
 		}));
 
+		// Focus the input when clicking anywhere on the widget that isn't the
+		// textarea itself or the action bar (e.g. padding around the textarea).
+		this._register(addStandardDisposableListener(this._domNode, 'mousedown', e => {
+			const target = e.target as Node | null;
+			if (target === this._inputElement) {
+				return;
+			}
+			if (actionsContainer.contains(target)) {
+				return;
+			}
+			e.preventDefault();
+			this._inputElement.focus();
+		}));
+
 		this._lineHeight = 22;
 		this._inputElement.style.lineHeight = `${this._lineHeight}px`;
 	}

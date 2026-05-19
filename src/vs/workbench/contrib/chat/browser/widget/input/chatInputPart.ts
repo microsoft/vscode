@@ -83,7 +83,7 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModes, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatPlanReview, IChatQuestionCarousel, IChatToolInvocation } from '../../../common/chatService/chatService.js';
-import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
@@ -1381,7 +1381,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!sessionResource) {
 			return;
 		}
-		if (!requests || requests.length === 0) {
+		if (!requests || requests.length === 0 || getChatSessionType(sessionResource) !== SessionType.CopilotCLI) {
 			return;
 		}
 
