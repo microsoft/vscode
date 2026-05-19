@@ -5,15 +5,12 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { Range } from '../../../../../../editor/common/core/range.js';
-import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { AICustomizationManagementEditor } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditor, buildCustomizationPreviewMarkdown } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { BUILTIN_STORAGE } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IHeaderAttribute } from '../../../common/promptSyntax/promptFileParser.js';
-import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
+import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
 suite('aiCustomizationManagementEditor', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -23,7 +20,6 @@ suite('aiCustomizationManagementEditor', () => {
 		currentEditingStorage: string | undefined;
 		currentEditingReadOnly: boolean;
 		editorDisplayMode: 'preview' | 'raw';
-		editorPreviewFrontMatterContainer: HTMLElement | undefined;
 		editorPreviewDisposables: { add<T>(value: T): T; clear(): void; dispose(): void };
 		editorPreviewRenderScheduler: { cancel(): void; schedule(): void };
 		viewMode: 'list' | 'editor' | 'mcpDetail' | 'pluginDetail';
@@ -32,16 +28,11 @@ suite('aiCustomizationManagementEditor', () => {
 		configurationService: IConfigurationService;
 		getEditorModeButtonLabel(): string;
 		getEditorModeButtonTooltip(): string;
-		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
-		onStructuredPreviewSettingChanged(): void;
+		onMarkdownPreviewSettingChanged(): void;
 	};
 
 	function createConfigurationServiceStub(values: Record<string, unknown> = {}): IConfigurationService {
-		// Default to enabling the structured preview so existing assertions exercise the preview path.
-		const merged: Record<string, unknown> = {
-			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
-			...values,
-		};
+		const merged: Record<string, unknown> = { ...values };
 		return {
 			getValue: (key: string) => merged[key],
 			setValue: (key: string, value: unknown) => { merged[key] = value; },
@@ -54,7 +45,6 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.currentEditingStorage = undefined;
 		editor.currentEditingReadOnly = false;
 		editor.editorDisplayMode = 'preview';
-		editor.editorPreviewFrontMatterContainer = document.createElement('div');
 		editor.editorPreviewDisposables = {
 			add<T>(value: T): T {
 				return value;
@@ -78,19 +68,6 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.viewMode = 'list';
 		editor.dimension = undefined;
 		return editor;
-	}
-
-	function createScalarAttribute(key: string, value: string): IHeaderAttribute {
-		return {
-			key,
-			range: new Range(1, 1, 1, key.length + value.length + 1),
-			value: {
-				type: 'scalar',
-				value,
-				range: new Range(1, 1, 1, value.length + 1),
-				format: 'double',
-			},
-		};
 	}
 
 	test('uses edit copy for built-in skills that support raw overrides', () => {
@@ -119,40 +96,9 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('clicking a preview field help button opens the managed hover with focus', () => {
-		let focused: boolean | undefined;
-		const hoverService = {
-			setupManagedHover: (): IManagedHover => ({
-				dispose() { },
-				show(focus?: boolean): void {
-					focused = focus;
-				},
-				hide(): void { },
-				update(): void { },
-			}),
-		} as unknown as IHoverService;
-		const editor = createTestEditor(hoverService);
-		const container = editor.editorPreviewFrontMatterContainer!;
-		document.body.appendChild(container);
-
-		try {
-			editor.renderPreviewAttribute(createScalarAttribute('description', 'Helpful text'), PromptsType.agent, Target.VSCode);
-
-			const helpButton = container.querySelector('button.editor-preview-row-help') as HTMLButtonElement | null;
-			assert.ok(helpButton);
-
-			helpButton.click();
-
-			assert.strictEqual(focused, true);
-		} finally {
-			container.remove();
-			editor.editorPreviewDisposables.dispose();
-		}
-	});
-
-	test('hides preview button when structured preview setting is disabled', () => {
+	test('hides preview button when markdown preview setting is disabled', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: false,
+			[ChatConfiguration.ChatCustomizationsMarkdownPreviewEnabled]: false,
 		}));
 		editor.currentEditingPromptType = PromptsType.agent;
 		editor.currentEditingStorage = BUILTIN_STORAGE;
@@ -172,16 +118,68 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.currentEditingPromptType = PromptsType.agent;
 		editor.editorDisplayMode = 'preview';
 
-		// Sanity: setting is on and file is editable, so label is "Edit" (preview mode).
-		assert.strictEqual(editor.getEditorModeButtonLabel(), 'Edit');
-
-		// Flip the setting off and run the change handler.
-		configurationService.setValue(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled, false);
-		editor.onStructuredPreviewSettingChanged();
+		configurationService.setValue(ChatConfiguration.ChatCustomizationsMarkdownPreviewEnabled, false);
+		editor.onMarkdownPreviewSettingChanged();
 
 		assert.strictEqual(editor.editorDisplayMode, 'raw');
 		assert.strictEqual(editor.getEditorModeButtonLabel(), '');
 
 		editor.editorPreviewDisposables.dispose();
+	});
+
+	suite('buildCustomizationPreviewMarkdown', () => {
+		test('returns content unchanged when there is no front matter', () => {
+			const content = '# Hello\n\nNo front matter here.\n';
+			assert.strictEqual(buildCustomizationPreviewMarkdown(content), content);
+		});
+
+		test('wraps front matter in a fenced yaml block', () => {
+			const content = '---\ndescription: An agent\nmode: agent\n---\n\n# Body\n\nHello.\n';
+			const result = buildCustomizationPreviewMarkdown(content);
+			assert.strictEqual(result, '```yaml\ndescription: An agent\nmode: agent\n```\n\n# Body\n\nHello.\n');
+		});
+
+		test('handles CRLF line endings', () => {
+			const content = '---\r\ndescription: An agent\r\n---\r\n\r\n# Body\r\n';
+			const result = buildCustomizationPreviewMarkdown(content);
+			assert.strictEqual(result, '```yaml\ndescription: An agent\n```\n\n# Body\r\n');
+		});
+
+		test('uses a longer fence when YAML contains triple backticks', () => {
+			const content = '---\ndescription: "Use ```ts for code"\n---\n\n# Body\n';
+			const result = buildCustomizationPreviewMarkdown(content);
+			assert.ok(result.startsWith('````yaml\n'), `Expected 4-backtick fence, got: ${result.slice(0, 20)}`);
+			assert.ok(result.includes('\n````\n'), 'Expected matching 4-backtick closing fence');
+			assert.ok(result.includes('description: "Use ```ts for code"'), 'YAML body should be preserved verbatim');
+		});
+
+		test('uses a fence longer than the longest backtick run in YAML', () => {
+			const content = '---\nexample: "fence: ```` four ticks"\n---\n\nbody\n';
+			const result = buildCustomizationPreviewMarkdown(content);
+			assert.ok(result.startsWith('`````yaml\n'), `Expected 5-backtick fence, got: ${result.slice(0, 20)}`);
+		});
+
+		test('returns content unchanged when there is no closing front-matter delimiter', () => {
+			const content = '---\ndescription: Open frontmatter\n# typing in progress';
+			assert.strictEqual(buildCustomizationPreviewMarkdown(content), content);
+		});
+
+		test('renders empty front matter as an empty fenced yaml block', () => {
+			const content = '---\n---';
+			const result = buildCustomizationPreviewMarkdown(content);
+			assert.strictEqual(result, '```yaml\n\n```\n\n');
+		});
+
+		test('renders comment-only front matter inside the fenced yaml block', () => {
+			const content = '---\n# note\n---\nBody text here.';
+			const result = buildCustomizationPreviewMarkdown(content);
+			assert.strictEqual(result, '```yaml\n# note\n```\n\nBody text here.');
+		});
+
+		test('handles front matter with no body', () => {
+			const content = '---\ndescription: Just metadata\n---\n';
+			const result = buildCustomizationPreviewMarkdown(content);
+			assert.strictEqual(result, '```yaml\ndescription: Just metadata\n```\n\n');
+		});
 	});
 });

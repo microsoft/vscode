@@ -34,6 +34,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { basename, dirname, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { parseFrontMatter } from '../../../../../base/common/yaml.js';
 import { registerColor } from '../../../../../platform/theme/common/colorRegistry.js';
 import { PANEL_BORDER } from '../../../../common/theme.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
@@ -60,9 +61,7 @@ import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIco
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { IHeaderAttribute, IValue, ParsedPromptFile } from '../../common/promptSyntax/promptFileParser.js';
 import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
-import { getAttributeDefinition, getTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
 import { INewPromptOptions, NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../promptSyntax/newPromptFileActions.js';
 import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory } from './customizationCreatorService.js';
@@ -283,8 +282,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private editorContentContainer: HTMLElement | undefined;
 	private editorPreviewContainer: HTMLElement | undefined;
 	private editorPreviewScrollContainer: HTMLElement | undefined;
-	private editorPreviewIssuesContainer: HTMLElement | undefined;
-	private editorPreviewFrontMatterContainer: HTMLElement | undefined;
 	private editorPreviewBodyContainer: HTMLElement | undefined;
 	private embeddedEditorContainer: HTMLElement | undefined;
 	private embeddedEditor: CodeEditorWidget | undefined;
@@ -634,8 +631,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 					this.harnessService.setActiveHarness(SessionType.Local);
 				}
 			}
-			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled)) {
-				this.onStructuredPreviewSettingChanged();
+			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsMarkdownPreviewEnabled)) {
+				this.onMarkdownPreviewSettingChanged();
 			}
 		}));
 
@@ -1541,11 +1538,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorPreviewScrollContainer.setAttribute('role', 'region');
 		this.editorPreviewScrollContainer.setAttribute('aria-label', localize('customizationPreviewAriaLabel', "Customization preview"));
 
-		this.editorPreviewIssuesContainer = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-issues'));
-
-		const frontMatterSection = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-section.editor-preview-frontmatter-section'));
-		this.editorPreviewFrontMatterContainer = DOM.append(frontMatterSection, $('.editor-preview-frontmatter-list'));
-
 		const bodySection = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-section.editor-preview-body-section'));
 		this.editorPreviewBodyContainer = DOM.append(bodySection, $('.editor-preview-body-content'));
 
@@ -1966,7 +1958,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private isStructuredPreviewSupported(promptType: PromptsType | undefined): boolean {
-		if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled) !== true) {
+		if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMarkdownPreviewEnabled) === false) {
 			return false;
 		}
 		return promptType === PromptsType.agent
@@ -1975,12 +1967,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			|| promptType === PromptsType.prompt;
 	}
 
-	private onStructuredPreviewSettingChanged(): void {
+	private onMarkdownPreviewSettingChanged(): void {
 		if (this.viewMode !== 'editor') {
 			return;
 		}
-		const supportsStructuredPreview = this.isStructuredPreviewSupported(this.currentEditingPromptType);
-		if (!supportsStructuredPreview) {
+		const supportsPreview = this.isStructuredPreviewSupported(this.currentEditingPromptType);
+		if (!supportsPreview) {
 			this.editorDisplayMode = 'raw';
 			this.editorPreviewRenderScheduler.cancel();
 			this.clearEditorPreview();
@@ -2069,7 +2061,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		if (this.editorDisplayMode === 'raw') {
-			return localize('editorPreviewButtonTooltip', "Show structured preview");
+			return localize('editorPreviewButtonTooltip', "Show rendered preview");
 		}
 
 		return this.canEditCurrentRaw()
@@ -2098,150 +2090,38 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private renderCurrentEditorPreview(): void {
 		const model = this.getCurrentEditingModel();
 		const promptType = this.currentEditingPromptType;
-		if (!model || !promptType || this.editorDisplayMode !== 'preview' || !this.isStructuredPreviewSupported(promptType)) {
+		const uri = this.currentEditingUri;
+		if (!model || !promptType || !uri || this.editorDisplayMode !== 'preview' || !this.isStructuredPreviewSupported(promptType)) {
 			this.clearEditorPreview();
 			return;
 		}
 
-		const parsedPromptFile = this.promptsService.getParsedPromptFile(model);
-		this.renderEditorPreview(parsedPromptFile, promptType);
+		this.renderEditorPreview(model.getValue(), uri);
 	}
 
-	private renderEditorPreview(parsedPromptFile: ParsedPromptFile, promptType: PromptsType): void {
-		if (!this.editorPreviewIssuesContainer || !this.editorPreviewFrontMatterContainer || !this.editorPreviewBodyContainer) {
-			return;
-		}
-
-		this.editorPreviewDisposables.clear();
-		DOM.clearNode(this.editorPreviewIssuesContainer);
-		DOM.clearNode(this.editorPreviewFrontMatterContainer);
-		DOM.clearNode(this.editorPreviewBodyContainer);
-
-		const target = getTarget(promptType, parsedPromptFile.header ?? parsedPromptFile.uri);
-		this.renderPreviewIssues(parsedPromptFile);
-		this.renderPreviewFrontMatter(parsedPromptFile, promptType, target);
-		this.renderPreviewBody(parsedPromptFile);
-	}
-
-	private renderPreviewIssues(parsedPromptFile: ParsedPromptFile): void {
-		if (!this.editorPreviewIssuesContainer || !parsedPromptFile.header?.errors.length) {
-			return;
-		}
-
-		const issuesContainer = DOM.append(this.editorPreviewIssuesContainer, $('.editor-preview-issues-box'));
-		DOM.append(issuesContainer, $('div.editor-preview-issues-title')).textContent = localize('previewHeaderIssuesTitle', "Header issues detected");
-		DOM.append(issuesContainer, $('div.editor-preview-issues-description')).textContent = localize('previewHeaderIssuesDescription', "Switch to raw view to fix invalid or unsupported metadata entries.");
-		const list = DOM.append(issuesContainer, $('ul.editor-preview-issues-list'));
-		for (const error of parsedPromptFile.header.errors) {
-			DOM.append(list, $('li.editor-preview-issues-item')).textContent = error.message;
-		}
-	}
-
-	private renderPreviewFrontMatter(parsedPromptFile: ParsedPromptFile, promptType: PromptsType, target: Target): void {
-		if (!this.editorPreviewFrontMatterContainer) {
-			return;
-		}
-
-		const attributes = parsedPromptFile.header?.attributes ?? [];
-		if (!attributes.length) {
-			DOM.append(this.editorPreviewFrontMatterContainer, $('div.editor-preview-empty-state')).textContent = localize('previewNoFrontMatter', "No metadata found in this file.");
-			return;
-		}
-
-		for (const attribute of attributes) {
-			this.renderPreviewAttribute(attribute, promptType, target);
-		}
-	}
-
-	private renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void {
-		if (!this.editorPreviewFrontMatterContainer) {
-			return;
-		}
-
-		const row = DOM.append(this.editorPreviewFrontMatterContainer, $('.editor-preview-row'));
-		const header = DOM.append(row, $('.editor-preview-row-header'));
-		DOM.append(header, $('div.editor-preview-row-key')).textContent = attribute.key;
-
-		const helpButton = DOM.append(header, $('button.editor-preview-row-help')) as HTMLButtonElement;
-		helpButton.type = 'button';
-		helpButton.setAttribute('aria-label', localize('previewFieldHelpAriaLabel', "Show help for '{0}'", attribute.key));
-		const helpIcon = DOM.append(helpButton, $('span.editor-preview-row-help-icon'));
-		helpIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
-		helpIcon.setAttribute('aria-hidden', 'true');
-
-		const description = getAttributeDefinition(attribute.key, promptType, target)?.description ?? localize('previewUnknownFieldDescription', "Custom metadata field `{0}`.", attribute.key);
-		const helpHover = this.editorPreviewDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), helpButton, {
-			markdown: new MarkdownString(description),
-			markdownNotSupportedFallback: description,
-		}));
-		this.editorPreviewDisposables.add(DOM.addDisposableListener(helpButton, 'click', e => {
-			e.preventDefault();
-			e.stopPropagation();
-			helpHover.show(true);
-		}));
-
-		const valueElement = DOM.append(row, $('div.editor-preview-row-value'));
-		const valueText = this.stringifyPreviewValue(attribute.value);
-		valueElement.textContent = valueText;
-		valueElement.classList.toggle('multiline', valueText.includes('\n'));
-	}
-
-	private renderPreviewBody(parsedPromptFile: ParsedPromptFile): void {
+	private renderEditorPreview(rawContent: string, uri: URI): void {
 		if (!this.editorPreviewBodyContainer) {
 			return;
 		}
 
-		const bodyContent = parsedPromptFile.body?.getContent() ?? '';
-		if (!bodyContent.trim()) {
-			DOM.append(this.editorPreviewBodyContainer, $('div.editor-preview-empty-state')).textContent = localize('previewNoBody', "No markdown body found in this file.");
+		this.editorPreviewDisposables.clear();
+		DOM.clearNode(this.editorPreviewBodyContainer);
+
+		const previewSource = buildCustomizationPreviewMarkdown(rawContent);
+		if (!previewSource.trim()) {
+			DOM.append(this.editorPreviewBodyContainer, $('div.editor-preview-empty-state')).textContent = localize('previewNoBody', "No content found in this file.");
 			return;
 		}
 
-		const markdown = new MarkdownString(bodyContent, { supportThemeIcons: true });
-		markdown.baseUri = parsedPromptFile.uri;
+		const markdown = new MarkdownString(previewSource, { supportThemeIcons: true });
+		markdown.baseUri = uri;
 		const renderedMarkdown = this.editorPreviewDisposables.add(this.markdownRendererService.render(markdown));
 		this.editorPreviewBodyContainer.appendChild(renderedMarkdown.element);
-	}
-
-	private stringifyPreviewValue(value: IValue): string {
-		switch (value.type) {
-			case 'scalar':
-				return value.value;
-			case 'sequence':
-				if (value.items.every(item => item.type === 'scalar')) {
-					return value.items.map(item => item.value).join('\n');
-				}
-				return JSON.stringify(this.toPreviewObject(value), null, 2);
-			case 'map':
-				return JSON.stringify(this.toPreviewObject(value), null, 2);
-		}
-	}
-
-	private toPreviewObject(value: IValue): unknown {
-		switch (value.type) {
-			case 'scalar':
-				return value.value;
-			case 'sequence':
-				return value.items.map(item => this.toPreviewObject(item));
-			case 'map': {
-				const entries: Record<string, unknown> = {};
-				for (const property of value.properties) {
-					entries[property.key.value] = this.toPreviewObject(property.value);
-				}
-				return entries;
-			}
-		}
 	}
 
 	private clearEditorPreview(): void {
 		this.editorPreviewRenderScheduler.cancel();
 		this.editorPreviewDisposables.clear();
-		if (this.editorPreviewIssuesContainer) {
-			DOM.clearNode(this.editorPreviewIssuesContainer);
-		}
-		if (this.editorPreviewFrontMatterContainer) {
-			DOM.clearNode(this.editorPreviewFrontMatterContainer);
-		}
 		if (this.editorPreviewBodyContainer) {
 			DOM.clearNode(this.editorPreviewBodyContainer);
 		}
@@ -2396,4 +2276,45 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	//#endregion
+}
+
+/**
+ * Builds the markdown source used to preview a customization file. Front matter
+ * (when present and well-formed) is preserved by wrapping it in a fenced
+ * `yaml` code block. The fence length is chosen dynamically so that backticks
+ * inside YAML values do not terminate the block early.
+ *
+ * Exported for unit testing.
+ */
+export function buildCustomizationPreviewMarkdown(rawContent: string): string {
+	const parsed = parseFrontMatter(rawContent);
+	// `parsed.body === rawContent` means parseFrontMatter found no usable front
+	// matter (no opening `---`, or no closing `---`), so render the file as-is.
+	if (!parsed || parsed.body === rawContent) {
+		return rawContent;
+	}
+
+	// parseFrontMatter returns the body string starting at the first byte after
+	// the closing `---` marker. The remainder of the input (front-matter
+	// delimiters included) is the original front-matter section.
+	const headerSection = rawContent.slice(0, rawContent.length - parsed.body.length);
+	const yamlOnly = headerSection
+		.replace(/^---\r?\n/, '')
+		.replace(/\r?\n---\r?\n?$/, '')
+		.replace(/^---$/, '');
+	const body = parsed.body.replace(/^\r?\n+/, '');
+	const fenceLength = Math.max(3, longestBacktickRun(yamlOnly) + 1);
+	const fence = '`'.repeat(fenceLength);
+	return `${fence}yaml\n${yamlOnly}\n${fence}\n\n${body}`;
+}
+
+function longestBacktickRun(text: string): number {
+	let longest = 0;
+	const matches = text.matchAll(/`+/g);
+	for (const match of matches) {
+		if (match[0].length > longest) {
+			longest = match[0].length;
+		}
+	}
+	return longest;
 }

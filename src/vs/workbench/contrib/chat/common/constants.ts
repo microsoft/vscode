@@ -69,7 +69,7 @@ export enum ChatConfiguration {
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
 
 	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
-	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
+	ChatCustomizationsMarkdownPreviewEnabled = 'chat.customizations.markdownPreview.enabled',
 	UseChatSessionCustomizationsForCustomAgents = 'chat.customizations.useChatSessionCustomizationsForCustomAgents',
 	AutopilotEnabled = 'chat.autopilot.enabled',
 	PlanReviewInlineEditorEnabled = 'chat.planReview.inlineEditor.enabled',
