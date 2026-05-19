@@ -169,7 +169,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		const hookFiles = await this.promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
 
 		// Non-plugin hooks: return raw file items — expansion into individual
-		// hook entries is handled by ProviderCustomizationItemSource.fetchItemsFromProvider().
+		// hook entries is handled by ItemProviderItemSource.fetchItems().
 		// Plugin hooks: add directly as-is since they're pre-expanded by
 		// plugin manifests and must NOT be re-parsed by expandHookFileItems.
 		for (const f of hookFiles) {

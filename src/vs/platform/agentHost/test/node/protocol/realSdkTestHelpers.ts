@@ -79,10 +79,13 @@ export interface IRealSdkProviderConfig {
 	 */
 	readonly shellToolName: string;
 	/**
-	 * Tool name used by the provider for spawning a subagent. Used in the
-	 * subagent-routing prompt. (`task` for Copilot, `Task` for Claude.)
+	 * Tool names the provider uses to dispatch a subagent. The first entry
+	 * is used in the subagent-routing prompt; all entries are exempted from
+	 * the "parent must not contain inner tool calls" assertion. (`['task']`
+	 * for Copilot; Claude exposes both `Task` and `Agent` as subagent-kind
+	 * tools and the model may pick either.)
 	 */
-	readonly subagentToolName: string;
+	readonly subagentToolNames: readonly string[];
 	/**
 	 * Tool name used by the provider to confirm the user is ready to leave
 	 * plan mode. (`exit_plan_mode` for Copilot, `ExitPlanMode` for Claude.)
@@ -866,7 +869,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			})();
 
 			dispatchTurn(client, sessionUri, 'turn-sa',
-				`Use the \`${config.subagentToolName}\` tool to spawn a subagent to list the files in the current working directory. ` +
+				`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
 				'The subagent should call a single read-only tool (e.g. `view` or shell with `ls`) to enumerate the directory. ' +
 				'Do not enumerate the directory yourself — delegate to the subagent.',
 				1);
@@ -904,7 +907,8 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			const parentStarts = toolStarts.filter(t => t.channel === sessionUri).map(t => t.action);
 			const subagentStarts = toolStarts.filter(t => t.channel === subagentSessionUri).map(t => t.action);
 
-			const parentNonTaskStarts = parentStarts.filter(a => a.toolName !== config.subagentToolName);
+			const subagentToolNames = new Set<string>(config.subagentToolNames);
+			const parentNonTaskStarts = parentStarts.filter(a => !subagentToolNames.has(a.toolName));
 			assert.deepStrictEqual(parentNonTaskStarts.map(a => a.toolName), [],
 				`parent session should not contain inner tool calls; found: ${JSON.stringify(parentNonTaskStarts.map(a => a.toolName))}`);
 

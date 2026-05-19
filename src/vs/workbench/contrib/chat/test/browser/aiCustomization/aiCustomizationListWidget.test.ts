@@ -241,7 +241,7 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => observableValue('test', [] as readonly never[]),
 				getCount: () => observableValue('test', 0),
 				getPluginCount: () => observableValue('test', 0),
-				getActiveItemSource: () => ({ onDidChange: Event.None, fetchItems: async () => [] }),
+				getActiveItemSource: () => ({ onDidChange: Event.None, fetchItems: async () => [], sessionResource: activeSessionResource.get(), dispose() { } }),
 				getPromptsServiceItemProvider: () => ({ onDidChange: Event.None, provideChatSessionCustomizations: async () => undefined }),
 			});
 		});

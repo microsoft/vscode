@@ -12,7 +12,6 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
-import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -227,7 +226,6 @@ export class CloudModelPicker extends Disposable {
 
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
 		this._triggerElement.ariaLabel = localize('modelPicker.triggerAriaLabel', "Pick Model, {0}", label);
 

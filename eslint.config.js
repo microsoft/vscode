@@ -338,7 +338,7 @@ export default tseslint.config(
 			'src/vs/workbench/services/remote/common/tunnelModel.ts',
 			'src/vs/workbench/services/search/common/textSearchManager.ts',
 			'src/vs/workbench/test/browser/workbenchTestServices.ts',
-			'src/vs/platform/agentHost/common/state/protocol/reducers.ts',
+			'src/vs/platform/agentHost/common/state/protocol/**',
 			'test/automation/src/playwrightDriver.ts',
 			'.eslint-plugin-local/**/*',
 		],
