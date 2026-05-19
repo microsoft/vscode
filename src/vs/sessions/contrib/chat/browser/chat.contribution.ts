@@ -42,6 +42,10 @@ import { AccessibleViewRegistry } from '../../../../platform/accessibility/brows
 import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
+// Eagerly load the Copilot usage-based billing banner service so its
+// dev-only "Show Copilot Billing Banner" command is registered before the
+// chat input widget instantiates it.
+import '../../../../workbench/contrib/chat/browser/widget/input/chatBillingBannerService.js';
 
 
 class NewChatInSessionsWindowAction extends Action2 {

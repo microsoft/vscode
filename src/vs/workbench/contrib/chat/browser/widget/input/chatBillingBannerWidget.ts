@@ -27,16 +27,16 @@ const $ = dom.$;
 export const enum ChatBillingBannerVariant {
 	/** Chat panel (sidebar) and welcome screens. CTA = "Copilot Dashboard". */
 	Panel = 'panel',
-	/** Agents / Copilot Edits window. CTA = "Manage Subscription". */
+	/** Agents window. CTA = "View Account" (opens the title-bar account panel). */
 	Agents = 'agents',
 }
 
 /** External docs link shown on slide 3 of every variant. */
 const GITHUB_DOCS_URL = 'https://docs.github.com/en/copilot/how-tos/manage-your-account';
-/** External CTA target for the Agents variant. */
-const COPILOT_SETTINGS_URL = 'https://github.com/settings/copilot';
 /** Workbench command that opens the Copilot status dashboard (the popover anchored on the Copilot status bar entry). */
 const PANEL_CTA_COMMAND_ID = 'workbench.action.chat.openStatusDashboard';
+/** Agents-window command that opens the title-bar account & Copilot status panel. Registered in `sessions/contrib/accountMenu/browser/account.contribution.ts`. */
+const AGENTS_CTA_COMMAND_ID = 'workbench.action.agents.openAccountMenu';
 
 interface ISlide {
 	readonly title: string;
@@ -302,22 +302,7 @@ export class ChatBillingBannerWidget extends Disposable {
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private _animator: BillingBannerCanvasAnimator | undefined;
 
-	private readonly _slides: ReadonlyArray<ISlide> = [
-		{
-			title: localize('billingBanner.slide1.title', "Copilot billing has changed"),
-			description: localize('billingBanner.slide1.desc', "Copilot now measures usage in AI credits instead of request counts. Each plan includes a monthly credit allowance, and your subscription price is unchanged."),
-		},
-		{
-			title: localize('billingBanner.slide2.title', "Cost scales with the work done"),
-			description: localize('billingBanner.slide2.desc', "A quick chat costs a fraction of a credit. Agent sessions and more powerful models cost more because they do more. Code completions and next edit suggestions don\u2019t draw from your credits."),
-		},
-		{
-			title: localize('billingBanner.slide3.title', "Monitor and manage your usage"),
-			description: localize('billingBanner.slide3.desc', "Credits reset each month. Open the Copilot status dashboard to check your remaining allowance, upgrade, or set an overage budget."),
-			linkLabel: localize('billingBanner.slide3.link', "Learn more on GitHub Docs"),
-			linkHref: GITHUB_DOCS_URL,
-		},
-	];
+	private readonly _slides: ReadonlyArray<ISlide>;
 
 	private _step = 0;
 	private _titleEl: HTMLElement | undefined;
@@ -340,6 +325,32 @@ export class ChatBillingBannerWidget extends Disposable {
 
 		this.domNode = $('.chat-billing-banner-widget');
 		this.domNode.classList.add(`variant-${_variant}`);
+
+		// Slide 3 differs by host surface: the panel variant points users at
+		// the in-product Copilot status dashboard, while the Agents variant
+		// surfaces the title-bar account menu (which shows the user's
+		// Copilot subscription state) since the dashboard isn't reachable
+		// from the Agents window.
+		const slide3Desc = _variant === ChatBillingBannerVariant.Agents
+			? localize('billingBanner.slide3.desc.agents', "Credits reset each month. View your Copilot subscription and remaining allowance from your GitHub account in the title bar.")
+			: localize('billingBanner.slide3.desc', "Credits reset each month. Open the Copilot status dashboard to check your remaining allowance, upgrade, or set an overage budget.");
+
+		this._slides = [
+			{
+				title: localize('billingBanner.slide1.title', "Copilot billing has changed"),
+				description: localize('billingBanner.slide1.desc', "Copilot now measures usage in AI credits instead of request counts. Each plan includes a monthly credit allowance, and your subscription price is unchanged."),
+			},
+			{
+				title: localize('billingBanner.slide2.title', "Cost scales with the work done"),
+				description: localize('billingBanner.slide2.desc', "A quick chat costs a fraction of a credit. Agent sessions and more powerful models cost more because they do more. Code completions and next edit suggestions don\u2019t draw from your credits."),
+			},
+			{
+				title: localize('billingBanner.slide3.title', "Monitor and manage your usage"),
+				description: slide3Desc,
+				linkLabel: localize('billingBanner.slide3.link', "Learn more on GitHub Docs"),
+				linkHref: GITHUB_DOCS_URL,
+			},
+		];
 
 		this._register(this._bannerService.onDidChange(() => this._render()));
 		this._render();
@@ -456,7 +467,7 @@ export class ChatBillingBannerWidget extends Disposable {
 		if (this._variant === ChatBillingBannerVariant.Panel) {
 			this._ctaBtn.label = `$(${Codicon.copilot.id}) ${localize('billingBanner.cta.dashboard', "Copilot Dashboard")}`;
 		} else {
-			this._ctaBtn.label = localize('billingBanner.cta.manage', "Manage Subscription");
+			this._ctaBtn.label = `$(${Codicon.account.id}) ${localize('billingBanner.cta.viewAccount', "View Account")}`;
 		}
 	}
 
@@ -530,10 +541,9 @@ export class ChatBillingBannerWidget extends Disposable {
 	}
 
 	private _handleCta(): void {
-		if (this._variant === ChatBillingBannerVariant.Panel) {
-			this._commandService.executeCommand(PANEL_CTA_COMMAND_ID);
-		} else {
-			this._openerService.open(URI.parse(COPILOT_SETTINGS_URL));
-		}
+		const commandId = this._variant === ChatBillingBannerVariant.Panel
+			? PANEL_CTA_COMMAND_ID
+			: AGENTS_CTA_COMMAND_ID;
+		this._commandService.executeCommand(commandId);
 	}
 }

@@ -46,6 +46,21 @@ const AccountMenu = Menus.AccountMenu;
 const SessionsTitleBarAccountWidgetAction = 'sessions.action.titleBarAccountWidget';
 const SESSIONS_ACCOUNT_TITLEBAR_PANEL_WIDTH = 360;
 
+/**
+ * Command id for programmatically opening the Agents-window account panel
+ * (the popover anchored to the title-bar avatar). Used e.g. by the Copilot
+ * usage-based billing onboarding banner CTA.
+ */
+export const SESSIONS_OPEN_ACCOUNT_MENU_COMMAND_ID = 'workbench.action.agents.openAccountMenu';
+
+/**
+ * The most recently rendered title-bar account widget instance. There is
+ * only ever one of these in the Agents window, so a module-local handle is
+ * enough to let commands trigger {@link TitleBarAccountWidget.openAccountPanel}
+ * without plumbing a dedicated service.
+ */
+let activeTitleBarAccountWidget: TitleBarAccountWidget | undefined;
+
 const PERSONALIZE_ACTION_IDS: readonly string[] = [
 	'workbench.action.openSettings',
 ];
@@ -191,6 +206,13 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaRemaining(() => this.renderState()));
 		this.refreshAccount();
+
+		activeTitleBarAccountWidget = this;
+		this._register(toDisposable(() => {
+			if (activeTitleBarAccountWidget === this) {
+				activeTitleBarAccountWidget = undefined;
+			}
+		}));
 	}
 
 	override setFocusable(_focusable: boolean): void {
@@ -221,6 +243,17 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			return;
 		}
 
+		this.showCombinedPanel();
+	}
+
+	/**
+	 * Programmatic entry point that mirrors clicking the title-bar avatar.
+	 * Used by the Copilot billing banner CTA to surface the account panel.
+	 */
+	public openAccountPanel(): void {
+		if (!this.container) {
+			return;
+		}
 		this.showCombinedPanel();
 	}
 
@@ -608,6 +641,23 @@ registerAction2(class extends Action2 {
 	}
 
 	run(): void { }
+});
+
+// Programmatic entry point for the account panel. Used by the Copilot
+// billing banner CTA in the Agents window, which surfaces the panel
+// directly instead of opening an external URL.
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: SESSIONS_OPEN_ACCOUNT_MENU_COMMAND_ID,
+			title: localize2('openAgentsAccountMenu', "Open Account Menu"),
+			f1: false,
+		});
+	}
+
+	run(): void {
+		activeTitleBarAccountWidget?.openAccountPanel();
+	}
 });
 
 class AccountWidgetContribution extends Disposable implements IWorkbenchContribution {
