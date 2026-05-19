@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { TestContext } from './context.js';
 
+const serverEnv = { NODE_OPTIONS: '--no-deprecation' };
+
 export function setup(context: TestContext) {
 	context.test('server-alpine-arm64', ['alpine', 'arm64'], async () => {
 		const dir = await context.downloadAndUnpack('server-alpine-arm64');
@@ -89,7 +91,8 @@ export function setup(context: TestContext) {
 				assert.strictEqual(version, context.options.commit, `Expected commit ${context.options.commit} but got ${version}`);
 
 				return true;
-			}
+			},
+			{ env: serverEnv }
 		);
 	}
 }
