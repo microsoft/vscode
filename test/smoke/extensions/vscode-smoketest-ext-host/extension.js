@@ -76,6 +76,7 @@ function activate(context) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('smoketest.openCopilotCliChat', async () => {
+			await vscode.workspace.getConfiguration('chat').update('disableAIFeatures', false, vscode.ConfigurationTarget.Global);
 			await vscode.commands.executeCommand('github.copilot.debug.extensionState');
 			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 			await vscode.commands.executeCommand('workbench.action.chat.openNewSessionEditor.copilotcli');
