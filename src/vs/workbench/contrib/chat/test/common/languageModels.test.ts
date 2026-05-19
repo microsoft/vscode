@@ -207,6 +207,187 @@ suite('LanguageModels', function () {
 		assert.ok(vendors.some(v => v.vendor === 'test-vendor'));
 		assert.ok(vendors.some(v => v.vendor === 'actual-vendor'));
 	});
+
+	test('selectLanguageModels matches by id for copilot vendor models even when isUserSelectable is false', async function () {
+		// Mirrors how the copilot extension publishes utility aliases such as
+		// `copilot-utility-small`: under the `copilot` (default) vendor, with
+		// `isUserSelectable: false`. The workbench's
+		// `chatToolRiskAssessmentService` resolves them with
+		// `selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' })`
+		// and must get a match.
+		languageModels.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'copilot', displayName: 'Copilot', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		store.add(languageModels.registerLanguageModelProvider('copilot', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => {
+				const modelMetadata: ILanguageModelChatMetadata[] = [
+					{
+						extension: nullExtensionDescription.identifier,
+						name: 'GPT 4o mini',
+						vendor: 'copilot',
+						family: 'gpt-4o-mini',
+						version: '2024-07-18',
+						id: 'gpt-4o-mini',
+						maxInputTokens: 100,
+						maxOutputTokens: 100,
+						isDefaultForLocation: {}
+					},
+					{
+						extension: nullExtensionDescription.identifier,
+						name: 'GPT 4o mini',
+						vendor: 'copilot',
+						family: 'copilot-utility-small',
+						version: '2024-07-18',
+						id: 'copilot-utility-small',
+						maxInputTokens: 100,
+						maxOutputTokens: 100,
+						isDefaultForLocation: {},
+						isUserSelectable: false
+					}
+				];
+				return modelMetadata.map(m => ({ metadata: m, identifier: `${m.vendor}/${m.id}` }));
+			},
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		const result = await languageModels.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
+		assert.deepStrictEqual(result, ['copilot/copilot-utility-small']);
+	});
+
+	test('model visibility — defaults to visible', async function () {
+		await languageModels.selectLanguageModels({}); // resolve models so groups populate
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), false);
+		assert.strictEqual(languageModels.isModelHidden('test-id-12'), false);
+		assert.strictEqual(languageModels.isGroupHidden('test-vendor', 'Test Vendor'), false);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), []);
+	});
+
+	test('model visibility — hide and show a single model', async function () {
+		await languageModels.selectLanguageModels({});
+
+		let fired = 0;
+		store.add(languageModels.onDidChangeModelVisibility(() => fired++));
+
+		languageModels.setModelHidden('test-id-1', true);
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), true);
+		assert.strictEqual(languageModels.isModelHidden('test-id-12'), false);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), ['test-id-1']);
+		assert.strictEqual(fired, 1);
+
+		languageModels.setModelHidden('test-id-1', false);
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), false);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), []);
+		assert.strictEqual(fired, 2);
+	});
+
+	test('model visibility — hiding every model in a group hides the group', async function () {
+		await languageModels.selectLanguageModels({});
+
+		languageModels.setModelHidden('test-id-1', true);
+		languageModels.setModelHidden('test-id-12', true);
+
+		assert.deepStrictEqual({
+			groupHidden: languageModels.isGroupHidden('test-vendor', 'Test Vendor'),
+			firstModelHidden: languageModels.isModelHidden('test-id-1'),
+			secondModelHidden: languageModels.isModelHidden('test-id-12'),
+			hiddenModels: languageModels.getHiddenModelIds(),
+		}, {
+			groupHidden: true,
+			firstModelHidden: true,
+			secondModelHidden: true,
+			hiddenModels: ['test-id-1', 'test-id-12'],
+		});
+	});
+
+	test('model visibility — hide and show an entire group', async function () {
+		await languageModels.selectLanguageModels({});
+
+		languageModels.setGroupHidden('test-vendor', 'Test Vendor', true);
+		assert.strictEqual(languageModels.isGroupHidden('test-vendor', 'Test Vendor'), true);
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), true);
+		assert.strictEqual(languageModels.isModelHidden('test-id-12'), true);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), ['test-id-1', 'test-id-12']);
+
+		languageModels.setGroupHidden('test-vendor', 'Test Vendor', false);
+		assert.strictEqual(languageModels.isGroupHidden('test-vendor', 'Test Vendor'), false);
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), false);
+		assert.strictEqual(languageModels.isModelHidden('test-id-12'), false);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), []);
+	});
+
+	test('model visibility — showing a model in a hidden group reveals the model and the group, but keeps siblings hidden', async function () {
+		await languageModels.selectLanguageModels({});
+
+		languageModels.setGroupHidden('test-vendor', 'Test Vendor', true);
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), true);
+		assert.strictEqual(languageModels.isModelHidden('test-id-12'), true);
+
+		languageModels.setModelHidden('test-id-1', false);
+
+		// The group is no longer hidden — the user explicitly chose to surface a model.
+		assert.strictEqual(languageModels.isGroupHidden('test-vendor', 'Test Vendor'), false);
+		// The selected model is visible…
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), false);
+		// …but the sibling stays hidden.
+		assert.strictEqual(languageModels.isModelHidden('test-id-12'), true);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), ['test-id-12']);
+	});
+
+	test('model visibility — hiding a model whose group is already hidden is a no-op', async function () {
+		await languageModels.selectLanguageModels({});
+
+		languageModels.setGroupHidden('test-vendor', 'Test Vendor', true);
+		const before = languageModels.getHiddenModelIds();
+		languageModels.setModelHidden('test-id-1', true);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), before);
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), true);
+	});
+
+	test('model visibility — hiding a group hides every current member model', async function () {
+		await languageModels.selectLanguageModels({});
+
+		languageModels.setModelHidden('test-id-1', true);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), ['test-id-1']);
+
+		languageModels.setGroupHidden('test-vendor', 'Test Vendor', true);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), ['test-id-1', 'test-id-12']);
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), true);
+		assert.strictEqual(languageModels.isModelHidden('test-id-12'), true);
+	});
+
+	test('model visibility — unhiding a group shows every current member model', async function () {
+		await languageModels.selectLanguageModels({});
+
+		languageModels.setGroupHidden('test-vendor', 'Test Vendor', true);
+		languageModels.setModelHidden('test-id-1', false);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), ['test-id-12']);
+
+		languageModels.setGroupHidden('test-vendor', 'Test Vendor', false);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), []);
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), false);
+		assert.strictEqual(languageModels.isModelHidden('test-id-12'), false);
+	});
+
+	test('model visibility — onDidChangeModelVisibility does not fire when state is unchanged', async function () {
+		await languageModels.selectLanguageModels({});
+
+		let fired = 0;
+		store.add(languageModels.onDidChangeModelVisibility(() => fired++));
+
+		// Already visible — no-op
+		languageModels.setModelHidden('test-id-1', false);
+		assert.strictEqual(fired, 0);
+
+		languageModels.setModelHidden('test-id-1', true);
+		assert.strictEqual(fired, 1);
+
+		// Already hidden — no-op
+		languageModels.setModelHidden('test-id-1', true);
+		assert.strictEqual(fired, 1);
+	});
 });
 
 suite('LanguageModels - When Clause', function () {

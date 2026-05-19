@@ -17,7 +17,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { type AgentInfo, type CustomizationRef } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ROOT_STATE_URI, type AgentInfo, type CustomizationRef } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService, type IStorageSourceFilter } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -75,7 +75,7 @@ export class RemoteAgentPluginController extends Disposable {
 	}
 
 	private dispatchCustomizations(customizations: readonly CustomizationRef[]): void {
-		this._connection.dispatch({
+		this._connection.dispatch(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: {
 				[AgentHostConfigKey.Customizations]: [...customizations],

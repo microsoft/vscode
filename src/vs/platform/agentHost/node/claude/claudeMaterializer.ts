@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
-import { rgPath } from '@vscode/ripgrep';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
@@ -70,17 +70,19 @@ export class ClaudeMaterializer {
 		proxyHandle: IClaudeProxyHandle,
 		permissionMode: ClaudePermissionMode,
 		canUseTool: NonNullable<Options['canUseTool']>,
+		startMode: 'fresh' | 'resume' = 'fresh',
 	): Promise<ClaudeAgentSession> {
 		if (!provisional.workingDirectory) {
 			throw new Error(`Cannot materialize Claude session ${provisional.sessionId}: workingDirectory is required`);
 		}
 
-		const options = this._buildOptions(provisional, proxyHandle, permissionMode, canUseTool, false);
+		const isResume = startMode === 'resume';
+		const options = await this._buildOptions(provisional, proxyHandle, permissionMode, canUseTool, isResume);
 
 		// Trace what the SDK gets so live debugging doesn't have to infer
 		// from the absence of a `fileEdit` block whether the edit-tracking
 		// plumbing was wired this session.
-		this._logService.info(`[Claude] session ${provisional.sessionId}: enableFileCheckpointing=${options.enableFileCheckpointing} startMode=fresh`);
+		this._logService.info(`[Claude] session ${provisional.sessionId}: enableFileCheckpointing=${options.enableFileCheckpointing} startMode=${startMode}`);
 
 		const warm = await this._sdkService.startup({ options });
 
@@ -143,35 +145,31 @@ export class ClaudeMaterializer {
 		}
 		const abortController = new AbortController();
 		const resumedProvisional: IClaudeMaterializeProvisional = { ...provisional, abortController };
-		const options = this._buildOptions(resumedProvisional, proxyHandle, permissionMode, canUseTool, true);
+		const options = await this._buildOptions(resumedProvisional, proxyHandle, permissionMode, canUseTool, true);
 		this._logService.info(`[Claude] session ${provisional.sessionId}: resume rebuild`);
 		const warm = await this._sdkService.startup({ options });
 		return { warm, abortController };
 	}
 
-	private _buildOptions(
+	private async _buildOptions(
 		provisional: IClaudeMaterializeProvisional,
 		proxyHandle: IClaudeProxyHandle,
 		permissionMode: ClaudePermissionMode,
 		canUseTool: NonNullable<Options['canUseTool']>,
 		isResume: boolean,
-	): Options {
+	): Promise<Options> {
 		const subprocessEnv = buildSubprocessEnv();
 		// Settings env: forwarded to the Claude subprocess via the SDK's
 		// `Options.settings.env` channel (separate from `Options.env` which
 		// is the spawn env). PATH composition uses `delimiter` (`:` or `;`)
 		// so Windows agent hosts don't corrupt PATH on subprocess fork.
-		// In packaged builds @vscode/ripgrep lives inside node_modules.asar; the
-		// rg binary itself is unpacked next door, so rewrite the path before
-		// putting it on PATH (matches `copilotAgent.ts` and the workbench
-		// search engine helpers).
-		const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
+		const resolvedRgDiskPath = await rgDiskPath();
 		const settingsEnv: Record<string, string> = {
 			ANTHROPIC_BASE_URL: proxyHandle.baseUrl,
 			ANTHROPIC_AUTH_TOKEN: `${proxyHandle.nonce}.${provisional.sessionId}`,
 			CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
 			USE_BUILTIN_RIPGREP: '0',
-			PATH: `${dirname(rgDiskPath)}${delimiter}${process.env.PATH ?? ''}`,
+			PATH: `${dirname(resolvedRgDiskPath)}${delimiter}${process.env.PATH ?? ''}`,
 		};
 
 		return {

@@ -25,6 +25,34 @@ suite('ChatMarkdownRenderer', () => {
 		await assertSnapshot(result.element.textContent);
 	});
 
+	test('plain text fast path preserves rendered markdown shape', () => {
+		const md = new MarkdownString('Hello, world. This is plain.', { isTrusted: true, supportHtml: true, supportThemeIcons: true });
+		const result = store.add(testRenderer.render(md));
+
+		assert.deepStrictEqual({
+			outerHTML: result.element.outerHTML,
+			textContent: result.element.textContent,
+		}, {
+			outerHTML: '<div class="rendered-markdown"><p>Hello, world. This is plain.</p></div>',
+			textContent: 'Hello, world. This is plain.',
+		});
+	});
+
+	test('plain text fast path reuses target element', () => {
+		const md = new MarkdownString('Hello, world.');
+		const target = document.createElement('div');
+		target.appendChild(document.createElement('span'));
+		const result = store.add(testRenderer.render(md, undefined, target));
+
+		assert.deepStrictEqual({
+			sameElement: result.element === target,
+			outerHTML: target.outerHTML,
+		}, {
+			sameElement: true,
+			outerHTML: '<div class="rendered-markdown"><p>Hello, world.</p></div>',
+		});
+	});
+
 	test('supportHtml with one-line markdown', async () => {
 		const md = new MarkdownString('**hello**');
 		md.supportHtml = true;

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import gulp from 'gulp';
+import { gulp, filter } from './lib/gulp/facade.ts';
 import path from 'path';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
-import * as task from './lib/task.ts';
+import * as task from './lib/gulp/task.ts';
 import es from 'event-stream';
 import File from 'vinyl';
 import * as i18n from './lib/i18n.ts';
@@ -16,7 +16,6 @@ import * as cp from 'child_process';
 import * as compilation from './lib/compilation.ts';
 import * as monacoapi from './lib/monaco-api.ts';
 import * as fs from 'fs';
-import filter from 'gulp-filter';
 import { createReporter } from './lib/reporter.ts';
 import monacoPackage from './monaco/package.json' with { type: 'json' };
 
@@ -205,14 +204,14 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 	);
 });
 
-gulp.task('extract-editor-src',
+task.task('extract-editor-src',
 	task.series(
 		util.rimraf('out-editor-src'),
 		extractEditorSrcTask
 	)
 );
 
-gulp.task('editor-distro',
+task.task('editor-distro',
 	task.series(
 		task.parallel(
 			util.rimraf('out-editor-src'),
@@ -224,7 +223,7 @@ gulp.task('editor-distro',
 	)
 );
 
-gulp.task('monacodts', task.define('monacodts', () => {
+task.task('monacodts', task.define('monacodts', () => {
 	const result = monacoapi.execute();
 	fs.writeFileSync(result.filePath, result.content);
 	fs.writeFileSync(path.join(root, 'src/vs/editor/common/standalone/standaloneEnums.ts'), result.enums);

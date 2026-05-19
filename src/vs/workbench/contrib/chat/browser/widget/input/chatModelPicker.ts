@@ -253,19 +253,11 @@ function resolveConfigProperty(
  */
 function getPriceCategoryLabel(priceCategory: string | undefined): string | undefined {
 	switch (priceCategory) {
-		case undefined:
-		case '':
-			return undefined;
-		case 'low':
-			return localize('chat.priceCategory.low', "Low cost");
-		case 'medium':
-			return localize('chat.priceCategory.medium', "Medium cost");
-		case 'high':
-			return localize('chat.priceCategory.high', "High cost");
-		case 'very_high':
-			return localize('chat.priceCategory.veryHigh', "Very high cost");
-		default:
-			return localize('chat.priceCategory.unknown', "{0} cost", priceCategory.charAt(0).toUpperCase() + priceCategory.slice(1));
+		case 'low': return localize('chat.priceCategory.low', "Low cost");
+		case 'medium': return localize('chat.priceCategory.medium', "Medium cost");
+		case 'high': return localize('chat.priceCategory.high', "High cost");
+		case 'very_high': return localize('chat.priceCategory.veryHigh', "Very high cost");
+		default: return undefined;
 	}
 }
 
@@ -1031,8 +1023,8 @@ export class ModelPickerWidget extends Disposable {
 		const items = buildModelPickerItems(
 			models,
 			this._selectedModel?.identifier,
-			this._languageModelsService.getRecentlyUsedModelIds(),
-			this._languageModelsService.getPinnedModelIds(),
+			this._languageModelsService.getRecentlyUsedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
+			this._languageModelsService.getPinnedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
 			controlModelsForTier,
 			this._productService.version,
 			this._updateService.state.type,

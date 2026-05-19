@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { joinPath } from '../../../../base/common/resources.js';
@@ -21,6 +21,7 @@ import { SessionType } from './chatSessionsService.js';
 import { CustomAgent } from './promptSyntax/service/promptsServiceImpl.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { getCanonicalPluginCommandId } from './plugins/agentPluginService.js';
+import { getChatSessionType, LocalChatSessionUri } from './model/chatUri.js';
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
 
@@ -205,8 +206,13 @@ export interface ICustomizationItemProvider {
 	readonly onDidChange: Event<void>;
 	/**
 	 * Provide the customization items this harness supports.
+	 *
+	 * @param sessionResource URI of the chat session whose
+	 *   customizations should be included. Providers that surface
+	 *   session-scoped state (e.g. an agent host) should read from
+	 *   this session.
 	 */
-	provideChatSessionCustomizations(token: CancellationToken): Promise<ICustomizationItem[] | undefined>;
+	provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[] | undefined>;
 }
 
 /**
@@ -234,6 +240,11 @@ export interface ICustomizationHarnessService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * The currently active chat session resource.
+	 */
+	readonly activeSessionResource: IObservable<URI>;
+
+	/**
 	 * The currently active harness.
 	 */
 	readonly activeHarness: IObservable<string>;
@@ -251,10 +262,10 @@ export interface ICustomizationHarnessService {
 	findHarnessById(sessionType: string): IHarnessDescriptor | undefined;
 
 	/**
-	 * Changes the active harness. The new id must be present in
+	 * Changes the active session. The new session's type must be present in
 	 * `availableHarnesses`.
 	 */
-	setActiveHarness(sessionType: string): void;
+	setActiveSession(sessionResource: URI): void;
 
 	/**
 	 * Convenience: returns the storage source filter for the active harness
@@ -289,21 +300,39 @@ export interface ICustomizationHarnessService {
 	 * Returns the prompt and skill slash commands for the given session type.
 	 * Provider-backed harnesses contribute their own items directly; the default
 	 * VS Code harness falls back to the core prompts service.
+	 *
+	 * @param sessionResource URI of the chat session whose customizations
+	 *   should be considered. Forwarded to the underlying
+	 *   {@link ICustomizationItemProvider.provideChatSessionCustomizations}.
 	 */
-	getSlashCommands(sessionType: string, token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]>;
+	getSlashCommands(sessionResource: URI, token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]>;
 
 	/**
 	 * Returns the custom agents for the given session type.
 	 * Provider-backed harnesses select items via their own provider and resolve
 	 * details via the core prompts service.
+	 *
+	 * @param sessionResource URI of the chat session whose customizations
+	 *   should be considered. Forwarded to the underlying
+	 *   {@link ICustomizationItemProvider.provideChatSessionCustomizations}.
 	 */
-	getCustomAgents(sessionType: string, token: CancellationToken): Promise<readonly ICustomAgent[]>;
+	getCustomAgents(sessionResource: URI, token: CancellationToken): Promise<readonly ICustomAgent[]>;
 
 	/**
 	 * Resolves a slash command to its full metadata, including the parsed prompt file for prompt commands.
 	 * Provider-backed harnesses resolve their own items directly; the default VS Code harness falls back to the core prompts service.
+	 *
+	 * @param sessionResource URI of the chat session whose customizations
+	 *   should be considered when looking up the slash command.
 	 */
-	resolvePromptSlashCommand(name: string, sessionType: string, token: CancellationToken): Promise<IResolvedChatPromptSlashCommand | undefined>;
+	resolvePromptSlashCommand(name: string, sessionResource: URI, token: CancellationToken): Promise<IResolvedChatPromptSlashCommand | undefined>;
+
+	/**
+	 * Returns the best session resource to use for a harness lookup.
+	 * Implementations should prefer the most recently used session for the
+	 * given session type and fall back to an untitled session resource.
+	 */
+	getSessionResourceForHarness(sessionType: string): URI;
 }
 
 /**
@@ -513,7 +542,10 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 	private readonly _providerListeners: IDisposable[] = [];
 	private _isDisposed = false;
 
-	private readonly _activeHarness: ISettableObservable<string>;
+	private readonly _activeSessionResource: ISettableObservable<URI>;
+	readonly activeSessionResource: IObservable<URI>;
+
+	private readonly _activeHarness: IObservable<string>;
 	readonly activeHarness: IObservable<string>;
 
 	private readonly _staticHarnesses: readonly IHarnessDescriptor[];
@@ -528,7 +560,9 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 	) {
 		this._staticHarnesses = staticHarnesses;
 		this.promptsService = promptsService;
-		this._activeHarness = observableValue<string>(this, defaultHarness);
+		this._activeSessionResource = observableValue<URI>(this, this.getSessionResourceForHarness(defaultHarness));
+		this.activeSessionResource = this._activeSessionResource;
+		this._activeHarness = derived(this, reader => getChatSessionType(this._activeSessionResource.read(reader)));
 		this.activeHarness = this._activeHarness;
 		this._availableHarnesses = observableValue<readonly IHarnessDescriptor[]>(this, [...this._staticHarnesses]);
 		this.availableHarnesses = this._availableHarnesses;
@@ -592,14 +626,6 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 				if (idx >= 0) {
 					this._externalHarnesses.splice(idx, 1);
 					this._refreshAvailableHarnesses();
-					// If the removed harness was active, only fall back when no
-					// remaining harness (e.g. the restored static one) shares the id.
-					if (this._activeHarness.get() === descriptor.id) {
-						const all = this._getAllHarnesses();
-						if (!all.some(h => h.id === descriptor.id) && all.length > 0) {
-							this._activeHarness.set(all[0].id, undefined);
-						}
-					}
 				}
 			}
 		};
@@ -609,40 +635,31 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		return this._getAllHarnesses().find(h => h.id === id);
 	}
 
-	setActiveHarness(id: string): void {
-		const harness = this.findHarnessById(id);
-		if (harness) {
-			this._activeHarness.set(id, undefined);
-		}
+	setActiveSession(sessionResource: URI): void {
+		this._activeSessionResource.set(sessionResource, undefined);
 	}
 
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
 		const activeId = this._activeHarness.get();
-		const all = this._getAllHarnesses();
-		if (all.length === 0) {
-			return EMPTY_FILTER;
-		}
-		const descriptor = all.find(h => h.id === activeId) ?? all[0];
+		const descriptor = this.findHarnessById(activeId);
 		return descriptor?.getStorageSourceFilter(type) ?? EMPTY_FILTER;
 	}
 
 	getActiveDescriptor(): IHarnessDescriptor {
 		const activeId = this._activeHarness.get();
-		const all = this._getAllHarnesses();
-		if (all.length === 0) {
-			return EMPTY_DESCRIPTOR;
-		}
-		return all.find(h => h.id === activeId) ?? all[0];
+		const descriptor = this.findHarnessById(activeId);
+		return descriptor ?? EMPTY_DESCRIPTOR;
 	}
 
-	async getSlashCommands(sessionType: string, token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
+	async getSlashCommands(sessionResource: URI, token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
+		const sessionType = getChatSessionType(sessionResource);
 		const harness = this.findHarnessById(sessionType);
 		if (!harness || !harness.itemProvider) {
 			const commands = await this.promptsService.getPromptSlashCommands(token);
 			return commands.filter(command => matchesSessionType(command.sessionTypes, sessionType));
 		}
 
-		const items = await harness.itemProvider.provideChatSessionCustomizations(token);
+		const items = await harness.itemProvider.provideChatSessionCustomizations(sessionResource, token);
 		if (!items) {
 			return [];
 		}
@@ -670,14 +687,15 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		return result;
 	}
 
-	async getCustomAgents(sessionType: string, token: CancellationToken): Promise<readonly ICustomAgent[]> {
+	async getCustomAgents(sessionResource: URI, token: CancellationToken): Promise<readonly ICustomAgent[]> {
+		const sessionType = getChatSessionType(sessionResource);
 		const harness = this.findHarnessById(sessionType);
 		if (!harness || !harness.itemProvider) {
 			const allAgents = await this.promptsService.getCustomAgents(token);
 			return allAgents.filter(agent => matchesSessionType(agent.sessionTypes, sessionType));
 		}
 
-		const items = await harness.itemProvider.provideChatSessionCustomizations(token);
+		const items = await harness.itemProvider.provideChatSessionCustomizations(sessionResource, token);
 		if (!items) {
 			return [];
 		}
@@ -712,8 +730,8 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		return result;
 	}
 
-	public async resolvePromptSlashCommand(name: string, sessionType: string, token: CancellationToken): Promise<IResolvedChatPromptSlashCommand | undefined> {
-		const commands = await this.getSlashCommands(sessionType, token);
+	public async resolvePromptSlashCommand(name: string, sessionResource: URI, token: CancellationToken): Promise<IResolvedChatPromptSlashCommand | undefined> {
+		const commands = await this.getSlashCommands(sessionResource, token);
 		const command = commands.find(cmd => cmd.name === name);
 		if (command) {
 			const parsedPromptFile = await this.promptsService.parseNew(command.uri, token);
@@ -724,6 +742,14 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 			};
 		}
 		return undefined;
+	}
+
+	getSessionResourceForHarness(sessionType: string): URI {
+		if (sessionType === SessionType.Local) {
+			return LocalChatSessionUri.getNewSessionUri();
+		}
+
+		return URI.from({ scheme: sessionType, path: '/untitled-2' });
 	}
 }
 

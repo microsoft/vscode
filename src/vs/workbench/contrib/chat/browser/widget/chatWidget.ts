@@ -2376,10 +2376,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Track them now so tip exclusions still update for commands like /init.
 		this.chatTipService.recordSlashCommandUsage(agentSlashPromptPart.name);
 
-		const sessionType = getChatSessionType(sessionResource);
-
 		// need to resolve the slash command to get the prompt file
-		const slashCommand = await this.customizationHarnessService.resolvePromptSlashCommand(agentSlashPromptPart.name, sessionType, CancellationToken.None);
+		const slashCommand = await this.customizationHarnessService.resolvePromptSlashCommand(agentSlashPromptPart.name, sessionResource, CancellationToken.None);
 		if (!slashCommand) {
 			return true;
 		}
