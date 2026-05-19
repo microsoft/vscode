@@ -240,7 +240,7 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			const zdr = !!this.modelMetadata.zeroDataRetentionEnabled;
 			// When ZDR is on the server refuses to retain responses, so we must
 			// not chain via `previous_response_id` and must not ask it to `store`.
-			options.ignoreStatefulMarker = zdr;
+			options.ignoreStatefulMarker = options.ignoreStatefulMarker || zdr;
 			const body = super.createRequestBody(options);
 			body.store = !zdr;
 			body.n = undefined;
