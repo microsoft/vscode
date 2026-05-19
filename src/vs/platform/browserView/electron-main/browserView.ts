@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WebContentsView, webContents } from 'electron';
+import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -32,6 +33,7 @@ enum NewPageLocation {
  */
 export class BrowserView extends Disposable {
 	private readonly _view: WebContentsView;
+	private readonly _defaultUserAgent: string;
 	private readonly _faviconRequestCache = new Map<string, Promise<string>>();
 
 	private _lastScreenshot: VSBuffer | undefined = undefined;
@@ -122,6 +124,7 @@ export class BrowserView extends Disposable {
 			// Passing an `undefined` webContents triggers an error in Electron.
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
+		this._defaultUserAgent = this._view.webContents.getUserAgent();
 
 		// Use a default size of 1024x768.
 		this._view.setBounds({ x: -10000, y: -10000, width: 1024, height: 768 });
@@ -278,7 +281,7 @@ export class BrowserView extends Disposable {
 		// Loading state events
 		webContents.on('did-start-loading', () => {
 			this._lastError = undefined;
-			this.traceDeviceEmulation('did-start-loading', webContents.getURL());
+			this.traceDeviceEmulation('did-start-loading', this.getSafeTraceLocation(webContents.getURL()));
 
 			// Don't fire loading events for e.g. same-document navigations
 			if (webContents.isLoadingMainFrame()) {
@@ -316,7 +319,7 @@ export class BrowserView extends Disposable {
 			}
 		});
 		webContents.on('did-finish-load', () => {
-			this.traceDeviceEmulation('did-finish-load', webContents.getURL());
+			this.traceDeviceEmulation('did-finish-load', this.getSafeTraceLocation(webContents.getURL()));
 			fireLoadingEvent(false);
 		});
 
@@ -338,18 +341,18 @@ export class BrowserView extends Disposable {
 
 		webContents.on('did-start-navigation', (_e, url, isInPlace, isMainFrame) => {
 			if (isMainFrame) {
-				this.traceDeviceEmulation('did-start-navigation', `${isInPlace ? 'in-page' : 'document'} ${url}`);
+				this.traceDeviceEmulation('did-start-navigation', `${isInPlace ? 'in-page' : 'document'} ${this.getSafeTraceLocation(url)}`);
 			}
 		});
 		webContents.on('did-redirect-navigation', (_e, url, _isInPlace, isMainFrame) => {
 			if (isMainFrame) {
-				this.traceDeviceEmulation('did-redirect-navigation', url);
+				this.traceDeviceEmulation('did-redirect-navigation', this.getSafeTraceLocation(url));
 			}
 		});
-		webContents.on('did-navigate', (_e, url) => this.traceDeviceEmulation('did-navigate', url));
+		webContents.on('did-navigate', (_e, url) => this.traceDeviceEmulation('did-navigate', this.getSafeTraceLocation(url)));
 		webContents.on('did-navigate-in-page', (_e, url, isMainFrame) => {
 			if (isMainFrame) {
-				this.traceDeviceEmulation('did-navigate-in-page', url);
+				this.traceDeviceEmulation('did-navigate-in-page', this.getSafeTraceLocation(url));
 			}
 		});
 
@@ -359,12 +362,10 @@ export class BrowserView extends Disposable {
 			this._consoleLogs.length = 0; // Clear console logs on navigation since they are per-page
 			this._view.webContents.setZoomFactor(browserZoomFactors[this._browserZoomIndex]);
 
-			// CDP overrides can be reset by Chromium on cross-process navigation; reapply
-			// unless we initiated this navigation ourselves and already applied them.
-			if (this._deviceEmulation && !this._skipNextNavigateEmulationReapply) {
+			// CDP overrides can be reset by Chromium on cross-process navigation.
+			if (this._deviceEmulation) {
 				void this.applyDeviceEmulation();
 			}
-			this._skipNextNavigateEmulationReapply = false;
 
 			// Enable pinch-to-zoom
 			void this._view.webContents.setVisualZoomLevelLimits(1, 3).catch(error => {
@@ -563,8 +564,8 @@ export class BrowserView extends Disposable {
 
 	private _lastBounds: IBrowserViewBounds | undefined;
 	private _lastDeviceMetrics: { width: number; height: number } | undefined;
-	private _skipNextNavigateEmulationReapply = false;
 	private _deviceEmulationTraceStart = 0;
+	private readonly _clearDeviceEmulationTraceScheduler = this._register(new RunOnceScheduler(() => this._deviceEmulationTraceStart = 0, 5000));
 
 	private traceDeviceEmulation(event: string, extra?: string): void {
 		if (!this._deviceEmulationTraceStart) {
@@ -572,6 +573,26 @@ export class BrowserView extends Disposable {
 		}
 		const dt = Date.now() - this._deviceEmulationTraceStart;
 		this.logService.info(`[BrowserView][trace +${dt}ms] ${event}${extra ? ' ' + extra : ''}`);
+	}
+
+	private getSafeTraceLocation(url: string): string {
+		if (!url) {
+			return '';
+		}
+		try {
+			const parsedUrl = new URL(url);
+			switch (parsedUrl.protocol) {
+				case 'http:':
+				case 'https:':
+					return parsedUrl.origin;
+				case 'about:':
+					return `${parsedUrl.protocol}${parsedUrl.pathname}`;
+				default:
+					return parsedUrl.protocol;
+			}
+		} catch {
+			return '<redacted>';
+		}
 	}
 
 	// Mirror container size to the page's layout viewport so CSS media queries see the actual width.
@@ -607,13 +628,14 @@ export class BrowserView extends Disposable {
 		// Trace window: keep tracing webContents/network events for 5s after a device switch
 		// so we can see exactly what the page does (client-side nav, refetches, etc).
 		this._deviceEmulationTraceStart = Date.now();
-		setTimeout(() => { this._deviceEmulationTraceStart = 0; }, 5000);
+		this._clearDeviceEmulationTraceScheduler.schedule();
 		this.traceDeviceEmulation('setDeviceEmulation:start', device ? `${device.id} ${device.width}x${device.height}` : 'off');
 
 		// Use Electron's native API for UA. CDP's setUserAgentOverride doesn't reliably
 		// stick across webContents.reload() and is also scoped to the current target only.
-		this._view.webContents.setUserAgent(device?.userAgent ?? '');
-		this.traceDeviceEmulation('setUserAgent', `"${(device?.userAgent ?? '').slice(0, 60)}…"`);
+		const userAgent = device?.userAgent ?? this._defaultUserAgent;
+		this._view.webContents.setUserAgent(userAgent);
+		this.traceDeviceEmulation('setUserAgent', device ? device.id : 'default');
 
 		this.logService.info('[BrowserView] setDeviceEmulation', device ? `${device.id} (${device.width}x${device.height})` : 'off');
 
