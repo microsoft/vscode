@@ -313,7 +313,7 @@
 	border-radius: 50%;
 	border: 2px solid var(--vscode-foreground, #888);
 	background: transparent;
-	transition: all 0.2s ease;
+	transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
 	opacity: 0.4;
 }
 
@@ -321,7 +321,6 @@
 	border-color: var(--vscode-focusBorder, #007acc);
 	background: var(--vscode-focusBorder, #007acc);
 	opacity: 1;
-	transform: scale(1.15);
 }
 
 .wizard-progress-dot.completed {
@@ -335,22 +334,24 @@
 	font-weight: 600;
 	white-space: nowrap;
 	color: var(--vscode-titleBar-activeForeground, #ccc);
+	font-variant-numeric: tabular-nums;
 }
 
 .wizard-step-separator {
 	display: inline-block;
-	width: 1px;
-	height: 12px;
-	margin: 0 8px;
+	width: 2px;
+	height: 14px;
+	margin: 0 10px;
 	background: var(--vscode-titleBar-activeForeground, #888);
-	opacity: 0.4;
+	opacity: 0.6;
 	vertical-align: middle;
 }
 
 .wizard-step-label {
 	font-size: 12px;
+	font-weight: 600;
 	white-space: nowrap;
-	color: var(--vscode-titleBar-activeForeground, #999);
+	color: var(--vscode-titleBar-activeForeground, #ccc);
 }
 
 /* Step Container */
