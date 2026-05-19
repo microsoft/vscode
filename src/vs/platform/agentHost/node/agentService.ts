@@ -464,7 +464,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// this to {@link _onDidMaterializeSession} so subscribers
 			// don't see `Ready` until the agent actually has an SDK
 			// session, working directory, etc.
-			this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
+			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
 
 			// Lazily compute git state for sessions with a working directory;
 			// attaches under `state._meta.git` once ready.
@@ -528,7 +528,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// the deferred `SessionAdded` notification atomically so subscribers
 		// see consistent state through both paths.
 		this._stateManager.markSessionPersisted(sessionKey, summary);
-		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionKey });
+		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 		this._attachGitState(e.session, e.workingDirectory);
 		// If a client subscribed to this session's uncommitted changeset
 		// before the working directory was known, the coordinator drains
@@ -888,19 +888,19 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _clientDispatchQueues = new Map<string, Promise<void>>();
 
-	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
 
 		const pending = this._clientDispatchQueues.get(clientId);
-		if (!pending && !this._needsAsyncRewrite(action)) {
-			this._dispatchActionNow(action, clientId, clientSeq);
+		if (!pending && !this._needsAsyncRewrite(channel, action)) {
+			this._dispatchActionNow(channel, action, clientId, clientSeq);
 			return;
 		}
 		const next = (pending ?? Promise.resolve()).then(async () => {
-			const rewritten: SessionAction | TerminalAction | IRootConfigChangedAction = this._needsAsyncRewrite(action)
-				? await this._rewriteUserMessageAttachments(action, clientId)
+			const rewritten: SessionAction | TerminalAction | IRootConfigChangedAction = this._needsAsyncRewrite(channel, action)
+				? await this._rewriteUserMessageAttachments(channel, action, clientId)
 				: action;
-			this._dispatchActionNow(rewritten, clientId, clientSeq);
+			this._dispatchActionNow(channel, rewritten, clientId, clientSeq);
 		}).catch(err => {
 			this._logService.error(`[AgentService] async dispatchAction failed: ${toErrorMessage(err)}`);
 		});
@@ -912,23 +912,22 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 	}
 
-	private _dispatchActionNow(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	private _dispatchActionNow(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		const origin = { clientId, clientSeq };
-		this._stateManager.dispatchClientAction(action, origin);
+		this._stateManager.dispatchClientAction(channel, action, origin);
 		if (action.type === ActionType.RootConfigChanged) {
 			this._configurationService.persistRootConfig();
 		}
-		this._sideEffects.handleAction(action);
+		this._sideEffects.handleAction(channel, action);
 	}
 
-	private _needsAsyncRewrite(action: SessionAction | TerminalAction | IRootConfigChangedAction): action is SessionTurnStartedAction | SessionPendingMessageSetAction {
+	private _needsAsyncRewrite(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): action is SessionTurnStartedAction | SessionPendingMessageSetAction {
 		if (action.type !== ActionType.SessionTurnStarted && action.type !== ActionType.SessionPendingMessageSet) {
 			return false;
 		}
-		const attachmentsRootStr = this._attachmentsRoot(URI.parse(action.session)).toString();
+		const attachmentsRootStr = this._attachmentsRoot(channel).toString();
 		return !!action.userMessage.attachments?.some(a => this._isRewritableAttachment(a, attachmentsRootStr));
 	}
-
 	private _isRewritableAttachment(attachment: MessageAttachment, attachmentsRootStr: string): boolean {
 		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
 			return true;
@@ -947,8 +946,8 @@ export class AgentService extends Disposable implements IAgentService {
 		return false;
 	}
 
-	private _attachmentsRoot(session: URI): URI {
-		return joinPath(this._sessionDataService.getSessionDataDir(session), SESSION_ATTACHMENTS_DIRNAME);
+	private _attachmentsRoot(session: string): URI {
+		return joinPath(this._sessionDataService.getSessionDataDir(URI.parse(session)), SESSION_ATTACHMENTS_DIRNAME);
 	}
 
 	/**
@@ -964,12 +963,12 @@ export class AgentService extends Disposable implements IAgentService {
 	 * etc.) the original attachment is preserved so the agent still has a
 	 * chance to make use of it.
 	 */
-	private async _rewriteUserMessageAttachments<T extends SessionTurnStartedAction | SessionPendingMessageSetAction>(action: T, clientId: string): Promise<T> {
+	private async _rewriteUserMessageAttachments<T extends SessionTurnStartedAction | SessionPendingMessageSetAction>(channel: string, action: T, clientId: string): Promise<T> {
 		const attachments = action.userMessage.attachments;
 		if (!attachments?.length) {
 			return action;
 		}
-		const attachmentsRoot = this._attachmentsRoot(URI.parse(action.session));
+		const attachmentsRoot = this._attachmentsRoot(channel);
 		const attachmentsRootStr = attachmentsRoot.toString();
 		const rewritten = await Promise.all(attachments.map(a => this._rewriteSingleAttachment(a, attachmentsRoot, attachmentsRootStr, clientId)));
 		return {

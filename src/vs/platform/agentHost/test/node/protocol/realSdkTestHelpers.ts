@@ -21,7 +21,6 @@ import { tmpdir } from 'os';
 import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { NotificationType } from '../../../common/state/protocol/notifications.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import {
@@ -31,12 +30,13 @@ import {
 	type ToolResultContent, type ToolResultSubagentContent,
 } from '../../../common/state/sessionState.js';
 import type { RootState } from '../../../common/state/protocol/state.js';
-import type {
-	RootAgentsChangedAction,
-	SessionAddedNotification, SessionInputRequestedAction, SessionToolCallReadyAction,
-	SessionToolCallStartAction,
+import {
+	NotificationType,
+	type RootAgentsChangedAction,
+	type SessionInputRequestedAction, type SessionToolCallReadyAction,
+	type SessionToolCallStartAction,
 } from '../../../common/state/sessionActions.js';
-import type { INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
+import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
 import {
 	getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient,
 } from './testHelpers.js';
@@ -154,7 +154,7 @@ export async function createRealSession(
 	trackingList.push(sessionUri);
 
 	const subscribeResult = await c.call<SubscribeResult>('subscribe', { resource: sessionUri });
-	void (subscribeResult.snapshot.state as SessionState);
+	void (subscribeResult.snapshot!.state as SessionState);
 	c.clearReceived();
 
 	return sessionUri;
@@ -518,7 +518,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			// Subscribe to root state *before* authenticating so we can observe
 			// the agentsChanged action that carries the populated model list.
 			const rootResult = await client.call<SubscribeResult>('subscribe', { resource: ROOT_STATE_URI }, 30_000);
-			const initial = rootResult.snapshot.state as RootState;
+			const initial = rootResult.snapshot!.state as RootState;
 			const providerAgent = initial.agents.find(a => a.provider === config.provider);
 			assert.ok(providerAgent, `Expected ${config.provider} agent in root state, got: ${initial.agents.map(a => a.provider).join(', ')}`);
 
@@ -637,15 +637,15 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			assert.ok(planTurn.sawInputRequest, `should reach the ${config.exitPlanModeToolName} question so the test can continue the same session`);
 
 			const extraSessionNotificationsAfterPlan = client.receivedNotifications(n =>
-				n.method === 'notification' &&
-				(n.params as INotificationBroadcastParams).notification.type === NotificationType.SessionAdded &&
-				((n.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource !== sessionUri,
+				n.method === NotificationType.SessionAdded &&
+				(n.params as SessionAddedParams).summary.resource !== sessionUri,
 			);
 			assert.strictEqual(extraSessionNotificationsAfterPlan.length, 0, 'should not create a second session while answering the plan-mode question');
 
 			client.notify('dispatchAction', {
+				channel: sessionUri,
 				clientSeq: 50,
-				action: { type: 'session/configChanged', session: sessionUri, config: { mode: 'interactive' } },
+				action: { type: 'session/configChanged', config: { mode: 'interactive' } },
 			});
 			await client.waitForNotification(n => isActionNotification(n, 'session/configChanged'));
 
@@ -655,14 +655,13 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			assert.match(followupTurn.responseText, /hello world/i, 'follow-up turn should retain the original plan context');
 
 			const extraSessionNotificationsAfterFollowup = client.receivedNotifications(n =>
-				n.method === 'notification' &&
-				(n.params as INotificationBroadcastParams).notification.type === NotificationType.SessionAdded &&
-				((n.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource !== sessionUri,
+				n.method === NotificationType.SessionAdded &&
+				(n.params as SessionAddedParams).summary.resource !== sessionUri,
 			);
 			assert.strictEqual(extraSessionNotificationsAfterFollowup.length, 0, 'sending another message should stay on the same session instead of forking');
 
 			const resubscribeResult = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-			const finalSnapshot = resubscribeResult.snapshot.state as SessionState;
+			const finalSnapshot = resubscribeResult.snapshot!.state as SessionState;
 			assert.strictEqual(finalSnapshot.summary.resource, sessionUri, 'follow-up turn should keep the original session resource');
 		});
 
@@ -700,7 +699,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			createdSessions.push(sessionUri);
 
 			const subscribeResult = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-			const sessionState = subscribeResult.snapshot.state as SessionState;
+			const sessionState = subscribeResult.snapshot!.state as SessionState;
 			assert.strictEqual(sessionState.summary.workingDirectory, workingDirUri,
 				`subscribe snapshot summary should carry the requested working directory`);
 		});
@@ -751,10 +750,10 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 				'What is your current working directory? Reply with just the absolute path and nothing else.', 2);
 
 			const addedNotif = await client.waitForNotification(n =>
-				n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === NotificationType.SessionAdded,
+				n.method === NotificationType.SessionAdded,
 				60_000,
 			);
-			const addedSummary = ((addedNotif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary;
+			const addedSummary = (addedNotif.params as SessionAddedParams).summary;
 
 			assert.ok(addedSummary.workingDirectory, 'sessionAdded notification should have a workingDirectory');
 			assert.ok(addedSummary.workingDirectory!.includes('.worktrees'),
@@ -806,12 +805,12 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			assert.ok(terminalUri, 'shell tool should expose its terminal resource');
 
 			const terminalSubscribeResult = await client.call<SubscribeResult>('subscribe', { resource: terminalUri });
-			const initialTerminalState = terminalSubscribeResult.snapshot.state as TerminalState;
+			const initialTerminalState = terminalSubscribeResult.snapshot!.state as TerminalState;
 			assert.strictEqual(initialTerminalState.cwd, resolvedWorkingDirectoryPath, 'terminal should be created in the resolved worktree directory');
 
 			await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
 			const terminalSnapshot = await client.call<SubscribeResult>('subscribe', { resource: terminalUri });
-			const terminalState = terminalSnapshot.snapshot.state as TerminalState;
+			const terminalState = terminalSnapshot.snapshot!.state as TerminalState;
 			assert.ok(terminalText(terminalState).includes(resolvedWorkingDirectoryPath),
 				`pwd output should include the resolved worktree path ${resolvedWorkingDirectoryPath}`);
 		});
@@ -843,13 +842,14 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 						const envelope = getActionEnvelope(ready);
 						if (!processedSeqs.has(envelope.serverSeq)) {
 							processedSeqs.add(envelope.serverSeq);
-							const action = envelope.action as { session: string; turnId: string; toolCallId: string; confirmed?: string };
+							const action = envelope.action as { turnId: string; toolCallId: string; confirmed?: string };
 							if (!action.confirmed) {
 								client.notify('dispatchAction', {
+									channel: envelope.channel,
 									clientSeq: ++approvalSeq,
 									action: {
 										type: 'session/toolCallConfirmed',
-										session: action.session, turnId: action.turnId,
+										turnId: action.turnId,
 										toolCallId: action.toolCallId, approved: true,
 									},
 								});
@@ -869,8 +869,9 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 				if (!isActionNotification(n, 'session/toolCallContentChanged')) {
 					return false;
 				}
-				const action = getActionEnvelope(n).action as { session: string; content: readonly ToolResultContent[] };
-				return action.session === sessionUri && action.content.some(c => c.type === ToolResultContentType.Subagent);
+				const envelope = getActionEnvelope(n);
+				const action = envelope.action as { content: readonly ToolResultContent[] };
+				return envelope.channel === sessionUri && action.content.some(c => c.type === ToolResultContentType.Subagent);
 			}, 120_000);
 
 			const parentContent = (getActionEnvelope(subagentContentNotif).action as { content: readonly ToolResultContent[] }).content;
@@ -885,17 +886,17 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 				if (!isActionNotification(n, 'session/turnComplete')) {
 					return false;
 				}
-				return (getActionEnvelope(n).action as { session: string }).session === sessionUri;
+				return getActionEnvelope(n).channel === sessionUri;
 			}, 150_000);
 
 			approvalsActive = false;
 			await approvalLoop;
 
 			const toolStarts = client.receivedNotifications(n => isActionNotification(n, 'session/toolCallStart'))
-				.map(n => getActionEnvelope(n).action as SessionToolCallStartAction);
+				.map(n => ({ channel: getActionEnvelope(n).channel, action: getActionEnvelope(n).action as SessionToolCallStartAction }));
 
-			const parentStarts = toolStarts.filter(a => (a.session as unknown as string) === sessionUri);
-			const subagentStarts = toolStarts.filter(a => (a.session as unknown as string) === subagentSessionUri);
+			const parentStarts = toolStarts.filter(t => t.channel === sessionUri).map(t => t.action);
+			const subagentStarts = toolStarts.filter(t => t.channel === subagentSessionUri).map(t => t.action);
 
 			const parentNonTaskStarts = parentStarts.filter(a => a.toolName !== config.subagentToolName);
 			assert.deepStrictEqual(parentNonTaskStarts.map(a => a.toolName), [],

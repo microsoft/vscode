@@ -28,7 +28,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type URI as ProtocolURI, type UsageInfo } from '../../common/state/sessionState.js';
+import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeRequestParams, IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -427,7 +427,6 @@ export class CopilotAgentSession extends Disposable {
 
 				this._emitAction({
 					type: ActionType.SessionToolCallContentChanged,
-					session: this._protocolSession(),
 					turnId: this._turnId,
 					toolCallId,
 					content: tracked.content,
@@ -438,10 +437,6 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	// ---- AgentSignal helpers ------------------------------------------------
-
-	private _protocolSession(): ProtocolURI {
-		return this.sessionUri.toString();
-	}
 
 	/** Wraps a {@link SessionAction} in an {@link AgentSignal} envelope and emits it. */
 	private _emitAction(action: SessionAction, parentToolCallId?: string): void {
@@ -506,7 +501,6 @@ export class CopilotAgentSession extends Disposable {
 	 * markdown response part; subsequent deltas append to it.
 	 */
 	private _emitMarkdownDelta(content: string, parentToolCallId?: string): void {
-		const session = this._protocolSession();
 		const markdownScope = parentToolCallId ?? '';
 		let partId = this._currentMarkdownPartIds.get(markdownScope);
 		if (!partId) {
@@ -514,7 +508,6 @@ export class CopilotAgentSession extends Disposable {
 			this._currentMarkdownPartIds.set(markdownScope, partId);
 			this._emitAction({
 				type: ActionType.SessionResponsePart,
-				session,
 				turnId: this._turnId,
 				part: { kind: ResponsePartKind.Markdown, id: partId, content },
 			}, parentToolCallId);
@@ -522,7 +515,6 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._emitAction({
 			type: ActionType.SessionDelta,
-			session,
 			turnId: this._turnId,
 			partId,
 			content,
@@ -531,7 +523,6 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Emits a reasoning delta, similar to {@link _emitMarkdownDelta} but for reasoning parts. */
 	private _emitReasoningDelta(content: string, parentToolCallId?: string): void {
-		const session = this._protocolSession();
 		const reasoningScope = parentToolCallId ?? '';
 		let partId = this._currentReasoningPartIds.get(reasoningScope);
 		if (!partId) {
@@ -539,7 +530,6 @@ export class CopilotAgentSession extends Disposable {
 			this._currentReasoningPartIds.set(reasoningScope, partId);
 			this._emitAction({
 				type: ActionType.SessionResponsePart,
-				session,
 				turnId: this._turnId,
 				part: { kind: ResponsePartKind.Reasoning, id: partId, content },
 			}, parentToolCallId);
@@ -547,7 +537,6 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._emitAction({
 			type: ActionType.SessionReasoning,
-			session,
 			turnId: this._turnId,
 			partId,
 			content,
@@ -1111,7 +1100,6 @@ export class CopilotAgentSession extends Disposable {
 
 			this._emitAction({
 				type: ActionType.SessionInputRequested,
-				session: this._protocolSession(),
 				request: inputRequest,
 			});
 
@@ -1188,7 +1176,6 @@ export class CopilotAgentSession extends Disposable {
 
 			this._emitAction({
 				type: ActionType.SessionInputRequested,
-				session: this._protocolSession(),
 				request: inputRequest,
 			});
 
@@ -1401,7 +1388,6 @@ export class CopilotAgentSession extends Disposable {
 			this._currentMarkdownPartIds.set(markdownScope, partId);
 			this._emitAction({
 				type: ActionType.SessionResponsePart,
-				session: this._protocolSession(),
 				turnId: this._turnId,
 				part: { kind: ResponsePartKind.Markdown, id: partId, content: e.data.content },
 			}, parentToolCallId);
@@ -1420,7 +1406,6 @@ export class CopilotAgentSession extends Disposable {
 						this._hasReportedActivity = true;
 						this._emitAction({
 							type: ActionType.SessionActivityChanged,
-							session: this._protocolSession(),
 							activity: intent,
 						});
 					}
@@ -1474,10 +1459,8 @@ export class CopilotAgentSession extends Disposable {
 				meta.mcpToolName = e.data.mcpToolName;
 			}
 
-			const protocolSession = this._protocolSession();
 			this._emitAction({
 				type: ActionType.SessionToolCallStart,
-				session: protocolSession,
 				turnId: this._turnId,
 				toolCallId: e.data.toolCallId,
 				toolName: e.data.toolName,
@@ -1495,7 +1478,6 @@ export class CopilotAgentSession extends Disposable {
 
 			this._emitAction({
 				type: ActionType.SessionToolCallReady,
-				session: protocolSession,
 				turnId: this._turnId,
 				toolCallId: e.data.toolCallId,
 				invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters),
@@ -1552,7 +1534,6 @@ export class CopilotAgentSession extends Disposable {
 
 			this._emitAction({
 				type: ActionType.SessionToolCallComplete,
-				session: this._protocolSession(),
 				turnId: this._turnId,
 				toolCallId: e.data.toolCallId,
 				result: {
@@ -1573,13 +1554,11 @@ export class CopilotAgentSession extends Disposable {
 				this._hasReportedActivity = false;
 				this._emitAction({
 					type: ActionType.SessionActivityChanged,
-					session: this._protocolSession(),
 					activity: undefined,
 				});
 			}
 			this._emitAction({
 				type: ActionType.SessionTurnComplete,
-				session: this._protocolSession(),
 				turnId: this._turnId,
 			});
 		}));
@@ -1591,10 +1570,8 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onSkillInvoked(e => {
 			this._logService.info(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
 			const synth = synthesizeSkillToolCall(e.data, e.id);
-			const protocolSession = this._protocolSession();
 			this._emitAction({
 				type: ActionType.SessionToolCallStart,
-				session: protocolSession,
 				turnId: this._turnId,
 				toolCallId: synth.toolCallId,
 				toolName: synth.toolName,
@@ -1602,7 +1579,6 @@ export class CopilotAgentSession extends Disposable {
 			});
 			this._emitAction({
 				type: ActionType.SessionToolCallReady,
-				session: protocolSession,
 				turnId: this._turnId,
 				toolCallId: synth.toolCallId,
 				invocationMessage: synth.invocationMessage,
@@ -1610,7 +1586,6 @@ export class CopilotAgentSession extends Disposable {
 			});
 			this._emitAction({
 				type: ActionType.SessionToolCallComplete,
-				session: protocolSession,
 				turnId: this._turnId,
 				toolCallId: synth.toolCallId,
 				result: {
@@ -1639,7 +1614,6 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
 			this._emitAction({
 				type: ActionType.SessionError,
-				session: this._protocolSession(),
 				turnId: this._turnId,
 				error: {
 					errorType: e.data.errorType,
@@ -1671,7 +1645,6 @@ export class CopilotAgentSession extends Disposable {
 			};
 			this._emitAction({
 				type: ActionType.SessionUsage,
-				session: this._protocolSession(),
 				turnId: this._turnId,
 				usage,
 			});
@@ -1812,7 +1785,6 @@ export class CopilotAgentSession extends Disposable {
 			session: this.sessionUri,
 			action: {
 				type: ActionType.SessionInputRequested,
-				session: this.sessionUri.toString(),
 				request: inputRequest,
 			}
 		});

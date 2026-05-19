@@ -39,7 +39,7 @@ suite('AgentHostChangesetService', () => {
 			workingDirectory,
 			changesets: buildDefaultChangesetCatalogue(sessionUri.toString()),
 		});
-		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri.toString() });
+		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
 	}
 
 	setup(() => {
@@ -286,12 +286,11 @@ suite('AgentHostChangesetService', () => {
 			// Walk the captured stream and reconstruct the per-changeset
 			// file lists to assert each matches the git service output.
 			const fileSets = envelopes
-				.map(e => e.action)
-				.filter(a => a.type === ActionType.ChangesetFileSet) as Array<{ changeset: string; file: { edit: unknown } }>;
-			const sessionFileSets = fileSets.filter(a => a.changeset === `${sessionUri.toString()}/changeset/session`);
-			const uncommittedFileSets = fileSets.filter(a => a.changeset === `${sessionUri.toString()}/changeset/uncommitted`);
-			assert.deepStrictEqual(sessionFileSets.map(a => a.file.edit), gitDiffs);
-			assert.deepStrictEqual(uncommittedFileSets.map(a => a.file.edit), gitDiffs);
+				.filter(e => e.action.type === ActionType.ChangesetFileSet) as Array<{ channel: string; action: { file: { edit: unknown } } }>;
+			const sessionFileSets = fileSets.filter(e => e.channel === `${sessionUri.toString()}/changeset/session`);
+			const uncommittedFileSets = fileSets.filter(e => e.channel === `${sessionUri.toString()}/changeset/uncommitted`);
+			assert.deepStrictEqual(sessionFileSets.map(e => e.action.file.edit), gitDiffs);
+			assert.deepStrictEqual(uncommittedFileSets.map(e => e.action.file.edit), gitDiffs);
 
 			// The compute pass also persists the file list under the
 			// legacy `'diffs'` slot so it survives restarts. The write
@@ -415,8 +414,7 @@ suite('AgentHostChangesetService', () => {
 			//    were emitted.
 			const uncommittedUri = `${sessionStr}/changeset/uncommitted`;
 			const removed = envelopes
-				.map(e => e.action)
-				.filter(a => a.type === ActionType.ChangesetFileRemoved && a.changeset === uncommittedUri);
+				.filter(e => e.action.type === ActionType.ChangesetFileRemoved && e.channel === uncommittedUri);
 			assert.deepStrictEqual(removed, [], 'no files should be removed when the git path is unavailable');
 
 			// 2) The persisted DB blob is unchanged (compute did not overwrite it).

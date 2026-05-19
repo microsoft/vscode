@@ -172,12 +172,11 @@ export class SessionPermissionManager extends Disposable {
 	 * (the protocol state carries `confirmationTitle`), the standard
 	 * confirmation options are baked in so clients can render them directly.
 	 */
-	createToolReadyAction(e: IAgentToolPendingConfirmationSignal, sessionKey: ProtocolURI, turnId: string): IToolCallReadyAction {
+	createToolReadyAction(e: IAgentToolPendingConfirmationSignal, _sessionKey: ProtocolURI, turnId: string): IToolCallReadyAction {
 		const state = e.state;
 		if (state.confirmationTitle) {
 			return {
 				type: ActionType.SessionToolCallReady,
-				session: sessionKey,
 				turnId,
 				toolCallId: state.toolCallId,
 				invocationMessage: state.invocationMessage,
@@ -193,7 +192,6 @@ export class SessionPermissionManager extends Disposable {
 		}
 		return {
 			type: ActionType.SessionToolCallReady,
-			session: sessionKey,
 			turnId,
 			toolCallId: state.toolCallId,
 			invocationMessage: state.invocationMessage,

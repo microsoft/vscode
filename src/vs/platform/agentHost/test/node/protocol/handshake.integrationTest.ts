@@ -75,16 +75,16 @@ suite('Protocol WebSocket — Handshake & Errors', function () {
 
 		let gotError = false;
 		try {
-			await client.call('createSession', { session: nextSessionUri(), provider: 'nonexistent' });
+			await client.call('createSession', { channel: nextSessionUri(), provider: 'nonexistent' });
 		} catch {
 			gotError = true;
 		}
 		assert.ok(gotError, 'should have received an error for invalid provider');
 
 		// Server should still be functional
-		await client.call('createSession', { session: nextSessionUri(), provider: 'mock' });
+		await client.call('createSession', { channel: nextSessionUri(), provider: 'mock' });
 		const notif = await client.waitForNotification(n =>
-			n.method === 'notification' && (n.params as { notification: { type: string } }).notification.type === 'notify/sessionAdded'
+			n.method === 'root/sessionAdded'
 		);
 		assert.ok(notif);
 	});

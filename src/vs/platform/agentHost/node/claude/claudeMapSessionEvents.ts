@@ -302,7 +302,6 @@ function mapUserMessage(
 		return [];
 	}
 
-	const sessionStr = session.toString();
 	const signals: AgentSignal[] = [];
 	for (const block of content) {
 		if (block.type !== 'tool_result') {
@@ -324,7 +323,6 @@ function mapUserMessage(
 			session,
 			action: {
 				type: ActionType.SessionToolCallComplete,
-				session: sessionStr,
 				turnId: tracked.turnId,
 				toolCallId: block.tool_use_id,
 				result: {
@@ -391,7 +389,6 @@ function mapResult(
 	logService: ILogService,
 	registry: SubagentRegistry,
 ): AgentSignal[] {
-	const sessionStr = session.toString();
 	const signals: AgentSignal[] = [];
 	if (message.subtype === 'success') {
 		// `modelUsage` is keyed by model name; pick the first key as the
@@ -403,7 +400,6 @@ function mapResult(
 			session,
 			action: {
 				type: ActionType.SessionUsage,
-				session: sessionStr,
 				turnId,
 				usage: {
 					inputTokens: message.usage.input_tokens,
@@ -438,7 +434,6 @@ function mapStreamEvent(
 	parentToolUseId: string | null,
 	registry: SubagentRegistry,
 ): AgentSignal[] {
-	const sessionStr = session.toString();
 	switch (event.type) {
 		case 'message_start':
 			state.resetMessage(event.message.id);
@@ -452,7 +447,6 @@ function mapStreamEvent(
 					session,
 					action: {
 						type: ActionType.SessionResponsePart,
-						session: sessionStr,
 						turnId,
 						part: {
 							kind: ResponsePartKind.Markdown,
@@ -468,7 +462,6 @@ function mapStreamEvent(
 					session,
 					action: {
 						type: ActionType.SessionResponsePart,
-						session: sessionStr,
 						turnId,
 						part: {
 							kind: ResponsePartKind.Reasoning,
@@ -499,7 +492,6 @@ function mapStreamEvent(
 					session,
 					action: {
 						type: ActionType.SessionToolCallStart,
-						session: sessionStr,
 						turnId,
 						toolCallId: block.id,
 						toolName: block.name,
@@ -524,7 +516,6 @@ function mapStreamEvent(
 					session,
 					action: {
 						type: ActionType.SessionDelta,
-						session: sessionStr,
 						turnId,
 						partId: makeContentBlockPartId(turnId, state, event.index, logService),
 						content: event.delta.text,
@@ -537,7 +528,6 @@ function mapStreamEvent(
 					session,
 					action: {
 						type: ActionType.SessionReasoning,
-						session: sessionStr,
 						turnId,
 						partId: makeContentBlockPartId(turnId, state, event.index, logService),
 						content: event.delta.thinking,
@@ -555,7 +545,6 @@ function mapStreamEvent(
 					session,
 					action: {
 						type: ActionType.SessionToolCallDelta,
-						session: sessionStr,
 						turnId,
 						toolCallId: tracked.toolUseId,
 						content: event.delta.partial_json,

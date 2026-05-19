@@ -8,7 +8,7 @@
 
 // ─── Type Aliases ────────────────────────────────────────────────────────────
 
-/** A URI string (e.g. `agenthost:/root` or `copilot:/<uuid>`). */
+/** A URI string (e.g. `ahp-root://` or `ahp-session:/<uuid>`). */
 export type URI = string;
 
 /**
@@ -143,7 +143,7 @@ export const enum PolicyState {
 }
 
 /**
- * Global state shared with every client subscribed to `agenthost:/root`.
+ * Global state shared with every client subscribed to `ahp-root://`.
  *
  * @category Root State
  */
@@ -2024,7 +2024,7 @@ export interface ErrorInfo {
  * @category Common Types
  */
 export interface Snapshot {
-	/** The subscribed resource URI (e.g. `agenthost:/root` or `copilot:/<uuid>`) */
+	/** The subscribed channel URI (e.g. `ahp-root://` or `ahp-session:/<uuid>`) */
 	resource: URI;
 	/** The current state of the resource */
 	state: RootState | SessionState | TerminalState | ChangesetState;

@@ -23,7 +23,7 @@ import { AgentSession } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, MessageAttachmentKind, SessionActiveClient, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
+import { ChangesetStatus, MessageAttachmentKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -114,7 +114,8 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Start a turn so there's an active turn to map events to
 			service.dispatchAction(
-				{ type: ActionType.SessionTurnStarted, session: session.toString(), turnId: 'turn-1', userMessage: { text: 'hello' } },
+				session.toString(),
+				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', userMessage: { text: 'hello' } },
 				'test-client', 1,
 			);
 
@@ -123,7 +124,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			copilotAgent.fireProgress({
 				kind: 'action', session,
-				action: { type: ActionType.SessionResponsePart, session: session.toString(), turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'msg-1', content: 'hello' } },
+				action: { type: ActionType.SessionResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'msg-1', content: 'hello' } },
 			});
 			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionResponsePart));
 		});
@@ -143,7 +144,7 @@ suite('AgentService (node dispatcher)', () => {
 				svc.registerProvider(agent);
 
 				const customization = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
-				svc.dispatchAction({
+				svc.dispatchAction(ROOT_STATE_URI, {
 					type: ActionType.RootConfigChanged,
 					config: { customizations: [customization] },
 				}, 'test-client', 1);
@@ -212,9 +213,9 @@ suite('AgentService (node dispatcher)', () => {
 
 		async function dispatchTurnAndWait(svc: AgentService, agent: MockAgent, session: URI, attachments: MessageResourceAttachment[] | { type: MessageAttachmentKind.EmbeddedResource; label: string; data: string; contentType: string; displayKind?: string }[]): Promise<void> {
 			svc.dispatchAction(
+				session.toString(),
 				{
 					type: ActionType.SessionTurnStarted,
-					session: session.toString(),
 					turnId: 'turn-1',
 					userMessage: { text: 'hello', attachments: attachments as never },
 				},
@@ -675,17 +676,15 @@ suite('AgentService (node dispatcher)', () => {
 			// Seed live changeset state directly: a single file with
 			// different counts than the stale persisted blob.
 			const changesetUri = svc.stateManager.registerChangeset(buildSessionChangesetUri(sessionUri.toString()));
-			svc.stateManager.dispatchServerAction({
+			svc.stateManager.dispatchServerAction(changesetUri, {
 				type: ActionType.ChangesetFileSet,
-				changeset: changesetUri,
 				file: {
 					id: 'file:///wd/live.ts',
-					edit: { after: { uri: 'file:///wd/live.ts', content: { uri: 'file:///wd/live.ts' } }, diff: { added: 1, removed: 0 } },
+					edit: { after: { uri: 'file:///wd/live.ts', content: { uri: 'file:///wd/live.ts' } }, diff: { added: 1, removed: 0 } }
 				},
 			});
-			svc.stateManager.dispatchServerAction({
+			svc.stateManager.dispatchServerAction(changesetUri, {
 				type: ActionType.ChangesetStatusChanged,
-				changeset: changesetUri,
 				status: ChangesetStatus.Ready,
 			});
 
@@ -749,9 +748,8 @@ suite('AgentService (node dispatcher)', () => {
 			// must be authoritative enough to suppress the persisted-diffs
 			// read.
 			const changesetUri = svc.stateManager.registerChangeset(buildSessionChangesetUri(sessionUri.toString()));
-			svc.stateManager.dispatchServerAction({
+			svc.stateManager.dispatchServerAction(changesetUri, {
 				type: ActionType.ChangesetStatusChanged,
-				changeset: changesetUri,
 				status: ChangesetStatus.Ready,
 			});
 
@@ -818,9 +816,8 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await service.createSession({ provider: 'copilot' });
 
 			// Simulate immediate title change via state manager
-			service.stateManager.dispatchServerAction({
+			service.stateManager.dispatchServerAction(session.toString(), {
 				type: ActionType.SessionTitleChanged,
-				session: session.toString(),
 				title: 'User first message',
 			});
 
@@ -1456,7 +1453,8 @@ suite('AgentService (node dispatcher)', () => {
 			// when the refcount reaches zero, otherwise we'd drop live state
 			// mid-response.
 			service.dispatchAction(
-				{ type: ActionType.SessionTurnStarted, session: sessionResource.toString(), turnId: 'turn-1', userMessage: { text: 'hello' } },
+				sessionResource.toString(),
+				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', userMessage: { text: 'hello' } },
 				'client-1', 1,
 			);
 
@@ -1758,11 +1756,13 @@ suite('AgentService (node dispatcher)', () => {
 				const sessionResource = await service.createSession({ provider: 'copilot' });
 				service.addSubscriber(sessionResource, 'client-1');
 				service.dispatchAction(
-					{ type: ActionType.SessionTurnStarted, session: sessionResource.toString(), turnId: 'turn-1', userMessage: { text: 'hello' } },
+					sessionResource.toString(),
+					{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', userMessage: { text: 'hello' } },
 					'client-1', 1,
 				);
 				service.dispatchAction(
-					{ type: ActionType.SessionTurnComplete, session: sessionResource.toString(), turnId: 'turn-1' },
+					sessionResource.toString(),
+					{ type: ActionType.SessionTurnComplete, turnId: 'turn-1' },
 					'client-1', 2,
 				);
 

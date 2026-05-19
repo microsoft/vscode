@@ -6,9 +6,9 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { IModelChangedAction, IResponsePartAction, SessionAddedNotification, ITitleChangedAction } from '../../../common/state/sessionActions.js';
+import type { IModelChangedAction, IResponsePartAction, SessionAddedParams, ITitleChangedAction } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import type { ListSessionsResult, INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
+import type { ListSessionsResult } from '../../../common/state/sessionProtocol.js';
 import { PendingMessageKind, ResponsePartKind, type SessionState } from '../../../common/state/sessionState.js';
 import { MOCK_AUTO_TITLE } from '../mockAgent.js';
 import {
@@ -66,8 +66,8 @@ suite('Protocol WebSocket — Session Features', function () {
 		const titleAction = getActionEnvelope(titleNotif).action as ITitleChangedAction;
 		assert.strictEqual(titleAction.title, 'My Custom Title');
 
-		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const state = snapshot.snapshot.state as SessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const state = snapshot.snapshot!.state as SessionState;
 		assert.strictEqual(state.summary.title, 'My Custom Title');
 	});
 
@@ -91,8 +91,8 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const state = snapshot.snapshot.state as SessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const state = snapshot.snapshot!.state as SessionState;
 		assert.strictEqual(state.summary.title, MOCK_AUTO_TITLE);
 	});
 
@@ -102,8 +102,8 @@ suite('Protocol WebSocket — Session Features', function () {
 		const sessionUri = await createAndSubscribeSession(client, 'test-immediate-title');
 
 		// Verify the session starts with the default placeholder title
-		const before = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		assert.strictEqual((before.snapshot.state as SessionState).summary.title, '');
+		const before = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		assert.strictEqual((before.snapshot!.state as SessionState).summary.title, '');
 
 		// Send first turn — side effects should dispatch an immediate titleChanged
 		// with the user's message text before the agent produces its own title.
@@ -159,17 +159,17 @@ suite('Protocol WebSocket — Session Features', function () {
 		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-model-summary' });
 
 		const sessionUri = nextSessionUri();
-		await client.call('createSession', { session: sessionUri, provider: 'mock', model: { id: 'mock-model' } });
+		await client.call('createSession', { channel: sessionUri, provider: 'mock', model: { id: 'mock-model' } });
 
 		const addedNotif = await client.waitForNotification(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+			n.method === 'root/sessionAdded'
 		);
-		const addedSession = (addedNotif.params as INotificationBroadcastParams).notification as SessionAddedNotification;
+		const addedSession = addedNotif.params as SessionAddedParams;
 		assert.deepStrictEqual(addedSession.summary.model, { id: 'mock-model' });
 		const createdSessionUri = addedSession.summary.resource;
 
-		const initialSnapshot = await client.call<SubscribeResult>('subscribe', { resource: createdSessionUri });
-		const initialState = initialSnapshot.snapshot.state as SessionState;
+		const initialSnapshot = await client.call<SubscribeResult>('subscribe', { channel: createdSessionUri });
+		const initialState = initialSnapshot.snapshot!.state as SessionState;
 		assert.deepStrictEqual(initialState.summary.model, { id: 'mock-model' });
 
 		const initialList = await client.call<ListSessionsResult>('listSessions');
@@ -188,8 +188,8 @@ suite('Protocol WebSocket — Session Features', function () {
 		const modelAction = getActionEnvelope(modelNotif).action as IModelChangedAction;
 		assert.deepStrictEqual(modelAction.model, { id: 'mock-model-2' });
 
-		const updatedSnapshot = await client.call<SubscribeResult>('subscribe', { resource: createdSessionUri });
-		const updatedState = updatedSnapshot.snapshot.state as SessionState;
+		const updatedSnapshot = await client.call<SubscribeResult>('subscribe', { channel: createdSessionUri });
+		const updatedState = updatedSnapshot.snapshot!.state as SessionState;
 		assert.deepStrictEqual(updatedState.summary.model, { id: 'mock-model-2' });
 
 		const updatedList = await client.call<ListSessionsResult>('listSessions');
@@ -262,8 +262,8 @@ suite('Protocol WebSocket — Session Features', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
 		// Verify the turn was created from the queued message
-		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const state = snapshot.snapshot.state as SessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const state = snapshot.snapshot!.state as SessionState;
 		assert.ok(state.turns.length >= 1);
 		assert.strictEqual(state.turns[state.turns.length - 1].userMessage.text, 'hello');
 		// Queue should be empty after consumption
@@ -313,8 +313,8 @@ suite('Protocol WebSocket — Session Features', function () {
 		});
 		assert.ok(secondComplete, 'should receive a second turnComplete from the queued message');
 
-		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const state = snapshot.snapshot.state as SessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const state = snapshot.snapshot!.state as SessionState;
 		assert.ok(state.turns.length >= 2, `expected >= 2 turns but got ${state.turns.length}`);
 	});
 
@@ -352,8 +352,8 @@ suite('Protocol WebSocket — Session Features', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
 		// Steering should be cleared from state
-		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const state = snapshot.snapshot.state as SessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const state = snapshot.snapshot!.state as SessionState;
 		assert.ok(!state.steeringMessage, 'steering message should be cleared after consumption');
 	});
 
@@ -373,8 +373,8 @@ suite('Protocol WebSocket — Session Features', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete') && (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-t2');
 
 		// Verify 2 turns exist
-		let snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		let state = snapshot.snapshot.state as SessionState;
+		let snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		let state = snapshot.snapshot!.state as SessionState;
 		assert.strictEqual(state.turns.length, 2);
 
 		client.clearReceived();
@@ -387,8 +387,8 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/truncated'));
 
-		snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		state = snapshot.snapshot.state as SessionState;
+		snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		state = snapshot.snapshot!.state as SessionState;
 		assert.strictEqual(state.turns.length, 1);
 		assert.strictEqual(state.turns[0].id, 'turn-t1');
 	});
@@ -411,8 +411,8 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/truncated'));
 
-		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const state = snapshot.snapshot.state as SessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const state = snapshot.snapshot!.state as SessionState;
 		assert.strictEqual(state.turns.length, 0);
 	});
 
@@ -442,8 +442,8 @@ suite('Protocol WebSocket — Session Features', function () {
 		dispatchTurnStarted(client, sessionUri, 'turn-tr3', 'hello', 4);
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const state = snapshot.snapshot.state as SessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const state = snapshot.snapshot!.state as SessionState;
 		assert.strictEqual(state.turns.length, 2);
 		assert.strictEqual(state.turns[0].id, 'turn-tr1');
 		assert.strictEqual(state.turns[1].id, 'turn-tr3');
@@ -475,19 +475,19 @@ suite('Protocol WebSocket — Session Features', function () {
 		});
 
 		const addedNotif = await client.waitForNotification(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+			n.method === 'root/sessionAdded'
 		);
-		const addedSession = (addedNotif.params as INotificationBroadcastParams).notification as SessionAddedNotification;
+		const addedSession = addedNotif.params as SessionAddedParams;
 
 		// Subscribe — forked session should have 1 turn
-		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: addedSession.summary.resource });
-		const state = snapshot.snapshot.state as SessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: addedSession.summary.resource });
+		const state = snapshot.snapshot!.state as SessionState;
 		assert.strictEqual(state.lifecycle, 'ready');
 		assert.strictEqual(state.turns.length, 1, 'forked session should have 1 turn');
 
 		// Source session should be unaffected
-		const sourceSnapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const sourceState = sourceSnapshot.snapshot.state as SessionState;
+		const sourceSnapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const sourceState = sourceSnapshot.snapshot!.state as SessionState;
 		assert.strictEqual(sourceState.turns.length, 2);
 	});
 
