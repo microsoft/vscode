@@ -50,10 +50,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	title: localize('issueReporterConfigurationTitle', "Issue Reporter"),
 	type: 'object',
 	properties: {
-		'issueReporter.experimental.wizard.enabled': {
+		'issueReporter.wizard.enabled': {
 			type: 'boolean',
 			default: false,
-			description: localize('issueReporter.experimental.wizard.enabled', "Enable the experimental issue reporter wizard instead of the classic issue reporter."),
+			description: localize('issueReporter.wizard.enabled', "Enable the new issue reporter wizard instead of the classic issue reporter."),
 		},
 	}
 });
