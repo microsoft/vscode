@@ -30,6 +30,9 @@ interface ConfigFilePatterns {
 
 const workspaceStatsCache = new Map<string, Promise<WorkspaceStats>>();
 
+/** Sentinel key in {@link WorkspaceStats.fileTypes} for files with no extension. */
+const NO_EXT_KEY = '\0no-extension';
+
 /**
  * Drop all entries from the workspace stats cache so the next call to
  * {@link collectWorkspaceStats} re-walks the filesystem. Used by the issue
@@ -142,12 +145,16 @@ export async function collectWorkspaceStats(folder: string, filter: string[], op
 					token.count++;
 
 					const index = file.name.lastIndexOf('.');
+					let fileType: string | undefined;
 					if (index >= 0) {
-						const fileType = file.name.substring(index + 1);
-						if (fileType) {
-							fileTypes.set(fileType, (fileTypes.get(fileType) ?? 0) + 1);
-						}
+						fileType = file.name.substring(index + 1) || undefined;
 					}
+					// Track files with no usable extension under a sentinel key so they
+					// can be folded into the "other" bucket at render time. Without this,
+					// extension-less files (Makefile, LICENSE, scripts in bin/, etc.) would
+					// be silently dropped from the file-type counts and the totals would
+					// not reconcile with the overall file count.
+					fileTypes.set(fileType ?? NO_EXT_KEY, (fileTypes.get(fileType ?? NO_EXT_KEY) ?? 0) + 1);
 
 					for (const configFile of configFilePatterns) {
 						if (configFile.relativePathPattern?.test(relativePath) !== false && configFile.filePattern.test(file.name)) {
@@ -425,18 +432,24 @@ export class DiagnosticsService implements IDiagnosticsService {
 		};
 
 		// File Types
+		// Skip the no-extension sentinel from the named list and fold its count into
+		// the "other" bucket so totals reconcile with fileCount.
 		let line = '|      File types:';
 		const maxShown = 10;
-		const max = workspaceStats.fileTypes.length > maxShown ? maxShown : workspaceStats.fileTypes.length;
+		const namedTypes = workspaceStats.fileTypes.filter(t => t.name !== NO_EXT_KEY);
+		const noExtCount = workspaceStats.fileTypes
+			.filter(t => t.name === NO_EXT_KEY)
+			.reduce((sum, t) => sum + t.count, 0);
+		const max = Math.min(namedTypes.length, maxShown);
 		for (let i = 0; i < max; i++) {
-			const item = workspaceStats.fileTypes[i];
+			const item = namedTypes[i];
 			appendAndWrap(item.name, item.count);
 		}
-		if (workspaceStats.fileTypes.length > maxShown) {
-			let otherCount = 0;
-			for (let i = maxShown; i < workspaceStats.fileTypes.length; i++) {
-				otherCount += workspaceStats.fileTypes[i].count;
-			}
+		let otherCount = noExtCount;
+		for (let i = max; i < namedTypes.length; i++) {
+			otherCount += namedTypes[i].count;
+		}
+		if (otherCount > 0) {
 			appendAndWrap('other', otherCount);
 		}
 		output.push(line);
