@@ -130,6 +130,7 @@ export class IssueReporterEditorPane extends EditorPane {
 			extensionId => this.issueFormService.sendReporterMenu(extensionId),
 			async url => { await this.openerService.open(URI.parse(url), { openExternal: true }); },
 			this.shouldShowUpdateBanner(),
+			() => this.refreshPerformanceInfo(),
 		);
 		this.inputDisposables.add(this.wizard);
 		this.inputDisposables.add(this.updateService.onStateChange(() => this.wizard?.setUpdateAvailable(this.shouldShowUpdateBanner())));
@@ -319,6 +320,27 @@ export class IssueReporterEditorPane extends EditorPane {
 		}));
 	}
 
+	private async refreshPerformanceInfo(): Promise<void> {
+		if (!this.wizard) {
+			return;
+		}
+		try {
+			// User-initiated refresh: bypass the workspace-stats cache and walk the
+			// full filesystem (no cap) so the reported file counts and file-type
+			// breakdown reflect the actual workspace. Initial-load still uses the
+			// default cap so the issue reporter opens quickly.
+			const performanceInfo = await this.processService.getPerformanceInfo({ skipCache: true, maxFiles: Number.POSITIVE_INFINITY });
+			this.wizard.updateModel({
+				processInfo: performanceInfo.processInfo,
+				workspaceInfo: performanceInfo.workspaceInfo,
+			});
+		} catch (err) {
+			this.logService.error('[IssueReporterEditorPane] Failed to refresh performance info:', err);
+		} finally {
+			this.wizard?.markPerformanceInfoLoaded();
+		}
+	}
+
 	private async populateSystemInfo(): Promise<void> {
 		if (!this.wizard) {
 			return;
@@ -337,13 +359,10 @@ export class IssueReporterEditorPane extends EditorPane {
 				systemInfoWeb: navigator.userAgent,
 			});
 
-			const performanceInfo = await this.processService.getPerformanceInfo();
-			this.wizard.updateModel({
-				processInfo: performanceInfo.processInfo,
-				workspaceInfo: performanceInfo.workspaceInfo,
-			});
+			await this.refreshPerformanceInfo();
 		} catch (err) {
 			this.logService.error('[IssueReporterEditorPane] Failed to collect system info:', err);
+			this.wizard?.markPerformanceInfoLoaded();
 		}
 
 		// Experiments (independent from system info)
@@ -352,9 +371,7 @@ export class IssueReporterEditorPane extends EditorPane {
 			this.wizard?.updateModel({ experimentInfo: experiments?.join('\n') ?? localize('noExperiments', "No current experiments.") });
 		} catch {
 			// Ignore
-		}
-
-		// Extensions — data may have been populated by the issue service's async background task.
+		}		// Extensions — data may have been populated by the issue service's async background task.
 		// Give it a moment to finish, then sync.
 		await new Promise(r => setTimeout(r, 500));
 		if (data && data.enabledExtensions.length > 0) {

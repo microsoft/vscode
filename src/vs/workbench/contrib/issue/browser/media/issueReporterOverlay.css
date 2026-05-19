@@ -531,10 +531,12 @@
 	color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground, #f48771)) !important;
 	font-size: 12px;
 	line-height: 1.4;
+	min-height: 1.4em;
 }
 
 .wizard-field-error.hidden {
-	display: none;
+	visibility: hidden;
+	min-height: 1.4em;
 }
 
 .wizard-similar-issues {
@@ -790,14 +792,31 @@
 	transform: translateY(-22px);
 }
 
+/* Status messages are absolutely positioned in the same slot as the field
+   error (the 1.4em reserved line directly below the input/buttons). The error
+   takes precedence when shown; otherwise the status text fills that slot.
+   This keeps the row height constant regardless of which is visible. */
+.wizard-source-field,
+.wizard-extension-field {
+	position: relative;
+}
+
 .wizard-target-status,
 .wizard-extension-status {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
 	color: var(--vscode-descriptionForeground, #999);
 	font-size: 12px;
 	line-height: 1.4;
-	/* Reserve two lines so switching targets (or status text wrapping) does not
-	   shift the rest of the form vertically. */
-	min-height: 2.8em;
+	pointer-events: none;
+}
+
+/* Hide the status while its sibling field-error is visible to avoid overlap. */
+.wizard-source-field:has(> .wizard-field-error:not(.hidden)) .wizard-target-status,
+.wizard-extension-field:has(> .wizard-field-error:not(.hidden)) .wizard-extension-status {
+	display: none;
 }
 
 /* Target row: source field + extension dropdown sit side-by-side.
@@ -806,7 +825,7 @@
 .wizard-target-row {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 16px 24px;
+	gap: 0 24px;
 	align-items: flex-start;
 }
 
@@ -1106,6 +1125,38 @@
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
+	position: relative;
+}
+
+.review-performance-data.refreshing::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: 4px;
+	background: var(--vscode-editor-background, #1e1e1e);
+	opacity: 0.6;
+	pointer-events: none;
+	z-index: 1;
+}
+
+.review-performance-data.refreshing::before {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 18px;
+	height: 18px;
+	margin: -9px 0 0 -9px;
+	border: 2px solid var(--vscode-progressBar-background, var(--vscode-focusBorder, #007acc));
+	border-top-color: transparent;
+	border-radius: 50%;
+	animation: review-performance-spin 0.8s linear infinite;
+	z-index: 2;
+	pointer-events: none;
+}
+
+@keyframes review-performance-spin {
+	to { transform: rotate(360deg); }
 }
 
 .review-performance-data .review-diag-group {
@@ -1115,10 +1166,23 @@
 	padding: 6px 0 0;
 }
 
+.review-performance-title-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
 .review-performance-title {
 	font-size: 13px;
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
+}
+
+.review-performance-refresh.monaco-button {
+	flex: none;
+	width: auto;
+	font-size: 12px;
+	padding: 2px 8px;
 }
 
 .review-performance-description {

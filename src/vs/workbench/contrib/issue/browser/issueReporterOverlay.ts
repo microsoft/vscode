@@ -138,6 +138,8 @@ export class IssueReporterOverlay {
 	private workspaceSettingsContent: string | undefined;
 	private diagnosticBulkToggleButton: Button | undefined;
 	private diagnosticSectionStates: (() => boolean)[] = [];
+	private performanceInfoLoaded = false;
+	private performanceInfoRefreshing = false;
 
 	// Navigation
 	private stepIndicator!: HTMLElement;
@@ -169,6 +171,7 @@ export class IssueReporterOverlay {
 		private readonly resolveExtensionIssueData?: (extensionId: string) => Promise<IssueReporterData | undefined>,
 		private readonly openExternalLink?: (url: string) => Promise<void>,
 		private showUpdateBanner = false,
+		private readonly refreshPerformanceInfo?: () => Promise<void>,
 	) {
 		this._hideToolbarInScreenshots = initialHideToolbar;
 		this.model = new IssueReporterModel({
@@ -1585,8 +1588,40 @@ export class IssueReporterOverlay {
 
 		if (this.selectedIssueType === IssueType.PerformanceIssue && !modelData.fileOnMarketplace) {
 			const performanceContainer = append(diagContainer, $('div.review-performance-data'));
-			const performanceTitle = append(performanceContainer, $('div.review-performance-title'));
+			if (this.performanceInfoRefreshing) {
+				performanceContainer.classList.add('refreshing');
+			}
+			const performanceTitleRow = append(performanceContainer, $('div.review-performance-title-row'));
+			const performanceTitle = append(performanceTitleRow, $('div.review-performance-title'));
 			performanceTitle.textContent = localize('additionalPerformanceData', "Additional Performance Data");
+			if (this.refreshPerformanceInfo) {
+				const refreshBtn = this.disposables.add(new Button(performanceTitleRow, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+				refreshBtn.element.classList.add('review-performance-refresh');
+				refreshBtn.label = `$(refresh) ${localize('refresh', "Refresh")}`;
+				refreshBtn.element.title = localize('refreshPerformanceData', "Reload running processes and workspace metadata");
+				refreshBtn.enabled = !this.performanceInfoRefreshing;
+				this.disposables.add(refreshBtn.onDidClick(async () => {
+					if (!this.refreshPerformanceInfo || this.performanceInfoRefreshing) {
+						return;
+					}
+					this.performanceInfoRefreshing = true;
+					refreshBtn.enabled = false;
+					performanceContainer.classList.add('refreshing');
+					try {
+						await this.refreshPerformanceInfo();
+					} finally {
+						this.performanceInfoRefreshing = false;
+						// updateModel inside refreshPerformanceInfo already re-renders the
+						// review step, so the previous performanceContainer/refreshBtn may
+						// be stale by now. Re-rendering once more here ensures the
+						// "refreshing" class is cleared and the button is re-enabled even
+						// if the model didn't update (e.g. error path).
+						if (this.currentStep === WizardStep.Review) {
+							this.updateReviewDetails();
+						}
+					}
+				}));
+			}
 			const performanceDescription = append(performanceContainer, $('div.review-performance-description'));
 			performanceDescription.textContent = localize('additionalPerformanceDataDescription', "Optionally include currently running processes and workspace metadata to help diagnose performance issues.");
 
@@ -1595,7 +1630,7 @@ export class IssueReporterOverlay {
 				diagnosticSectionStates.push(() => this.includeProcessInfo);
 				this.createDiagSection(performanceContainer, {
 					id: 'process-info',
-					label: localize('runningProcesses', "Currently Running Processes"),
+					label: localize('runningProcesses', "Running Processes"),
 					checked: this.includeProcessInfo,
 					onToggle: (checked) => {
 						this.includeProcessInfo = checked;
@@ -1606,7 +1641,7 @@ export class IssueReporterOverlay {
 						pre.textContent = modelData.processInfo!;
 					},
 				});
-			} else {
+			} else if (!this.performanceInfoLoaded) {
 				const loading = append(performanceContainer, $('div.review-diag-loading'));
 				loading.textContent = localize('loadingProcessInfo', "Loading currently running processes...");
 			}
@@ -1627,7 +1662,7 @@ export class IssueReporterOverlay {
 						pre.textContent = modelData.workspaceInfo!;
 					},
 				});
-			} else {
+			} else if (!this.performanceInfoLoaded) {
 				const loading = append(performanceContainer, $('div.review-diag-loading'));
 				loading.textContent = localize('loadingWorkspaceInfo', "Loading workspace metadata...");
 			}
@@ -2113,7 +2148,7 @@ export class IssueReporterOverlay {
 
 		if (this.selectedIssueType === IssueType.PerformanceIssue && !modelData.fileOnMarketplace) {
 			if (this.includeProcessInfo && modelData.processInfo) {
-				sections.push(this.createDetails('Currently Running Processes', this.createCodeBlock(modelData.processInfo)));
+				sections.push(this.createDetails('Running Processes', this.createCodeBlock(modelData.processInfo)));
 			}
 			if (this.includeWorkspaceInfo && modelData.workspaceInfo) {
 				sections.push(this.createDetails('Workspace Metadata', this.createCodeBlock(modelData.workspaceInfo)));
@@ -2337,6 +2372,19 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 			this.updateIssueSourceFlags();
 		}
 		// Refresh review details if we're on the review step (async data may have arrived)
+		if (this.currentStep === WizardStep.Review) {
+			this.updateReviewDetails();
+		}
+	}
+
+	/**
+	 * Called once the performance info load has resolved (regardless of whether
+	 * processInfo / workspaceInfo are actually present — both can legitimately be
+	 * empty, e.g. when no workspace folder is open). Suppresses the "Loading…"
+	 * placeholders that would otherwise show indefinitely.
+	 */
+	markPerformanceInfoLoaded(): void {
+		this.performanceInfoLoaded = true;
 		if (this.currentStep === WizardStep.Review) {
 			this.updateReviewDetails();
 		}

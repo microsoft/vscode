@@ -29,11 +29,26 @@ interface ConfigFilePatterns {
 }
 
 const workspaceStatsCache = new Map<string, Promise<WorkspaceStats>>();
-export async function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
+
+/**
+ * Drop all entries from the workspace stats cache so the next call to
+ * {@link collectWorkspaceStats} re-walks the filesystem. Used by the issue
+ * reporter's "Refresh" action to pick up newly created/deleted files.
+ */
+export function invalidateWorkspaceStatsCache(): void {
+	workspaceStatsCache.clear();
+}
+
+export async function collectWorkspaceStats(folder: string, filter: string[], options?: { skipCache?: boolean; maxFiles?: number }): Promise<WorkspaceStats> {
 	const cacheKey = `${folder}::${filter.join(':')}`;
-	const cached = workspaceStatsCache.get(cacheKey);
-	if (cached) {
-		return cached;
+	if (!options?.skipCache) {
+		const cached = workspaceStatsCache.get(cacheKey);
+		if (cached) {
+			return cached;
+		}
+	} else {
+		// Drop any in-flight or stale entry so callers can be sure they get fresh data.
+		workspaceStatsCache.delete(cacheKey);
 	}
 
 	const configFilePatterns: ConfigFilePatterns[] = [
@@ -79,7 +94,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 	const fileTypes = new Map<string, number>();
 	const configFiles = new Map<string, number>();
 
-	const MAX_FILES = 20000;
+	const MAX_FILES = options?.maxFiles ?? 20000;
 
 	function collect(root: string, dir: string, filter: string[], token: { count: number; maxReached: boolean; readdirCount: number }): Promise<void> {
 		const relativePath = dir.substring(root.length + 1);
@@ -97,7 +112,6 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 			}
 
 			if (token.count >= MAX_FILES) {
-				token.count += files.length;
 				token.maxReached = true;
 				resolve();
 				return;
@@ -109,16 +123,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 				return;
 			}
 
-			let filesToRead = files;
-			if (token.count + files.length > MAX_FILES) {
-				token.maxReached = true;
-				pending = MAX_FILES - token.count;
-				filesToRead = files.slice(0, pending);
-			}
-
-			token.count += files.length;
-
-			for (const file of filesToRead) {
+			for (const file of files) {
 				if (file.isDirectory()) {
 					if (!filter.includes(file.name)) {
 						await collect(root, join(dir, file.name), filter, token);
@@ -129,6 +134,13 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 						return;
 					}
 				} else {
+					if (token.count >= MAX_FILES) {
+						token.maxReached = true;
+						resolve();
+						return;
+					}
+					token.count++;
+
 					const index = file.name.lastIndexOf('.');
 					if (index >= 0) {
 						const fileType = file.name.substring(index + 1);
@@ -271,8 +283,8 @@ export class DiagnosticsService implements IDiagnosticsService {
 		return output.join('\n');
 	}
 
-	public async getPerformanceInfo(info: IMainProcessDiagnostics, remoteData: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo> {
-		return Promise.all([listProcesses(info.mainPID), this.formatWorkspaceMetadata(info)]).then(async result => {
+	public async getPerformanceInfo(info: IMainProcessDiagnostics, remoteData: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[], options?: { skipCache?: boolean; maxFiles?: number }): Promise<PerformanceInfo> {
+		return Promise.all([listProcesses(info.mainPID), this.formatWorkspaceMetadata(info, options)]).then(async result => {
 			let [rootProcess, workspaceInfo] = result;
 			let processInfo = this.formatProcessList(info, rootProcess);
 
@@ -420,6 +432,13 @@ export class DiagnosticsService implements IDiagnosticsService {
 			const item = workspaceStats.fileTypes[i];
 			appendAndWrap(item.name, item.count);
 		}
+		if (workspaceStats.fileTypes.length > maxShown) {
+			let otherCount = 0;
+			for (let i = maxShown; i < workspaceStats.fileTypes.length; i++) {
+				otherCount += workspaceStats.fileTypes[i].count;
+			}
+			appendAndWrap('other', otherCount);
+		}
 		output.push(line);
 
 		// Conf Files
@@ -449,7 +468,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		return Object.keys(gpuFeatures).map(feature => `${feature}:  ${' '.repeat(longestFeatureName - feature.length)}  ${gpuFeatures[feature]}`).join('\n                  ');
 	}
 
-	private formatWorkspaceMetadata(info: IMainProcessDiagnostics): Promise<string> {
+	private formatWorkspaceMetadata(info: IMainProcessDiagnostics, options?: { skipCache?: boolean; maxFiles?: number }): Promise<string> {
 		const output: string[] = [];
 		const workspaceStatPromises: Promise<void>[] = [];
 
@@ -464,7 +483,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 				const folderUri = URI.revive(uriComponents);
 				if (folderUri.scheme === Schemas.file) {
 					const folder = folderUri.fsPath;
-					workspaceStatPromises.push(collectWorkspaceStats(folder, ['node_modules', '.git']).then(stats => {
+					workspaceStatPromises.push(collectWorkspaceStats(folder, ['node_modules', '.git'], options).then(stats => {
 						let countMessage = `${stats.fileCount} files`;
 						if (stats.maxFilesReached) {
 							countMessage = `more than ${countMessage}`;
