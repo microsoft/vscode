@@ -45,6 +45,36 @@
 	overflow: auto;
 }
 
+/* VS Code styled scrollbars for any scrollable region in the wizard */
+.issue-reporter-wizard *::-webkit-scrollbar,
+.issue-reporter-wizard ::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+.issue-reporter-wizard *::-webkit-scrollbar-corner,
+.issue-reporter-wizard ::-webkit-scrollbar-corner,
+.issue-reporter-wizard *::-webkit-scrollbar-track,
+.issue-reporter-wizard ::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.issue-reporter-wizard *::-webkit-scrollbar-thumb,
+.issue-reporter-wizard ::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4));
+	border-radius: 0;
+}
+
+.issue-reporter-wizard *::-webkit-scrollbar-thumb:hover,
+.issue-reporter-wizard ::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, 0.7));
+}
+
+.issue-reporter-wizard *::-webkit-scrollbar-thumb:active,
+.issue-reporter-wizard ::-webkit-scrollbar-thumb:active {
+	background: var(--vscode-scrollbarSlider-activeBackground, rgba(191, 191, 191, 0.4));
+}
+
 .issue-reporter-editor-tab {
 	display: flex;
 	flex-direction: column;
@@ -307,6 +337,16 @@
 	color: var(--vscode-titleBar-activeForeground, #ccc);
 }
 
+.wizard-step-separator {
+	display: inline-block;
+	width: 1px;
+	height: 12px;
+	margin: 0 8px;
+	background: var(--vscode-titleBar-activeForeground, #888);
+	opacity: 0.4;
+	vertical-align: middle;
+}
+
 .wizard-step-label {
 	font-size: 12px;
 	white-space: nowrap;
@@ -393,10 +433,10 @@
 	width: auto;
 	align-items: center;
 	gap: 8px;
-	padding: 8px 16px;
+	padding: 6px 10px;
 	background: transparent !important;
 	color: var(--vscode-foreground, #ccc) !important;
-	border: 1px solid var(--vscode-input-border, #555);
+	border: 1px solid transparent;
 	border-radius: 4px;
 	font-size: 13px;
 	line-height: normal;
@@ -404,7 +444,7 @@
 }
 
 .monaco-button.wizard-type-btn:hover {
-	border-color: var(--vscode-focusBorder, #007acc);
+	background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06)) !important;
 }
 
 .monaco-button.wizard-type-btn .codicon {
@@ -435,12 +475,13 @@
 }
 
 .monaco-button.wizard-type-btn.selected {
-	border-color: var(--vscode-focusBorder, #007acc);
-	background: var(--vscode-list-activeSelectionBackground, rgba(0, 122, 204, 0.1)) !important;
+	border-color: transparent;
+	background: transparent !important;
 }
 
-.wizard-type-buttons.invalid-input .monaco-button.wizard-type-btn {
-	border-color: var(--vscode-inputValidation-errorBorder, #be1100) !important;
+.monaco-button.wizard-type-btn:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #007acc);
+	outline-offset: -1px;
 }
 
 .wizard-type-buttons.invalid-input .monaco-button.wizard-type-btn::before {
@@ -566,8 +607,10 @@
 	flex-shrink: 0;
 }
 
-.wizard-screenshot-card:hover {
+.wizard-screenshot-card:hover,
+.wizard-screenshot-card:focus-visible {
 	border-color: var(--vscode-focusBorder, #007acc);
+	outline: none;
 }
 
 .wizard-screenshot-card img {
@@ -595,7 +638,8 @@
 	transition: opacity .15s;
 }
 
-.wizard-screenshot-card:hover .wizard-screenshot-delete {
+.wizard-screenshot-card:hover .wizard-screenshot-delete,
+.wizard-screenshot-card:focus-within .wizard-screenshot-delete {
 	opacity: 1;
 }
 
@@ -674,7 +718,7 @@
 .wizard-field {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 8px;
 }
 
 .wizard-field.hidden {
@@ -686,7 +730,7 @@
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
 	margin-top: 8px;
-	margin-bottom: 4px;
+	margin-bottom: 0;
 	display: block;
 }
 
@@ -734,6 +778,15 @@
 	color: var(--vscode-descriptionForeground, #999);
 	font-size: 12px;
 	line-height: 1.4;
+	min-height: 1.4em;
+}
+
+/* Reserve space for the extension field even when hidden so the layout
+   does not shift when switching between target options. */
+.wizard-extension-field.hidden {
+	display: flex;
+	visibility: hidden;
+	pointer-events: none;
 }
 
 /* Title label row: label + AI generate button */
@@ -741,6 +794,7 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
+	margin-top: 12px;
 }
 
 .wizard-title-label-row .wizard-field-label {
@@ -750,7 +804,7 @@
 
 .wizard-ai-title-btn.monaco-button {
 	width: auto;
-	padding: 2px 8px;
+	padding: 2px 6px 2px 4px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -760,6 +814,12 @@
 	font-size: 11px;
 	height: auto;
 	line-height: 1.4;
+}
+
+.wizard-ai-title-btn.monaco-button[disabled],
+.wizard-ai-title-btn.monaco-button.disabled {
+	opacity: 0.55;
+	cursor: default;
 }
 
 /* Description guidance text */
@@ -1034,9 +1094,8 @@
 .review-diag-header {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 8px;
 	min-height: 28px;
-	flex-wrap: wrap;
 }
 
 .review-diag-check-wrap {
@@ -1070,7 +1129,7 @@
 .review-diag-toggle.monaco-button {
 	flex-shrink: 0;
 	font-size: 12px;
-	padding: 2px 8px;
+	padding: 2px 8px 2px 4px;
 	width: auto;
 	flex: none;
 }
@@ -1146,7 +1205,7 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	padding: 10px 16px;
+	padding: 12px 40px;
 	flex-shrink: 0;
 	background: var(--vscode-editor-background, #1e1e1e);
 }
@@ -1223,6 +1282,14 @@
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
 	font-size: 13px;
 	color: var(--vscode-foreground, #ccc);
+	outline: none !important;
+}
+
+.issue-reporter-annotation-overlay:focus,
+.issue-reporter-annotation-overlay:focus-visible,
+.issue-reporter-annotation-overlay:focus-within {
+	outline: none !important;
+	box-shadow: none !important;
 }
 
 .issue-reporter-annotation-overlay .annotation-toolbar {
@@ -1262,10 +1329,34 @@
 	background: rgba(255, 255, 255, .1);
 }
 
+.issue-reporter-annotation-overlay .annotation-toolbar .tool-btn:focus {
+	outline: none;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .tool-btn:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #007acc);
+	outline-offset: -1px;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .tool-btn:disabled {
+	opacity: 0.4;
+	cursor: default;
+	pointer-events: none;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .tool-btn:disabled:hover {
+	background: transparent;
+}
+
 .issue-reporter-annotation-overlay .annotation-toolbar .tool-btn.active {
 	background: var(--vscode-button-background, #0e639c);
 	color: var(--vscode-button-foreground, #fff);
 	border-color: var(--vscode-button-background, #0e639c);
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .tool-btn.active,
+.issue-reporter-annotation-overlay .annotation-toolbar .tool-btn.active .codicon {
+	color: var(--vscode-button-foreground, #fff) !important;
 }
 
 .issue-reporter-annotation-overlay .annotation-toolbar .toolbar-separator {
@@ -1342,6 +1433,7 @@
 }
 
 .issue-reporter-annotation-overlay .annotation-color-swatch {
+	position: relative;
 	width: 22px;
 	height: 22px;
 	border-radius: 50%;
@@ -1364,13 +1456,37 @@
 
 .issue-reporter-annotation-overlay .annotation-color-swatch:hover,
 .issue-reporter-annotation-overlay .annotation-size-button:hover {
-	border-color: rgba(255, 255, 255, .5);
+	border-color: var(--vscode-focusBorder, rgba(255, 255, 255, .5));
 }
 
-.issue-reporter-annotation-overlay .annotation-color-swatch.active,
+.issue-reporter-annotation-overlay .annotation-color-swatch:focus-visible,
+.issue-reporter-annotation-overlay .annotation-size-button:focus-visible,
+.issue-reporter-annotation-overlay .annotation-opacity-slider:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #007acc);
+	outline-offset: 2px;
+}
+
+.issue-reporter-annotation-overlay .annotation-color-swatch.active::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 10px;
+	height: 6px;
+	border-left: 2px solid #fff;
+	border-bottom: 2px solid #fff;
+	transform: translate(-50%, -65%) rotate(-45deg);
+	pointer-events: none;
+}
+
+.issue-reporter-annotation-overlay .annotation-color-swatch.active.light-swatch::after {
+	border-color: #000;
+}
+
 .issue-reporter-annotation-overlay .annotation-size-button.active {
-	border-color: #fff;
-	box-shadow: 0 0 0 1px var(--vscode-focusBorder, #007acc);
+	background: var(--vscode-list-activeSelectionBackground, rgba(0, 122, 204, 0.25));
+	color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground, #fff));
+	border-color: transparent;
 }
 
 .issue-reporter-annotation-overlay .annotation-size-button {
@@ -1392,6 +1508,7 @@
 .issue-reporter-annotation-overlay .annotation-opacity-slider {
 	flex: 1;
 	min-width: 92px;
+	accent-color: var(--vscode-focusBorder, #007acc);
 }
 
 .issue-reporter-annotation-overlay .annotation-opacity-value {

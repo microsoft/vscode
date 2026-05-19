@@ -24,6 +24,7 @@ const enum AnnotationTool {
 	Eraser = 'eraser',
 	Pan = 'pan',
 	Crop = 'crop',
+	Move = 'move',
 }
 
 const COLORS = [
@@ -34,6 +35,8 @@ const COLORS = [
 	'#000000', // black
 	'#ffffff', // white
 ];
+
+const LIGHT_SWATCH_COLORS = new Set(['#34c759', '#ffcc00', '#ffffff', 'transparent']);
 
 const FONT_FAMILIES = [
 	{ label: 'Sans-serif', value: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
@@ -48,7 +51,7 @@ const FILL_COLORS = ['transparent', ...COLORS];
 const STROKE_WIDTHS = [2, 4, 8, 12];
 const TEXT_SIZES = [14, 18, 24, 32, 48];
 
-interface DrawAction {
+export interface IAnnotationDrawAction {
 	readonly type: AnnotationTool;
 	strokeColor: string;
 	fillColor?: string;
@@ -65,15 +68,122 @@ interface DrawAction {
 	textPos?: { x: number; y: number };
 	textWidth?: number;
 	/** Only set for type === AnnotationTool.Eraser: the batch of actions removed in one stroke. */
-	erasedActions?: DrawAction[];
+	erasedActions?: IAnnotationDrawAction[];
+	/** Only set for type === AnnotationTool.Eraser: the original index (in `actions[]`) of each erased action at the moment it was removed. */
+	erasedIndices?: number[];
+	/** Only set for type === AnnotationTool.Crop: the crop active before this action. null means no crop (full original image). */
+	cropFrom?: { x: number; y: number; width: number; height: number } | null;
+	/** Only set for type === AnnotationTool.Crop: the crop active after this action. null means no crop (full original image). */
+	cropTo?: { x: number; y: number; width: number; height: number } | null;
+	/** Only set for type === AnnotationTool.Move: the action that was moved or resized. */
+	moveTarget?: IAnnotationDrawAction;
+	/** Only set for type === AnnotationTool.Move: snapshot of geometric fields before the change. */
+	moveBefore?: IAnnotationMoveSnapshot;
+	/** Only set for type === AnnotationTool.Move: snapshot of geometric fields after the change. */
+	moveAfter?: IAnnotationMoveSnapshot;
+}
+
+interface IAnnotationMoveSnapshot {
+	points?: { x: number; y: number }[];
+	rect?: { x: number; y: number; width: number; height: number };
+	ellipseRect?: { x: number; y: number; width: number; height: number };
+	arrowStart?: { x: number; y: number };
+	arrowEnd?: { x: number; y: number };
+	textPos?: { x: number; y: number };
+	textWidth?: number;
+}
+
+type DrawAction = IAnnotationDrawAction;
+
+export interface IAnnotationEditorState {
+	readonly actions: readonly IAnnotationDrawAction[];
+	readonly crop: { readonly x: number; readonly y: number; readonly width: number; readonly height: number } | null;
+}
+
+export interface IAnnotationSaveResult {
+	readonly dataUrl: string;
+	readonly state: IAnnotationEditorState;
+}
+
+function cloneDrawAction(action: IAnnotationDrawAction, identityMap: Map<IAnnotationDrawAction, IAnnotationDrawAction> = new Map()): IAnnotationDrawAction {
+	const existing = identityMap.get(action);
+	if (existing) {
+		return existing;
+	}
+	const clone: IAnnotationDrawAction = {
+		type: action.type,
+		strokeColor: action.strokeColor,
+		fillColor: action.fillColor,
+		opacity: action.opacity,
+		lineWidth: action.lineWidth,
+		fontSize: action.fontSize,
+		fontFamily: action.fontFamily,
+		points: action.points ? action.points.map(p => ({ x: p.x, y: p.y })) : undefined,
+		rect: action.rect ? { ...action.rect } : undefined,
+		ellipseRect: action.ellipseRect ? { ...action.ellipseRect } : undefined,
+		arrowStart: action.arrowStart ? { ...action.arrowStart } : undefined,
+		arrowEnd: action.arrowEnd ? { ...action.arrowEnd } : undefined,
+		text: action.text,
+		textPos: action.textPos ? { ...action.textPos } : undefined,
+		textWidth: action.textWidth,
+		cropFrom: action.cropFrom === undefined ? undefined : action.cropFrom === null ? null : { ...action.cropFrom },
+		cropTo: action.cropTo === undefined ? undefined : action.cropTo === null ? null : { ...action.cropTo },
+		moveBefore: action.moveBefore ? cloneMoveSnapshot(action.moveBefore) : undefined,
+		moveAfter: action.moveAfter ? cloneMoveSnapshot(action.moveAfter) : undefined,
+	};
+	identityMap.set(action, clone);
+	// Resolve references after registering self so cyclic structures don't recurse forever.
+	clone.erasedActions = action.erasedActions ? action.erasedActions.map(a => cloneDrawAction(a, identityMap)) : undefined;
+	clone.erasedIndices = action.erasedIndices ? action.erasedIndices.slice() : undefined;
+	clone.moveTarget = action.moveTarget ? cloneDrawAction(action.moveTarget, identityMap) : undefined;
+	return clone;
+}
+
+function cloneMoveSnapshot(s: IAnnotationMoveSnapshot): IAnnotationMoveSnapshot {
+	return {
+		points: s.points ? s.points.map(p => ({ x: p.x, y: p.y })) : undefined,
+		rect: s.rect ? { ...s.rect } : undefined,
+		ellipseRect: s.ellipseRect ? { ...s.ellipseRect } : undefined,
+		arrowStart: s.arrowStart ? { ...s.arrowStart } : undefined,
+		arrowEnd: s.arrowEnd ? { ...s.arrowEnd } : undefined,
+		textPos: s.textPos ? { ...s.textPos } : undefined,
+		textWidth: s.textWidth,
+	};
+}
+
+function captureMoveSnapshot(action: IAnnotationDrawAction): IAnnotationMoveSnapshot {
+	return cloneMoveSnapshot({
+		points: action.points,
+		rect: action.rect,
+		ellipseRect: action.ellipseRect,
+		arrowStart: action.arrowStart,
+		arrowEnd: action.arrowEnd,
+		textPos: action.textPos,
+		textWidth: action.textWidth,
+	});
+}
+
+function applyMoveSnapshot(action: IAnnotationDrawAction, snapshot: IAnnotationMoveSnapshot): void {
+	const fresh = cloneMoveSnapshot(snapshot);
+	action.points = fresh.points;
+	action.rect = fresh.rect;
+	action.ellipseRect = fresh.ellipseRect;
+	action.arrowStart = fresh.arrowStart;
+	action.arrowEnd = fresh.arrowEnd;
+	action.textPos = fresh.textPos;
+	action.textWidth = fresh.textWidth;
+}
+
+function moveSnapshotsEqual(a: IAnnotationMoveSnapshot, b: IAnnotationMoveSnapshot): boolean {
+	return JSON.stringify(a) === JSON.stringify(b);
 }
 
 export class ScreenshotAnnotationEditor {
 
 	private readonly disposables = new DisposableStore();
 	private readonly toolOptionsDisposables = new DisposableStore();
-	private readonly _onDidSave = new Emitter<string>();
-	readonly onDidSave: Event<string> = this._onDidSave.event;
+	private readonly _onDidSave = new Emitter<IAnnotationSaveResult>();
+	readonly onDidSave: Event<IAnnotationSaveResult> = this._onDidSave.event;
 	private readonly _onDidCancel = new Emitter<void>();
 	readonly onDidCancel: Event<void> = this._onDidCancel.event;
 
@@ -93,6 +203,8 @@ export class ScreenshotAnnotationEditor {
 	private isErasing = false;
 	/** Actions erased during the current pointer drag; committed to undo stack on pointer-up. */
 	private pendingEraseActions: DrawAction[] = [];
+	/** Original index (in `actions[]`) of each entry in `pendingEraseActions`, captured at the moment it was removed. */
+	private pendingEraseIndices: number[] = [];
 
 	private imageElement: HTMLImageElement | null = null;
 	private imageWidth = 0;
@@ -132,6 +244,8 @@ export class ScreenshotAnnotationEditor {
 	private isResizingSelectedText = false;
 	private dragStart = { x: 0, y: 0 };
 	private selectedTextResizeStartWidth = DEFAULT_TEXT_BOX_WIDTH;
+	/** Captured at the start of a Select-tool drag/resize so a Move sentinel can be committed on pointer-up. */
+	private pendingMove: { target: DrawAction; before: IAnnotationMoveSnapshot } | null = null;
 
 	// Text configuration
 	private activeFontSize = 18;
@@ -157,17 +271,17 @@ export class ScreenshotAnnotationEditor {
 	private textCaretVisible = true;
 	private textCaretInterval: number | null = null;
 
-	// Crop undo history
-	private readonly imageHistory: { element: HTMLImageElement; width: number; height: number; currentCrop: { x: number; y: number; width: number; height: number } | null }[] = [];
-
 	// Tool buttons (for active state management)
 	private readonly toolButtons: { element: HTMLElement; tool: AnnotationTool }[] = [];
+	private undoBtn: HTMLButtonElement | null = null;
+	private redoBtn: HTMLButtonElement | null = null;
 	private toolOptionsPopover: HTMLElement | null = null;
 
 
 	constructor(
 		private readonly screenshot: IScreenshot,
 		private readonly parentElement: HTMLElement,
+		private readonly initialState?: IAnnotationEditorState,
 	) {
 		this.createUI();
 		this.loadImage();
@@ -175,7 +289,7 @@ export class ScreenshotAnnotationEditor {
 
 	private createUI(): void {
 		this.container = append(this.parentElement, $('div.issue-reporter-annotation-overlay'));
-		this.container.tabIndex = 0;
+		this.container.tabIndex = -1;
 
 		// Main toolbar (hidden during crop mode)
 		const toolbar = append(this.container, $('div.annotation-toolbar'));
@@ -232,18 +346,21 @@ export class ScreenshotAnnotationEditor {
 		append(toolbar, $('div.toolbar-separator'));
 
 		// 6. Undo button
-		const undoBtn = append(toolbar, $('button.tool-btn'));
+		const undoBtn = append(toolbar, $('button.tool-btn')) as HTMLButtonElement;
 		undoBtn.appendChild(renderIcon(Codicon.discard));
 		undoBtn.title = localize('undo', "Undo");
 		undoBtn.setAttribute('aria-label', localize('undo', "Undo"));
 		this.disposables.add(addDisposableListener(undoBtn, EventType.CLICK, () => this.undo()));
+		this.undoBtn = undoBtn;
 
 		// 7. Redo button
-		const redoBtn = append(toolbar, $('button.tool-btn'));
+		const redoBtn = append(toolbar, $('button.tool-btn')) as HTMLButtonElement;
 		redoBtn.appendChild(renderIcon(Codicon.redo));
 		redoBtn.title = localize('redo', "Redo");
 		redoBtn.setAttribute('aria-label', localize('redo', "Redo"));
 		this.disposables.add(addDisposableListener(redoBtn, EventType.CLICK, () => this.redo()));
+		this.redoBtn = redoBtn;
+		this.updateUndoRedoState();
 
 		// 8. Separator
 		append(toolbar, $('div.toolbar-separator'));
@@ -263,7 +380,7 @@ export class ScreenshotAnnotationEditor {
 		this.disposables.add(saveBtn.onDidClick(() => {
 			this.commitTextEdit();
 			const dataUrl = this.compositeToDataUrl();
-			this._onDidSave.fire(dataUrl);
+			this._onDidSave.fire({ dataUrl, state: this.captureState() });
 			this.dispose();
 		}));
 
@@ -370,9 +487,21 @@ export class ScreenshotAnnotationEditor {
 				this.commitCrop();
 			} else if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedActionIndex >= 0) {
 				e.preventDefault();
-				this.actions.splice(this.selectedActionIndex, 1);
+				const removedIndex = this.selectedActionIndex;
+				const [removed] = this.actions.splice(removedIndex, 1);
 				this.selectedActionIndex = -1;
+				// Record the deletion as an Eraser sentinel so undo/redo works just
+				// like the eraser tool.
+				this.actions.push({
+					type: AnnotationTool.Eraser,
+					strokeColor: '',
+					opacity: 1,
+					lineWidth: 0,
+					erasedActions: [removed],
+					erasedIndices: [removedIndex],
+				});
 				this.undoneActions.length = 0;
+				this.updateUndoRedoState();
 				this.redraw();
 			}
 		}));
@@ -453,6 +582,7 @@ export class ScreenshotAnnotationEditor {
 			const swatch = append(swatches, $('button.annotation-color-swatch')) as HTMLButtonElement;
 			const isTransparent = color === 'transparent';
 			swatch.classList.toggle('transparent', isTransparent);
+			swatch.classList.toggle('light-swatch', LIGHT_SWATCH_COLORS.has(color));
 			swatch.style.backgroundColor = isTransparent ? 'transparent' : color;
 			swatch.setAttribute('aria-label', isTransparent ? localize('transparentColor', "{0}: Transparent", ariaLabelPrefix) : localize('colorValue', "{0}: {1}", ariaLabelPrefix, color));
 			swatch.setAttribute('aria-pressed', String(color === selectedColor));
@@ -647,40 +777,26 @@ export class ScreenshotAnnotationEditor {
 		if (cr.width < 10 || cr.height < 10) {
 			return;
 		}
-		// Save pre-crop state for undo (the state that was active before entering crop mode)
-		if (this.preCropState) {
-			this.imageHistory.push({
-				element: this.preCropState.element,
-				width: this.preCropState.width,
-				height: this.preCropState.height,
-				currentCrop: this.preCropState.currentCrop,
-			});
-		}
-		// Crop the original image to the new region
-		const cropCanvas = mainWindow.document.createElement('canvas');
-		cropCanvas.width = cr.width;
-		cropCanvas.height = cr.height;
-		const cropCtx = cropCanvas.getContext('2d')!;
-		cropCtx.drawImage(this.originalImage.element, cr.x, cr.y, cr.width, cr.height, 0, 0, cr.width, cr.height);
-
-		const croppedImg = mainWindow.document.createElement('img');
-		croppedImg.onload = () => {
-			this.imageElement = croppedImg;
-			this.imageWidth = croppedImg.naturalWidth;
-			this.imageHeight = croppedImg.naturalHeight;
-			// Annotations live in original-image coords; just update currentCrop and they
-			// stay anchored to the right pixels. No coordinate translation needed.
-			this.currentCrop = cr;
-			this.undoneActions.length = 0;
-			this.hasUserZoomed = false;
-			this.panX = 0;
-			this.panY = 0;
-			this.canvas.style.transform = '';
-			this.exitCropMode();
-			this.sizeCanvas();
-			this.redraw();
+		const cropFrom = this.preCropState?.currentCrop ?? null;
+		// Push a Crop sentinel into the linear undo stack so undo/redo treats it
+		// like any other action.
+		const cropAction: DrawAction = {
+			type: AnnotationTool.Crop,
+			strokeColor: '',
+			opacity: 1,
+			lineWidth: 0,
+			cropFrom,
+			cropTo: cr,
 		};
-		croppedImg.src = cropCanvas.toDataURL('image/png');
+		this.actions.push(cropAction);
+		this.undoneActions.length = 0;
+		this.updateUndoRedoState();
+		this.hasUserZoomed = false;
+		this.panX = 0;
+		this.panY = 0;
+		this.canvas.style.transform = '';
+		this.exitCropMode();
+		this.applyDisplayedCrop(cr);
 	}
 
 	private cancelCrop(): void {
@@ -712,11 +828,72 @@ export class ScreenshotAnnotationEditor {
 			// Preserve the original image so crops can be re-expanded
 			this.originalImage = { element: img, width: img.naturalWidth, height: img.naturalHeight };
 			this.currentCrop = null;
-			this.sizeCanvas();
-			this.redraw();
+
+			// Restore prior actions (clone so undo/redo state survives reopens).
+			// Use a shared identity map so Move/Eraser sentinels keep pointing at
+			// the correct cloned action references.
+			if (this.initialState?.actions?.length) {
+				const identityMap = new Map<IAnnotationDrawAction, IAnnotationDrawAction>();
+				this.actions.push(...this.initialState.actions.map(a => cloneDrawAction(a, identityMap)));
+				this.updateUndoRedoState();
+			}
+
+			// Restore prior crop, if any.
+			this.applyDisplayedCrop(this.initialState?.crop ?? null);
 		};
 		// Use original screenshot (not annotated) so we can re-crop from full original
 		img.src = this.screenshot.dataUrl;
+	}
+
+	/**
+	 * Update the displayed image to reflect the given crop (or the full original
+	 * when null). Cropped images are re-rasterized from the preserved original so
+	 * undo/redo of crop actions is fully reversible without keeping intermediate
+	 * image elements around.
+	 */
+	private applyDisplayedCrop(crop: { x: number; y: number; width: number; height: number } | null): void {
+		if (!this.originalImage) {
+			return;
+		}
+		if (!crop) {
+			this.imageElement = this.originalImage.element;
+			this.imageWidth = this.originalImage.width;
+			this.imageHeight = this.originalImage.height;
+			this.currentCrop = null;
+			this.sizeCanvas();
+			this.redraw();
+			return;
+		}
+		const cr = {
+			x: Math.max(0, Math.min(this.originalImage.width, crop.x)),
+			y: Math.max(0, Math.min(this.originalImage.height, crop.y)),
+			width: Math.max(1, Math.min(this.originalImage.width - Math.max(0, crop.x), crop.width)),
+			height: Math.max(1, Math.min(this.originalImage.height - Math.max(0, crop.y), crop.height)),
+		};
+		const cropCanvas = mainWindow.document.createElement('canvas');
+		cropCanvas.width = cr.width;
+		cropCanvas.height = cr.height;
+		const cropCtx = cropCanvas.getContext('2d')!;
+		cropCtx.drawImage(this.originalImage.element, cr.x, cr.y, cr.width, cr.height, 0, 0, cr.width, cr.height);
+
+		const croppedImg = mainWindow.document.createElement('img');
+		croppedImg.onload = () => {
+			this.imageElement = croppedImg;
+			this.imageWidth = croppedImg.naturalWidth;
+			this.imageHeight = croppedImg.naturalHeight;
+			this.currentCrop = cr;
+			this.sizeCanvas();
+			this.redraw();
+		};
+		croppedImg.src = cropCanvas.toDataURL('image/png');
+	}
+
+	private captureState(): IAnnotationEditorState {
+		const identityMap = new Map<IAnnotationDrawAction, IAnnotationDrawAction>();
+		return {
+			actions: this.actions.map(a => cloneDrawAction(a, identityMap)),
+			crop: this.currentCrop ? { ...this.currentCrop } : null,
+		};
 	}
 
 	private sizeCanvas(): void {
@@ -777,6 +954,7 @@ export class ScreenshotAnnotationEditor {
 			this.selectedActionIndex = hitIndex;
 			if (hitIndex >= 0) {
 				const hitAction = this.actions[hitIndex];
+				this.pendingMove = { target: hitAction, before: captureMoveSnapshot(hitAction) };
 				if (hitAction.type === AnnotationTool.Text && this.isNearTextResizeHandle(pos, hitAction)) {
 					this.isResizingSelectedText = true;
 					this.dragStart = { x: pos.x, y: pos.y };
@@ -1003,6 +1181,7 @@ export class ScreenshotAnnotationEditor {
 			this.isResizingSelectedText = false;
 			this.canvas.releasePointerCapture(e.pointerId);
 			this.canvas.style.cursor = 'default';
+			this.commitPendingMove();
 			return;
 		}
 
@@ -1011,6 +1190,7 @@ export class ScreenshotAnnotationEditor {
 			this.isDraggingSelected = false;
 			this.canvas.releasePointerCapture(e.pointerId);
 			this.canvas.style.cursor = 'default';
+			this.commitPendingMove();
 			return;
 		}
 
@@ -1032,9 +1212,12 @@ export class ScreenshotAnnotationEditor {
 					opacity: 1,
 					lineWidth: 0,
 					erasedActions: this.pendingEraseActions.slice(),
+					erasedIndices: this.pendingEraseIndices.slice(),
 				});
 				this.pendingEraseActions = [];
+				this.pendingEraseIndices = [];
 				this.undoneActions.length = 0;
+				this.updateUndoRedoState();
 			}
 			return;
 		}
@@ -1066,6 +1249,7 @@ export class ScreenshotAnnotationEditor {
 		if (this.currentAction) {
 			this.actions.push(this.currentAction);
 			this.undoneActions.length = 0;
+			this.updateUndoRedoState();
 			this.currentAction = null;
 		}
 
@@ -1079,8 +1263,41 @@ export class ScreenshotAnnotationEditor {
 		}
 		const [erased] = this.actions.splice(hitIndex, 1);
 		this.pendingEraseActions.push(erased);
+		this.pendingEraseIndices.push(hitIndex);
 		this.selectedActionIndex = -1;
 		this.redraw();
+	}
+
+	private commitPendingMove(): void {
+		const pending = this.pendingMove;
+		this.pendingMove = null;
+		if (!pending) {
+			return;
+		}
+		const after = captureMoveSnapshot(pending.target);
+		if (moveSnapshotsEqual(pending.before, after)) {
+			return;
+		}
+		this.actions.push({
+			type: AnnotationTool.Move,
+			strokeColor: '',
+			opacity: 1,
+			lineWidth: 0,
+			moveTarget: pending.target,
+			moveBefore: pending.before,
+			moveAfter: after,
+		});
+		this.undoneActions.length = 0;
+		this.updateUndoRedoState();
+	}
+
+	private updateUndoRedoState(): void {
+		if (this.undoBtn) {
+			this.undoBtn.disabled = this.actions.length === 0;
+		}
+		if (this.redoBtn) {
+			this.redoBtn.disabled = this.undoneActions.length === 0;
+		}
 	}
 
 	private undo(): void {
@@ -1093,25 +1310,29 @@ export class ScreenshotAnnotationEditor {
 			return;
 		}
 		const action = this.actions.pop();
-		if (action) {
-			if (action.type === AnnotationTool.Eraser && action.erasedActions) {
-				// Re-insert all erased actions (in original order) before pushing to redo stack.
-				this.actions.push(...action.erasedActions);
+		if (!action) {
+			return;
+		}
+		if (action.type === AnnotationTool.Eraser && action.erasedActions) {
+			// Re-insert each erased action at the index it occupied at the moment it was removed.
+			// Iterate in reverse because each erase splice was relative to the array state after
+			// the previous one, so unwinding must happen in reverse order to restore positions.
+			const erased = action.erasedActions;
+			const indices = action.erasedIndices ?? erased.map(() => this.actions.length);
+			for (let i = erased.length - 1; i >= 0; i--) {
+				const idx = Math.min(indices[i], this.actions.length);
+				this.actions.splice(idx, 0, erased[i]);
 			}
-			this.undoneActions.push(action);
+		}
+		this.undoneActions.push(action);
+		this.updateUndoRedoState();
+		this.selectedActionIndex = -1;
+		if (action.type === AnnotationTool.Crop) {
+			this.applyDisplayedCrop(action.cropFrom ?? null);
+		} else if (action.type === AnnotationTool.Move && action.moveTarget && action.moveBefore) {
+			applyMoveSnapshot(action.moveTarget, action.moveBefore);
 			this.redraw();
-		} else if (this.imageHistory.length > 0) {
-			// Undo crop
-			const prev = this.imageHistory.pop()!;
-			this.imageElement = prev.element;
-			this.imageWidth = prev.width;
-			this.imageHeight = prev.height;
-			this.currentCrop = prev.currentCrop;
-			this.hasUserZoomed = false;
-			this.panX = 0;
-			this.panY = 0;
-			this.canvas.style.transform = '';
-			this.sizeCanvas();
+		} else {
 			this.redraw();
 		}
 	}
@@ -1124,17 +1345,27 @@ export class ScreenshotAnnotationEditor {
 			return;
 		}
 		const action = this.undoneActions.pop();
-		if (action) {
-			if (action.type === AnnotationTool.Eraser && action.erasedActions) {
-				// Re-apply the erase: remove the re-inserted actions by reference.
-				for (const erased of action.erasedActions) {
-					const idx = this.actions.indexOf(erased);
-					if (idx >= 0) {
-						this.actions.splice(idx, 1);
-					}
+		if (!action) {
+			return;
+		}
+		if (action.type === AnnotationTool.Eraser && action.erasedActions) {
+			// Re-apply the erase: remove the re-inserted actions by reference.
+			for (const erased of action.erasedActions) {
+				const idx = this.actions.indexOf(erased);
+				if (idx >= 0) {
+					this.actions.splice(idx, 1);
 				}
 			}
-			this.actions.push(action);
+		}
+		this.actions.push(action);
+		this.selectedActionIndex = -1;
+		this.updateUndoRedoState();
+		if (action.type === AnnotationTool.Crop) {
+			this.applyDisplayedCrop(action.cropTo ?? null);
+		} else if (action.type === AnnotationTool.Move && action.moveTarget && action.moveAfter) {
+			applyMoveSnapshot(action.moveTarget, action.moveAfter);
+			this.redraw();
+		} else {
 			this.redraw();
 		}
 	}
@@ -1193,12 +1424,17 @@ export class ScreenshotAnnotationEditor {
 		const dx = pos.x - this.cropDragStart.x;
 		const dy = pos.y - this.cropDragStart.y;
 		const start = this.cropRegionStart;
+
+		// Translating the entire box: keep dimensions fixed and clamp only the position.
+		if (this.cropDragHandle === 'move') {
+			const x = Math.max(0, Math.min(this.imageWidth - start.width, start.x + dx));
+			const y = Math.max(0, Math.min(this.imageHeight - start.height, start.y + dy));
+			this.cropRegion = { x, y, width: start.width, height: start.height };
+			return;
+		}
+
 		let { x, y, width, height } = start;
 		switch (this.cropDragHandle) {
-			case 'move':
-				x += dx;
-				y += dy;
-				break;
 			case 'nw':
 				x += dx; y += dy; width -= dx; height -= dy;
 				break;
@@ -1359,6 +1595,7 @@ export class ScreenshotAnnotationEditor {
 				textWidth: width,
 			});
 			this.undoneActions.length = 0;
+			this.updateUndoRedoState();
 		}
 		this.redraw();
 	}
@@ -1485,8 +1722,8 @@ export class ScreenshotAnnotationEditor {
 	}
 
 	private drawAction(action: DrawAction): void {
-		// Erase-batch records are undo sentinels; nothing to draw.
-		if (action.type === AnnotationTool.Eraser) {
+		// Erase, crop and move records are undo sentinels; nothing to draw.
+		if (action.type === AnnotationTool.Eraser || action.type === AnnotationTool.Crop || action.type === AnnotationTool.Move) {
 			return;
 		}
 		this.ctx.save();

@@ -5,6 +5,7 @@
 
 import './media/issueReporterOverlay.css';
 import { $, addDisposableListener, append, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -15,6 +16,7 @@ import { Action, Separator } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
@@ -28,7 +30,7 @@ import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 import { IssueReporterData, IssueReporterExtensionData, IssueSource, IssueType } from '../common/issue.js';
 import { IssueReporterModel } from './issueReporterModel.js';
 import { RecordingState } from './recordingService.js';
-import { ScreenshotAnnotationEditor } from './screenshotAnnotation.js';
+import { IAnnotationEditorState, ScreenshotAnnotationEditor } from './screenshotAnnotation.js';
 
 const MAX_ATTACHMENTS = 5;
 const MAX_SIMILAR_ISSUES = 5;
@@ -52,6 +54,7 @@ export interface IScreenshot {
 	readonly width: number;
 	readonly height: number;
 	annotatedDataUrl?: string;
+	annotationState?: IAnnotationEditorState;
 }
 
 export class IssueReporterOverlay {
@@ -202,6 +205,7 @@ export class IssueReporterOverlay {
 			this.progressDots.push(dot);
 		}
 		this.stepIndicator = append(progressArea, $('span.wizard-step-indicator'));
+		append(progressArea, $('span.wizard-step-separator'));
 		this.stepLabel = append(progressArea, $('span.wizard-step-label'));
 
 		append(toolbar, $('div.spacer'));
@@ -643,6 +647,7 @@ export class IssueReporterOverlay {
 		aiBtn.label = `$(sparkle) ${localize('generateTitleBtn', "Generate from description")}`;
 		aiBtn.element.classList.add('wizard-ai-title-btn');
 		aiBtn.element.title = localize('generateTitle', "Generate title from description");
+		aiBtn.enabled = !!this.data.issueBody?.trim();
 		this.disposables.add(aiBtn.onDidClick(() => {
 			const desc = this.descriptionTextarea.value.trim();
 			if (desc && !aiBtn.element.classList.contains('loading')) {
@@ -698,6 +703,7 @@ export class IssueReporterOverlay {
 			}
 			autoGrowTextarea();
 			this.searchSimilarIssues();
+			this.updateGenerateTitleButtonState();
 		}));
 		this.descriptionError = this.createFieldError(descriptionGroup, localize('descriptionRequired', "Enter a description to continue."));
 
@@ -1130,6 +1136,13 @@ export class IssueReporterOverlay {
 		return !!this.descriptionTextarea.value.trim();
 	}
 
+	private updateGenerateTitleButtonState(): void {
+		if (!this.generateTitleBtn || this.generateTitleBtn.element.classList.contains('loading')) {
+			return;
+		}
+		this.generateTitleBtn.enabled = this.hasDescriptionContent();
+	}
+
 	private createFieldError(parent: HTMLElement, message: string): HTMLElement {
 		const error = append(parent, $('div.wizard-field-error.hidden'));
 		error.textContent = message;
@@ -1268,7 +1281,7 @@ export class IssueReporterOverlay {
 			localize('composeMessage', "Describe"),
 			localize('submit', "Review"),
 		];
-		this.stepLabel.textContent = `| ${stepNames[this.currentStep]}`;
+		this.stepLabel.textContent = stepNames[this.currentStep];
 
 		// Update progress dots
 		for (let i = 0; i < this.progressDots.length; i++) {
@@ -1935,8 +1948,17 @@ export class IssueReporterOverlay {
 			img.src = screenshot.annotatedDataUrl ?? screenshot.dataUrl;
 			img.alt = localize('screenshotAlt', "Screenshot {0}", i + 1);
 
-			this.disposables.add(addDisposableListener(card, EventType.CLICK, () => {
-				this._onDidRequestOpenScreenshot.fire(screenshot);
+			card.setAttribute('role', 'button');
+			card.setAttribute('tabindex', '0');
+			card.title = localize('editScreenshot', "Click to edit screenshot");
+			const openEditor = () => this.openAnnotationEditor(i);
+			this.disposables.add(addDisposableListener(card, EventType.CLICK, openEditor));
+			this.disposables.add(addDisposableListener(card, EventType.KEY_DOWN, e => {
+				const event = new StandardKeyboardEvent(e);
+				if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+					e.preventDefault();
+					openEditor();
+				}
 			}));
 
 			const deleteBtn = append(card, $('div.wizard-screenshot-delete'));
@@ -2015,11 +2037,12 @@ export class IssueReporterOverlay {
 		}
 
 		const screenshot = this.screenshots[index];
-		const editor = new ScreenshotAnnotationEditor(screenshot, this.wizardPanel);
+		const editor = new ScreenshotAnnotationEditor(screenshot, this.wizardPanel, screenshot.annotationState);
 		this.disposables.add(editor);
 
-		editor.onDidSave(annotatedDataUrl => {
-			screenshot.annotatedDataUrl = annotatedDataUrl;
+		editor.onDidSave(({ dataUrl, state }) => {
+			screenshot.annotatedDataUrl = dataUrl;
+			screenshot.annotationState = state;
 			this.updateAttachmentViews();
 		});
 
@@ -2380,10 +2403,10 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 	}
 
 	resetGenerateButton(): void {
-		this.generateTitleBtn.enabled = true;
 		this.generateTitleBtn.label = `$(sparkle) ${localize('generateTitleBtn', "Generate from description")}`;
 		this.generateTitleBtn.element.classList.remove('loading');
 		this.generateTitleBtn.element.style.minWidth = '';
+		this.generateTitleBtn.enabled = this.hasDescriptionContent();
 	}
 
 	/** Show a "Close" button next to the submit button after successful submission */
