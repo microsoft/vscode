@@ -4,28 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AuthenticationSession, EventEmitter, authentication, window } from 'vscode';
-import { Agent, globalAgent } from 'https';
 import { graphql } from '@octokit/graphql/types';
 import { Octokit } from '@octokit/rest';
-import { httpsOverHttp } from 'tunnel';
 import { URL } from 'url';
 import { DisposableStore, sequentialize } from './util.js';
+import { fetch as undiciFetch, ProxyAgent, type Dispatcher, type RequestInit as UndiciRequestInit } from 'undici';
 
 export class AuthenticationError extends Error { }
 
-function getAgent(url: string | undefined = process.env.HTTPS_PROXY): Agent {
+function getDispatcher(url: string | undefined = process.env.HTTPS_PROXY): Dispatcher | undefined {
 	if (!url) {
-		return globalAgent;
+		return undefined;
 	}
 
 	try {
-		const { hostname, port, username, password } = new URL(url);
-		const auth = username && password && `${username}:${password}`;
-		return httpsOverHttp({ proxy: { host: hostname, port, proxyAuth: auth } });
+		const { username, password } = new URL(url);
+		const auth = username && password ? `${decodeURIComponent(username)}:${decodeURIComponent(password)}` : undefined;
+		const token = auth ? `Basic ${Buffer.from(auth).toString('base64')}` : undefined;
+		return new ProxyAgent({ uri: url, token });
 	} catch (e) {
 		window.showErrorMessage(`HTTPS_PROXY environment variable ignored: ${e.message}`);
-		return globalAgent;
+		return undefined;
 	}
+}
+
+function createFetch(dispatcher: Dispatcher | undefined): typeof undiciFetch {
+	if (!dispatcher) {
+		return undiciFetch;
+	}
+
+	return (url, options) => {
+		const requestInit: UndiciRequestInit = options ? { ...options } : {};
+		requestInit.dispatcher = dispatcher;
+		return undiciFetch(url, requestInit);
+	};
 }
 
 const scopes = ['repo', 'workflow', 'user:email', 'read:user'];
@@ -40,12 +52,12 @@ export function getOctokit(): Promise<Octokit> {
 	if (!_octokit) {
 		_octokit = getSession().then(async session => {
 			const token = session.accessToken;
-			const agent = getAgent();
+			const fetch = createFetch(getDispatcher());
 
 			const { Octokit } = await import('@octokit/rest');
 
 			return new Octokit({
-				request: { agent },
+				request: { fetch },
 				userAgent: 'GitHub VSCode',
 				auth: `token ${token}`
 			});
@@ -88,13 +100,14 @@ export class OctokitService {
 
 				const token = session.accessToken;
 				const { graphql } = await import('@octokit/graphql');
+				const fetch = createFetch(getDispatcher());
 
 				this._octokitGraphql = graphql.defaults({
 					headers: {
 						authorization: `token ${token}`
 					},
 					request: {
-						agent: getAgent()
+						fetch
 					}
 				});
 

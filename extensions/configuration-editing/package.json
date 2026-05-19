@@ -33,7 +33,7 @@
   "dependencies": {
     "@octokit/rest": "^22.0.1",
     "jsonc-parser": "^3.2.0",
-    "tunnel": "^0.0.6"
+    "undici": "^7.16.0"
   },
   "capabilities": {
     "virtualWorkspaces": true,
