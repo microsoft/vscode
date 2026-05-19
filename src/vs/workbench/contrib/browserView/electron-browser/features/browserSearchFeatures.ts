@@ -17,7 +17,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			markdownDescription: localize(
 				{ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.', '{0} is a setting reference link to the search engine setting.'], key: 'browser.addressBarSearch.enabled' },
-				'When enabled, typing a non-URL search term in the integrated browser address bar and pressing Enter searches the engine configured by {0}. URLs (e.g. `https://example.com`, `localhost:3000`) continue to navigate directly.',
+				'When enabled, the address bar in the integrated browser can be used to search the internet with the search engine configured by {0}.',
 				`\`#${BrowserSearchEngineSettingId}#\``
 			),
 			scope: ConfigurationScope.WINDOW,

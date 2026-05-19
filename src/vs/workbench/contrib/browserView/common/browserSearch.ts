@@ -39,7 +39,7 @@ export interface IBrowserSearchEngine {
 
 /**
  * Encode a search query for use in a search-engine URL. Matches the encoding
- * used by Chrome/Edge: `encodeURIComponent` then replace `%20` with `+`.
+ * used by popular browsers: `encodeURIComponent` then replace `%20` with `+`.
  */
 function encodeQuery(query: string): string {
 	return encodeURIComponent(query).replace(/%20/g, '+');
@@ -273,7 +273,7 @@ export function resolveAddressBarInputType(rawInput: string): AddressBarInputKin
 	const hasSchemeSeparator = afterScheme.startsWith('//');
 	// Only treat the leading `xxx:` as a scheme if it's a recognized scheme
 	// or is followed by `//`. This avoids mis-parsing inputs like
-	// `localhost:3000` or `sub.example.com:8080/path`, which Chrome's
+	// `localhost:3000` or `sub.example.com:8080/path`, which Chromium's
 	// URLFixerUpper resolves as host:port URLs rather than scheme operands.
 	const scheme = candidateScheme && (ALL_KNOWN_SCHEMES.has(candidateScheme) || hasSchemeSeparator)
 		? candidateScheme

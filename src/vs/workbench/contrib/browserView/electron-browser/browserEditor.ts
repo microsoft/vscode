@@ -313,9 +313,7 @@ class BrowserNavigationBar extends Disposable {
 		this._certError = certError;
 		this._siteInfoWidget.setCertificateError(certError);
 		this._urlInput.classList.toggle('cert-error', !!certError);
-		if (certError) {
-			this._inputPreviewWidget.setPreview(undefined);
-		}
+		this._updateInputPreview();
 		this._updateDisplay();
 	}
 
