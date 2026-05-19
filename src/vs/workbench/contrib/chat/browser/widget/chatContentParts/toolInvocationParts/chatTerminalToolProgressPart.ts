@@ -139,11 +139,43 @@ interface ITerminalCommandDecorationOptions {
 	 * Used to access command metadata for the decoration.
 	 */
 	getResolvedCommand(): ITerminalCommand | undefined;
+
+	/**
+	 * Returns whether the tool invocation is currently running.
+	 */
+	getIsRunning(): boolean;
 }
 
+type SpinnerDotState = 'hidden' | 'entering' | 'visible' | 'falling';
+
 class TerminalCommandDecoration extends Disposable {
+	// 2x3 dot matrix: stagger each row left->right while building bottom->top,
+	// then stagger each row left->right while removing bottom->top.
+	private static readonly _spinnerFrames = [
+		[4],
+		[4, 5],
+		[2, 4, 5],
+		[2, 3, 4, 5],
+		[0, 2, 3, 4, 5],
+		[0, 1, 2, 3, 4, 5],
+		[0, 1, 2, 3, 4, 5],
+		[0, 1, 2, 3, 4, 5],
+		[0, 1, 2, 3, 4],
+		[0, 1, 2, 3],
+		[0, 1, 2],
+		[0, 1],
+		[0],
+		[]
+	] as const;
+	private static readonly _spinnerIntervalMs = 130;
+
 	private readonly _element: HTMLElement;
-	private _interactionElement: HTMLElement | undefined;
+	private readonly _spinnerDots: HTMLElement[];
+	private _hoverRegistered = false;
+	private _spinnerTimer: number | undefined;
+	private readonly _fallingDotTimers = new Map<number, number>();
+	private _spinnerFrameIndex = 0;
+	private _visibleSpinnerDots = new Set<number>();
 
 	constructor(
 		private readonly _options: ITerminalCommandDecorationOptions,
@@ -152,6 +184,13 @@ class TerminalCommandDecoration extends Disposable {
 		super();
 		const decorationElements = h('span.chat-terminal-command-decoration@decoration', { role: 'img', tabIndex: 0 });
 		this._element = decorationElements.decoration;
+		this._spinnerDots = Array.from({ length: 6 }, () => {
+			const dot = h('span.chat-terminal-running-spinner-dot').root;
+			dot.dataset.state = 'hidden';
+			this._element.appendChild(dot);
+			return dot;
+		});
+		this._register(toDisposable(() => this._stopSpinner()));
 		this._attachElementToContainer();
 	}
 
@@ -171,10 +210,12 @@ class TerminalCommandDecoration extends Disposable {
 			}
 		}
 
-		this._register(this._hoverService.setupDelayedHover(decoration, () => ({
-			content: this._getHoverText()
-		})));
-		this._attachInteractionHandlers(decoration);
+		if (!this._hoverRegistered) {
+			this._hoverRegistered = true;
+			this._register(this._hoverService.setupDelayedHover(decoration, () => ({
+				content: this._getHoverText()
+			})));
+		}
 	}
 
 	private _getHoverText(): string {
@@ -212,19 +253,20 @@ class TerminalCommandDecoration extends Disposable {
 		const decorationState = getTerminalCommandDecorationState(command, storedState);
 		const tooltip = getTerminalCommandDecorationTooltip(command, storedState);
 
+		const isRunning = this._options.getIsRunning();
+
 		decoration.className = `chat-terminal-command-decoration ${DecorationSelector.CommandDecoration}`;
-		decoration.classList.add(DecorationSelector.Codicon);
-		for (const className of decorationState.classNames) {
-			decoration.classList.add(className);
+		if (isRunning) {
+			const nonIconClasses = decorationState.classNames.filter(c => c !== DecorationSelector.Codicon && !c.startsWith('codicon-'));
+			decoration.classList.add('chat-terminal-running-spinner', ...nonIconClasses);
+			this._startSpinner();
+		} else {
+			this._stopSpinner();
+			decoration.classList.add(DecorationSelector.Codicon, ...decorationState.classNames, ...ThemeIcon.asClassNameArray(decorationState.icon));
 		}
-		decoration.classList.add(...ThemeIcon.asClassNameArray(decorationState.icon));
 		const isInteractive = !decoration.classList.contains(DecorationSelector.Default);
 		decoration.tabIndex = isInteractive ? 0 : -1;
-		if (isInteractive) {
-			decoration.removeAttribute('aria-disabled');
-		} else {
-			decoration.setAttribute('aria-disabled', 'true');
-		}
+		decoration.toggleAttribute('aria-disabled', !isInteractive);
 		const hoverText = tooltip || decorationState.hoverMessage;
 		if (hoverText) {
 			decoration.setAttribute('aria-label', hoverText);
@@ -233,11 +275,69 @@ class TerminalCommandDecoration extends Disposable {
 		}
 	}
 
-	private _attachInteractionHandlers(decoration: HTMLElement): void {
-		if (this._interactionElement === decoration) {
+	private _startSpinner(): void {
+		if (this._spinnerTimer === undefined) {
+			this._spinnerFrameIndex = 0;
+		}
+		// Render the first frame immediately so there's no blank flicker.
+		this._renderSpinnerFrame();
+		if (this._spinnerTimer !== undefined) {
 			return;
 		}
-		this._interactionElement = decoration;
+		const targetWindow = dom.getWindow(this._element);
+		this._spinnerTimer = targetWindow.setInterval(() => {
+			this._spinnerFrameIndex = (this._spinnerFrameIndex + 1) % TerminalCommandDecoration._spinnerFrames.length;
+			this._renderSpinnerFrame();
+		}, TerminalCommandDecoration._spinnerIntervalMs);
+	}
+
+	private _renderSpinnerFrame(): void {
+		const targetWindow = dom.getWindow(this._element);
+		const visible = new Set<number>(TerminalCommandDecoration._spinnerFrames[this._spinnerFrameIndex]);
+		for (let i = 0; i < this._spinnerDots.length; i++) {
+			this._clearFallingTimer(i, targetWindow);
+			const isVisible = visible.has(i);
+			const wasVisible = this._visibleSpinnerDots.has(i);
+			if (isVisible && !wasVisible) {
+				this._setDotState(i, 'entering');
+			} else if (!isVisible && wasVisible) {
+				this._setDotState(i, 'falling');
+				this._fallingDotTimers.set(i, targetWindow.setTimeout(() => {
+					this._setDotState(i, 'hidden');
+					this._fallingDotTimers.delete(i);
+				}, TerminalCommandDecoration._spinnerIntervalMs));
+			} else {
+				this._setDotState(i, isVisible ? 'visible' : 'hidden');
+			}
+		}
+		this._visibleSpinnerDots = visible;
+	}
+
+	private _setDotState(index: number, state: SpinnerDotState): void {
+		this._spinnerDots[index].dataset.state = state;
+	}
+
+	private _clearFallingTimer(index: number, targetWindow: Window): void {
+		const timer = this._fallingDotTimers.get(index);
+		if (timer !== undefined) {
+			targetWindow.clearTimeout(timer);
+			this._fallingDotTimers.delete(index);
+		}
+	}
+
+	private _stopSpinner(): void {
+		const targetWindow = dom.getWindow(this._element);
+		if (this._spinnerTimer !== undefined) {
+			targetWindow.clearInterval(this._spinnerTimer);
+			this._spinnerTimer = undefined;
+		}
+		for (const timer of this._fallingDotTimers.values()) {
+			targetWindow.clearTimeout(timer);
+		}
+		this._fallingDotTimers.clear();
+		this._spinnerFrameIndex = 0;
+		this._visibleSpinnerDots.clear();
+		this._renderSpinnerFrame();
 	}
 }
 
@@ -350,7 +450,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			terminalData: this._terminalData,
 			getCommandBlock: () => elements.commandBlock,
 			getIconElement: () => undefined,
-			getResolvedCommand: () => this._getResolvedCommand()
+			getResolvedCommand: () => this._getResolvedCommand(),
+			getIsRunning: () => this._isInvocationRunning()
 		}));
 
 		// Use presentationOverrides for display if available (e.g., extracted Python code with syntax highlighting)
@@ -452,7 +553,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		elements.message.append(this.markdownPart.domNode);
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
+		progressPart.domNode.classList.add('chat-terminal-progress-row');
 		this._decoration.update();
+		if (toolInvocation.kind === 'toolInvocation') {
+			this._register(autorun(reader => {
+				toolInvocation.state.read(reader);
+				this._decoration.update();
+			}));
+		}
 
 		// Keep thinking-container semantics separate from wrapper semantics.
 		const terminalToolsInThinking = this._configurationService.getValue<boolean>(ChatConfiguration.TerminalToolsInThinking);
@@ -743,6 +851,21 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return undefined;
 		}
 		return this._resolveCommand(target);
+	}
+
+	private _isInvocationRunning(): boolean {
+		const commandExitCode = this._getResolvedCommand()?.exitCode;
+		if (commandExitCode !== undefined) {
+			return false;
+		}
+		const storedExitCode = this._terminalData.terminalCommandState?.exitCode;
+		if (storedExitCode !== undefined) {
+			return false;
+		}
+		if (!IChatToolInvocation.isComplete(this.toolInvocation)) {
+			return true;
+		}
+		return this._terminalData.isBackground === true || this._terminalData.didContinueInBackground === true;
 	}
 
 	private _clearCommandAssociation(options?: { clearPersistentData?: boolean }): void {

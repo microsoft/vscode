@@ -8,6 +8,10 @@
 	min-width: 0;
 }
 
+.chat-terminal-progress-row > div:first-child {
+	display: none;
+}
+
 .chat-terminal-content-part .chat-terminal-content-title {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: var(--vscode-cornerRadius-medium);
@@ -97,6 +101,67 @@
 	pointer-events: none;
 }
 
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration.chat-terminal-running-spinner {
+	display: grid;
+	grid-template-columns: repeat(2, 2px);
+	grid-template-rows: repeat(3, 2px);
+	column-gap: 2px;
+	row-gap: 2px;
+	place-content: center;
+	color: var(--vscode-terminalCommandDecoration-defaultBackground);
+	pointer-events: none;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration .chat-terminal-running-spinner-dot {
+	display: none;
+	width: 2px;
+	height: 2px;
+	border-radius: 50%;
+	background-color: currentColor;
+	opacity: 0;
+	transform: translateY(0);
+	transition: opacity 130ms ease-out, transform 170ms ease-in;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration.chat-terminal-running-spinner .chat-terminal-running-spinner-dot {
+	display: block;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration .chat-terminal-running-spinner-dot[data-state="visible"] {
+	opacity: 1;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration .chat-terminal-running-spinner-dot[data-state="falling"] {
+	opacity: 0;
+	transform: translateY(7px);
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration .chat-terminal-running-spinner-dot[data-state="entering"] {
+	opacity: 1;
+	animation: chat-terminal-running-spinner-dot-enter 170ms ease-out;
+}
+
+@keyframes chat-terminal-running-spinner-dot-enter {
+	from {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration .chat-terminal-running-spinner-dot {
+		transition: none;
+	}
+
+	.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration .chat-terminal-running-spinner-dot[data-state="entering"] {
+		animation: none;
+	}
+}
+
 .chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration:focus-visible,
 .chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .terminal-command-decoration:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
@@ -156,7 +221,9 @@
 	border-bottom: 0;
 }
 
-.chat-terminal-output-container.expanded { display: block; }
+.chat-terminal-output-container.expanded {
+	display: block;
+}
 .chat-terminal-output-container > .monaco-scrollable-element {
 	width: 100%;
 	background: inherit;
