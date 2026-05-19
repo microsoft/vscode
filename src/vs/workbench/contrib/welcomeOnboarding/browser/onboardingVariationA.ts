@@ -43,6 +43,9 @@ import {
 	IOnboardingThemeOption,
 	getOnboardingStepTitle,
 	getOnboardingStepSubtitle,
+	GHE_FULL_URI_REGEX,
+	GheParseResultKind,
+	parseGheInstanceInput,
 } from '../common/onboardingTypes.js';
 import { IOnboardingService } from '../common/onboardingService.js';
 
@@ -554,8 +557,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	private _renderEnterpriseInstanceForm(actions: HTMLElement): void {
-		const domainRegEx = /^[a-zA-Z\-_]+$/;
-		const fullUriRegEx = /^(https:\/\/)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.ghe\.com\/?$/;
 		const enterprisePromptLabel = this._getEnterpriseInstancePromptLabel();
 
 		const container = append(actions, $('.onboarding-a-signin-ghe-input'));
@@ -565,11 +566,13 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			ThemeIcon.asClassName(Codicon.arrowRight),
 			false,
 			async () => {
-				if (!validate()) {
+				const result = parseGheInstanceInput(inputBox.value);
+				if (result.kind === GheParseResultKind.Empty || result.kind === GheParseResultKind.Invalid) {
+					validate();
 					return;
 				}
 
-				await this._submitEnterpriseInstance(inputBox.value.trim(), isSingleWord);
+				await this._submitEnterpriseInstance(result.resolvedUri);
 			}
 		));
 
@@ -585,39 +588,33 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		const message = append(container, $('.onboarding-a-signin-ghe-message'));
 
-		let isSingleWord = false;
 		const validate = (): boolean => {
-			const value = inputBox.value.trim();
 			this.enterpriseInstanceValue = inputBox.value;
-			isSingleWord = false;
 			inputBox.element.classList.remove('error');
 			message.classList.remove('error', 'info');
 
-			if (!value) {
-				message.textContent = enterprisePromptLabel;
-				submitAction.enabled = false;
-				return false;
+			const result = parseGheInstanceInput(inputBox.value);
+			switch (result.kind) {
+				case GheParseResultKind.Empty:
+					message.textContent = enterprisePromptLabel;
+					submitAction.enabled = false;
+					return false;
+				case GheParseResultKind.SingleWord:
+					message.classList.add('info');
+					message.textContent = localize('onboarding.signIn.enterprise.resolve', "Will resolve to {0}", result.resolvedUri);
+					submitAction.enabled = true;
+					return true;
+				case GheParseResultKind.FullUri:
+					submitAction.enabled = true;
+					message.textContent = '';
+					return true;
+				case GheParseResultKind.Invalid:
+					inputBox.element.classList.add('error');
+					message.classList.add('error');
+					message.textContent = localize('onboarding.signIn.enterprise.invalid', 'You must enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.provider.enterprise.name);
+					submitAction.enabled = false;
+					return false;
 			}
-
-			if (domainRegEx.test(value)) {
-				isSingleWord = true;
-				message.classList.add('info');
-				message.textContent = localize('onboarding.signIn.enterprise.resolve', "Will resolve to {0}", `https://${value}.ghe.com`);
-				submitAction.enabled = true;
-				return true;
-			}
-
-			if (!fullUriRegEx.test(value)) {
-				inputBox.element.classList.add('error');
-				message.classList.add('error');
-				message.textContent = localize('onboarding.signIn.enterprise.invalid', 'You must enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.provider.enterprise.name);
-				submitAction.enabled = false;
-				return false;
-			}
-
-			submitAction.enabled = true;
-			message.textContent = '';
-			return true;
 		};
 
 		this.stepDisposables.add(addDisposableListener(input, 'input', () => {
@@ -724,9 +721,8 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	private async _handleEnterpriseSignIn(): Promise<void> {
-		const fullUriRegEx = /^(https:\/\/)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.ghe\.com\/?$/;
 		const existingUri = this.configurationService.getValue<string>(defaultChat.providerUriSetting);
-		if (typeof existingUri !== 'string' || !fullUriRegEx.test(existingUri)) {
+		if (typeof existingUri !== 'string' || !GHE_FULL_URI_REGEX.test(existingUri)) {
 			this.enterpriseInstanceValue = existingUri ?? '';
 			this.enterpriseSignInWatch = StopWatch.create();
 			this._setEnterpriseSignInUiState('instance');
@@ -737,14 +733,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		await this._runEnterpriseSignInSetup();
 	}
 
-	private async _submitEnterpriseInstance(value: string, isSingleWord: boolean): Promise<void> {
-		let resolvedUri = value;
-		if (isSingleWord) {
-			resolvedUri = `https://${resolvedUri}.ghe.com`;
-		} else if (!resolvedUri.toLowerCase().startsWith('https://')) {
-			resolvedUri = `https://${resolvedUri}`;
-		}
-
+	private async _submitEnterpriseInstance(resolvedUri: string): Promise<void> {
 		try {
 			await this.configurationService.updateValue(defaultChat.providerUriSetting, resolvedUri, ConfigurationTarget.USER);
 			this.enterpriseInstanceValue = resolvedUri;
