@@ -950,14 +950,30 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		const worktreeProperties = await this.copilotCLIWorktreeManagerService.getWorktreeProperties(session.sessionId);
 		const repositoryPath = worktreeProperties?.repositoryPath ? Uri.file(worktreeProperties.repositoryPath) : getWorkingDirectory(session.workspace);
 		const repository = repositoryPath ? await this.gitService.getRepository(repositoryPath) : undefined;
-		const hasChanges = (repository?.changes?.indexChanges && repository.changes.indexChanges.length > 0);
+		const hasChanges = (repository?.changes?.indexChanges?.length ?? 0) > 0
+			|| (repository?.changes?.workingTree?.length ?? 0) > 0;
 
 		if (hasChanges) {
 			stream.warning(l10n.t('You have uncommitted changes in your workspace. The cloud agent will start from the last committed state. Consider committing your changes first if you want to include them.'));
 		}
 
-		const prInfo = await this.cloudSessionProvider.delegate(request, stream, context, token, { prompt: request.prompt, chatContext: context });
-		await this.recordPushToSession(session, `/delegate ${request.prompt}`, prInfo);
+		const delegateResult = await this.cloudSessionProvider.delegate(request, stream, context, token, { prompt: request.prompt, chatContext: context });
+
+		// Handle both PR-based and task-based delegation results.
+		// ChatResponsePullRequestPart has a 'uri' property; CloudDelegationResult has 'kind'.
+		if ('uri' in delegateResult) {
+			// Legacy PR-based result (ChatResponsePullRequestPart from JobsApiBackend)
+			await this.recordPushToSession(session, `/delegate ${request.prompt}`, delegateResult as vscode.ChatResponsePullRequestPart);
+		} else {
+			// CloudDelegationResult from TaskApiBackend
+			const result = delegateResult as import('./cloudAgentBackend').CloudDelegationResult;
+			session.addUserMessage(`/delegate ${request.prompt}`);
+			if (result.kind === 'task') {
+				session.addUserAssistantMessage(`A cloud agent has begun working on your request.\n<task_metadata taskId="${result.taskId}" title="${result.title}" url="${result.taskUrl}"/>`);
+			} else {
+				session.addUserAssistantMessage(`A cloud agent has begun working on your request. PR #${result.prNumber} has been created.`);
+			}
+		}
 
 	}
 
