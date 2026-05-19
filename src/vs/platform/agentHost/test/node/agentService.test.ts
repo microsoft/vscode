@@ -1697,15 +1697,20 @@ suite('AgentService (node dispatcher)', () => {
 			localService.unsubscribe(uncommittedUri, 'client-1');
 		});
 
-		test('addSubscriber for non-uncommitted resources does NOT trigger a refresh', async () => {
+		test('addSubscriber for the session URI or session-changeset URI triggers a static refresh', async () => {
+			// The Agents Window subscribes to the session URI (list /
+			// detail) rather than to either of the static changeset URIs
+			// directly, so the chip would never refresh on session open
+			// without this trigger. Subscribing to the session-changeset
+			// URI from any other client must also fire its own refresh.
 			const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/wd-refresh-2' });
 			copilotAgent.resolvedWorkingDirectory = workingDirectory;
 			copilotAgent.sessionMetadataOverrides = { workingDirectory };
 
-			const computeCalls: { baseBranch: string | undefined }[] = [];
+			const computeCalls: { wd: string; baseBranch: string | undefined }[] = [];
 			const gitService = createNoopGitService();
-			gitService.computeSessionFileDiffs = async (_wd: URI, opts: { sessionUri: string; baseBranch?: string }) => {
-				computeCalls.push({ baseBranch: opts.baseBranch });
+			gitService.computeSessionFileDiffs = async (wd: URI, opts: { sessionUri: string; baseBranch?: string }) => {
+				computeCalls.push({ wd: wd.toString(), baseBranch: opts.baseBranch });
 				return undefined;
 			};
 
@@ -1716,16 +1721,16 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionChangesetUri = URI.parse(buildSessionChangesetUri(sessionResource.toString()));
 
 			localService.addSubscriber(sessionChangesetUri, 'client-1');
-			localService.addSubscriber(sessionResource, 'client-1');
+			localService.addSubscriber(sessionResource, 'client-2');
 			await new Promise(r => setTimeout(r, 20));
 
 			assert.ok(
-				!computeCalls.some(c => c.baseBranch === undefined),
-				`non-uncommitted subscriptions must not trigger an uncommitted git diff, got: ${JSON.stringify(computeCalls)}`,
+				computeCalls.some(c => c.wd === workingDirectory.toString()),
+				`session-URI / session-changeset subscriptions must trigger a git diff against the working dir, got: ${JSON.stringify(computeCalls)}`,
 			);
 
 			localService.unsubscribe(sessionChangesetUri, 'client-1');
-			localService.unsubscribe(sessionResource, 'client-1');
+			localService.unsubscribe(sessionResource, 'client-2');
 		});
 
 		test('restoreSession drains a pending uncommitted refresh deferred by an earlier addSubscriber', async () => {
