@@ -192,7 +192,7 @@ export class NewWorkspaceCreationResult extends PromptElement<NewWorkspaceElemen
 	-->
 
 - [ ] Install Required Extensions
-	<!-- ONLY install extensions provided mentioned in the ${ToolName.GetProjectSetupInfo}. Skip this step otherwise and mark as completed. -->
+	<!-- ONLY install extensions mentioned in the project setup information. Skip this step otherwise and mark as completed. -->
 
 - [ ] Compile the Project
 	<!--
@@ -250,7 +250,7 @@ FOLDER CREATION RULES:
 - If any of the scaffolding commands mention that the folder name is not correct, let the user know to create a new folder with the correct name and then reopen it again in vscode.
 
 EXTENSION INSTALLATION RULES:
-- Only install extension specified by the ${ToolName.GetProjectSetupInfo} tool. DO NOT INSTALL any other extensions.
+- Only install extensions specified by the project setup information. DO NOT INSTALL any other extensions.
 
 PROJECT CONTENT RULES:
 - If the user has not specified project details, assume they want a "Hello World" project as a starting point.

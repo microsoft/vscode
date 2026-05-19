@@ -592,8 +592,7 @@
 					]
 				},
 				"tags": [
-					"enable_other_tool_install_extension",
-					"enable_other_tool_get_project_setup_info"
+					"enable_other_tool_install_extension"
 				]
 			},
 			{
@@ -1321,7 +1320,6 @@
 				"name": "vscode",
 				"description": "",
 				"tools": [
-					"getProjectSetupInfo",
 					"installExtension",
 					"memory",
 					"newWorkspace",
