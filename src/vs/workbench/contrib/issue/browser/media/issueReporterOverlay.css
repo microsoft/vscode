@@ -108,6 +108,17 @@
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
 	font-size: 13px;
 	color: var(--vscode-foreground);
+	/* Lock against compression — the bar's width is determined by its content
+	   and stays constant as the window resizes. Position-clamping (in JS)
+	   handles keeping it inside the viewport. */
+	flex-shrink: 0;
+	white-space: nowrap;
+	width: max-content;
+	max-width: none;
+}
+
+.wizard-floating-bar * {
+	flex-shrink: 0;
 }
 
 .wizard-floating-drag {
@@ -1016,7 +1027,9 @@
 }
 
 @keyframes spin {
-	to { transform: rotate(360deg); }
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 .wizard-submit-buttons {
@@ -1036,6 +1049,7 @@
 	background: var(--vscode-button-background, #0e639c);
 	color: var(--vscode-button-foreground, #fff);
 }
+
 .wizard-submit-gist:hover {
 	background: var(--vscode-button-hoverBackground, #1177bb);
 }
@@ -1044,6 +1058,7 @@
 	background: var(--vscode-button-secondaryBackground, #3a3d41);
 	color: var(--vscode-button-secondaryForeground, #fff);
 }
+
 .wizard-submit-playwright:hover {
 	background: var(--vscode-button-secondaryHoverBackground, #45494e);
 }
@@ -1054,6 +1069,7 @@
 	color: var(--vscode-foreground, #ccc);
 	border: 1px solid var(--vscode-input-border, #3c3c3c);
 }
+
 .wizard-submit-preview:hover,
 .wizard-submit-manual:hover {
 	background: var(--vscode-list-hoverBackground, #2a2d2e);
@@ -1169,7 +1185,9 @@
 }
 
 @keyframes review-performance-spin {
-	to { transform: rotate(360deg); }
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 .review-performance-data .review-diag-group {

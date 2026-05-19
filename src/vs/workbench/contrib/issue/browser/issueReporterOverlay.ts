@@ -22,7 +22,6 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
@@ -237,13 +236,12 @@ export class IssueReporterOverlay {
 		this.backButton = this.disposables.add(new Button(nav, { ...defaultButtonStyles, secondary: true }));
 		this.backButton.label = localize('back', "Back");
 		this.backButton.element.classList.add('wizard-back');
-		this.backButton.element.title = localize('backEscape', "Back (Escape)");
+		this.backButton.element.title = localize('back', "Back");
 
 		this.nextButton = this.disposables.add(new Button(nav, { ...defaultButtonStyles, supportIcons: true }));
 		this.nextButton.label = localize('next', "Next");
 		this.nextButton.element.classList.add('wizard-next');
-		const ctrlKey = isMacintosh ? '\u2318' : 'Ctrl';
-		this.nextButton.element.title = localize('nextCtrlEnter', "Next ({0}+Enter)", ctrlKey);
+		this.nextButton.element.title = localize('next', "Next");
 
 		this.registerEventHandlers();
 		if (this.data.extensionId) {
@@ -514,6 +512,46 @@ export class IssueReporterOverlay {
 			targetWindow.document.addEventListener('pointerup', onPointerUp);
 		}));
 
+		// Keep the bar fully within the visible viewport when the window is
+		// resized. Without this, narrowing the window can clip the bar off the
+		// right edge — see screenshot in issue. The bar stays in its current
+		// relative position; we only nudge it inward when it would otherwise
+		// fall off-screen.
+		const clampIntoView = () => {
+			if (!this.floatingBar) {
+				return;
+			}
+			const rect = this.floatingBar.getBoundingClientRect();
+			const winW = targetWindow.innerWidth;
+			const winH = targetWindow.innerHeight;
+			const margin = 8;
+			let needsClamp = false;
+			let nextLeft = rect.left;
+			let nextTop = rect.top;
+			if (rect.right > winW - margin) {
+				nextLeft = Math.max(margin, winW - margin - rect.width);
+				needsClamp = true;
+			}
+			if (rect.left < margin) {
+				nextLeft = margin;
+				needsClamp = true;
+			}
+			if (rect.bottom > winH - margin) {
+				nextTop = Math.max(margin, winH - margin - rect.height);
+				needsClamp = true;
+			}
+			if (rect.top < margin) {
+				nextTop = margin;
+				needsClamp = true;
+			}
+			if (needsClamp) {
+				this.floatingBar.style.left = `${nextLeft}px`;
+				this.floatingBar.style.top = `${nextTop}px`;
+				this.floatingBar.style.right = 'auto';
+			}
+		};
+		this.disposables.add(addDisposableListener(targetWindow, 'resize', clampIntoView));
+
 		this.disposables.add(toDisposable(() => {
 			this.floatingBar?.remove();
 		}));
@@ -618,23 +656,6 @@ export class IssueReporterOverlay {
 			this.disposables.add(btn.onDidClick(() => selectType(type)));
 		}
 		this.typeError = this.createFieldError(page, localize('categoryRequired', "Select a category to continue."));
-
-		// Number key shortcuts for category selection (1, 2, 3)
-		this.disposables.add(addDisposableListener(this.wizardPanel, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (this.currentStep !== WizardStep.Describe) {
-				return;
-			}
-			const index = ['1', '2', '3'].indexOf(e.key);
-			if (index >= 0 && index < types.length) {
-				// Only when no textarea/input is focused
-				const activeEl = this.wizardPanel.ownerDocument.activeElement;
-				if (activeEl && (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT')) {
-					return;
-				}
-				e.preventDefault();
-				selectType(types[index].type);
-			}
-		}));
 
 		// Title field with AI generate button next to label
 		const titleGroup = append(page, $('div.wizard-field.wizard-title-field'));
@@ -1172,28 +1193,6 @@ export class IssueReporterOverlay {
 
 		// Next
 		this.disposables.add(this.nextButton.onDidClick(() => this.goNext()));
-
-		// Ctrl+Enter to advance / submit
-		this.disposables.add(addDisposableListener(this.wizardPanel, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-				e.preventDefault();
-				e.stopPropagation();
-				this.goNext();
-			}
-		}));
-
-		// Escape to go back, or close on first step
-		this.disposables.add(addDisposableListener(this.wizardPanel, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (e.key === 'Escape') {
-				e.preventDefault();
-				e.stopPropagation();
-				if (this.currentStep > WizardStep.Attachments) {
-					this.goBack();
-				} else {
-					this.close();
-				}
-			}
-		}));
 	}
 
 	private goBack(): void {
@@ -1311,7 +1310,6 @@ export class IssueReporterOverlay {
 		}
 
 		// Next button label
-		const ctrlKey = isMacintosh ? '\u2318' : 'Ctrl';
 		if (this.currentStep === WizardStep.Review) {
 			const externalExtensionUrl = this.selectedIssueSource === IssueSource.Extension && this.getIssueTargetUrl() && !this.isGitHubUrl(this.getIssueTargetUrl()!);
 			const waitingForData = this.selectedIssueType === IssueType.PerformanceIssue && (!this.performanceInfoLoaded || this.performanceInfoRefreshing);
@@ -1323,19 +1321,17 @@ export class IssueReporterOverlay {
 				this.nextButton.label = externalExtensionUrl
 					? localize('openExternalIssueReporter', "Open External Issue Reporter")
 					: localize('previewOnGitHub', "Preview on GitHub");
-				this.nextButton.element.title = externalExtensionUrl
-					? localize('openExternalIssueReporterCtrlEnter', "Open External Issue Reporter ({0}+Enter)", ctrlKey)
-					: localize('submitCtrlEnter', "Preview on GitHub ({0}+Enter)", ctrlKey);
+				this.nextButton.element.title = this.nextButton.label;
 				this.nextButton.enabled = true;
 			}
 		} else if (this.currentStep === WizardStep.Attachments) {
 			this.nextButton.label = this.getTotalAttachments() === 0
 				? localize('skip', "Skip")
 				: localize('next', "Next");
-			this.nextButton.element.title = localize('nextCtrlEnter', "Next ({0}+Enter)", ctrlKey);
+			this.nextButton.element.title = this.nextButton.label;
 		} else {
 			this.nextButton.label = localize('next', "Next");
-			this.nextButton.element.title = localize('nextCtrlEnter', "Next ({0}+Enter)", ctrlKey);
+			this.nextButton.element.title = localize('next', "Next");
 		}
 
 		// Show/hide capture strip (only on attachments step)
@@ -1980,7 +1976,7 @@ export class IssueReporterOverlay {
 		this.nextButton.enabled = !recording;
 		this.nextButton.element.title = recording
 			? localize('recordingActive', "Recording active")
-			: localize('submitCtrlEnter', "Preview on GitHub ({0}+Enter)", isMacintosh ? '\u2318' : 'Ctrl');
+			: localize('previewOnGitHub', "Preview on GitHub");
 	}
 
 	private updateScreenshotThumbnails(): void {
