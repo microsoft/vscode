@@ -161,7 +161,7 @@ suite('Copilot CLI Chat Sanity Test', function () {
 		}
 
 		assert.ok(!followupResult?.errorDetails, `Copilot CLI internal SDK chat session follow-up returned an error: ${followupResult?.errorDetails?.message}`);
-		assertCopilotCLIResponse(followupStream, 'follow-up turn');
+		assertCopilotCLIResponseParts(followupStream, 'follow-up turn');
 	});
 
 	async function createCopilotCLIChatContext(request: TestChatRequest): Promise<vscode.ChatContext> {
@@ -240,8 +240,12 @@ suite('Copilot CLI Chat Sanity Test', function () {
 	}
 
 	function assertCopilotCLIResponse(stream: SpyChatResponseStream, turnName: string): void {
-		assert.ok(stream.items.length > 0, `Expected Copilot CLI internal SDK chat session ${turnName} to emit response parts`);
+		assertCopilotCLIResponseParts(stream, turnName);
 		assert.ok(stream.currentProgress, `Expected Copilot CLI internal SDK chat session ${turnName} output. Response parts: ${stream.items.map(part => part.constructor.name).join(', ')}`);
+	}
+
+	function assertCopilotCLIResponseParts(stream: SpyChatResponseStream, turnName: string): void {
+		assert.ok(stream.items.length > 0, `Expected Copilot CLI internal SDK chat session ${turnName} to emit response parts`);
 	}
 
 	function formatLogArgument(argument: string | Error | undefined): string {
