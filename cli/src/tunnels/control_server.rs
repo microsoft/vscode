@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use crate::async_pipe::get_socket_rw_stream;
+use crate::commands::agent_host::ensure_supervisor_running;
 use crate::constants::{AGENT_HOST_PORT, CONTROL_PORT, PRODUCT_NAME_LONG};
 use crate::log;
 use crate::msgpack_rpc::{new_msgpack_rpc, start_msgpack_rpc, MsgPackCodec, MsgPackSerializer};
@@ -28,8 +29,6 @@ use crate::util::sync::{new_barrier, Barrier, BarrierOpener};
 
 use futures::stream::FuturesUnordered;
 use futures::FutureExt;
-use opentelemetry::trace::SpanKind;
-use opentelemetry::KeyValue;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -40,13 +39,10 @@ use tokio_util::codec::Decoder;
 
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, DuplexStream};
 use tokio::sync::{mpsc, Mutex};
 
-use super::agent_host::{
-	handle_request as handle_agent_host_request, AgentHostConfig, AgentHostManager,
-};
+use super::agent_host::forward_tunnel_connection_to_existing_ah;
 use super::challenge::{create_challenge, sign_challenge, verify_challenge};
 use super::code_server::{
 	download_cli_into_cache, AnyCodeServer, CodeServerArgs, ServerBuilder, ServerParamsRaw,
@@ -190,40 +186,27 @@ pub async fn serve(
 	let (tx, mut rx) = mpsc::channel::<ServerSignal>(4);
 	let (exit_barrier, signal_exit) = new_barrier();
 
-	// Set up the agent host manager for on-demand server start on AGENT_HOST_PORT
-	let agent_host_manager = AgentHostManager::new(
-		log.clone(),
-		platform,
-		launcher_paths.server_cache.clone(),
-		Arc::new(ReqwestSimpleHttp::new()),
-		AgentHostConfig {
-			server_data_dir: code_server_args.server_data_dir.clone(),
-			without_connection_token: true,
-			connection_token: None,
-			connection_token_file: None,
-		},
-	);
+	// Make sure an agent host supervisor is running on this machine before
+	// we start advertising the `agent-host` port over the tunnel. The
+	// supervisor is the only process that binds the user-facing TCP
+	// listener and owns the canonical lockfile; we never spawn an
+	// in-process sidecar here. If one is already live we reuse it; if
+	// not, we daemonize a fresh supervisor and consume the resulting
+	// lockfile.
+	let active_agent_host = ensure_supervisor_running(launcher_paths, log).await?;
 
-	// Eagerly resolve the latest version and start background updates
-	if option_env!("VSCODE_CLI_OVERRIDE_SERVER_PATH").is_none() {
-		let mgr = agent_host_manager.clone();
-		let log_for_init = log.clone();
-		tokio::spawn(async move {
-			match mgr.get_latest_release().await {
-				Ok(release) => {
-					if let Err(e) = mgr.ensure_downloaded(&release).await {
-						warning!(log_for_init, "Error downloading latest server: {}", e);
-					}
-				}
-				Err(e) => warning!(log_for_init, "Error resolving latest version: {}", e),
-			}
-		});
-
-		let mgr = agent_host_manager.clone();
-		tokio::spawn(async move {
-			mgr.run_update_loop().await;
-		});
-	}
+	// Thread the active agent-host endpoint into the args used when spawning
+	// VS Code servers for renderer clients. The server uses these to register
+	// its `agentHostProxy` IPC channel so the renderer can reach the agent
+	// host over the existing renderer↔server connection. Note: this does NOT
+	// ask the spawned server to start its own agent host (that path uses
+	// `--agent-host-port` / `--agent-host-path` instead), it only points the
+	// bridge at the active agent host.
+	let code_server_args = {
+		let mut csa = code_server_args.clone();
+		active_agent_host.apply_to_bridge(&mut csa);
+		csa
+	};
 
 	if !code_server_args.install_extensions.is_empty() {
 		info!(
@@ -249,7 +232,6 @@ pub async fn serve(
 		tokio::select! {
 			Ok(reason) = shutdown_rx.wait() => {
 				info!(log, "Shutting down: {}", reason);
-				agent_host_manager.kill_running_server().await;
 				drop(signal_exit);
 				return Ok(ServerTermination {
 					next: match reason {
@@ -261,7 +243,6 @@ pub async fn serve(
 			},
 			c = rx.recv() => {
 				if let Some(ServerSignal::Respawn) = c {
-					agent_host_manager.kill_running_server().await;
 					drop(signal_exit);
 					return Ok(ServerTermination {
 						next: Next::Respawn,
@@ -273,22 +254,19 @@ pub async fn serve(
 				forwarding.process(w, &mut tunnel).await;
 			},
 			Some(socket) = agent_host_port.recv() => {
-				let mgr = agent_host_manager.clone();
-				let ah_log = log.clone();
+				let host = active_agent_host.dial_host().to_string();
+				let port = active_agent_host.port;
+				let token = active_agent_host.token.clone();
+				let log = log.clone();
 				tokio::spawn(async move {
-					debug!(ah_log, "Serving new agent host connection");
-					let rw = socket.into_rw();
-					let svc = hyper::service::service_fn(move |req| {
-						let mgr = mgr.clone();
-						async move { handle_agent_host_request(mgr, req).await }
-					});
-					if let Err(e) = hyper::server::conn::Http::new()
-						.serve_connection(rw, svc)
-						.with_upgrades()
-						.await
-					{
-						debug!(ah_log, "Agent host connection ended: {:?}", e);
-					}
+					forward_tunnel_connection_to_existing_ah(
+						log,
+						socket.into_rw(),
+						host,
+						port,
+						token,
+					)
+					.await;
 				});
 			},
 			l = port.recv() => {
@@ -311,33 +289,17 @@ pub async fn serve(
 				let own_forwarding = forwarding.handle();
 
 				tokio::spawn(async move {
-					use opentelemetry::trace::{FutureExt, TraceContextExt};
-
-					let span = own_log.span("server.socket").with_kind(SpanKind::Consumer).start(own_log.tracer());
-					let cx = opentelemetry::Context::current_with_span(span);
-					let serve_at = Instant::now();
-
 					debug!(own_log, "Serving new connection");
 
 					let (writehalf, readhalf) = socket.into_split();
-					let stats = process_socket(readhalf, writehalf, own_tx, Some(own_forwarding), ServeStreamParams {
+					let _stats = process_socket(readhalf, writehalf, own_tx, Some(own_forwarding), ServeStreamParams {
 						log: own_log,
 						launcher_paths: own_paths,
 						code_server_args: own_code_server_args,
 						platform,
 						exit_barrier: own_exit,
 						requires_auth: AuthRequired::None,
-					}).with_context(cx.clone()).await;
-
-					cx.span().add_event(
-						"socket.bandwidth",
-						vec![
-							KeyValue::new("tx", stats.tx as f64),
-							KeyValue::new("rx", stats.rx as f64),
-							KeyValue::new("duration_ms", serve_at.elapsed().as_millis() as f64),
-						],
-					);
-					cx.span().end();
+					}).await;
 				});
 			}
 		}
@@ -375,8 +337,8 @@ pub async fn serve_stream(
 }
 
 pub struct SocketStats {
-	rx: usize,
-	tx: usize,
+	pub rx: usize,
+	pub tx: usize,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -791,7 +753,7 @@ async fn handle_serve(
 	// fill params.extensions into code_server_args.install_extensions
 	let mut csa = c.code_server_args.clone();
 	csa.connection_token = params.connection_token.or(csa.connection_token);
-	csa.install_extensions.extend(params.extensions.into_iter());
+	csa.install_extensions.extend(params.extensions);
 
 	let params_raw = ServerParamsRaw {
 		commit_id: params.commit_id,
@@ -849,6 +811,8 @@ async fn handle_serve(
 				Ok(s) => s,
 				Err(e) => {
 					// we don't loop to avoid doing so infinitely: allow the client to reconnect in this case.
+					// Permission errors (ServerNotExecutable) are not "corruption" -- re-downloading
+					// will not fix them, so skip eviction and let the user see the real error.
 					if let AnyError::CodeError(CodeError::ServerUnexpectedExit(ref e)) = e {
 						warning!(
 							c.log,
@@ -1190,7 +1154,9 @@ async fn handle_call_server_http(
 	code_server: Option<SocketCodeServer>,
 	params: CallServerHttpParams,
 ) -> Result<CallServerHttpResult, AnyError> {
-	use hyper::{body, client::conn::Builder, Body, Request};
+	use ::http::Request;
+	use http_body_util::{BodyExt, Full};
+	use hyper_util::rt::TokioIo;
 
 	// We use Hyper directly here since reqwest doesn't support sockets/pipes.
 	// See https://github.com/seanmonstar/reqwest/issues/39
@@ -1202,8 +1168,7 @@ async fn handle_call_server_http(
 
 	let rw = get_socket_rw_stream(socket).await?;
 
-	let (mut request_sender, connection) = Builder::new()
-		.handshake(rw)
+	let (mut request_sender, connection) = hyper::client::conn::http1::handshake(TokioIo::new(rw))
 		.await
 		.map_err(|e| wrap(e, "error establishing connection"))?;
 
@@ -1219,7 +1184,9 @@ async fn handle_call_server_http(
 		request_builder = request_builder.header(k, v);
 	}
 	let request = request_builder
-		.body(Body::from(params.body.unwrap_or_default()))
+		.body(Full::new(bytes::Bytes::from(
+			params.body.unwrap_or_default(),
+		)))
 		.map_err(|e| wrap(e, "invalid request"))?;
 
 	let response = request_sender
@@ -1227,17 +1194,21 @@ async fn handle_call_server_http(
 		.await
 		.map_err(|e| wrap(e, "error sending request"))?;
 
+	let (parts, body) = response.into_parts();
+	let body_bytes = body
+		.collect()
+		.await
+		.map_err(|e| wrap(e, "error reading response body"))?
+		.to_bytes();
+
 	Ok(CallServerHttpResult {
-		status: response.status().as_u16(),
-		headers: response
-			.headers()
-			.into_iter()
+		status: parts.status.as_u16(),
+		headers: parts
+			.headers
+			.iter()
 			.map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
 			.collect(),
-		body: body::to_bytes(response)
-			.await
-			.map_err(|e| wrap(e, "error reading response body"))?
-			.to_vec(),
+		body: body_bytes.to_vec(),
 	})
 }
 

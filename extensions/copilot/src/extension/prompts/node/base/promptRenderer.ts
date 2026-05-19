@@ -11,7 +11,7 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
-import { IRequestLogger } from '../../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
 import { ITokenizerProvider } from '../../../../platform/tokenizer/node/tokenizer';
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { isLocation } from '../../../../util/common/types';
@@ -213,7 +213,7 @@ export async function renderPromptElementJSON<P extends BasePromptElementProps>(
 	// todo@lramos15: We should pass in endpoint provider rather than doing invoke function, but this was easier
 	const endpoint = await instantiationService.invokeFunction(async (accessor) => {
 		const endpointProvider = accessor.get(IEndpointProvider);
-		return await endpointProvider.getChatEndpoint('copilot-base');
+		return await endpointProvider.getChatEndpoint('copilot-utility');
 	});
 	const hydratedInstaService = instantiationService.createChild(new ServiceCollection([IPromptEndpoint, endpoint]));
 	const renderer = new PromptRendererForJSON(ctor as any, props, tokenOptions, endpoint, hydratedInstaService);

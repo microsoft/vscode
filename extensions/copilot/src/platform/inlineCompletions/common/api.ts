@@ -11,12 +11,12 @@ export namespace Copilot {
 	export type Position = {
 		line: number;
 		character: number;
-	}
+	};
 
 	export type Range = {
 		start: Position;
 		end: Position;
-	}
+	};
 
 	/**
 	* The ContextProvider API allows extensions to provide additional context items that

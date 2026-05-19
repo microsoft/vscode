@@ -145,27 +145,54 @@ describe('parseClaudeModelId', () => {
 		});
 	});
 
+	describe('bare model names', () => {
+		it('parses a bare name with no version', () => {
+			const result = parseClaudeModelId('foo');
+			expect(result).toEqual(expect.objectContaining({
+				name: 'foo',
+				version: '',
+				modifiers: '',
+			}));
+		});
+
+		it('toSdkModelId returns the bare name', () => {
+			expect(parseClaudeModelId('foo').toSdkModelId()).toBe('foo');
+		});
+
+		it('toEndpointModelId returns the bare name', () => {
+			expect(parseClaudeModelId('foo').toEndpointModelId()).toBe('foo');
+		});
+
+		it('parses bare "claude" as a bare name', () => {
+			const result = parseClaudeModelId('claude');
+			expect(result).toEqual(expect.objectContaining({
+				name: 'claude',
+				version: '',
+				modifiers: '',
+			}));
+		});
+	});
+
 	describe('unparseable inputs', () => {
-		it('throws for non-Claude IDs', () => {
+		it('throws for hyphenated non-Claude IDs', () => {
 			expect(() => parseClaudeModelId('gpt-4o')).toThrow(`Unable to parse Claude model ID: 'gpt-4o'`);
 		});
 
-		it('throws for bare "claude"', () => {
-			expect(() => parseClaudeModelId('claude')).toThrow();
-		});
-
-		it('throws for garbage', () => {
+		it('throws for garbage with hyphens', () => {
 			expect(() => parseClaudeModelId('invalid-model-id')).toThrow();
 		});
 	});
 
 	describe('tryParseClaudeModelId', () => {
-		it('returns undefined for non-Claude IDs', () => {
+		it('returns undefined for hyphenated non-Claude IDs', () => {
 			expect(tryParseClaudeModelId('gpt-4o')).toBeUndefined();
 		});
 
-		it('returns undefined for bare "claude"', () => {
-			expect(tryParseClaudeModelId('claude')).toBeUndefined();
+		it('returns a result for bare names', () => {
+			expect(tryParseClaudeModelId('foo')).toEqual(expect.objectContaining({
+				name: 'foo',
+				version: '',
+			}));
 		});
 
 		it('returns a result for valid Claude IDs', () => {

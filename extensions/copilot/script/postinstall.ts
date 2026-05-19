@@ -61,6 +61,11 @@ const treeSitterGrammars: ITreeSitterGrammar[] = [
 
 const REPO_ROOT = path.join(__dirname, '..');
 
+async function removeCopilotCLIShim() {
+	const shimsPath = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'shims.txt');
+	await fs.promises.rm(shimsPath, { force: true }).catch(() => { /* ignore */ });
+}
+
 /**
  * @github/copilot/sdk/index.js depends on @github/copilot/worker/*.js files.
  * We need to copy these files into the sdk directory to ensure they are available at runtime.
@@ -87,8 +92,8 @@ async function copyCopilotCliDefinitionFiles() {
 }
 
 async function copyCopilotCliSkillsFiles() {
-	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'builtin-skills', 'customizing-copilot-cloud-agents-environment');
-	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'builtin-skills', 'customizing-copilot-cloud-agents-environment');
+	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'builtin-skills');
+	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'builtin-skills');
 
 	await copyCopilotCLIFolders(sourceDir, targetDir);
 }
@@ -103,15 +108,13 @@ async function copyCopilotCliQueryFiles() {
 async function copyCopilotCliPrebuildFiles() {
 	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'prebuilds');
 	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'prebuilds');
-
 	await fs.promises.rm(targetDir, { recursive: true, force: true });
 	await fs.promises.mkdir(targetDir, { recursive: true });
 	await fs.promises.cp(sourceDir, targetDir, {
 		recursive: true, force: true, filter: (src) => {
 			try {
-				// Only copy computer.node and win_error_mode.node files
 				if (fs.statSync(src).isFile()) {
-					return src.endsWith('computer.node') || src.endsWith('win_error_mode.node');
+					return src.endsWith('computer.node') || src.endsWith('native.node') || src.endsWith('runtime.node');
 				}
 				return true;
 			} catch {
@@ -173,6 +176,7 @@ async function main() {
 		'node_modules/@github/blackbird-external-ingest-utils/pkg/nodejs/external_ingest_utils_bg.wasm',
 	], 'dist');
 
+	await removeCopilotCLIShim();
 	await copyCopilotCliWorkerFiles();
 	await copyCopilotCliSharpFiles();
 	await copyCopilotCliDefinitionFiles();

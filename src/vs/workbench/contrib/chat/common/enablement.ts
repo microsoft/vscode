@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IReader } from '../../../../base/common/observable.js';
+import { IReader, ITransaction } from '../../../../base/common/observable.js';
 import { ObservableMemento, observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
@@ -25,7 +25,7 @@ export function isContributionDisabled(state: ContributionEnablementState): bool
 
 export interface IEnablementModel {
 	readEnabled(key: string, reader?: IReader): ContributionEnablementState;
-	setEnabled(key: string, state: ContributionEnablementState): void;
+	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void;
 	remove(key: string): void;
 }
 
@@ -93,29 +93,29 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 		return ContributionEnablementState.EnabledProfile;
 	}
 
-	setEnabled(key: string, state: ContributionEnablementState): void {
+	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
 		switch (state) {
 			case ContributionEnablementState.EnabledProfile: {
 				// Enabled-profile is the default: remove key from profile state,
 				// and also remove any workspace override.
-				this._deleteFromMap(this._profileState, key);
-				this._deleteFromMap(this._workspaceState, key);
+				this._deleteFromMap(this._profileState, key, tx);
+				this._deleteFromMap(this._workspaceState, key, tx);
 				break;
 			}
 			case ContributionEnablementState.DisabledProfile: {
 				// Store disabled in profile, remove workspace override.
-				this._setInMap(this._profileState, key, false);
-				this._deleteFromMap(this._workspaceState, key);
+				this._setInMap(this._profileState, key, false, tx);
+				this._deleteFromMap(this._workspaceState, key, tx);
 				break;
 			}
 			case ContributionEnablementState.EnabledWorkspace: {
 				// Workspace override: always store explicitly.
-				this._setInMap(this._workspaceState, key, true);
+				this._setInMap(this._workspaceState, key, true, tx);
 				break;
 			}
 			case ContributionEnablementState.DisabledWorkspace: {
 				// Workspace override: always store explicitly.
-				this._setInMap(this._workspaceState, key, false);
+				this._setInMap(this._workspaceState, key, false, tx);
 				break;
 			}
 		}
@@ -126,23 +126,23 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 		this._deleteFromMap(this._workspaceState, key);
 	}
 
-	private _setInMap(memento: ObservableMemento<EnablementMap>, key: string, value: boolean): void {
+	private _setInMap(memento: ObservableMemento<EnablementMap>, key: string, value: boolean, tx?: ITransaction): void {
 		const current = memento.get();
 		if (current.get(key) === value) {
 			return;
 		}
 		const next = new Map(current);
 		next.set(key, value);
-		memento.set(next, undefined);
+		memento.set(next, tx);
 	}
 
-	private _deleteFromMap(memento: ObservableMemento<EnablementMap>, key: string): void {
+	private _deleteFromMap(memento: ObservableMemento<EnablementMap>, key: string, tx?: ITransaction): void {
 		const current = memento.get();
 		if (!current.has(key)) {
 			return;
 		}
 		const next = new Map(current);
 		next.delete(key);
-		memento.set(next, undefined);
+		memento.set(next, tx);
 	}
 }

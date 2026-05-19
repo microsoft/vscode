@@ -90,6 +90,16 @@ declare module 'vscode' {
 		readonly description?: string;
 
 		/**
+		 * The extension identifier that contributed this customization, if any.
+		 */
+		readonly extensionId?: string;
+
+		/**
+		 * The URI of the plugin that contributed this customization, if any.
+		 */
+		readonly pluginUri?: Uri;
+
+		/**
 		 * Optional group key for display grouping. Items sharing the same
 		 * `groupKey` are placed under a shared collapsible header in the
 		 * management UI.
@@ -109,6 +119,12 @@ declare module 'vscode' {
 		 * Optional tooltip text shown when hovering over the badge.
 		 */
 		readonly badgeTooltip?: string;
+
+		/**
+		 * Whether this item should be shown to users as invocable.
+		 * Applies to agents, skills, and prompts. When `false`, the item is hidden from the UI and cannot be invoked by users,
+		 */
+		readonly userInvocable?: boolean;
 	}
 
 	/**
@@ -141,10 +157,11 @@ declare module 'vscode' {
 		 *
 		 * The result is cached by the UI until {@link onDidChange} fires.
 		 *
+		 * @param sessionResource URI of the chat session whose customizations should be considered.
 		 * @param token A cancellation token.
 		 * @returns The list of customization items, or `undefined` if unavailable.
 		 */
-		provideChatSessionCustomizations(token: CancellationToken): ProviderResult<ChatSessionCustomizationItem[]>;
+		provideChatSessionCustomizations(sessionResource: Uri, token: CancellationToken): ProviderResult<ChatSessionCustomizationItem[]>;
 	}
 
 	// #endregion

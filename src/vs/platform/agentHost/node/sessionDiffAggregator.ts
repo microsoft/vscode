@@ -7,6 +7,31 @@ import { URI } from '../../../base/common/uri.js';
 import type { IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import type { IDiffComputeService } from '../common/diffComputeService.js';
 import { FileEditKind, type ISessionFileDiff } from '../common/state/sessionState.js';
+import { buildSessionDbUri } from './shared/fileEditTracker.js';
+
+function getFileEditUri(diff: ISessionFileDiff): string | undefined {
+	return diff.after?.uri ?? diff.before?.uri;
+}
+
+function createSessionFileDiff(sessionUri: string, identity: IFileIdentity, added: number, removed: number): ISessionFileDiff {
+	const hasBefore = identity.firstKind !== FileEditKind.Create;
+	const hasAfter = identity.lastKind !== FileEditKind.Delete;
+	return {
+		...(hasBefore ? {
+			before: {
+				uri: URI.file(identity.firstFilePath).toString(),
+				content: { uri: buildSessionDbUri(sessionUri, identity.firstToolCallId, identity.firstFilePath, 'before') },
+			},
+		} : {}),
+		...(hasAfter ? {
+			after: {
+				uri: URI.file(identity.terminalPath).toString(),
+				content: { uri: buildSessionDbUri(sessionUri, identity.lastToolCallId, identity.lastFilePath, 'after') },
+			},
+		} : {}),
+		diff: { added, removed },
+	};
+}
 
 /**
  * Represents a file's identity across renames, tracking its first and last
@@ -56,6 +81,7 @@ export interface IIncrementalDiffOptions {
  * file and the total lines added/removed across the session.
  */
 export async function computeSessionDiffs(
+	sessionUri: string,
 	db: ISessionDatabase,
 	diffService: IDiffComputeService,
 	incremental?: IIncrementalDiffOptions,
@@ -72,7 +98,7 @@ export async function computeSessionDiffs(
 			return [...incremental.previousDiffs];
 		}
 
-		const previousDiffsUris = new Set(incremental.previousDiffs.map(d => d.uri));
+		const previousDiffsUris = new Set(incremental.previousDiffs.map(getFileEditUri));
 		const needsFullHistory = turnEdits.some(e =>
 			e.kind === FileEditKind.Rename ||
 			previousDiffsUris.has(URI.file(e.filePath).toString())
@@ -148,7 +174,7 @@ export async function computeSessionDiffs(
 	// In incremental slow-path mode, build a lookup map from URI string →
 	// previous diff so untouched identities can carry over their previous results.
 	const previousDiffsMap = (incremental && !fastPath)
-		? new Map(incremental.previousDiffs.map(d => [d.uri, d]))
+		? new Map(incremental.previousDiffs.map(d => [getFileEditUri(d), d]))
 		: undefined;
 
 	// Compute diffs for each file identity
@@ -192,11 +218,7 @@ export async function computeSessionDiffs(
 			}
 
 			const counts = await diffService.computeDiffCounts(beforeText, afterText);
-			results.push({
-				uri: URI.file(identity.terminalPath).toString(),
-				added: counts.added,
-				removed: counts.removed,
-			});
+			results.push(createSessionFileDiff(sessionUri, identity, counts.added, counts.removed));
 		})());
 	}
 
@@ -208,5 +230,86 @@ export async function computeSessionDiffs(
 		results.push(...incremental!.previousDiffs);
 	}
 
+	return results;
+}
+
+/**
+ * Computes the diff statistics for a single turn — files touched only
+ * within `turnId`, with their `before` snapshot taken from the first edit
+ * record in that turn and their `after` snapshot from the last. Used by
+ * the per-turn changeset (`<session>/changeset/turn/<turnId>`).
+ *
+ * Returns an empty array when the turn touched no files.
+ */
+export async function computeTurnDiffs(
+	sessionUri: string,
+	db: ISessionDatabase,
+	diffService: IDiffComputeService,
+	turnId: string,
+): Promise<ISessionFileDiff[]> {
+	const edits = await db.getFileEditsByTurn(turnId);
+	if (edits.length === 0) {
+		return [];
+	}
+
+	// Build identity graph for this turn only — same algorithm as
+	// `computeSessionDiffs` but scoped to a single turn's edits.
+	const pathToIdentityKey = new Map<string, string>();
+	const identities = new Map<string, IFileIdentity>();
+	for (const edit of edits) {
+		let identityKey: string;
+		if (edit.kind === FileEditKind.Rename && edit.originalPath) {
+			identityKey = pathToIdentityKey.get(edit.originalPath) ?? edit.originalPath;
+			pathToIdentityKey.set(edit.filePath, identityKey);
+			pathToIdentityKey.delete(edit.originalPath);
+		} else {
+			identityKey = pathToIdentityKey.get(edit.filePath) ?? edit.filePath;
+			pathToIdentityKey.set(edit.filePath, identityKey);
+		}
+		const existing = identities.get(identityKey);
+		if (!existing) {
+			identities.set(identityKey, {
+				terminalPath: edit.filePath,
+				firstToolCallId: edit.toolCallId,
+				firstFilePath: edit.kind === FileEditKind.Rename && edit.originalPath ? edit.originalPath : edit.filePath,
+				firstKind: edit.kind,
+				lastToolCallId: edit.toolCallId,
+				lastFilePath: edit.filePath,
+				lastKind: edit.kind,
+			});
+		} else {
+			existing.terminalPath = edit.filePath;
+			existing.lastToolCallId = edit.toolCallId;
+			existing.lastFilePath = edit.filePath;
+			existing.lastKind = edit.kind;
+		}
+	}
+
+	const results: ISessionFileDiff[] = [];
+	const diffPromises: Promise<void>[] = [];
+	for (const identity of identities.values()) {
+		diffPromises.push((async () => {
+			let beforeText: string;
+			if (identity.firstKind === FileEditKind.Create) {
+				beforeText = '';
+			} else {
+				const content = await db.readFileEditContent(identity.firstToolCallId, identity.firstFilePath);
+				beforeText = content?.beforeContent ? new TextDecoder().decode(content.beforeContent) : '';
+			}
+			let afterText: string;
+			if (identity.lastKind === FileEditKind.Delete) {
+				afterText = '';
+			} else {
+				const content = await db.readFileEditContent(identity.lastToolCallId, identity.lastFilePath);
+				afterText = content?.afterContent ? new TextDecoder().decode(content.afterContent) : '';
+			}
+			if (beforeText === afterText) {
+				return;
+			}
+			const counts = await diffService.computeDiffCounts(beforeText, afterText);
+			results.push(createSessionFileDiff(sessionUri, identity, counts.added, counts.removed));
+		})());
+	}
+	await Promise.allSettled(diffPromises);
 	return results;
 }

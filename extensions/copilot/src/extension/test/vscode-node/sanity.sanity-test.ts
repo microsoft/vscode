@@ -6,13 +6,13 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { SpyChatResponseStream } from '../../../util/common/test/mockChatResponseStream';
 import { timeout } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Event } from '../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { Intent } from '../../common/constants';
-import { ConversationFeature } from '../../conversation/vscode-node/conversationFeature';
 import { IConversationStore } from '../../conversationStore/node/conversationStore';
 import { activate } from '../../extension/vscode-node/extension';
 import { ChatParticipantRequestHandler } from '../../prompt/node/chatParticipantRequestHandler';
@@ -31,16 +31,11 @@ suite('Copilot Chat Sanity Test', function () {
 	let realContext: vscode.ExtensionContext;
 	let sandbox: sinon.SinonSandbox;
 	const fakeToken = CancellationToken.None;
-	const sessionItemProviders = new Map<string, vscode.ChatSessionItemProvider>();
 	// Before everything, activate the extension
 	suiteSetup(async function () {
 		sandbox = sinon.createSandbox();
 		sandbox.stub(vscode.commands, 'registerCommand').returns({ dispose: () => { } });
 		sandbox.stub(vscode.workspace, 'registerFileSystemProvider').returns({ dispose: () => { } });
-		sandbox.stub(vscode.chat, 'registerChatSessionItemProvider').callsFake((scheme, sessionItemProvider) => {
-			sessionItemProviders.set(scheme, sessionItemProvider);
-			return { dispose: () => { } };
-		});
 		const extension = vscode.extensions.getExtension('Github.copilot-chat');
 		assert.ok(extension, 'Extension is not available');
 		realContext = await extension.activate();
@@ -52,6 +47,12 @@ suite('Copilot Chat Sanity Test', function () {
 		assert.strictEqual(typeof (activateResult as IInstantiationService).createInstance, 'function', 'createInstance is not a function');
 		assert.strictEqual(typeof (activateResult as IInstantiationService).invokeFunction, 'function', 'invokeFunction is not a function');
 		realInstaAccessor = activateResult as IInstantiationService;
+
+		// Warm the Copilot token cache so the first chat request does not pay that cost.
+		await realInstaAccessor.invokeFunction(async (accessor) => {
+			const token = await accessor.get(IAuthenticationService).getCopilotToken();
+			assert.ok(token, 'Copilot token must be available before tests run');
+		});
 	});
 
 	suiteTeardown(async function () {
@@ -73,29 +74,23 @@ suite('Copilot Chat Sanity Test', function () {
 
 			const conversationStore = accessor.get(IConversationStore);
 			const instaService = accessor.get(IInstantiationService);
-			const conversationFeature = instaService.createInstance(ConversationFeature);
-			try {
-				conversationFeature.activated = true;
-				let stream = new SpyChatResponseStream();
-				let interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], new TestChatRequest('Write me a for loop in javascript'), stream, fakeToken, { agentName: '', agentId: '', intentId: '' }, () => false, undefined);
+			let stream = new SpyChatResponseStream();
+			let interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], new TestChatRequest('Write me a for loop in javascript'), stream, fakeToken, { agentName: '', agentId: '', intentId: '' }, () => false, undefined);
 
-				await interactiveSession.getResult();
+			await interactiveSession.getResult();
 
-				assert.ok(stream.currentProgress, 'Expected progress after first request');
-				const oldText = stream.currentProgress;
+			assert.ok(stream.currentProgress, 'Expected progress after first request');
+			const oldText = stream.currentProgress;
 
-				stream = new SpyChatResponseStream();
-				interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], new TestChatRequest('Can you make it in typescript instead'), stream, fakeToken, { agentName: '', agentId: '', intentId: '' }, () => false, undefined);
-				const result2 = await interactiveSession.getResult();
+			stream = new SpyChatResponseStream();
+			interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], new TestChatRequest('Can you make it in typescript instead'), stream, fakeToken, { agentName: '', agentId: '', intentId: '' }, () => false, undefined);
+			const result2 = await interactiveSession.getResult();
 
-				assert.ok(stream.currentProgress, 'Expected progress after second request');
-				assert.notStrictEqual(stream.currentProgress, oldText, 'Expected different progress text after second request');
+			assert.ok(stream.currentProgress, 'Expected progress after second request');
+			assert.notStrictEqual(stream.currentProgress, oldText, 'Expected different progress text after second request');
 
-				const conversation = conversationStore.getConversation(result2.metadata.responseId);
-				assert.ok(conversation, 'Expected conversation to be available');
-			} finally {
-				conversationFeature.activated = false;
-			}
+			const conversation = conversationStore.getConversation(result2.metadata.responseId);
+			assert.ok(conversation, 'Expected conversation to be available');
 		});
 	});
 
@@ -111,34 +106,28 @@ suite('Copilot Chat Sanity Test', function () {
 			const conversationStore = accessor.get(IConversationStore);
 			const instaService = accessor.get(IInstantiationService);
 			const toolsService = accessor.get(IToolsService);
-			const conversationFeature = instaService.createInstance(ConversationFeature);
-			try {
-				conversationFeature.activated = true;
-				let stream = new SpyChatResponseStream();
-				const testRequest = new TestChatRequest(`You must use the get_errors tool to check the window for errors. It may fail, that's ok, just testing, don't retry.`);
-				testRequest.tools.set(ContributedToolName.GetErrors, true);
-				let interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], testRequest, stream, fakeToken, { agentName: '', agentId: '', intentId: Intent.Agent }, () => false, undefined);
+			let stream = new SpyChatResponseStream();
+			const testRequest = new TestChatRequest(`You must use the get_errors tool to check the window for errors. It may fail, that's ok, just testing, don't retry.`);
+			testRequest.tools.set(ContributedToolName.GetErrors, true);
+			let interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], testRequest, stream, fakeToken, { agentName: '', agentId: '', intentId: Intent.Agent }, () => false, undefined);
 
-				const onWillInvokeTool = Event.toPromise(toolsService.onWillInvokeTool);
-				const getResultPromise = interactiveSession.getResult();
-				await Promise.race([onWillInvokeTool, timeout(20_000).then(() => Promise.reject(new Error('timed out waiting for tool call. ' + (stream.currentProgress ? ('Got progress: ' + stream.currentProgress) : ''))))]);
-				await getResultPromise;
+			const onWillInvokeTool = Event.toPromise(toolsService.onWillInvokeTool);
+			const getResultPromise = interactiveSession.getResult();
+			await Promise.race([onWillInvokeTool, timeout(20_000).then(() => Promise.reject(new Error('timed out waiting for tool call. ' + (stream.currentProgress ? ('Got progress: ' + stream.currentProgress) : ''))))]);
+			await getResultPromise;
 
-				assert.ok(stream.currentProgress, 'Expected output');
-				const oldText = stream.currentProgress;
+			assert.ok(stream.currentProgress, 'Expected output');
+			const oldText = stream.currentProgress;
 
-				stream = new SpyChatResponseStream();
-				interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], new TestChatRequest('And what is 1+1'), stream, fakeToken, { agentName: '', agentId: '', intentId: Intent.Agent }, () => false, undefined);
-				const result2 = await interactiveSession.getResult();
+			stream = new SpyChatResponseStream();
+			interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], new TestChatRequest('And what is 1+1'), stream, fakeToken, { agentName: '', agentId: '', intentId: Intent.Agent }, () => false, undefined);
+			const result2 = await interactiveSession.getResult();
 
-				assert.ok(stream.currentProgress, 'Expected progress after second request');
-				assert.notStrictEqual(stream.currentProgress, oldText, 'Expected different progress text after second request');
+			assert.ok(stream.currentProgress, 'Expected progress after second request');
+			assert.notStrictEqual(stream.currentProgress, oldText, 'Expected different progress text after second request');
 
-				const conversation = conversationStore.getConversation(result2.metadata.responseId);
-				assert.ok(conversation, 'Expected conversation to be available');
-			} finally {
-				conversationFeature.activated = false;
-			}
+			const conversation = conversationStore.getConversation(result2.metadata.responseId);
+			assert.ok(conversation, 'Expected conversation to be available');
 		});
 	});
 
@@ -148,36 +137,12 @@ suite('Copilot Chat Sanity Test', function () {
 		await realInstaAccessor.invokeFunction(async (accessor) => {
 
 			const instaService = accessor.get(IInstantiationService);
-			const conversationFeature = instaService.createInstance(ConversationFeature);
-			try {
-				conversationFeature.activated = true;
-				const progressReport = new SpyChatResponseStream();
-				const interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], new TestChatRequest('What is a fibonacci sequence?'), progressReport, fakeToken, { agentName: '', agentId: '', intentId: 'explain' }, () => false, undefined);
+			const progressReport = new SpyChatResponseStream();
+			const interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], new TestChatRequest('What is a fibonacci sequence?'), progressReport, fakeToken, { agentName: '', agentId: '', intentId: 'explain' }, () => false, undefined);
 
-				// Ask a `/explain` question
-				await interactiveSession.getResult();
-				assert.ok(progressReport.currentProgress);
-			} finally {
-				conversationFeature.activated = false;
-			}
-		});
-	});
-
-	test('Copilot CLI lists sessions', async function () {
-		assert.ok(realInstaAccessor);
-
-		await realInstaAccessor.invokeFunction(async (accessor) => {
-
-			const instaService = accessor.get(IInstantiationService);
-			const conversationFeature = instaService.createInstance(ConversationFeature);
-			try {
-				conversationFeature.activated = true;
-				const provider = sessionItemProviders.get('copilotcli');
-				assert.ok(provider);
-				await provider.provideChatSessionItems(CancellationToken.None);
-			} finally {
-				conversationFeature.activated = false;
-			}
+			// Ask a `/explain` question
+			await interactiveSession.getResult();
+			assert.ok(progressReport.currentProgress);
 		});
 	});
 
@@ -207,11 +172,7 @@ suite('Copilot Chat Sanity Test', function () {
 				}
 			});
 
-			const instaService = accessor.get(IInstantiationService);
-			const conversationFeature = instaService.createInstance(ConversationFeature);
 			try {
-				conversationFeature.activated = true;
-
 				// Create and open a new file
 				const document = await vscode.workspace.openTextDocument({ language: 'javascript' });
 				await vscode.window.showTextDocument(document);
@@ -239,7 +200,6 @@ suite('Copilot Chat Sanity Test', function () {
 				const text = await textPromise;
 				assert.ok(text.length > 0);
 			} finally {
-				conversationFeature.activated = false;
 				r.dispose();
 			}
 		});
