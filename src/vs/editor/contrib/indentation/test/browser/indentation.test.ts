@@ -15,7 +15,7 @@ import { MetadataConsts, StandardTokenType } from '../../../../common/encodedTok
 import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from '../../../../common/languages.js';
 import { ILanguageService } from '../../../../common/languages/language.js';
 import { NullState } from '../../../../common/languages/nullTokenize.js';
-import { AutoIndentOnPaste, IndentationToSpacesCommand, IndentationToTabsCommand } from '../../browser/indentation.js';
+import { AutoIndentOnPaste, ChangeIndentationWidthCommand, IndentationToSpacesCommand, IndentationToTabsCommand } from '../../browser/indentation.js';
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { testCommand } from '../../../../test/browser/testCommand.js';
 import { goIndentationRules, htmlIndentationRules, javascriptIndentationRules, latexIndentationRules, luaIndentationRules, phpIndentationRules, rubyIndentationRules, vbIndentationRules } from '../../../../test/common/modes/supports/indentationRules.js';
@@ -45,6 +45,10 @@ function testIndentationToSpacesCommand(lines: string[], selection: Selection, t
 
 function testIndentationToTabsCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, null, selection, (accessor, sel) => new IndentationToTabsCommand(sel, tabSize), expectedLines, expectedSelection);
+}
+
+function testChangeIndentationWidthCommand(lines: string[], selection: Selection, currentIndentSize: number, newIndentSize: number, expectedLines: string[], expectedSelection: Selection): void {
+	testCommand(lines, null, selection, (accessor, sel) => new ChangeIndentationWidthCommand(sel, currentIndentSize, newIndentSize), expectedLines, expectedSelection);
 }
 
 export function registerLanguage(languageService: ILanguageService, language: Language): IDisposable {
@@ -310,6 +314,133 @@ suite('Change Indentation to Tabs -  TypeScript/Javascript', () => {
 				'    abc',
 			],
 			new Selection(1, 6, 1, 6)
+		);
+	});
+});
+
+suite('Change Indentation Width - TypeScript/Javascript', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('widen 2-space to 4-space', function () {
+		testChangeIndentationWidthCommand(
+			[
+				'first',
+				'  second',
+				'    third',
+				'      fourth',
+				'fifth'
+			],
+			new Selection(3, 5, 3, 5),
+			2,
+			4,
+			[
+				'first',
+				'    second',
+				'        third',
+				'            fourth',
+				'fifth'
+			],
+			new Selection(3, 9, 3, 9)
+		);
+	});
+
+	test('narrow 4-space to 2-space', function () {
+		testChangeIndentationWidthCommand(
+			[
+				'first',
+				'    second',
+				'        third',
+				'            fourth',
+				'fifth'
+			],
+			new Selection(3, 9, 3, 9),
+			4,
+			2,
+			[
+				'first',
+				'  second',
+				'    third',
+				'      fourth',
+				'fifth'
+			],
+			new Selection(3, 5, 3, 5)
+		);
+	});
+
+	test('odd indent retains remainder', function () {
+		testChangeIndentationWidthCommand(
+			[
+				'first',
+				'   second',
+				'     third',
+			],
+			new Selection(2, 4, 2, 4),
+			2,
+			4,
+			[
+				'first',
+				'     second',
+				'        third',
+			],
+			new Selection(2, 6, 2, 6)
+		);
+	});
+
+	test('whitespace-only line preserves indentation level', function () {
+		testChangeIndentationWidthCommand(
+			[
+				'  ',
+				'    ',
+				'  abc',
+			],
+			new Selection(3, 5, 3, 5),
+			2,
+			4,
+			[
+				'    ',
+				'        ',
+				'    abc',
+			],
+			new Selection(3, 7, 3, 7)
+		);
+	});
+
+	test('tabs treated as currentIndentSize spaces', function () {
+		testChangeIndentationWidthCommand(
+			[
+				'\tfirst',
+				'\t\tsecond',
+				'third'
+			],
+			new Selection(2, 3, 2, 3),
+			2,
+			4,
+			[
+				'    first',
+				'        second',
+				'third'
+			],
+			new Selection(2, 9, 2, 9)
+		);
+	});
+
+	test('same indent width is a no-op', function () {
+		testChangeIndentationWidthCommand(
+			[
+				'first',
+				'  second',
+				'    third'
+			],
+			new Selection(2, 3, 2, 3),
+			2,
+			2,
+			[
+				'first',
+				'  second',
+				'    third'
+			],
+			new Selection(2, 3, 2, 3)
 		);
 	});
 });
