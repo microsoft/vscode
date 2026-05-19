@@ -511,13 +511,17 @@ class CapturingLogService extends NullLogService {
 
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
 	api.models = async () => [...ALL_MODELS];
 	const sdk = new FakeClaudeAgentSdkService();
-	const sessionData = new RecordingSessionDataService(createSessionDataService());
+	const sessionData = new RecordingSessionDataService(
+		overrides?.database
+			? createSessionDataService(overrides.database)
+			: createSessionDataService()
+	);
 	const logService = overrides?.logService ?? new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
@@ -1943,6 +1947,59 @@ suite('ClaudeAgent', () => {
 			startupCallCount: 0,
 			sendThrewUnknown: true,
 			sessionAbsent: true,
+		});
+	});
+
+	test('resumed session keeps overlay-derived permissionMode on turn 2 (no silent flip to default)', async () => {
+		// Regression for Copilot review feedback on the cross-window
+		// resume PR. Before the fix, the materialized-session branch in
+		// `sendMessage` unconditionally called
+		// `session.setPermissionMode(_readSessionPermissionMode(uri) ?? 'default')`
+		// on turn 2. For a cross-window-resumed session, AgentService
+		// never registered the per-session schema (that happens via
+		// `sessionAdded` for createSession-spawned sessions), so
+		// `_readSessionPermissionMode` returned `undefined`, the
+		// fallback `'default'` won, and a plan-mode session silently
+		// downgraded to default mode mid-conversation.
+		//
+		// The fix: only forward `setPermissionMode` when the live config
+		// actually carries a value, leaving the session's seeded
+		// bijective state (set via `seedBijectiveState` at resume time)
+		// authoritative otherwise.
+		//
+		// Setup: stage the per-session DB with `claude.permissionMode='plan'`,
+		// then run two turns. Turn 1 picks up the mode via
+		// `Options.permissionMode` at materialize. Turn 2 must NOT
+		// record an extra `setPermissionMode` call.
+		const sessionId = 'cross-window-mode-session';
+		const sessionUri = AgentSession.uri('claude', sessionId);
+
+		const db = new TestSessionDatabase();
+		await db.setMetadata('claude.permissionMode', 'plan');
+
+		const { agent, sdk } = createTestContext(disposables, { database: db });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		sdk.sessionList = [{
+			sessionId,
+			summary: 'From another window (plan mode)',
+			lastModified: 5000,
+			createdAt: 4900,
+			cwd: URI.file('/work').fsPath,
+		}];
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(sessionUri, 'turn-1', undefined, 't1');
+
+		sdk.nextQueryMessages = [makeResultSuccess(sessionId)];
+		await agent.sendMessage(sessionUri, 'turn-2', undefined, 't2');
+
+		const fakeQuery = sdk.warmQueries.at(-1)?.produced;
+		assert.deepStrictEqual({
+			optionsPermissionMode: sdk.capturedStartupOptions[0]?.permissionMode,
+			recordedModes: fakeQuery?.recordedPermissionModes ?? [],
+		}, {
+			optionsPermissionMode: 'plan',
+			recordedModes: ['plan'],
 		});
 	});
 

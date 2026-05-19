@@ -941,7 +941,18 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				// so a `SessionConfigChanged` action that arrived between
 				// turns wins. Awaited so the SDK has acknowledged the mode
 				// change before `session.send(...)` yields the next prompt.
-				await session.setPermissionMode(this._readSessionPermissionMode(sessionUri) ?? 'default');
+				//
+				// Only call when the config carries an actual value:
+				// `_readSessionPermissionMode` returns `undefined` when
+				// the session's schema hasn't been registered (e.g. a
+				// cross-window resume that bypassed AgentService's
+				// schema-registration path), and falling back to
+				// `'default'` here would silently overwrite the
+				// session's seeded bijective state with the wrong mode.
+				const liveMode = this._readSessionPermissionMode(sessionUri);
+				if (liveMode !== undefined) {
+					await session.setPermissionMode(liveMode);
+				}
 			}
 
 			const contentBlocks = resolvePromptToContentBlocks(prompt, attachments);
