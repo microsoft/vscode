@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { ChatHookCommand } from 'vscode';
@@ -17,6 +18,12 @@ let mockChild: MockChildProcess;
 
 vi.mock('child_process', () => ({
 	spawn: vi.fn(() => mockChild),
+}));
+
+const platformModule = await vi.importActual<typeof import('../../../../util/vs/base/common/platform')>('../../../../util/vs/base/common/platform');
+vi.mock('../../../../util/vs/base/common/platform', () => ({
+	...platformModule,
+	isWindows: false,
 }));
 
 interface MockChildProcess extends EventEmitter {
@@ -208,5 +215,59 @@ describe('NodeHookExecutor', () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	describe('shell selection', () => {
+		const platform = vi.mocked(await import('../../../../util/vs/base/common/platform'));
+
+		test('uses shell: true on non-Windows', async () => {
+			platform.isWindows = false;
+			const promise = executor.executeCommand(cmd('echo hello'), undefined, CancellationToken.None);
+			completeChild(child, { exitCode: 0 });
+			await promise;
+
+			expect(spawn).toHaveBeenCalledWith('echo hello', [], expect.objectContaining({ shell: true }));
+		});
+
+		test('uses PowerShell with -ExecutionPolicy Bypass on Windows when ComSpec is cmd.exe', async () => {
+			platform.isWindows = true;
+			const origComSpec = process.env.ComSpec;
+			const origSystemRoot = process.env.SystemRoot;
+			try {
+				process.env.ComSpec = 'C:\\Windows\\system32\\cmd.exe';
+				process.env.SystemRoot = 'C:\\Windows';
+
+				const promise = executor.executeCommand(cmd('echo hello'), undefined, CancellationToken.None);
+				completeChild(child, { exitCode: 0 });
+				await promise;
+
+				expect(spawn).toHaveBeenCalledWith(
+					expect.stringContaining('powershell.exe'),
+					expect.arrayContaining(['-ExecutionPolicy', 'Bypass', '-NoProfile', '-NoLogo', '-Command', 'echo hello']),
+					expect.objectContaining({
+						env: expect.objectContaining({ POWERSHELL_UPDATECHECK: 'Off' }),
+					}),
+				);
+			} finally {
+				process.env.ComSpec = origComSpec;
+				process.env.SystemRoot = origSystemRoot;
+			}
+		});
+
+		test('uses shell: true on Windows when ComSpec is not cmd.exe', async () => {
+			platform.isWindows = true;
+			const origComSpec = process.env.ComSpec;
+			try {
+				process.env.ComSpec = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
+
+				const promise = executor.executeCommand(cmd('echo hello'), undefined, CancellationToken.None);
+				completeChild(child, { exitCode: 0 });
+				await promise;
+
+				expect(spawn).toHaveBeenCalledWith('echo hello', [], expect.objectContaining({ shell: true }));
+			} finally {
+				process.env.ComSpec = origComSpec;
+			}
+		});
 	});
 });

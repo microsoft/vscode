@@ -48,12 +48,14 @@ export class NodeHookExecutor implements IHookExecutor {
 
 	private _spawn(hook: ChatHookCommand, input: unknown, token: CancellationToken): Promise<IHookCommandResult> {
 		const cwd = hook.cwd ? uriToFsPath(hook.cwd) : homedir();
+		const env = { ...process.env, ...hook.env };
+		const { command, args, shell, env: shellEnv } = getShellCommand(hook.command);
 
-		const child = spawn(hook.command, [], {
+		const child = spawn(command, args, {
 			stdio: 'pipe',
 			cwd,
-			env: { ...process.env, ...hook.env },
-			shell: getShell(),
+			env: { ...env, ...shellEnv },
+			shell,
 		});
 
 		return new Promise((resolve, reject) => {
@@ -178,26 +180,29 @@ function uriToFsPath(uri: Uri): string {
 }
 
 
-function getShell(): string | true {
+/**
+ * Returns the shell command and arguments to use for executing a hook command.
+ * On Windows when ComSpec is cmd.exe, uses PowerShell with -ExecutionPolicy Bypass.
+ * Otherwise uses the default system shell via /bin/sh -c.
+ */
+function getShellCommand(hookCommand: string): { command: string; args: string[]; shell?: boolean; env?: Record<string, string> } {
 	if (!isWindows) {
-		return true;
+		return { command: hookCommand, args: [], shell: true };
 	}
 
 	const comSpec = process.env.ComSpec;
 	if (!comSpec || basename(comSpec).toLowerCase() !== 'cmd.exe') {
-		return true;
+		return { command: hookCommand, args: [], shell: true };
 	}
 
 	const systemRoot = process.env.SystemRoot || process.env.WINDIR;
 	if (!systemRoot) {
-		return true;
+		return { command: hookCommand, args: [], shell: true };
 	}
 
-	return join(
-		systemRoot,
-		'System32',
-		'WindowsPowerShell',
-		'v1.0',
-		'powershell.exe'
-	);
+	return {
+		command: join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+		args: ['-ExecutionPolicy', 'Bypass', '-NoProfile', '-NoLogo', '-Command', hookCommand],
+		env: { POWERSHELL_UPDATECHECK: 'Off' },
+	};
 }
