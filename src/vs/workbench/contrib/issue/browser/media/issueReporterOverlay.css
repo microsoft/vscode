@@ -624,11 +624,13 @@
 	position: absolute;
 	top: 4px;
 	right: 4px;
-	width: 20px;
-	height: 20px;
+	width: 22px;
+	height: 22px;
 	border-radius: 50%;
-	background: rgba(0, 0, 0, .75);
-	color: #fff;
+	background: var(--vscode-button-background, #0e639c);
+	color: var(--vscode-button-foreground, #fff);
+	border: 1px solid var(--vscode-contrastBorder, transparent);
+	box-shadow: 0 0 0 1px rgba(0, 0, 0, .25);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -636,6 +638,14 @@
 	cursor: pointer;
 	opacity: 0;
 	transition: opacity .15s;
+}
+
+.wizard-screenshot-delete:hover {
+	background: var(--vscode-button-hoverBackground, var(--vscode-button-background, #1177bb));
+}
+
+.wizard-screenshot-delete .codicon {
+	color: inherit;
 }
 
 .wizard-screenshot-card:hover .wizard-screenshot-delete,
