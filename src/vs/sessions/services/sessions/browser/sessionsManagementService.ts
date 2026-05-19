@@ -165,18 +165,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 
-		// When new sessions appear, check if any are currently displayed in a
-		// chat widget. This handles cases where a session is opened in the
-		// widget without going through sessionsManagementService (e.g., fork).
-		if (e.added.length) {
-			for (const added of e.added) {
-				if (added.sessionId !== currentActive?.sessionId && this.chatWidgetService.getWidgetBySessionResource(added.resource)) {
-					this.setActiveSession(added);
-					return;
-				}
-			}
-		}
-
 		if (!currentActive) {
 			return;
 		}
@@ -686,7 +674,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					}
 				};
 
-				disposables.add(this.onDidChangeSessions(() => tryRestore()));
 				disposables.add(this.sessionsProvidersService.onDidChangeProviders(() => tryRestore()));
 
 				// Call immediately in case the session became available between the

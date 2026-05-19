@@ -698,7 +698,6 @@ export namespace ConfigKey {
 		 * Settings for switch between old tools and new skills
 		 */
 		export const InstallExtensionSkillEnabled = defineSetting<boolean>('chat.installExtensionSkill.enabled', ConfigType.ExperimentBased, false);
-		export const ProjectSetupInfoSkillEnabled = defineSetting<boolean>('chat.projectSetupInfoSkill.enabled', ConfigType.ExperimentBased, false);
 
 		/**
 		 * When enabled, large tool results (above the threshold in bytes) are written to disk

@@ -544,7 +544,7 @@ suite('ProtocolServerHandler', () => {
 			summary: 'Session With Changesets',
 			changesets: [
 				{
-					label: 'Session Changes',
+					label: 'Branch Changes',
 					uriTemplate: `${sessionUri}/changeset/session`,
 					additions: 5,
 					deletions: 2,
@@ -563,7 +563,7 @@ suite('ProtocolServerHandler', () => {
 		const result = (resp as unknown as { result: ListSessionsResult }).result;
 		assert.deepStrictEqual(result.items[0].changesets, [
 			{
-				label: 'Session Changes',
+				label: 'Branch Changes',
 				uriTemplate: `${sessionUri}/changeset/session`,
 				additions: 5,
 				deletions: 2,

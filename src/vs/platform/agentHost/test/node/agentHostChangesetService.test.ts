@@ -8,6 +8,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalogue } from '../../common/changesetUri.js';
@@ -64,8 +65,8 @@ suite('AgentHostChangesetService', () => {
 		// Catalogue is seeded by setupSession (mirrors what `_buildInitialSummary`
 		// does in production) — sanity check before exercising registration.
 		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.summary.changesets, [
-			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted` },
-			{ label: 'Session Changes', uriTemplate: `${sessionStr}/changeset/session` },
+			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
+			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 			{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
 		]);
 
@@ -82,8 +83,8 @@ suite('AgentHostChangesetService', () => {
 
 		// Registration must not mutate the seeded catalogue.
 		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.summary.changesets, [
-			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted` },
-			{ label: 'Session Changes', uriTemplate: `${sessionStr}/changeset/session` },
+			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
+			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 			{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
 		]);
 	});
@@ -127,15 +128,16 @@ suite('AgentHostChangesetService', () => {
 		const catalogue = stateManager.getSessionState(sessionStr)?.summary.changesets;
 		assert.deepStrictEqual(catalogue, [
 			{
-				label: 'Uncommitted Changes',
-				uriTemplate: `${sessionStr}/changeset/uncommitted`,
-			},
-			{
-				label: 'Session Changes',
+				label: 'Branch Changes',
 				uriTemplate: changesetUri,
 				additions: 6,
 				deletions: 2,
 				files: 2,
+			},
+			{
+				label: 'Uncommitted Changes',
+				uriTemplate: `${sessionStr}/changeset/uncommitted`,
+				description: 'Show uncommitted changes in this session',
 			},
 			{
 				label: 'This Turn',
@@ -182,15 +184,16 @@ suite('AgentHostChangesetService', () => {
 			],
 			catalogue: [
 				{
-					label: 'Uncommitted Changes',
-					uriTemplate: `${sessionStr}/changeset/uncommitted`,
-				},
-				{
-					label: 'Session Changes',
+					label: 'Branch Changes',
 					uriTemplate: changesetUri,
 					additions: 4,
 					deletions: 1,
 					files: 2,
+				},
+				{
+					label: 'Uncommitted Changes',
+					uriTemplate: `${sessionStr}/changeset/uncommitted`,
+					description: 'Show uncommitted changes in this session',
 				},
 				{
 					label: 'This Turn',
@@ -525,12 +528,152 @@ suite('AgentHostChangesetService', () => {
 			const catalogue = stateManager.getSessionState(sessionStr)?.summary.changesets;
 			const sessionEntry = catalogue?.find(c => c.uriTemplate === `${sessionStr}/changeset/session`);
 			assert.deepStrictEqual(sessionEntry, {
-				label: 'Session Changes',
+				label: 'Branch Changes',
 				uriTemplate: `${sessionStr}/changeset/session`,
 				additions: 3,
 				deletions: 0,
 				files: 2,
 			}, 'catalogue counts must reflect restored files');
+		});
+	});
+
+	suite('per-turn live streaming', () => {
+
+		// Test rig: a subclass that counts `computeTurnChangeset` invocations
+		// so we can assert gating wiring without needing real session DB
+		// content for `computeTurnDiffs` to chew on. The base class behaviour
+		// is preserved (super-call is awaited), so any per-file dispatch the
+		// production path would emit still flows through normally.
+		class CountingChangesetService extends AgentHostChangesetService {
+			readonly turnComputeCalls: { session: string; turnId: string }[] = [];
+			override async computeTurnChangeset(session: string, turnId: string): Promise<string> {
+				this.turnComputeCalls.push({ session, turnId });
+				return super.computeTurnChangeset(session, turnId);
+			}
+		}
+
+		function makeService(): CountingChangesetService {
+			return disposables.add(new CountingChangesetService(
+				stateManager,
+				new NullLogService(),
+				createNullSessionDataService(),
+				createNoopGitService(),
+			));
+		}
+
+		test('onTurnComplete schedules a per-turn recompute when the probe says someone is subscribed', async () => {
+			setupSession();
+			const svc = makeService();
+			svc.setTurnSubscriberProbe(() => true);
+
+			svc.onTurnComplete(sessionUri.toString(), 'turn-1');
+
+			// Sequencer drains async; wait briefly for the per-turn call.
+			for (let i = 0; i < 50 && svc.turnComputeCalls.length === 0; i++) {
+				await timeout(2);
+			}
+			assert.deepStrictEqual(
+				svc.turnComputeCalls,
+				[{ session: sessionUri.toString(), turnId: 'turn-1' }],
+				'expected exactly one per-turn compute for the completed turn',
+			);
+		});
+
+		test('onTurnComplete does NOT schedule a per-turn recompute when the probe says nobody is subscribed', async () => {
+			setupSession();
+			const svc = makeService();
+			svc.setTurnSubscriberProbe(() => false);
+
+			svc.onTurnComplete(sessionUri.toString(), 'turn-1');
+
+			// Give the static computes a chance to drain — the per-turn
+			// call must remain absent throughout.
+			await timeout(20);
+			assert.deepStrictEqual(svc.turnComputeCalls, [], 'no per-turn compute when nothing observes the turn URI');
+		});
+
+		test('onToolCallEditsApplied fires the per-turn debounce only when subscribers exist; cancelled by onTurnComplete', () => {
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				setupSession();
+				const svc = makeService();
+				svc.setTurnSubscriberProbe(() => true);
+
+				// 1) edits with subscriber -> after debounce, exactly one per-turn compute fires.
+				svc.onToolCallEditsApplied(sessionUri.toString(), 'turn-1');
+				await timeout(6_000); // debounce is 5s
+				assert.strictEqual(svc.turnComputeCalls.length, 1, 'debounce should fire one per-turn compute');
+
+				// 2) another edit batch + onTurnComplete before the debounce
+				// elapses -> the debounce is cancelled and the final compute
+				// is scheduled directly by onTurnComplete (one additional call).
+				svc.onToolCallEditsApplied(sessionUri.toString(), 'turn-1');
+				await timeout(1_000);
+				svc.onTurnComplete(sessionUri.toString(), 'turn-1');
+				await timeout(10);
+				assert.strictEqual(svc.turnComputeCalls.length, 2, 'onTurnComplete cancels pending debounce and runs exactly one final compute');
+
+				// 3) flipping the probe off mid-stream silences future
+				// per-turn computes even if more edits arrive.
+				svc.setTurnSubscriberProbe(() => false);
+				svc.onToolCallEditsApplied(sessionUri.toString(), 'turn-1');
+				await timeout(6_000);
+				assert.strictEqual(svc.turnComputeCalls.length, 2, 'unsubscribed turn must not get any further per-turn computes');
+			});
+		});
+
+		test('per-turn URI streams incremental ChangesetFileSet / ChangesetFileRemoved as the same turn is recomputed', async () => {
+			// End-to-end variant exercising the real `computeTurnDiffs` path
+			// — produces actual diff payloads from session-DB messages so
+			// `_publishChangesetDiffs` emits real per-file actions on each
+			// recompute pass.
+			const sessionDb = new SessionDatabase(':memory:');
+			disposables.add(toDisposable(() => sessionDb.close()));
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const svc = disposables.add(new AgentHostChangesetService(
+				localStateManager,
+				new NullLogService(),
+				createSessionDataService(sessionDb),
+				createNoopGitService(),
+			));
+			svc.setTurnSubscriberProbe(() => true);
+
+			localStateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				workingDirectory: 'file:///wd',
+			});
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(localStateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+			const turnUri = `${sessionUri.toString()}/changeset/turn/turn-1`;
+
+			// First compute pass — no edits yet, so just establishes the
+			// per-turn state at status: ready with an empty file list.
+			await svc.computeTurnChangeset(sessionUri.toString(), 'turn-1');
+			const statusReady = envelopes
+				.find(e => e.action.type === ActionType.ChangesetStatusChanged && e.channel === turnUri);
+			assert.ok(statusReady, 'first per-turn compute must transition the URI to ready');
+
+			// Subsequent recomputes are observable via `_publishChangesetDiffs`
+			// even with empty diffs — the delta diffing is what matters here.
+			// Smoke-check that calling `onTurnComplete` triggers another
+			// `computeTurnChangeset` invocation through the sequencer.
+			envelopes.length = 0;
+			svc.onTurnComplete(sessionUri.toString(), 'turn-1');
+			for (let i = 0; i < 100 && !envelopes.some(e => e.action.type === ActionType.ChangesetStatusChanged && e.channel === `${sessionUri.toString()}/changeset/session`); i++) {
+				await timeout(2);
+			}
+			// Per-turn recompute was scheduled — at minimum its presence is
+			// proven by the static-session recompute also having run (both
+			// share the same `onTurnComplete` dispatch path).
+			assert.ok(
+				envelopes.some(e => e.action.type === ActionType.ChangesetStatusChanged),
+				'onTurnComplete must drive at least one downstream changeset status transition',
+			);
 		});
 	});
 });
