@@ -478,20 +478,22 @@ export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint
 export function modelSupportsContextEditing(model: LanguageModelChat | IChatEndpoint | string): boolean {
 	const id = typeof model === 'string' ? model : getModelId(model);
 	const family = typeof model === 'string' ? model : model.family;
-	const matches = (s: string) => {
-		const n = s.toLowerCase().replace(/\./g, '-');
-		// The 1M context variant doesn't need context editing
-		if (n.includes('1m')) {
-			return false;
-		}
-		return n.startsWith('claude-haiku-4-5') ||
-			n.startsWith('claude-sonnet-4-6') ||
-			n.startsWith('claude-sonnet-4-5') ||
-			n.startsWith('claude-sonnet-4') ||
-			n.startsWith('claude-opus-4-6') ||
-			n.startsWith('claude-opus-4-5') ||
-			n.startsWith('claude-opus-4-1') ||
-			n.startsWith('claude-opus-4');
-	};
-	return matches(id) || matches(family);
+	const normalize = (s: string) => s.toLowerCase().replace(/\./g, '-');
+	const normalizedId = normalize(id);
+	const normalizedFamily = normalize(family);
+	// The 1M context variant doesn't need context editing. Check id and family
+	// up-front so an override or normalization can't accidentally re-enable it.
+	if (normalizedId.includes('1m') || normalizedFamily.includes('1m')) {
+		return false;
+	}
+	const matches = (n: string) =>
+		n.startsWith('claude-haiku-4-5') ||
+		n.startsWith('claude-sonnet-4-6') ||
+		n.startsWith('claude-sonnet-4-5') ||
+		n.startsWith('claude-sonnet-4') ||
+		n.startsWith('claude-opus-4-6') ||
+		n.startsWith('claude-opus-4-5') ||
+		n.startsWith('claude-opus-4-1') ||
+		n.startsWith('claude-opus-4');
+	return matches(normalizedId) || matches(normalizedFamily);
 }

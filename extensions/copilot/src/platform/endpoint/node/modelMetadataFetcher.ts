@@ -192,17 +192,17 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 	public async getChatModelFromApiModel(apiModel: LanguageModelChat): Promise<IChatModelInformation | undefined> {
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
 		// `apiModel.family` may have been rewritten by a configured capability
-		// override (see `chat.modelCapabilityOverrides`). The CAPI model list
-		// still carries the model's real server family, so when an override is
-		// present we accept either the real family or the overridden family.
-		const overriddenFamily = getModelCapabilityOverride(apiModel.id, this._configService)?.family;
+		// override (see `chat.modelCapabilityOverrides`). When an override is
+		// configured for this model id, drop the family check entirely and rely
+		// on id + version to uniquely identify the CAPI model (the picker would
+		// otherwise carry the overridden family and never re-match the real one).
+		const hasOverride = getModelCapabilityOverride(apiModel.id, this._configService)?.family !== undefined;
 		let resolvedModel: IModelAPIResponse | undefined;
 		for (const models of this._familyMap.values()) {
 			resolvedModel = models.find(model =>
 				model.id === apiModel.id &&
 				model.version === apiModel.version &&
-				(model.capabilities.family === apiModel.family ||
-					(overriddenFamily !== undefined && apiModel.family === overriddenFamily)));
+				(hasOverride || model.capabilities.family === apiModel.family));
 			if (resolvedModel) {
 				break;
 			}
