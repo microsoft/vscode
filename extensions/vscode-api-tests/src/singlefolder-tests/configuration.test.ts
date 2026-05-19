@@ -52,7 +52,12 @@ suite('vscode API - configuration', () => {
 	// extensions like Copilot are disabled at startup. The command must
 	// re-enable them and wait for their contributions to register so that
 	// their settings show up in the dump.
-	test('_developer.getConfigurationInformation includes settings from disabled built-in extensions', async () => {
+	test('_developer.getConfigurationInformation includes settings from disabled built-in extensions', async function () {
+		// Copilot is a desktop-only extension, so this test is not applicable on web.
+		if (vscode.env.uiKind === vscode.UIKind.Web) {
+			this.skip();
+		}
+
 		const copilotId = 'GitHub.copilot-chat';
 
 		// Disabled extensions are not exposed via `vscode.extensions.getExtension`,
