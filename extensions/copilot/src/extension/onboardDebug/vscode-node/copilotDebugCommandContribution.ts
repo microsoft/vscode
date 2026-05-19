@@ -250,7 +250,9 @@ export class CopilotDebugCommandContribution extends Disposable implements vscod
 		if (!nonce || typeof nonce !== 'string' || nonce.length < 32) {
 			nonce = randomBytes(16).toString('hex');
 			this.context.workspaceState.update(COPILOT_DEBUG_NONCE_STORAGE_KEY, nonce);
-		} else if (this.context.environmentVariableCollection.get(COPILOT_DEBUG_NONCE_ENV_VAR)?.value !== nonce) {
+		}
+
+		if (this.context.environmentVariableCollection.get(COPILOT_DEBUG_NONCE_ENV_VAR)?.value !== nonce) {
 			this.context.environmentVariableCollection.replace(COPILOT_DEBUG_NONCE_ENV_VAR, nonce);
 		}
 
