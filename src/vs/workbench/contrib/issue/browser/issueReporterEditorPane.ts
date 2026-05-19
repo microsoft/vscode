@@ -14,9 +14,9 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
-import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
-import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { EditorActivation, IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -39,6 +39,11 @@ import { IUserDataProfileService } from '../../../services/userDataProfile/commo
 import { ChatMessageRole, ILanguageModelsService, getTextResponseFromStream } from '../../chat/common/languageModels.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+
+/** Context key that's `true` whenever any IssueReporter editor is open in any group, even when not focused. */
+export const IssueReporterOpenContext = new RawContextKey<boolean>('issueReporterOpen', false);
 
 /**
  * Editor pane that hosts the issue reporter wizard inside an editor tab.
@@ -47,8 +52,35 @@ export class IssueReporterEditorPane extends EditorPane {
 
 	static readonly ID = 'workbench.editor.issueReporter';
 
+	/**
+	 * Live registry of all currently-instantiated IssueReporter panes (one per
+	 * editor group). Commands like the screenshot keybinding need to reach the
+	 * wizard even when its tab is not the active editor in its group, and
+	 * {@link IEditorService.visibleEditorPanes} only exposes the active pane
+	 * per group. We track them ourselves.
+	 */
+	private static readonly liveInstances = new Set<IssueReporterEditorPane>();
+	static getAnyLiveInstance(): IssueReporterEditorPane | undefined {
+		// Prefer one whose wizard exists (i.e. has been set up). Iteration order
+		// is insertion order, which gives a reasonable default if multiple are
+		// open (rare).
+		for (const inst of IssueReporterEditorPane.liveInstances) {
+			if (inst.wizard) {
+				return inst;
+			}
+		}
+		return undefined;
+	}
+
 	private container: HTMLElement | undefined;
 	private wizard: IssueReporterOverlay | undefined;
+	/**
+	 * Our own reference to the wizard's editor input that survives the framework
+	 * calling clearInput() when the user switches away from our tab. Without
+	 * this, revealAndActivate() can't reopen the wizard because this.input is
+	 * already undefined by the time the screenshot capture completes.
+	 */
+	private wizardInput: IssueReporterEditorInput | undefined;
 	private readonly inputDisposables = this._register(new DisposableStore());
 
 	constructor(
@@ -73,8 +105,44 @@ export class IssueReporterEditorPane extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IUpdateService private readonly updateService: IUpdateService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
 		super(IssueReporterEditorPane.ID, group, telemetryService, themeService, storageService);
+		IssueReporterEditorPane.liveInstances.add(this);
+		this._register({ dispose: () => IssueReporterEditorPane.liveInstances.delete(this) });
+	}
+
+	getWizard(): IssueReporterOverlay | undefined {
+		return this.wizard;
+	}
+
+	/**
+	 * Bring this pane's tab to the front of its editor group and make that
+	 * group the active one. Awaits the open so callers can sequence subsequent
+	 * actions reliably.
+	 *
+	 * Why this needs both `activateGroup` and `openEditor`:
+	 *  - `group.openEditor(input)` activates the editor *within* its group, but
+	 *    the active *group* may still be a different one (e.g. user clicked
+	 *    into a different editor group, or the OS screenshot tool stole focus
+	 *    and Electron restored it elsewhere).
+	 *  - `editorGroupsService.activateGroup(group)` makes the wizard's group
+	 *    the active one so the activated editor actually receives keyboard
+	 *    focus and the user sees it.
+	 */
+	async revealAndActivate(): Promise<void> {
+		const input = this.wizardInput;
+		if (!input) {
+			return;
+		}
+		// Activate the wizard's group first so the editor service knows where
+		// to bring focus, then open the editor through the *service* (not the
+		// group). The service has the full machinery for cross-group activation;
+		// calling group.openEditor() alone may leave focus on a different group
+		// even after the wizard's tab becomes active in its own group.
+		this.editorGroupsService.activateGroup(this.group);
+		await this.editorService.openEditor(input, { activation: EditorActivation.ACTIVATE }, this.group);
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -99,6 +167,11 @@ export class IssueReporterEditorPane extends EditorPane {
 		if (token.isCancellationRequested || !this.container) {
 			return;
 		}
+
+		// Hold our own reference to the input so revealAndActivate() can still
+		// reach it after the framework calls clearInput() when the user switches
+		// to another tab. The framework's this.input is undefined in that state.
+		this.wizardInput = input;
 
 		// If the wizard is already built and its DOM is still attached, re-parent floating bar if needed
 		if (this.wizard && this.container.contains(this.wizard.getPanel())) {
@@ -131,6 +204,7 @@ export class IssueReporterEditorPane extends EditorPane {
 			async url => { await this.openerService.open(URI.parse(url), { openExternal: true }); },
 			this.shouldShowUpdateBanner(),
 			() => this.refreshPerformanceInfo(),
+			commandId => this.keybindingService.lookupKeybinding(commandId),
 		);
 		this.inputDisposables.add(this.wizard);
 		this.inputDisposables.add(this.updateService.onStateChange(() => this.wizard?.setUpdateAvailable(this.shouldShowUpdateBanner())));
@@ -187,8 +261,11 @@ export class IssueReporterEditorPane extends EditorPane {
 
 				this.wizard.addScreenshot({ dataUrl, width: img.naturalWidth, height: img.naturalHeight });
 
-				// Bring the issue reporter tab back into focus after the capture.
-				this.group.focus();
+				// Bring the issue reporter editor back into focus after the capture —
+				// the user may have switched to a different editor (or even a
+				// different group) to set up the shot. revealAndActivate() activates
+				// the editor in its own group regardless of where focus currently is.
+				await this.revealAndActivate();
 			} catch (err) {
 				setTimeout(() => this.wizard?.showFloatingBar(), 1000);
 				this.logService.error('[IssueReporterEditorPane] Screenshot failed:', err);
@@ -404,6 +481,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		}
 		this.inputDisposables.clear();
 		this.wizard = undefined;
+		this.wizardInput = undefined;
 		if (this.container) {
 			clearNode(this.container);
 		}

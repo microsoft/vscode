@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
+import { OS } from '../../../../base/common/platform.js';
+import { defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import './media/issueReporterOverlay.css';
 import { $, addDisposableListener, append, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
@@ -172,6 +176,8 @@ export class IssueReporterOverlay {
 		private readonly openExternalLink?: (url: string) => Promise<void>,
 		private showUpdateBanner = false,
 		private readonly refreshPerformanceInfo?: () => Promise<void>,
+		/** Returns the user's currently-bound keybinding for the given command id, or undefined when unbound. */
+		private readonly resolveKeybinding?: (commandId: string) => ResolvedKeybinding | undefined,
 	) {
 		this._hideToolbarInScreenshots = initialHideToolbar;
 		this.model = new IssueReporterModel({
@@ -257,6 +263,27 @@ export class IssueReporterOverlay {
 		const subtitle = append(page, $('p.wizard-subtitle'));
 		subtitle.textContent = localize('screenshotsSubtitle', "You can add up to {0} screenshots or videos. Navigate VS Code and choose when to capture.", MAX_ATTACHMENTS);
 
+		const captureShortcut = this.resolveKeybinding?.('workbench.action.issueReporter.captureScreenshot');
+		const recordShortcut = this.recordingSupported ? this.resolveKeybinding?.('workbench.action.issueReporter.toggleRecording') : undefined;
+		if (captureShortcut || recordShortcut) {
+			const targetDocument = getWindow(this.container).document;
+			const hint = append(page, $('p.wizard-subtitle.wizard-shortcut-hint'));
+			const intro = localize('shortcutHintIntro', "Use the floating capture bar, or press");
+			hint.appendChild(targetDocument.createTextNode(`${intro} `));
+			if (captureShortcut) {
+				this.renderShortcutKeycap(hint, captureShortcut);
+				hint.appendChild(targetDocument.createTextNode(` ${localize('toCapture', "to capture a screenshot")}`));
+			}
+			if (captureShortcut && recordShortcut) {
+				hint.appendChild(targetDocument.createTextNode(` ${localize('or', "or")} `));
+			}
+			if (recordShortcut) {
+				this.renderShortcutKeycap(hint, recordShortcut);
+				hint.appendChild(targetDocument.createTextNode(` ${localize('toRecord', "to start or stop recording")}`));
+			}
+			hint.appendChild(targetDocument.createTextNode('.'));
+		}
+
 		const actions = append(page, $('div.wizard-screenshot-actions'));
 
 		// Delay dropdown - Monaco SelectBox
@@ -285,37 +312,7 @@ export class IssueReporterOverlay {
 		cameraIcon.appendChild(renderIcon(Codicon.deviceCamera));
 		this.captureBtn.element.insertBefore(cameraIcon, this.captureBtn.element.firstChild);
 
-		this.disposables.add(this.captureBtn.onDidClick(() => {
-			if (this.getTotalAttachments() >= MAX_ATTACHMENTS || !this.captureBtn.enabled) {
-				return;
-			}
-			if (this.screenshotDelay > 0) {
-				this.captureBtn.enabled = false;
-				this.delayedScreenshotPending = true;
-				this.updateScreenshotThumbnails();
-				this.updateAttachmentButtons();
-				const origLabel = this.captureBtn.label as string;
-				let remaining = this.screenshotDelay;
-				this.captureBtn.label = `${remaining}...`;
-				const targetWindow = getWindow(this.container);
-				const interval = targetWindow.setInterval(() => {
-					remaining--;
-					if (remaining > 0) {
-						this.captureBtn.label = `${remaining}...`;
-					} else {
-						targetWindow.clearInterval(interval);
-						this.captureBtn.label = origLabel;
-						this.captureBtn.enabled = true;
-						this.delayedScreenshotPending = false;
-						this.updateScreenshotThumbnails();
-						this.updateAttachmentButtons();
-						this._onDidRequestScreenshot.fire();
-					}
-				}, 1000);
-			} else {
-				this._onDidRequestScreenshot.fire();
-			}
-		}));
+		this.disposables.add(this.captureBtn.onDidClick(() => this.triggerCaptureScreenshot()));
 
 		// Record video button (only when supported)
 		if (this.recordingSupported) {
@@ -329,13 +326,7 @@ export class IssueReporterOverlay {
 			this.recordingElapsedLabel = append(this.recordBtn.element, $('span.wizard-recording-elapsed'));
 			this.recordingElapsedLabel.style.display = 'none';
 
-			this.disposables.add(this.recordBtn.onDidClick(() => {
-				if (this.currentRecordingState === RecordingState.Recording) {
-					this._onDidRequestStopRecording.fire();
-				} else if (this.currentRecordingState === RecordingState.Idle && this.getTotalAttachments() < MAX_ATTACHMENTS) {
-					this._onDidRequestStartRecording.fire();
-				}
-			}));
+			this.disposables.add(this.recordBtn.onDidClick(() => this.triggerToggleRecording()));
 		}
 
 		this.screenshotContainer = append(page, $('div.wizard-screenshots'));
@@ -352,7 +343,11 @@ export class IssueReporterOverlay {
 
 	private createFloatingCaptureBar(): void {
 		const targetWindow = getWindow(this.container);
-		const body = targetWindow.document.body;
+		// Mount inside .monaco-workbench so VS Code's color theme CSS vars
+		// (--vscode-debugToolBar-background, etc.) cascade and the bar matches the
+		// active theme. body is outside that scope and the vars wouldn't resolve.
+		const workbench = targetWindow.document.querySelector('.monaco-workbench') as HTMLElement | null;
+		const mountTarget = workbench ?? targetWindow.document.body;
 
 		this.floatingBar = $('div.wizard-floating-bar');
 
@@ -479,7 +474,7 @@ export class IssueReporterOverlay {
 			}));
 		}
 
-		body.appendChild(this.floatingBar);
+		mountTarget.appendChild(this.floatingBar);
 
 		// Dragging (clamped to window bounds)
 		let dragStartX = 0;
@@ -2091,15 +2086,15 @@ export class IssueReporterOverlay {
 		const editor = new ScreenshotAnnotationEditor(screenshot, this.wizardPanel, screenshot.annotationState);
 		this.disposables.add(editor);
 
-		editor.onDidSave(({ dataUrl, state }) => {
+		this.disposables.add(editor.onDidSave(({ dataUrl, state }) => {
 			screenshot.annotatedDataUrl = dataUrl;
 			screenshot.annotationState = state;
 			this.updateAttachmentViews();
-		});
+		}));
 
-		editor.onDidCancel(() => {
+		this.disposables.add(editor.onDidCancel(() => {
 			// nothing to do, editor disposes itself
-		});
+		}));
 	}
 
 	getScreenshots(): readonly IScreenshot[] {
@@ -2366,11 +2361,14 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 			return;
 		}
 		const targetWindow = getWindow(this.container);
-		const body = targetWindow.document.body;
-		// Check if the floating bar is already in the correct window body
-		if (this.floatingBar.parentElement !== body) {
+		// Mount inside .monaco-workbench so theme CSS vars cascade. Fall back to
+		// document.body when no workbench root is present (shouldn't happen in
+		// practice but keeps the bar visible regardless).
+		const workbench = targetWindow.document.querySelector('.monaco-workbench') as HTMLElement | null;
+		const mountTarget = workbench ?? targetWindow.document.body;
+		if (this.floatingBar.parentElement !== mountTarget) {
 			this.floatingBar.remove();
-			body.appendChild(this.floatingBar);
+			mountTarget.appendChild(this.floatingBar);
 			// Reset position so it appears in the new window
 			this.floatingBar.style.left = '';
 			this.floatingBar.style.top = '';
@@ -2567,6 +2565,50 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		if (this.currentStep === WizardStep.Review) {
 			this.updateReviewDetails();
 		}
+	}
+
+	/**
+	 * Trigger a screenshot capture as if the user clicked the capture button.
+	 * No-op when the wizard is not on the Attachments step or when the user has
+	 * already added the maximum number of attachments.
+	 */
+	triggerCaptureScreenshot(): void {
+		if (this.currentStep !== WizardStep.Attachments) {
+			return;
+		}
+		// Prefer the floating-bar button when it's mounted (richer UX:
+		// countdown lock, label countdown). Fall back to the legacy inline
+		// button which now mainly exists for state tracking.
+		const btn = this.captureStripCaptureBtn ?? this.captureBtn;
+		if (!btn?.enabled) {
+			return;
+		}
+		btn.element.click();
+	}
+
+	/**
+	 * Toggle screen recording on/off as if the user clicked the record button.
+	 * No-op when the wizard is not on the Attachments step or when recording
+	 * isn't supported in the current environment.
+	 */
+	triggerToggleRecording(): void {
+		if (this.currentStep !== WizardStep.Attachments || !this.recordingSupported) {
+			return;
+		}
+		const btn = this.captureStripRecordBtn ?? this.recordBtn;
+		if (!btn?.enabled) {
+			return;
+		}
+		btn.element.click();
+	}
+
+	private renderShortcutKeycap(parent: HTMLElement, keybinding: ResolvedKeybinding): void {
+		// Use the same widget the Keyboard Shortcuts editor uses so the rendering
+		// is identical: each modifier and each key in its own .monaco-keybinding-key
+		// rounded box, joined by a thin "+" separator span.
+		const label = this.disposables.add(new KeybindingLabel(parent, OS, { ...defaultKeybindingLabelStyles }));
+		label.set(keybinding);
+		label.element.classList.add('wizard-shortcut');
 	}
 
 	dispose(): void {

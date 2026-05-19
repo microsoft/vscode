@@ -23,6 +23,7 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IssueQuickAccess } from '../browser/issueQuickAccess.js';
 import '../browser/issueTroubleshoot.js';
+import '../browser/issueReporterKeybindings.js';
 import { BaseIssueContribution } from '../common/issue.contribution.js';
 import { IIssueFormService, IWorkbenchIssueService, IssueType } from '../common/issue.js';
 import { NativeIssueService } from './issueService.js';

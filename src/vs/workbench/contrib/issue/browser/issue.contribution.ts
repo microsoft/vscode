@@ -14,6 +14,7 @@ import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/con
 import { IssueFormService } from './issueFormService.js';
 import { BrowserIssueService } from './issueService.js';
 import './issueTroubleshoot.js';
+import './issueReporterKeybindings.js';
 import { IIssueFormService, IWorkbenchIssueService } from '../common/issue.js';
 import { BaseIssueContribution } from '../common/issue.contribution.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';

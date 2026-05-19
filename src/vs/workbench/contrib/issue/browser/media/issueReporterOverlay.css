@@ -100,14 +100,14 @@
 	gap: 6px;
 	padding: 4px 8px 4px 2px;
 	border-radius: var(--vscode-cornerRadius-large, 6px);
-	background: var(--vscode-debugToolBar-background, var(--vscode-editor-background, #1e1e1e));
+	background: var(--vscode-debugToolBar-background);
 	border: 1px solid var(--vscode-debugToolBar-border, transparent);
-	box-shadow: var(--vscode-shadow-lg, 0 2px 8px rgba(0, 0, 0, 0.4));
+	box-shadow: var(--vscode-shadow-lg, 0 2px 8px rgba(0, 0, 0, 0.2));
 	-webkit-app-region: no-drag;
 	user-select: none;
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
 	font-size: 13px;
-	color: var(--vscode-foreground, #ccc);
+	color: var(--vscode-foreground);
 }
 
 .wizard-floating-drag {
@@ -387,6 +387,19 @@
 	font-size: 13px;
 	color: var(--vscode-descriptionForeground, #999);
 	line-height: 1.4;
+}
+
+.wizard-shortcut-hint {
+	margin-top: 4px;
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+}
+
+.wizard-shortcut.monaco-keybinding {
+	margin: 0 2px;
+	vertical-align: middle;
 }
 
 /* Wizard Inputs */
