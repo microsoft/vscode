@@ -265,8 +265,6 @@ class MobileChatInputConfigPicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.chat-input-picker-label'));
 		labelSpan.textContent = labelText;
 
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
-
 		const ariaParts: string[] = [];
 		if (ctx.currentMode) {
 			const modeItem = ctx.modeItems.find(i => i.value === ctx.currentMode);
