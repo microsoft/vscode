@@ -54,6 +54,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	restorePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
 	refreshUncommittedChangeset(): void { /* no-op */ }
 	refreshSessionChangeset(): void { /* no-op */ }
+	setTurnSubscriberProbe(): void { /* no-op */ }
 	async computeTurnChangeset(session: string): Promise<string> { return `${session}/changeset/turn/x`; }
 
 	onToolCallEditsApplied(session: string, turnId: string): void {

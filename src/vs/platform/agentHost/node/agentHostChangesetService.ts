@@ -283,6 +283,14 @@ export interface IAgentHostChangesetService {
 	 * `changedTurnId`, no incremental reuse).
 	 */
 	onSessionTruncated(session: ProtocolURI): void;
+
+	/**
+	 * Installs a predicate the service consults before scheduling a
+	 * per-turn changeset recompute. Owned by {@link ChangesetSessionCoordinator},
+	 * which tracks per-turn subscribers via `onFirstSubscriber` /
+	 * `onLastSubscriber`. Called exactly once at coordinator construction.
+	 */
+	setTurnSubscriberProbe(probe: (session: ProtocolURI, turnId: string) => boolean): void;
 }
 
 export class AgentHostChangesetService extends Disposable implements IAgentHostChangesetService {
@@ -294,7 +302,23 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _diffComputationSequencer = new SequencerByKey<string>();
 	/** Per-session debounce timers for mid-turn diff computation. */
 	private readonly _debouncedDiffTimers = this._register(new DisposableMap<string>());
+	/** Per-`(session, turnId)` debounce timers for mid-turn per-turn changeset recomputation. */
+	private readonly _perTurnDebouncedDiffTimers = this._register(new DisposableMap<string>());
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
+
+	/**
+	 * Subscriber probe set by {@link ChangesetSessionCoordinator}. Returns
+	 * `true` when at least one client is subscribed to
+	 * `<session>/changeset/turn/<turnId>`. Per-turn URIs carry no catalogue
+	 * chip aggregates, so recomputing for an unobserved turn is pure waste
+	 * — the service consults this probe in {@link onToolCallEditsApplied}
+	 * and {@link onTurnComplete} before scheduling a per-turn recompute.
+	 *
+	 * Defaults to `() => false` so unwired test instances don't accidentally
+	 * fire per-turn computes; the coordinator overrides this in its
+	 * constructor.
+	 */
+	private _hasTurnSubscribers: (session: ProtocolURI, turnId: string) => boolean = () => false;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -304,6 +328,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	) {
 		super();
 		this._diffComputeService = this._register(new NodeWorkerDiffComputeService(this._logService));
+	}
+
+	setTurnSubscriberProbe(probe: (session: ProtocolURI, turnId: string) => boolean): void {
+		this._hasTurnSubscribers = probe;
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
@@ -389,14 +417,29 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	onToolCallEditsApplied(session: ProtocolURI, turnId: string): void {
 		this._scheduleDebouncedDiffComputation(session, turnId);
+		// Per-turn URIs have no catalogue chip aggregates, so skip the
+		// recompute entirely when no client is observing this turn. The
+		// next subscriber will get a fresh snapshot from
+		// `tryHandleSubscribe → computeTurnChangeset`.
+		if (this._hasTurnSubscribers(session, turnId)) {
+			this._scheduleDebouncedTurnDiffComputation(session, turnId);
+		}
 	}
 
 	onTurnComplete(session: ProtocolURI, turnId: string | undefined): void {
-		// Ordering matters: cancel any pending mid-turn debounce first so
-		// the final turn-complete compute supersedes it; then schedule the
-		// session-wide recompute with the changed turn id (incremental
-		// reuse anchor); then the uncommitted recompute with no turn id.
+		// Ordering matters: cancel any pending mid-turn debounces first so
+		// the final turn-complete computes supersede them; then schedule
+		// the per-turn recompute (so the turn snapshot is up-to-date before
+		// the static `session` recompute consumes it as the incremental
+		// reuse anchor); then the session-wide recompute with the changed
+		// turn id; then the uncommitted recompute with no turn id.
 		this._cancelDebouncedDiffComputation(session);
+		if (turnId !== undefined) {
+			this._cancelDebouncedTurnDiffComputation(session, turnId);
+			if (this._hasTurnSubscribers(session, turnId)) {
+				this._scheduleTurnRecompute(session, turnId);
+			}
+		}
 		this._scheduleStaticRecompute(session, 'session', turnId);
 		this._scheduleStaticRecompute(session, 'uncommitted');
 	}
@@ -427,6 +470,40 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private _cancelDebouncedDiffComputation(session: ProtocolURI): void {
 		this._debouncedDiffTimers.deleteAndDispose(session);
+	}
+
+	/**
+	 * Schedules a debounced per-turn changeset recomputation. Mirrors
+	 * {@link _scheduleDebouncedDiffComputation} but uses a per-
+	 * `(session, turnId)` map key so a long-running per-turn compute
+	 * doesn't block the static session recompute path (and vice versa).
+	 */
+	private _scheduleDebouncedTurnDiffComputation(session: ProtocolURI, turnId: string): void {
+		const key = `${session}\u0000${turnId}`;
+		this._perTurnDebouncedDiffTimers.set(key, disposableTimeout(() => {
+			this._perTurnDebouncedDiffTimers.deleteAndDispose(key);
+			this._scheduleTurnRecompute(session, turnId);
+		}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
+	}
+
+	/**
+	 * Cancels any pending debounced per-turn diff computation for a
+	 * `(session, turnId)`. Called at turn end before the final
+	 * (non-debounced) per-turn computation.
+	 */
+	private _cancelDebouncedTurnDiffComputation(session: ProtocolURI, turnId: string): void {
+		this._perTurnDebouncedDiffTimers.deleteAndDispose(`${session}\u0000${turnId}`);
+	}
+
+	/**
+	 * Queues a per-turn recompute on a per-`(session, turnId)` sequencer
+	 * key so back-to-back recomputes for the same turn serialise, but
+	 * recomputes for different turns (or for the static `session` /
+	 * `uncommitted` slots) run independently. Fire-and-forget — failures
+	 * are logged inside `computeTurnChangeset` and do not fail the turn.
+	 */
+	private _scheduleTurnRecompute(session: ProtocolURI, turnId: string): void {
+		this._diffComputationSequencer.queue(`${session}\u0000turn\u0000${turnId}`, () => this.computeTurnChangeset(session, turnId).then(() => undefined));
 	}
 
 	/**
