@@ -244,6 +244,18 @@
 	opacity: 0.55;
 }
 
+.models-widget .models-table-container .models-gutter-column .monaco-action-bar {
+	width: 100%;
+}
+
+.models-widget .models-table-container .monaco-table-tr.models-vendor-row .models-gutter-column .monaco-action-bar .actions-container {
+	justify-content: space-between;
+}
+
+.models-widget .models-table-container .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar .actions-container {
+	justify-content: flex-end;
+}
+
 /** Visibility toggle action in the gutter column.
  * The action is only visible on row focus/hover, or when the model/group
  * is currently hidden so the user can spot what to click to bring it
