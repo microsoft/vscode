@@ -247,7 +247,7 @@ class TerminalInitialHintWidget extends Disposable {
 		return { before, after };
 	}
 
-	private _getHintInlineChat() {
+	private _getHintContent() {
 		const ariaLabelParts: string[] = [];
 
 		const handleDontShowClick = () => {
@@ -358,7 +358,7 @@ class TerminalInitialHintWidget extends Disposable {
 
 	getDomNode(): HTMLElement | undefined {
 		if (!this._domNode) {
-			const result = this._getHintInlineChat();
+			const result = this._getHintContent();
 			if (!result) {
 				return undefined;
 			}
