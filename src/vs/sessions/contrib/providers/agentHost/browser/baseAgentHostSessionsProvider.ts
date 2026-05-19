@@ -20,10 +20,9 @@ import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../
 import { buildUncommittedChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { NotificationType } from '../../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary, type ChangesetSummary } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, isSessionAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { readSessionGitState, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ActionType, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -121,7 +120,6 @@ export class AgentHostSessionAdapter implements ISession {
 	readonly mainChat: IChat;
 	readonly chats: IObservable<readonly IChat[]>;
 	readonly capabilities = { supportsMultipleChats: false };
-	readonly deduplicationKey: string;
 
 	readonly agentProvider: string;
 
@@ -152,7 +150,6 @@ export class AgentHostSessionAdapter implements ISession {
 			throw new Error(`Agent session URI has no provider scheme: ${metadata.session.toString()}`);
 		}
 		this.agentProvider = agentProvider;
-		this.deduplicationKey = metadata.session.toString();
 		this.resource = URI.from({ scheme: resourceScheme, path: `/${rawId}` });
 		this.sessionId = toSessionId(providerId, this.resource);
 		this.providerId = providerId;
@@ -1192,8 +1189,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached && rawId) {
-			const action = { type: ActionType.SessionConfigChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), config: { [property]: value } };
-			connection.dispatch(action);
+			const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+			const action = { type: ActionType.SessionConfigChanged as const, config: { [property]: value } };
+			connection.dispatch(sessionUri.toString(), action);
 		}
 	}
 
@@ -1236,13 +1234,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached && rawId) {
+			const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
 			const action = {
 				type: ActionType.SessionConfigChanged as const,
-				session: AgentSession.uri(cached.agentProvider, rawId).toString(),
 				config: nextValues,
 				replace: true,
 			};
-			connection.dispatch(action);
+			connection.dispatch(sessionUri.toString(), action);
 		}
 	}
 
@@ -1294,7 +1292,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			type: ActionType.RootConfigChanged as const,
 			config: { [property]: value },
 		};
-		connection.dispatch(action);
+		connection.dispatch(ROOT_STATE_URI, action);
 	}
 
 	async replaceRootConfig(values: Record<string, unknown>): Promise<void> {
@@ -1325,7 +1323,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			config: nextValues,
 			replace: true,
 		};
-		connection.dispatch(action);
+		connection.dispatch(ROOT_STATE_URI, action);
 	}
 
 	// -- Model selection ------------------------------------------------------
@@ -1345,8 +1343,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const resourceScheme = cached.resource.scheme;
 			const rawModelId = modelId.startsWith(`${resourceScheme}:`) ? modelId.substring(resourceScheme.length + 1) : modelId;
 			const model = cached.modelSelection?.id === rawModelId ? cached.modelSelection : { id: rawModelId };
-			const action = { type: ActionType.SessionModelChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), model };
-			connection.dispatch(action);
+			const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+			const action = { type: ActionType.SessionModelChanged as const, model };
+			connection.dispatch(sessionUri.toString(), action);
 		}
 	}
 
@@ -1360,8 +1359,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const connection = this.connection;
 			if (connection) {
-				const action = { type: ActionType.SessionIsArchivedChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isArchived: true };
-				connection.dispatch(action);
+				const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+				const action = { type: ActionType.SessionIsArchivedChanged as const, isArchived: true };
+				connection.dispatch(sessionUri.toString(), action);
 			}
 		}
 	}
@@ -1374,8 +1374,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const connection = this.connection;
 			if (connection) {
-				const action = { type: ActionType.SessionIsArchivedChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isArchived: false };
-				connection.dispatch(action);
+				const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+				const action = { type: ActionType.SessionIsArchivedChanged as const, isArchived: false };
+				connection.dispatch(sessionUri.toString(), action);
 			}
 		}
 	}
@@ -1399,8 +1400,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (cached && rawId && connection) {
 			cached.title.set(title, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
-			const action = { type: ActionType.SessionTitleChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), title };
-			connection.dispatch(action);
+			const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+			const action = { type: ActionType.SessionTitleChanged as const, title };
+			connection.dispatch(sessionUri.toString(), action);
 		}
 	}
 
@@ -1790,13 +1792,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (e.action.type === ActionType.SessionTurnComplete && isSessionAction(e.action)) {
 				this._refreshSessions();
 			} else if (e.action.type === ActionType.SessionTitleChanged && isSessionAction(e.action)) {
-				this._handleTitleChanged(e.action.session, e.action.title);
+				this._handleTitleChanged(e.channel, e.action.title);
 			} else if (e.action.type === ActionType.SessionModelChanged && isSessionAction(e.action)) {
-				this._handleModelChanged(e.action.session, e.action.model);
+				this._handleModelChanged(e.channel, e.action.model);
 			} else if (e.action.type === ActionType.SessionIsArchivedChanged && isSessionAction(e.action)) {
-				this._handleIsArchivedChanged(e.action.session, e.action.isArchived);
+				this._handleIsArchivedChanged(e.channel, e.action.isArchived);
 			} else if (e.action.type === ActionType.SessionConfigChanged && isSessionAction(e.action)) {
-				this._handleConfigChanged(e.action.session, e.action.config, e.action.replace === true);
+				this._handleConfigChanged(e.channel, e.action.config, e.action.replace === true);
 			}
 		}));
 	}

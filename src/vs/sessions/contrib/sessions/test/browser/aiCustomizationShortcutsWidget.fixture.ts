@@ -6,7 +6,7 @@
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -18,6 +18,7 @@ import { IMcpServer, IMcpService } from '../../../../../workbench/contrib/mcp/co
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { getChatSessionType } from '../../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAICustomizationListItem } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
@@ -26,10 +27,12 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 // Ensure color registrations are loaded
 import '../../../../common/theme.js';
 import '../../../../../platform/theme/common/colors/inputColors.js';
+
 
 // ============================================================================
 // One-time menu item registration (module-level).
@@ -156,7 +159,8 @@ function createMockHarnessService(hiddenSections: readonly string[] = []): ICust
 		getStorageSourceFilter: () => ({ sources: [] }),
 	};
 	return new class extends mock<ICustomizationHarnessService>() {
-		override readonly activeHarness = observableValue('mockActiveHarness', descriptor.id);
+		override readonly activeSessionResource = observableValue('mockActiveSessionResource', URI.parse(`${descriptor.id}:///session`));
+		override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 		override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('mockAvailableHarnesses', [descriptor]);
 		override findHarnessById(id: string) { return id === descriptor.id ? descriptor : undefined; }
 		override getActiveDescriptor() { return descriptor; }

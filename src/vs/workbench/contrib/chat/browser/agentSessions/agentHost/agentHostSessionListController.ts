@@ -104,7 +104,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 
 		// React to protocol notifications for session list changes
 		this._register(this._connection.onDidNotification(n => {
-			if (n.type === 'notify/sessionAdded' && n.summary.provider === this._provider) {
+			if (n.type === 'root/sessionAdded' && n.summary.provider === this._provider) {
 				const rawId = AgentSession.id(n.summary.resource);
 				this._pendingNewSessions.delete(rawId);
 				this._cachedSummaries.set(rawId, n.summary);
@@ -116,7 +116,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 					this._items.push(item);
 				}
 				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [item] });
-			} else if (n.type === 'notify/sessionRemoved' && AgentSession.provider(n.session) === this._provider) {
+			} else if (n.type === 'root/sessionRemoved' && AgentSession.provider(n.session) === this._provider) {
 				const removedId = AgentSession.id(n.session);
 				this._pendingNewSessions.delete(removedId);
 				const idx = this._items.findIndex(item => item.resource.path === `/${removedId}`);
@@ -125,7 +125,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 					this._cachedSummaries.delete(removedId);
 					this._onDidChangeChatSessionItems.fire({ removed: [removed.resource] });
 				}
-			} else if (n.type === 'notify/sessionSummaryChanged' && AgentSession.provider(n.session) === this._provider) {
+			} else if (n.type === 'root/sessionSummaryChanged' && AgentSession.provider(n.session) === this._provider) {
 				const rawId = AgentSession.id(n.session);
 				const cached = this._cachedSummaries.get(rawId);
 				if (!cached) {
