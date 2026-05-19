@@ -99,6 +99,26 @@ export class AICustomizationOverviewView extends ViewPane {
 			this.loadCounts();
 		}));
 
+		// Reactively track MCP server count (register once, not per-loadCounts call)
+		const mcpSection = this.sections.find(s => s.id === AICustomizationManagementSection.McpServers);
+		if (mcpSection) {
+			this._register(autorun(reader => {
+				const servers = this.mcpService.servers.read(reader);
+				mcpSection.count = servers.length;
+				this.updateCountElements();
+			}));
+		}
+
+		// Reactively track plugin count (register once, not per-loadCounts call)
+		const pluginSection = this.sections.find(s => s.id === AICustomizationManagementSection.Plugins);
+		if (pluginSection) {
+			this._register(autorun(reader => {
+				const plugins = this.agentPluginService.plugins.read(reader);
+				pluginSection.count = plugins.length;
+				this.updateCountElements();
+			}));
+		}
+
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -194,26 +214,6 @@ export class AICustomizationOverviewView extends ViewPane {
 				sectionData.count = count;
 			}
 		}));
-
-		// Update MCP server count reactively
-		const mcpSection = this.sections.find(s => s.id === AICustomizationManagementSection.McpServers);
-		if (mcpSection) {
-			this._register(autorun(reader => {
-				const servers = this.mcpService.servers.read(reader);
-				mcpSection.count = servers.length;
-				this.updateCountElements();
-			}));
-		}
-
-		// Update plugin count reactively
-		const pluginSection = this.sections.find(s => s.id === AICustomizationManagementSection.Plugins);
-		if (pluginSection) {
-			this._register(autorun(reader => {
-				const plugins = this.agentPluginService.plugins.read(reader);
-				pluginSection.count = plugins.length;
-				this.updateCountElements();
-			}));
-		}
 
 		this.updateCountElements();
 	}

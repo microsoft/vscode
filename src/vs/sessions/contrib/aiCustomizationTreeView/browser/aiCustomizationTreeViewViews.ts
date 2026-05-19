@@ -306,7 +306,7 @@ class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileI
  */
 interface ICachedTypeData {
 	skills?: IAgentSkill[];
-	files?: Map<string, readonly IPromptPath[]>;
+	files?: Map<AICustomizationPromptsStorage, readonly IPromptPath[]>;
 }
 
 /**
@@ -396,11 +396,45 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 	}
 
 	/**
+	 * Groups items by storage type, returning group items for all
+	 * non-empty storage types in a stable display order.
+	 */
+	private static readonly STORAGE_ORDER: readonly AICustomizationPromptsStorage[] = [
+		PromptsStorage.local,
+		PromptsStorage.user,
+		PromptsStorage.plugin,
+		PromptsStorage.extension,
+		BUILTIN_STORAGE,
+	];
+
+	private groupByStorage<T extends { readonly storage: AICustomizationPromptsStorage }>(items: readonly T[]): Map<AICustomizationPromptsStorage, readonly T[]> {
+		const grouped = new Map<AICustomizationPromptsStorage, T[]>();
+		for (const item of items) {
+			let bucket = grouped.get(item.storage);
+			if (!bucket) {
+				bucket = [];
+				grouped.set(item.storage, bucket);
+			}
+			bucket.push(item);
+		}
+		return grouped;
+	}
+
+	private buildGroupItems(promptType: PromptsType, grouped: ReadonlyMap<AICustomizationPromptsStorage, { readonly length: number }>): IAICustomizationGroupItem[] {
+		const groups: IAICustomizationGroupItem[] = [];
+		for (const storage of UnifiedAICustomizationDataSource.STORAGE_ORDER) {
+			const items = grouped.get(storage);
+			if (items && items.length > 0) {
+				groups.push(this.createGroupItem(promptType, storage, items.length));
+			}
+		}
+		return groups;
+	}
+
+	/**
 	 * Fetches and caches data for a prompt type, returning storage groups with items.
 	 */
 	private async getStorageGroups(promptType: PromptsType): Promise<IAICustomizationGroupItem[]> {
-		const groups: IAICustomizationGroupItem[] = [];
-
 		// Check cache first
 		let cached = this.cache.get(promptType);
 		if (!cached) {
@@ -417,25 +451,8 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 				this.onItemCountChanged(this.totalItemCount);
 			}
 
-			const workspaceSkills = cached.skills.filter(s => s.storage === PromptsStorage.local);
-			const userSkills = cached.skills.filter(s => s.storage === PromptsStorage.user);
-			const extensionSkills = cached.skills.filter(s => s.storage === PromptsStorage.extension);
-			const builtinSkills = cached.skills.filter(s => s.storage === BUILTIN_STORAGE);
-
-			if (workspaceSkills.length > 0) {
-				groups.push(this.createGroupItem(promptType, PromptsStorage.local, workspaceSkills.length));
-			}
-			if (userSkills.length > 0) {
-				groups.push(this.createGroupItem(promptType, PromptsStorage.user, userSkills.length));
-			}
-			if (extensionSkills.length > 0) {
-				groups.push(this.createGroupItem(promptType, PromptsStorage.extension, extensionSkills.length));
-			}
-			if (builtinSkills.length > 0) {
-				groups.push(this.createGroupItem(promptType, BUILTIN_STORAGE, builtinSkills.length));
-			}
-
-			return groups;
+			const grouped = this.groupByStorage(cached.skills);
+			return this.buildGroupItems(promptType, grouped);
 		}
 
 		// For other types, fetch once and cache grouped by storage
@@ -453,42 +470,12 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 				}
 			}
 
-			const workspaceItems = allItems.filter(item => item.storage === PromptsStorage.local);
-			const userItems = allItems.filter(item => item.storage === PromptsStorage.user);
-			const extensionItems = allItems.filter(item => item.storage === PromptsStorage.extension);
-			const builtinItems = allItems.filter(item => item.storage === BUILTIN_STORAGE);
-
-			cached.files = new Map<string, readonly IPromptPath[]>([
-				[PromptsStorage.local, workspaceItems],
-				[PromptsStorage.user, userItems],
-				[PromptsStorage.extension, extensionItems],
-				[BUILTIN_STORAGE, builtinItems],
-			]);
-
-			const itemCount = allItems.length;
-			this.totalItemCount += itemCount;
+			cached.files = this.groupByStorage(allItems);
+			this.totalItemCount += allItems.length;
 			this.onItemCountChanged(this.totalItemCount);
 		}
 
-		const workspaceItems = cached.files!.get(PromptsStorage.local) || [];
-		const userItems = cached.files!.get(PromptsStorage.user) || [];
-		const extensionItems = cached.files!.get(PromptsStorage.extension) || [];
-		const builtinItems = cached.files!.get(BUILTIN_STORAGE) || [];
-
-		if (workspaceItems.length > 0) {
-			groups.push(this.createGroupItem(promptType, PromptsStorage.local, workspaceItems.length));
-		}
-		if (userItems.length > 0) {
-			groups.push(this.createGroupItem(promptType, PromptsStorage.user, userItems.length));
-		}
-		if (extensionItems.length > 0) {
-			groups.push(this.createGroupItem(promptType, PromptsStorage.extension, extensionItems.length));
-		}
-		if (builtinItems.length > 0) {
-			groups.push(this.createGroupItem(promptType, BUILTIN_STORAGE, builtinItems.length));
-		}
-
-		return groups;
+		return this.buildGroupItems(promptType, cached.files);
 	}
 
 	/**
