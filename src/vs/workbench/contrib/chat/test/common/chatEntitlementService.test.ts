@@ -388,7 +388,7 @@ suite('parseQuotas', () => {
 					percent_remaining: 7.5,
 					unlimited: false,
 					entitlement: '20000',
-					quota_remaining: 1501,
+					quota_remaining: '1501',
 				},
 			},
 		});
@@ -407,6 +407,60 @@ suite('parseQuotas', () => {
 					percent_remaining: 50,
 					unlimited: false,
 					entitlement: '1000',
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.quotaRemaining, undefined);
+	});
+
+	test('quotaRemaining rejects negative values', () => {
+		const data = makeEntitlementsData({
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 50,
+					unlimited: false,
+					entitlement: '1000',
+					quota_remaining: '-1',
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.quotaRemaining, undefined);
+	});
+
+	test('quotaRemaining rejects NaN values', () => {
+		const data = makeEntitlementsData({
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 50,
+					unlimited: false,
+					entitlement: '1000',
+					quota_remaining: 'not_a_number',
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.quotaRemaining, undefined);
+	});
+
+	test('quotaRemaining rejects non-integer values', () => {
+		const data = makeEntitlementsData({
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 50,
+					unlimited: false,
+					entitlement: '1000',
+					quota_remaining: '1.5',
 				},
 			},
 		});
