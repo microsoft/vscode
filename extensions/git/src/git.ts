@@ -3000,7 +3000,7 @@ export class Repository {
 			let match: RegExpExecArray | null;
 
 			if (match = /^([0-9a-f]{40}|[0-9a-f]{64})\trefs\/heads\/([^ ]+)$/.exec(line)) {
-				return { name: match[1], commit: match[2], type: RefType.Head };
+				return { name: match[2], commit: match[1], type: RefType.Head };
 			} else if (match = /^([0-9a-f]{40}|[0-9a-f]{64})\trefs\/tags\/([^ ]+)$/.exec(line)) {
 				return { name: match[2], commit: match[1], type: RefType.Tag };
 			}
