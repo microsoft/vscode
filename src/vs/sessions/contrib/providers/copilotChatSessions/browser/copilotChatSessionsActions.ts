@@ -288,6 +288,11 @@ export function modelPickerStorageKey(sessionType: string): string {
 	return `sessions.modelPicker.${sessionType}.selectedModelId`;
 }
 
+export function shouldShowSessionManageModelsAction(sessionsManagementService: ISessionsManagementService): boolean {
+	const session = sessionsManagementService.activeSession.get();
+	return session?.providerId === COPILOT_PROVIDER_ID && session.sessionType === SessionType.Local;
+}
+
 function getVendorFromModelIdentifier(modelIdentifier: string): string | undefined {
 	const firstSlash = modelIdentifier.indexOf('/');
 	return firstSlash === -1 ? undefined : modelIdentifier.substring(0, firstSlash);
@@ -342,7 +347,7 @@ export class SessionModelPicker extends Disposable {
 			},
 			getModels: () => getAvailableModels(this._languageModelsService, this._sessionsManagementService),
 			useGroupedModelPicker: () => true,
-			showManageModelsAction: () => false,
+			showManageModelsAction: () => shouldShowSessionManageModelsAction(this._sessionsManagementService),
 			showUnavailableFeatured: () => false,
 			showFeatured: () => true,
 		};
