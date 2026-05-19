@@ -6622,6 +6622,13 @@
 				"sessionTypes": [
 					"local"
 				]
+			},
+			{
+				"path": "./assets/prompts/chronicle-search.prompt.md",
+				"when": "github.copilot.sessionSearch.enabled",
+				"sessionTypes": [
+					"local"
+				]
 			}
 		],
 		"chatSkills": [
