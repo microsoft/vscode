@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../../base/common/uri.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import {
 	JSON_RPC_PARSE_ERROR,
 	type InitializeResult,
 	type JsonRpcErrorResponse,
 } from '../../../common/state/sessionProtocol.js';
-import { IServerHandle, nextSessionUri, startServer, TestProtocolClient } from './testHelpers.js';
 import { ROOT_STATE_URI } from '../../../common/state/sessionState.js';
+import { IServerHandle, nextSessionUri, startServer, TestProtocolClient } from './testHelpers.js';
 
 suite('Protocol WebSocket — Handshake & Errors', function () {
 
