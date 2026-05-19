@@ -38,7 +38,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	private _rootStateValue: RootState = { agents: [] };
 	override readonly rootState;
 
-	readonly dispatchedActions: StateAction[] = [];
+	readonly dispatchedActions: { channel: string; action: StateAction }[] = [];
 
 	constructor() {
 		super();
@@ -56,8 +56,8 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		this._rootStateValue = rootState;
 	}
 
-	override dispatch(action: StateAction): void {
-		this.dispatchedActions.push(action);
+	override dispatch(channel: string, action: StateAction): void {
+		this.dispatchedActions.push({ channel, action });
 	}
 
 	fireAction(envelope: ActionEnvelope): void {
@@ -123,9 +123,12 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		await controller.removeConfiguredPlugin(pluginA);
 
 		assert.deepStrictEqual(connection.dispatchedActions, [{
-			type: ActionType.RootConfigChanged,
-			config: {
-				customizations: [pluginB],
+			channel: 'ahp-root://',
+			action: {
+				type: ActionType.RootConfigChanged,
+				config: {
+					customizations: [pluginB],
+				},
 			},
 		}]);
 	});
@@ -202,11 +205,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: agentHostSessionId,
 				customizations: [synced],
 			},
 		});
@@ -253,11 +256,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: agentHostSessionId,
 				customizations: [synced],
 			},
 		});
@@ -351,11 +354,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: agentHostSessionId,
 				customizations: [synced],
 			},
 		});
@@ -405,11 +408,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: agentHostSessionId,
 				customizations: [synced],
 			},
 		});
@@ -459,11 +462,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: agentHostSessionId,
 				customizations: [sessionCustomization],
 			},
 		});
@@ -508,14 +511,14 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		disposables.add(provider.onDidChange(() => changeCount++));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: agentHostSessionId,
 				customizations: [{
 					customization: pluginRef,
-					enabled: true,
+					enabled: true
 				}],
 			},
 		});
@@ -554,15 +557,15 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: agentHostSessionId,
 				customizations: [{
 					customization: clientPlugin,
 					clientId: 'test-client',
-					enabled: true,
+					enabled: true
 				}],
 			},
 		});
@@ -604,9 +607,12 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		assert.strictEqual(connection.dispatchedActions.length, 1);
 		assert.deepStrictEqual(connection.dispatchedActions[0], {
-			type: ActionType.RootConfigChanged,
-			config: {
-				customizations: [pluginA, pluginC],
+			channel: 'ahp-root://',
+			action: {
+				type: ActionType.RootConfigChanged,
+				config: {
+					customizations: [pluginA, pluginC],
+				},
 			},
 		});
 	});
@@ -642,11 +648,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: agentHostSessionId,
 				customizations: [
 					{ customization: clientA, clientId: 'test-client', enabled: true },
 					{ customization: clientB, clientId: 'test-client', enabled: true },

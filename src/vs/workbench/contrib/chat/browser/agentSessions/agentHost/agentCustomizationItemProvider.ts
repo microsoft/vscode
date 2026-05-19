@@ -61,7 +61,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 		this._register(this._connection.onDidAction(envelope => {
 			if (envelope.action.type === ActionType.SessionCustomizationsChanged) {
-				this._sessionCustomizationsCache.set(envelope.action.session, envelope.action.customizations);
+				this._sessionCustomizationsCache.set(envelope.channel, envelope.action.customizations);
 				this._onDidChange.fire();
 			}
 		}));

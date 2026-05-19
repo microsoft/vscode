@@ -287,7 +287,6 @@ class TestableCopilotAgent extends CopilotAgent {
 					session: sessionUri,
 					action: {
 						type: ActionType.SessionResponsePart,
-						session: sessionUri.toString(),
 						turnId,
 						part: { kind: ResponsePartKind.Markdown, id: `synth-${Date.now()}`, content },
 					},
