@@ -171,9 +171,15 @@ suite('AICustomizationItemsModel', () => {
 			model.getItems(AICustomizationManagementSection.Agents);
 			await timeout(0);
 			assert.strictEqual(providerA_callCount, 1);
-			// Reading a different section triggers a separate fetch for that section only.
+			// Reading a different section does not trigger, as the items are cached
 			model.getItems(AICustomizationManagementSection.Skills);
 			await timeout(0);
+			assert.strictEqual(providerA_callCount, 1);
+
+			providerA_didChange.fire();
+			await timeout(0);
+			assert.strictEqual(providerA_callCount, 2);
+			model.getItems(AICustomizationManagementSection.Agents);
 			assert.strictEqual(providerA_callCount, 2);
 		});
 

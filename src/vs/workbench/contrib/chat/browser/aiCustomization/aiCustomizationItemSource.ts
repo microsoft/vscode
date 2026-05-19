@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMatch } from '../../../../../base/common/filters.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -81,7 +82,8 @@ export interface IAICustomizationListItem {
  * Item sources fetch provider-shaped customization rows, normalize them into
  * the browser-only list item shape, and add view-only overlays such as sync state.
  */
-export interface IAICustomizationItemSource {
+export interface IAICustomizationItemSource extends IDisposable {
+	readonly sessionResource: URI;
 	readonly onDidChange: Event<void>;
 	fetchItems(promptType: PromptsType): Promise<IAICustomizationListItem[]>;
 }
@@ -289,69 +291,44 @@ export class AICustomizationItemNormalizer {
 
 // #endregion
 
-// #region Item Source
-
 /**
- * Unified item source that fetches items from a provider (extension-contributed
- * or the promptsService adapter), normalizes them into list items, and optionally
- * blends in local syncable items when a sync provider is present.
+ * Item source backed by a session-scoped customization item provider.
  */
-export class ProviderCustomizationItemSource implements IAICustomizationItemSource {
+export class ItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
 
 	readonly onDidChange: Event<void>;
+	private cachedPromise: Promise<readonly ICustomizationItem[] | undefined> | undefined;
 
 	constructor(
-		private readonly sessionResource: URI,
-		private readonly itemProvider: ICustomizationItemProvider | undefined,
-		private readonly syncProvider: ICustomizationSyncProvider | undefined,
+		readonly sessionResource: URI,
+		private readonly itemProvider: ICustomizationItemProvider,
 		private readonly promptsService: IPromptsService,
 		private readonly workspaceService: IAICustomizationWorkspaceService,
 		private readonly fileService: IFileService,
 		private readonly pathService: IPathService,
 		private readonly itemNormalizer: AICustomizationItemNormalizer,
 	) {
-		// When an itemProvider is present, it is the single source of truth (see fetchItems);
-		// the local syncable enumeration path is not used, so we must not subscribe to syncProvider
-		// or promptsService change events here either. Otherwise, providers that already forward
-		// those underlying events via their own onDidChange would cause duplicate refreshes.
-		const subscribeToSyncableEvents = !this.itemProvider && !!this.syncProvider;
-		const onDidChangeSyncableCustomizations = subscribeToSyncableEvents
-			? Event.any(
-				this.promptsService.onDidChangeCustomAgents,
-				this.promptsService.onDidChangeSlashCommands,
-				this.promptsService.onDidChangeSkills,
-				this.promptsService.onDidChangeHooks,
-				this.promptsService.onDidChangeInstructions,
-			)
-			: Event.None;
-
+		super();
 		this.onDidChange = Event.any(
-			this.itemProvider?.onDidChange ?? Event.None,
-			(subscribeToSyncableEvents && this.syncProvider?.onDidChange) || Event.None,
-			onDidChangeSyncableCustomizations,
+			this.itemProvider.onDidChange,
+			this.promptsService.onDidChangeSkills
 		);
+
+		// Invalidate cache when provider or skills change
+		this._register(this.onDidChange(() => {
+			this.cachedPromise = undefined;
+		}));
 	}
+
 
 	async fetchItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		const remoteItems = this.itemProvider
-			? await this.fetchItemsFromProvider(this.itemProvider, promptType)
-			: [];
-		if (!this.syncProvider) {
-			return remoteItems;
+		// Use cached result if available
+		if (!this.cachedPromise) {
+			this.cachedPromise = this.itemProvider.provideChatSessionCustomizations(this.sessionResource, CancellationToken.None);
 		}
-		// If there's an itemProvider, it is the single source of truth for items.
-		// The provider is responsible for enumerating all items, including synced
-		// ones, so we don't need to add local synced items separately.
-		if (this.itemProvider) {
-			return remoteItems;
-		}
-		const localItems = await this.fetchLocalSyncableItems(promptType, this.syncProvider);
-		return [...remoteItems, ...localItems];
-	}
-
-	private async fetchItemsFromProvider(provider: ICustomizationItemProvider, promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		const allItems = await provider.provideChatSessionCustomizations(this.sessionResource, CancellationToken.None);
-		if (!allItems) {
+		const cached = this.cachedPromise;
+		const allItems = await cached;
+		if (cached !== this.cachedPromise || !allItems) {
 			return [];
 		}
 
@@ -469,12 +446,36 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 			}
 		}
 
-		return items.map(item => item.description
-			? item
-			: { ...item, description: descriptionsByUri.get(item.uri.toString()) });
+		return items.map(item => item.description ? item : { ...item, description: descriptionsByUri.get(item.uri.toString()) });
+	}
+}
+/**
+ * Item source backed directly by promptsService enumeration and optional sync state.
+ */
+export class PromptServiceItemSource implements IAICustomizationItemSource {
+
+	readonly onDidChange: Event<void>;
+
+	constructor(
+		readonly sessionResource: URI,
+		readonly syncProvider: ICustomizationSyncProvider | undefined,
+		private readonly promptsService: IPromptsService,
+		private readonly itemNormalizer: AICustomizationItemNormalizer,
+	) {
+		this.onDidChange = Event.any(
+			this.syncProvider?.onDidChange ?? Event.None,
+			this.promptsService.onDidChangeCustomAgents,
+			this.promptsService.onDidChangeSlashCommands,
+			this.promptsService.onDidChangeSkills,
+			this.promptsService.onDidChangeHooks,
+			this.promptsService.onDidChangeInstructions,
+		);
 	}
 
-	private async fetchLocalSyncableItems(promptType: PromptsType, syncProvider: ICustomizationSyncProvider): Promise<IAICustomizationListItem[]> {
+	dispose(): void {
+	}
+
+	async fetchItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
 		const files = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
 		if (!files.length) {
 			return [];
@@ -503,7 +504,7 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 				...item,
 				id: `sync-${item.id}`,
 				syncable: true,
-				synced: !syncProvider.isDisabled(item.uri),
+				synced: !(this.syncProvider?.isDisabled(item.uri)),
 			}));
 		const pluginItems = this.itemNormalizer.normalizeItems(pluginFiles.map(toProviderItem), promptType);
 
