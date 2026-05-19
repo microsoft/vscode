@@ -578,13 +578,23 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const permissionMode = this._readSessionPermissionMode(sessionUri)
 			?? overlay.permissionMode
 			?? 'default';
+		// Resolve git project metadata from the resumed cwd, same as
+		// createSession's non-fork path. Best-effort: a failure (no
+		// repo, git CLI missing, etc.) downgrades to `undefined` rather
+		// than blocking the resume.
+		let project: IAgentSessionProjectInfo | undefined;
+		try {
+			project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
+		} catch (err) {
+			this._logService.warn(`[Claude:${sessionId}] project resolution failed during resume; continuing without project`, err);
+		}
 		const abortController = new AbortController();
 		const provisional: IClaudeMaterializeProvisional = {
 			sessionId,
 			sessionUri,
 			workingDirectory,
 			abortController,
-			project: undefined,
+			project,
 			model: overlay.model,
 		};
 
@@ -614,7 +624,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._onDidMaterializeSession.fire({
 			session: sessionUri,
 			workingDirectory,
-			project: undefined,
+			project,
 		});
 
 		return session;
