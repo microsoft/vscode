@@ -222,6 +222,7 @@ zone.js/dist/**
 @github/copilot/pvrecorder/**
 @github/copilot/foundry-local-sdk/**
 @github/copilot/mxc-bin/**
+@github/copilot/sharp/**
 @github/copilot/**/keytar.node
 
 # @github/copilot platform binaries - not needed
