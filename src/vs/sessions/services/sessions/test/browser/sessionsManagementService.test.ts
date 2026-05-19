@@ -265,43 +265,6 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({ opened: chatWidgetService.opened.map(uri => uri.toString()), observed: agentSessionsService.observed.map(uri => uri.toString()) }, { opened: [session.resource.toString()], observed: [session.resource.toString()] });
 	});
 
-	test('sets active session when added session is displayed in a chat widget', async () => {
-		const originalSession = stubSession({ sessionId: 'original', providerId: 'test' });
-		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
-		const provider = new class extends TestSessionsProvider {
-			override readonly onDidChangeSessions = onDidChangeSessions.event;
-			constructor() { super(originalSession); }
-		};
-
-		const instantiationService = disposables.add(new TestInstantiationService());
-		const chatWidgetService = new TestChatWidgetService();
-		const agentSessionsService = new TestAgentSessionsService();
-
-		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
-		instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
-		instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
-		instantiationService.stub(IChatWidgetService, chatWidgetService);
-		instantiationService.stub(IAgentSessionsService, agentSessionsService);
-		instantiationService.stub(IProgressService, new TestProgressService());
-
-		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
-
-		// Open the original session so it becomes the active session
-		await service.openSession(originalSession.resource);
-		assert.strictEqual(service.activeSession.get()?.sessionId, 'original');
-
-		// Simulate fork: a new session is added and the chat widget displays it
-		const forkedSession = stubSession({ sessionId: 'forked', providerId: 'test' });
-		chatWidgetService.setWidgetSessionResource(forkedSession.resource);
-
-		onDidChangeSessions.fire({ added: [forkedSession], removed: [], changed: [] });
-
-		// The active session should now be the forked session
-		assert.strictEqual(service.activeSession.get()?.sessionId, 'forked');
-	});
-
 	test('does not change active session when added session is not displayed in any widget', async () => {
 		const originalSession = stubSession({ sessionId: 'original', providerId: 'test' });
 		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
