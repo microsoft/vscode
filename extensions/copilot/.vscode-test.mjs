@@ -27,16 +27,27 @@ const sourcePackageJson = patchPackageJson(packageJsonPath, pkg => {
 const patchedPackageJsons = [sourcePackageJson.revert];
 const pkg = sourcePackageJson.pkg;
 
+// and revert once done
+process.on('exit', () => patchedPackageJsons.forEach(revert => revert()));
+
 if (usePackagedExtension) {
 	patchedPackageJsons.push(patchPackageJson(resolve(extensionDevelopmentPath, 'package.json'), pkg => {
 		pkg.activationEvents = pkg.activationEvents?.filter(event => event !== 'onStartupFinished');
 	}).revert);
 }
 
-// and revert once done
-process.on('exit', () => patchedPackageJsons.forEach(revert => revert()));
-
 const isRecoveryBuild = !pkg.version.endsWith('.0');
+const mocha = {
+	ui: 'tdd',
+	color: true,
+	forbidOnly: !!process.env.CI,
+	timeout: 5000,
+	retries: isSanity ? 1 : 0
+};
+
+if (usePackagedExtension && !process.argv.includes('--grep')) {
+	mocha.grep = 'Copilot CLI Chat Sanity Test';
+}
 
 const config = {
 	files: __dirname + (isSanity ? '/dist/sanity-test-extension.js' : '/dist/test-extension.js'),
@@ -49,13 +60,7 @@ const config = {
 		'--disable-extensions',
 		'--profile-temp'
 	],
-	mocha: {
-		ui: 'tdd',
-		color: true,
-		forbidOnly: !!process.env.CI,
-		timeout: 5000,
-		retries: isSanity ? 1 : 0
-	}
+	mocha
 };
 
 if (process.env.VSCODE_UNDER_TEST) {
