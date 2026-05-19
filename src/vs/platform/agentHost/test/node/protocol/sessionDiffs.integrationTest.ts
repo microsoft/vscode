@@ -60,7 +60,17 @@ const hasGit = (() => {
 	teardown(function () {
 		client.close();
 		if (tmpRoot) {
-			rmSync(tmpRoot, { recursive: true, force: true });
+			try {
+				// On Windows, freshly-spawned `git` child processes and the
+				// agent host server may still hold handles on files under
+				// `tmpRoot` (e.g. `.git/index`) when teardown runs, causing
+				// `EBUSY`/`ENOTEMPTY`. `maxRetries` is Node's built-in
+				// workaround for exactly this case.
+				rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+			} catch {
+				// Best-effort: leave the temp dir for the OS to clean up
+				// rather than fail the test on a stale Windows file lock.
+			}
 		}
 	});
 
