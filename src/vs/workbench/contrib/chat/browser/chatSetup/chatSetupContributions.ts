@@ -484,7 +484,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				const baseUrl = defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotUpgrade);
 				const upgradeUrl = buildUpgradeUrlWithRedirect(baseUrl, productService.urlProtocol, productService.quality);
-				openerService.open(URI.parse(upgradeUrl));
+				openerService.open(upgradeUrl);
 
 				const entitlement = context.state.entitlement;
 				if (!isProUser(entitlement)) {
