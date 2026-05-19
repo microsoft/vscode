@@ -525,8 +525,10 @@ configurationRegistry.registerConfiguration({
 				'**/*': true,
 				'**/.vscode/*.json': false,
 				'**/.git/**': false,
-				'**/{package.json,server.xml,build.rs,web.config,.gitattributes,.env}': false,
-				'**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props}': false,
+				'**/{package.json,server.xml,build.rs,web.config,.gitattributes,.env,Cargo.toml}': false,
+				'**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props,gradle,gradle.kts}': false,
+				'**/gradle.properties': false,
+				'**/ruby_lsp/*/addon': false, // Auto-included Ruby addons
 				'**/*.lock': false, // yarn.lock, bun.lock, etc.
 				'**/*-lock.{yaml,json}': false, // pnpm-lock.yaml, package-lock.json
 			},
