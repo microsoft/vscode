@@ -241,11 +241,11 @@
     "watch": "gulp watch-extension:github"
   },
   "dependencies": {
-    "@octokit/graphql": "8.2.0",
+    "@octokit/graphql": "9.0.3",
     "@octokit/graphql-schema": "14.4.0",
-    "@octokit/rest": "21.1.0",
-    "tunnel": "^0.0.6",
-    "@vscode/extension-telemetry": "^1.0.0"
+    "@octokit/rest": "22.0.1",
+    "@vscode/extension-telemetry": "^1.0.0",
+    "tunnel": "^0.0.6"
   },
   "devDependencies": {
     "@types/node": "22.x"
