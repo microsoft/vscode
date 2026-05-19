@@ -248,6 +248,7 @@ export class PromptValidator {
 				this.validateDisableModelInvocation(attributes, report);
 				this.validateTools(attributes, ChatModeKind.Agent, target, report);
 				this.validateHooks(attributes, target, report);
+				this.validateMcpServers(attributes, report);
 				if (isVSCodeOrDefaultTarget(target)) {
 					this.validateModel(attributes, ChatModeKind.Agent, report);
 					this.validateHandoffs(attributes, report);
@@ -915,7 +916,35 @@ export class PromptValidator {
 			}
 		}
 	}
+
+	private validateMcpServers(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
+		const attribute = attributes.find(attr => attr.key === GithubPromptHeaderAttributes.mcpServers);
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'map') {
+			report(toMarker(localize('promptValidator.mcpServersMustBeMap', "The 'mcp-servers' attribute must be a map of server names to configurations."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+		for (const serverEntry of attribute.value.properties) {
+			if (serverEntry.value.type !== 'map') {
+				continue;
+			}
+			for (const prop of serverEntry.value.properties) {
+				if (!validMcpServerProperties.has(prop.key.value)) {
+					const validNames = Array.from(validMcpServerProperties).sort().join(', ');
+					report(toMarker(localize('promptValidator.unknownMcpServerProperty', "Unknown property '{0}' in MCP server '{1}'. Supported: {2}.", prop.key.value, serverEntry.key.value, validNames), prop.key.range, MarkerSeverity.Warning));
+				}
+			}
+		}
+	}
 }
+
+const validMcpServerProperties = new Set([
+	'type', 'url', 'command', 'args', 'env', 'envFile', 'cwd', 'headers',
+	'tools', 'dev', 'sandboxEnabled', 'oauth', 'version', 'gallery',
+	'auth', 'oidc',
+]);
 
 export const githubPermissionScopes: Record<string, { allowedValues: string[]; description: string }> = {
 	'actions': { allowedValues: ['read', 'write', 'none'], description: localize('githubPermission.actions', "Access to GitHub Actions workflows and runs") },
@@ -939,7 +968,7 @@ function isTrueOrFalse(value: IValue): boolean {
 const allAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
-	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.hooks, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, GithubPromptHeaderAttributes.github],
+	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.hooks, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, GithubPromptHeaderAttributes.github, GithubPromptHeaderAttributes.mcpServers],
 	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, PromptHeaderAttributes.context],
 	[PromptsType.hook]: [], // hooks are JSON files, not markdown with YAML frontmatter
 };

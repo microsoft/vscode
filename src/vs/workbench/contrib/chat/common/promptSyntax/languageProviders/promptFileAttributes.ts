@@ -166,6 +166,10 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 		type: 'map',
 		description: localize('promptHeader.agent.hooks', 'Lifecycle hooks scoped to this agent. Define hooks that run only while this agent is active.'),
 	},
+	[GithubPromptHeaderAttributes.mcpServers]: {
+		type: 'map',
+		description: localize('promptHeader.agent.mcpServers', 'MCP servers available to this agent.'),
+	},
 };
 
 // Attribute metadata for skill files (`SKILL.md`).
