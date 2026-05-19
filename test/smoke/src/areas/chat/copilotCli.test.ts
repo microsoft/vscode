@@ -28,8 +28,7 @@ export function setup(logger: Logger, opts: { web?: boolean; remote?: boolean })
 		it('opens a Copilot CLI session and receives a response', async function () {
 			const app = this.app as Application;
 
-			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
-			await app.workbench.quickaccess.runCommand('workbench.action.chat.openNewSessionEditor.copilotcli');
+			await app.workbench.quickaccess.runCommand('smoketest.openCopilotCliChat');
 			await app.workbench.chat.waitForChatEditor();
 			await app.workbench.chat.sendMessage('Reply with one short sentence. Do not run tools or edit files.', 'editor');
 			await app.workbench.chat.waitForResponse(1500, 'editor');

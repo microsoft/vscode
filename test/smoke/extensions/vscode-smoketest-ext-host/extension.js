@@ -73,6 +73,14 @@ function activate(context) {
 			return { pid, markerFile: deactivateMarkerFile };
 		})
 	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('smoketest.openCopilotCliChat', async () => {
+			await vscode.commands.executeCommand('github.copilot.debug.extensionState');
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.commands.executeCommand('workbench.action.chat.openNewSessionEditor.copilotcli');
+		})
+	);
 }
 
 function deactivate() {
