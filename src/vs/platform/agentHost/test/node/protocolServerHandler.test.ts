@@ -16,6 +16,7 @@ import { ActionType, type IRootConfigChangedAction, type SessionAction, type Ter
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
+import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -87,10 +88,10 @@ class MockAgentService implements IAgentService {
 		this._stateManager = sm;
 	}
 
-	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this.handledActions.push(action);
 		const origin = { clientId, clientSeq };
-		this._stateManager.dispatchClientAction(action, origin);
+		this._stateManager.dispatchClientAction(channel, action, origin);
 	}
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		this.createSessionConfigs.push(config);
@@ -373,7 +374,7 @@ suite('ProtocolServerHandler', () => {
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 1);
 
-		transport.simulateMessage(request(1, 'subscribe', { resource: sessionUri }));
+		transport.simulateMessage(request(1, 'subscribe', { channel: sessionUri }));
 		const resp = await responsePromise;
 
 		assert.ok(resp, 'should have sent response');
@@ -383,16 +384,16 @@ suite('ProtocolServerHandler', () => {
 
 	test('client action is dispatched and echoed', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
 		const transport = connectClient('client-1', [sessionUri]);
 		transport.sent.length = 0;
 
 		transport.simulateMessage(notification('dispatchAction', {
+			channel: sessionUri,
 			clientSeq: 1,
 			action: {
 				type: ActionType.SessionTurnStarted,
-				session: sessionUri,
 				turnId: 'turn-1',
 				userMessage: { text: 'hello' },
 			},
@@ -411,7 +412,7 @@ suite('ProtocolServerHandler', () => {
 
 	test('actions are scoped to subscribed sessions', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
 		const transportA = connectClient('client-a', [sessionUri]);
 		const transportB = connectClient('client-b');
@@ -419,9 +420,8 @@ suite('ProtocolServerHandler', () => {
 		transportA.sent.length = 0;
 		transportB.sent.length = 0;
 
-		stateManager.dispatchServerAction({
+		stateManager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionTitleChanged,
-			session: sessionUri,
 			title: 'New Title',
 		});
 
@@ -432,7 +432,7 @@ suite('ProtocolServerHandler', () => {
 	test('changeset actions are scoped to subscribed changeset URIs', () => {
 		const changesetUri = `${sessionUri}/changeset/session`;
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 		stateManager.registerChangeset(changesetUri);
 
 		const transportA = connectClient('client-a-cs', [changesetUri]);
@@ -442,15 +442,14 @@ suite('ProtocolServerHandler', () => {
 		transportA.sent.length = 0;
 		transportB.sent.length = 0;
 
-		stateManager.dispatchServerAction({
+		stateManager.dispatchServerAction(changesetUri, {
 			type: ActionType.ChangesetFileSet,
-			changeset: changesetUri,
 			file: {
 				id: 'file:///test/changed.ts',
 				edit: {
 					after: { uri: 'file:///test/changed.ts', content: { uri: 'file:///test/changed.ts' } },
-					diff: { added: 1, removed: 0 },
-				},
+					diff: { added: 1, removed: 0 }
+				}
 			},
 		});
 
@@ -459,25 +458,24 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(aActions.length, 1, 'changeset subscriber should receive 1 envelope');
 		assert.strictEqual(bActions.length, 0, 'session-only subscriber should receive 0 changeset envelopes');
 
-		const params = aActions[0].params as { action: { type: string; changeset: string } };
+		const params = aActions[0].params as { channel: string; action: { type: string } };
 		assert.deepStrictEqual(
-			{ type: params.action.type, changeset: params.action.changeset },
-			{ type: ActionType.ChangesetFileSet, changeset: changesetUri },
+			{ type: params.action.type, channel: params.channel },
+			{ type: ActionType.ChangesetFileSet, channel: changesetUri },
 		);
 	});
 
 	test('changeset/cleared reaches changeset subscribers', () => {
 		const changesetUri = `${sessionUri}/changeset/session`;
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 		stateManager.registerChangeset(changesetUri);
 
 		const transport = connectClient('client-clear', [changesetUri]);
 		transport.sent.length = 0;
 
-		stateManager.dispatchServerAction({
+		stateManager.dispatchServerAction(changesetUri, {
 			type: ActionType.ChangesetCleared,
-			changeset: changesetUri,
 		});
 
 		const actions = findNotifications(transport.sent, 'action');
@@ -495,8 +493,8 @@ suite('ProtocolServerHandler', () => {
 
 		stateManager.createSession(makeSessionSummary());
 
-		assert.strictEqual(findNotifications(transportA.sent, 'notification').length, 1);
-		assert.strictEqual(findNotifications(transportB.sent, 'notification').length, 1);
+		assert.strictEqual(findNotifications(transportA.sent, 'root/sessionAdded').length, 1);
+		assert.strictEqual(findNotifications(transportB.sent, 'root/sessionAdded').length, 1);
 	});
 
 	test('listSessions includes project metadata', async () => {
@@ -580,16 +578,13 @@ suite('ProtocolServerHandler', () => {
 		const responsePromise = waitForResponse(transport, 2);
 
 		const newSession = URI.parse('copilot:///created-session').toString();
-		transport.simulateMessage(request(2, 'createSession', { session: newSession }));
+		transport.simulateMessage(request(2, 'createSession', { channel: newSession }));
 		const resp = await responsePromise;
 
-		const added = findNotifications(transport.sent, 'notification').find(message => {
-			const params = message.params as { notification: { type: string } };
-			return params.notification.type === 'notify/sessionAdded';
-		});
+		const added = findNotifications(transport.sent, 'root/sessionAdded')[0];
 		assert.deepStrictEqual({
 			result: (resp as { result: null }).result,
-			project: (added!.params as { notification: { summary: SessionSummary } }).notification.summary.project,
+			project: (added!.params as SessionAddedParams).summary.project,
 		}, {
 			result: null,
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
@@ -598,15 +593,15 @@ suite('ProtocolServerHandler', () => {
 
 	test('reconnect replays missed actions', async () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
 		const transport1 = connectClient('client-r', [sessionUri]);
 		const resp = findResponse(transport1.sent, 1);
 		const initSeq = (resp as { result: InitializeResult }).result.serverSeq;
 		transport1.simulateClose();
 
-		stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Title A' });
-		stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Title B' });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Title A' });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Title B' });
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
@@ -628,7 +623,7 @@ suite('ProtocolServerHandler', () => {
 	test('reconnect replays missed changeset actions to changeset subscribers', async () => {
 		const changesetUri = `${sessionUri}/changeset/session`;
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 		// Register the changeset before the first connection so the initial
 		// subscription succeeds.
 		stateManager.registerChangeset(changesetUri);
@@ -639,20 +634,18 @@ suite('ProtocolServerHandler', () => {
 		transport1.simulateClose();
 
 		// Dispatch two changeset actions while client is disconnected.
-		stateManager.dispatchServerAction({
+		stateManager.dispatchServerAction(changesetUri, {
 			type: ActionType.ChangesetFileSet,
-			changeset: changesetUri,
 			file: {
 				id: 'file:///a.ts',
 				edit: {
 					after: { uri: 'file:///a.ts', content: { uri: 'file:///a.ts' } },
-					diff: { added: 2, removed: 0 },
-				},
+					diff: { added: 2, removed: 0 }
+				}
 			},
 		});
-		stateManager.dispatchServerAction({
+		stateManager.dispatchServerAction(changesetUri, {
 			type: ActionType.ChangesetStatusChanged,
-			changeset: changesetUri,
 			status: ChangesetStatus.Ready,
 		});
 
@@ -678,13 +671,13 @@ suite('ProtocolServerHandler', () => {
 
 	test('reconnect sends fresh snapshots when gap too large', async () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
 		const transport1 = connectClient('client-g', [sessionUri]);
 		transport1.simulateClose();
 
 		for (let i = 0; i < 1100; i++) {
-			stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: `Title ${i}` });
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: `Title ${i}` });
 		}
 
 		const transport2 = new MockProtocolTransport();
@@ -706,7 +699,7 @@ suite('ProtocolServerHandler', () => {
 
 	test('reconnect rehydrates server-side state that was evicted while disconnected', async () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
 		// MockAgentService.subscribe normally just returns the existing snapshot.
 		// Override it so a missing session is restored on subscribe — this is the
@@ -749,14 +742,14 @@ suite('ProtocolServerHandler', () => {
 
 	test('client disconnect cleans up', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
 		const transport = connectClient('client-d', [sessionUri]);
 		transport.sent.length = 0;
 
 		transport.simulateClose();
 
-		stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'After Disconnect' });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'After Disconnect' });
 
 		assert.strictEqual(transport.sent.length, 0);
 	});
@@ -764,33 +757,29 @@ suite('ProtocolServerHandler', () => {
 	test('client disconnect clears active client and fails owned tool calls after grace period', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
-			stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionActiveClientChanged,
-				session: sessionUri,
 				activeClient: {
 					clientId: 'client-tools',
-					tools: [{ name: 'runTask', description: 'Runs a task' }],
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
 				},
 			});
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionTurnStarted,
-				session: sessionUri,
 				turnId: 'turn-1',
 				userMessage: { text: 'run it' },
 			});
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallStart,
-				session: sessionUri,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
 				toolClientId: 'client-tools',
 			});
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallReady,
-				session: sessionUri,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				invocationMessage: 'Run Task',
@@ -825,24 +814,21 @@ suite('ProtocolServerHandler', () => {
 	test('client disconnect fails owned streaming tool calls after grace period', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
-			stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionActiveClientChanged,
-				session: sessionUri,
 				activeClient: {
 					clientId: 'client-tools',
-					tools: [{ name: 'runTask', description: 'Runs a task' }],
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
 				},
 			});
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionTurnStarted,
-				session: sessionUri,
 				turnId: 'turn-1',
 				userMessage: { text: 'run it' },
 			});
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallStart,
-				session: sessionUri,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
@@ -876,33 +862,29 @@ suite('ProtocolServerHandler', () => {
 	test('client reconnect without session subscription does not clear tool call disconnect timeout', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
-			stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionActiveClientChanged,
-				session: sessionUri,
 				activeClient: {
 					clientId: 'client-tools',
-					tools: [{ name: 'runTask', description: 'Runs a task' }],
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
 				},
 			});
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionTurnStarted,
-				session: sessionUri,
 				turnId: 'turn-1',
 				userMessage: { text: 'run it' },
 			});
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallStart,
-				session: sessionUri,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
 				toolClientId: 'client-tools',
 			});
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallReady,
-				session: sessionUri,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				invocationMessage: 'Run Task',
@@ -938,33 +920,29 @@ suite('ProtocolServerHandler', () => {
 	test('client reconnect with session subscription clears tool call disconnect timeout for that session', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
-			stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionActiveClientChanged,
-				session: sessionUri,
 				activeClient: {
 					clientId: 'client-tools',
-					tools: [{ name: 'runTask', description: 'Runs a task' }],
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
 				},
 			});
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionTurnStarted,
-				session: sessionUri,
 				turnId: 'turn-1',
 				userMessage: { text: 'run it' },
 			});
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallStart,
-				session: sessionUri,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
 				toolClientId: 'client-tools',
 			});
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallReady,
-				session: sessionUri,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				invocationMessage: 'Run Task',
@@ -994,33 +972,29 @@ suite('ProtocolServerHandler', () => {
 	test('client tool timeout tells model it may retry when replacement active client provides the tool', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
-			stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionActiveClientChanged,
-				session: sessionUri,
 				activeClient: {
 					clientId: 'client-tools',
-					tools: [{ name: 'runTask', description: 'Runs a task' }],
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
 				},
 			});
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionTurnStarted,
-				session: sessionUri,
 				turnId: 'turn-1',
 				userMessage: { text: 'run it' },
 			});
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallStart,
-				session: sessionUri,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
 				toolClientId: 'client-tools',
 			});
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallReady,
-				session: sessionUri,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				invocationMessage: 'Run Task',
@@ -1030,12 +1004,11 @@ suite('ProtocolServerHandler', () => {
 
 			const transport = connectClient('client-tools', [sessionUri]);
 			transport.simulateClose();
-			stateManager.dispatchServerAction({
+			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionActiveClientChanged,
-				session: sessionUri,
 				activeClient: {
 					clientId: 'client-replacement',
-					tools: [{ name: 'runTask', description: 'Runs a task' }],
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
 				},
 			});
 
