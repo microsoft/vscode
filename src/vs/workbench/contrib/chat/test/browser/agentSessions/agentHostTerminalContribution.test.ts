@@ -40,10 +40,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private readonly _onDidNotification = new Emitter<INotification>();
 	override readonly onDidNotification = this._onDidNotification.event;
 
-	public dispatchedActions: (SessionAction | TerminalAction | IRootConfigChangedAction)[] = [];
+	public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | IRootConfigChangedAction }[] = [];
 
-	override dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
-		this.dispatchedActions.push(action);
+	override dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+		this.dispatchedActions.push({ channel, action });
 	}
 
 	private _rootStateValue: RootState | undefined = undefined;
@@ -241,7 +241,7 @@ suite('AgentHostTerminalContribution', () => {
 		// The host-start fire from setRootState's onDidChange listener should
 		// have produced exactly one dispatch with the resolved path.
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-		const action = agentHostService.dispatchedActions[0];
+		const action = agentHostService.dispatchedActions[0].action;
 		assert.strictEqual(action.type, ActionType.RootConfigChanged);
 		assert.deepStrictEqual((action as IRootConfigChangedAction).config, {
 			[AgentHostConfigKey.DefaultShell]: '/usr/bin/bash',
@@ -285,7 +285,7 @@ suite('AgentHostTerminalContribution', () => {
 		await flush();
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, initialCount + 1);
-		const last = agentHostService.dispatchedActions[agentHostService.dispatchedActions.length - 1];
+		const last = agentHostService.dispatchedActions[agentHostService.dispatchedActions.length - 1].action;
 		assert.deepStrictEqual((last as IRootConfigChangedAction).config, {
 			[AgentHostConfigKey.DefaultShell]: '/usr/bin/pwsh',
 		});
@@ -341,7 +341,7 @@ suite('AgentHostTerminalContribution', () => {
 		await flush();
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-		assert.deepStrictEqual((agentHostService.dispatchedActions[0] as IRootConfigChangedAction).config, {
+		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
 			[AgentHostConfigKey.DisableCustomTerminalTool]: true,
 		});
 	});
@@ -353,7 +353,7 @@ suite('AgentHostTerminalContribution', () => {
 		await flush();
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-		assert.deepStrictEqual((agentHostService.dispatchedActions[0] as IRootConfigChangedAction).config, {
+		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
 			[AgentHostConfigKey.DisableCustomTerminalTool]: false,
 		});
 	});
@@ -364,7 +364,7 @@ suite('AgentHostTerminalContribution', () => {
 		rootState.config!.values[AgentHostConfigKey.DisableCustomTerminalTool] = false;
 		agentHostService.setRootState(rootState);
 		await flush();
-		assert.deepStrictEqual(agentHostService.dispatchedActions, []);
+		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
 
 		configurationService.setUserConfiguration(AgentHostCustomTerminalToolEnabledSettingId, false);
 		configurationService.onDidChangeConfigurationEmitter.fire({
@@ -375,8 +375,9 @@ suite('AgentHostTerminalContribution', () => {
 		});
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-		assert.deepStrictEqual((agentHostService.dispatchedActions[0] as IRootConfigChangedAction).config, {
+		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
 			[AgentHostConfigKey.DisableCustomTerminalTool]: true,
 		});
 	});
 });
+
