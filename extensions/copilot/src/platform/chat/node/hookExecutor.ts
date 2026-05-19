@@ -6,7 +6,7 @@
 import { spawn } from 'child_process';
 import { homedir } from 'os';
 import type { CancellationToken, ChatHookCommand, Uri } from 'vscode';
-import { basename, join } from '../../../util/vs/base/common/path';
+import { join, win32 } from '../../../util/vs/base/common/path';
 import { isWindows } from '../../../util/vs/base/common/platform';
 import { removeAnsiEscapeCodes } from '../../../util/vs/base/common/strings';
 import { ILogService } from '../../log/common/logService';
@@ -185,13 +185,13 @@ function uriToFsPath(uri: Uri): string {
  * On Windows when ComSpec is cmd.exe, uses PowerShell with -ExecutionPolicy Bypass.
  * Otherwise uses the platform default shell via `shell: true`.
  */
-function getShellCommand(hookCommand: string): { command: string; args: string[]; shell?: boolean; env?: Record<string, string> } {
-	if (!isWindows) {
+export function getShellCommand(hookCommand: string, windowsOS: boolean = isWindows): { command: string; args: string[]; shell?: boolean; env?: Record<string, string> } {
+	if (!windowsOS) {
 		return { command: hookCommand, args: [], shell: true };
 	}
 
 	const comSpec = process.env.ComSpec;
-	if (!comSpec || basename(comSpec).toLowerCase() !== 'cmd.exe') {
+	if (!comSpec || win32.basename(comSpec).toLowerCase() !== 'cmd.exe') {
 		return { command: hookCommand, args: [], shell: true };
 	}
 

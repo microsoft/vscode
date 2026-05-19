@@ -12,20 +12,13 @@ import { URI } from '../../../../util/vs/base/common/uri';
 import { TestLogService } from '../../../testing/common/testLogService';
 import { HookCommandResultKind } from '../../common/hookExecutor';
 import { IHooksOutputChannel } from '../../common/hooksOutputChannel';
-import { NodeHookExecutor } from '../../node/hookExecutor';
+import { getShellCommand, NodeHookExecutor } from '../../node/hookExecutor';
 
 let mockChild: MockChildProcess;
 
 vi.mock('child_process', () => ({
 	spawn: vi.fn(() => mockChild),
 }));
-
-vi.mock('../../../../util/vs/base/common/platform', async (importOriginal) => ({
-	...(await importOriginal()),
-	isWindows: false,
-}));
-
-import * as platform from '../../../../util/vs/base/common/platform';
 
 interface MockChildProcess extends EventEmitter {
 	stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
@@ -218,53 +211,38 @@ describe('NodeHookExecutor', () => {
 		}
 	});
 
-	describe('shell selection', () => {
+	describe('getShellCommand', () => {
 
-		test('uses shell: true on non-Windows', async () => {
-			vi.mocked(platform).isWindows = false;
-			const promise = executor.executeCommand(cmd('echo hello'), undefined, CancellationToken.None);
-			completeChild(child, { exitCode: 0 });
-			await promise;
-
-			expect(spawn).toHaveBeenCalledWith('echo hello', [], expect.objectContaining({ shell: true }));
+		test('uses shell: true on non-Windows', () => {
+			const result = getShellCommand('echo hello', false);
+			expect(result).toEqual({ command: 'echo hello', args: [], shell: true });
 		});
 
-		test('uses PowerShell with -ExecutionPolicy Bypass on Windows when ComSpec is cmd.exe', async () => {
-			vi.mocked(platform).isWindows = true;
+		test('uses PowerShell with -ExecutionPolicy Bypass on Windows when ComSpec is cmd.exe', () => {
 			const origComSpec = process.env.ComSpec;
 			const origSystemRoot = process.env.SystemRoot;
 			try {
 				process.env.ComSpec = 'C:\\Windows\\system32\\cmd.exe';
 				process.env.SystemRoot = 'C:\\Windows';
 
-				const promise = executor.executeCommand(cmd('echo hello'), undefined, CancellationToken.None);
-				completeChild(child, { exitCode: 0 });
-				await promise;
-
-				expect(spawn).toHaveBeenCalledWith(
-					expect.stringContaining('powershell.exe'),
-					expect.arrayContaining(['-ExecutionPolicy', 'Bypass', '-NoProfile', '-NoLogo', '-Command', 'echo hello']),
-					expect.objectContaining({
-						env: expect.objectContaining({ POWERSHELL_UPDATECHECK: 'Off' }),
-					}),
-				);
+				const result = getShellCommand('echo hello', true);
+				expect(result.command).toContain('powershell.exe');
+				expect(result.args).toEqual(['-ExecutionPolicy', 'Bypass', '-NoProfile', '-NoLogo', '-Command', 'echo hello']);
+				expect(result.env).toEqual({ POWERSHELL_UPDATECHECK: 'Off' });
+				expect(result.shell).toBeUndefined();
 			} finally {
 				process.env.ComSpec = origComSpec;
 				process.env.SystemRoot = origSystemRoot;
 			}
 		});
 
-		test('uses shell: true on Windows when ComSpec is not cmd.exe', async () => {
-			vi.mocked(platform).isWindows = true;
+		test('uses shell: true on Windows when ComSpec is not cmd.exe', () => {
 			const origComSpec = process.env.ComSpec;
 			try {
 				process.env.ComSpec = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
 
-				const promise = executor.executeCommand(cmd('echo hello'), undefined, CancellationToken.None);
-				completeChild(child, { exitCode: 0 });
-				await promise;
-
-				expect(spawn).toHaveBeenCalledWith('echo hello', [], expect.objectContaining({ shell: true }));
+				const result = getShellCommand('echo hello', true);
+				expect(result).toEqual({ command: 'echo hello', args: [], shell: true });
 			} finally {
 				process.env.ComSpec = origComSpec;
 			}
