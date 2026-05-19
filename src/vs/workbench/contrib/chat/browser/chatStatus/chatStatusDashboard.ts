@@ -268,7 +268,6 @@ export class ChatStatusDashboard extends DomWidget {
 
 		// Collapsible contributed sections (e.g. AI usage metrics)
 		for (const section of this.chatStatusDashboardSectionService.getSections()) {
-			this.element.appendChild($('hr'));
 			this.element.appendChild(this.renderCollapsibleSection(section));
 		}
 
@@ -676,7 +675,10 @@ export class ChatStatusDashboard extends DomWidget {
 		summary.setAttribute('type', 'button');
 		container.appendChild(summary);
 		summary.setAttribute('aria-expanded', String(open));
-		summary.textContent = section.title;
+
+		summary.appendChild($('span.collapsible-section-title', undefined, section.title));
+		const chevron = summary.appendChild($('span.collapsible-chevron'));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(open ? Codicon.chevronDown : Codicon.chevronRight));
 
 		// Animated wrapper: uses grid-template-rows 0fr -> 1fr to animate height auto.
 		const bodyWrapper = container.appendChild($('div.collapsible-section-body-wrapper'));
@@ -687,6 +689,8 @@ export class ChatStatusDashboard extends DomWidget {
 			open = !open;
 			container.classList.toggle('open', open);
 			summary.setAttribute('aria-expanded', String(open));
+			chevron.className = 'collapsible-chevron';
+			chevron.classList.add(...ThemeIcon.asClassNameArray(open ? Codicon.chevronDown : Codicon.chevronRight));
 		}));
 
 		return container;

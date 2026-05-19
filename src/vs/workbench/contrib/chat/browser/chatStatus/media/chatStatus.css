@@ -529,12 +529,17 @@
 
 .chat-status-bar-entry-tooltip .collapsible-section .collapsible-section-summary {
 	all: unset;
-	display: block;
+	display: flex;
+	align-items: center;
+	gap: 6px;
 	width: 100%;
 	cursor: pointer;
-	font-weight: 600;
-	font-size: 11px;
-	padding: 4px 0;
+	font-weight: 400;
+	font-size: 13px;
+	font-family: inherit;
+	padding: 6px 0;
+	border-top: 1px solid var(--vscode-editorWidget-border);
+	margin-top: 14px;
 	color: var(--vscode-foreground);
 }
 
