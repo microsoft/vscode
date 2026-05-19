@@ -39,10 +39,6 @@ export class ViewZoneBackgrounds extends ViewPart {
 		this.domNode.setAttribute('aria-hidden', 'true');
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
-
 	// --- begin event handlers
 
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
@@ -80,7 +76,7 @@ export class ViewZoneBackgrounds extends ViewPart {
 	// --- end event handlers
 
 	public prepareRender(ctx: RenderingContext): void {
-		// nothing
+		// Nothing to read
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
