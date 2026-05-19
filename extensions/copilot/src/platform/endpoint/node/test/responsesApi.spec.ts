@@ -12,7 +12,7 @@ import { ChatLocation } from '../../../chat/common/commonTypes';
 import { ILogService } from '../../../log/common/logService';
 import { isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
-import { ChatCompletion, openAIContextManagementCompactionType, OpenAIContextManagementResponse, FilterReason, FinishedCompletionReason } from '../../../networking/common/openai';
+import { ChatCompletion, FilterReason, FinishedCompletionReason, openAIContextManagementCompactionTriggerType, openAIContextManagementCompactionType, OpenAIContextManagementResponse } from '../../../networking/common/openai';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { IChatWebSocketManager, NullChatWebSocketManager } from '../../../networking/node/chatWebSocketManager';
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
@@ -20,7 +20,7 @@ import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryS
 import { createFakeStreamResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
 import { CustomDataPartMimeTypes } from '../../common/endpointTypes';
-import { createResponsesRequestBody, getResponsesApiCompactionThresholdFromBody, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging } from '../responsesApi';
+import { createResponsesRequestBody, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging } from '../responsesApi';
 
 const testEndpoint: IChatEndpoint = {
 	urlOrRequestMetadata: 'https://example.test/chat',
@@ -32,6 +32,7 @@ const testEndpoint: IChatEndpoint = {
 	maxOutputTokens: 4096,
 	model: 'gpt-5-mini',
 	modelProvider: 'openai',
+	apiType: 'responses',
 	supportsToolCalls: true,
 	supportsVision: true,
 	supportsPrediction: true,
@@ -87,16 +88,24 @@ const createCompactionResponse = (id: string, encrypted_content: string): OpenAI
 	encrypted_content,
 });
 
-const createCompactionAssistantMessage = (compaction: OpenAIContextManagementResponse): Raw.ChatMessage => ({
-	role: Raw.ChatRole.Assistant,
-	content: [{
-		type: Raw.ChatCompletionContentPartKind.Opaque,
-		value: {
-			type: CustomDataPartMimeTypes.ContextManagement,
-			compaction,
-		}
-	}]
-});
+const createCompactionAssistantMessage = (compaction: OpenAIContextManagementResponse, text?: string): Raw.ChatMessage => {
+	const content: Raw.ChatCompletionContentPart[] = [
+		{
+			type: Raw.ChatCompletionContentPartKind.Opaque,
+			value: {
+				type: CustomDataPartMimeTypes.ContextManagement,
+				compaction,
+			}
+		},
+	];
+	if (text) {
+		content.push({ type: Raw.ChatCompletionContentPartKind.Text, text });
+	}
+	return {
+		role: Raw.ChatRole.Assistant,
+		content,
+	};
+};
 
 type ResponseFunctionCallInputItem = OpenAI.Responses.ResponseInputItem & {
 	type: 'function_call';
@@ -140,6 +149,25 @@ describe('responseApiInputToRawMessagesForLogging', () => {
 			{ type: Raw.ChatCompletionContentPartKind.Text, text: 'You are a helpful assistant' }
 		]);
 		expect(result[1].role).toBe(Raw.ChatRole.User);
+	});
+
+	it('ignores compaction trigger input items', () => {
+		const body: OpenAI.Responses.ResponseCreateParams = {
+			model: 'gpt-5-mini',
+			input: [
+				{ role: 'user', content: [{ type: 'input_text', text: 'before trigger' }] },
+				{ type: openAIContextManagementCompactionTriggerType } as unknown as OpenAI.Responses.ResponseInputItem,
+				{ role: 'user', content: [{ type: 'input_text', text: 'after trigger' }] },
+			]
+		};
+
+		const result = responseApiInputToRawMessagesForLogging(body);
+
+		expect(result).toHaveLength(2);
+		expect(result.map(message => message.content[0])).toEqual([
+			{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before trigger' },
+			{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after trigger' },
+		]);
 	});
 
 	it('converts user message with input_text content', () => {
@@ -356,15 +384,6 @@ describe('responseApiInputToRawMessagesForLogging', () => {
 });
 
 describe('createResponsesRequestBody', () => {
-	it('extracts compaction threshold from request body context management', () => {
-		expect(getResponsesApiCompactionThresholdFromBody({
-			context_management: [{
-				type: openAIContextManagementCompactionType,
-				compact_threshold: 1234,
-			}]
-		})).toBe(1234);
-	});
-
 	it('still slices websocket requests by stateful marker index when compaction is disabled', () => {
 		const services = createPlatformServices();
 		const wsManager = new NullChatWebSocketManager();
@@ -390,44 +409,6 @@ describe('createResponsesRequestBody', () => {
 		expect(webSocketBody.previous_response_id).toBe('resp-prev');
 		expect(webSocketBody.input).toHaveLength(1);
 		expect(webSocketBody.input?.[0]).toMatchObject({
-			role: 'user',
-			content: [{ type: 'input_text', text: 'after marker' }],
-		});
-
-		accessor.dispose();
-		services.dispose();
-	});
-
-	it('includes the newest compaction item in websocket requests when it predates the stateful marker', () => {
-		const services = createPlatformServices();
-		const wsManager = new NullChatWebSocketManager();
-		wsManager.getStatefulMarker = () => 'resp-prev';
-		services.set(IChatWebSocketManager, wsManager);
-		const accessor = services.createTestingAccessor();
-		const instantiationService = accessor.get(IInstantiationService);
-		const latestCompaction = createCompactionResponse('cmp_ws', 'enc_ws');
-		const messages: Raw.ChatMessage[] = [
-			{
-				role: Raw.ChatRole.User,
-				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before compaction' }],
-			},
-			createCompactionAssistantMessage(latestCompaction),
-			createStatefulMarkerMessage(testEndpoint.model, 'resp-prev'),
-			{
-				role: Raw.ChatRole.User,
-				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }],
-			},
-		];
-
-		const webSocketBody = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, { ...createRequestOptions(messages, true), conversationId: 'conv-1' }, testEndpoint.model, testEndpoint));
-
-		expect(webSocketBody.previous_response_id).toBe('resp-prev');
-		expect(webSocketBody.input).toContainEqual({
-			type: openAIContextManagementCompactionType,
-			id: 'cmp_ws',
-			encrypted_content: 'enc_ws',
-		});
-		expect(webSocketBody.input).toContainEqual({
 			role: 'user',
 			content: [{ type: 'input_text', text: 'after marker' }],
 		});
@@ -625,41 +606,6 @@ describe('createResponsesRequestBody', () => {
 		services.dispose();
 	});
 
-	it('includes the newest compaction item in non-websocket requests when it predates the stateful marker', () => {
-		const services = createPlatformServices();
-		const accessor = services.createTestingAccessor();
-		const instantiationService = accessor.get(IInstantiationService);
-		const latestCompaction = createCompactionResponse('cmp_http', 'enc_http');
-		const messages: Raw.ChatMessage[] = [
-			{
-				role: Raw.ChatRole.User,
-				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before compaction' }],
-			},
-			createCompactionAssistantMessage(latestCompaction),
-			createStatefulMarkerMessage(testEndpoint.model, 'resp-prev'),
-			{
-				role: Raw.ChatRole.User,
-				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }],
-			},
-		];
-
-		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
-
-		expect(body.previous_response_id).toBe('resp-prev');
-		expect(body.input).toContainEqual({
-			type: openAIContextManagementCompactionType,
-			id: 'cmp_http',
-			encrypted_content: 'enc_http',
-		});
-		expect(body.input).toContainEqual({
-			role: 'user',
-			content: [{ type: 'input_text', text: 'after marker' }],
-		});
-
-		accessor.dispose();
-		services.dispose();
-	});
-
 	it('does not reuse an HTTP stateful marker when modeChanged is true', () => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
@@ -717,6 +663,107 @@ describe('createResponsesRequestBody', () => {
 			id: 'cmp_new',
 			encrypted_content: 'enc_new',
 		});
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('appends a compaction trigger input item as the final item when requested', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = { ...testEndpoint, family: 'gpt-5.4', model: 'gpt-5.4' };
+		const latestCompaction = createCompactionResponse('cmp_existing', 'enc_existing');
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'earlier turn' }],
+			},
+			createCompactionAssistantMessage(latestCompaction),
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'compact soon' }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, {
+			...createRequestOptions(messages, false),
+			postOptions: { max_tokens: 4096, logprobs: true },
+			triggerResponsesApiCompaction: true,
+		}, endpoint.model, endpoint));
+
+		expect(body.input?.at(-1)).toEqual({ type: openAIContextManagementCompactionTriggerType });
+		expect(body).not.toHaveProperty('max_output_tokens');
+		expect(body).not.toHaveProperty('top_logprobs');
+		expect(body).not.toHaveProperty('truncation');
+		expect(body).not.toHaveProperty('previous_response_id');
+		expect(body.input?.at(-2)).toMatchObject({
+			role: 'user',
+			content: [{ type: 'input_text', text: 'compact soon' }],
+		});
+		const compactionIndex = body.input?.findIndex(item => (item as { type?: string }).type === openAIContextManagementCompactionType) ?? -1;
+		const triggerIndex = body.input?.findIndex(item => (item as { type?: string }).type === openAIContextManagementCompactionTriggerType) ?? -1;
+		expect(compactionIndex).toBeGreaterThanOrEqual(0);
+		expect(compactionIndex).toBeLessThan(triggerIndex);
+		expect(triggerIndex).toBe((body.input?.length ?? 0) - 1);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('sends explicit history instead of previous_response_id for compaction trigger requests', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = { ...testEndpoint, family: 'gpt-5.4', model: 'gpt-5.4' };
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before marker' }],
+			},
+			createStatefulMarkerMessage(endpoint.model, 'resp-prev'),
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, {
+			...createRequestOptions(messages, false),
+			triggerResponsesApiCompaction: true,
+		}, endpoint.model, endpoint));
+
+		expect(body.previous_response_id).toBeUndefined();
+		expect(body.input).toHaveLength(3);
+		expect(body.input?.[0]).toMatchObject({
+			role: 'user',
+			content: [{ type: 'input_text', text: 'before marker' }],
+		});
+		expect(body.input?.[1]).toMatchObject({
+			role: 'user',
+			content: [{ type: 'input_text', text: 'after marker' }],
+		});
+		expect(body.input?.[2]).toEqual({ type: openAIContextManagementCompactionTriggerType });
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('does not append a compaction trigger input item for other Responses API models', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'compact soon' }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, { ...createRequestOptions(messages, false), triggerResponsesApiCompaction: true }, testEndpoint.model, testEndpoint));
+
+		expect(body.input?.at(-1)).not.toEqual({ type: openAIContextManagementCompactionTriggerType });
+		expect(body.input).toHaveLength(1);
 
 		accessor.dispose();
 		services.dispose();
@@ -943,8 +990,7 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 				}
 				return undefined;
 			},
-			telemetryData,
-			1000
+			telemetryData
 		);
 
 		for await (const _ of stream) {
@@ -971,64 +1017,6 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 			id: 'cmp_old',
 			encrypted_content: 'enc_old',
 		});
-
-		accessor.dispose();
-		services.dispose();
-	});
-
-	it('does not emit compaction telemetry when compaction is disabled', async () => {
-		const services = createPlatformServices();
-		const accessor = services.createTestingAccessor();
-		const instantiationService = accessor.get(IInstantiationService);
-		const logService = accessor.get(ILogService);
-		const telemetryService = new SpyingTelemetryService();
-
-		const compactionEvent = {
-			type: 'response.output_item.done',
-			output_index: 0,
-			item: {
-				type: openAIContextManagementCompactionType,
-				id: 'cmp_disabled',
-				encrypted_content: 'enc',
-			}
-		};
-		const completedEvent = {
-			type: 'response.completed',
-			response: {
-				id: 'resp_disabled',
-				model: 'gpt-5-mini',
-				created_at: 123,
-				usage: {
-					input_tokens: 1500,
-					output_tokens: 9,
-					total_tokens: 1509,
-					input_tokens_details: { cached_tokens: 0 },
-					output_tokens_details: { reasoning_tokens: 0 },
-				},
-				output: []
-			}
-		};
-
-		const response = createFakeStreamResponse(`data: ${JSON.stringify(compactionEvent)}\n\ndata: ${JSON.stringify(completedEvent)}\n\n`);
-		const telemetryData = TelemetryData.createAndMarkAsIssued({ modelCallId: 'model-call-4' }, {});
-
-		const stream = await processResponseFromChatEndpoint(
-			instantiationService,
-			telemetryService,
-			logService,
-			response,
-			1,
-			async () => undefined,
-			telemetryData,
-			undefined
-		);
-
-		for await (const _ of stream) {
-			// consume stream
-		}
-
-		const event = telemetryService.getEvents().telemetryServiceEvents.find(e => e.eventName === 'responsesApi.compactionOutcome');
-		expect(event).toBeUndefined();
 
 		accessor.dispose();
 		services.dispose();
@@ -1085,8 +1073,7 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 				}
 				return undefined;
 			},
-			telemetryData,
-			1000
+			telemetryData
 		);
 
 		for await (const _ of stream) {
@@ -1113,135 +1100,6 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 		services.dispose();
 	});
 
-	it('emits telemetry when the server returns a compaction item', async () => {
-		const services = createPlatformServices();
-		const accessor = services.createTestingAccessor();
-		const instantiationService = accessor.get(IInstantiationService);
-		const logService = accessor.get(ILogService);
-		const telemetryService = new SpyingTelemetryService();
-
-		const compactionEvent = {
-			type: 'response.output_item.done',
-			output_index: 0,
-			item: {
-				type: openAIContextManagementCompactionType,
-				id: 'cmp_123',
-				encrypted_content: 'enc',
-			}
-		};
-		const completedEvent = {
-			type: 'response.completed',
-			response: {
-				id: 'resp_456',
-				model: 'gpt-5-mini',
-				created_at: 123,
-				usage: {
-					input_tokens: 1200,
-					output_tokens: 7,
-					total_tokens: 1207,
-					input_tokens_details: { cached_tokens: 0 },
-					output_tokens_details: { reasoning_tokens: 0 },
-				},
-				output: []
-			}
-		};
-
-		const response = createFakeStreamResponse(`data: ${JSON.stringify(compactionEvent)}\n\ndata: ${JSON.stringify(completedEvent)}\n\n`);
-		const telemetryData = TelemetryData.createAndMarkAsIssued({ modelCallId: 'model-call-2' }, {});
-
-		const stream = await processResponseFromChatEndpoint(
-			instantiationService,
-			telemetryService,
-			logService,
-			response,
-			1,
-			async () => undefined,
-			telemetryData,
-			1000
-		);
-
-		for await (const _ of stream) {
-			// consume stream
-		}
-
-		const event = telemetryService.getEvents().telemetryServiceEvents.find(e => e.eventName === 'responsesApi.compactionOutcome');
-		expect(event).toBeDefined();
-		expect(event?.properties).toMatchObject({
-			outcome: 'compaction_returned',
-			model: 'gpt-5-mini',
-		});
-		expect(event?.measurements).toMatchObject({
-			compactThreshold: 1000,
-			promptTokens: 1200,
-			totalTokens: 1207,
-		});
-
-		accessor.dispose();
-		services.dispose();
-	});
-
-	it('emits telemetry when the server exceeds threshold without returning a compaction item', async () => {
-		const services = createPlatformServices();
-		const accessor = services.createTestingAccessor();
-		const instantiationService = accessor.get(IInstantiationService);
-		const logService = accessor.get(ILogService);
-		const telemetryService = new SpyingTelemetryService();
-
-		const completedEvent = {
-			type: 'response.completed',
-			response: {
-				id: 'resp_789',
-				model: 'gpt-5-mini',
-				created_at: 123,
-				usage: {
-					input_tokens: 1500,
-					output_tokens: 9,
-					total_tokens: 1509,
-					input_tokens_details: { cached_tokens: 0 },
-					output_tokens_details: { reasoning_tokens: 0 },
-				},
-				output: [
-					{
-						type: 'message',
-						content: [{ type: 'output_text', text: 'reply' }],
-					}
-				]
-			}
-		};
-
-		const response = createFakeStreamResponse(`data: ${JSON.stringify(completedEvent)}\n\n`);
-		const telemetryData = TelemetryData.createAndMarkAsIssued({ modelCallId: 'model-call-3' }, {});
-
-		const stream = await processResponseFromChatEndpoint(
-			instantiationService,
-			telemetryService,
-			logService,
-			response,
-			1,
-			async () => undefined,
-			telemetryData,
-			1000
-		);
-
-		for await (const _ of stream) {
-			// consume stream
-		}
-
-		const event = telemetryService.getEvents().telemetryServiceEvents.find(e => e.eventName === 'responsesApi.compactionOutcome');
-		expect(event).toBeDefined();
-		expect(event?.properties).toMatchObject({
-			outcome: 'threshold_met_no_compaction',
-			model: 'gpt-5-mini',
-		});
-		expect(event?.measurements).toMatchObject({
-			compactThreshold: 1000,
-			promptTokens: 1500,
-			totalTokens: 1509,
-		});
-
-		accessor.dispose();
-		services.dispose();
-	});
 });
 
 describe('summarizedAtRoundId and stateful marker interaction', () => {

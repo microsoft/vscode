@@ -32,9 +32,9 @@ import { ICAPIClientService } from '../common/capiClient';
 import { isAnthropicFamily, isGeminiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
 import { CustomModel, IChatModelInformation, IModelTokenPrices, ModelSupportedEndpoint } from '../common/endpointProvider';
-import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from './messagesApi';
-import { createResponsesRequestBody, getResponsesApiCompactionThreshold, processResponseFromChatEndpoint } from './responsesApi';
 import { filterHistoryImages } from './imageLimits';
+import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from './messagesApi';
+import { createResponsesRequestBody, processResponseFromChatEndpoint } from './responsesApi';
 
 /**
  * The default processor for the stream format from CAPI
@@ -404,8 +404,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		cancellationToken?: CancellationToken | undefined
 	): Promise<AsyncIterableObject<ChatCompletion>> {
 		if (this.useResponsesApi) {
-			const compactionThreshold = getResponsesApiCompactionThreshold(this._configurationService, this._expService, this);
-			return processResponseFromChatEndpoint(this._instantiationService, telemetryService, logService, response, expectedNumChoices, finishCallback, telemetryData, compactionThreshold);
+			return processResponseFromChatEndpoint(this._instantiationService, telemetryService, logService, response, expectedNumChoices, finishCallback, telemetryData);
 		} else if (this.useMessagesApi) {
 			return processResponseFromMessagesEndpoint(this._instantiationService, telemetryService, logService, response, finishCallback, telemetryData);
 		} else if (!this._supportsStreaming) {

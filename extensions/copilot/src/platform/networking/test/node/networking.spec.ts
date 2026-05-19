@@ -11,11 +11,13 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { createFakeResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
 import { FetchOptions, IAbortController, IFetcherService, PaginationOptions, Response, WebSocketConnection } from '../../common/fetcherService';
-import { postRequest } from '../../common/networking';
+import { IEndpointBody, postRequest } from '../../common/networking';
+import { openAIContextManagementCompactionTriggerType } from '../../common/openai';
 
 suite('Networking test Suite', function () {
 
 	let headerBuffer: { [name: string]: string } | undefined;
+	let bodyBuffer: IEndpointBody | undefined;
 
 	class StaticFetcherService implements IFetcherService {
 		declare readonly _serviceBrand: undefined;
@@ -27,6 +29,7 @@ suite('Networking test Suite', function () {
 		}
 		fetch(url: string, options: FetchOptions): Promise<Response> {
 			headerBuffer = options.headers;
+			bodyBuffer = options.json as IEndpointBody | undefined;
 			return Promise.resolve(createFakeResponse(200));
 		}
 		createWebSocket(_url: string): WebSocketConnection {
@@ -72,5 +75,28 @@ suite('Networking test Suite', function () {
 		assert.strictEqual(headerBuffer!['VScode-SessionId'], 'test-session');
 		assert.strictEqual(headerBuffer!['VScode-MachineId'], 'test-machine');
 		assert.strictEqual(headerBuffer!['Editor-Version'], `vscode/test-version`);
+	});
+
+	test('strips max_output_tokens from compaction trigger requests before sending', async function () {
+		const testingServiceCollection = createPlatformServices();
+		testingServiceCollection.define(IFetcherService, new StaticFetcherService());
+		const accessor = testingServiceCollection.createTestingAccessor();
+		await accessor.get(IInstantiationService).invokeFunction(postRequest, {
+			endpointOrUrl: 'https://example.test/responses',
+			secretKey: '',
+			intent: 'test',
+			requestId: 'id',
+			body: {
+				model: 'gpt-5.4',
+				input: [{ type: openAIContextManagementCompactionTriggerType }],
+				max_output_tokens: 4096,
+				previous_response_id: 'resp-prev',
+				truncation: 'auto',
+			},
+		});
+
+		assert.strictEqual(bodyBuffer?.max_output_tokens, undefined);
+		assert.strictEqual(bodyBuffer?.previous_response_id, undefined);
+		assert.strictEqual(bodyBuffer?.truncation, undefined);
 	});
 });

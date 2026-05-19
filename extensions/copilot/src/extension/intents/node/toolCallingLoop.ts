@@ -14,6 +14,7 @@ import { CanceledResult, ChatFetchResponseType, ChatResponse } from '../../../pl
 import { IHistoricalTurn, ISessionTranscriptService, ToolRequest } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { isAnthropicFamily, isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { rawPartAsCompactionData } from '../../../platform/endpoint/common/compactionDataContainer';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { rawPartAsThinkingData } from '../../../platform/endpoint/common/thinkingDataContainer';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
@@ -49,7 +50,7 @@ import { ThinkingDataItem, ToolCallRound } from '../../prompt/common/toolCallRou
 import { IBuildPromptResult, IResponseProcessor } from '../../prompt/node/intents';
 import { PseudoStopStartResponseProcessor } from '../../prompt/node/pseudoStartStopConversationCallback';
 import { ResponseProcessorContext } from '../../prompt/node/responseProcessorContext';
-import { SummarizedConversationHistoryMetadata } from '../../prompts/node/agent/summarizedConversationHistory';
+import { ResponsesApiCompactionTriggerMetadata, SummarizedConversationHistoryMetadata } from '../../prompts/node/agent/summarizedConversationHistory';
 import { ToolFailureEncountered, ToolResultMetadata } from '../../prompts/node/panel/toolCalling';
 import { ToolName } from '../../tools/common/toolNames';
 import { IToolsService, ToolCallCancelledError } from '../../tools/common/toolsService';
@@ -104,7 +105,7 @@ export interface IToolCallingBuiltPromptEvent {
 	tools: LanguageModelToolInformation[];
 }
 
-export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId' | 'topLevelTurnId'> & { iterationNumber: number };
+export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId' | 'topLevelTurnId' | 'triggerResponsesApiCompaction'> & { iterationNumber: number };
 
 interface StartHookResult {
 	/**
@@ -1255,6 +1256,9 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		if (conversationSummary) {
 			this.turn.setMetadata(conversationSummary);
 		}
+		const responsesApiCompactionTriggerMetadata = effectiveBuildPromptResult.metadata.get(ResponsesApiCompactionTriggerMetadata);
+		const responsesApiCompactionTrigger = !!responsesApiCompactionTriggerMetadata;
+		const hasResponsesApiCompactionData = ToolCallingLoop.hasResponsesApiCompactionData(effectiveBuildPromptResult.messages);
 
 		// Find the latest summarized round.
 		let summarizedAtRoundId: string | undefined;
@@ -1279,6 +1283,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		}
 
 		const endpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
+		const isResponsesApiEndpoint = endpoint.apiType === 'responses';
 		const tokenizer = endpoint.acquireTokenizer();
 		const promptTokenLength = await tokenizer.countMessagesTokens(effectiveBuildPromptResult.messages);
 		const toolTokenCount = availableTools.length > 0 ? await tokenizer.countToolTokens(availableTools) : 0;
@@ -1357,12 +1362,24 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		const enableThinking = !shouldDisableThinking;
 		let phase: string | undefined;
 		let compaction: OpenAIContextManagementResponse | undefined;
+		this._sendResponsesApiCompactionRequestTelemetry({
+			model: endpoint.model,
+			triggerRequested: isResponsesApiEndpoint && responsesApiCompactionTrigger,
+			compactionDataReplayed: isResponsesApiEndpoint && hasResponsesApiCompactionData,
+			contextLengthBefore: responsesApiCompactionTriggerMetadata?.contextLengthBefore,
+			contextRatio: responsesApiCompactionTriggerMetadata?.contextRatio,
+			tokenBudget: responsesApiCompactionTriggerMetadata?.tokenBudget,
+			promptTokenLength,
+			toolTokenCount,
+			iterationNumber,
+		});
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.WillFetch);
 		const fetchResult = await this.fetch({
 			messages: this.applyMessagePostProcessing(effectiveBuildPromptResult.messages, { stripOrphanedToolCalls: isGeminiFamily(endpoint) }),
 			turnId: this.options.request.id,
 			topLevelTurnId: this.options.request.parentRequestId ?? this.turn.id,
 			summarizedAtRoundId,
+			triggerResponsesApiCompaction: responsesApiCompactionTrigger,
 			finishedCb: async (text, index, delta) => {
 				fetchStreamSource?.update(text, delta);
 				if (delta.copilotToolCalls) {
@@ -1452,6 +1469,16 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 
 		const toolInputRetry = isToolInputFailure ? (this.toolCallRounds.at(-1)?.toolInputRetry || 0) + 1 : 0;
 		if (fetchResult.type === ChatFetchResponseType.Success) {
+			this._sendResponsesApiCompactionResponseTelemetry({
+				model: endpoint.model,
+				triggerRequested: isResponsesApiEndpoint && responsesApiCompactionTrigger,
+				compactionReturned: isResponsesApiEndpoint && !!compaction,
+				promptTokens: fetchResult.usage?.prompt_tokens,
+				completionTokens: fetchResult.usage?.completion_tokens,
+				totalTokens: fetchResult.usage?.total_tokens,
+				iterationNumber,
+			});
+
 			if (fetchResult.usage) {
 				this.turn.setMetadata(new TurnTokenUsageMetadata(
 					fetchResult.usage.prompt_tokens,
@@ -1501,6 +1528,100 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			availableTools,
 			round: new ToolCallRound('', toolCalls, toolInputRetry),
 		};
+	}
+
+	private _sendResponsesApiCompactionRequestTelemetry(options: {
+		readonly model: string;
+		readonly triggerRequested: boolean;
+		readonly compactionDataReplayed: boolean;
+		readonly contextLengthBefore: number | undefined;
+		readonly contextRatio: number | undefined;
+		readonly tokenBudget: number | undefined;
+		readonly promptTokenLength: number;
+		readonly toolTokenCount: number;
+		readonly iterationNumber: number;
+	}): void {
+		if (!options.triggerRequested && !options.compactionDataReplayed) {
+			return;
+		}
+
+		/* __GDPR__
+			"responsesApiCompactionRequest" : {
+				"owner": "dileepy",
+				"comment": "Tracks Responses API compaction-related request state when a compaction trigger is sent or previously returned compaction data is replayed.",
+				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
+				"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID for this model request." },
+				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID used." },
+				"triggerRequested": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether this request includes a Responses API compaction trigger input item." },
+				"compactionDataReplayed": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether this request replays a previously returned Responses API compaction item." },
+				"contextLengthBefore": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Context length observed when the compaction trigger decision was made, if this request includes a trigger." },
+				"contextRatio": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Context window usage ratio when the compaction trigger decision was made, if this request includes a trigger." },
+				"tokenBudget": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Token budget used for the compaction trigger decision, if this request includes a trigger." },
+				"promptTokenLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Locally counted prompt token length before sending the request." },
+				"toolTokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Locally counted tool token length for the request." },
+				"iterationNumber": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Tool-calling loop iteration number for this request." }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('responsesApiCompactionRequest', {
+			conversationId: this.options.conversation.sessionId,
+			chatRequestId: this.options.request.id,
+			model: options.model,
+		}, {
+			triggerRequested: options.triggerRequested ? 1 : 0,
+			compactionDataReplayed: options.compactionDataReplayed ? 1 : 0,
+			contextLengthBefore: options.contextLengthBefore,
+			contextRatio: options.contextRatio,
+			tokenBudget: options.tokenBudget,
+			promptTokenLength: options.promptTokenLength,
+			toolTokenCount: options.toolTokenCount,
+			iterationNumber: options.iterationNumber,
+		});
+	}
+
+	private _sendResponsesApiCompactionResponseTelemetry(options: {
+		readonly model: string;
+		readonly triggerRequested: boolean;
+		readonly compactionReturned: boolean;
+		readonly promptTokens: number | undefined;
+		readonly completionTokens: number | undefined;
+		readonly totalTokens: number | undefined;
+		readonly iterationNumber: number;
+	}): void {
+		if (!options.triggerRequested && !options.compactionReturned) {
+			return;
+		}
+
+		/* __GDPR__
+			"responsesApiCompactionResponse" : {
+				"owner": "dileepy",
+				"comment": "Tracks whether a Responses API request that asked for compaction, or any Responses API request, returned a compaction item for future replay.",
+				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
+				"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID for this model request." },
+				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID used." },
+				"triggerRequested": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether this request included a Responses API compaction trigger input item." },
+				"compactionReturned": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the response returned a compaction item that can be replayed on a later request." },
+				"promptTokens": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Prompt token count reported by the response." },
+				"completionTokens": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Completion token count reported by the response." },
+				"totalTokens": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total token count reported by the response." },
+				"iterationNumber": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Tool-calling loop iteration number for this request." }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('responsesApiCompactionResponse', {
+			conversationId: this.options.conversation.sessionId,
+			chatRequestId: this.options.request.id,
+			model: options.model,
+		}, {
+			triggerRequested: options.triggerRequested ? 1 : 0,
+			compactionReturned: options.compactionReturned ? 1 : 0,
+			promptTokens: options.promptTokens,
+			completionTokens: options.completionTokens,
+			totalTokens: options.totalTokens,
+			iterationNumber: options.iterationNumber,
+		});
+	}
+
+	private static hasResponsesApiCompactionData(messages: Raw.ChatMessage[]): boolean {
+		return messages.some(message => message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.Opaque && !!rawPartAsCompactionData(part)));
 	}
 
 	/**

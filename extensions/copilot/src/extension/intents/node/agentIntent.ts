@@ -9,10 +9,10 @@ import { BudgetExceededError } from '@vscode/prompt-tsx/dist/base/materialized';
 import type * as vscode from 'vscode';
 import { IChatSessionService } from '../../../platform/chat/common/chatSessionService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
-import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
+import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { isAnthropicFamily, isGptFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { isAnthropicFamily, isGpt54, isGpt55, isGptFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { IEnvService } from '../../../platform/env/common/envService';
@@ -20,7 +20,6 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
-import { modelsWithoutResponsesContextManagement } from '../../../platform/networking/common/openai';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
@@ -46,20 +45,20 @@ import { getRequestedToolCallIterationLimit, IContinueOnErrorConfirmation } from
 import { ChatTelemetryBuilder } from '../../prompt/node/chatParticipantTelemetry';
 import { IDefaultIntentRequestHandlerOptions } from '../../prompt/node/defaultIntentRequestHandler';
 import { IDocumentContext } from '../../prompt/node/documentContext';
-import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/node/intents';
+import { IBuildPromptResult, IIntent, IIntentInvocation, promptResultMetadata } from '../../prompt/node/intents';
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
 import { BackgroundSummarizationState, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
 import { BackgroundTodoDecision, BackgroundTodoProcessor } from '../../prompts/node/agent/backgroundTodoProcessor';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
-import { extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
+import { appendTranscriptHintToSummary, computeSummarizationRoundCounts, extractSummary, ResponsesApiCompactionTriggerMetadata, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../../prompts/node/agent/summarizedConversationHistory';
 import { PromptRenderer, renderPromptElement } from '../../prompts/node/base/promptRenderer';
 import { ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperService';
 import { EditCodePrompt2 } from '../../prompts/node/panel/editCodePrompt2';
 import { NotebookInlinePrompt } from '../../prompts/node/panel/notebookInlinePrompt';
 import { ToolResultMetadata } from '../../prompts/node/panel/toolCalling';
 import { IEditToolLearningService } from '../../tools/common/editToolLearningService';
-import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { ContributedToolName, ToolName } from '../../tools/common/toolNames';
+import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { IToolsService } from '../../tools/common/toolsService';
 import { applyPatch5Description } from '../../tools/node/applyPatchTool';
 import { multiReplaceStringPrimaryDescription } from '../../tools/node/multiReplaceStringTool';
@@ -69,10 +68,8 @@ import { addCacheBreakpoints } from './cacheBreakpoints';
 import { EditCodeIntent, EditCodeIntentInvocation, EditCodeIntentInvocationOptions, mergeMetadata, toNewChatReferences } from './editCodeIntent';
 import { ToolCallingLoop } from './toolCallingLoop';
 
-function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, configurationService: IConfigurationService, experimentationService: IExperimentationService): boolean {
-	return endpoint.apiType === 'responses'
-		&& configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, experimentationService)
-		&& !modelsWithoutResponsesContextManagement.has(endpoint.family);
+function isResponsesApiCompactionTriggerModel(endpoint: IChatEndpoint): boolean {
+	return endpoint.apiType === 'responses' && (isGpt54(endpoint) || isGpt55(endpoint));
 }
 
 /**
@@ -339,10 +336,6 @@ export class AgentIntent extends EditCodeIntent {
 		}
 
 		const endpoint = await this.endpointProvider.getChatEndpoint(request);
-		if (isResponsesCompactionContextManagementEnabled(endpoint, this.configurationService, this.expService)) {
-			stream.markdown(l10n.t('Compaction is already managed by context management for this session.'));
-			return {};
-		}
 
 		const availableTools = await this.instantiationService.invokeFunction(getAgentTools, request, endpoint);
 		const promptContext: IBuildPromptContext = {
@@ -452,7 +445,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 	private _lastModelCapabilities: { enableThinking: boolean; reasoningEffort: string | undefined; enableToolSearch: boolean; enableContextEditing: boolean } | undefined;
 
 	/**
-	 * RNG used to jitter the background-summarization trigger threshold around 0.80.
+	 * RNG used to jitter the background-summarization trigger threshold.
 	 * Tests may overwrite this directly (e.g. `(invocation as any)._thresholdRng = () => 0.5`).
 	 */
 	private _thresholdRng: () => number = Math.random;
@@ -524,8 +517,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			effectiveMaxTokens
 		);
 		const useTruncation = this.endpoint.apiType === 'responses' && this.configurationService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation);
-		const responsesCompactionContextManagementEnabled = isResponsesCompactionContextManagementEnabled(this.endpoint, this.configurationService, this.expService);
-		const summarizationEnabled = this.configurationService.getConfig(ConfigKey.SummarizeAgentConversationHistory) && this.prompt === AgentPrompt && !responsesCompactionContextManagementEnabled;
+		const summarizationTriggerEnabled = this.configurationService.getConfig(ConfigKey.SummarizeAgentConversationHistory) && this.prompt === AgentPrompt;
+		const responsesApiCompactionTriggerEnabled = summarizationTriggerEnabled && isResponsesApiCompactionTriggerModel(this.endpoint);
+		const summarizationEnabled = summarizationTriggerEnabled && !responsesApiCompactionTriggerEnabled;
 
 		// When tools are present, apply a 10% safety margin on the message portion
 		// to account for tokenizer discrepancies between our tool-token counter and
@@ -534,10 +528,11 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// BudgetExceededError from prompt-tsx. When there are no tools the endpoint's
 		// own modelMaxPromptTokens is used unchanged.
 		const messageBudget = Math.max(1, Math.floor((baseBudget - toolTokens) * 0.9));
-		const safeBudget = useTruncation ? Number.MAX_SAFE_INTEGER : messageBudget;
-		const endpoint = toolTokens > 0 ? this.endpoint.cloneWithTokenOverride(safeBudget) : this.endpoint;
+		const useUnlimitedRenderBudget = useTruncation || responsesApiCompactionTriggerEnabled;
+		const safeBudget = useUnlimitedRenderBudget ? Number.MAX_SAFE_INTEGER : messageBudget;
+		const endpoint = (toolTokens > 0 || useUnlimitedRenderBudget) ? this.endpoint.cloneWithTokenOverride(safeBudget) : this.endpoint;
 
-		this.logService.debug(`[Agent] rendering with budget=${safeBudget} (baseBudget: ${baseBudget}, toolTokens: ${toolTokens}, totalTools: ${tools?.length ?? 0}, toolSearchEnabled: ${toolSearchEnabled}), summarizationEnabled=${summarizationEnabled}`);
+		this.logService.debug(`[Agent] rendering with budget=${safeBudget} (baseBudget: ${baseBudget}, toolTokens: ${toolTokens}, totalTools: ${tools?.length ?? 0}, toolSearchEnabled: ${toolSearchEnabled}), summarizationEnabled=${summarizationEnabled}, responsesApiCompactionTriggerEnabled=${responsesApiCompactionTriggerEnabled}`);
 		let result: RenderPromptResult;
 		// For the Anthropic Messages API, cache_control placement is owned
 		// entirely by messagesApi.ts. Suppress prompt-tsx breakpoints to avoid
@@ -579,9 +574,12 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// would be 0 and offer no protection across user-turn boundaries.
 		const lastTurnPromptTokens = findLast(promptContext.conversation?.turns ?? [], turn => !!turn.getMetadata(TurnTokenUsageMetadata))
 			?.getMetadata(TurnTokenUsageMetadata)?.promptTokens;
-		const contextRatio = backgroundSummarizer && baseBudget > 0
+		const contextRatio = (summarizationEnabled || responsesApiCompactionTriggerEnabled) && baseBudget > 0
 			? Math.max(this._lastRenderTokenCount + toolTokens, lastTurnPromptTokens ?? 0) / baseBudget
 			: 0;
+		let triggerResponsesApiCompaction = false;
+		let responsesApiCompactionContextLengthBefore = 0;
+		let responsesApiCompactionContextRatio = 0;
 
 		// Track whether this iteration already performed compaction-related work
 		// (including applying a summary or using a foreground fallback path) so
@@ -790,40 +788,48 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// Post-render: kick off background compaction if idle and over the
 		// threshold. Prompt cache parity with the main agent fetch matters
 		// here — so we gate kick-off on a completed tool call (cache has been
-		// warmed) and jitter the threshold around 0.80 to avoid firing at the
-		// same exact boundary every time.
-		if (summarizationEnabled && backgroundSummarizer && !didSummarizeThisIteration) {
+		// warmed) before checking the background summarization threshold.
+		if ((summarizationEnabled || responsesApiCompactionTriggerEnabled) && !didSummarizeThisIteration) {
 			const localPostRender = result.tokenCount + toolTokens;
 			const effectivePostRender = Math.max(localPostRender, lastTurnPromptTokens ?? 0);
 			const postRenderRatio = baseBudget > 0
 				? effectivePostRender / baseBudget
 				: 0;
 
-			const idleOrFailed = backgroundSummarizer.state === BackgroundSummarizationState.Idle
-				|| backgroundSummarizer.state === BackgroundSummarizationState.Failed;
-
 			const cacheWarm = (promptContext.toolCallRounds?.length ?? 0) > 0;
 
-			const kickOff = shouldKickOffBackgroundSummarization(postRenderRatio, cacheWarm, this._thresholdRng);
+			const kickOff = shouldKickOffBackgroundSummarization(effectivePostRender, postRenderRatio, cacheWarm, this._thresholdRng);
 
-			if (kickOff && idleOrFailed) {
-				// Compute and cache model capabilities from the current render's
-				// messages. These must match the main agent fetch for cache parity.
-				const strippedMessages = ToolCallingLoop.stripInternalToolCallIds(result.messages);
-				const rawEffort = this.request.modelConfiguration?.reasoningEffort;
-				const isSubagent = !!this.request.subAgentInvocationId;
-				// Must match the main agent's enableThinking logic in
-				// toolCallingLoop.ts runOne() — thinking is only disabled
-				// on continuation turns for Anthropic when no thinking
-				// blocks exist yet in the messages.
-				const shouldDisableThinking = !!promptContext.isContinuation && isAnthropicFamily(this.endpoint) && !ToolCallingLoop.messagesContainThinking(strippedMessages);
-				this._lastModelCapabilities = {
-					enableThinking: !shouldDisableThinking,
-					reasoningEffort: typeof rawEffort === 'string' ? rawEffort : undefined,
-					enableToolSearch: !isSubagent && !!this.endpoint.supportsToolSearch,
-					enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.endpoint, this.configurationService, this.expService),
-				};
-				this._startBackgroundSummarization(backgroundSummarizer, result.messages, promptContext, props, token, postRenderRatio);
+			if (responsesApiCompactionTriggerEnabled) {
+				if (kickOff) {
+					triggerResponsesApiCompaction = true;
+					responsesApiCompactionContextLengthBefore = effectivePostRender;
+					responsesApiCompactionContextRatio = postRenderRatio;
+					this.logService.debug(`[ResponsesApiCompactionTrigger] requesting server compaction at ratio=${postRenderRatio.toFixed(3)}, contextLength=${effectivePostRender}`);
+				}
+			} else if (backgroundSummarizer) {
+				const idleOrFailed = backgroundSummarizer.state === BackgroundSummarizationState.Idle
+					|| backgroundSummarizer.state === BackgroundSummarizationState.Failed;
+
+				if (kickOff && idleOrFailed) {
+					// Compute and cache model capabilities from the current render's
+					// messages. These must match the main agent fetch for cache parity.
+					const strippedMessages = ToolCallingLoop.stripInternalToolCallIds(result.messages);
+					const rawEffort = this.request.modelConfiguration?.reasoningEffort;
+					const isSubagent = !!this.request.subAgentInvocationId;
+					// Must match the main agent's enableThinking logic in
+					// toolCallingLoop.ts runOne() — thinking is only disabled
+					// on continuation turns for Anthropic when no thinking
+					// blocks exist yet in the messages.
+					const shouldDisableThinking = !!promptContext.isContinuation && isAnthropicFamily(this.endpoint) && !ToolCallingLoop.messagesContainThinking(strippedMessages);
+					this._lastModelCapabilities = {
+						enableThinking: !shouldDisableThinking,
+						reasoningEffort: typeof rawEffort === 'string' ? rawEffort : undefined,
+						enableToolSearch: !isSubagent && !!this.endpoint.supportsToolSearch,
+						enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.endpoint, this.configurationService, this.expService),
+					};
+					this._startBackgroundSummarization(backgroundSummarizer, result.messages, promptContext, props, token, postRenderRatio);
+				}
 			}
 		}
 
@@ -852,12 +858,17 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		}
 
 
+		let metadata = codebase ? mergeMetadata(result.metadata, codebase.metadatas) : result.metadata;
+		if (triggerResponsesApiCompaction) {
+			metadata = mergeMetadata(metadata, promptResultMetadata([new ResponsesApiCompactionTriggerMetadata(responsesApiCompactionContextLengthBefore, responsesApiCompactionContextRatio, baseBudget)]));
+		}
+
 		return {
 			...result,
 			// The codebase tool is not actually called/referenced in the edit prompt, so we ned to
 			// merge its metadata so that its output is not lost and it's not called repeatedly every turn
 			// todo@connor4312/joycerhl: this seems a bit janky
-			metadata: codebase ? mergeMetadata(result.metadata, codebase.metadatas) : result.metadata,
+			metadata,
 			// Don't report file references that came in via chat variables in an editing session, unless they have warnings,
 			// because they are already displayed as part of the working set
 			// references: result.references.filter((ref) => this.shouldKeepReference(editCodeStep, ref, toolReferences, chatVariables)),
