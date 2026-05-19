@@ -4,17 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { ToolInvocation, ToolResultObject } from '@github/copilot-sdk';
+import type { Tool, ToolInvocation, ToolResultObject } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as platform from '../../../../base/common/platform.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { IProductService } from '../../../product/common/productService.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { TerminalClaimKind, type TerminalClaim, type TerminalInfo } from '../../common/state/protocol/state.js';
 import { formatTerminalText, IAgentHostTerminalManager, type ICommandFinishedEvent, type ISendTextOptions } from '../../node/agentHostTerminalManager.js';
@@ -94,14 +100,29 @@ suite('CopilotShellTools', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createServices(): { instantiationService: IInstantiationService; terminalManager: TestAgentHostTerminalManager } {
+	function createServices(options?: { sandboxEnabled?: boolean; deletedFolders?: string[] }): { instantiationService: IInstantiationService; terminalManager: TestAgentHostTerminalManager; configurationService: TestConfigurationService } {
 		const terminalManager = new TestAgentHostTerminalManager();
+		const configurationService = new TestConfigurationService();
+		if (options?.sandboxEnabled) {
+			configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+		}
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IAgentHostTerminalManager, terminalManager);
+		services.set(IConfigurationService, configurationService);
+		services.set(IFileService, {
+			createFile: async () => ({} as never),
+			createFolder: async () => ({} as never),
+			del: async (uri: URI) => { options?.deletedFolders?.push(uri.path); },
+			realpath: async () => undefined,
+		} as Partial<IFileService> as IFileService);
+		services.set(IEnvironmentService, {
+			userHome: URI.file('/home/test-user'),
+		} as Partial<IEnvironmentService> & { userHome: URI } as IEnvironmentService);
+		services.set(IProductService, { dataFolderName: '.test-data' } as Partial<IProductService> as IProductService);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		services.set(IInstantiationService, instantiationService);
-		return { instantiationService, terminalManager };
+		return { instantiationService, terminalManager, configurationService };
 	}
 
 	async function waitForSentTexts(terminalManager: TestAgentHostTerminalManager, count: number): Promise<void> {
@@ -556,5 +577,109 @@ suite('CopilotShellTools', () => {
 		assert.strictEqual(terminalManager.writes[0].uri, shellRef.object.terminalUri);
 		assert.strictEqual(terminalManager.writes[0].data, 'answer\r');
 		shellRef.dispose();
+	});
+
+	test('getOrCreateSandboxEngine returns the same engine across calls', async () => {
+		const { instantiationService } = createServices();
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+
+		const engineA = shellManager.getOrCreateSandboxEngine();
+		const engineB = shellManager.getOrCreateSandboxEngine();
+
+		assert.strictEqual(engineA, engineB, 'Sandbox engine should be cached across calls');
+	});
+
+	test('primary shell tool schema only exposes requestUnsandboxedExecution params when the sandbox is enabled', async () => {
+		const enabled = createServices({ sandboxEnabled: true });
+		const enabledShell = disposables.add(enabled.instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-enabled'), undefined));
+		const enabledTools = await createShellTools(enabledShell, enabled.terminalManager, new NullLogService());
+		const enabledPrimary = enabledTools[0] as Tool<unknown>;
+		const enabledSchema = enabledPrimary.parameters as { properties: Record<string, unknown> };
+		const enabledPropertyNames = Object.keys(enabledSchema.properties);
+
+		assert.ok(enabledPropertyNames.includes('requestUnsandboxedExecution'), 'Sandbox-enabled schema should expose requestUnsandboxedExecution');
+		assert.ok(enabledPropertyNames.includes('requestUnsandboxedExecutionReason'), 'Sandbox-enabled schema should expose requestUnsandboxedExecutionReason');
+
+		const disabled = createServices();
+		const disabledShell = disposables.add(disabled.instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-disabled'), undefined));
+		const disabledTools = await createShellTools(disabledShell, disabled.terminalManager, new NullLogService());
+		const disabledPrimary = disabledTools[0] as Tool<unknown>;
+		const disabledSchema = disabledPrimary.parameters as { properties: Record<string, unknown> };
+		const disabledPropertyNames = Object.keys(disabledSchema.properties);
+
+		assert.ok(!disabledPropertyNames.includes('requestUnsandboxedExecution'), 'Sandbox-disabled schema should not expose requestUnsandboxedExecution');
+		assert.ok(!disabledPropertyNames.includes('requestUnsandboxedExecutionReason'), 'Sandbox-disabled schema should not expose requestUnsandboxedExecutionReason');
+	});
+
+	test('primary shell tool sends commands unwrapped when the sandbox is disabled', async () => {
+		const { instantiationService, terminalManager } = createServices();
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
+		const bashTool = tools.find(tool => tool.name === 'bash');
+		assert.ok(bashTool);
+
+		const invocation: ToolInvocation = {
+			sessionId: 'session-1',
+			toolCallId: 'tool-1',
+			toolName: 'bash',
+			arguments: { command: 'echo hello', timeout: 1 },
+		};
+		await bashTool.handler({ command: 'echo hello', timeout: 1 }, invocation);
+
+		const sentCommand = terminalManager.sentTexts[0]?.data ?? '';
+		assert.ok(sentCommand.includes('echo hello'), `Expected the raw command to be sent. Sent: ${sentCommand}`);
+		assert.ok(!sentCommand.includes('sandbox-runtime'), `Sandbox wrapper should not be applied when sandbox is disabled. Sent: ${sentCommand}`);
+	});
+
+	test('primary shell tool wraps commands through the sandbox engine when the sandbox is enabled', async function () {
+		if (platform.isWindows) {
+			// Sandbox is not supported on Windows.
+			this.skip();
+		}
+		const { instantiationService, terminalManager } = createServices({ sandboxEnabled: true });
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
+		const bashTool = tools.find(tool => tool.name === 'bash');
+		assert.ok(bashTool);
+
+		const invocation: ToolInvocation = {
+			sessionId: 'session-1',
+			toolCallId: 'tool-1',
+			toolName: 'bash',
+			arguments: { command: 'echo hello', timeout: 1 },
+		};
+		await bashTool.handler({ command: 'echo hello', timeout: 1 }, invocation);
+
+		const sentCommand = terminalManager.sentTexts[0]?.data ?? '';
+		assert.ok(sentCommand.includes('sandbox-runtime'), `Expected the command to be wrapped by the sandbox runtime. Sent: ${sentCommand}`);
+		assert.ok(sentCommand.includes('echo hello'), `Wrapped command should still contain the user command. Sent: ${sentCommand}`);
+	});
+
+	test('primary shell tool returns a sandbox_blocked failure for blocked network domains', async function () {
+		if (platform.isWindows) {
+			// Sandbox is not supported on Windows.
+			this.skip();
+		}
+		const { instantiationService, terminalManager, configurationService } = createServices({ sandboxEnabled: true });
+		// `requiresUnsandboxConfirmation` only fires when unsandboxed commands are allowed AND a
+		// blocked domain is detected — otherwise the engine keeps the command sandboxed.
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
+		const bashTool = tools.find(tool => tool.name === 'bash');
+		assert.ok(bashTool);
+
+		const invocation: ToolInvocation = {
+			sessionId: 'session-1',
+			toolCallId: 'tool-1',
+			toolName: 'bash',
+			arguments: { command: 'curl https://example.com' },
+		};
+		const result = await bashTool.handler({ command: 'curl https://example.com' }, invocation) as ToolResultObject;
+
+		assert.strictEqual(result.resultType, 'failure');
+		assert.strictEqual(result.error, 'sandbox_blocked');
+		assert.match(result.textResultForLlm ?? '', /example\.com/);
+		assert.strictEqual(terminalManager.sentTexts.length, 0, 'Blocked command should not be sent to the terminal');
 	});
 });
