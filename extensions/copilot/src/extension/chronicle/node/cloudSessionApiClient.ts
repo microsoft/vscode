@@ -207,8 +207,8 @@ export class CloudSessionApiClient {
 	 * List VS Code cloud sessions for the authenticated user.
 	 * Paginates through all pages and filters to only VS Code Chat sessions.
 	 */
-	async listSessions(): Promise<Array<{ id: string; agent_task_id?: string; agent_id?: number; state: string; created_at: string }>> {
-		const allSessions: Array<{ id: string; agent_task_id?: string; agent_id?: number; state: string; created_at: string }> = [];
+	async listSessions(): Promise<Array<{ id: string; task_id?: string; agent_task_id?: string; agent_id?: number; state: string; created_at: string }>> {
+		const allSessions: Array<{ id: string; task_id?: string; agent_task_id?: string; agent_id?: number; state: string; created_at: string }> = [];
 		if (this._isRateLimited()) {
 			return allSessions;
 		}
@@ -263,25 +263,28 @@ export class CloudSessionApiClient {
 	}
 
 	/**
-	 * Delete a session from the cloud.
-	 * Returns 'deleted' if queued for deletion (202), 'not_found' if the session
-	 * doesn't exist in the cloud (404, treated as success), or 'error' on failure.
+	 * Delete a session from the cloud via the server task endpoint
+	 * (`DELETE /agents/tasks/{taskId}` — soft-delete).
+	 *
+	 * Returns 'deleted' on any 2xx, 'not_found' if the task doesn't exist (404,
+	 * treated as success), or 'error' on failure.
 	 */
-	async deleteSession(sessionId: string): Promise<'deleted' | 'not_found' | 'error'> {
+	async deleteSession(taskId: string): Promise<'deleted' | 'not_found' | 'error'> {
 		if (this._isRateLimited()) {
 			return 'error';
 		}
 		try {
-			const { url, headers } = await this._buildRequest('/agents/analytics/delete');
+			const { url, headers } = await this._buildRequest(`/agents/tasks/${encodeURIComponent(taskId)}`);
 			if (!url) {
 				return 'error';
 			}
 
 			const res = await this._fetcherService.fetch(url, {
 				callSite: 'chronicle.cloudDeleteSession',
-				method: 'POST',
+				// FetchOptions.method is typed narrowly (GET/POST/PUT) for CAPI
+				// compatibility; the underlying fetcher accepts DELETE at runtime.
+				method: 'DELETE' as 'POST',
 				headers,
-				json: { session_id: sessionId },
 				timeout: REQUEST_TIMEOUT_MS,
 			});
 
@@ -289,14 +292,14 @@ export class CloudSessionApiClient {
 				this._handleRateLimit(res, 'deleteSession');
 				return 'error';
 			}
-			if (res.status === 202) {
-				return 'deleted';
-			}
 			if (res.status === 404) {
 				return 'not_found';
 			}
+			if (res.ok) {
+				return 'deleted';
+			}
 			return 'error';
-		} catch {
+		} catch (err) {
 			return 'error';
 		}
 	}

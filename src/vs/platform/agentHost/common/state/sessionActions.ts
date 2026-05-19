@@ -21,7 +21,6 @@ export {
 	type RootActiveSessionsChangedAction,
 	type SessionCreationFailedAction,
 	type SessionDeltaAction,
-	type SessionDiffsChangedAction,
 	type SessionErrorAction,
 	type SessionModelChangedAction,
 	type SessionReadyAction,
@@ -53,6 +52,11 @@ export {
 	type SessionIsReadChangedAction,
 	type SessionIsArchivedChangedAction,
 	type SessionToolCallContentChangedAction,
+	type ChangesetStatusChangedAction,
+	type ChangesetFileSetAction,
+	type ChangesetFileRemovedAction,
+	type ChangesetOperationsChangedAction,
+	type ChangesetClearedAction,
 	type StateAction,
 } from './protocol/actions.js';
 
@@ -97,7 +101,7 @@ import type {
 } from './protocol/actions.js';
 
 import type { ProtocolNotification } from './protocol/notifications.js';
-import type { RootAction as IRootAction_, SessionAction as ISessionAction_, ClientSessionAction as IClientSessionAction_, ServerSessionAction as IServerSessionAction_, TerminalAction as ITerminalAction_, ClientTerminalAction as IClientTerminalAction_ } from './protocol/action-origin.generated.js';
+import type { RootAction as IRootAction_, SessionAction as ISessionAction_, ClientSessionAction as IClientSessionAction_, ServerSessionAction as IServerSessionAction_, TerminalAction as ITerminalAction_, ClientTerminalAction as IClientTerminalAction_, ChangesetAction as IChangesetAction_ } from './protocol/action-origin.generated.js';
 
 export type RootAction = IRootAction_;
 export type SessionAction = ISessionAction_;
@@ -105,6 +109,7 @@ export type ClientSessionAction = IClientSessionAction_;
 export type ServerSessionAction = IServerSessionAction_;
 export type TerminalAction = ITerminalAction_;
 export type ClientTerminalAction = IClientTerminalAction_;
+export type ChangesetAction = IChangesetAction_;
 
 // Root actions
 export type IAgentsChangedAction = RootAgentsChangedAction;
@@ -153,4 +158,8 @@ export function isSessionAction(action: StateAction): action is SessionAction {
 
 export function isTerminalAction(action: StateAction): action is TerminalAction {
 	return action.type.startsWith('terminal/');
+}
+
+export function isChangesetAction(action: StateAction): action is ChangesetAction {
+	return action.type.startsWith('changeset/');
 }

@@ -42,7 +42,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 	public readonly isDefault: boolean = false;
 	public readonly isFallback: boolean = false;
 	public readonly isPremium: boolean = false;
-	public readonly multiplier: number = 0;
+	public readonly multiplier: number | undefined = undefined;
 	public readonly isExtensionContributed = true;
 	public readonly supportedEditTools?: readonly EndpointEditToolName[] | undefined;
 

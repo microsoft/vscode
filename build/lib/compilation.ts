@@ -5,7 +5,7 @@
 
 import es from 'event-stream';
 import fs from 'fs';
-import gulp from 'gulp';
+import { gulp, bom, sourcemaps } from './gulp/facade.ts';
 import path from 'path';
 import * as monacodts from './monaco-api.ts';
 import * as nls from './nls.ts';
@@ -15,14 +15,12 @@ import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import os from 'os';
 import File from 'vinyl';
-import * as task from './task.ts';
+import * as task from './gulp/task.ts';
 import { Mangler } from './mangle/index.ts';
 import type { RawSourceMap } from 'source-map';
 import ts from 'typescript';
 import watch from './watch/index.ts';
-import bom from 'gulp-bom';
 import * as tsb from './tsb/index.ts';
-import sourcemaps from 'gulp-sourcemaps';
 import { createTsgoStream } from './tsgo.ts';
 
 
@@ -453,11 +451,11 @@ export const copyCodiconsTask = task.define('copy-codicons', () => {
 	copyCodiconsImpl();
 	return Promise.resolve();
 });
-gulp.task(copyCodiconsTask);
+task.task(copyCodiconsTask);
 
 export const watchCodiconsTask = task.define('watch-codicons', () => {
 	copyCodiconsImpl();
 	return watch('node_modules/@vscode/codicons/dist/**', { readDelay: 200 })
 		.on('data', () => copyCodiconsImpl());
 });
-gulp.task(watchCodiconsTask);
+task.task(watchCodiconsTask);

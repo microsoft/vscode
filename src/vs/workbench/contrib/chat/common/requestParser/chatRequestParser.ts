@@ -239,7 +239,7 @@ export class ChatRequestParser {
 			if (slashCommand) {
 				// Valid standalone slash command
 				return new ChatRequestSlashCommandPart(slashRange, slashEditorRange, slashCommand);
-			} else {
+			} else if (!usedAgent) {
 				// check for with default agent for this location
 				const defaultAgent = this.agentService.getDefaultAgent(location, context?.mode);
 				const subCommand = defaultAgent?.slashCommands.find(c => c.name === command);

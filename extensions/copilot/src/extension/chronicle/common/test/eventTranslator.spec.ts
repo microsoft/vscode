@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ICompletedSpanData } from '../../../../platform/otel/common/otelService';
 import type { IDebugLogEntry } from '../../../../platform/chat/common/chatDebugFileLoggerService';
-import { createSessionTranslationState, makeIdleEvent, makeShutdownEvent, translateDebugLogEntry, translateSpan } from '../eventTranslator';
+import { createSessionTranslationState, deriveTitleFromUserMessage, makeIdleEvent, makeShutdownEvent, translateDebugLogEntry, translateSpan } from '../eventTranslator';
 
 function makeSpan(overrides: Partial<ICompletedSpanData> = {}): ICompletedSpanData {
 	return {
@@ -291,7 +291,7 @@ describe('translateSpan', () => {
 
 		const events = translateSpan(span, state);
 
-		expect(events.map(e => e.type)).toEqual(['session.start', 'user.message', 'assistant.message']);
+		expect(events.map(e => e.type)).toEqual(['session.start', 'user.message', 'session.title_changed', 'assistant.message']);
 		expect(events.every(e => e.agentId === undefined)).toBe(true);
 	});
 });
@@ -377,9 +377,11 @@ describe('translateDebugLogEntry', () => {
 
 		const events = translateDebugLogEntry(entry, 'sess-1', state);
 
-		expect(events).toHaveLength(1);
+		expect(events).toHaveLength(2);
 		expect(events[0].type).toBe('user.message');
 		expect(events[0].data.content).toBe('Fix the bug');
+		expect(events[1].type).toBe('session.title_changed');
+		expect(events[1].data.title).toBe('Fix the bug');
 	});
 
 	it('emits user.message for turn_start entry with userRequest attr', () => {
@@ -392,9 +394,11 @@ describe('translateDebugLogEntry', () => {
 		});
 
 		const events = translateDebugLogEntry(entry, 'sess-1', state);
-		expect(events).toHaveLength(1);
+		expect(events).toHaveLength(2);
 		expect(events[0].type).toBe('user.message');
 		expect(events[0].data.content).toBe('Add tests');
+		expect(events[1].type).toBe('session.title_changed');
+		expect(events[1].data.title).toBe('Add tests');
 	});
 
 	it('emits assistant.message for agent_response entry', () => {
@@ -488,5 +492,19 @@ describe('translateDebugLogEntry', () => {
 		expect(state.droppedCount).toBe(1);
 		// Critical: assistant.message must chain to session.start, not the dropped user.message.
 		expect(replyEvents[0].parentId).toBe(startEvents[0].id);
+	});
+});
+describe('deriveTitleFromUserMessage', () => {
+	it('returns the content unchanged when shorter than the limit', () => {
+		expect(deriveTitleFromUserMessage('Fix the bug')).toBe('Fix the bug');
+	});
+
+	it('truncates and appends ellipsis when content exceeds the limit', () => {
+		const title = deriveTitleFromUserMessage('a'.repeat(80));
+		expect(title).toBe('a'.repeat(60) + '...');
+	});
+
+	it('returns undefined for empty content', () => {
+		expect(deriveTitleFromUserMessage('')).toBeUndefined();
 	});
 });

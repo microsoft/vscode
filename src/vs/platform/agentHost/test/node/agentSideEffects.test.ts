@@ -18,6 +18,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
+import { buildDefaultChangesetCatalogue } from '../../common/changesetUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { CustomizationStatus } from '../../common/state/protocol/state.js';
@@ -29,6 +30,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
+import { IAgentHostChangesetService, StaticChangesetKind } from '../../node/agentHostChangesetService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
@@ -39,18 +41,54 @@ import { MockAgent } from './mockAgent.js';
 
 // ---- Tests ------------------------------------------------------------------
 
+/** Spy `IAgentHostChangesetService` used to assert AgentSideEffects forwarding. */
+class FakeChangesetService implements IAgentHostChangesetService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly toolCallEdits: { session: string; turnId: string }[] = [];
+	readonly turnCompletes: { session: string; turnId: string | undefined }[] = [];
+	readonly truncates: string[] = [];
+
+	registerStaticChangesets(): void { /* no-op for routing tests */ }
+	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly unknown[]): void { /* no-op */ }
+	restorePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
+	refreshUncommittedChangeset(): void { /* no-op */ }
+	async computeTurnChangeset(session: string): Promise<string> { return `${session}/changeset/turn/x`; }
+
+	onToolCallEditsApplied(session: string, turnId: string): void {
+		this.toolCallEdits.push({ session, turnId });
+	}
+	onTurnComplete(session: string, turnId: string | undefined): void {
+		this.turnCompletes.push({ session, turnId });
+	}
+	onSessionTruncated(session: string): void {
+		this.truncates.push(session);
+	}
+}
+
 /**
  * Constructs an {@link AgentSideEffects} with a minimal local instantiation
  * scope that satisfies its {@link IAgentConfigurationService} /
- * {@link ILogService} / {@link IAgentHostGitService} dependencies.
+ * {@link ILogService} / {@link IAgentHostChangesetService} dependencies.
+ * `gitService` is no longer required by `AgentSideEffects` itself (moved
+ * to {@link IAgentHostChangesetService}); it is kept here as a leftover
+ * for any future tests that need to override the no-op git service via
+ * the changeset fake's underlying implementation.
  */
-function createTestSideEffects(disposables: DisposableStore, stateManager: AgentHostStateManager, options: IAgentSideEffectsOptions, gitService?: IAgentHostGitService, telemetryService: ITelemetryService = NullTelemetryService): AgentSideEffects {
+function createTestSideEffects(
+	disposables: DisposableStore,
+	stateManager: AgentHostStateManager,
+	options: IAgentSideEffectsOptions,
+	_gitService?: IAgentHostGitService,
+	telemetryService: ITelemetryService = NullTelemetryService,
+	changesets: IAgentHostChangesetService = new FakeChangesetService(),
+): AgentSideEffects {
 	const logService = new NullLogService();
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
-		[IAgentHostGitService, gitService ?? createNoopGitService()],
+		[IAgentHostChangesetService, changesets],
 		[ITelemetryService, telemetryService],
 	), /*strict*/ true));
 	return disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, options));
@@ -99,6 +137,7 @@ suite('AgentSideEffects', () => {
 			modifiedAt: Date.now(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectory,
+			changesets: buildDefaultChangesetCatalogue(sessionUri.toString()),
 		});
 		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri.toString() });
 	}
@@ -2610,140 +2649,101 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
-	// ---- Session diff computation ----------------------------------------------
+	// ---- Forwarding into IAgentHostChangesetService ------------------------
 
-	suite('session diff computation', () => {
+	suite('changeset forwarders', () => {
 
-		test('git-driven path is preferred when a git service is provided and the working dir is a git work tree', async () => {
-			const sessionDb = new SessionDatabase(':memory:');
-			disposables.add(toDisposable(() => sessionDb.close()));
-			const sessionDataService = createSessionDataService(sessionDb);
-			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-			const localAgent = new MockAgent();
-			disposables.add(toDisposable(() => localAgent.dispose()));
+		test('post-toolCallComplete edits fire onToolCallEditsApplied once', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
 
-			const gitDiffs = [{
-				after: { uri: 'file:///wd/new.ts', content: { uri: 'file:///wd/new.ts' } },
-				diff: { added: 1, removed: 0 },
-			}];
-			const computeCalls: { workingDirectory: string; sessionUri: string; baseBranch: string | undefined }[] = [];
-			const stubGit = {
-				computeSessionFileDiffs: async (wd: URI, opts: { sessionUri: string; baseBranch?: string }) => {
-					computeCalls.push({ workingDirectory: wd.toString(), sessionUri: opts.sessionUri, baseBranch: opts.baseBranch });
-					return gitDiffs;
-				},
-			} as unknown as import('../../node/agentHostGitService.js').IAgentHostGitService;
-
-			const localSideEffects = createTestSideEffects(disposables, localStateManager, {
-				getAgent: () => localAgent,
-				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
-				sessionDataService,
+			const changesets = new FakeChangesetService();
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
 				onTurnComplete: () => { },
-			}, stubGit);
+			}, undefined, NullTelemetryService, changesets);
+			disposables.add(localSideEffects.registerProgressListener(agent));
 
-			localStateManager.createSession({
-				resource: sessionUri.toString(),
-				provider: 'mock',
-				title: 'Test',
-				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
-				workingDirectory: 'file:///wd',
+			// tool_start + tool_ready + tool_complete with a recorded file edit.
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: {
+					type: ActionType.SessionToolCallStart, session: sessionUri.toString(), turnId: 'turn-1',
+					toolCallId: 'tc-edit-1', toolName: 'write', displayName: 'Write', toolClientId: undefined,
+					_meta: { toolKind: undefined, language: undefined },
+				},
 			});
-			await sessionDb.setMetadata('agentHost.diffBaseBranch', 'main');
-			disposables.add(localSideEffects.registerProgressListener(localAgent));
-
-			const envelopes: ActionEnvelope[] = [];
-			let resolveDiffs: (() => void) | undefined;
-			const diffsEmitted = new Promise<void>(r => { resolveDiffs = r; });
-			disposables.add(localStateManager.onDidEmitEnvelope(e => {
-				envelopes.push(e);
-				if (e.action.type === ActionType.SessionDiffsChanged) {
-					resolveDiffs?.();
-				}
-			}));
-
-			// Trigger a turn-complete (which fires the immediate diff path).
-			localSideEffects.handleAction({
-				type: ActionType.SessionTurnStarted,
-				session: sessionUri.toString(),
-				turnId: 'turn-1',
-				userMessage: { text: 'hi' },
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: {
+					type: ActionType.SessionToolCallReady, session: sessionUri.toString(), turnId: 'turn-1',
+					toolCallId: 'tc-edit-1', invocationMessage: 'Write file', toolInput: undefined,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+				},
 			});
-			localAgent.fireProgress({
-				kind: 'action', session: URI.parse(sessionUri.toString()),
-				action: { type: ActionType.SessionTurnComplete, session: sessionUri.toString(), turnId: 'turn-1' },
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: {
+					type: ActionType.SessionToolCallComplete, session: sessionUri.toString(), turnId: 'turn-1',
+					toolCallId: 'tc-edit-1',
+					result: {
+						success: true,
+						pastTenseMessage: 'wrote',
+						content: [{
+							type: ToolResultContentType.FileEdit,
+							after: { uri: 'file:///wd/a.ts', content: { uri: 'file:///wd/a.ts' } },
+							diff: { added: 1, removed: 0 },
+						}],
+					},
+				},
 			});
 
-			// Wait deterministically for the SessionDiffsChanged envelope rather
-			// than sleeping a fixed amount.
-			await diffsEmitted;
-
-			assert.deepStrictEqual(computeCalls, [{ workingDirectory: 'file:///wd', sessionUri: sessionUri.toString(), baseBranch: 'main' }]);
-			const diffsAction = envelopes.map(e => e.action).find(a => a.type === ActionType.SessionDiffsChanged);
-			assert.ok(diffsAction, 'expected a SessionDiffsChanged action');
-			assert.deepStrictEqual((diffsAction as { diffs: unknown }).diffs, gitDiffs);
+			assert.deepStrictEqual(changesets.toolCallEdits, [{ session: sessionUri.toString(), turnId: 'turn-1' }]);
 		});
 
-		test('falls back to the edit-tracker aggregator when the git service returns undefined', async () => {
-			const sessionDb = new SessionDatabase(':memory:');
-			disposables.add(toDisposable(() => sessionDb.close()));
-			const sessionDataService = createSessionDataService(sessionDb);
-			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-			const localAgent = new MockAgent();
-			disposables.add(toDisposable(() => localAgent.dispose()));
+		test('turn complete fires onTurnComplete once with the right turn id', () => {
+			setupSession();
+			startTurn('turn-1');
 
-			const stubGit = {
-				computeSessionFileDiffs: async () => undefined,
-			} as unknown as import('../../node/agentHostGitService.js').IAgentHostGitService;
-
-			const localSideEffects = createTestSideEffects(disposables, localStateManager, {
-				getAgent: () => localAgent,
-				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
-				sessionDataService,
+			const changesets = new FakeChangesetService();
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
 				onTurnComplete: () => { },
-			}, stubGit);
+			}, undefined, NullTelemetryService, changesets);
+			disposables.add(localSideEffects.registerProgressListener(agent));
 
-			localStateManager.createSession({
-				resource: sessionUri.toString(),
-				provider: 'mock',
-				title: 'Test',
-				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
-				workingDirectory: 'file:///wd',
-			});
-			disposables.add(localSideEffects.registerProgressListener(localAgent));
-
-			const envelopes: ActionEnvelope[] = [];
-			let resolveDiffs: (() => void) | undefined;
-			const diffsEmitted = new Promise<void>(r => { resolveDiffs = r; });
-			disposables.add(localStateManager.onDidEmitEnvelope(e => {
-				envelopes.push(e);
-				if (e.action.type === ActionType.SessionDiffsChanged) {
-					resolveDiffs?.();
-				}
-			}));
-
-			localSideEffects.handleAction({
-				type: ActionType.SessionTurnStarted,
-				session: sessionUri.toString(),
-				turnId: 'turn-1',
-				userMessage: { text: 'hi' },
-			});
-			localAgent.fireProgress({
-				kind: 'action', session: URI.parse(sessionUri.toString()),
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
 				action: { type: ActionType.SessionTurnComplete, session: sessionUri.toString(), turnId: 'turn-1' },
 			});
 
-			await diffsEmitted;
+			assert.deepStrictEqual(changesets.turnCompletes, [{ session: sessionUri.toString(), turnId: 'turn-1' }]);
+		});
 
-			// With no recorded edits, the edit-tracker aggregator returns an empty array — the
-			// important assertion is that we still produced a SessionDiffsChanged envelope, which
-			// proves the fallback path executed without throwing.
-			const diffsAction = envelopes.map(e => e.action).find(a => a.type === ActionType.SessionDiffsChanged);
-			assert.ok(diffsAction, 'expected a SessionDiffsChanged action from the fallback path');
-			assert.deepStrictEqual((diffsAction as { diffs: unknown[] }).diffs, []);
+		test('SessionTruncated fires onSessionTruncated once', () => {
+			setupSession();
+
+			const changesets = new FakeChangesetService();
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				onTurnComplete: () => { },
+			}, undefined, NullTelemetryService, changesets);
+
+			localSideEffects.handleAction({
+				type: ActionType.SessionTruncated,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+			});
+
+			assert.deepStrictEqual(changesets.truncates, [sessionUri.toString()]);
 		});
 	});
+
 });

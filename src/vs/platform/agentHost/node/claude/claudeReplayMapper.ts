@@ -21,7 +21,7 @@ import {
 	type Turn,
 } from '../../common/state/protocol/state.js';
 import { buildSubagentSessionUri } from '../../common/state/sessionState.js';
-import { getClaudeToolDisplayName } from './claudeToolDisplay.js';
+import { buildClaudeToolMeta, getClaudeInvocationMessage, getClaudePastTenseMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
 
 /**
  * Phase 13 — replay mapper. Reduces a flat `SessionMessage[]` (the SDK's
@@ -128,15 +128,6 @@ function parseSystemMessage(msg: SessionMessage): ParsedSessionMessage | undefin
 // #region Builder
 
 /**
- * Subagent-spawning tool names recognised by both `Task` (built-in,
- * see [`sdk.d.ts:95`](node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts))
- * and `Agent` (custom subagents,
- * see [`sdk.d.ts:36`](node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts)).
- * The production extension matches both at `claudeMessageDispatch.ts:194`.
- */
-const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set(['Task', 'Agent']);
-
-/**
  * Allowlist of `system` subtypes that survive replay as
  * {@link ResponsePartKind.SystemNotification} parts on the active turn.
  * Mirrors CONTEXT M7's table — anything not in this set is dropped.
@@ -183,8 +174,17 @@ interface InProgressTurn {
 class ReplayBuilder {
 	private readonly _turns: Turn[] = [];
 	private _active: InProgressTurn | undefined;
-	/** Cross-turn: tool_use_id → turnId of the announcing turn. */
-	private readonly _toolUseToTurnId = new Map<string, string>();
+	/**
+	 * Cross-turn tool-use tracking. Keyed by `tool_use_id`:
+	 * - `turnId` — the announcing turn (so a late `tool_result` in a
+	 *   later `user` envelope can attach back to the right turn per M7).
+	 * - `parsedInput` — the original `tool_use.input`, looked up at
+	 *   `_attachToolResult` so the past-tense message can include the
+	 *   original parameters. Mirrors the live mapper's `_toolCallInfo`
+	 *   pattern but simpler (replay has the full input synchronously on
+	 *   the `tool_use` block).
+	 */
+	private readonly _toolUses = new Map<string, { readonly turnId: string; readonly parsedInput: Record<string, unknown> | undefined }>();
 
 	constructor(private readonly _session: URI, private readonly _logService: ILogService) { }
 
@@ -258,18 +258,19 @@ class ReplayBuilder {
 		if (this._active === undefined) {
 			return;
 		}
-		const isSubagent = SUBAGENT_TOOL_NAMES.has(toolName);
 		const displayName = getClaudeToolDisplayName(toolName);
+		const parsedInput = input !== null && typeof input === 'object' ? input as Record<string, unknown> : undefined;
+		const meta = buildClaudeToolMeta(toolName);
 		// Build a placeholder Cancelled state by default; replaced with Completed when the tool_result lands.
 		const placeholder: ToolCallCancelledState = {
 			status: ToolCallStatus.Cancelled,
 			toolCallId: toolUseId,
 			toolName,
 			displayName,
-			invocationMessage: displayName,
-			toolInput: typeof input === 'string' ? input : input !== undefined ? safeStringify(input) : undefined,
+			invocationMessage: getClaudeInvocationMessage(toolName, displayName, parsedInput),
+			toolInput: parsedInput !== undefined ? getClaudeToolInputString(toolName, parsedInput) : (typeof input === 'string' ? input : input !== undefined ? safeStringify(input) : undefined),
 			reason: ToolCallCancellationReason.Skipped,
-			...(isSubagent ? { _meta: { toolKind: 'subagent' as const } } : {}),
+			...(meta ? { _meta: meta } : {}),
 		};
 		const part: ToolCallResponsePart = {
 			kind: ResponsePartKind.ToolCall,
@@ -278,15 +279,16 @@ class ReplayBuilder {
 		this._active.responseParts.push(part);
 		this._active.toolCallParts.set(toolUseId, part);
 		this._active.pendingToolUseIds.add(toolUseId);
-		this._toolUseToTurnId.set(toolUseId, this._active.id);
+		this._toolUses.set(toolUseId, { turnId: this._active.id, parsedInput });
 	}
 
 	private _attachToolResult(block: UserToolResultBlock): void {
-		const announcingTurnId = this._toolUseToTurnId.get(block.tool_use_id);
-		if (announcingTurnId === undefined) {
+		const entry = this._toolUses.get(block.tool_use_id);
+		if (entry === undefined) {
 			this._logService.warn(`[claudeReplayMapper] tool_result for unknown tool_use_id ${block.tool_use_id}`);
 			return;
 		}
+		const announcingTurnId = entry.turnId;
 		// Find the part — it lives on the announcing turn (which may be `_active` or one already pushed to `_turns`).
 		const part = this._findToolCallPart(announcingTurnId, block.tool_use_id);
 		if (part === undefined) {
@@ -312,7 +314,7 @@ class ReplayBuilder {
 			toolInput: previousState.status === ToolCallStatus.Streaming ? undefined : previousState.toolInput,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success: !isError,
-			pastTenseMessage: `${previousState.displayName} finished`,
+			pastTenseMessage: getClaudePastTenseMessage(previousState.toolName, previousState.displayName, entry.parsedInput, !isError),
 			content: content.length > 0 ? content : undefined,
 			...(previousState._meta ? { _meta: previousState._meta } : {}),
 		};

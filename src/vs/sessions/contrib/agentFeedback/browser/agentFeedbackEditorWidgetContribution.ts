@@ -8,7 +8,7 @@ import './media/agentFeedbackEditorWidget.css';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -69,6 +69,9 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 	private readonly _eventStore = this._register(new DisposableStore());
 
+	private readonly _onDidExpand = this._register(new Emitter<void>());
+	readonly onDidExpand: Event<void> = this._onDidExpand.event;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _commentItems: readonly ISessionEditorComment[],
@@ -85,6 +88,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		// Create DOM structure
 		this._domNode = $('div.agent-feedback-widget');
 		this._domNode.classList.add('collapsed');
+		// Make focusable so that mousedown in selectable regions can pull focus
+		// away from the editor's textarea, allowing native Ctrl/Cmd+C to copy
+		// the DOM selection of the comment content.
+		this._domNode.tabIndex = -1;
 
 		// Header
 		this._headerNode = $('div.agent-feedback-widget-header');
@@ -257,13 +264,32 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			}));
 
 			this._eventStore.add(addDisposableListener(item, 'click', e => {
-				if ((e.target as HTMLElement | null)?.closest('.action-bar')) {
+				const target = e.target as HTMLElement | null;
+				if (target?.closest('.action-bar')) {
 					return;
+				}
+				// Don't navigate if the user just selected text inside the comment.
+				if (target?.closest('.agent-feedback-widget-text, .agent-feedback-widget-suggestion-text')) {
+					const selection = this._domNode.ownerDocument.defaultView?.getSelection();
+					if (selection && !selection.isCollapsed && this._domNode.contains(selection.anchorNode)) {
+						return;
+					}
 				}
 				this.focusFeedback(comment.id);
 				this._agentFeedbackService.setNavigationAnchor(this._sessionResource, comment.id);
 				this._revealComment(comment);
 			}));
+
+			// Pull focus to the widget when starting a selection in selectable
+			// regions so that Ctrl/Cmd+C copies the DOM selection instead of
+			// triggering the editor's copy action.
+			const onSelectableMousedown = (e: MouseEvent) => {
+				const target = e.target as HTMLElement | null;
+				if (target?.closest('.agent-feedback-widget-text, .agent-feedback-widget-suggestion-text')) {
+					this._domNode.focus({ preventScroll: true });
+				}
+			};
+			this._eventStore.add(addDisposableListener(item, 'mousedown', onSelectableMousedown));
 
 			this._bodyNode.appendChild(item);
 		}
@@ -438,11 +464,19 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	 * Expand the widget body.
 	 */
 	expand(): void {
+		const wasExpanded = this._isExpanded;
 		this._isExpanded = true;
 		this._domNode.classList.remove('collapsed');
 		this._bodyNode.classList.remove('collapsed');
 		this._updateToggleButton();
 		this._editor.layoutOverlayWidget(this);
+		if (!wasExpanded) {
+			this._onDidExpand.fire();
+		}
+	}
+
+	get isExpanded(): boolean {
+		return this._isExpanded;
 	}
 
 	/**
@@ -624,6 +658,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 	static readonly ID = 'agentFeedback.editorWidgetContribution';
 
 	private readonly _widgets: AgentFeedbackEditorWidget[] = [];
+	private readonly _widgetListeners = this._register(new DisposableStore());
 	private _sessionResource: URI | undefined;
 
 	constructor(
@@ -713,6 +748,16 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			const group = groups[i];
 			const widget = this._instantiationService.createInstance(AgentFeedbackEditorWidget, this._editor, group, this._sessionResource);
 			this._widgets.push(widget);
+
+			// Ensure only one widget is expanded per file at a time: when a
+			// widget expands, collapse all others.
+			this._widgetListeners.add(widget.onDidExpand(() => {
+				for (const other of this._widgets) {
+					if (other !== widget && other.isExpanded) {
+						other.collapse();
+					}
+				}
+			}));
 
 			widget.layout(group[0].range.startLineNumber);
 		}
@@ -815,6 +860,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 	}
 
 	private _clearWidgets(): void {
+		this._widgetListeners.clear();
 		for (const widget of this._widgets) {
 			widget.dispose();
 		}

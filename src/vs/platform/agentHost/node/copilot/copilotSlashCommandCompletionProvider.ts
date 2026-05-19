@@ -103,10 +103,6 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			if (command === 'compact' && !hasHistory) {
 				continue;
 			}
-			if (command === 'compact') {
-				// Disabled for now, untill we fix this.
-				continue;
-			}
 			items.push({
 				insertText: command === 'plan' ? '/' + command + ' ' : '/' + command,
 				rangeStart: 0,

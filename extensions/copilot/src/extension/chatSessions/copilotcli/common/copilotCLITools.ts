@@ -23,7 +23,7 @@ import { ICopilotTool } from '../../../tools/common/toolsRegistry';
 import { IOnWillInvokeToolEvent, IToolsService, IToolValidationResult } from '../../../tools/common/toolsService';
 import { formatUriForFileWidget } from '../../../tools/common/toolUtils';
 import { StoredModeInstructions } from '../../common/chatSessionMetadataStore';
-import { formatModelDetailsWithCredits } from '../../../../platform/chat/common/chatModelDetails';
+import { formatModelDetails, ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { extractChatPromptReferences, getFolderAttachmentPath } from './copilotCLIPrompt';
 import { IChatDelegationSummaryService } from './delegationSummaryService';
 
@@ -527,7 +527,7 @@ export interface RequestIdDetails {
  * Build chat history from SDK events for VS Code chat session
  * Converts SDKEvents into ChatRequestTurn2 and ChatResponseTurn2 objects
  */
-export function buildChatHistoryFromEvents(sessionId: string, modelId: string | undefined, events: readonly SessionEvent[], getVSCodeRequestId: (sdkRequestId: string) => RequestIdDetails | undefined, delegationSummaryService: IChatDelegationSummaryService, logger: ILogger, workingDirectory?: URI, defaultModeInstructionsForLastRequest?: StoredModeInstructions, modelDetailsById?: ReadonlyMap<string, string>): (ChatRequestTurn2 | ChatResponseTurn2)[] {
+export function buildChatHistoryFromEvents(sessionId: string, modelId: string | undefined, events: readonly SessionEvent[], getVSCodeRequestId: (sdkRequestId: string) => RequestIdDetails | undefined, delegationSummaryService: IChatDelegationSummaryService, logger: ILogger, workingDirectory?: URI, defaultModeInstructionsForLastRequest?: StoredModeInstructions, modelDetailsById?: ReadonlyMap<string, ModelDetailsInfo>): (ChatRequestTurn2 | ChatResponseTurn2)[] {
 	const turns: (ChatRequestTurn2 | ChatResponseTurn2)[] = [];
 	let currentResponseParts: ExtendedChatResponsePart[] = [];
 	const pendingToolInvocations = new Map<string, [ChatToolInvocationPart | ChatResponseMarkdownPart | ChatResponseThinkingProgressPart, toolData: ToolCall, parentToolCallId: string | undefined]>();
@@ -541,7 +541,7 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 	const currentAssistantMessage: { chunks: string[] } = { chunks: [] };
 	const processedMessages = new Set<string>();
 
-	function getModelDetails(modelId: string | undefined): string | undefined {
+	function getModelInfo(modelId: string | undefined): ModelDetailsInfo | undefined {
 		if (!modelId || !modelDetailsById) {
 			return undefined;
 		}
@@ -549,12 +549,11 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 	}
 
 	function createResultForModel(modelId: string | undefined, creditsUsed: number | undefined) {
-		const modelDetails = getModelDetails(modelId);
-		if (modelDetails && creditsUsed !== undefined) {
-			const modelName = modelDetails.split(' \u2022')[0];
-			return { details: formatModelDetailsWithCredits(modelName, creditsUsed) };
+		const modelInfo = getModelInfo(modelId);
+		if (modelInfo) {
+			return { details: formatModelDetails(modelInfo.name, modelInfo.multiplier, creditsUsed) };
 		}
-		return modelDetails ? { details: modelDetails } : {};
+		return {};
 	}
 
 	function flushResponseParts() {

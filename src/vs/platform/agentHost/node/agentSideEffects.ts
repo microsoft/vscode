@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, SequencerByKey } from '../../../base/common/async.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -13,8 +12,9 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
-import { IDiffComputeService } from '../common/diffComputeService.js';
-import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
+import { IAgentHostChangesetService } from './agentHostChangesetService.js';
+
+import { ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentInfo } from '../common/state/protocol/state.js';
 import { ActionType, isSessionAction, StateAction, type SessionToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
@@ -25,15 +25,11 @@ import {
 	SessionStatus,
 	ToolCallStatus,
 	ToolResultContentType,
-	type ISessionFileDiff,
 	type URI as ProtocolURI,
 	type SessionState,
 	type ToolResultContent
 } from '../common/state/sessionState.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from './agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { NodeWorkerDiffComputeService } from './diffComputeService.js';
-import { computeSessionDiffs, type IIncrementalDiffOptions } from './sessionDiffAggregator.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
@@ -77,14 +73,7 @@ export class AgentSideEffects extends Disposable {
 
 	/** Maps tool call IDs to the agent that owns them, for routing confirmations. */
 	private readonly _toolCallAgents = new Map<string, string>();
-	/** Shared diff compute service for calculating line-level diffs in a worker thread. */
-	private readonly _diffComputeService: IDiffComputeService;
-	/** Serializes per-session diff computations to avoid races with stale previousDiffs. */
-	private readonly _diffComputationSequencer = new SequencerByKey<string>();
 	private _lastAgentInfos: readonly AgentInfo[] = [];
-	/** Per-session debounce timers for mid-turn diff computation. */
-	private readonly _debouncedDiffTimers = this._register(new DisposableMap<string>());
-	private static readonly _DIFF_DEBOUNCE_MS = 5000;
 
 	private readonly _permissionManager: SessionPermissionManager;
 
@@ -113,12 +102,11 @@ export class AgentSideEffects extends Disposable {
 		private readonly _options: IAgentSideEffectsOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
-		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
+		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
-		this._diffComputeService = this._register(new NodeWorkerDiffComputeService(this._logService));
 		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager));
 
 		// Whenever the agents observable changes, publish to root state.
@@ -414,7 +402,7 @@ export class AgentSideEffects extends Disposable {
 			// after the parent tool call returns.
 			this._pendingSubagentSignals.delete(`${sessionKey}:${action.toolCallId}`);
 			if (getToolFileEdits(action.result).length > 0) {
-				this._scheduleDebouncedDiffComputation(sessionKey, turnId);
+				this._changesets.onToolCallEditsApplied(sessionKey, turnId);
 			}
 		}
 
@@ -429,8 +417,7 @@ export class AgentSideEffects extends Disposable {
 	 * notify the host so it can refresh git state.
 	 */
 	private _runTurnCompleteSideEffects(sessionKey: ProtocolURI, turnId: string | undefined): void {
-		this._cancelDebouncedDiffComputation(sessionKey);
-		this._computeSessionDiffs(sessionKey, turnId);
+		this._changesets.onTurnComplete(sessionKey, turnId);
 		this._tryConsumeNextQueuedMessage(sessionKey);
 		this._options.onTurnComplete(sessionKey);
 	}
@@ -617,6 +604,7 @@ export class AgentSideEffects extends Disposable {
 		const toRemove: string[] = [];
 		for (const [key, subagentUri] of this._subagentSessions) {
 			if (key.startsWith(`${parentSession}:`)) {
+				this._stateManager.disposeSessionChangesets(subagentUri);
 				this._stateManager.removeSession(subagentUri);
 				toRemove.push(key);
 			}
@@ -629,6 +617,7 @@ export class AgentSideEffects extends Disposable {
 		// but not tracked (e.g. restored sessions)
 		const prefix = `${parentSession}/subagent/`;
 		for (const uri of this._stateManager.getSessionUrisWithPrefix(prefix)) {
+			this._stateManager.disposeSessionChangesets(uri);
 			this._stateManager.removeSession(uri);
 		}
 
@@ -785,8 +774,7 @@ export class AgentSideEffects extends Disposable {
 				agent?.truncateSession?.(URI.parse(action.session), action.turnId).catch(err => {
 					this._logService.error('[AgentSideEffects] truncateSession failed', err);
 				});
-				// Turns were removed — recompute diffs from scratch (no changedTurnId)
-				this._computeSessionDiffs(action.session);
+				this._changesets.onSessionTruncated(action.session);
 				break;
 			}
 			case ActionType.SessionActiveClientChanged: {
@@ -872,6 +860,12 @@ export class AgentSideEffects extends Disposable {
 	 * Persists a session metadata key/value pair to the session database.
 	 * Used for fields the host needs to remember across restarts (custom
 	 * title, isRead/isArchived flags, merged config values).
+	 *
+	 * Counterpart in `agentHostChangesetService.ts` (`AgentHostChangesetService._persistSessionFlag`):
+	 * keep both copies in sync if the signature changes. Duplicated rather
+	 * than lifted because the two consumers persist disjoint metadata
+	 * (changeset diffs there vs. customTitle / isRead / isArchived /
+	 * configValues here) and a shared util would only have two callers.
 	 */
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
 		const ref = this._options.sessionDataService.openDatabase(URI.parse(session));
@@ -963,117 +957,10 @@ export class AgentSideEffects extends Disposable {
 		});
 	}
 
-	// ---- Session diff computation ----------------------------------------------
-
-	/**
-	 * Schedules a debounced diff computation for a session. If a timer is
-	 * already pending for this session, it is replaced (restarting the delay).
-	 * The computation fires after {@link _DIFF_DEBOUNCE_MS} unless cancelled
-	 * or flushed by the turn-complete handler.
-	 */
-	private _scheduleDebouncedDiffComputation(session: ProtocolURI, turnId: string): void {
-		// DisposableMap.set() auto-disposes any previous timer for this session
-		this._debouncedDiffTimers.set(session, disposableTimeout(() => {
-			this._debouncedDiffTimers.deleteAndDispose(session);
-			this._computeSessionDiffs(session, turnId);
-		}, AgentSideEffects._DIFF_DEBOUNCE_MS));
-	}
-
-	/**
-	 * Cancels any pending debounced diff computation for a session.
-	 * Called at turn end before the final (non-debounced) computation.
-	 */
-	private _cancelDebouncedDiffComputation(session: ProtocolURI): void {
-		this._debouncedDiffTimers.deleteAndDispose(session);
-	}
-
-	/**
-	 * Asynchronously (re)computes aggregated diff statistics for a session
-	 * and dispatches {@link ActionType.SessionDiffsChanged} to update the
-	 * session summary. Fire-and-forget: errors are logged but do not fail
-	 * the turn.
-	 */
-	private _computeSessionDiffs(session: ProtocolURI, changedTurnId?: string): void {
-		// Chain onto any pending computation for this session to ensure
-		// sequential access to previousDiffs (avoids stale-read races).
-		this._diffComputationSequencer.queue(session, () => this._doComputeSessionDiffs(session, changedTurnId));
-	}
-
-	private async _doComputeSessionDiffs(session: ProtocolURI, changedTurnId?: string): Promise<void> {
-		let ref: ReturnType<ISessionDataService['openDatabase']>;
-		try {
-			ref = this._options.sessionDataService.openDatabase(URI.parse(session));
-		} catch (err) {
-			this._logService.warn(`[AgentSideEffects] Failed to open session database for diff computation: ${session}`, err);
-			return;
-		}
-		try {
-			// Prefer a git-driven diff so terminal-driven file changes show up
-			// alongside SDK-tracked tool edits. The git path is the source of
-			// truth whenever the working directory is a real work tree; we
-			// only fall back to the edit-tracker aggregator when it isn't
-			// (e.g. agents running in non-git scratch directories or under
-			// test harnesses without git).
-			let diffs = await this._tryComputeGitDiffs(session, ref.object);
-			if (!diffs) {
-				// Build incremental options when a specific turn triggered the recomputation
-				let incremental: IIncrementalDiffOptions | undefined;
-				if (changedTurnId) {
-					const previousDiffs = this._stateManager.getSessionState(session)?.summary.diffs;
-					if (previousDiffs) {
-						incremental = { changedTurnId, previousDiffs };
-					}
-				}
-				diffs = await computeSessionDiffs(session, ref.object, this._diffComputeService, incremental);
-			}
-
-			this._stateManager.dispatchServerAction({
-				type: ActionType.SessionDiffsChanged,
-				session,
-				diffs: [...diffs],
-			});
-			// Persist diffs to the session database so they survive restarts
-			ref.object.setMetadata('diffs', JSON.stringify(diffs)).catch(err => {
-				this._logService.warn('[AgentSideEffects] Failed to persist session diffs', err);
-			});
-		} catch (err) {
-			this._logService.warn('[AgentSideEffects] Failed to compute session diffs', err);
-		} finally {
-			ref.dispose();
-		}
-	}
-
-	/**
-	 * Computes session diffs by shelling out to git. Returns the diff list
-	 * when the session has a working directory and that directory is a git
-	 * work tree; returns `undefined` otherwise so the caller can fall back
-	 * to the edit-tracker aggregator. The base branch (anchor for the
-	 * `merge-base` baseline) is read from the provider-agnostic
-	 * {@link META_DIFF_BASE_BRANCH} metadata key — agents that create
-	 * worktrees write it at session-creation time.
-	 */
-	private async _tryComputeGitDiffs(session: ProtocolURI, db: ISessionDatabase): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.summary.workingDirectory;
-		if (!workingDirectory) {
-			return undefined;
-		}
-		let workingDirectoryUri: URI;
-		try {
-			workingDirectoryUri = URI.parse(workingDirectory);
-		} catch {
-			return undefined;
-		}
-		const baseBranch = (await db.getMetadata(META_DIFF_BASE_BRANCH)) ?? undefined;
-		try {
-			return await this._gitService.computeSessionFileDiffs(workingDirectoryUri, { sessionUri: session, baseBranch });
-		} catch (err) {
-			this._logService.warn('[AgentSideEffects] git-driven diff computation failed; falling back to edit-tracker', err);
-			return undefined;
-		}
-	}
 
 	override dispose(): void {
 		this._toolCallAgents.clear();
 		super.dispose();
 	}
 }
+

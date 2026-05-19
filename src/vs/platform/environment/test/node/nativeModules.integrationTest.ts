@@ -86,9 +86,9 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof deviceIdPackage.getDeviceId === 'function', testErrorMessage('@vscode/deviceid'));
 	});
 
-	test('@vscode/ripgrep', async () => {
-		const ripgrep = await import('@vscode/ripgrep');
-		assert.ok(typeof ripgrep.rgPath === 'string', testErrorMessage('@vscode/ripgrep'));
+	test('@vscode/ripgrep-universal', async () => {
+		const ripgrep = await import('@vscode/ripgrep-universal');
+		assert.ok(typeof ripgrep.rgPath === 'string', testErrorMessage('@vscode/ripgrep-universal'));
 	});
 
 	test('vscode-regexpp', async () => {

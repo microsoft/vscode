@@ -1596,13 +1596,11 @@ export class AICustomizationListWidget extends Disposable {
 		if (this._store.isDisposed) {
 			return '';
 		}
-		const activeDescriptor = this.harnessService.getActiveDescriptor();
 		return generateCustomizationDebugReport(
 			this.currentSection,
 			this.promptsService,
 			this.workspaceService,
 			{ allItems: this.allItems as IAICustomizationListItem[], displayEntries: this.displayEntries },
-			activeDescriptor,
 			this.itemsModel.getPromptsServiceItemProvider(),
 			this.harnessService,
 			this.agentPluginService,

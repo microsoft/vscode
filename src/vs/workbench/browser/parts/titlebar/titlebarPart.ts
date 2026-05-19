@@ -37,7 +37,7 @@ import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activi
 import { AccountsActivityActionViewItem, isAccountsActionVisible, SimpleAccountActivityActionViewItem, SimpleGlobalActivityActionViewItem } from '../globalCompositeBar.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IEditorGroupsContainer, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { ActionRunner, IAction } from '../../../../base/common/actions.js';
+import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from '../editor/editorCommands.js';
@@ -666,10 +666,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('ariaLabelTitleActions', "Title actions"),
 			getKeyBinding: action => this.getKeybinding(action),
-			overflowBehavior: { maxItems: 9, exempted: [ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID, ...EDITOR_CORE_NAVIGATION_COMMANDS] },
+			overflowBehavior: { maxItems: 12, exempted: [ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID, ...EDITOR_CORE_NAVIGATION_COMMANDS] },
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 			telemetrySource: 'titlePart',
-			highlightToggledItems: this.editorActionsEnabled || this.isAuxiliary, // Only show toggled state for editor actions or auxiliary title bars
+			highlightToggledItems: this.isAuxiliary, // Only show toggled state for auxiliary title bars
 			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
 			hoverDelegate: this.hoverDelegate
 		}));
@@ -687,21 +687,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		const updateToolBarActions = () => {
 			const actions: IToolbarActions = { primary: [], secondary: [] };
 
-			// --- Editor Actions
-			if (this.editorActionsEnabled) {
-				this.editorActionsChangeDisposable.clear();
-
-				const activeGroup = this.editorGroupsContainer.activeGroup;
-				if (activeGroup) {
-					const editorActions = activeGroup.createEditorActions(this.editorActionsChangeDisposable, this.isAuxiliary && this.isCompact ? MenuId.CompactWindowEditorTitle : MenuId.EditorTitle);
-
-					actions.primary.push(...editorActions.actions.primary);
-					actions.secondary.push(...editorActions.actions.secondary);
-
-					this.editorActionsChangeDisposable.add(editorActions.onDidChange(() => updateToolBarActions()));
-				}
-			}
-
 			// --- Leading Global Actions (rendered before layout controls; opt-in via TitleBarLeadingActionsGroup).
 			// Use a scratch bucket so non-leading actions don't leak into the shared `secondary` (overflow) list here;
 			// they are added by the trailing global-actions pass below.
@@ -715,12 +700,31 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				actions.primary.push(...leading.primary);
 			}
 
+			// --- Editor Actions
+			if (this.editorActionsEnabled) {
+				this.editorActionsChangeDisposable.clear();
+
+				const activeGroup = this.editorGroupsContainer.activeGroup;
+				if (activeGroup) {
+					const editorActions = activeGroup.createEditorActions(this.editorActionsChangeDisposable, this.isAuxiliary && this.isCompact ? MenuId.CompactWindowEditorTitle : MenuId.EditorTitle);
+
+					actions.primary.push(...editorActions.actions.primary);
+					actions.secondary.push(...editorActions.actions.secondary);
+
+					if (editorActions.actions.primary.length > 0) {
+						actions.primary.push(new Separator());
+					}
+
+					this.editorActionsChangeDisposable.add(editorActions.onDidChange(() => updateToolBarActions()));
+				}
+			}
+
 			// --- Layout Actions
 			if (this.layoutToolbarMenu) {
 				fillInActionBarActions(
 					this.layoutToolbarMenu.getActions(),
 					actions,
-					() => !this.editorActionsEnabled || this.isCompact // layout actions move to "..." if editor actions are enabled unless compact
+					(group) => group === 'navigation'
 				);
 			}
 

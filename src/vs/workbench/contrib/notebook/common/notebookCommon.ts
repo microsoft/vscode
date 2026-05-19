@@ -739,7 +739,7 @@ export class MimeTypeDisplayOrder {
 		// them after it, retaining order.
 		const uniqueIndices = new Set(otherMimeTypes.map(m => this.findIndex(m, chosenIndex)));
 		uniqueIndices.delete(-1);
-		const otherIndices = Array.from(uniqueIndices).sort();
+		const otherIndices = Array.from(uniqueIndices).sort((a, b) => a - b);
 		this.order.splice(chosenIndex + 1, 0, ...otherIndices.map(i => this.order[i]));
 
 		for (let oi = otherIndices.length - 1; oi >= 0; oi--) {

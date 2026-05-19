@@ -369,7 +369,7 @@ steps:
         fi
         echo "Startup timers:"
         cat "$TIMERS_FILE"
-      timeoutInMinutes: 3
+      timeoutInMinutes: 5
       displayName: Verify signature
 
     - script: |

@@ -16,7 +16,7 @@ import { StringEdit } from '../core/edits/stringEdit.js';
 
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>('editorWorkerService');
 
-export type DiffAlgorithmName = 'legacy' | 'advanced';
+export type DiffAlgorithmName = 'legacy' | 'advanced' | 'advanced-external' | 'advanced-wasm';
 
 export interface IEditorWorkerService {
 	readonly _serviceBrand: undefined;

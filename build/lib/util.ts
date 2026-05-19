@@ -5,8 +5,7 @@
 
 import es from 'event-stream';
 import _debounce from 'debounce';
-import _filter from 'gulp-filter';
-import rename from 'gulp-rename';
+import { filter as _filter, rename } from './gulp/facade.ts';
 import path from 'path';
 import fs from 'fs';
 import _rimraf from 'rimraf';

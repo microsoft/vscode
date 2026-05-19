@@ -22,7 +22,7 @@ import { IExtensionContribution } from '../../common/contributions';
 import { CircuitBreaker } from '../common/circuitBreaker';
 import {
 	createSessionTranslationState,
-	makeShutdownEvent,
+	deriveTitleFromUserMessage,
 	translateSpan,
 	type SessionTranslationState,
 } from '../common/eventTranslator';
@@ -439,7 +439,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			{ label: '$(checklist) ' + vscode.l10n.t('Select All ({0} sessions)', rows.length), sessionId: selectAllId },
 			...rows.map(row => {
 				const label = row.first_message
-					? row.first_message.length > 60 ? row.first_message.substring(0, 60) + '...' : row.first_message
+					? deriveTitleFromUserMessage(row.first_message) ?? row.id.substring(0, 8)
 					: row.id.substring(0, 8);
 				const description = [
 					row.repository,
@@ -526,10 +526,10 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 						}
 					}
 
-					// Delete from cloud using the stored cloud session ID
+					// Delete from cloud using the stored cloud task ID
 					const cached = this._cloudSessions.get(session.id);
 					if (cached) {
-						const result = await this._cloudClient.deleteSession(cached.cloudSessionId);
+						const result = await this._cloudClient.deleteSession(cached.cloudTaskId);
 						switch (result) {
 							case 'deleted': cloudDeleted++; break;
 							case 'not_found': cloudDeleted++; break; // Already gone — count as success
@@ -604,7 +604,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			if (cloudEnabled && wasCloudSynced) {
 				const cached = this._cloudSessions.get(sessionId)!;
 				try {
-					await this._cloudClient.deleteSession(cached.cloudSessionId);
+					await this._cloudClient.deleteSession(cached.cloudTaskId);
 				} catch {
 					// Best effort — don't block the caller
 				}
@@ -971,17 +971,15 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	// ── Session disposal ─────────────────────────────────────────────────────────
 
 	private _handleSessionDispose(sessionId: string): void {
-		const state = this._translationStates.get(sessionId);
-		if (state && this._cloudSessions.has(sessionId)) {
-			const event = makeShutdownEvent(state);
-			this._bufferEvents(sessionId, [event]);
-		}
-
-		// Keep _cloudSessions entry — the cloud session ID mapping is needed
-		// for future delete operations (e.g. sidebar delete fires after dispose).
+		// Note: VS Code fires onDidDisposeChatSession routinely (opening a new
+		// chat disposes the previous editor view) — it is not a true session
+		// shutdown. Emitting `session.shutdown` here would cause the cloud UI
+		// to hide the session as completed.
 		this._translationStates.delete(sessionId);
 		this._disabledSessions.delete(sessionId);
 		this._initializingSessions.delete(sessionId);
+		// Keep _cloudSessions entry — the cloud session ID mapping is needed
+		// for future delete operations (e.g. sidebar delete fires after dispose).
 	}
 
 	// ── Buffering ────────────────────────────────────────────────────────────────

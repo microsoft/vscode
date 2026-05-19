@@ -5,7 +5,7 @@
 
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { SessionStatus as ProtocolSessionStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { SessionStatus as ProtocolSessionStatus, type ChangesetFile } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionFileDiff } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -69,6 +69,20 @@ export function diffsToChanges(diffs: readonly ISessionFileDiff[], mapUri?: (uri
 }
 
 /**
+ * Converts a {@link ChangesetFile | changeset file list} (the post-0.2.0
+ * shape produced by `changeset/fileSet` actions) into the
+ * {@link IChatSessionFileChange2 | chat session file change} format used by
+ * the changes view.
+ *
+ * Each entry's underlying {@link ISessionFileDiff} is forwarded straight to
+ * {@link diffsToChanges}; the wrapping `id` and `_meta` fields don't carry
+ * additional information the UI needs.
+ */
+export function changesetFilesToChanges(files: readonly ChangesetFile[], mapUri?: (uri: URI) => URI): IChatSessionFileChange2[] {
+	return diffsToChanges(files.map(f => f.edit), mapUri);
+}
+
+/**
  * Returns `true` when the current file changes already
  * match the incoming diffs, avoiding unnecessary observable updates.
  */
@@ -103,4 +117,12 @@ export function diffsEqual(current: readonly ISessionFileChange[], diffs: readon
 		}
 	}
 	return true;
+}
+
+/**
+ * Same as {@link diffsEqual} but compares against a {@link ChangesetFile}
+ * list (the post-0.2.0 producer output).
+ */
+export function changesetFilesEqual(current: readonly ISessionFileChange[], files: readonly ChangesetFile[], mapUri?: (uri: URI) => URI): boolean {
+	return diffsEqual(current, files.map(f => f.edit), mapUri);
 }

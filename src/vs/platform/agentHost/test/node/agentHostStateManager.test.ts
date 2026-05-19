@@ -13,6 +13,7 @@ import { ActionType, NotificationType, type ActionEnvelope, type INotification }
 import { SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, parseSubagentSessionUri, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedNotification } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 
 suite('AgentHostStateManager', () => {
 
@@ -564,6 +565,146 @@ suite('AgentHostStateManager', () => {
 			assert.strictEqual(changed.length, 1, 'should emit SessionSummaryChanged synchronously in removeSession');
 			assert.strictEqual(changed[0].changes.status, SessionStatus.Idle, 'status should be Idle so the spinner clears');
 		});
+	});
+	test('disposeChangeset emits ChangesetCleared and removes the state', () => {
+		manager.createSession(makeSessionSummary());
+		const changeset = manager.registerChangeset(buildSessionChangesetUri(sessionUri));
+
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+		manager.disposeChangeset(changeset);
+
+		const cleared = envelopes.filter(e => e.action.type === ActionType.ChangesetCleared);
+		assert.strictEqual(cleared.length, 1, 'expected exactly one cleared envelope');
+		assert.strictEqual((cleared[0].action as { changeset: string }).changeset, changeset);
+		assert.strictEqual(manager.getChangesetState(changeset), undefined, 'state should be deleted');
+	});
+
+	test('producer-emitted ChangesetCleared keeps the state alive (recompute path)', () => {
+		manager.createSession(makeSessionSummary());
+		const changeset = manager.registerChangeset(buildSessionChangesetUri(sessionUri));
+		manager.dispatchServerAction({
+			type: ActionType.ChangesetFileSet,
+			changeset,
+			file: {
+				id: 'file:///a.ts',
+				edit: { after: { uri: 'file:///a.ts', content: { uri: 'file:///a.ts' } }, diff: { added: 1, removed: 0 } },
+			},
+		});
+		assert.strictEqual(manager.getChangesetState(changeset)?.files.length, 1);
+
+		manager.dispatchServerAction({
+			type: ActionType.ChangesetCleared,
+			changeset,
+		});
+
+		const after = manager.getChangesetState(changeset);
+		assert.ok(after, 'state should still exist');
+		assert.strictEqual(after.files.length, 0, 'files should be cleared');
+	});
+
+	test('removeSession does NOT dispose per-session changesets (LRU eviction must not clear list-view chip)', () => {
+		// Regression: _maybeEvictIdleSession calls removeSession to drop an
+		// idle session from the in-memory cache. The Agents Window list view
+		// keeps a per-row changeset subscription open to render the diff
+		// chip, so cascading disposeSessionChangesets here would emit a
+		// ChangesetCleared envelope that empties the chip while the row is
+		// still on screen. The chip then visibly vanishes and only reappears
+		// when the user clicks back into the session and the list re-seeds
+		// the changeset.
+		manager.createSession(makeSessionSummary());
+		const changeset = manager.registerChangeset(buildSessionChangesetUri(sessionUri));
+		manager.dispatchServerAction({
+			type: ActionType.ChangesetFileSet,
+			changeset,
+			file: {
+				id: 'file:///a.ts',
+				edit: { after: { uri: 'file:///a.ts', content: { uri: 'file:///a.ts' } }, diff: { added: 1, removed: 0 } },
+			},
+		});
+
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+		manager.removeSession(sessionUri);
+
+		const cleared = envelopes.filter(e => e.action.type === ActionType.ChangesetCleared);
+		assert.strictEqual(cleared.length, 0, 'removeSession must not emit ChangesetCleared');
+		assert.strictEqual(manager.getChangesetState(changeset)?.files.length, 1, 'changeset state should survive eviction');
+	});
+
+	test('deleteSession disposes per-session changesets before emitting SessionRemoved', () => {
+		manager.createSession(makeSessionSummary());
+		const changeset = manager.registerChangeset(buildSessionChangesetUri(sessionUri));
+		manager.dispatchServerAction({
+			type: ActionType.ChangesetFileSet,
+			changeset,
+			file: {
+				id: 'file:///a.ts',
+				edit: { after: { uri: 'file:///a.ts', content: { uri: 'file:///a.ts' } }, diff: { added: 1, removed: 0 } },
+			},
+		});
+
+		const envelopes: ActionEnvelope[] = [];
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+		disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+		manager.deleteSession(sessionUri);
+
+		const cleared = envelopes.filter(e => e.action.type === ActionType.ChangesetCleared);
+		const removed = notifications.filter(n => n.type === NotificationType.SessionRemoved);
+		assert.strictEqual(cleared.length, 1, 'deleteSession should emit ChangesetCleared');
+		assert.strictEqual(removed.length, 1, 'deleteSession should emit SessionRemoved');
+		assert.strictEqual(manager.getChangesetState(changeset), undefined, 'changeset state should be gone after delete');
+	});
+
+	test('unknown changeset action is ignored without emitting an envelope', () => {
+		manager.createSession(makeSessionSummary());
+		const changesetUri = `${sessionUri}/changeset/missing`;
+
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+		const seqBefore = manager.serverSeq;
+
+		manager.dispatchServerAction({
+			type: ActionType.ChangesetFileSet,
+			changeset: changesetUri,
+			file: {
+				id: 'file:///x.ts',
+				edit: { after: { uri: 'file:///x.ts', content: { uri: 'file:///x.ts' } }, diff: { added: 1, removed: 0 } },
+			},
+		});
+
+		assert.deepStrictEqual(
+			{
+				envelopeCount: envelopes.length,
+				seqAdvanced: manager.serverSeq - seqBefore,
+				changesetState: manager.getChangesetState(changesetUri),
+			},
+			{
+				envelopeCount: 0,
+				seqAdvanced: 0,
+				changesetState: undefined,
+			},
+		);
+
+		// Sanity: registering the same URI and re-dispatching produces an
+		// envelope and advances the seq, proving the early return doesn't
+		// break valid changesets.
+		const registered = manager.registerChangeset(buildChangesetUri(sessionUri, 'missing'));
+		assert.strictEqual(registered, changesetUri);
+		manager.dispatchServerAction({
+			type: ActionType.ChangesetFileSet,
+			changeset: changesetUri,
+			file: {
+				id: 'file:///x.ts',
+				edit: { after: { uri: 'file:///x.ts', content: { uri: 'file:///x.ts' } }, diff: { added: 1, removed: 0 } },
+			},
+		});
+		assert.strictEqual(envelopes.length, 1, 'registered changeset action should emit an envelope');
+		assert.strictEqual(manager.serverSeq - seqBefore, 1, 'serverSeq should advance for registered changeset action');
 	});
 });
 

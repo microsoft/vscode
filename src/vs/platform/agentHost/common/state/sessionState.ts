@@ -17,6 +17,7 @@ import {
 	ToolResultContentType,
 	ToolResultFileEditContent,
 	type ActiveTurn,
+	type ChangesetState,
 	type RootState,
 	type SessionState,
 	type SessionSummary,
@@ -84,6 +85,10 @@ export {
 	type SessionInputQuestion,
 	type SessionInputAnswer,
 	type SessionInputOption,
+	type ChangesetSummary,
+	type ChangesetState,
+	type ChangesetFile,
+	type ChangesetOperation,
 	CustomizationStatus,
 	MessageAttachmentKind,
 	PendingMessageKind,
@@ -100,7 +105,15 @@ export {
 	ToolCallStatus,
 	ToolResultContentType,
 	TurnState,
+	ChangesetStatus,
+	ChangesetOperationScope,
 } from './protocol/state.js';
+
+export {
+	type ChangesetOperationTarget,
+	type ChangesetOperationFollowUp,
+	ChangesetOperationTargetKind,
+} from './protocol/commands.js';
 
 // ---- File edit kind ---------------------------------------------------------
 
@@ -281,12 +294,14 @@ export const enum StateComponents {
 	Root,
 	Session,
 	Terminal,
+	Changeset,
 }
 
 export type ComponentToState = {
 	[StateComponents.Root]: RootState;
 	[StateComponents.Session]: SessionState;
 	[StateComponents.Terminal]: TerminalState;
+	[StateComponents.Changeset]: ChangesetState;
 };
 
 // ---- SessionMeta accessors -------------------------------------------------

@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertNever } from '../../../../base/common/assert.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, IRootConfigChangedAction, SessionAction, StateAction, isSessionAction } from './sessionActions.js';
-import { rootReducer, sessionReducer } from './sessionReducers.js';
+import { ActionEnvelope, ChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isSessionAction } from './sessionActions.js';
+import { changesetReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, TerminalAction } from './protocol/action-origin.generated.js';
-import type { RootState, SessionState, TerminalState } from './protocol/state.js';
+import type { ChangesetState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
 import { ROOT_STATE_URI, StateComponents } from './sessionState.js';
 
@@ -367,6 +368,39 @@ export class TerminalStateSubscription extends BaseAgentSubscription<TerminalSta
 	}
 }
 
+// --- Changeset State Subscription --------------------------------------------
+
+/**
+ * Subscription to a changeset at an expanded changeset URI (e.g.
+ * `<sessionUri>/changeset/session`).
+ *
+ * Server-only mutations — no write-ahead. The subscription itself does NOT
+ * self-tear-down on lifecycle events; cleanup is driven externally:
+ * - Workbench-side: `BaseAgentHostSessionsProvider._handleSessionRemoved`
+ *   disposes the per-session subscription map, which releases this
+ *   subscription's `IReference` and triggers `_releaseSubscription` on
+ *   the manager.
+ * - Wire layer: {@link IAgentConnection} refcounts the underlying server
+ *   subscription so multiple consumers can share one wire-level subscribe.
+ */
+export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetState> {
+
+	private readonly _changesetUri: string;
+
+	constructor(changesetUri: string, clientId: string, log: (msg: string) => void) {
+		super(clientId, log);
+		this._changesetUri = changesetUri;
+	}
+
+	protected override _applyReducer(state: ChangesetState, action: StateAction): ChangesetState {
+		return changesetReducer(state, action as ChangesetAction, this._log);
+	}
+
+	protected override _isRelevantAction(action: StateAction): boolean {
+		return isChangesetAction(action) && action.changeset === this._changesetUri;
+	}
+}
+
 // --- Subscription Manager ----------------------------------------------------
 
 /**
@@ -585,8 +619,12 @@ export class AgentSubscriptionManager extends Disposable {
 				return new SessionStateSubscription(key, this._clientId, this._seqAllocator, this._log);
 			case StateComponents.Terminal:
 				return new TerminalStateSubscription(key, this._clientId, this._log);
+			case StateComponents.Changeset:
+				return new ChangesetStateSubscription(key, this._clientId, this._log);
+			case StateComponents.Root:
+				throw new Error('_createSubscription: root subscription is managed separately');
 			default:
-				return new TerminalStateSubscription(key, this._clientId, this._log);
+				assertNever(kind, `_createSubscription: unsupported StateComponents kind: ${kind}`);
 		}
 	}
 

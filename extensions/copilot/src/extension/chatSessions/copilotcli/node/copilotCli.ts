@@ -61,10 +61,6 @@ export interface ICopilotCLIModels {
 	registerLanguageModelChatProvider(lm: typeof vscode['lm']): void;
 }
 
-export function formatModelDetails(model: CopilotCLIModelInfo): string {
-	return `${model.name}${model.multiplier ? ` • ${model.multiplier}x` : ''}`;
-}
-
 export function matchesCopilotCLIModel(model: Pick<CopilotCLIModelInfo, 'id' | 'name'>, modelId: string): boolean {
 	const normalizedModelId = modelId.trim().toLowerCase();
 	return model.id.trim().toLowerCase() === normalizedModelId || model.name.trim().toLowerCase() === normalizedModelId;

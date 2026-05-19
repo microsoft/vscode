@@ -11,7 +11,9 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { buildTopLevelSubagentReadyAction, emitInnerAssistantSignals, mapSubagentSystemMessage, SUBAGENT_SPAWNING_TOOL_NAMES, tagWithParent } from './claudeSubagentSignals.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
-import { getClaudeToolDisplayName } from './claudeToolDisplay.js';
+import { buildClaudeToolMeta, getClaudePastTenseMessage, getClaudeToolDisplayName } from './claudeToolDisplay.js';
+import { ClaudeToolCallRegistry } from './claudeToolCallRegistry.js';
+import { ToolCallConfirmationReason, type StringOrMarkdown } from '../../common/state/protocol/state.js';
 
 /**
  * Cross-call state for {@link mapSDKMessageToAgentSignals}. One instance
@@ -43,8 +45,14 @@ import { getClaudeToolDisplayName } from './claudeToolDisplay.js';
  */
 export class ClaudeMapperState {
 	private readonly _activeToolBlocks = new Map<number, { toolUseId: string; toolName: string }>();
-	private readonly _toolCallTurnIds = new Map<string, string>();
-	private readonly _toolCallNames = new Map<string, string>();
+	/**
+	 * Phase 8.5 — cross-message tool-call attribution + input
+	 * accumulation + computed start-info, encapsulated as its own
+	 * collaborator class so it can be unit-tested independently.
+	 * Public so mapper functions can call its lifecycle methods
+	 * directly without forwarding through this class.
+	 */
+	readonly toolCalls = new ClaudeToolCallRegistry();
 	private _currentMessageId: string | undefined;
 
 	/**
@@ -79,8 +87,7 @@ export class ClaudeMapperState {
 	 */
 	startToolBlock(index: number, toolUseId: string, toolName: string, turnId: string): void {
 		this._activeToolBlocks.set(index, { toolUseId, toolName });
-		this._toolCallTurnIds.set(toolUseId, turnId);
-		this._toolCallNames.set(toolUseId, toolName);
+		this.toolCalls.begin(toolUseId, toolName, turnId);
 	}
 
 	getActiveToolBlock(index: number): { toolUseId: string; toolName: string } | undefined {
@@ -92,23 +99,45 @@ export class ClaudeMapperState {
 	}
 
 	/**
+	 * Phase 8.5 — forward an `input_json_delta.partial_json` chunk
+	 * to the registry. Resolves the index → `tool_use_id` mapping
+	 * locally (the registry is keyed by id, not by index) and is a
+	 * no-op when the index is unknown.
+	 */
+	appendToolBlockInputDelta(index: number, partialJson: string): void {
+		const tracked = this._activeToolBlocks.get(index);
+		if (!tracked) {
+			return;
+		}
+		this.toolCalls.appendInputDelta(tracked.toolUseId, partialJson);
+	}
+
+	/**
+	 * Phase 8.5 — forward the `content_block_stop` signal to the
+	 * registry, which parses the buffer and stashes the computed
+	 * start-info.
+	 */
+	finalizeToolBlock(index: number): void {
+		const tracked = this._activeToolBlocks.get(index);
+		if (!tracked) {
+			return;
+		}
+		this.toolCalls.finalize(tracked.toolUseId);
+	}
+
+	/**
 	 * Cross-message lookup for `tool_result` handling. Returns
 	 * `undefined` if the `tool_use_id` is unknown (defense-in-depth
 	 * against transport drift / replay).
 	 */
 	lookupToolCall(toolUseId: string): { turnId: string; toolName: string } | undefined {
-		const turnId = this._toolCallTurnIds.get(toolUseId);
-		const toolName = this._toolCallNames.get(toolUseId);
-		if (turnId === undefined || toolName === undefined) {
-			return undefined;
-		}
-		return { turnId, toolName };
+		const entry = this.toolCalls.lookup(toolUseId);
+		return entry ? { turnId: entry.turnId, toolName: entry.toolName } : undefined;
 	}
 
 	/** Drain cross-message tracking once a `tool_result` is delivered. */
 	completeToolCall(toolUseId: string): void {
-		this._toolCallTurnIds.delete(toolUseId);
-		this._toolCallNames.delete(toolUseId);
+		this.toolCalls.complete(toolUseId);
 	}
 
 	/**
@@ -147,15 +176,7 @@ export class ClaudeMapperState {
 	 * `registry.drainForegroundSpawns()` from {@link mapResult}.
 	 */
 	clearPendingToolCalls(logService: ILogService): void {
-		if (this._toolCallTurnIds.size === 0) {
-			return;
-		}
-		for (const [toolUseId, turnId] of this._toolCallTurnIds) {
-			const toolName = this._toolCallNames.get(toolUseId) ?? '<unknown>';
-			logService.warn(`[claudeMapSessionEvents] turn ${turnId} ended with pending tool_use ${toolUseId} (${toolName}); dropping cross-message state`);
-		}
-		this._toolCallTurnIds.clear();
-		this._toolCallNames.clear();
+		this.toolCalls.clearPending(logService);
 	}
 }
 
@@ -319,6 +340,10 @@ function mapUserMessage(
 		if (fileEdit) {
 			content.push(fileEdit);
 		}
+		const info = state.toolCalls.lookup(block.tool_use_id)?.info;
+		const pastTenseMessage: StringOrMarkdown = info
+			? getClaudePastTenseMessage(info.toolName, info.displayName, info.parsedInput, !isError)
+			: `${getClaudeToolDisplayName(tracked.toolName)} finished`;
 		signals.push({
 			kind: 'action',
 			session,
@@ -329,7 +354,7 @@ function mapUserMessage(
 				toolCallId: block.tool_use_id,
 				result: {
 					success: !isError,
-					pastTenseMessage: `${getClaudeToolDisplayName(tracked.toolName)} finished`,
+					pastTenseMessage,
 					content: content.length > 0 ? content : undefined,
 				},
 			},
@@ -494,6 +519,13 @@ function mapStreamEvent(
 				} else {
 					registry.noteInnerTool(block.id, parentToolUseId);
 				}
+				// Phase 8.5 — `_meta.toolKind` drives the workbench's terminal /
+				// search / subagent renderers. Single write at the tool-open
+				// seam; the reducer carries `_meta` forward to all subsequent
+				// state transitions (D6). Subagent meta from Phase 12 is now
+				// produced by `buildClaudeToolMeta` because
+				// `getClaudeToolKind('Task') === 'subagent'`.
+				const meta = buildClaudeToolMeta(block.name);
 				return [{
 					kind: 'action',
 					session,
@@ -504,13 +536,7 @@ function mapStreamEvent(
 						toolCallId: block.id,
 						toolName: block.name,
 						displayName: getClaudeToolDisplayName(block.name),
-						// Phase 12 — `_meta.toolKind` is read by the workbench
-						// renderer (`isSubagentTool` in stateToProgressAdapter)
-						// to recognise this tool call as a subagent spawner
-						// and render it via `ChatSubagentContentPart` instead
-						// of the generic tool-call view. Without this the UI
-						// shows "Running [tool]" with no subagent details.
-						...(isSubagentSpawn ? { _meta: { toolKind: 'subagent' } } : {}),
+						...(meta ? { _meta: meta } : {}),
 					},
 				}];
 			}
@@ -550,6 +576,7 @@ function mapStreamEvent(
 					logService.warn(`[claudeMapSessionEvents] input_json_delta for unknown content-block index ${event.index}`);
 					return [];
 				}
+				state.appendToolBlockInputDelta(event.index, event.delta.partial_json);
 				return [{
 					kind: 'action',
 					session,
@@ -565,9 +592,42 @@ function mapStreamEvent(
 			return [];
 		}
 
-		case 'content_block_stop':
+		case 'content_block_stop': {
+			const tracked = state.getActiveToolBlock(event.index);
+			state.finalizeToolBlock(event.index);
 			state.endToolBlock(event.index);
-			return [];
+			if (!tracked) {
+				return [];
+			}
+			// Phase 8.5 — emit `SessionToolCallReady` so the tool transitions
+			// out of `Streaming` even when the Claude SDK auto-allows without
+			// calling `canUseTool` (no `claudeCanUseTool` round-trip means
+			// `sessionPermissions` never emits Ready, the state stays in
+			// `Streaming`, and the subsequent `SessionToolCallComplete` is
+			// dropped by the reducer — leaving the tool widget empty).
+			// When `canUseTool` DOES fire, `sessionPermissions` emits a second
+			// Ready that re-transitions Running → PendingConfirmation as needed.
+			const entry = state.toolCalls.lookup(tracked.toolUseId);
+			const info = entry?.info;
+			if (!info) {
+				return [];
+			}
+			const meta = buildClaudeToolMeta(tracked.toolName);
+			return [{
+				kind: 'action',
+				session,
+				action: {
+					type: ActionType.SessionToolCallReady,
+					session: sessionStr,
+					turnId,
+					toolCallId: tracked.toolUseId,
+					invocationMessage: info.invocationMessage,
+					...(info.toolInput !== undefined ? { toolInput: info.toolInput } : {}),
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+					...(meta ? { _meta: meta } : {}),
+				},
+			}];
+		}
 
 		case 'message_delta':
 		case 'message_stop':

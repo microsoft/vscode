@@ -73,7 +73,7 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 
 		this._addAction = this._register(new Action(
 			'agentFeedback.add',
-			localize('agentFeedback.add', "Add Feedback (Enter)"),
+			localize('agentFeedback.add', "Add Feedback"),
 			ThemeIcon.asClassName(Codicon.plus),
 			false,
 			() => { this._onDidTriggerAdd.fire(); return Promise.resolve(); }
@@ -81,7 +81,7 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 
 		this._addAndSubmitAction = this._register(new Action(
 			'agentFeedback.addAndSubmit',
-			localize('agentFeedback.addAndSubmit', "Add Feedback and Submit (Alt+Enter)"),
+			localize('agentFeedback.addAndSubmit', "Add Feedback and Submit"),
 			ThemeIcon.asClassName(Codicon.send),
 			false,
 			() => { this._onDidTriggerAddAndSubmit.fire(); return Promise.resolve(); }
@@ -94,6 +94,20 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 		const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
 		this._register(modifierKeyEmitter.event(status => {
 			this._updateActionForAlt(status.altKey);
+		}));
+
+		// Focus the input when clicking anywhere on the widget that isn't the
+		// textarea itself or the action bar (e.g. padding around the textarea).
+		this._register(addStandardDisposableListener(this._domNode, 'mousedown', e => {
+			const target = e.target as Node | null;
+			if (target === this._inputElement) {
+				return;
+			}
+			if (actionsContainer.contains(target)) {
+				return;
+			}
+			e.preventDefault();
+			this._inputElement.focus();
 		}));
 
 		this._lineHeight = 22;

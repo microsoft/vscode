@@ -93,7 +93,7 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => this._onDidChange.fire()));
 	}
 
-	async provideChatSessionCustomizations(token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
+	async provideChatSessionCustomizations(_sessionResource: vscode.Uri, token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
 		const items: vscode.ChatSessionCustomizationItem[] = [];
 
 		// Agents: hybrid approach — file-based .claude/ agents merged with SDK-provided agents.

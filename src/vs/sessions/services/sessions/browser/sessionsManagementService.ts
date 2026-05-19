@@ -686,7 +686,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					}
 				};
 
-				disposables.add(this.onDidChangeSessions(() => tryRestore()));
 				disposables.add(this.sessionsProvidersService.onDidChangeProviders(() => tryRestore()));
 
 				// Call immediately in case the session became available between the

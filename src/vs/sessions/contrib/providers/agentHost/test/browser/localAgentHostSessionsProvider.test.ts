@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
-import { ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -29,6 +29,7 @@ import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/c
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -223,7 +224,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined> }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -250,6 +251,10 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
+	}());
+	const activeSessionObs = options?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
+	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+		override readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
 	}());
 
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
@@ -1390,4 +1395,90 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const updated = provider.getSessionConfig(session!.sessionId);
 		assert.deepStrictEqual(updated?.values, { autoApprove: 'autoApprove', isolation: 'worktree' });
 	}));
+});
+
+suite('LocalAgentHostSessionsProvider - active-session uncommitted refresh rotation', () => {
+	const disposables = new DisposableStore();
+	let agentHost: MockAgentHostService;
+	let activeSession: ISettableObservable<IActiveSession | undefined>;
+
+	setup(() => {
+		agentHost = disposables.add(new MockAgentHostService());
+		activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+	});
+
+	teardown(() => disposables.clear());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function makeActive(rawId: string, providerId: string, sessionType: string = 'copilotcli'): IActiveSession {
+		return {
+			providerId,
+			sessionType,
+			resource: URI.from({ scheme: `agent-host-${sessionType}`, path: `/${rawId}` }),
+		} as unknown as IActiveSession;
+	}
+
+	function uncommittedKeyFor(rawId: string, sessionType: string = 'copilotcli'): string {
+		// Matches the URI built in BaseAgentHostSessionsProvider's autorun.
+		return `${AgentSession.uri(sessionType, rawId).toString()}/changeset/uncommitted`;
+	}
+
+	test('subscribes to <activeSession>/changeset/uncommitted when an AHP session becomes active', () => {
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+
+		activeSession.set(makeActive('sess-A', provider.id), undefined);
+
+		const key = uncommittedKeyFor('sess-A');
+		assert.ok(
+			agentHost.wireOps.includes(`subscribe:${key}`),
+			`expected a subscribe for ${key}, got wireOps=${JSON.stringify(agentHost.wireOps)}`,
+		);
+	});
+
+	test('rotates the subscription when active session changes (refresh fires for the new one)', () => {
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+
+		activeSession.set(makeActive('sess-A', provider.id), undefined);
+		const subsAfterA = agentHost.sessionSubscribeCounts.get(uncommittedKeyFor('sess-A')) ?? 0;
+		assert.strictEqual(subsAfterA, 1, 'first activation should subscribe once');
+
+		activeSession.set(makeActive('sess-B', provider.id), undefined);
+		const subsAfterB = agentHost.sessionSubscribeCounts.get(uncommittedKeyFor('sess-B')) ?? 0;
+		const unsubsForA = agentHost.sessionUnsubscribeCounts.get(uncommittedKeyFor('sess-A')) ?? 0;
+		assert.strictEqual(subsAfterB, 1, 'B should be subscribed exactly once on activation');
+		assert.strictEqual(unsubsForA, 1, 'A should be unsubscribed when no longer active');
+	});
+
+	test('switching back to a previously-active session re-subscribes (triggers a refresh)', () => {
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+
+		activeSession.set(makeActive('sess-A', provider.id), undefined);
+		activeSession.set(makeActive('sess-B', provider.id), undefined);
+		activeSession.set(makeActive('sess-A', provider.id), undefined);
+
+		const subsForA = agentHost.sessionSubscribeCounts.get(uncommittedKeyFor('sess-A')) ?? 0;
+		assert.strictEqual(subsForA, 2, 'switching back to A must open a fresh subscription so the 0→1 refresh fires');
+	});
+
+	test('does NOT subscribe when the active session belongs to a different provider', () => {
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+
+		activeSession.set(makeActive('sess-other', 'some-other-provider-id'), undefined);
+
+		const subKeys = [...agentHost.sessionSubscribeCounts.keys()].filter(k => k.endsWith('/changeset/uncommitted'));
+		assert.deepStrictEqual(subKeys, [], 'no uncommitted subscription should open for a foreign provider');
+		// Make sure provider was used so test isn't a no-op.
+		assert.strictEqual(provider.sessionTypes.length >= 0, true);
+	});
+
+	test('clears the active subscription when activeSession becomes undefined', () => {
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+
+		activeSession.set(makeActive('sess-A', provider.id), undefined);
+		activeSession.set(undefined, undefined);
+
+		const unsubsForA = agentHost.sessionUnsubscribeCounts.get(uncommittedKeyFor('sess-A')) ?? 0;
+		assert.strictEqual(unsubsForA, 1, 'leaving the agents window (no active session) must release the subscription');
+	});
 });

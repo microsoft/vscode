@@ -37,8 +37,11 @@ async function init() {
 	await registerMermaidAddons();
 
 	const activeIds = new Set<string>();
-	await renderMermaidBlocksInElement(document.body, (mermaidContainer, content) => {
+	await renderMermaidBlocksInElement(document.body, (mermaidContainer, content, _contentHash, isError) => {
 		mermaidContainer.innerHTML = content;
+		if (isError) {
+			return;
+		}
 		activeIds.add(mermaidContainer.id);
 		currentDisposables.push(diagramManager.setup(mermaidContainer.id, mermaidContainer));
 	}, signal);

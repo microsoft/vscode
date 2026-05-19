@@ -50,28 +50,52 @@
 	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
 }
 
-.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
-	border: none;
-	margin-top: 0px;
-	cursor: pointer;
-	line-height: inherit;
-	padding-top: 0;
-	padding-bottom: 0;
-	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
-
-	/* The debug view title is crowded, let this one get narrower than others */
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration {
+	display: flex;
+	align-items: stretch;
 	min-width: 90px;
+	overflow: hidden;
+}
 
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-dropdown {
+	display: flex;
+	align-items: stretch;
+	flex: 1;
+	min-width: 0;
+}
+
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-dropdown > .dropdown-label {
+	display: flex;
+	align-items: center;
+	cursor: pointer;
+	padding: 0 4px 0 6px;
+	gap: 4px;
+	min-width: 0;
+	flex: 1;
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+	color: var(--vscode-dropdown-foreground);
+	outline-offset: -1px;
+}
+
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-dropdown > .dropdown-label:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-dropdown > .dropdown-label .start-debug-action-item-label {
+	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+	flex: 1;
+	min-width: 0;
 }
 
-
-.monaco-workbench.safari .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
-	margin-bottom: 0px;
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-dropdown > .dropdown-label .codicon-chevron-down {
+	font-size: 10px;
+	opacity: 0.75;
+	flex-shrink: 0;
 }
 
-.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .monaco-select-box {
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .monaco-dropdown > .dropdown-label {
 	opacity: 0.7;
 	font-style: italic;
 	cursor: initial;

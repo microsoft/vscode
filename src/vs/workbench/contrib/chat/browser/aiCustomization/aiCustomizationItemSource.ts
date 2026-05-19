@@ -301,6 +301,7 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 	readonly onDidChange: Event<void>;
 
 	constructor(
+		private readonly sessionResource: URI,
 		private readonly itemProvider: ICustomizationItemProvider | undefined,
 		private readonly syncProvider: ICustomizationSyncProvider | undefined,
 		private readonly promptsService: IPromptsService,
@@ -349,7 +350,7 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 	}
 
 	private async fetchItemsFromProvider(provider: ICustomizationItemProvider, promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		const allItems = await provider.provideChatSessionCustomizations(CancellationToken.None);
+		const allItems = await provider.provideChatSessionCustomizations(this.sessionResource, CancellationToken.None);
 		if (!allItems) {
 			return [];
 		}

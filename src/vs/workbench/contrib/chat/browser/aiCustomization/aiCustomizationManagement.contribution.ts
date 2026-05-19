@@ -36,7 +36,6 @@ import { IWorkbenchExtensionManagementService } from '../../../../services/exten
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
-import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -768,11 +767,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				// so the customization editor opens in the matching context.
 				const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
 				if (sessionResource) {
-					const sessionType = getChatSessionType(sessionResource);
-					const harness = harnessService.findHarnessById(sessionType);
-					if (harness) {
-						harnessService.setActiveHarness(sessionType);
-					}
+					harnessService.setActiveSession(sessionResource);
 				}
 
 				const input = AICustomizationManagementEditorInput.getOrCreate();

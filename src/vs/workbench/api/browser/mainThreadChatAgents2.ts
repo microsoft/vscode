@@ -758,8 +758,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		// Build the item provider that calls back to the ExtHost
 		const itemProvider: ICustomizationItemProvider = {
 			onDidChange: emitter.event,
-			provideChatSessionCustomizations: async (token) => {
-				const items = await this._proxy.$provideChatSessionCustomizations(handle, token);
+			provideChatSessionCustomizations: async (sessionResource, token) => {
+				const items = await this._proxy.$provideChatSessionCustomizations(handle, sessionResource, token);
 				if (!items) {
 					return undefined;
 				}

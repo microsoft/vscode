@@ -23,6 +23,10 @@
 	opacity: 1;
 }
 
+.agent-feedback-widget:focus {
+	outline: none;
+}
+
 .agent-feedback-widget.fadeOut {
 	animation: agentFeedbackFadeOut 150ms ease-out forwards;
 }
@@ -220,6 +224,9 @@
 .agent-feedback-widget-text {
 	color: var(--vscode-foreground);
 	word-wrap: break-word;
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
 }
 
 .agent-feedback-widget-text .rendered-markdown p {
@@ -274,6 +281,9 @@
 	font-size: 11px;
 	line-height: 1.45;
 	background: var(--vscode-editorWidget-background);
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
 }
 
 /* Gutter decoration for range indicator on hover */

@@ -73,6 +73,8 @@ function estimateEventSize(event: SessionEvent, limit: number): number {
 export interface SessionTranslationState {
 	/** Whether session.start has been emitted. */
 	started: boolean;
+	/** Whether session.title_changed has been emitted. */
+	titleEmitted: boolean;
 	/** ID of the last event emitted (for parentId chaining). */
 	lastEventId: string | null;
 	/** Number of events dropped due to size gate. */
@@ -83,7 +85,24 @@ export interface SessionTranslationState {
  * Create a fresh translation state for a new session.
  */
 export function createSessionTranslationState(): SessionTranslationState {
-	return { started: false, lastEventId: null, droppedCount: 0 };
+	return { started: false, titleEmitted: false, lastEventId: null, droppedCount: 0 };
+}
+
+/** Maximum length for a session title derived from a user message. */
+const MAX_TITLE_LENGTH = 60;
+
+/**
+ * Derive a session display title from a user message. Matches the label format
+ * used by the `Delete Cloud Session Data` quick pick so the local UI and the
+ * cloud-side title stay in sync.
+ */
+export function deriveTitleFromUserMessage(content: string): string | undefined {
+	if (!content) {
+		return undefined;
+	}
+	return content.length > MAX_TITLE_LENGTH
+		? content.substring(0, MAX_TITLE_LENGTH) + '...'
+		: content;
 }
 
 /**
@@ -140,10 +159,23 @@ export function translateSpan(
 		// invocation, not a real user turn. The CLI explicitly does NOT bridge
 		// user.message events from sub-agents to the parent session.
 		if (userRequest && !subagentId) {
+			const beforeLen = events.length;
 			pushEvent(events, state, 'user.message', {
 				content: userRequest,
 				agentMode: 'interactive',
 			});
+
+			// Emit session.title_changed (ephemeral) once, derived from the first
+			// user message — mirrors CLI behavior so the cloud shows a meaningful
+			// session title instead of a generic placeholder. Skip when user.message
+			// was dropped by the size gate.
+			if (!state.titleEmitted && events.length > beforeLen) {
+				const title = deriveTitleFromUserMessage(userRequest);
+				if (title) {
+					state.titleEmitted = true;
+					pushEvent(events, state, 'session.title_changed', { title }, /*ephemeral*/ true);
+				}
+			}
 		}
 
 		// Extract assistant response + tool requests
@@ -256,12 +288,21 @@ export function translateDebugLogEntry(
 					? entry.attrs.userRequest
 					: undefined;
 			if (content) {
+				const beforeLen = events.length;
 				// See translateSpan: do not set `source`, or the cloud renderer
 				// will treat the message as synthetic and hide it.
 				pushEventAt(events, state, ts, 'user.message', {
 					content,
 					agentMode: 'interactive',
 				});
+
+				if (!state.titleEmitted && events.length > beforeLen) {
+					const title = deriveTitleFromUserMessage(content);
+					if (title) {
+						state.titleEmitted = true;
+						pushEventAt(events, state, ts, 'session.title_changed', { title }, /*ephemeral*/ true);
+					}
+				}
 			}
 			break;
 		}

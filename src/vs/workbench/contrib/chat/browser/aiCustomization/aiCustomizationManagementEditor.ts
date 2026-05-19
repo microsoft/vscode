@@ -92,7 +92,6 @@ import { ICustomizationHarnessService, matchesWorkspaceSubpath } from '../../com
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage } from './aiCustomizationWelcomePage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { SessionType } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
 
@@ -507,7 +506,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * When disabled, the editor behaves as if "Local" is always selected.
 	 */
 	private get isHarnessSelectorEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled) !== false;
+		return false; //this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled) !== false;
 	}
 
 	/**
@@ -516,14 +515,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * section, the first visible section is selected instead.
 	 */
 	private rebuildVisibleSections(): void {
-		let hidden: Set<string>;
-		if (this.isHarnessSelectorEnabled) {
-			const activeId = this.harnessService.activeHarness.get();
-			const descriptor = this.harnessService.findHarnessById(activeId);
-			hidden = new Set(descriptor?.hiddenSections ?? []);
-		} else {
-			hidden = new Set(); // Local harness has no hidden sections
-		}
+		const activeId = this.harnessService.activeHarness.get();
+		const descriptor = this.harnessService.findHarnessById(activeId);
+		const hidden = new Set(descriptor?.hiddenSections ?? []);
 
 		this.sections.length = 0;
 		for (const s of this.allSections) {
@@ -596,15 +590,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// React to harness changes — rebuild visible sections and refresh counts.
 		// Also track availableHarnesses to handle agent registration/unregistration.
 		this.editorDisposables.add(autorun(reader => {
-			const available = this.harnessService.availableHarnesses.read(reader);
+			this.harnessService.availableHarnesses.read(reader);
 			const activeId = this.harnessService.activeHarness.read(reader);
-
-			// If the active harness is no longer available, fall back to the default
-			if (!available.some(h => h.id === activeId) && available.length > 0) {
-				this.harnessService.setActiveHarness(available[0].id);
-				return; // setActiveHarness will trigger another autorun cycle
-			}
-
 			this.harnessContextKey.set(activeId);
 			this.rebuildVisibleSections();
 			this.ensureHarnessDropdown();
@@ -621,19 +608,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this._previousActiveHarnessId = activeId;
 		}));
 
-		// When the harness selector setting is off, lock to Local harness.
-		// In Sessions (single CLI harness) the dropdown is already hidden and
-		// setActiveHarness(VSCode) is a safe no-op since the CLI harness
-		// remains active — filtering stays correct for that window.
-		if (!this.isHarnessSelectorEnabled) {
-			this.harnessService.setActiveHarness(SessionType.Local);
-		}
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled)) {
-				if (!this.isHarnessSelectorEnabled) {
-					this.harnessService.setActiveHarness(SessionType.Local);
-				}
-			}
 			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled)) {
 				this.onStructuredPreviewSettingChanged();
 			}
@@ -658,7 +633,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 
 		// Harness dropdown (shown when multiple harnesses available)
-		this.createHarnessDropdown(headerRow);
+		//this.createHarnessDropdown(headerRow);
 		this.updateHomeButtonStyle();
 	}
 
@@ -747,7 +722,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const actions = harnesses.map(h => {
 			const action = new Action(h.id, h.label, ThemeIcon.asClassName(h.icon), true, () => {
-				this.harnessService.setActiveHarness(h.id);
+				this.harnessService.setActiveSession(this.harnessService.getSessionResourceForHarness(h.id));
 			});
 			action.checked = h.id === activeId;
 			return action;

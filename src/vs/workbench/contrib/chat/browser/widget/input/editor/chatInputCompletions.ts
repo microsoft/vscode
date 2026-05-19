@@ -247,7 +247,7 @@ class SlashCommandCompletions extends Disposable {
 				}
 
 				const currentSessionType = getChatSessionType(widget.viewModel.model.sessionResource);
-				const promptCommands = await this.harnessService.getSlashCommands(currentSessionType, token);
+				const promptCommands = await this.harnessService.getSlashCommands(widget.viewModel.model.sessionResource, token);
 				if (promptCommands.length === 0) {
 					return null;
 				}

@@ -605,6 +605,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			return;
 		}
 
+		// Resizing a disposed pty is a contractual no-op so re-entrant resizes
+		// during the synchronous teardown stack (#315282) are silently dropped.
+		if (this._store.isDisposed) {
+			return Promise.resolve();
+		}
+		if (!this.ptyProcessReady) {
+			throw new Error('TerminalProcessManager.setDimensions called before initialization');
+		}
 		return this.ptyProcessReady.then(() => this._resize(cols, rows, pixelWidth, pixelHeight));
 	}
 

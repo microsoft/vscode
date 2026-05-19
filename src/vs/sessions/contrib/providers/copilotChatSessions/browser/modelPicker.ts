@@ -18,6 +18,7 @@ import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../.
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider, RemoteNewSession } from './copilotChatSessionsProvider.js';
+import { INewChatModelPickerService } from '../../../chat/browser/newChatModelPicker.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 
 const FILTER_THRESHOLD = 10;
@@ -57,8 +58,10 @@ export class CloudModelPicker extends Disposable {
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@INewChatModelPickerService private readonly newChatModelPickerService: INewChatModelPickerService,
 	) {
 		super();
+		this._register(this.newChatModelPickerService.registerModelPicker(() => this._showPicker()));
 
 		this._register(autorun(reader => {
 			const session = sessionsManagementService.activeSession.read(reader);

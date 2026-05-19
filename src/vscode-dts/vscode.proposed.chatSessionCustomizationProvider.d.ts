@@ -157,10 +157,11 @@ declare module 'vscode' {
 		 *
 		 * The result is cached by the UI until {@link onDidChange} fires.
 		 *
+		 * @param sessionResource URI of the chat session whose customizations should be considered.
 		 * @param token A cancellation token.
 		 * @returns The list of customization items, or `undefined` if unavailable.
 		 */
-		provideChatSessionCustomizations(token: CancellationToken): ProviderResult<ChatSessionCustomizationItem[]>;
+		provideChatSessionCustomizations(sessionResource: Uri, token: CancellationToken): ProviderResult<ChatSessionCustomizationItem[]>;
 	}
 
 	// #endregion

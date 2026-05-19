@@ -44,8 +44,8 @@ export class NodeFetcher implements IFetcher {
 		}
 
 		const method = options.method || 'GET';
-		if (method !== 'GET' && method !== 'POST' && method !== 'PUT') {
-			throw new Error(`Illegal arguments! 'method' must be 'GET', 'POST', or 'PUT'!`);
+		if (method !== 'GET' && method !== 'POST' && method !== 'PUT' && method !== 'DELETE') {
+			throw new Error(`Illegal arguments! 'method' must be 'GET', 'POST', 'PUT', or 'DELETE'!`);
 		}
 
 		const signal = options.signal ?? new AbortController().signal;
@@ -93,7 +93,7 @@ export class NodeFetcher implements IFetcher {
 		return items;
 	}
 
-	private _fetch(url: string, method: 'GET' | 'POST' | 'PUT', headers: { [name: string]: string }, body: string | undefined, signal: AbortSignal, internalId: string, hostname: string): Promise<Response> {
+	private _fetch(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', headers: { [name: string]: string }, body: string | undefined, signal: AbortSignal, internalId: string, hostname: string): Promise<Response> {
 		return new Promise((resolve, reject) => {
 			const module = url.startsWith('https:') ? https : http;
 			const req = module.request(url, { method, headers }, res => {

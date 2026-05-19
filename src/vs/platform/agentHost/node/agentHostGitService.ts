@@ -82,7 +82,7 @@ export interface IAgentHostGitService {
 /**
  * Provider-agnostic session-database metadata key under which agents
  * persist the branch they want git-driven diffs anchored to. Read by
- * {@link AgentSideEffects} when computing per-session file diffs; absent
+ * {@link IAgentHostChangesetService} when computing per-session file diffs; absent
  * value means the diff falls back to anchoring at HEAD.
  */
 export const META_DIFF_BASE_BRANCH = 'agentHost.diffBaseBranch';
