@@ -167,6 +167,19 @@ export interface ISessionChangeset {
 	readonly modifiedCheckpointRef: IObservable<string | undefined>;
 }
 
+/**
+ * A custom agent reference used by session-level selection. Mirrors the Agent
+ * Host protocol's `AgentSelection` shape but lives in the sessions layer so the
+ * sessions service API does not leak the protocol type to non-Agent-Host
+ * consumers.
+ */
+export interface ISessionAgentRef {
+	/** Stable agent URI (matches the contributing customization's agent ref). */
+	readonly uri: string;
+	/** Agent name. */
+	readonly name: string;
+}
+
 export interface IChatCheckpoints {
 	/** Reference to the first checkpoint in the chat. */
 	readonly firstCheckpointRef: string;
@@ -197,6 +210,8 @@ export interface IChat {
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
+	/** Currently selected custom agent, or `undefined` for the provider default. Optional so providers without custom-agent support can omit it. */
+	readonly agent?: IObservable<ISessionAgentRef | undefined>;
 	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the chat is archived. */
@@ -243,6 +258,8 @@ export interface ISession {
 	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
+	/** Currently selected custom agent, or `undefined` for the provider default. Optional so providers without custom-agent support can omit it. */
+	readonly agent?: IObservable<ISessionAgentRef | undefined>;
 	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */

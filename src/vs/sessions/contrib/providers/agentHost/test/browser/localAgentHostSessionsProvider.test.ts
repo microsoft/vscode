@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, IAgentHostService, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationStatus, SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -654,6 +654,189 @@ suite('LocalAgentHostSessionsProvider', () => {
 			type: ActionType.SessionModelChanged,
 			model: { id: 'configured-model', config: { thinkingLevel: 'high' } },
 		});
+	});
+
+	test('setAgent updates existing session agent and dispatches SessionAgentChanged', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'set-agent', { title: 'Set Agent Session' });
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Set Agent Session');
+		assert.ok(session);
+
+		provider.setAgent?.(session!.sessionId, { uri: 'agent://review', name: 'review' });
+
+		assert.deepStrictEqual(session!.agent?.get(), { uri: 'agent://review', name: 'review' });
+		assert.deepStrictEqual(agentHost.dispatchedActions.at(-1)?.action, {
+			type: ActionType.SessionAgentChanged,
+			agent: { uri: 'agent://review', name: 'review' },
+		});
+	});
+
+	test('setAgent with undefined clears the selection and dispatches an empty action', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'clear-agent', { title: 'Clear Agent Session' });
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Clear Agent Session');
+		assert.ok(session);
+
+		provider.setAgent?.(session!.sessionId, { uri: 'agent://review', name: 'review' });
+		provider.setAgent?.(session!.sessionId, undefined);
+
+		assert.strictEqual(session!.agent?.get(), undefined);
+		assert.deepStrictEqual(agentHost.dispatchedActions.at(-1)?.action, {
+			type: ActionType.SessionAgentChanged,
+		});
+	});
+
+	// ---- getCustomAgents / onDidChangeCustomAgents -------
+
+	test('getCustomAgents merges root + session-state customizations, scoped to the session agent provider', async () => {
+		const provider = createProvider(disposables, agentHost);
+
+		// Two host-advertised agent providers; only `copilotcli` customizations
+		// should flow through for a `copilotcli` session.
+		agentHost.setAgents([
+			{
+				provider: 'copilotcli',
+				displayName: 'Copilot',
+				description: '',
+				models: [],
+				customizations: [{
+					uri: 'plugin://root-copilot',
+					displayName: 'root copilot plugin',
+					agents: [
+						{ uri: 'agent://root-a', name: 'root-a' },
+						{ uri: 'agent://shared', name: 'shared', description: 'from root' },
+					],
+				}],
+			} as AgentInfo,
+			{
+				provider: 'openai',
+				displayName: 'OpenAI',
+				description: '',
+				models: [],
+				customizations: [{
+					uri: 'plugin://root-openai',
+					displayName: 'openai-only plugin',
+					agents: [{ uri: 'agent://openai-only', name: 'openai-only' }],
+				}],
+			} as AgentInfo,
+		]);
+
+		fireSessionAdded(agentHost, 'agents-merge', { title: 'Merge Session' });
+		const session = provider.getSessions().find(s => s.title.get() === 'Merge Session');
+		assert.ok(session);
+
+		// Seed session state with both session-level and active-client
+		// customizations, including a duplicate URI that must win over root.
+		const fakeState: SessionState = {
+			summary: {
+				resource: AgentSession.uri('copilotcli', 'agents-merge').toString(),
+				provider: 'copilotcli',
+				title: 'Merge Session',
+				status: ProtocolSessionStatus.Idle,
+				createdAt: 0,
+				modifiedAt: 0,
+			},
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			customizations: [{
+				customization: {
+					uri: 'plugin://session-1',
+					displayName: 'session plugin',
+					agents: [
+						{ uri: 'agent://shared', name: 'shared', description: 'from session' },
+						{ uri: 'agent://session-only', name: 'session-only' },
+					],
+				},
+				enabled: true,
+				status: CustomizationStatus.Loaded,
+			}],
+			activeClient: {
+				clientId: 'workbench',
+				tools: [],
+				customizations: [{
+					uri: 'plugin://client-1',
+					displayName: 'client plugin',
+					agents: [{ uri: 'agent://client-only', name: 'client-only' }],
+				}],
+			},
+		};
+		// Force a session-state subscription so `_lastSessionStates` gets
+		// populated when we push the fake state below. `getSessionConfig`
+		// is the public hook that calls `_keepSessionStateAlive`.
+		provider.getSessionConfig(session!.sessionId);
+		agentHost.setSessionState('agents-merge', 'copilotcli', fakeState);
+
+		// Wait one tick so the subscription's `onDidChange` fires through.
+		await timeout(0);
+
+		assert.deepStrictEqual(provider.getCustomAgents(session!.sessionId), [
+			{ uri: 'agent://client-only', name: 'client-only' },
+			{ uri: 'agent://root-a', name: 'root-a' },
+			{ uri: 'agent://session-only', name: 'session-only' },
+			// Session layer wins over root for the duplicate URI.
+			{ uri: 'agent://shared', name: 'shared', description: 'from session' },
+		]);
+	});
+
+	test('getCustomAgents returns root-only agents when the session has no SessionState', () => {
+		const provider = createProvider(disposables, agentHost);
+		agentHost.setAgents([
+			{
+				provider: 'copilotcli',
+				displayName: 'Copilot',
+				description: '',
+				models: [],
+				customizations: [{
+					uri: 'plugin://root',
+					displayName: 'root plugin',
+					agents: [{ uri: 'agent://root-only', name: 'root-only' }],
+				}],
+			} as AgentInfo,
+		]);
+
+		fireSessionAdded(agentHost, 'root-only', { title: 'Root Only' });
+		const session = provider.getSessions().find(s => s.title.get() === 'Root Only');
+		assert.ok(session);
+
+		assert.deepStrictEqual(provider.getCustomAgents(session!.sessionId), [
+			{ uri: 'agent://root-only', name: 'root-only' },
+		]);
+	});
+
+	test('onDidChangeCustomAgents fires on root state and session state changes', async () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'cust-events', { title: 'Cust Events' });
+		const session = provider.getSessions().find(s => s.title.get() === 'Cust Events');
+		assert.ok(session);
+
+		let fired = 0;
+		disposables.add(provider.onDidChangeCustomAgents(() => { fired++; }));
+
+		// Root state change should fire the event.
+		agentHost.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+		]);
+		const afterRoot = fired;
+		assert.ok(afterRoot > 0, 'expected event to fire on root state change');
+
+		// Session-state update should fire it again.
+		provider.getSessionConfig(session!.sessionId);
+		agentHost.setSessionState('cust-events', 'copilotcli', {
+			summary: {
+				resource: AgentSession.uri('copilotcli', 'cust-events').toString(),
+				provider: 'copilotcli',
+				title: 'Cust Events',
+				status: ProtocolSessionStatus.Idle,
+				createdAt: 0,
+				modifiedAt: 0,
+			},
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+		});
+		await timeout(0);
+		assert.ok(fired > afterRoot, 'expected event to fire on session state update');
 	});
 
 	// ---- Session lifecycle -------
