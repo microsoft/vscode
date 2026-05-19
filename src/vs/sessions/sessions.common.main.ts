@@ -217,7 +217,7 @@ import '../workbench/contrib/notebook/browser/notebook.contribution.js';
 import '../workbench/contrib/speech/browser/speech.contribution.js';
 
 // Chat
-import '../workbench/contrib/chat/browser/chat.contribution.js';
+import '../workbench/contrib/chat/browser/chat.shared.contribution.js';
 //import '../workbench/contrib/inlineChat/browser/inlineChat.contribution.js';
 import '../workbench/contrib/mcp/browser/mcp.contribution.js';
 import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
