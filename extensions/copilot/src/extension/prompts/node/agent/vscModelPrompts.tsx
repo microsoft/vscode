@@ -9,6 +9,7 @@ import { IChatEndpoint } from '../../../../platform/networking/common/networking
 import { ToolName } from '../../../tools/common/toolNames';
 import { InstructionMessage } from '../base/instructionMessage';
 import { Tag } from '../base/tag';
+import { MermaidIntegrationRules } from '../panel/editorIntegrationRules';
 import { DefaultAgentPromptProps, detectToolCapabilities, getEditingReminder, ReminderInstructionsProps } from './defaultAgentInstructions';
 import { IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SystemPrompt } from './promptRegistry';
 
@@ -580,6 +581,7 @@ class VSCModelPromptD extends PromptElement<DefaultAgentPromptProps> {
 				Wrap inline math equations in $.$<br />
 				Wrap more complex blocks of math equations in $$.$$<br />
 			</Tag>
+			<MermaidIntegrationRules />
 			<Tag name='fileLinkification'>
 				When mentioning files or line numbers, always convert them to markdown links using workspace-relative paths and 1-based line numbers.<br />
 				NO BACKTICKS ANYWHERE:<br />

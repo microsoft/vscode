@@ -96,6 +96,27 @@ export function compareSessionEditorComments(a: ISessionEditorComment, b: ISessi
 		|| a.sourceId.localeCompare(b.sourceId);
 }
 
+/**
+ * Approximates the vertical space (in editor lines) a comment occupies when
+ * rendered expanded inside the agent feedback widget. Used so that grouping
+ * accounts for very long comments that would otherwise visually overlap with
+ * the next nearby widget.
+ */
+function estimateExpandedCommentLines(comment: ISessionEditorComment): number {
+	// Rough number of characters that fit on one line in the widget body.
+	const charsPerLine = 50;
+	const textLines = Math.ceil(Math.max(1, comment.text.length) / charsPerLine);
+	// Add a small overhead for the item header (line info, action bar) and
+	// for suggestion blocks which render additional lines of code.
+	let suggestionLines = 0;
+	if (comment.suggestion?.edits.length) {
+		for (const edit of comment.suggestion.edits) {
+			suggestionLines += 2 + Math.max(1, edit.newText.split('\n').length);
+		}
+	}
+	return textLines + 1 + suggestionLines;
+}
+
 export function groupNearbySessionEditorComments(items: readonly ISessionEditorComment[], lineThreshold: number = 5): ISessionEditorComment[][] {
 	if (items.length === 0) {
 		return [];
@@ -104,6 +125,7 @@ export function groupNearbySessionEditorComments(items: readonly ISessionEditorC
 	const sorted = [...items].sort(compareSessionEditorComments);
 	const groups: ISessionEditorComment[][] = [];
 	let currentGroup: ISessionEditorComment[] = [sorted[0]];
+	let currentGroupExpandedLines = estimateExpandedCommentLines(sorted[0]);
 
 	for (let i = 1; i < sorted.length; i++) {
 		const firstItem = currentGroup[0];
@@ -111,12 +133,17 @@ export function groupNearbySessionEditorComments(items: readonly ISessionEditorC
 
 		const sameResource = currentItem.resourceUri.toString() === firstItem.resourceUri.toString();
 		const verticalSpan = currentItem.range.startLineNumber - firstItem.range.startLineNumber;
+		// Account for the estimated vertical space already taken by the
+		// expanded group so that a long comment pulls in items below it.
+		const effectiveThreshold = lineThreshold + currentGroupExpandedLines;
 
-		if (sameResource && verticalSpan <= lineThreshold) {
+		if (sameResource && verticalSpan <= effectiveThreshold) {
 			currentGroup.push(currentItem);
+			currentGroupExpandedLines += estimateExpandedCommentLines(currentItem);
 		} else {
 			groups.push(currentGroup);
 			currentGroup = [currentItem];
+			currentGroupExpandedLines = estimateExpandedCommentLines(currentItem);
 		}
 	}
 

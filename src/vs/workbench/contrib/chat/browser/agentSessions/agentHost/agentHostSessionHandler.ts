@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, autorunPerKeyedItem, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey, Mutable } from '../../../../../../base/common/types.js';
@@ -18,6 +19,7 @@ import { isLocation, type Location } from '../../../../../../editor/common/langu
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -38,7 +40,7 @@ import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult } from '../../../common/chatSessionsService.js';
-import { isImageVariableEntry, type IChatRequestVariableEntry, type IImageVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { isAgentFeedbackVariableEntry, isImageVariableEntry, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IImageVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
@@ -54,7 +56,7 @@ import { getAgentHostIcon } from '../agentSessions.js';
 import { AgentHostEditingSession } from './agentHostEditingSession.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, userMessageToVariableData, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, userMessageToVariableData, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 
 // =============================================================================
 // AgentHostSessionHandler - renderer-side handler for a single agent host
@@ -1288,6 +1290,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 		const responseParts$ = derived(reader => turn$.read(reader)?.responseParts ?? []);
 		const inputRequests$ = derived(reader => sessionState$.read(reader)?.inputRequests ?? []);
+		const usage$ = derived(reader => turn$.read(reader)?.usage);
 
 		// Per-tool-call subagent observation dedup. A tool call may fire the
 		// per-key autorun multiple times; only install the child observer once.
@@ -1336,6 +1339,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// requests on a subagent session are surfaced through that session's
 		// own view, not the parent.
 		if (opts.subAgentInvocationId === undefined) {
+			let lastUsage: ReturnType<typeof usageInfoToChatUsage>;
+			store.add(autorun(reader => {
+				const usage = usageInfoToChatUsage(usage$.read(reader));
+				if (!usage) {
+					return;
+				}
+				if (lastUsage
+					&& lastUsage.promptTokens === usage.promptTokens
+					&& lastUsage.completionTokens === usage.completionTokens
+					&& lastUsage.outputBuffer === usage.outputBuffer
+					&& equals(lastUsage.promptTokenDetails, usage.promptTokenDetails)) {
+					return;
+				}
+				lastUsage = usage;
+				opts.sink([usage]);
+			}));
+
 			store.add(autorunPerKeyedItem(
 				inputRequests$,
 				ir => ir.id,
@@ -2728,6 +2748,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (isImageVariableEntry(v)) {
 			return this._toImageAttachment(v, sessionResource);
 		}
+		if (isAgentFeedbackVariableEntry(v)) {
+			return this._toAgentFeedbackAttachment(v, sessionResource);
+		}
 		// Pasted code, prompt text, and free-form string entries: surface their
 		// textual representation as an opaque attachment.
 		if (v.kind === 'paste') {
@@ -2796,8 +2819,32 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return undefined;
 	}
 
-	private _toSimpleAttachment(label: string, modelRepresentation: string | undefined, _meta: Record<string, unknown> | undefined): MessageAttachment {
+	private _toAgentFeedbackAttachment(v: IAgentFeedbackVariableEntry, sessionResource: URI): MessageAttachment {
+		const feedbackItems = v.feedbackItems.map(item => ({
+			id: item.id,
+			text: item.text,
+			resourceUri: item.resourceUri.toString(),
+			range: this._toTextRange(item.range),
+		}));
+		return this._toSimpleAttachment(
+			v.name,
+			typeof v.value === 'string' ? v.value : undefined,
+			{
+				...(v._meta ?? {}),
+				[AgentFeedbackAttachmentMetadataKey]: {
+					sessionResource: v.sessionResource.toString(),
+					feedbackItems,
+				},
+			},
+			AgentFeedbackAttachmentDisplayKind,
+		);
+	}
+
+	private _toSimpleAttachment(label: string, modelRepresentation: string | undefined, _meta: Record<string, unknown> | undefined, displayKind?: string): MessageAttachment {
 		const attachment: MessageAttachment = { type: MessageAttachmentKind.Simple, label, modelRepresentation };
+		if (displayKind) {
+			attachment.displayKind = displayKind;
+		}
 		if (_meta) {
 			attachment._meta = _meta;
 		}
