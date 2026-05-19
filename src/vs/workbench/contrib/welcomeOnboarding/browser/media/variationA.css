@@ -437,9 +437,12 @@
 /* Inline GitHub Enterprise instance input */
 .onboarding-a-signin-ghe-input {
 	display: flex;
+	flex: 1 1 auto;
 	flex-direction: column;
 	gap: 6px;
 	margin-top: 4px;
+	min-width: 0;
+	width: 100%;
 }
 
 .onboarding-a-signin-ghe-input-row {
