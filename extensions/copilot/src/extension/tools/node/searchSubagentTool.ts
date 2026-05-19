@@ -25,7 +25,7 @@ import { IBuildPromptContext } from '../../prompt/common/intents';
 import { SearchSubagentToolCallingLoop } from '../../prompt/node/searchSubagentToolCallingLoop';
 import { ToolName } from '../common/toolNames';
 import { CopilotToolMode, ICopilotTool, ICopilotToolCtor, ToolRegistry } from '../common/toolsRegistry';
-import { assertFileOkForTool } from './toolUtils';
+import { assertFileOkForTool, isFileExternalAndNeedsConfirmation } from './toolUtils';
 
 export interface ISearchSubagentParams {
 
@@ -213,13 +213,14 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 			const startLine = parseInt(startLineStr, 10);
 			const endLine = parseInt(endLineStr, 10);
 
-			try {
-				// Resolve candidate path first, then enforce read-only file access
-				// via shared toolUtils guards before hydrating
-				const uri = (!path.isAbsolute(filePath) && cwd)
-					? URI.joinPath(URI.file(cwd), filePath)
-					: URI.file(filePath);
+			// Resolve the candidate URI up front so we can reference it from both the
+			// try and the catch block (for the external-file check below).
+			const uri = (!path.isAbsolute(filePath) && cwd)
+				? URI.joinPath(URI.file(cwd), filePath)
+				: URI.file(filePath);
 
+			try {
+				// Enforce read-only file access via shared toolUtils guards before hydrating.
 				await this.instantiationService.invokeFunction(accessor =>
 					assertFileOkForTool(accessor, uri, this._inputContext, { readOnly: true, workingDirectory })
 				);
@@ -238,8 +239,23 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 				const code = snapshot.getText(range);
 				processedLines.push(`File: \`${uri.fsPath}\`, lines ${clampedStartLine}-${clampedEndLine}:\n\`\`\`\n${code}\n\`\`\``);
 			} catch (err) {
-				// If we can't read the file, keep the original line
-				processedLines.push(`${trimmedLine} (unable to read file: ${err})`);
+				// Drop the line entirely for files outside the workspace so we don't
+				// disclose the path back to the model. For inside-workspace failures
+				// (e.g. file missing), keep the original line with the error.
+				let isExternal = false;
+				try {
+					isExternal = await this.instantiationService.invokeFunction(accessor =>
+						isFileExternalAndNeedsConfirmation(accessor, uri, this._inputContext, { readOnly: true, workingDirectory })
+					);
+				} catch {
+					// isFileExternalAndNeedsConfirmation throws for nonexistent files;
+					// treat that as "not external" so the original line is preserved.
+				}
+
+				if (!isExternal) {
+					// If we can't read the file, keep the original line
+					processedLines.push(`${trimmedLine} (unable to read file: ${err})`);
+				}
 			}
 
 			if (token.isCancellationRequested) {
