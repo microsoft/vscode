@@ -3711,6 +3711,43 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
+	 * The billing banner is ~250px tall. In short panels (the chat welcome view
+	 * in a narrow auxiliary bar, the inline chat, etc.) the banner can squeeze
+	 * the input editor below its minimum height, making the input vanish. When
+	 * we detect that, hide the banner so the user always has a usable input.
+	 *
+	 * `scrollHeight` is read from the container so the natural banner height is
+	 * known even while the banner is currently hidden via CSS; this keeps the
+	 * decision stable instead of oscillating once the banner is squeezed out.
+	 */
+	private _updateBillingBannerVisibility(): void {
+		if (!this.chatBillingBannerContainer) {
+			return;
+		}
+		if (this._maxHeight === undefined) {
+			this.chatBillingBannerContainer.classList.remove('chat-billing-banner-squeezed');
+			return;
+		}
+
+		const bannerNaturalHeight = this.chatBillingBannerContainer.scrollHeight;
+		if (bannerNaturalHeight === 0) {
+			this.chatBillingBannerContainer.classList.remove('chat-billing-banner-squeezed');
+			return;
+		}
+
+		const isCurrentlySqueezed = this.chatBillingBannerContainer.classList.contains('chat-billing-banner-squeezed');
+		const containerHeight = this.container.offsetHeight;
+		const currentBannerHeight = isCurrentlySqueezed ? 0 : bannerNaturalHeight;
+		const editorHeight = this.previousInputEditorDimension?.height ?? 0;
+		const otherChromeHeight = Math.max(0, containerHeight - currentBannerHeight - editorHeight);
+
+		const editorMinHeight = this.inputEditorMinHeight ?? INPUT_EDITOR_LINE_HEIGHT;
+		const requiredWithBanner = otherChromeHeight + bannerNaturalHeight + editorMinHeight;
+
+		this.chatBillingBannerContainer.classList.toggle('chat-billing-banner-squeezed', requiredWithBanner > this._maxHeight);
+	}
+
+	/**
 	 * Layout the input part with the given width. Height is intrinsic - determined by content
 	 * and detected via ResizeObserver, which updates `inputPartHeight` for the parent to observe.
 	 */
@@ -3785,6 +3822,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private previousInputEditorDimension: IDimension | undefined;
 	private _layout(width: number, allowRecurse = true): void {
+		// Decide whether the billing banner can fit alongside a minimally-sized
+		// input editor. If not, squeeze it out so the chat input never gets
+		// pushed off-screen in short panels (e.g. the welcome view in a narrow
+		// auxiliary bar). See `chat-billing-banner-squeezed` in CSS.
+		this._updateBillingBannerVisibility();
+
 		const data = this.getLayoutData();
 
 		const followupsWidth = width - data.inputPartHorizontalPadding;

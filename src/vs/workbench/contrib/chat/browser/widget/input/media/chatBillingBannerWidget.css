@@ -9,6 +9,13 @@
 	display: none;
 }
 
+/* Layout fallback: the chat input part hides the banner via this class when
+ * the available height would otherwise squeeze the input editor below its
+ * minimum (e.g. the welcome view in a narrow auxiliary bar). */
+.chat-billing-banner-container.chat-billing-banner-squeezed {
+	display: none;
+}
+
 /* Pull the banner down so its squared-off bottom slides behind the rounded
  * top of the chat input, hiding the seam. Applies to both host surfaces. */
 .interactive-session .interactive-input-part > .chat-billing-banner-container,
@@ -93,7 +100,7 @@
 /* Body text */
 .chat-billing-banner-widget .chat-billing-banner-body {
 	padding: 12px 16px 4px;
-	transition: opacity 0.2s ease;
+	transition: opacity 0.16s ease;
 }
 .chat-billing-banner-widget .chat-billing-banner-body.fading {
 	opacity: 0;
@@ -131,6 +138,7 @@
 	gap: 8px;
 	flex-wrap: wrap;
 	row-gap: 8px;
+	min-height: 26px;
 }
 
 .chat-billing-banner-widget .chat-billing-banner-nav-left {
@@ -171,20 +179,7 @@
 	outline-offset: 1px;
 }
 
-/* Last-slide check icon: styled like a secondary button so it reads as the
-   primary commit action of the carousel. */
-.chat-billing-banner-widget .chat-billing-banner-arrow.is-done {
-	background: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
-	border: 1px solid var(--vscode-button-border, transparent);
-}
-.chat-billing-banner-widget .chat-billing-banner-arrow.is-done:not(:disabled):hover {
-	background: var(--vscode-button-secondaryHoverBackground);
-}
-.chat-billing-banner-widget .chat-billing-banner-arrow.is-done .codicon {
-	color: var(--vscode-button-secondaryForeground);
-}
-
+/* Counter */
 .chat-billing-banner-widget .chat-billing-banner-counter {
 	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
@@ -204,12 +199,11 @@
 }
 
 .chat-billing-banner-widget .chat-billing-banner-link {
-	font-size: 11px;
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 	background: none;
 	border: none;
-	font-family: inherit;
+	font: inherit;
 	padding: 0;
 	text-decoration: none;
 }

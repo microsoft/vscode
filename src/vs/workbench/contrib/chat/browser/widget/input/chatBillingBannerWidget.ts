@@ -41,6 +41,8 @@ const PANEL_CTA_COMMAND_ID = 'workbench.action.chat.openStatusDashboard';
 interface ISlide {
 	readonly title: string;
 	readonly description: string;
+	readonly linkLabel?: string;
+	readonly linkHref?: string;
 }
 
 interface IBlobConfig {
@@ -76,6 +78,10 @@ const FONT_SIZE = 10;
 const SPEED = 0.18;
 const LERP = 0.028;
 const BG_SWAPS_PER_FRAME = 4;
+
+// Slide-to-slide cross-fade. Half a beat shorter than the standard
+// editor flyout transitions so the carousel reads as responsive.
+const SLIDE_FADE_MS = 160;
 
 interface IBlobState {
 	cx: number; cy: number; crx: number; cry: number; // current (lerped)
@@ -299,15 +305,17 @@ export class ChatBillingBannerWidget extends Disposable {
 	private readonly _slides: ReadonlyArray<ISlide> = [
 		{
 			title: localize('billingBanner.slide1.title', "Copilot billing has changed"),
-			description: localize('billingBanner.slide1.desc', "Copilot now uses AI credits instead of request counts. Your plan price is the same, usage limits have been updated, and credits reset at the start of each month."),
+			description: localize('billingBanner.slide1.desc', "Copilot now measures usage in AI credits instead of request counts. Each plan includes a monthly credit allowance, and your subscription price is unchanged."),
 		},
 		{
 			title: localize('billingBanner.slide2.title', "Cost scales with the work done"),
-			description: localize('billingBanner.slide2.desc', "A quick chat costs a fraction of a credit. Agentic sessions and more powerful models cost more because they do more. Code completions and next edit suggestions don\u2019t count against your credits at all."),
+			description: localize('billingBanner.slide2.desc', "A quick chat costs a fraction of a credit. Agent sessions and more powerful models cost more because they do more. Code completions and next edit suggestions don\u2019t draw from your credits."),
 		},
 		{
-			title: localize('billingBanner.slide3.title', "Track your usage"),
-			description: localize('billingBanner.slide3.desc', "Click the Copilot icon in the status bar to see your balance, a breakdown of what\u2019s using your credits, and options to upgrade. The usage dashboard shows the full picture."),
+			title: localize('billingBanner.slide3.title', "Monitor and manage your usage"),
+			description: localize('billingBanner.slide3.desc', "Credits reset each month. Open the Copilot status dashboard to check your remaining allowance, upgrade, or set an overage budget."),
+			linkLabel: localize('billingBanner.slide3.link', "Learn more on GitHub Docs"),
+			linkHref: GITHUB_DOCS_URL,
 		},
 	];
 
@@ -317,8 +325,8 @@ export class ChatBillingBannerWidget extends Disposable {
 	private _counterEl: HTMLElement | undefined;
 	private _prevBtn: HTMLButtonElement | undefined;
 	private _nextBtn: HTMLButtonElement | undefined;
-	private _docsLink: HTMLAnchorElement | undefined;
 	private _ctaBtn: Button | undefined;
+	private _dismissBtn: Button | undefined;
 	private _bodyEl: HTMLElement | undefined;
 	private _fadeTimeout: number | undefined;
 
@@ -342,7 +350,7 @@ export class ChatBillingBannerWidget extends Disposable {
 		this._animator = undefined;
 		this._titleEl = this._descEl = this._counterEl = undefined;
 		this._prevBtn = this._nextBtn = this._ctaBtn = undefined;
-		this._docsLink = undefined;
+		this._dismissBtn = undefined;
 		this._bodyEl = undefined;
 		if (this._fadeTimeout !== undefined) {
 			dom.getWindow(this.domNode).clearTimeout(this._fadeTimeout);
@@ -391,10 +399,16 @@ export class ChatBillingBannerWidget extends Disposable {
 		this._nextBtn.type = 'button';
 		this._nextBtn.setAttribute('aria-label', localize('billingBanner.next', "Next"));
 		dom.append(this._nextBtn, dom.$(ThemeIcon.asCSSSelector(Codicon.chevronRight)));
-		this._renderDisposables.add(dom.addDisposableListener(this._nextBtn, dom.EventType.CLICK, () => this._handleNext()));
+		this._renderDisposables.add(dom.addDisposableListener(this._nextBtn, dom.EventType.CLICK, () => this._goto(this._step + 1)));
 
-		// Arrow keys navigate the carousel when focus is on either nav button.
+		// Keyboard handling for the nav buttons:
+		//  - Left/Right arrows always navigate by one slide
+		//  - Enter/Space activate the focused button. We handle these
+		//    explicitly because the workbench keybinding service can intercept
+		//    Enter and call preventDefault before the browser's native button
+		//    activation kicks in.
 		for (const btn of [this._prevBtn, this._nextBtn]) {
+			const isNext = btn === this._nextBtn;
 			this._renderDisposables.add(dom.addDisposableListener(btn, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 				const ev = new StandardKeyboardEvent(e);
 				if (ev.keyCode === KeyCode.LeftArrow) {
@@ -405,6 +419,14 @@ export class ChatBillingBannerWidget extends Disposable {
 					ev.preventDefault();
 					ev.stopPropagation();
 					this._goto(this._step + 1);
+				} else if (ev.keyCode === KeyCode.Enter || ev.keyCode === KeyCode.Space) {
+					ev.preventDefault();
+					ev.stopPropagation();
+					if (isNext) {
+						this._goto(this._step + 1);
+					} else {
+						this._goto(this._step - 1);
+					}
 				}
 			}));
 		}
@@ -414,15 +436,14 @@ export class ChatBillingBannerWidget extends Disposable {
 
 		const navRight = dom.append(nav, $('.chat-billing-banner-nav-right'));
 
-		this._docsLink = dom.append(navRight, $('a.chat-billing-banner-link')) as HTMLAnchorElement;
-		this._docsLink.textContent = localize('billingBanner.docs', "GitHub Docs");
-		this._docsLink.href = GITHUB_DOCS_URL;
-		this._docsLink.rel = 'noopener noreferrer';
-		this._docsLink.style.display = 'none';
-		this._renderDisposables.add(dom.addDisposableListener(this._docsLink, dom.EventType.CLICK, (e: MouseEvent) => {
-			e.preventDefault();
-			this._openerService.open(URI.parse(GITHUB_DOCS_URL));
+		this._dismissBtn = this._renderDisposables.add(new Button(navRight, {
+			...defaultButtonStyles,
+			secondary: true,
 		}));
+		this._dismissBtn.element.classList.add('chat-billing-banner-cta', 'chat-billing-banner-dismiss');
+		this._dismissBtn.element.style.display = 'none';
+		this._dismissBtn.label = localize('billingBanner.dismiss', "Dismiss");
+		this._renderDisposables.add(this._dismissBtn.onDidClick(() => this._bannerService.markCompleted()));
 
 		this._ctaBtn = this._renderDisposables.add(new Button(navRight, {
 			...defaultButtonStyles,
@@ -450,15 +471,16 @@ export class ChatBillingBannerWidget extends Disposable {
 			return;
 		}
 
-		this._bodyEl.classList.add('fading');
+		const body = this._bodyEl;
+		body.classList.add('fading');
 		if (this._fadeTimeout !== undefined) {
 			dom.getWindow(this.domNode).clearTimeout(this._fadeTimeout);
 		}
 		this._fadeTimeout = dom.getWindow(this.domNode).setTimeout(() => {
 			this._fadeTimeout = undefined;
 			this._applyStep(clamped);
-			this._bodyEl?.classList.remove('fading');
-		}, 200);
+			body.classList.remove('fading');
+		}, SLIDE_FADE_MS);
 	}
 
 	private _applyStep(index: number): void {
@@ -470,7 +492,23 @@ export class ChatBillingBannerWidget extends Disposable {
 			this._titleEl.textContent = slide.title;
 		}
 		if (this._descEl) {
-			this._descEl.textContent = slide.description;
+			// Rebuild the description so an optional trailing link can be
+			// appended inline. textContent is used for the localized prose so
+			// nothing in the message is parsed as markup.
+			dom.clearNode(this._descEl);
+			this._descEl.appendChild(dom.getWindow(this._descEl).document.createTextNode(slide.description));
+			if (slide.linkLabel && slide.linkHref) {
+				this._descEl.appendChild(dom.getWindow(this._descEl).document.createTextNode(' '));
+				const inlineLink = dom.append(this._descEl, $('a.chat-billing-banner-link')) as HTMLAnchorElement;
+				inlineLink.textContent = slide.linkLabel;
+				inlineLink.href = slide.linkHref;
+				inlineLink.rel = 'noopener noreferrer';
+				const href = slide.linkHref;
+				this._renderDisposables.add(dom.addDisposableListener(inlineLink, dom.EventType.CLICK, (e: MouseEvent) => {
+					e.preventDefault();
+					this._openerService.open(URI.parse(href));
+				}));
+			}
 		}
 		if (this._counterEl) {
 			this._counterEl.textContent = isLast ? '' : `${index + 1}/${this._slides.length}`;
@@ -480,32 +518,15 @@ export class ChatBillingBannerWidget extends Disposable {
 			this._prevBtn.disabled = index === 0;
 		}
 		if (this._nextBtn) {
-			// On the last slide, the next chevron becomes a check icon styled
-			// like a secondary button so it stands out as a commit action.
-			// Stays enabled and same size so the keyboard tab order doesn't shift.
-			this._nextBtn.disabled = false;
-			dom.clearNode(this._nextBtn);
-			dom.append(this._nextBtn, dom.$(ThemeIcon.asCSSSelector(isLast ? Codicon.check : Codicon.chevronRight)));
-			this._nextBtn.setAttribute('aria-label', isLast
-				? localize('billingBanner.dismiss', "Got it, dismiss")
-				: localize('billingBanner.next', "Next"));
-			this._nextBtn.classList.toggle('is-done', isLast);
+			this._nextBtn.disabled = isLast;
 		}
-		if (this._docsLink) {
-			this._docsLink.style.display = isLast ? '' : 'none';
+		if (this._dismissBtn) {
+			this._dismissBtn.element.style.display = isLast ? '' : 'none';
 		}
 		if (this._ctaBtn) {
 			this._ctaBtn.element.style.display = isLast ? '' : 'none';
 		}
 		this._animator?.setSlideTargets(index);
-	}
-
-	private _handleNext(): void {
-		if (this._step === this._slides.length - 1) {
-			this._bannerService.markCompleted();
-		} else {
-			this._goto(this._step + 1);
-		}
 	}
 
 	private _handleCta(): void {
