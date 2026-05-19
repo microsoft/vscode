@@ -15,6 +15,7 @@ import { generateUuid } from '../../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { activate } from '../../../../extension/vscode-node/extension';
 import { TestChatRequest } from '../../../../test/node/testHelpers';
+import type { CopilotCLIChatSessionItemProvider } from '../../../vscode-node/copilotCLIChatSessionsContribution';
 import { SessionIdForCLI } from '../../common/utils';
 
 /**
@@ -33,6 +34,7 @@ suite('Copilot CLI Chat Sanity Test', function () {
 	let sandbox: sinon.SinonSandbox;
 	let copilotCLIChatHandler: Parameters<typeof vscode.chat.createChatParticipant>[1] | undefined;
 	let copilotCLIChatSessionItemController: vscode.ChatSessionItemController | undefined;
+	let copilotCLIChatSessionItemProvider: CopilotCLIChatSessionItemProvider | undefined;
 	const fakeToken = CancellationToken.None;
 
 	suiteSetup(async function () {
@@ -47,6 +49,15 @@ suite('Copilot CLI Chat Sanity Test', function () {
 				copilotCLIChatHandler = handler;
 			}
 			return createChatParticipant(...args);
+		});
+
+		const registerChatSessionItemProvider = vscode.chat.registerChatSessionItemProvider.bind(vscode.chat);
+		sandbox.stub(vscode.chat, 'registerChatSessionItemProvider').callsFake((...args: Parameters<typeof vscode.chat.registerChatSessionItemProvider>) => {
+			const [id, provider] = args;
+			if (id === 'copilotcli') {
+				copilotCLIChatSessionItemProvider = provider as CopilotCLIChatSessionItemProvider;
+			}
+			return registerChatSessionItemProvider(...args);
 		});
 
 		if (typeof vscode.chat.createChatSessionItemController === 'function') {
@@ -119,6 +130,9 @@ suite('Copilot CLI Chat Sanity Test', function () {
 
 		const request = new TestChatRequest('Reply with only the word pong. Do not edit files or run shell commands.');
 		const context = await createCopilotCLIChatContext(request);
+		const chatSessionContext = context.chatSessionContext;
+		assert.ok(chatSessionContext, 'Expected Copilot CLI chat session context to be available for first turn');
+		const committedSessionItem = waitForCopilotCLICommit(chatSessionContext.chatSessionItem);
 		const stream = new SpyChatResponseStream();
 		let result: vscode.ChatResult | void | null | undefined;
 
@@ -132,15 +146,15 @@ suite('Copilot CLI Chat Sanity Test', function () {
 		assert.ok(!result?.errorDetails, `Copilot CLI internal SDK chat session returned an error: ${result?.errorDetails?.message}`);
 		assertCopilotCLIResponse(stream, 'first turn');
 
-		const chatSessionContext = context.chatSessionContext;
-		assert.ok(chatSessionContext, 'Expected Copilot CLI chat session context to be available for follow-up');
+		const followupSessionItem = await committedSessionItem;
 		const followupRequest = new TestChatRequest('Now reply with only the word pong again.');
-		followupRequest.sessionResource = chatSessionContext.chatSessionItem.resource;
+		const followupContext = createCopilotCLIExistingChatContext(followupSessionItem, chatSessionContext.inputState);
+		followupRequest.sessionResource = followupSessionItem.resource;
 		const followupStream = new SpyChatResponseStream();
 		let followupResult: vscode.ChatResult | void | null | undefined;
 
 		try {
-			followupResult = await copilotCLIChatHandler(followupRequest, context, followupStream, fakeToken);
+			followupResult = await copilotCLIChatHandler(followupRequest, followupContext, followupStream, fakeToken);
 		} catch (error) {
 			const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
 			throw new Error(`Copilot CLI internal SDK chat session follow-up failed after the session was created.\n${message}`);
@@ -165,6 +179,41 @@ suite('Copilot CLI Chat Sanity Test', function () {
 				inputState,
 			}
 		};
+	}
+
+	function createCopilotCLIExistingChatContext(chatSessionItem: vscode.ChatSessionItem, inputState: vscode.ChatSessionInputState | undefined): vscode.ChatContext {
+		return {
+			history: [],
+			yieldRequested: false,
+			chatSessionContext: {
+				chatSessionItem,
+				isUntitled: false,
+				inputState: inputState ?? createEmptyChatSessionInputState(),
+			}
+		};
+	}
+
+	function waitForCopilotCLICommit(original: vscode.ChatSessionItem): Promise<vscode.ChatSessionItem> {
+		const itemProvider = copilotCLIChatSessionItemProvider;
+		assert.ok(itemProvider, 'Copilot CLI chat session item provider was not registered');
+
+		return new Promise((resolve, reject) => {
+			const cleanup: { subscription?: vscode.Disposable } = {};
+			const timeout = setTimeout(() => {
+				cleanup.subscription?.dispose();
+				reject(new Error(`Timed out waiting for Copilot CLI session commit from ${original.resource.toString()}`));
+			}, 10_000);
+
+			const subscription = itemProvider.onDidCommitChatSessionItem(({ original: committedOriginal, modified }) => {
+				if (committedOriginal.resource.toString() !== original.resource.toString()) {
+					return;
+				}
+				clearTimeout(timeout);
+				subscription.dispose();
+				resolve(modified);
+			});
+			cleanup.subscription = subscription;
+		});
 	}
 
 	async function createCopilotCLIChatSessionItem(request: TestChatRequest, inputState: vscode.ChatSessionInputState): Promise<vscode.ChatSessionItem> {
@@ -192,7 +241,7 @@ suite('Copilot CLI Chat Sanity Test', function () {
 
 	function assertCopilotCLIResponse(stream: SpyChatResponseStream, turnName: string): void {
 		assert.ok(stream.items.length > 0, `Expected Copilot CLI internal SDK chat session ${turnName} to emit response parts`);
-		assert.ok(stream.currentProgress, `Expected Copilot CLI internal SDK chat session ${turnName} output`);
+		assert.ok(stream.currentProgress, `Expected Copilot CLI internal SDK chat session ${turnName} output. Response parts: ${stream.items.map(part => part.constructor.name).join(', ')}`);
 	}
 
 	function formatLogArgument(argument: string | Error | undefined): string {
