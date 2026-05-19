@@ -5,14 +5,14 @@
 
 import type { MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
-import { hasKey } from '../../../../base/common/types.js';
+import { hasKey, isDefined, isObject, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -32,6 +32,7 @@ import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind,
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeRequestParams, IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
+import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { ShellManager } from './copilotShellTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
@@ -95,6 +96,12 @@ type ElicitationFieldValue = NonNullable<ElicitationResult['content']>[string];
 type SessionHooks = NonNullable<SessionConfig['hooks']>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+type ToolUseHookInput = PreToolUseHookInput | PostToolUseHookInput;
+
+function getToolCommand(input: ToolUseHookInput): string | undefined {
+	const command = isObject(input.toolArgs) ? Reflect.get(input.toolArgs, 'command') : undefined;
+	return isString(command) ? command : undefined;
+}
 
 /**
  * Projects an {@link ElicitationSchema} field into a
@@ -610,9 +617,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const binaryResults = result.content
 			?.filter(c => c.type === ToolResultContentType.EmbeddedResource)
-			.map(c => {
-				return { data: c.data, mimeType: c.contentType, type: c.contentType };
-			});
+			.map(c => ({ data: c.data, mimeType: c.contentType, type: /^image(\/|$)/.test(c.contentType) ? 'image' : 'resource' }));
 
 		if (result.success) {
 			deferred.complete({
@@ -659,16 +664,30 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
-		const sdkAttachments = attachments
-			? (await Promise.all(attachments.map(a => this._toSdkAttachment(a))))
-				.filter((a): a is NonNullable<typeof a> => a !== undefined)
+		const slashCommand = parseLeadingSlashCommand(prompt);
+		if (slashCommand?.command === 'compact') {
+			try {
+				await this._wrapper.session.rpc.history.compact();
+			} catch (err) {
+				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.history.compact failed`);
+				throw err;
+			}
+			return;
+		}
+		if (slashCommand?.command === 'plan') {
+			mode = 'plan';
+			prompt = slashCommand.rest;
+		}
+
+		const sdkAttachments = attachments?.length
+			? (await Promise.all(attachments.map(a => this._toSdkAttachment(a)))).filter(isDefined)
 			: undefined;
 		if (sdkAttachments?.length) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type })))}`);
 		}
 
 		await this.applyMode(mode);
-		await this._wrapper.session.send({ prompt, attachments: sdkAttachments });
+		await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
@@ -678,13 +697,9 @@ export class CopilotAgentSession extends Disposable {
 	 * SDK's reference-style `file`/`directory`/`selection` variants (the
 	 * {@link MessageAttachmentBase.displayKind} advisory hint controls
 	 * which one). Embedded resources (e.g. inline image bytes) map to the
-	 * SDK's `blob` variant. Resource attachments that point at a
-	 * `session-db:` URI are also forwarded as `blob` — the agent host
-	 * snapshots inline / client-resident attachment bytes into the
-	 * session database before dispatching the turn, so by the time we
-	 * see them here the bytes are local and the original URI is gone.
-	 * Simple attachments are dropped — the SDK has no equivalent shape
-	 * for them.
+	 * SDK's `blob` variant.
+	 * Simple attachments with a model representation map to `text/plain`
+	 * blob attachments.
 	 *
 	 * For selections we read the resource content from disk and slice it
 	 * by the carried range (the protocol's {@link TextSelection} only
@@ -692,6 +707,17 @@ export class CopilotAgentSession extends Disposable {
 	 * selection downgrades to a plain file reference.
 	 */
 	private async _toSdkAttachment(attachment: MessageAttachment): Promise<CopilotSdkAttachment | undefined> {
+		if (attachment.type === MessageAttachmentKind.Simple) {
+			if (attachment.modelRepresentation) {
+				return {
+					type: 'blob' as const,
+					data: encodeBase64(VSBuffer.fromString(attachment.modelRepresentation)),
+					mimeType: 'text/plain',
+					displayName: attachment.label,
+				};
+			}
+			return undefined;
+		}
 		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
 			return { type: 'blob' as const, data: attachment.data, mimeType: attachment.contentType, displayName: attachment.label };
 		}
@@ -1304,7 +1330,7 @@ export class CopilotAgentSession extends Disposable {
 
 	private async _handlePreToolUse(input: PreToolUseHookInput): Promise<void> {
 		try {
-			if (isEditTool(input.toolName)) {
+			if (isEditTool(input.toolName, getToolCommand(input))) {
 				const filePaths = this._getEditFilePaths(input.toolArgs);
 				await Promise.all(filePaths.map(p => this._editTracker.trackEditStart(p)));
 			}
@@ -1316,7 +1342,7 @@ export class CopilotAgentSession extends Disposable {
 
 	private async _handlePostToolUse(input: PostToolUseHookInput): Promise<void> {
 		try {
-			if (isEditTool(input.toolName)) {
+			if (isEditTool(input.toolName, getToolCommand(input))) {
 				const filePaths = this._getEditFilePaths(input.toolArgs);
 				await Promise.all(filePaths.map(p => this._editTracker.completeEdit(p)));
 			}
@@ -1498,7 +1524,8 @@ export class CopilotAgentSession extends Disposable {
 				content.push({ type: ToolResultContentType.Text, text: toolOutput });
 			}
 
-			const filePaths = isEditTool(tracked.toolName) ? this._getEditFilePaths(tracked.parameters) : [];
+			const command = isString(tracked.parameters?.command) ? tracked.parameters.command : undefined;
+			const filePaths = isEditTool(tracked.toolName, command) ? this._getEditFilePaths(tracked.parameters) : [];
 			for (const filePath of filePaths) {
 				try {
 					const fileEdit = await this._editTracker.takeCompletedEdit(this._turnId, e.data.toolCallId, filePath);

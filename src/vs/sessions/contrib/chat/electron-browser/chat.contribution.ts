@@ -6,7 +6,6 @@
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -14,12 +13,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { NewChatViewPane, SessionsViewId } from '../browser/newChatViewPane.js';
 import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
-import { DebugAgentHostInDevToolsAction } from '../../../../workbench/contrib/chat/electron-browser/actions/debugAgentHostAction.js';
-import { ExportAgentHostDebugLogsAction } from '../../agentHost/electron-browser/exportDebugLogsAction.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
-
-registerAction2(DebugAgentHostInDevToolsAction);
-registerAction2(ExportAgentHostDebugLogsAction);
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 

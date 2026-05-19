@@ -3,24 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import gulp from 'gulp';
+import { gulp, rename, replace, filter, flatmap, gunzip, jsonEditor } from './lib/gulp/facade.ts';
 import * as path from 'path';
 import es from 'event-stream';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
-import * as task from './lib/task.ts';
+import * as task from './lib/gulp/task.ts';
 import * as optimize from './lib/optimize.ts';
 import { inlineMeta } from './lib/inlineMeta.ts';
 import product from '../product.json' with { type: 'json' };
-import rename from 'gulp-rename';
-import replace from 'gulp-replace';
-import filter from 'gulp-filter';
 import { getProductionDependencies } from './lib/dependencies.ts';
 import { readISODate } from './lib/date.ts';
 import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
-import flatmap from 'gulp-flatmap';
-import gunzip from 'gulp-gunzip';
 import { untar } from './lib/util.ts';
 import File from 'vinyl';
 import * as fs from 'fs';
@@ -34,8 +29,7 @@ import * as cp from 'child_process';
 import log from 'fancy-log';
 import buildfile from './buildfile.ts';
 import { fetchUrls, fetchGithub } from './lib/fetch.ts';
-import { getCopilotExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
-import jsonEditor from 'gulp-json-editor';
+import { getCopilotExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 
 
 const rcedit = promisify(rceditCallback);
@@ -173,7 +167,7 @@ function extractAlpinefromDocker(nodeVersion: string, platform: string, arch: st
 const { nodeVersion, internalNodeVersion } = getNodeVersion();
 
 BUILD_TARGETS.forEach(({ platform, arch }) => {
-	gulp.task(task.define(`node-${platform}-${arch}`, () => {
+	task.task(task.define(`node-${platform}-${arch}`, () => {
 		const nodePath = path.join('.build', 'node', `v${nodeVersion}`, `${platform}-${arch}`);
 
 		if (!fs.existsSync(nodePath)) {
@@ -187,11 +181,11 @@ BUILD_TARGETS.forEach(({ platform, arch }) => {
 	}));
 });
 
-const defaultNodeTask = gulp.task(`node-${process.platform}-${process.arch}`);
+const defaultNodeTask = task.task(`node-${process.platform}-${process.arch}`);
 
 if (defaultNodeTask) {
 	// eslint-disable-next-line local/code-no-any-casts
-	gulp.task(task.define('node', defaultNodeTask as any));
+	task.task(task.define('node', defaultNodeTask as any));
 }
 
 function nodejs(platform: string, arch: string): NodeJS.ReadWriteStream | undefined {
@@ -345,6 +339,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
 			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
+			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.stripSourceMappingURL())
 			.pipe(jsFilter.restore);
@@ -506,7 +501,7 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 		util.rimraf(`out-vscode-${type}-min`),
 		optimize.minifyTask(`out-vscode-${type}`, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
 	));
-	gulp.task(minifyTask);
+	task.task(minifyTask);
 
 	BUILD_TARGETS.forEach(buildTarget => {
 		const dashed = (str: string) => (str ? `-${str}` : ``);
@@ -519,7 +514,7 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 
 			const packageTasks: task.Task[] = [
 				compileNativeExtensionsBuildTask,
-				gulp.task(`node-${platform}-${arch}`) as task.Task,
+				task.task(`node-${platform}-${arch}`) as task.Task,
 				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
 				packageTask(type, platform, arch, sourceFolderName, destinationFolderName),
 				prepareCopilotRipgrepShimTaskREH(platform, arch, destinationFolderName)
@@ -530,7 +525,7 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 			}
 
 			const serverTaskCI = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...packageTasks));
-			gulp.task(serverTaskCI);
+			task.task(serverTaskCI);
 
 			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 				compileBuildWithManglingTask,
@@ -541,7 +536,7 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 				minified ? minifyTask : bundleTask,
 				serverTaskCI
 			));
-			gulp.task(serverTask);
+			task.task(serverTask);
 		});
 	});
 });

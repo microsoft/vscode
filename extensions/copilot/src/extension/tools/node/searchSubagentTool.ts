@@ -238,7 +238,7 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 
 				const code = snapshot.getText(range);
 				processedLines.push(`File: \`${uri.fsPath}\`, lines ${clampedStartLine}-${clampedEndLine}:\n\`\`\`\n${code}\n\`\`\``);
-			} catch (err) {
+			} catch {
 				// Drop the line entirely for files outside the workspace so we don't
 				// disclose the path back to the model. For inside-workspace failures
 				// (e.g. file missing), keep the original line with the error.
@@ -253,8 +253,9 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 				}
 
 				if (!isExternal) {
-					// If we can't read the file, keep the original line
-					processedLines.push(`${trimmedLine} (unable to read file: ${err})`);
+					// If hydration fails (e.g. the captured path didn't resolve because the model's formatting drifted),
+				// keep the original line so the main agent still gets the model's answer instead of a noisy error suffix.
+					processedLines.push(line);
 				}
 			}
 

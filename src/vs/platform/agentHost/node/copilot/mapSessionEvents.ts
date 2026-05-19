@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MessageOptions } from '@github/copilot-sdk';
+import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { basename } from '../../../../base/common/path.js';
+import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
@@ -251,7 +253,8 @@ export async function mapSessionEvents(
 				continue;
 			}
 			toolInfoByCallId.set(d.toolCallId, info);
-			if (isEditTool(d.toolName)) {
+			const command = isString(info.parameters?.command) ? info.parameters.command : undefined;
+			if (isEditTool(d.toolName, command)) {
 				editToolCallIds.push(d.toolCallId);
 			}
 		}
@@ -485,13 +488,14 @@ export async function mapSessionEvents(
 
 /**
  * Translates the SDK's `UserMessageAttachment[]` payload back into the
- * agent-protocol {@link MessageAttachment} shape. Blob attachments are
- * surfaced as inline {@link MessageAttachmentKind.EmbeddedResource}
- * payloads; file/directory/selection variants reconstruct local
- * `Resource` attachments. We don't try to re-link these to the on-disk
- * snapshots produced by the agent host's attachment rewriter — the SDK
- * keeps a copy of the bytes / paths it actually saw on send, which is
- * the authoritative record for replay.
+ * agent-protocol {@link MessageAttachment} shape. Text blob attachments
+ * surface as {@link MessageAttachmentKind.Simple}; other blobs surface as
+ * inline {@link MessageAttachmentKind.EmbeddedResource} payloads.
+ * File/directory/selection variants reconstruct local `Resource`
+ * attachments. We don't try to re-link these to the on-disk snapshots
+ * produced by the agent host's attachment rewriter — the SDK keeps a
+ * copy of the bytes / paths it actually saw on send, which is the
+ * authoritative record for replay.
  */
 function sdkAttachmentsToProtocol(
 	attachments: readonly ISdkUserMessageAttachment[] | undefined,
@@ -539,6 +543,13 @@ function sdkAttachmentToProtocol(
 			};
 		}
 		case 'blob': {
+			if (attachment.mimeType.startsWith('text/plain')) {
+				return {
+					type: MessageAttachmentKind.Simple,
+					label: attachment.displayName ?? 'attachment',
+					modelRepresentation: decodeBase64(attachment.data).toString(),
+				};
+			}
 			const displayKind = attachment.mimeType.startsWith('image/') ? 'image' : undefined;
 			return {
 				type: MessageAttachmentKind.EmbeddedResource,

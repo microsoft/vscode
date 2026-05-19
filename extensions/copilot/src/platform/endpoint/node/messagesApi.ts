@@ -13,7 +13,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platfo
 import { ChatLocation } from '../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
-import { AnthropicMessagesTool, ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled } from '../../networking/common/anthropic';
+import { AnthropicMessagesTool, ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled, isExtendedCacheTtlMessagesEnabled } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, IIPCodeCitation, IResponseDelta } from '../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
 import { ChatCompletion, FinishedCompletionReason, rawMessageToCAPI } from '../../networking/common/openai';
@@ -179,9 +179,24 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const validToolNames = finalTools.length > 0 ? new Set(finalTools.map(t => t.name)) : undefined;
 	const messagesResult = rawMessagesToMessagesAPI(options.messages, toolSearchEnabled ? validToolNames : undefined);
 
+	// Subagent requests are out of scope for the extended cache TTL — their
+	// context is short-lived. The three subagent call sites (search loop,
+	// execution loop, Task-tool-spawned agent) all set
+	// `interactionTypeOverride: 'conversation-subagent'`, which is also the
+	// source of truth for the `X-Interaction-Type` wire header.
+	//
+	// The rolling message breakpoints default to the 5m TTL and only upgrade to
+	// 1h when the `extendedTtlMessages` sub-toggle is on (which itself requires
+	// the parent `extendedTtl` to be on — see `isExtendedCacheTtlMessagesEnabled`).
+	const isSubagent = options.interactionTypeOverride === 'conversation-subagent';
+	const useExtendedCacheTtl = isExtendedCacheTtlEnabled(endpoint, configurationService, experimentationService, options.location, isSubagent);
+	const cacheTtl = useExtendedCacheTtl ? '1h' : undefined;
+	const useExtendedCacheTtlMessages = isExtendedCacheTtlMessagesEnabled(useExtendedCacheTtl, configurationService, experimentationService);
+	const messageCacheTtl = useExtendedCacheTtlMessages ? '1h' : undefined;
+
 	clearAllCacheControl(messagesResult);
-	addMessagesApiCacheControl(messagesResult);
-	addToolsAndSystemCacheControl(finalTools, messagesResult);
+	addMessagesApiCacheControl(messagesResult, messageCacheTtl);
+	addToolsAndSystemCacheControl(finalTools, messagesResult, cacheTtl);
 
 	// Guard: The Anthropic Messages API requires the conversation to end with a user message.
 	// A trailing assistant message is treated as a prefill request, which is not supported
@@ -491,21 +506,33 @@ export function clearAllCacheControl(
 	}
 }
 
-/** Marks the last non-deferred tool and the last system block for caching. */
+/**
+ * Marks the last non-deferred tool and the last system block for caching.
+ *
+ * When {@link cacheTtl} is `'1h'`, the breakpoints request the extended cache
+ * TTL. Sending this requires the `extended-cache-ttl-2025-04-11` Anthropic
+ * beta header — see {@link IChatEndpoint.getExtraHeaders}. When omitted, the
+ * default 5 minute TTL is used.
+ */
 export function addToolsAndSystemCacheControl(
 	tools: AnthropicMessagesTool[],
 	messagesResult: { messages: MessageParam[]; system?: TextBlockParam[] },
+	cacheTtl?: '1h',
 ): void {
+	const cacheControl = cacheTtl
+		? { type: 'ephemeral' as const, ttl: cacheTtl }
+		: { type: 'ephemeral' as const };
+
 	for (let i = tools.length - 1; i >= 0; i--) {
 		if (!tools[i].defer_loading) {
-			tools[i].cache_control = { type: 'ephemeral' };
+			tools[i].cache_control = cacheControl;
 			break;
 		}
 	}
 
 	const lastSystemBlock = messagesResult.system?.at(-1);
 	if (lastSystemBlock && !lastSystemBlock.cache_control) {
-		lastSystemBlock.cache_control = { type: 'ephemeral' };
+		lastSystemBlock.cache_control = cacheControl;
 	}
 }
 
@@ -525,26 +552,27 @@ export function addToolsAndSystemCacheControl(
  */
 export function addMessagesApiCacheControl(
 	messagesResult: { messages: MessageParam[]; system?: TextBlockParam[] },
+	cacheTtl?: '1h',
 ): void {
 	const messages = messagesResult.messages;
 	let marked = 0;
 	for (let i = messages.length - 1; i >= 0 && marked < 2; i--) {
 		const msg = messages[i];
 		if (Array.isArray(msg.content) && msg.content.some(b => typeof b === 'object' && contentBlockSupportsCacheControl(b))) {
-			markLastCacheableBlock(msg);
+			markLastCacheableBlock(msg, cacheTtl);
 			marked++;
 		}
 	}
 }
 
-function markLastCacheableBlock(msg: MessageParam): void {
+function markLastCacheableBlock(msg: MessageParam, cacheTtl?: '1h'): void {
 	if (!Array.isArray(msg.content)) {
 		return;
 	}
 	for (let j = msg.content.length - 1; j >= 0; j--) {
 		const block = msg.content[j];
 		if (typeof block === 'object' && contentBlockSupportsCacheControl(block)) {
-			block.cache_control = { type: 'ephemeral' };
+			block.cache_control = cacheTtl ? { type: 'ephemeral', ttl: cacheTtl } : { type: 'ephemeral' };
 			return;
 		}
 	}
