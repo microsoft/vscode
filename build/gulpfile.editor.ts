@@ -18,6 +18,7 @@ import * as monacoapi from './lib/monaco-api.ts';
 import * as fs from 'fs';
 import { createReporter } from './lib/reporter.ts';
 import monacoPackage from './monaco/package.json' with { type: 'json' };
+import { paths } from './folders.ts';
 
 const root = path.dirname(import.meta.dirname);
 const sha1 = getVersion(root);
@@ -36,17 +37,17 @@ const BUNDLED_FILE_HEADER = [
 
 const extractEditorSrcTask = task.define('extract-editor-src', () => {
 	// Ensure codicon.ttf is copied from node_modules (needed when node_modules is cached and postinstall doesn't run)
-	const codiconSource = path.join(root, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.ttf');
-	const codiconDest = path.join(root, 'src', 'vs', 'base', 'browser', 'ui', 'codicons', 'codicon', 'codicon.ttf');
+	const codiconSource = paths.nodeModules.vscodeCodiconsTtf.absPath;
+	const codiconDest = paths.src.codiconTtf.absPath;
 	if (fs.existsSync(codiconSource)) {
 		fs.mkdirSync(path.dirname(codiconDest), { recursive: true });
 		fs.copyFileSync(codiconSource, codiconDest);
 	}
 
 	const apiusages = monacoapi.execute().usageContent;
-	const extrausages = fs.readFileSync(path.join(root, 'build', 'monaco', 'monaco.usage.recipe')).toString();
+	const extrausages = fs.readFileSync(paths.build.monaco.usageRecipe.absPath).toString();
 	standalone.extractEditor({
-		sourcesRoot: path.join(root, 'src'),
+		sourcesRoot: paths.src.absPath,
 		entryPoints: [
 			'vs/editor/editor.main.ts',
 			'vs/editor/editor.worker.start.ts',
@@ -63,15 +64,15 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 		],
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
 		importIgnorePattern: /\.css$/,
-		destRoot: path.join(root, 'out-editor-src'),
-		tsOutDir: '../out-monaco-editor-core/esm/vs',
+		destRoot: paths.outEditorSrc.absPath,
+		tsOutDir: `../${paths.outMonacoEditorCore.rootRelPath}/esm/vs`,
 	});
 });
 
 const compileEditorESMTask = task.define('compile-editor-esm', () => {
 
-	const src = 'out-editor-src';
-	const out = 'out-monaco-editor-core/esm';
+	const src = paths.outEditorSrc.rootRelPath;
+	const out = `${paths.outMonacoEditorCore.rootRelPath}/esm`;
 
 	const compile = compilation.createCompile(src, { build: true, emitError: true, transpileOnly: false, preserveEnglish: true });
 	const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
@@ -132,13 +133,13 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 	return es.merge(
 		// other assets
 		es.merge(
-			gulp.src('build/monaco/LICENSE'),
-			gulp.src('build/monaco/ThirdPartyNotices.txt'),
-			gulp.src('src/vs/monaco.d.ts')
-		).pipe(gulp.dest('out-monaco-editor-core')),
+			gulp.src(paths.build.monaco.license.rootRelPath),
+			gulp.src(paths.build.monaco.thirdPartyNotices.rootRelPath),
+			gulp.src(paths.src.monacoDts.rootRelPath)
+		).pipe(gulp.dest(paths.outMonacoEditorCore.rootRelPath)),
 
 		// place the .d.ts in the esm folder
-		gulp.src('src/vs/monaco.d.ts')
+		gulp.src(paths.src.monacoDts.rootRelPath)
 			.pipe(es.through(function (data) {
 				this.emit('data', new File({
 					path: data.path.replace(/monaco\.d\.ts/, 'editor.api.d.ts'),
@@ -146,10 +147,10 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 					contents: Buffer.from(toExternalDTS(data.contents.toString()))
 				}));
 			}))
-			.pipe(gulp.dest('out-monaco-editor-core/esm/vs/editor')),
+			.pipe(gulp.dest(`${paths.outMonacoEditorCore.rootRelPath}/esm/vs/editor`)),
 
 		// package.json
-		gulp.src('build/monaco/package.json')
+		gulp.src(paths.build.monaco.packageJson.rootRelPath)
 			.pipe(es.through(function (data) {
 				const json = JSON.parse(data.contents.toString());
 				json.private = false;
@@ -157,8 +158,8 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 				let markedVersion;
 				let dompurifyVersion;
 				try {
-					const markedManifestPath = path.join(root, 'src/vs/base/common/marked/cgmanifest.json');
-					const dompurifyManifestPath = path.join(root, 'src/vs/base/browser/dompurify/cgmanifest.json');
+					const markedManifestPath = paths.src.markedCgmanifest.absPath;
+					const dompurifyManifestPath = paths.src.dompurifyCgmanifest.absPath;
 
 					const markedManifest = JSON.parse(fs.readFileSync(markedManifestPath, 'utf8'));
 					const dompurifyManifest = JSON.parse(fs.readFileSync(dompurifyManifestPath, 'utf8'));
@@ -181,18 +182,18 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 				data.contents = Buffer.from(JSON.stringify(json, null, '  '));
 				this.emit('data', data);
 			}))
-			.pipe(gulp.dest('out-monaco-editor-core')),
+			.pipe(gulp.dest(paths.outMonacoEditorCore.rootRelPath)),
 
 		// version.txt
-		gulp.src('build/monaco/version.txt')
+		gulp.src(paths.build.monaco.versionTxt.rootRelPath)
 			.pipe(es.through(function (data) {
 				data.contents = Buffer.from(`monaco-editor-core: https://github.com/microsoft/vscode/tree/${sha1}`);
 				this.emit('data', data);
 			}))
-			.pipe(gulp.dest('out-monaco-editor-core')),
+			.pipe(gulp.dest(paths.outMonacoEditorCore.rootRelPath)),
 
 		// README.md
-		gulp.src('build/monaco/README-npm.md')
+		gulp.src(paths.build.monaco.readmeNpm.rootRelPath)
 			.pipe(es.through(function (data) {
 				this.emit('data', new File({
 					path: data.path.replace(/README-npm\.md/, 'README.md'),
@@ -200,13 +201,13 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 					contents: data.contents
 				}));
 			}))
-			.pipe(gulp.dest('out-monaco-editor-core')),
+			.pipe(gulp.dest(paths.outMonacoEditorCore.rootRelPath)),
 	);
 });
 
 task.task('extract-editor-src',
 	task.series(
-		util.rimraf('out-editor-src'),
+		util.rimraf(paths.outEditorSrc.rootRelPath),
 		extractEditorSrcTask
 	)
 );
@@ -214,8 +215,8 @@ task.task('extract-editor-src',
 task.task('editor-distro',
 	task.series(
 		task.parallel(
-			util.rimraf('out-editor-src'),
-			util.rimraf('out-monaco-editor-core'),
+			util.rimraf(paths.outEditorSrc.rootRelPath),
+			util.rimraf(paths.outMonacoEditorCore.rootRelPath),
 		),
 		extractEditorSrcTask,
 		compileEditorESMTask,
@@ -226,7 +227,7 @@ task.task('editor-distro',
 task.task('monacodts', task.define('monacodts', () => {
 	const result = monacoapi.execute();
 	fs.writeFileSync(result.filePath, result.content);
-	fs.writeFileSync(path.join(root, 'src/vs/editor/common/standalone/standaloneEnums.ts'), result.enums);
+	fs.writeFileSync(paths.src.standaloneEnums.absPath, result.enums);
 	return Promise.resolve(true);
 }));
 
@@ -235,7 +236,7 @@ task.task('monacodts', task.define('monacodts', () => {
 function createTscCompileTask(watch: boolean) {
 	return () => {
 		return new Promise((resolve, reject) => {
-			const args = ['./node_modules/.bin/tsc', '-p', './src/tsconfig.monaco.json', '--noEmit'];
+			const args = ['./node_modules/.bin/tsc', '-p', paths.src.tsconfigMonaco.rootRelPath, '--noEmit'];
 			if (watch) {
 				args.push('-w');
 			}

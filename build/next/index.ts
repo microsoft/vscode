@@ -18,6 +18,7 @@ import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
 import { useEsbuildTranspile } from '../buildConfig.ts';
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
+import { paths } from '../folders.ts';
 
 const globAsync = promisify(glob);
 
@@ -609,7 +610,7 @@ function inlineMinimistPlugin(): esbuild.Plugin {
 		name: 'inline-minimist',
 		setup(build) {
 			build.onResolve({ filter: /^minimist$/ }, () => ({
-				path: path.join(REPO_ROOT, 'node_modules/minimist/index.js'),
+				path: paths.nodeModules.minimist.absPath,
 				external: false,
 			}));
 		},
@@ -780,7 +781,7 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	await fs.promises.mkdir(outDirPath, { recursive: true });
 	let buildDate: string;
 	try {
-		buildDate = await fs.promises.readFile(path.join(REPO_ROOT, 'out-build', 'date'), 'utf8');
+		buildDate = await fs.promises.readFile(paths.outBuild.date.absPath, 'utf8');
 	} catch {
 		buildDate = getGitCommitDate();
 	}
@@ -790,7 +791,7 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	const t1 = Date.now();
 
 	// Read TSLib for banner
-	const tslibPath = path.join(REPO_ROOT, 'node_modules/tslib/tslib.es6.js');
+	const tslibPath = paths.nodeModules.tslibEs6.absPath;
 	const tslib = await fs.promises.readFile(tslibPath, 'utf-8');
 	const banner = {
 		js: `/*!--------------------------------------------------------
@@ -933,7 +934,7 @@ ${tslib}`,
 		const nlsResult = await finalizeNLS(
 			nlsCollector,
 			path.join(REPO_ROOT, outDir),
-			[path.join(REPO_ROOT, 'out-build')]
+			[paths.outBuild.absPath]
 		);
 		indexMap = nlsResult.indexMap;
 	}

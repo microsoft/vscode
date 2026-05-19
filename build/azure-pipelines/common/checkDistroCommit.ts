@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import path from 'path';
 import fs from 'fs';
 import { retry } from './retry.ts';
-
-const root = path.dirname(path.dirname(path.dirname(import.meta.dirname)));
+import { paths } from '../../folders.ts';
 
 function getEnv(name: string): string {
 	const result = process.env[name];
@@ -47,7 +45,7 @@ async function getDistroBranchHead(branch: string, token: string): Promise<strin
 
 async function checkDistroCommit(): Promise<void> {
 	// Get the distro commit from package.json
-	const packageJsonPath = path.join(root, 'package.json');
+	const packageJsonPath = paths.packageJson.absPath;
 	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 	const distroCommit: string = packageJson.distro;
 

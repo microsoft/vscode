@@ -20,20 +20,21 @@ import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { copyCodiconsTask } from './lib/compilation.ts';
 import * as extensions from './lib/extensions.ts';
 import buildfile from './buildfile.ts';
+import { paths, type DirString } from './folders.ts';
 
 const REPO_ROOT = path.dirname(import.meta.dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
-const WEB_FOLDER = path.join(REPO_ROOT, 'remote', 'web');
+const WEB_FOLDER = paths.remote.web.absPath;
 
 const commit = getVersion(REPO_ROOT);
 const quality = (product as { quality?: string }).quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
 // esbuild-based bundle for standalone web
-function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean, sourceMapBaseUrl?: string): Promise<void> {
+function runEsbuildBundle(outDir: DirString, minify: boolean, nls: boolean, sourceMapBaseUrl?: string): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const scriptPath = path.join(REPO_ROOT, 'build/next/index.ts');
-		const args = [scriptPath, 'bundle', '--out', outDir, '--target', 'web'];
+		const args = [scriptPath, 'bundle', '--out', outDir.path, '--target', 'web'];
 		if (minify) {
 			args.push('--minify');
 			args.push('--mangle-privates');
@@ -55,7 +56,7 @@ function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean, sourceM
 			if (code === 0) {
 				resolve();
 			} else {
-				reject(new Error(`esbuild web bundle failed with exit code ${code} (outDir: ${outDir}, minify: ${minify}, nls: ${nls})`));
+				reject(new Error(`esbuild web bundle failed with exit code ${code} (outDir: ${outDir.path}, minify: ${minify}, nls: ${nls})`));
 			}
 		});
 	});
@@ -64,30 +65,30 @@ function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean, sourceM
 export const vscodeWebResourceIncludes = [
 
 	// NLS
-	'out-build/nls.messages.js',
+	`${paths.outBuild.rootRelPath}/nls.messages.js`,
 
 	// Accessibility Signals
-	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
+	`${paths.outBuild.rootRelPath}/vs/platform/accessibilitySignal/browser/media/*.mp3`,
 
 	// Welcome
-	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
-	'out-build/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg`,
 
 	// Extensions
-	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
-	'out-build/vs/workbench/services/extensionManagement/common/media/*.{svg,png}',
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/services/extensionManagement/common/media/*.{svg,png}`,
 
 	// Webview
-	'out-build/vs/workbench/contrib/webview/browser/pre/*.{js,html}',
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/webview/browser/pre/*.{js,html}`,
 
 	// Tree Sitter highlights
-	'out-build/vs/editor/common/languages/highlights/*.scm',
+	`${paths.outBuild.rootRelPath}/vs/editor/common/languages/highlights/*.scm`,
 
 	// Tree Sitter injections
-	'out-build/vs/editor/common/languages/injections/*.scm',
+	`${paths.outBuild.rootRelPath}/vs/editor/common/languages/injections/*.scm`,
 
 	// Extension Host Worker
-	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html'
+	`${paths.outBuild.rootRelPath}/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html`
 ];
 
 const vscodeWebResources = [
@@ -96,10 +97,10 @@ const vscodeWebResources = [
 	...vscodeWebResourceIncludes,
 
 	// Excludes
-	'!out-build/vs/**/{node,electron-browser,electron-main,electron-utility}/**',
-	'!out-build/vs/editor/standalone/**',
-	'!out-build/vs/workbench/**/*-tb.png',
-	'!out-build/vs/code/**/*-dev.html',
+	`!${paths.outBuild.rootRelPath}/vs/**/{node,electron-browser,electron-main,electron-utility}/**`,
+	`!${paths.outBuild.rootRelPath}/vs/editor/standalone/**`,
+	`!${paths.outBuild.rootRelPath}/vs/workbench/**/*-tb.png`,
+	`!${paths.outBuild.rootRelPath}/vs/code/**/*-dev.html`,
 	'!**/test/**'
 ];
 
@@ -144,15 +145,15 @@ export const createVSCodeWebFileContentMapper = (extensionsRoot: string, product
 };
 
 const bundleVSCodeWebTask = task.define('bundle-vscode-web-OLD', task.series(
-	util.rimraf('out-vscode-web'),
+	util.rimraf(paths.outVscodeWeb.rootRelPath),
 	optimize.bundleTask(
 		{
-			out: 'out-vscode-web',
+			out: paths.outVscodeWeb.rootRelPath,
 			esm: {
-				src: 'out-build',
+				src: paths.outBuild.rootRelPath,
 				entryPoints: vscodeWebEntryPoints,
 				resources: vscodeWebResources,
-				fileContentMapper: createVSCodeWebFileContentMapper('.build/web/extensions', product)
+				fileContentMapper: createVSCodeWebFileContentMapper(paths.dotBuild.web.extensions.rootRelPath, product)
 			}
 		}
 	)
@@ -160,15 +161,15 @@ const bundleVSCodeWebTask = task.define('bundle-vscode-web-OLD', task.series(
 
 const minifyVSCodeWebTask = task.define('minify-vscode-web-OLD', task.series(
 	bundleVSCodeWebTask,
-	util.rimraf('out-vscode-web-min'),
-	optimize.minifyTask('out-vscode-web', `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
+	util.rimraf(paths.outVscodeWebMin.rootRelPath),
+	optimize.minifyTask(paths.outVscodeWeb.rootRelPath, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
 ));
 task.task(minifyVSCodeWebTask);
 
 // esbuild-based tasks (new)
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
-const esbuildBundleVSCodeWebTask = task.define('esbuild-vscode-web', () => runEsbuildBundle('out-vscode-web', false, true));
-const esbuildBundleVSCodeWebMinTask = task.define('esbuild-vscode-web-min', () => runEsbuildBundle('out-vscode-web-min', true, true, `${sourceMappingURLBase}/core`));
+const esbuildBundleVSCodeWebTask = task.define('esbuild-vscode-web', () => runEsbuildBundle(paths.outVscodeWeb.rootRelPathDir, false, true));
+const esbuildBundleVSCodeWebMinTask = task.define('esbuild-vscode-web-min', () => runEsbuildBundle(paths.outVscodeWebMin.rootRelPathDir, true, true, `${sourceMappingURLBase}/core`));
 
 function packageTask(sourceFolderName: string, destinationFolderName: string) {
 	const destination = path.join(BUILD_ROOT, destinationFolderName);
@@ -177,29 +178,29 @@ function packageTask(sourceFolderName: string, destinationFolderName: string) {
 		const src = gulp.src(sourceFolderName + '/**', { base: '.' })
 			.pipe(rename(function (path) { path.dirname = path.dirname!.replace(new RegExp('^' + sourceFolderName), 'out'); }));
 
-		const extensions = gulp.src('.build/web/extensions/**', { base: '.build/web', dot: true });
+		const extensions = gulp.src(`${paths.dotBuild.web.extensions.rootRelPath}/**`, { base: paths.dotBuild.web.rootRelPath, dot: true });
 
 		const sources = es.merge(src, extensions)
 			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }));
 
 		const name = product.nameShort;
-		const packageJsonStream = gulp.src(['remote/web/package.json'], { base: 'remote/web' })
+		const packageJsonStream = gulp.src([paths.remote.web.packageJson.rootRelPath], { base: paths.remote.web.rootRelPath })
 			.pipe(jsonEditor({ name, version, type: 'module' }));
 
-		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
+		const license = gulp.src([paths.remote.license.rootRelPath], { base: paths.remote.rootRelPath, allowEmpty: true });
 
 		const productionDependencies = getProductionDependencies(WEB_FOLDER);
 		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
 
-		const deps = gulp.src(dependenciesSrc, { base: 'remote/web', dot: true })
+		const deps = gulp.src(dependenciesSrc, { base: paths.remote.web.rootRelPath, dot: true })
 			.pipe(filter(['**', '!**/package-lock.json']))
-			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.webignore')));
+			.pipe(util.cleanNodeModules(paths.build.webignore.absPath));
 
-		const favicon = gulp.src('resources/server/favicon.ico', { base: 'resources/server' });
-		const manifest = gulp.src('resources/server/manifest.json', { base: 'resources/server' });
+		const favicon = gulp.src(paths.resources.server.favicon.rootRelPath, { base: paths.resources.server.rootRelPath });
+		const manifest = gulp.src(paths.resources.server.manifest.rootRelPath, { base: paths.resources.server.rootRelPath });
 		const pwaicons = es.merge(
-			gulp.src('resources/server/code-192.png', { base: 'resources/server' }),
-			gulp.src('resources/server/code-512.png', { base: 'resources/server' })
+			gulp.src(paths.resources.server.code192Png.rootRelPath, { base: paths.resources.server.rootRelPath }),
+			gulp.src(paths.resources.server.code512Png.rootRelPath, { base: paths.resources.server.rootRelPath })
 		);
 
 		const all = es.merge(
@@ -221,10 +222,10 @@ function packageTask(sourceFolderName: string, destinationFolderName: string) {
 }
 
 const compileWebExtensionsBuildTask = task.define('compile-web-extensions-build', task.series(
-	task.define('clean-web-extensions-build', util.rimraf('.build/web/extensions')),
-	task.define('bundle-web-extensions-build', () => extensions.packageAllLocalExtensionsStream(true, false).pipe(gulp.dest('.build/web'))),
-	task.define('bundle-marketplace-web-extensions-build', () => extensions.packageMarketplaceExtensionsStream(true).pipe(gulp.dest('.build/web'))),
-	task.define('bundle-web-extension-media-build', () => extensions.buildExtensionMedia(false, '.build/web/extensions')),
+	task.define('clean-web-extensions-build', util.rimraf(paths.dotBuild.web.extensions.rootRelPath)),
+	task.define('bundle-web-extensions-build', () => extensions.packageAllLocalExtensionsStream(true, false).pipe(gulp.dest(paths.dotBuild.web.rootRelPath))),
+	task.define('bundle-marketplace-web-extensions-build', () => extensions.packageMarketplaceExtensionsStream(true).pipe(gulp.dest(paths.dotBuild.web.rootRelPath))),
+	task.define('bundle-web-extension-media-build', () => extensions.buildExtensionMedia(false, paths.dotBuild.web.extensions.rootRelPath)),
 ));
 task.task(compileWebExtensionsBuildTask);
 

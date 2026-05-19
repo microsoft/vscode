@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { existsSync } from 'fs';
+import { paths } from '../folders.ts';
 
 /**
  * Complete list of directories where npm should be executed to install node modules
@@ -66,8 +67,8 @@ export const dirs = [
 	'.vscode/extensions/vscode-pr-pinger',
 ];
 
-if (existsSync(`${import.meta.dirname}/../../.build/distro/npm`)) {
-	dirs.push('.build/distro/npm');
-	dirs.push('.build/distro/npm/remote');
-	dirs.push('.build/distro/npm/remote/web');
+if (existsSync(paths.dotBuild.distro.npm.absPath)) {
+	dirs.push(paths.dotBuild.distro.npm.rootRelPath);
+	dirs.push(paths.dotBuild.distro.npm.remote.rootRelPath);
+	dirs.push(paths.dotBuild.distro.npm.remote.web.rootRelPath);
 }

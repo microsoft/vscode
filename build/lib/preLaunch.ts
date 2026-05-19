@@ -5,6 +5,7 @@
 import path from 'path';
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
+import { paths } from '../folders.ts';
 
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const rootDir = path.resolve(import.meta.dirname, '..', '..');
@@ -37,7 +38,7 @@ async function getElectron() {
 }
 
 async function ensureCompiled() {
-	if (!(await exists('out'))) {
+	if (!(await exists(paths.out.rootRelPath))) {
 		await runProcess(npm, ['run', 'compile']);
 	}
 }

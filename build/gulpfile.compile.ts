@@ -7,13 +7,14 @@ import * as util from './lib/util.ts';
 import * as date from './lib/date.ts';
 import * as task from './lib/gulp/task.ts';
 import * as compilation from './lib/compilation.ts';
+import { paths } from './folders.ts';
 
 function makeCompileBuildTask(disableMangle: boolean) {
 	return task.series(
-		util.rimraf('out-build'),
-		date.writeISODate('out-build'),
+		util.rimraf(paths.outBuild.rootRelPath),
+		date.writeISODate(paths.outBuild.rootRelPath),
 		compilation.compileApiProposalNamesTask,
-		compilation.compileTask('src', 'out-build', true, { disableMangle })
+		compilation.compileTask(paths.src.rootRelPath, paths.outBuild.rootRelPath, true, { disableMangle })
 	);
 }
 

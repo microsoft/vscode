@@ -14,6 +14,7 @@ import * as ext from './extensions.ts';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import { Stream } from 'stream';
+import { paths } from '../folders.ts';
 
 export interface IExtensionDefinition {
 	name: string;
@@ -48,7 +49,7 @@ function log(...messages: string[]): void {
 }
 
 function getExtensionPath(extension: IExtensionDefinition): string {
-	return path.join(root, '.build', 'builtInExtensions', extension.name);
+	return path.join(paths.dotBuild.builtInExtensions.absPath, extension.name);
 }
 
 function isUpToDate(extension: IExtensionDefinition): boolean {
@@ -104,7 +105,7 @@ function syncMarketplaceExtension(extension: IExtensionDefinition): Stream {
 	rimraf.sync(getExtensionPath(extension));
 
 	return getExtensionDownloadStream(extension)
-		.pipe(vfs.dest('.build/builtInExtensions'))
+		.pipe(vfs.dest(paths.dotBuild.builtInExtensions.rootRelPath))
 		.on('end', () => log(source, extension.name, ansiColors.green('✔︎')));
 }
 

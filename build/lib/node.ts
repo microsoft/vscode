@@ -5,9 +5,9 @@
 
 import path from 'path';
 import fs from 'fs';
+import { paths } from '../folders.ts';
 
-const root = path.dirname(path.dirname(import.meta.dirname));
-const npmrcPath = path.join(root, 'remote', '.npmrc');
+const npmrcPath = path.join(paths.remote.absPath, '.npmrc');
 const npmrc = fs.readFileSync(npmrcPath, 'utf8');
 const version = /^target="(.*)"$/m.exec(npmrc)?.[1];
 
@@ -19,6 +19,6 @@ const platform = process.platform;
 const arch = process.arch;
 
 const node = platform === 'win32' ? 'node.exe' : 'node';
-const nodePath = path.join(root, '.build', 'node', `v${version}`, `${platform}-${arch}`, node);
+const nodePath = path.join(paths.dotBuild.node.absPath, `v${version}`, `${platform}-${arch}`, node);
 
 console.log(nodePath);

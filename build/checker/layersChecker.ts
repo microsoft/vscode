@@ -5,8 +5,9 @@
 
 import ts from 'typescript';
 import { readFileSync, existsSync } from 'fs';
-import { resolve, dirname, join } from 'path';
+import { resolve, dirname } from 'path';
 import minimatch from 'minimatch';
+import { paths } from '../folders.ts';
 
 //
 // #############################################################################################
@@ -91,7 +92,7 @@ const RULES: IRule[] = [
 	}
 ];
 
-const TS_CONFIG_PATH = join(import.meta.dirname, '../../', 'src', 'tsconfig.json');
+const TS_CONFIG_PATH = paths.src.tsconfig.absPath;
 
 interface IRule {
 	target: string;

@@ -6,9 +6,9 @@
 import fs from 'fs';
 import path from 'path';
 import { spawn } from '@malept/cross-spawn-promise';
+import { paths } from '../folders.ts';
 
-const root = path.dirname(path.dirname(import.meta.dirname));
-const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
+const product = JSON.parse(fs.readFileSync(paths.productJson.absPath, 'utf8'));
 
 const DMGBUILD_REPO = 'https://github.com/dmgbuild/dmgbuild.git';
 const DMGBUILD_COMMIT = '75c8a6c7835c5b73dfd4510d92a8f357f93a5fbf';
@@ -161,7 +161,7 @@ async function main(buildDir?: string, outDir?: string): Promise<void> {
 	const dmgName = `VSCode-darwin-${arch}`;
 	const artifactPath = path.join(outDir, `${dmgName}.dmg`);
 	const backgroundPath = path.join(import.meta.dirname, `dmg-background-${quality}.tiff`);
-	const diskIconPath = path.join(root, 'resources', 'darwin', 'code.icns');
+	const diskIconPath = paths.resources.darwin.codeIcns.absPath;
 	let title = 'Code OSS';
 	switch (quality) {
 		case 'stable':

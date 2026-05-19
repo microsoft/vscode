@@ -7,6 +7,7 @@ import cp from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { paths } from '../../folders.ts';
 
 const BUILD_STAGINGDIRECTORY = process.env.BUILD_STAGINGDIRECTORY ?? fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-telemetry-'));
 const BUILD_SOURCESDIRECTORY = process.env.BUILD_SOURCESDIRECTORY ?? path.resolve(import.meta.dirname, '..', '..', '..');
@@ -27,8 +28,8 @@ for (const repo of repos) {
 	cp.execSync(`git clone --depth 1 ${repo}`, { cwd: extractionDir, stdio: 'inherit' });
 }
 
-const extractor = path.join(BUILD_SOURCESDIRECTORY, 'node_modules', '@vscode', 'telemetry-extractor', 'out', 'extractor.js');
-const telemetryConfig = path.join(BUILD_SOURCESDIRECTORY, 'build', 'azure-pipelines', 'common', 'telemetry-config.json');
+const extractor = path.join(BUILD_SOURCESDIRECTORY, paths.nodeModules.telemetryExtractor.rootRelPath);
+const telemetryConfig = path.join(BUILD_SOURCESDIRECTORY, paths.build.azurePipelines.common.telemetryConfig.rootRelPath);
 
 interface ITelemetryConfigEntry {
 	eventPrefix: string;
