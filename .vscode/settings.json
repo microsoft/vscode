@@ -212,8 +212,5 @@
 		".github/skills/.local": true,
 		".agents/skills/.local": true,
 		".claude/skills/.local": true,
-	},
-	"github.copilot.chat.searchSubagent.enabled": true,
-    "github.copilot.chat.searchSubagent.useAgenticProxy": true,
-    "github.copilot.chat.searchSubagent.model": "vscode-agentic-search-router-a" // or b
+	}
 }
