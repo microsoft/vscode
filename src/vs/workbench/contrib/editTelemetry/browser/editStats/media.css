@@ -14,15 +14,6 @@
 		margin-bottom: 8px;
 	}
 
-	div.header {
-		display: flex;
-		align-items: center;
-		color: var(--vscode-descriptionForeground);
-		margin-bottom: 4px;
-		font-size: 12px;
-		font-weight: 600;
-	}
-
 	div.description {
 		font-size: 11px;
 		color: var(--vscode-descriptionForeground);
@@ -33,37 +24,75 @@
 		margin-bottom: 5px;
 	}
 
-	/* Chart toggle buttons */
-	.chart-view-toggle {
+	/* Range filter row (settings gear) */
+	.ai-stats-range-row {
 		display: flex;
-		gap: 2px;
+		align-items: center;
+		margin-bottom: 8px;
 	}
 
-	.chart-toggle-button {
-		padding: 2px 6px;
-		border-radius: 3px;
-		cursor: pointer;
-		opacity: 0.6;
-		transition: opacity 0.15s, background-color 0.15s;
+	/* Stats grid */
+	.ai-stats-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 6px;
+		margin-bottom: 8px;
 	}
 
-	.chart-toggle-button:hover {
-		opacity: 1;
-		background-color: var(--vscode-toolbar-hoverBackground);
+	.ai-stats-cell {
+		display: flex;
+		flex-direction: column;
+		padding: 6px 8px;
+		background-color: var(--vscode-editorWidget-background);
+		border: 1px solid var(--vscode-widget-border, transparent);
+		border-radius: 4px;
+		min-width: 0;
 	}
 
-	.chart-toggle-button.active {
-		opacity: 1;
-		background-color: var(--vscode-toolbar-activeBackground);
+	.ai-stats-cell-label {
+		font-size: 10px;
+		color: var(--vscode-descriptionForeground);
+		text-transform: none;
+		margin-bottom: 2px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
-	/* Chart container */
-	.ai-stats-chart-container {
-		margin-top: 4px;
+	.ai-stats-cell-value {
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--vscode-foreground);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
-	.ai-stats-chart-container svg {
-		overflow: visible;
+	/* Single full-width row (e.g. favorite model where the value can be long) */
+	.ai-stats-row {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 8px;
+		margin-bottom: 8px;
+		min-width: 0;
+	}
+
+	.ai-stats-row-label {
+		font-size: 11px;
+		color: var(--vscode-descriptionForeground);
+		flex-shrink: 0;
+	}
+
+	.ai-stats-row-value {
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--vscode-foreground);
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		text-align: right;
 	}
 
 	/* Setup for New User */

@@ -47,7 +47,7 @@ export class EditTelemetryContribution extends Disposable {
 				return;
 			}
 
-			r.store.add(instantiationService.createInstance(AiStatsFeature, annotatedDocuments.read(r)));
+			r.store.add(instantiationService.createInstance(AiStatsFeature));
 		}));
 
 		// Register no-op fallbacks so that extensions can always call these

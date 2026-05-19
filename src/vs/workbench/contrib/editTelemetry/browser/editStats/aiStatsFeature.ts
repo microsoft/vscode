@@ -3,187 +3,307 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { sumBy } from '../../../../../base/common/arrays.js';
 import { TaskQueue, timeout } from '../../../../../base/common/async.js';
-import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, mapObservableArrayCached, observableValue, runOnChange } from '../../../../../base/common/observable.js';
-import { AnnotatedStringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
-import { isAiEdit, isUserEdit } from '../../../../../editor/common/textModelEditSource.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { autorun, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { AnnotatedDocuments } from '../helpers/annotatedDocuments.js';
-import { AiStatsStatusBar } from './aiStatsStatusBar.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { localize } from '../../../../../nls.js';
+import { IChatStatusDashboardSectionService } from '../../../chat/browser/chatStatus/chatStatusDashboardSectionService.js';
+import { IChatModel, IChatRequestModel } from '../../../chat/common/model/chatModel.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
+import { createAiStatsHover } from './aiStatsView.js';
+
+export interface IAiStatsOverview {
+	readonly totalTokens: number;
+	/** Mean tokens per active day (days with at least one chat request) within the range. */
+	readonly avgTokensPerDay: number;
+	readonly currentStreak: number;
+	/** Identifier of the most-used model in the range, or undefined if no data. */
+	readonly favoriteModel: string | undefined;
+	/** Day with the highest token usage in the range, or undefined if no data. */
+	readonly topDay: { readonly dateMs: number; readonly tokens: number } | undefined;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+interface IDayBucket {
+	requests: number;
+	tokens: number;
+	hourBuckets: number[]; // length 24
+	modelCounts: { [modelId: string]: number };
+}
+
+interface IAiStatsData {
+	/** Day bucket keyed by yyyymmdd (local time). */
+	days: { [day: string]: IDayBucket };
+}
+
+const MAX_DAYS_RETAINED = 30;
 
 export class AiStatsFeature extends Disposable {
-	private readonly _data: IValue<IData>;
+
+	private readonly _data: IValue<IAiStatsData>;
 	private readonly _dataVersion = observableValue(this, 0);
+	private readonly _recomputeTick = observableValue(this, 0);
+
+	/**
+	 * Bumps the {@link overview} derived so callers (e.g. the status bar hover)
+	 * can force a recomputation, picking up things like a date rollover that
+	 * does not produce a new chat request.
+	 */
+	triggerRecompute(): void {
+		this._recomputeTick.set(this._recomputeTick.get() + 1, undefined);
+	}
 
 	constructor(
-		annotatedDocuments: AnnotatedDocuments,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IChatService private readonly _chatService: IChatService,
+		@IChatStatusDashboardSectionService private readonly _sectionService: IChatStatusDashboardSectionService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
-		const storedValue = getStoredValue<IData>(this._storageService, 'aiStats', StorageScope.WORKSPACE, StorageTarget.USER);
-		this._data = rateLimitWrite<IData>(storedValue, 1 / 60, this._store);
+		const storedValue = getStoredValue<IAiStatsData>(this._storageService, 'chatUsageStats', StorageScope.PROFILE, StorageTarget.USER);
+		this._data = rateLimitWrite(storedValue, 1, this._store);
 
-		this.aiRate.recomputeInitiallyAndOnChange(this._store);
-
+		// Listen to all chat models, current and future
 		this._register(autorun(reader => {
-			reader.store.add(this._instantiationService.createInstance(AiStatsStatusBar.hot.read(reader), this));
+			const models = this._chatService.chatModels.read(reader);
+			for (const model of models) {
+				reader.store.add(this._observeModel(model));
+			}
 		}));
 
-
-		const lastRequestIds: string[] = [];
-
-		const obs = mapObservableArrayCached(this, annotatedDocuments.documents, (doc, store) => {
-			store.add(runOnChange(doc.documentWithAnnotations.value, (_val, _prev, edit) => {
-				const e = AnnotatedStringEdit.compose(edit.map(e => e.edit));
-
-				const curSession = new Lazy(() => this._getDataAndSession());
-
-				for (const r of e.replacements) {
-					if (isAiEdit(r.data.editSource)) {
-						curSession.value.currentSession.aiCharacters += r.newText.length;
-					} else if (isUserEdit(r.data.editSource)) {
-						curSession.value.currentSession.typedCharacters += r.newText.length;
-					}
-				}
-
-				if (e.replacements.length > 0) {
-					const sessionToUpdate = curSession.value.currentSession;
-					const s = e.replacements[0].data.editSource;
-					if (s.metadata.source === 'inlineCompletionAccept') {
-						if (sessionToUpdate.acceptedInlineSuggestions === undefined) {
-							sessionToUpdate.acceptedInlineSuggestions = 0;
-						}
-						sessionToUpdate.acceptedInlineSuggestions += 1;
-					}
-
-					if (s.metadata.source === 'Chat.applyEdits' && s.metadata.$$requestId !== undefined) {
-						const didSeeRequestId = lastRequestIds.includes(s.metadata.$$requestId);
-						if (!didSeeRequestId) {
-							lastRequestIds.push(s.metadata.$$requestId);
-							if (lastRequestIds.length > 10) {
-								lastRequestIds.shift();
-							}
-							if (sessionToUpdate.chatEditCount === undefined) {
-								sessionToUpdate.chatEditCount = 0;
-							}
-							sessionToUpdate.chatEditCount += 1;
-						}
-					}
-				}
-
-				if (curSession.hasValue) {
-					this._data.writeValue(curSession.value.data);
-					this._dataVersion.set(this._dataVersion.get() + 1, undefined);
-				}
-			}));
-		});
-
-		obs.recomputeInitiallyAndOnChange(this._store);
+		// Register a collapsible section in the Copilot status menu
+		this._register(this._sectionService.registerSection({
+			id: 'aiStats',
+			title: localize('aiStats.section', "Metrics"),
+			render: container => {
+				this.triggerRecompute();
+				this._sendOpenTelemetry();
+				const store = new DisposableStore();
+				const elem = createAiStatsHover({
+					data: this,
+				}).keepUpdated(store);
+				container.appendChild(elem.element);
+				return store;
+			}
+		}));
 	}
 
-	public readonly aiRate = this._dataVersion.map(() => {
-		const val = this._data.getValue();
-		if (!val) {
-			return 0;
-		}
-
-		const r = average(val.sessions, session => {
-			const sum = session.typedCharacters + session.aiCharacters;
-			if (sum === 0) {
-				return 0;
-			}
-			return session.aiCharacters / sum;
+	private _sendOpenTelemetry(): void {
+		const overview = this.overview.get();
+		this._telemetryService.publicLog2<{
+			totalTokens: number;
+			avgTokensPerDay: number;
+		}, {
+			owner: 'hediet';
+			comment: 'Fired when the AI usage stats section is rendered in the Copilot status menu';
+			totalTokens: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total completion tokens counted' };
+			avgTokensPerDay: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Mean tokens per active day in range' };
+		}>('aiStatsStatusBar.hover', {
+			totalTokens: overview.totalTokens,
+			avgTokensPerDay: overview.avgTokensPerDay,
 		});
+	}
 
-		return r;
-	});
+	private _observeModel(model: IChatModel): DisposableStore {
+		const store = new DisposableStore();
 
-	public readonly sessionCount = derived(this, r => {
-		this._dataVersion.read(r);
-		const val = this._data.getValue();
-		if (!val) {
-			return 0;
-		}
-		return val.sessions.length;
-	});
+		// Track tokens we've already added per request to avoid double counting
+		const tokensAddedByRequestId = new Map<string, number>();
 
-	public readonly sessions = derived(this, r => {
-		this._dataVersion.read(r);
-		const val = this._data.getValue();
-		if (!val) {
-			return [];
-		}
-		return val.sessions;
-	});
-
-	public readonly acceptedInlineSuggestionsToday = derived(this, r => {
-		this._dataVersion.read(r);
-		const val = this._data.getValue();
-		if (!val) {
-			return 0;
-		}
-		const startOfToday = new Date();
-		startOfToday.setHours(0, 0, 0, 0);
-
-		const sessionsToday = val.sessions.filter(s => s.startTime > startOfToday.getTime());
-		return sumBy(sessionsToday, s => s.acceptedInlineSuggestions ?? 0);
-	});
-
-	private _getDataAndSession(): { data: IData; currentSession: ISession } {
-		const state = this._data.getValue() ?? { sessions: [] };
-
-		const sessionLengthMs = 5 * 60 * 1000; // 5 minutes
-
-		let lastSession = state.sessions.at(-1);
-		const nowTime = Date.now();
-		if (!lastSession || nowTime - lastSession.startTime > sessionLengthMs) {
-			state.sessions.push({
-				startTime: nowTime,
-				typedCharacters: 0,
-				aiCharacters: 0,
-				acceptedInlineSuggestions: 0,
-				chatEditCount: 0,
-			});
-			lastSession = state.sessions.at(-1)!;
-
-			const dayMs = 24 * 60 * 60 * 1000; // 24h
-			// Clean up old sessions, keep only the last 24h worth of sessions
-			while (state.sessions.length > dayMs / sessionLengthMs) {
-				state.sessions.shift();
+		// Process any requests already on the model when we attach
+		for (const req of model.getRequests()) {
+			this._recordRequest(req);
+			const tokens = req.response?.completionTokenCount;
+			if (typeof tokens === 'number' && tokens > 0) {
+				tokensAddedByRequestId.set(req.id, tokens);
+				this._recordTokens(req, tokens);
 			}
 		}
-		return { data: state, currentSession: lastSession };
+
+		store.add(model.onDidChange(e => {
+			if (e.kind === 'addRequest') {
+				this._recordRequest(e.request);
+			} else if (e.kind === 'completedRequest' || e.kind === 'changedRequest') {
+				const tokens = e.request.response?.completionTokenCount ?? 0;
+				const previously = tokensAddedByRequestId.get(e.request.id) ?? 0;
+				const delta = tokens - previously;
+				if (delta > 0) {
+					tokensAddedByRequestId.set(e.request.id, tokens);
+					this._recordTokens(e.request, delta);
+				}
+			} else if (e.kind === 'removeRequest') {
+				tokensAddedByRequestId.delete(e.requestId);
+			}
+		}));
+
+		return store;
 	}
-}
 
-interface IData {
-	sessions: ISession[];
-}
-
-// 5 min window
-interface ISession {
-	startTime: number;
-	typedCharacters: number;
-	aiCharacters: number;
-	acceptedInlineSuggestions: number | undefined;
-	chatEditCount: number | undefined;
-}
-
-
-function average<T>(arr: T[], selector: (item: T) => number): number {
-	if (arr.length === 0) {
-		return 0;
+	private _recordRequest(request: IChatRequestModel): void {
+		const data = this._getData();
+		const ts = request.timestamp ?? Date.now();
+		const date = new Date(ts);
+		const bucket = this._getDayBucket(data, date);
+		bucket.requests += 1;
+		bucket.hourBuckets[date.getHours()] += 1;
+		const modelId = request.modelId;
+		if (modelId) {
+			bucket.modelCounts[modelId] = (bucket.modelCounts[modelId] ?? 0) + 1;
+		}
+		this._persist(data);
 	}
-	const s = sumBy(arr, selector);
-	return s / arr.length;
+
+	private _recordTokens(request: IChatRequestModel, deltaTokens: number): void {
+		const data = this._getData();
+		const ts = request.timestamp ?? Date.now();
+		const bucket = this._getDayBucket(data, new Date(ts));
+		bucket.tokens += deltaTokens;
+		this._persist(data);
+	}
+
+	private _getData(): IAiStatsData {
+		return this._data.getValue() ?? { days: {} };
+	}
+
+	private _getDayBucket(data: IAiStatsData, date: Date): IDayBucket {
+		const key = dayKey(date);
+		let bucket = data.days[key];
+		if (!bucket) {
+			bucket = {
+				requests: 0,
+				tokens: 0,
+				hourBuckets: new Array<number>(24).fill(0),
+				modelCounts: {},
+			};
+			data.days[key] = bucket;
+			// Trim oldest days
+			const allKeys = Object.keys(data.days).sort();
+			while (allKeys.length > MAX_DAYS_RETAINED) {
+				const removed = allKeys.shift()!;
+				delete data.days[removed];
+			}
+		}
+		// Defensive: ensure shape after JSON round-trip
+		if (!Array.isArray(bucket.hourBuckets) || bucket.hourBuckets.length !== 24) {
+			const next = new Array<number>(24).fill(0);
+			if (Array.isArray(bucket.hourBuckets)) {
+				for (let i = 0; i < Math.min(24, bucket.hourBuckets.length); i++) {
+					next[i] = bucket.hourBuckets[i] ?? 0;
+				}
+			}
+			bucket.hourBuckets = next;
+		}
+		if (!bucket.modelCounts) {
+			bucket.modelCounts = {};
+		}
+		return bucket;
+	}
+
+	private _persist(data: IAiStatsData): void {
+		this._data.writeValue(data);
+		this._dataVersion.set(this._dataVersion.get() + 1, undefined);
+	}
+
+	readonly overview: IObservable<IAiStatsOverview> = derived(this, reader => {
+		this._dataVersion.read(reader);
+		this._recomputeTick.read(reader);
+		return computeOverview(this._getData(), Date.now());
+	});
 }
 
+function dayKey(date: Date): string {
+	const y = date.getFullYear();
+	const m = (date.getMonth() + 1).toString().padStart(2, '0');
+	const d = date.getDate().toString().padStart(2, '0');
+	return `${y}${m}${d}`;
+}
+
+function dayKeyFromTimestamp(ts: number): string {
+	return dayKey(new Date(ts));
+}
+
+export function computeOverview(data: IAiStatsData, now: number): IAiStatsOverview {
+	const startOfToday = new Date(now);
+	startOfToday.setHours(0, 0, 0, 0);
+
+	const cutoff = startOfToday.getTime() - 29 * DAY_MS;
+
+	const allKeys = Object.keys(data.days).sort();
+	const includedKeys = allKeys.filter(k => parseDayKey(k) >= cutoff);
+
+	let tokens = 0;
+	const modelTotals = new Map<string, number>();
+	let topDay: { dateMs: number; tokens: number } | undefined;
+
+	for (const key of includedKeys) {
+		const bucket = data.days[key];
+		tokens += bucket.tokens;
+		if (bucket.tokens > 0 && (!topDay || bucket.tokens > topDay.tokens)) {
+			topDay = { dateMs: parseDayKey(key), tokens: bucket.tokens };
+		}
+		if (bucket.modelCounts) {
+			for (const [m, c] of Object.entries(bucket.modelCounts)) {
+				modelTotals.set(m, (modelTotals.get(m) ?? 0) + c);
+			}
+		}
+	}
+
+	// Current streak computed within the included range
+	const activeDayKeys = includedKeys.filter(k => data.days[k].requests > 0);
+	const activeDaySet = new Set(activeDayKeys);
+	const currentStreak = computeCurrentStreak(activeDaySet, startOfToday.getTime(), cutoff);
+
+	// Average tokens per active day (days with at least one chat request).
+	const avgTokensPerDay = activeDayKeys.length > 0
+		? Math.round(tokens / activeDayKeys.length)
+		: 0;
+
+	let favoriteModel: string | undefined;
+	let favoriteCount = 0;
+	for (const [m, c] of modelTotals) {
+		if (c > favoriteCount) {
+			favoriteCount = c;
+			favoriteModel = m;
+		}
+	}
+
+	return {
+		totalTokens: tokens,
+		avgTokensPerDay,
+		currentStreak,
+		favoriteModel,
+		topDay,
+	};
+}
+
+function parseDayKey(key: string): number {
+	const y = parseInt(key.substring(0, 4), 10);
+	const m = parseInt(key.substring(4, 6), 10) - 1;
+	const d = parseInt(key.substring(6, 8), 10);
+	return new Date(y, m, d).getTime();
+}
+
+function computeCurrentStreak(activeDays: ReadonlySet<string>, todayMs: number, cutoff: number | undefined): number {
+	// Current streak: consecutive trailing days ending today (or yesterday if today not active)
+	let current = 0;
+	let cursor = todayMs;
+	// If today not active, start from yesterday
+	if (!activeDays.has(dayKeyFromTimestamp(cursor))) {
+		cursor -= DAY_MS;
+	}
+	while (activeDays.has(dayKeyFromTimestamp(cursor))) {
+		if (cutoff !== undefined && cursor < cutoff) {
+			break;
+		}
+		current++;
+		cursor -= DAY_MS;
+	}
+	return current;
+}
 
 interface IValue<T> {
 	writeValue(value: T | undefined): void;
@@ -192,6 +312,7 @@ interface IValue<T> {
 
 function rateLimitWrite<T>(targetValue: IValue<T>, maxWritesPerSecond: number, store: DisposableStore): IValue<T> {
 	const queue = new TaskQueue();
+	const minIntervalMs = 1000 / maxWritesPerSecond;
 	let _value: T | undefined = undefined;
 	let valueVersion = 0;
 	let savedVersion = 0;
@@ -212,7 +333,7 @@ function rateLimitWrite<T>(targetValue: IValue<T>, maxWritesPerSecond: number, s
 			queue.schedule(async () => {
 				targetValue.writeValue(value);
 				savedVersion = v;
-				await timeout(5000);
+				await timeout(minIntervalMs);
 			});
 		},
 		getValue(): T | undefined {
@@ -235,13 +356,22 @@ function getStoredValue<T>(service: IStorageService, key: string, scope: Storage
 				service.store(key, JSON.stringify(value), scope, target);
 			}
 			lastValue = value;
+			hasLastValue = true;
 		},
 		getValue(): T | undefined {
 			if (hasLastValue) {
 				return lastValue;
 			}
 			const strVal = service.get(key, scope);
-			lastValue = strVal === undefined ? undefined : JSON.parse(strVal) as T | undefined;
+			if (strVal === undefined) {
+				lastValue = undefined;
+			} else {
+				try {
+					lastValue = JSON.parse(strVal) as T | undefined;
+				} catch {
+					lastValue = undefined;
+				}
+			}
 			hasLastValue = true;
 			return lastValue;
 		}

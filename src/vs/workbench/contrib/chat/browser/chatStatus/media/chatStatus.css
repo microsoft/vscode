@@ -524,3 +524,37 @@
 	opacity: 0.6;
 	padding: 0 2px;
 }
+
+/* Collapsible Dashboard Sections (e.g. AI usage metrics) */
+
+.chat-status-bar-entry-tooltip .collapsible-section .collapsible-section-summary {
+	all: unset;
+	display: block;
+	width: 100%;
+	cursor: pointer;
+	font-weight: 600;
+	font-size: 11px;
+	padding: 4px 0;
+	color: var(--vscode-foreground);
+}
+
+.chat-status-bar-entry-tooltip .collapsible-section .collapsible-section-summary:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-section .collapsible-section-body-wrapper {
+	display: grid;
+	grid-template-rows: 0fr;
+	transition: grid-template-rows 150ms ease;
+	overflow: hidden;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-section.open .collapsible-section-body-wrapper {
+	grid-template-rows: 1fr;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-section .collapsible-section-body {
+	min-height: 0;
+	overflow: hidden;
+}

@@ -15,7 +15,7 @@ import { CancellationToken, cancelOnDispose } from '../../../../../base/common/c
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { safeIntl } from '../../../../../base/common/date.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { MutableDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, MutableDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { parseLinkedText } from '../../../../../base/common/linkedText.js';
 import { language } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -42,6 +42,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { isNewUser } from './chatStatus.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
+import { IChatStatusDashboardSectionService } from './chatStatusDashboardSectionService.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import product from '../../../../../platform/product/common/product.js';
 import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
@@ -127,6 +128,7 @@ export class ChatStatusDashboard extends DomWidget {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IChatStatusDashboardSectionService private readonly chatStatusDashboardSectionService: IChatStatusDashboardSectionService,
 	) {
 		super();
 
@@ -262,6 +264,12 @@ export class ChatStatusDashboard extends DomWidget {
 		// Contributed sections (e.g. Codebase Semantic Index) — each gets its own collapsible
 		if (contributedEntries.length > 0) {
 			this.renderContributedSections(contributedEntries);
+		}
+
+		// Collapsible contributed sections (e.g. AI usage metrics)
+		for (const section of this.chatStatusDashboardSectionService.getSections()) {
+			this.element.appendChild($('hr'));
+			this.element.appendChild(this.renderCollapsibleSection(section));
 		}
 
 		// New to Chat / Signed out
@@ -657,6 +665,31 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 
 		return header;
+	}
+
+	private renderCollapsibleSection(section: { readonly id: string; readonly title: string; readonly initialOpen?: boolean; render(container: HTMLElement): IDisposable }): HTMLElement {
+		const container = $('div.collapsible-section');
+		let open = section.initialOpen ?? true;
+		container.classList.toggle('open', open);
+
+		const summary = $<HTMLButtonElement>('button.collapsible-section-summary');
+		summary.setAttribute('type', 'button');
+		container.appendChild(summary);
+		summary.setAttribute('aria-expanded', String(open));
+		summary.textContent = section.title;
+
+		// Animated wrapper: uses grid-template-rows 0fr -> 1fr to animate height auto.
+		const bodyWrapper = container.appendChild($('div.collapsible-section-body-wrapper'));
+		const body = bodyWrapper.appendChild($('div.collapsible-section-body'));
+		this._store.add(section.render(body));
+
+		this._store.add(addDisposableListener(summary, EventType.CLICK, () => {
+			open = !open;
+			container.classList.toggle('open', open);
+			summary.setAttribute('aria-expanded', String(open));
+		}));
+
+		return container;
 	}
 
 	private renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
