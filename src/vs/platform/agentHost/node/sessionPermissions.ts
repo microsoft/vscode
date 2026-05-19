@@ -247,8 +247,9 @@ export class SessionPermissionManager extends Disposable {
 
 	/**
 	 * Resolves the raw text of a shell redirect destination to an absolute
-	 * filesystem path. Returns `undefined` for `~`-expanded paths (which
-	 * point outside the workspace) and when resolution would require a
+	 * filesystem path. `~` is expanded to the user's home directory; the
+	 * downstream working-directory check rejects paths that end up outside
+	 * the workspace. Returns `undefined` when resolution would require a
 	 * working directory that isn't configured.
 	 */
 	private _resolveShellRedirectPath(dest: string, workDir: string | undefined): string | undefined {
@@ -256,7 +257,13 @@ export class SessionPermissionManager extends Disposable {
 		if (!trimmed) {
 			return undefined;
 		}
-		return path.isAbsolute(trimmed) ? trimmed : (workDir ? path.resolve(workDir, trimmed) : undefined);
+		if (path.isAbsolute(trimmed)) {
+			return trimmed;
+		}
+		if (!workDir) {
+			return undefined;
+		}
+		return path.resolve(URI.parse(workDir).fsPath, trimmed);
 	}
 
 	private _isEditAutoApproved(filePath: string): boolean {
