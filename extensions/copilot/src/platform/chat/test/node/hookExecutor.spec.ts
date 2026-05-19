@@ -20,9 +20,8 @@ vi.mock('child_process', () => ({
 	spawn: vi.fn(() => mockChild),
 }));
 
-const platformModule = await vi.importActual<typeof import('../../../../util/vs/base/common/platform')>('../../../../util/vs/base/common/platform');
-vi.mock('../../../../util/vs/base/common/platform', () => ({
-	...platformModule,
+vi.mock('../../../../util/vs/base/common/platform', async (importOriginal) => ({
+	...(await importOriginal()),
 	isWindows: false,
 }));
 
