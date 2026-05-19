@@ -20,7 +20,7 @@ import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../../../.
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatMarkdownContentPart } from '../../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
-import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
+import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { CodeBlockPart, ICodeBlockData } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
 import { IChatOutputRendererService, type RenderedOutputPart } from '../../../../browser/chatOutputItemRenderer.js';
 import { IChatOutputPartStateCache, IOutputPartState } from '../../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
@@ -631,5 +631,46 @@ suite('ChatMarkdownContentPart', () => {
 		assert.strictEqual(renderedCodeBlocks.length, 2);
 		assert.strictEqual(renderedCodeBlocks[0].text, 'console');
 		assert.strictEqual(renderedCodeBlocks[1].text, 'console.log("hello");');
+	});
+
+	test('applies configured text direction to rendered block elements', () => {
+		const configService = instantiationService.get(IConfigurationService) as import('../../../../../../../platform/configuration/test/common/testConfigurationService.js').TestConfigurationService;
+		configService.setUserConfiguration('editor', {
+			fontFamily: 'Consolas',
+			fontLigatures: false,
+			accessibilitySupport: 'off',
+			textDirection: 'auto',
+		});
+
+		const part = createMarkdownPart('hello\n\nسلام world');
+		const paragraphs = Array.from(part.domNode.querySelectorAll('p'));
+
+		assert.strictEqual(part.domNode.getAttribute('dir'), 'ltr');
+		assert.strictEqual(part.domNode.style.unicodeBidi, 'plaintext');
+		assert.strictEqual(paragraphs.length, 2);
+		assert.strictEqual(paragraphs[0].getAttribute('dir'), 'ltr');
+		assert.strictEqual(paragraphs[1].getAttribute('dir'), 'rtl');
+		assert.strictEqual(paragraphs[1].style.unicodeBidi, 'plaintext');
+	});
+
+	test('applies configured text direction only to block markdown elements', () => {
+		const configService = instantiationService.get(IConfigurationService) as import('../../../../../../../platform/configuration/test/common/testConfigurationService.js').TestConfigurationService;
+		configService.setUserConfiguration('editor', {
+			fontFamily: 'Consolas',
+			fontLigatures: false,
+			accessibilitySupport: 'off',
+			textDirection: 'auto',
+		});
+
+		const part = createMarkdownPart('hello **bold**\n\nسلام **دنیا**');
+		const paragraphs = Array.from(part.domNode.querySelectorAll('p'));
+		const strong = Array.from(part.domNode.querySelectorAll('strong'));
+
+		assert.strictEqual(paragraphs.length, 2);
+		assert.strictEqual(strong.length, 2);
+		assert.strictEqual(paragraphs[0].getAttribute('dir'), 'ltr');
+		assert.strictEqual(paragraphs[1].getAttribute('dir'), 'rtl');
+		assert.strictEqual(strong[0].hasAttribute('dir'), false);
+		assert.strictEqual(strong[1].hasAttribute('dir'), false);
 	});
 });

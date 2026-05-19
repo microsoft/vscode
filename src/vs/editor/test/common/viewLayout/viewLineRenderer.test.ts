@@ -9,7 +9,8 @@ import * as strings from '../../../../base/common/strings.js';
 import { assertSnapshot } from '../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
-import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { MetadataConsts, StandardTokenType } from '../../../common/encodedTokenAttributes.js';
+import { TextDirection } from '../../../common/model.js';
 import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, DomPosition, IRenderLineInputOptions, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
@@ -25,6 +26,13 @@ function createViewLineTokens(viewLineTokens: TestLineToken[]): IViewLineTokens 
 function createPart(endIndex: number, foreground: number): TestLineToken {
 	return new TestLineToken(endIndex, (
 		foreground << MetadataConsts.FOREGROUND_OFFSET
+	) >>> 0);
+}
+
+function createTypedPart(endIndex: number, foreground: number, tokenType: StandardTokenType): TestLineToken {
+	return new TestLineToken(endIndex, (
+		(foreground << MetadataConsts.FOREGROUND_OFFSET)
+		| (tokenType << MetadataConsts.TOKEN_TYPE_OFFSET)
 	) >>> 0);
 }
 
@@ -77,7 +85,9 @@ const defaultRenderLineInputOptions: IRenderLineInputOptions = {
 	selectionsOnLine: null,
 	textDirection: null,
 	verticalScrollbarSize: 14,
-	renderNewLineWhenEmpty: false
+	renderNewLineWhenEmpty: false,
+	textDirectionPreset: 'default',
+	textDirectionLanguageId: undefined
 };
 
 function createRenderLineInputOptions(opts: IRelaxedRenderLineInputOptions): IRenderLineInputOptions {
@@ -111,7 +121,9 @@ function createRenderLineInput(opts: IRelaxedRenderLineInputOptions): RenderLine
 		options.selectionsOnLine,
 		options.textDirection,
 		options.verticalScrollbarSize,
-		options.renderNewLineWhenEmpty
+		options.renderNewLineWhenEmpty,
+		options.textDirectionPreset,
+		options.textDirectionLanguageId
 	);
 }
 
@@ -159,6 +171,28 @@ suite('renderViewLine', () => {
 		assertCharacterReplacement('xx\t', 4, 'xx\u00a0\u00a0', [0, 1, 2, 4]);
 		assertCharacterReplacement('xxx\t', 4, 'xxx\u00a0', [0, 1, 2, 3, 4]);
 		assertCharacterReplacement('xxxx\t', 4, 'xxxx\u00a0\u00a0\u00a0\u00a0', [0, 1, 2, 3, 4, 8]);
+	});
+
+	test('RenderLineInput equality tracks textDirectionLanguageId', () => {
+		const plaintextInput = createRenderLineInput({
+			textDirectionPreset: 'contextual',
+			textDirectionLanguageId: 'plaintext'
+		});
+		const syntaxHeavyInput = createRenderLineInput({
+			textDirectionPreset: 'contextual',
+			textDirectionLanguageId: 'typescript'
+		});
+		const noLanguageInput = createRenderLineInput({
+			textDirectionPreset: 'contextual'
+		});
+		const emptyLanguageInput = createRenderLineInput({
+			textDirectionPreset: 'contextual',
+			textDirectionLanguageId: ''
+		});
+
+		assert.strictEqual(plaintextInput.equals(syntaxHeavyInput), false);
+		assert.strictEqual(noLanguageInput.equals(emptyLanguageInput), true);
+		assert.strictEqual(emptyLanguageInput.textDirectionLanguageId, undefined);
 	});
 
 	function assertParts(lineContent: string, tabSize: number, parts: TestLineToken[], expected: string, info: CharacterMappingInfo[]): void {
@@ -244,6 +278,176 @@ suite('renderViewLine', () => {
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		await assertSnapshot(inflated.mapping);
+	});
+
+	test('comment and string tokens follow editor text direction settings', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'const value = "# سلام kami"; // سلام kami',
+			containsRTL: true,
+			isBasicASCII: false,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'auto-follow',
+			lineTokens: createViewLineTokens([
+				createTypedPart(14, 1, StandardTokenType.Other),
+				createTypedPart(28, 2, StandardTokenType.String),
+				createTypedPart(30, 1, StandardTokenType.Other),
+				createTypedPart(43, 3, StandardTokenType.Comment),
+			])
+		}));
+
+		assert.match(actual.html, /dir="rtl" class="mtk2" style="unicode-bidi:plaintext;"/);
+		assert.match(actual.html, /dir="rtl" class="mtk3" style="unicode-bidi:plaintext;"/);
+	});
+
+	test('contextual preset follows prose-like languages and keeps syntax-heavy ones stable', () => {
+		const plainText = renderViewLine(createRenderLineInput({
+			lineContent: '# سلام',
+			containsRTL: true,
+			isBasicASCII: false,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'contextual',
+			textDirectionLanguageId: 'plaintext',
+			lineTokens: createViewLineTokens([
+				createTypedPart(6, 1, StandardTokenType.Other),
+			])
+		}));
+
+		const python = renderViewLine(createRenderLineInput({
+			lineContent: '# سلام',
+			containsRTL: true,
+			isBasicASCII: false,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'contextual',
+			textDirectionLanguageId: 'python',
+			lineTokens: createViewLineTokens([
+				createTypedPart(6, 1, StandardTokenType.Comment),
+			])
+		}));
+
+		assert.match(plainText.html, /dir="rtl" class="mtk1" style="unicode-bidi:plaintext;"/);
+		assert.match(python.html, /dir="ltr" class="mtk1" style="unicode-bidi:plaintext;"/);
+	});
+
+	test('auto and contextual keep multiline-comment rtl lines ltr in syntax-heavy languages', () => {
+		const autoComment = renderViewLine(createRenderLineInput({
+			lineContent: 'سلام',
+			containsRTL: true,
+			isBasicASCII: false,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'auto',
+			textDirectionLanguageId: 'typescript',
+			lineTokens: createViewLineTokens([
+				createTypedPart(4, 1, StandardTokenType.Comment),
+			])
+		}));
+
+		const contextualComment = renderViewLine(createRenderLineInput({
+			lineContent: 'سلام',
+			containsRTL: true,
+			isBasicASCII: false,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'contextual',
+			textDirectionLanguageId: 'typescript',
+			lineTokens: createViewLineTokens([
+				createTypedPart(4, 1, StandardTokenType.Comment),
+			])
+		}));
+
+		assert.match(autoComment.html, /dir="ltr" class="mtk1" style="unicode-bidi:plaintext;"/);
+		assert.match(contextualComment.html, /dir="ltr" class="mtk1" style="unicode-bidi:plaintext;"/);
+		assert.doesNotMatch(autoComment.html, /dir="rtl" class="mtk1"/);
+		assert.doesNotMatch(contextualComment.html, /dir="rtl" class="mtk1"/);
+	});
+
+	test('default preset keeps comment and string tokens at the original rendering behavior', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'const value = "سلام kami"; // سلام kami',
+			containsRTL: true,
+			isBasicASCII: false,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'default',
+			lineTokens: createViewLineTokens([
+				createTypedPart(14, 1, StandardTokenType.Other),
+				createTypedPart(26, 2, StandardTokenType.String),
+				createTypedPart(28, 1, StandardTokenType.Other),
+				createTypedPart(41, 3, StandardTokenType.Comment),
+			])
+		}));
+
+		assert.doesNotMatch(actual.html, /dir="rtl" class="mtk2"/);
+		assert.doesNotMatch(actual.html, /dir="rtl" class="mtk3"/);
+		assert.doesNotMatch(actual.html, /unicode-bidi:plaintext/);
+	});
+
+	test('ltr preset keeps comment and string tokens at the original rendering behavior', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'const value = "سلام kami"; // سلام kami',
+			containsRTL: true,
+			isBasicASCII: false,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'ltr',
+			lineTokens: createViewLineTokens([
+				createTypedPart(14, 1, StandardTokenType.Other),
+				createTypedPart(26, 2, StandardTokenType.String),
+				createTypedPart(28, 1, StandardTokenType.Other),
+				createTypedPart(41, 3, StandardTokenType.Comment),
+			])
+		}));
+
+		assert.doesNotMatch(actual.html, /dir="ltr" class="mtk2"/);
+		assert.doesNotMatch(actual.html, /dir="ltr" class="mtk3"/);
+		assert.doesNotMatch(actual.html, /unicode-bidi:plaintext/);
+	});
+
+	test('mixed html content follows editor text direction settings', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: '<p>سلام world</p>',
+			containsRTL: true,
+			isBasicASCII: false,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'auto-follow',
+			lineTokens: createViewLineTokens([
+				createTypedPart(3, 1, StandardTokenType.Other),
+				createTypedPart(13, 2, StandardTokenType.Other),
+				createTypedPart(17, 1, StandardTokenType.Other),
+			])
+		}));
+
+		assert.match(actual.html, /dir="ltr" class="mtk1" style="unicode-bidi:plaintext;"/);
+		assert.match(actual.html, /dir="rtl" class="mtk2" style="unicode-bidi:plaintext;"/);
+	});
+
+	test('regex tokens follow editor text direction settings', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'const matcher = /سلام world/u;',
+			containsRTL: true,
+			isBasicASCII: false,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'auto-follow',
+			lineTokens: createViewLineTokens([
+				createTypedPart(16, 1, StandardTokenType.Other),
+				createTypedPart(30, 2, StandardTokenType.RegEx),
+				createTypedPart(31, 1, StandardTokenType.Other),
+			])
+		}));
+
+		assert.match(actual.html, /dir="rtl" class="mtk2" style="unicode-bidi:plaintext;"/);
+	});
+
+	test('markdown backtick-wrapped tokens follow inner content in auto mode', () => {
+		const lineContent = '```سلام World خوب هستی```';
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			containsRTL: true,
+			isBasicASCII: false,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'auto',
+			lineTokens: createViewLineTokens([
+				createTypedPart(lineContent.length, 2, StandardTokenType.String),
+			])
+		}));
+
+		assert.match(actual.html, /dir="rtl" class="mtk2" style="unicode-bidi:plaintext;"/);
 	});
 
 	// issue #2255: Weird line rendering part 1
@@ -464,6 +668,119 @@ suite('renderViewLine', () => {
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		await assertSnapshot(inflated.mapping);
+	});
+
+	test('leading-neutral RTL runs in auto mode add bidi markers without per-token isolation', () => {
+		const lineContent = '# یک دو three four پنج شش هفت eight نه ده';
+		const lineTokens = createViewLineTokens([
+			createPart(lineContent.length, 1),
+		]);
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'auto',
+		}));
+
+		assert.ok(!actual.html.includes('unicode-bidi:isolate'));
+		assert.ok(actual.html.includes('mtkbidiStart'));
+		assert.ok(actual.html.includes('mtkbidiEnd'));
+	});
+
+	test('leading-neutral RTL runs in auto mode treat null textDirection as ltr', () => {
+		const lineContent = '# یک دو three four پنج شش هفت eight نه ده';
+		const lineTokens = createViewLineTokens([
+			createPart(lineContent.length, 1),
+		]);
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens,
+			textDirection: null,
+			textDirectionPreset: 'auto',
+		}));
+
+		assert.ok(!actual.html.includes('unicode-bidi:isolate'));
+		assert.ok(actual.html.includes('mtkbidiStart'));
+		assert.ok(actual.html.includes('mtkbidiEnd'));
+	});
+
+	test('Arabic-script digits do not start a leading-neutral RTL run in auto mode', () => {
+		const lineContent = '. ۱۲۳ یک دو';
+		const lineTokens = createViewLineTokens([
+			createPart(lineContent.length, 1),
+		]);
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'auto',
+		}));
+
+		assert.ok(!actual.html.includes('mtkbidiStart'));
+		assert.ok(!actual.html.includes('mtkbidiEnd'));
+	});
+
+	test('non-rtl-script prefixes do not start a leading-neutral RTL run in auto mode', () => {
+		const lineContent = 'δύο یک ένα';
+		const lineTokens = createViewLineTokens([
+			createPart(lineContent.length, 1),
+		]);
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'auto',
+		}));
+
+		assert.ok(!actual.html.includes('mtkbidiStart'));
+		assert.ok(!actual.html.includes('mtkbidiEnd'));
+		assert.match(actual.html, /dir="ltr" class="mtk1" style="unicode-bidi:plaintext;"/);
+	});
+
+	test('leading-neutral RTL comment lines keep the original rendering behavior in default mode', () => {
+		const lineContent = '# یک دو three four پنج شش هفت eight نه ده';
+		const lineTokens = createViewLineTokens([
+			createTypedPart(lineContent.length, 1, StandardTokenType.Comment),
+		]);
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'default',
+		}));
+
+		assert.ok(!actual.html.includes('mtkbidiStart'));
+		assert.ok(!actual.html.includes('mtkbidiEnd'));
+		assert.ok(!actual.html.includes('unicode-bidi:plaintext'));
+	});
+
+	test('leading-neutral RTL comment lines keep the original rendering behavior in ltr mode', () => {
+		const lineContent = '# یک دو three four پنج شش هفت eight نه ده';
+		const lineTokens = createViewLineTokens([
+			createTypedPart(lineContent.length, 1, StandardTokenType.Comment),
+		]);
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'ltr',
+		}));
+
+		assert.ok(!actual.html.includes('mtkbidiStart'));
+		assert.ok(!actual.html.includes('mtkbidiEnd'));
+		assert.ok(!actual.html.includes('unicode-bidi:plaintext'));
 	});
 
 	// issue #277693: Mixed LTR and RTL in a single token with template literal

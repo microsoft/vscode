@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agenttitlebarstatuswidget.css';
+
 import { $, addDisposableListener, EventType, getWindow, isHTMLElement, reset } from '../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -28,12 +29,14 @@ import { renderAsPlaintext } from '../../../../../../base/browser/markdownRender
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { applyConfiguredTextDirectionToElement } from '../../../../../browser/labelTextDirection.js';
 import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { createActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { FocusAgentSessionsAction } from '../agentSessionsActions.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { getChatTextDirection } from '../../../common/chatTextDirection.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
@@ -633,6 +636,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const titleLabel = $('span.agent-status-title');
 		const sessionInfo = this.agentTitleBarStatusService.sessionInfo;
 		titleLabel.textContent = sessionInfo?.title ?? localize('agentSessionProjection', "Agent Session Projection");
+		applyConfiguredTextDirectionToElement(titleLabel, titleLabel.textContent ?? '', getChatTextDirection(this.configurationService));
 		pill.appendChild(titleLabel);
 
 		// Escape button (right side)
@@ -676,6 +680,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const titleLabel = $('span.agent-status-title');
 		const sessionInfo = this.agentTitleBarStatusService.sessionInfo;
 		titleLabel.textContent = sessionInfo?.title ?? localize('agentSessionReady', "Review Changes");
+		applyConfiguredTextDirectionToElement(titleLabel, titleLabel.textContent ?? '', getChatTextDirection(this.configurationService));
 		pill.appendChild(titleLabel);
 
 		// Enter button (right side)

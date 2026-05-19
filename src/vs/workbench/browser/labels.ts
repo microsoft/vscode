@@ -5,19 +5,21 @@
 
 import { localize } from '../../nls.js';
 import { URI } from '../../base/common/uri.js';
-import { dirname, isEqual, basenameOrAuthority } from '../../base/common/resources.js';
-import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from '../../base/browser/ui/iconLabel/iconLabel.js';
+import { basenameOrAuthority, dirname, isEqual } from '../../base/common/resources.js';
+
+import { IconLabel, IIconLabelCreationOptions, IIconLabelValueOptions } from '../../base/browser/ui/iconLabel/iconLabel.js';
 import { ILanguageService } from '../../editor/common/languages/language.js';
 import { IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IModelService } from '../../editor/common/services/model.js';
+import { EditorOptions } from '../../editor/common/config/editorOptions.js';
 import { ITextFileService } from '../services/textfile/common/textfiles.js';
 import { IDecoration, IDecorationsService, IResourceDecorationChangeEvent } from '../services/decorations/common/decorations.js';
 import { Schemas } from '../../base/common/network.js';
 import { FileKind, FILES_ASSOCIATIONS_CONFIG } from '../../platform/files/common/files.js';
 import { ITextModel } from '../../editor/common/model.js';
 import { IThemeService } from '../../platform/theme/common/themeService.js';
-import { Event, Emitter } from '../../base/common/event.js';
+import { Emitter, Event } from '../../base/common/event.js';
 import { ILabelService } from '../../platform/label/common/label.js';
 import { getIconClasses } from '../../editor/common/services/getIconClasses.js';
 import { Disposable, dispose, IDisposable, MutableDisposable } from '../../base/common/lifecycle.js';
@@ -25,7 +27,8 @@ import { IInstantiationService } from '../../platform/instantiation/common/insta
 import { normalizeDriveLetter } from '../../base/common/labels.js';
 import { IRange } from '../../editor/common/core/range.js';
 import { ThemeIcon } from '../../base/common/themables.js';
-import { INotebookDocumentService, extractCellOutputDetails } from '../services/notebook/common/notebookDocumentService.js';
+import { extractCellOutputDetails, INotebookDocumentService } from '../services/notebook/common/notebookDocumentService.js';
+import { applyConfiguredTextDirectionToElement } from './labelTextDirection.js';
 
 export interface IResourceLabelProps {
 	resource?: URI | { primary?: URI; secondary?: URI };
@@ -202,6 +205,10 @@ export class ResourceLabels extends Disposable {
 			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
 				this.widgets.forEach(widget => widget.notifyFileAssociationsChange());
 			}
+
+			if (e.affectsConfiguration('editor.textDirection')) {
+				this.widgets.forEach(widget => widget.notifyTextDirectionChange());
+			}
 		}));
 
 		// notify when label formatters change
@@ -311,10 +318,12 @@ class ResourceLabelWidget extends IconLabel {
 
 	private needsRedraw: Redraw | undefined = undefined;
 	private isHidden: boolean = false;
+	private readonly nameContainerElement: HTMLElement;
 
 	constructor(
 		container: HTMLElement,
 		options: IIconLabelCreationOptions | undefined,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
@@ -324,6 +333,7 @@ class ResourceLabelWidget extends IconLabel {
 		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService
 	) {
 		super(container, options);
+		this.nameContainerElement = super.nameContainerDomNode;
 	}
 
 	notifyVisibilityChanged(visible: boolean): void {
@@ -411,6 +421,10 @@ class ResourceLabelWidget extends IconLabel {
 				this.setFile(resource, this.options);
 			}
 		}
+	}
+
+	notifyTextDirectionChange(): void {
+		this.applyLabelTextDirection();
 	}
 
 	setFile(resource: URI, options?: IFileLabelOptions): void {
@@ -610,6 +624,7 @@ class ResourceLabelWidget extends IconLabel {
 		this.computedPathLabel = undefined;
 
 		this.setLabel('');
+		this.applyLabelTextDirection();
 	}
 
 	private render(options: { updateIcon: boolean; updateDecoration: boolean }): boolean {
@@ -722,6 +737,7 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		this.setLabel(this.label.name ?? '', this.label.description, iconLabelOptions);
+		this.applyLabelTextDirection();
 
 		this._onDidRender.fire();
 
@@ -737,5 +753,12 @@ class ResourceLabelWidget extends IconLabel {
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
 		this.computedWorkspaceFolderLabel = undefined;
+	}
+
+	private applyLabelTextDirection(): void {
+		const textDirectionPreset = EditorOptions.textDirection.validate(this.configurationService.getValue('editor.textDirection'));
+		const label = this.label?.name;
+		const text = typeof label === 'string' ? label : Array.isArray(label) ? label.join(this.options?.separator || '/') : '';
+		applyConfiguredTextDirectionToElement(this.nameContainerElement, text, textDirectionPreset);
 	}
 }

@@ -12,18 +12,19 @@ import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/
 import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
-import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
+import { IAsyncDataSource, ITreeDragAndDrop, ITreeDragOverReaction, ITreeElementRenderDetails, ITreeNode, ITreeSorter } from '../../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionShowLess, IAgentSessionShowMore, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
+import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { fromNow, getDurationString } from '../../../../../base/common/date.js';
-import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
+import { createMatches, FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { allowedChatMarkdownHtmlTags } from '../widget/chatContentMarkdownRenderer.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
@@ -35,17 +36,20 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IntervalTimer } from '../../../../../base/common/async.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
-import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
 import { AgentSessionProviders } from './agentSessions.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilter.js';
+import { applyConfiguredTextDirectionToElement } from '../../../../browser/labelTextDirection.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { getChatTextDirection } from '../../common/chatTextDirection.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
@@ -65,6 +69,7 @@ interface IAgentSessionItemTemplate {
 	readonly icon: HTMLElement;
 
 	// Column 2 Row 1
+	readonly titleContainer: HTMLElement;
 	readonly title: IconLabel;
 	readonly pinnedIndicator: HTMLElement;
 	readonly statusContainer: HTMLElement;
@@ -131,6 +136,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -184,6 +190,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		return {
 			element: elements.item,
 			icon: elements.icon,
+			titleContainer: elements.title,
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
 			pinnedIndicator: elements.pinnedIndicator,
 			titleToolbar,
@@ -249,7 +256,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// Title
 		const markdownTitle = new MarkdownString(session.element.label);
-		template.title.setLabel(renderAsPlaintext(markdownTitle), undefined, { matches: createMatches(session.filterData) });
+		const plainTextTitle = renderAsPlaintext(markdownTitle);
+		template.title.setLabel(plainTextTitle, undefined, { matches: createMatches(session.filterData) });
+		applyConfiguredTextDirectionToElement(template.titleContainer, plainTextTitle, getChatTextDirection(this.configurationService));
 
 		// Title Actions - Update context keys
 		ChatContextKeys.isArchivedAgentSession.bindTo(template.contextKeyService).set(session.element.isArchived());

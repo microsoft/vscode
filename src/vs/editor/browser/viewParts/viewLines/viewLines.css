@@ -29,6 +29,7 @@
 	padding: 4px;
 	cursor: pointer;
 }
+
 .mtkoverflow:hover {
 	background-color: var(--vscode-button-hoverBackground);
 }
@@ -39,6 +40,7 @@
 	user-select: none;
 	-webkit-user-select: none;
 }
+
 /* Use user-select: text for lookup feature on macOS */
 /* https://github.com/microsoft/vscode/issues/85632 */
 .monaco-editor.mac .lines-content:hover,
@@ -78,6 +80,15 @@
 .monaco-editor .mtkz {
 	display: inline-block;
 	color: var(--vscode-editorWhitespace-foreground) !important;
+}
+
+/* Inject Unicode RLI/PDI bidi controls to isolate RTL runs and stabilize mixed-direction rendering. */
+.monaco-editor .mtkbidiStart::before {
+	content: '\2067';
+}
+
+.monaco-editor .mtkbidiEnd::after {
+	content: '\2069';
 }
 
 /* TODO@tokenization bootstrap fix */

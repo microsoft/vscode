@@ -6,6 +6,7 @@
 // This should be the only place that is allowed to import from @vscode/component-explorer
 // eslint-disable-next-line local/code-import-patterns
 import { defineFixture, defineFixtureGroup, defineFixtureVariants } from '@vscode/component-explorer';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { DisposableStore, DisposableTracker, IDisposable, IReference, setDisposableTracker, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ModifierKeyEmitter } from '../../../../base/browser/dom.js';
@@ -64,6 +65,7 @@ import { IChatPhoneInputPresenter } from '../../../contrib/chat/browser/widget/i
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { TestClipboardService } from '../../../../platform/clipboard/test/common/testClipboardService.js';
+import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -90,7 +92,6 @@ import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.
 import { UndoRedoService } from '../../../../platform/undoRedo/common/undoRedoService.js';
 import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
-import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { TestMenuService } from '../workbenchTestServices.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
@@ -101,7 +102,7 @@ import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEd
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsManagementService } from '../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ICodeReviewService, CodeReviewStateKind, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { CodeReviewStateKind, ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
 
 // Editor
@@ -852,6 +853,10 @@ if (logOutsideTime) {
 
 let fixtureRenderCounter = 0;
 
+function isExplorerUiPreview(): boolean {
+	return mainWindow.frameElement !== null;
+}
+
 /**
  * Creates Dark and Light fixture variants from a single render function.
  * The render function receives a context with container and disposableStore.
@@ -867,16 +872,18 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		background: theme === darkTheme ? 'dark' : 'light',
 		render: async (container: HTMLElement, context) => {
 			const disposableStore = new DisposableStore();
+			const explorerUiPreview = isExplorerUiPreview();
+			const input = (context as typeof context & { readonly input?: unknown }).input;
 
 			// Replace Math.random with a seeded PRNG so fixtures render deterministically.
 			disposableStore.add(pushRandomOverwrite(42));
 
 			// Do not enable virtual time in explorer ui, as multiple fixtures are rendered in parallel.
-			const virtualTimeEnabled = (options.virtualTime?.enabled ?? true) && context.host.kind !== 'explorer-ui';
+			const virtualTimeEnabled = (options.virtualTime?.enabled ?? true) && !explorerUiPreview;
 			// Detect disposable leaks the same way unit tests do (`ensureNoDisposablesAreLeakedInTestSuite`).
 			// The tracker is global and therefore unsafe when fixtures render in parallel,
 			// so it is only enabled outside the explorer UI (e.g. in screenshot/CI mode).
-			const leakDetectionEnabled = true && context.host.kind !== 'explorer-ui';
+			const leakDetectionEnabled = true && !explorerUiPreview;
 			// Warm up the `ModifierKeyEmitter` singleton before the leak tracker
 			// starts so its long-lived `DisposableStore` (created on first
 			// `MenuEntryActionViewItem.render`) doesn't show up as a leak in
@@ -1032,12 +1039,12 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				afterMicrotaskClosure: cb => nextMacrotask(realTimeApi, cb),
 			});
 
-			const wantsTimeTrace = !!context.input && typeof context.input === 'object' && !!(context.input as Record<string, unknown>).outputTimeTrace;
+			const wantsTimeTrace = !!input && typeof input === 'object' && !!(input as Record<string, unknown>).outputTimeTrace;
 
 			if (wantsTimeTrace && virtualTimeEnabled && p.history.length > 0) {
 				const startTime = p.history[0].time;
 				const history = buildHistoryFromTasks(p.history, startTime);
-				return { output: renderSwimlanes(history) };
+				return { data: { output: renderSwimlanes(history) } };
 			}
 			return undefined;
 		},

@@ -683,7 +683,10 @@ class View extends Disposable {
 			options.get(EditorOption.fontLigatures) !== EditorFontLigatures.OFF,
 			null,
 			null,
-			verticalScrollbarSize
+			verticalScrollbarSize,
+			false,
+			options.get(EditorOption.textDirection),
+			model.getLanguageId()
 		));
 
 		return r.html;

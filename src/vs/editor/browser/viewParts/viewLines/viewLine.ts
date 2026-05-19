@@ -11,7 +11,7 @@ import { RangeUtil } from './rangeUtil.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
-import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, DomPosition, RenderWhitespace } from '../../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, DomPosition, ForeignElementType, RenderLineInput, RenderWhitespace, renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
@@ -169,7 +169,10 @@ export class ViewLine implements IVisibleLine {
 			options.fontLigatures !== EditorFontLigatures.OFF,
 			selectionsOnLine,
 			lineData.textDirection,
-			options.verticalScrollbarSize
+			options.verticalScrollbarSize,
+			false,
+			options.textDirectionPreset,
+			lineData.tokens.getCount() > 0 ? lineData.tokens.getLanguageId(0) : undefined
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -189,11 +192,13 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString(String(lineHeight));
 		sb.appendString('px;line-height:');
 		sb.appendString(String(lineHeight));
+		sb.appendString('px');
 		if (lineData.textDirection === TextDirection.RTL) {
-			sb.appendString('px;padding-right:');
+			sb.appendString(';padding-right:');
 			sb.appendString(String(options.verticalScrollbarSize));
+			sb.appendString('px');
 		}
-		sb.appendString('px;" class="');
+		sb.appendString(';" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
 		sb.appendString('">');
 

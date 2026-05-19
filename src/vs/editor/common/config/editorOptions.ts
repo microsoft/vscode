@@ -14,6 +14,7 @@ import { EDITOR_FONT_DEFAULTS, FONT_VARIATION_OFF, FONT_VARIATION_TRANSLATE, Fon
 import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import { USUAL_WORD_SEPARATORS } from '../core/wordHelper.js';
 import * as nls from '../../../nls.js';
+import { EditorTextDirectionPreset, InternalEditorTextDirectionOptions } from '../core/textDirection.js';
 import { AccessibilitySupport } from '../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationPropertySchema } from '../../../platform/configuration/common/configurationRegistry.js';
 
@@ -101,6 +102,10 @@ export interface IEditorOptions {
 	 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
 	 */
 	wordSeparators?: string;
+	/**
+	 * Controls how the editor resolves the base direction for bidirectional text.
+	 */
+	textDirection?: EditorTextDirectionPreset;
 	/**
 	 * Enable Linux primary clipboard.
 	 * Defaults to true.
@@ -4446,6 +4451,41 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 	}
 }
 
+class EditorTextDirection extends BaseEditorOption<EditorOption.textDirection, EditorTextDirectionPreset, InternalEditorTextDirectionOptions> {
+
+	private static readonly VALID_PRESETS: ReadonlySet<string> = new Set(['contextual', 'auto', 'auto-follow', 'default', 'ltr', 'rtl']);
+
+	constructor() {
+		super(
+			EditorOption.textDirection, 'textDirection', 'contextual',
+			{
+				type: 'string',
+				enum: ['contextual', 'auto', 'auto-follow', 'default', 'ltr', 'rtl'],
+				default: 'contextual',
+				enumDescriptions: [
+					nls.localize('editor.textDirection.contextual', "Use `auto-follow` for prose-like documents such as Plain Text and Markdown, and `auto` for syntax-heavy languages."),
+					nls.localize('editor.textDirection.auto', "Auto-detect line direction and keep leading neutral characters (such as `#`) in the base direction."),
+					nls.localize('editor.textDirection.auto-follow', "Auto-detect line direction and let leading neutral characters follow the first strong character."),
+					nls.localize('editor.textDirection.default', "Keep the default editor behavior unless an explicit text-direction decoration is applied."),
+					nls.localize('editor.textDirection.ltr', "Force all editor lines to use left-to-right direction."),
+					nls.localize('editor.textDirection.rtl', "Force all editor lines to use right-to-left direction."),
+				],
+				description: nls.localize('editor.textDirection', "Controls bidirectional text direction using a preset or a language-aware contextual default.")
+			}
+		);
+	}
+
+	public validate(_input: unknown): InternalEditorTextDirectionOptions {
+		if (_input === 'auto-keep') {
+			return 'auto';
+		}
+		if (typeof _input === 'string' && EditorTextDirection.VALID_PRESETS.has(_input)) {
+			return _input as EditorTextDirectionPreset;
+		}
+		return this.defaultValue;
+	}
+}
+
 //#endregion
 
 //#region inlineSuggest
@@ -5912,6 +5952,7 @@ export const enum EditorOption {
 	suggestSelection,
 	tabCompletion,
 	tabIndex,
+	textDirection,
 	trimWhitespaceOnDelete,
 	unicodeHighlighting,
 	unusualLineTerminators,
@@ -6722,6 +6763,7 @@ export const EditorOptions = {
 		EditorOption.tabIndex, 'tabIndex',
 		0, -1, Constants.MAX_SAFE_SMALL_INTEGER
 	)),
+	textDirection: register(new EditorTextDirection()),
 	trimWhitespaceOnDelete: register(new EditorBooleanOption(
 		EditorOption.trimWhitespaceOnDelete, 'trimWhitespaceOnDelete', false,
 		{ description: nls.localize('trimWhitespaceOnDelete', "Controls whether the editor will also delete the next line's indentation whitespace when deleting a newline.") }

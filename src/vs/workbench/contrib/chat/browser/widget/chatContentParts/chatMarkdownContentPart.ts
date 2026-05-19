@@ -24,7 +24,9 @@ import { autorun, autorunSelfDisposable, derived } from '../../../../../../base/
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { getConfiguredTextDirection, resolveTextDirectionPreset, textDirectionToString } from '../../../../../../editor/common/core/textDirection.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { TextDirection } from '../../../../../../editor/common/model.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type SymbolTag } from '../../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
@@ -47,6 +49,7 @@ import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/commo
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { MarkedKatexSupport } from '../../../../markdown/browser/markedKatexSupport.js';
+import { getChatTextDirection } from '../../../common/chatTextDirection.js';
 import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText } from '../../../common/widget/annotations.js';
 import { IEditSessionDiffStats, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
@@ -71,6 +74,38 @@ import { IChatOutputPartStateCache, IOutputPartState } from './chatOutputPartSta
 import './media/chatMarkdownPart.css';
 
 const $ = dom.$;
+const chatTextDirectionBlockTagNames = new Set(['P', 'LI', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'TD', 'TH', 'UL', 'OL', 'TABLE']);
+const chatTextDirectionLeafBlockTagNames = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'TD', 'TH']);
+
+function getChatTextDirectionBlockElements(root: HTMLElement): HTMLElement[] {
+	const blockElements = [root];
+	const nodesToVisit: Element[] = [];
+
+	for (let child = root.lastElementChild; child; child = child.previousElementSibling) {
+		nodesToVisit.push(child);
+	}
+
+	while (nodesToVisit.length > 0) {
+		const currentNode = nodesToVisit.pop()!;
+		if (!dom.isHTMLElement(currentNode)) {
+			continue;
+		}
+
+		if (chatTextDirectionBlockTagNames.has(currentNode.tagName)) {
+			blockElements.push(currentNode);
+
+			if (chatTextDirectionLeafBlockTagNames.has(currentNode.tagName)) {
+				continue;
+			}
+		}
+
+		for (let child = currentNode.lastElementChild; child; child = child.previousElementSibling) {
+			nodesToVisit.push(child);
+		}
+	}
+
+	return blockElements;
+}
 
 export interface IChatMarkdownContentPartOptions {
 	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
@@ -130,7 +165,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		currentWidth: number,
 		private readonly rendererOptions: IChatMarkdownContentPartOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 		@IChatOutputRendererService private readonly chatOutputRendererService: IChatOutputRendererService,
@@ -361,6 +396,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				...markdownRenderOptions,
 			}, this.domNode));
 
+			this.applyChatTextDirection(element);
+
 			// Ideally this would happen earlier, but we need to parse the markdown.
 			if (isResponseVM(element) && !element.model.codeBlockInfos && element.model.isComplete) {
 				element.model.initializeCodeBlockInfos(this._codeblocks.map(info => {
@@ -430,6 +467,29 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				.catch(e => {
 					console.error('Failed to load MarkedKatexSupport extension:', e);
 				});
+		}
+	}
+
+	private applyChatTextDirection(element: IChatContentPartRenderContext['element']): void {
+		if (!isRequestVM(element) && !isResponseVM(element)) {
+			this.domNode.removeAttribute('dir');
+			this.domNode.style.removeProperty('unicode-bidi');
+			return;
+		}
+
+		const textDirectionPreset = getChatTextDirection(this.configurationService);
+		const resolvedTextDirectionPreset = resolveTextDirectionPreset(textDirectionPreset);
+		const applyPlainTextBidi = resolvedTextDirectionPreset === 'auto' || resolvedTextDirectionPreset === 'auto-follow';
+		const blockElements = getChatTextDirectionBlockElements(this.domNode);
+
+		for (const blockElement of blockElements) {
+			const direction = textDirectionToString(getConfiguredTextDirection(blockElement.textContent || '', textDirectionPreset, TextDirection.LTR));
+			blockElement.setAttribute('dir', direction);
+			if (applyPlainTextBidi) {
+				blockElement.style.unicodeBidi = 'plaintext';
+			} else {
+				blockElement.style.removeProperty('unicode-bidi');
+			}
 		}
 	}
 

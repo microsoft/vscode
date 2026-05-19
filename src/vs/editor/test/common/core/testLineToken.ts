@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
-import { ColorId, TokenMetadata, ITokenPresentation, StandardTokenType } from '../../../common/encodedTokenAttributes.js';
+
+import { ColorId, ITokenPresentation, StandardTokenType, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
 import { ILanguageIdCodec } from '../../../common/languages.js';
 
 /**
@@ -33,6 +34,10 @@ export class TestLineToken {
 
 	public getType(): string {
 		return TokenMetadata.getClassNameFromMetadata(this._metadata);
+	}
+
+	public getMetadata(): number {
+		return this._metadata;
 	}
 
 	public getInlineStyle(colorMap: string[]): string {
@@ -117,7 +122,7 @@ export class TestLineTokens implements IViewLineTokens {
 	}
 
 	public getMetadata(tokenIndex: number): number {
-		throw new Error('Method not implemented.');
+		return this._actual[tokenIndex].getMetadata();
 	}
 
 	public getLanguageId(tokenIndex: number): string {

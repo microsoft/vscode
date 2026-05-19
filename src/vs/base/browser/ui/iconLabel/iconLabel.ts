@@ -130,6 +130,10 @@ export class IconLabel extends Disposable {
 		return this.domNode.element;
 	}
 
+	protected get nameContainerDomNode(): HTMLElement {
+		return this.nameContainer;
+	}
+
 	setLabel(label: string | string[], description?: string, options?: IIconLabelValueOptions): void {
 		const labelClasses = ['monaco-icon-label'];
 		const containerClasses = ['monaco-icon-label-container'];

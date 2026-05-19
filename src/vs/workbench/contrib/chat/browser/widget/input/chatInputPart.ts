@@ -40,7 +40,8 @@ import { IDimension } from '../../../../../../editor/common/core/2d/dimension.js
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { isLocation } from '../../../../../../editor/common/languages.js';
-import { ITextModel } from '../../../../../../editor/common/model.js';
+import { getConfiguredTypingDirection, textDirectionToString } from '../../../../../../editor/common/core/textDirection.js';
+import { ITextModel, TextDirection } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { CopyPasteController } from '../../../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
@@ -85,6 +86,7 @@ import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModes, IChatModeServ
 import { IChatFollowup, IChatPlanReview, IChatQuestionCarousel, IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
+import { affectsChatTextDirectionConfiguration, getChatTextDirection } from '../../../common/chatTextDirection.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../../../common/model/chatModel.js';
@@ -99,7 +101,7 @@ import { AgentSessionProviders, getAgentSessionProvider } from '../../agentSessi
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
 import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
-import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
+import { BrowserViewAttachmentWidget, DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
 import { ImplicitContextAttachmentWidget } from '../../attachments/implicitContextAttachment.js';
 import { IChatWidget, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegate, isIChatResourceViewContext, isIChatViewViewContext, IWorkspacePickerDelegate } from '../../chat.js';
@@ -116,7 +118,7 @@ import { IChatContextService } from '../../contextContrib/chatContextService.js'
 import { IDisposableReference } from '../chatContentParts/chatCollections.js';
 import { ChatPlanReviewPart, IChatPlanReviewPartOptions } from '../chatContentParts/chatPlanReviewPart.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../chatContentParts/chatQuestionCarouselPart.js';
-import { ChatToolConfirmationCarouselPart, ToolInvocationPartFactory, ScrollToSubagentCallback } from '../chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
+import { ChatToolConfirmationCarouselPart, ScrollToSubagentCallback, ToolInvocationPartFactory } from '../chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { ChatToolInvocationPart } from '../chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { IChatContentPartRenderContext } from '../chatContentParts/chatContentParts.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatContentParts/chatReferencesContentPart.js';
@@ -129,7 +131,7 @@ import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { DelegationSessionPickerActionItem } from './delegationSessionPickerActionItem.js';
-import { ModelPickerActionItem, IModelPickerDelegate } from './modelPickerActionItem.js';
+import { IModelPickerDelegate, ModelPickerActionItem } from './modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modePickerActionItem.js';
 import { IPermissionPickerDelegate, PermissionPickerActionItem } from './permissionPickerActionItem.js';
 import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
@@ -350,6 +352,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _inputEditor!: CodeEditorWidget;
 	private _inputEditorElement!: HTMLElement;
+	private _cachedInputTextArea: HTMLElement | undefined;
+	private _cachedInputTextAreaHost: HTMLElement | undefined;
 	private _forceVisibleScrollbarUntilAccept = false;
 
 	// Reference to the input model for syncing input state
@@ -682,6 +686,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 			if (e.affectsConfiguration('editor.autoSurround')) {
 				newOptions.autoSurround = this.configurationService.getValue('editor.autoSurround');
+			}
+			if (affectsChatTextDirectionConfiguration(e)) {
+				this._updateInputDirectionFromText();
 			}
 
 			this.inputEditor.updateOptions(newOptions);
@@ -1651,6 +1658,65 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
+	private _getInputTextArea(inputEditorDomNode: HTMLElement): HTMLElement | undefined {
+		if (this._cachedInputTextArea && this._cachedInputTextAreaHost === inputEditorDomNode && inputEditorDomNode.contains(this._cachedInputTextArea)) {
+			return this._cachedInputTextArea;
+		}
+
+		let inputTextArea: HTMLElement | undefined;
+		const nodesToVisit: Element[] = [inputEditorDomNode];
+		while (nodesToVisit.length > 0 && !inputTextArea) {
+			const currentNode = nodesToVisit.pop()!;
+			for (let child = currentNode.firstElementChild; child; child = child.nextElementSibling) {
+				nodesToVisit.push(child);
+				if (dom.isHTMLElement(child) && child.classList.contains('inputarea')) {
+					inputTextArea = child;
+					break;
+				}
+			}
+		}
+
+		this._cachedInputTextAreaHost = inputEditorDomNode;
+		this._cachedInputTextArea = inputTextArea;
+		return this._cachedInputTextArea;
+	}
+
+	private _getTypingDirectionSampleText(model: ITextModel | null): string {
+		if (!model) {
+			return '';
+		}
+
+		const position = this._inputEditor.getPosition();
+		if (!position) {
+			return model.getValue();
+		}
+
+		return model.getLineContent(position.lineNumber);
+	}
+
+	private _updateInputDirectionFromText(): void {
+		const model = this._inputEditor.getModel();
+		const value = this._getTypingDirectionSampleText(model);
+		const textDirectionPreset = getChatTextDirection(this.configurationService);
+		const direction = textDirectionToString(getConfiguredTypingDirection(value, textDirectionPreset, TextDirection.LTR));
+		if (this._inputEditor.getRawOptions().textDirection !== textDirectionPreset) {
+			this._inputEditor.updateOptions({ textDirection: textDirectionPreset });
+		}
+
+		const inputEditorDomNode = this._inputEditor.getDomNode();
+		if (!inputEditorDomNode) {
+			return;
+		}
+
+		inputEditorDomNode.removeAttribute('dir');
+
+		const inputTextArea = this._getInputTextArea(inputEditorDomNode);
+
+		if (dom.isHTMLElement(inputTextArea)) {
+			inputTextArea.setAttribute('dir', direction);
+		}
+	}
+
 	focus() {
 		this._inputEditor.focus();
 	}
@@ -2390,6 +2456,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const model = this._inputEditor.getModel();
 			const inputHasText = !!model && model.getValue().trim().length > 0;
 			this.inputEditorHasText.set(inputHasText);
+			this._updateInputDirectionFromText();
 
 			// Debounced sync to model for text changes
 			this._syncTextDebounced.schedule();
@@ -2770,6 +2837,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const lineNumber = this.inputModel.getLineCount();
 			this._inputEditor.setPosition({ lineNumber, column: this.inputModel.getLineMaxColumn(lineNumber) });
 		}
+		this._updateInputDirectionFromText();
+		let lastInputDirectionLineNumber = this._inputEditor.getPosition()?.lineNumber;
 
 		const onDidChangeCursorPosition = () => {
 			const model = this._inputEditor.getModel();
@@ -2787,6 +2856,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			this.historyNavigationBackwardsEnablement.set(atTop);
 			this.historyNavigationForewardsEnablement.set(position.equals(getLastPosition(model)));
+			if (position.lineNumber !== lastInputDirectionLineNumber) {
+				lastInputDirectionLineNumber = position.lineNumber;
+				this._updateInputDirectionFromText();
+			}
 
 			// Sync cursor and selection to model
 			this._syncInputStateToModel();
