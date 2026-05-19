@@ -64,7 +64,7 @@
 	gap: 10px;
 }
 
-/* Input toolbar: match VS Code chat-input-toolbars gap */
+/* Input toolbar spacing */
 .new-chat-in-session .sessions-chat-toolbar {
 	margin-top: 4px;
 	padding: 0px;

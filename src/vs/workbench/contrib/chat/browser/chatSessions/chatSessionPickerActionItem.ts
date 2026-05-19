@@ -17,7 +17,7 @@ import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from 
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { renderLabelWithIcons, renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatInputPickerOptions } from '../widget/input/chatInputPickerActionItem.js';

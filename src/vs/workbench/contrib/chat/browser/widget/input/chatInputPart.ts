@@ -2620,11 +2620,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				kind: 'all',
 				minItems: 1,
 				actionMinWidth: 48,
-				// Agent-host pickers collapse to icon+chevron when narrow
-				// (see `pickerOptions.compact` driving compact mode in
-				// `AgentHostChatInputPicker._renderTrigger`). Report a
-				// smaller min-width for them so the responsive layout keeps
-				// them visible instead of overflowing into the menu.
+				// Agent-host pickers collapse to an icon-only label via a CSS
+				// container query in `AgentHostChatInputPicker` when narrow.
+				// Report a smaller min-width for them so the responsive layout
+				// keeps them visible instead of overflowing into the menu.
 				getActionMinWidth: action => agentHostShortPickerIds.has(action.id) ? 22 : undefined,
 			},
 			actionViewItemProvider: (action, options) => {
