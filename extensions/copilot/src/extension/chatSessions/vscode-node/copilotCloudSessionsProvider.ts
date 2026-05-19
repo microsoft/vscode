@@ -326,13 +326,14 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		@IDomainService private readonly _domainService: IDomainService,
 		@IOTelService private readonly _otelService: IOTelService,
 		@IFileSystemService private readonly _fileSystemService: IFileSystemService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
 		// Select Cloud Agent backend based on the `chat.cloudAgentBackend.version` setting.
 		// Default 'v1' keeps existing Jobs API behavior; 'v2' opts in to the experimental Task API backend.
-		const backendVersion = this._configurationService.getConfig(ConfigKey.CloudAgentBackendVersion);
+		// Note: read once at construction — changes to the setting require an extension host reload to take effect.
+		const backendVersion = configurationService.getConfig(ConfigKey.CloudAgentBackendVersion);
 		if (backendVersion === 'v2') {
 			this._backend = new TaskApiBackend(new StubTaskApiClient(this.logService), this.logService);
 		} else {
@@ -2412,12 +2413,15 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			}
 
 			const commentResult = await this._backend.sendFollowUp(pr.id, userPrompt + (summary ? '\n\n' + summary : ''), targetAgent);
-			if (!commentResult || !commentResult.url) {
+			if (!commentResult) {
 				this.logService.error(`Failed to add comment to PR #${pullRequestNumber}`);
 				return;
 			}
-			// allow-any-unicode-next-line
-			return vscode.l10n.t('🚀 Follow-up comment added to [#{0}]({1})', pullRequestNumber, commentResult.url);
+			return commentResult.url
+				// allow-any-unicode-next-line
+				? vscode.l10n.t('🚀 Follow-up comment added to [#{0}]({1})', pullRequestNumber, commentResult.url)
+				// allow-any-unicode-next-line
+				: vscode.l10n.t('🚀 Follow-up comment added to #{0}', pullRequestNumber);
 		} catch (err) {
 			this.logService.error(`Failed to add follow-up comment to PR #${pullRequestNumber}: ${err}`);
 			return;

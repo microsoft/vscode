@@ -11,6 +11,7 @@ import {
 	CreatePullRequestForTaskResponse,
 	CreateTaskRequest,
 	ITaskApiClient,
+	ListTaskEventsOptions,
 	ListTaskEventsResponse,
 	ListTasksOptions,
 	ListTasksResponse,
@@ -85,9 +86,10 @@ function taskToSessionInfo(task: Task): SessionInfo {
 
 /** Synthesize a PullRequestSearchItem from a task that has a PR artifact attached. */
 function taskToPullRequest(task: Task, pullArtifact: TaskArtifact & { data: TaskArtifactPullData }): PullRequestSearchItem {
+	const prNumber = pullArtifact.data.number ?? pullArtifact.data.id;
 	return {
 		id: String(pullArtifact.data.global_id ?? pullArtifact.data.id),
-		number: pullArtifact.data.id,
+		number: prNumber,
 		title: task.name ?? '',
 		state: 'OPEN',
 		url: pullArtifact.data.html_url ?? task.html_url ?? '',
@@ -158,7 +160,7 @@ export class TaskApiBackend implements CloudAgentBackend {
 		if (pullArtifact) {
 			return {
 				kind: 'pullRequest',
-				prNumber: pullArtifact.data.id,
+				prNumber: pullArtifact.data.number ?? pullArtifact.data.id,
 				sessionId: task.id,
 			};
 		}
@@ -302,7 +304,7 @@ export class StubTaskApiClient implements ITaskApiClient {
 		this.notWired('getTask');
 	}
 
-	getTaskEvents(_taskId: string, _options?: ListTasksOptions): Promise<ListTaskEventsResponse> {
+	getTaskEvents(_taskId: string, _options?: ListTaskEventsOptions): Promise<ListTaskEventsResponse> {
 		this.notWired('getTaskEvents');
 	}
 
