@@ -553,15 +553,16 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions.length, 1);
 			assert.deepStrictEqual(sessions[0].changesets, [
 				{
-					label: 'Uncommitted Changes',
-					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
-				},
-				{
-					label: 'Session Changes',
+					label: 'Branch Changes',
 					uriTemplate: `${sessionUri.toString()}/changeset/session`,
 					additions: 8,
 					deletions: 2,
 					files: 2,
+				},
+				{
+					label: 'Uncommitted Changes',
+					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
+					description: 'Show uncommitted changes in this session',
 				},
 				{
 					label: 'This Turn',
@@ -692,15 +693,16 @@ suite('AgentService (node dispatcher)', () => {
 			const sessions = await svc.listSessions();
 			assert.deepStrictEqual(sessions[0].changesets, [
 				{
-					label: 'Uncommitted Changes',
-					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
-				},
-				{
-					label: 'Session Changes',
+					label: 'Branch Changes',
 					uriTemplate: changesetUri,
 					additions: 1,
 					deletions: 0,
 					files: 1,
+				},
+				{
+					label: 'Uncommitted Changes',
+					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
+					description: 'Show uncommitted changes in this session',
 				},
 				{
 					label: 'This Turn',
@@ -795,15 +797,16 @@ suite('AgentService (node dispatcher)', () => {
 			const sessions = await svc.listSessions();
 			assert.deepStrictEqual(sessions[0].changesets, [
 				{
-					label: 'Uncommitted Changes',
-					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
-				},
-				{
-					label: 'Session Changes',
+					label: 'Branch Changes',
 					uriTemplate: `${sessionUri.toString()}/changeset/session`,
 					additions: 7,
 					deletions: 1,
 					files: 1,
+				},
+				{
+					label: 'Uncommitted Changes',
+					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
+					description: 'Show uncommitted changes in this session',
 				},
 				{
 					label: 'This Turn',
@@ -914,6 +917,66 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(localService.stateManager.getSessionState(session.toString())?._meta, undefined);
+		});
+
+		test('createSession strips git-only catalogue entries for non-git working directory', async () => {
+			const workingDirectory = URI.file('/workspace/not-a-repo');
+			const gitService = createNoopGitService();
+			// Probe runs but reports "not a git repo".
+			gitService.getSessionGitState = async () => undefined;
+
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.resolvedWorkingDirectory = workingDirectory;
+			agent.sessionMetadataOverrides = { workingDirectory };
+			localService.registerProvider(agent);
+
+			const session = await localService.createSession({ provider: 'copilot' });
+			for (let i = 0; i < 5; i++) {
+				await Promise.resolve();
+			}
+
+			const state = localService.stateManager.getSessionState(session.toString());
+			assert.ok(state);
+			assert.deepStrictEqual(state!.summary.changesets, [
+				{ label: 'This Turn', uriTemplate: `${session.toString()}/changeset/turn/{turnId}` },
+			]);
+		});
+
+		test('createSession keeps git-only catalogue entries for a git working directory', async () => {
+			const workingDirectory = URI.file('/workspace/repo');
+			const gitState = {
+				hasGitHubRemote: false,
+				branchName: 'main',
+				baseBranchName: 'main',
+				upstreamBranchName: undefined,
+				incomingChanges: 0,
+				outgoingChanges: 0,
+				uncommittedChanges: 0,
+			};
+			const gitService = createNoopGitService();
+			gitService.getSessionGitState = async () => gitState;
+
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.resolvedWorkingDirectory = workingDirectory;
+			agent.sessionMetadataOverrides = { workingDirectory };
+			localService.registerProvider(agent);
+
+			const session = await localService.createSession({ provider: 'copilot' });
+			for (let i = 0; i < 5; i++) {
+				await Promise.resolve();
+			}
+
+			const state = localService.stateManager.getSessionState(session.toString());
+			assert.ok(state);
+			assert.deepStrictEqual(state!.summary.changesets, [
+				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session` },
+				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
+				{ label: 'This Turn', uriTemplate: `${session.toString()}/changeset/turn/{turnId}` },
+			]);
 		});
 
 		test('subscribe lazily attaches git state when an existing session has no _meta.git', async () => {
@@ -1634,15 +1697,20 @@ suite('AgentService (node dispatcher)', () => {
 			localService.unsubscribe(uncommittedUri, 'client-1');
 		});
 
-		test('addSubscriber for non-uncommitted resources does NOT trigger a refresh', async () => {
+		test('addSubscriber for the session URI or session-changeset URI triggers a static refresh', async () => {
+			// The Agents Window subscribes to the session URI (list /
+			// detail) rather than to either of the static changeset URIs
+			// directly, so the chip would never refresh on session open
+			// without this trigger. Subscribing to the session-changeset
+			// URI from any other client must also fire its own refresh.
 			const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/wd-refresh-2' });
 			copilotAgent.resolvedWorkingDirectory = workingDirectory;
 			copilotAgent.sessionMetadataOverrides = { workingDirectory };
 
-			const computeCalls: { baseBranch: string | undefined }[] = [];
+			const computeCalls: { wd: string; baseBranch: string | undefined }[] = [];
 			const gitService = createNoopGitService();
-			gitService.computeSessionFileDiffs = async (_wd: URI, opts: { sessionUri: string; baseBranch?: string }) => {
-				computeCalls.push({ baseBranch: opts.baseBranch });
+			gitService.computeSessionFileDiffs = async (wd: URI, opts: { sessionUri: string; baseBranch?: string }) => {
+				computeCalls.push({ wd: wd.toString(), baseBranch: opts.baseBranch });
 				return undefined;
 			};
 
@@ -1653,16 +1721,16 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionChangesetUri = URI.parse(buildSessionChangesetUri(sessionResource.toString()));
 
 			localService.addSubscriber(sessionChangesetUri, 'client-1');
-			localService.addSubscriber(sessionResource, 'client-1');
+			localService.addSubscriber(sessionResource, 'client-2');
 			await new Promise(r => setTimeout(r, 20));
 
 			assert.ok(
-				!computeCalls.some(c => c.baseBranch === undefined),
-				`non-uncommitted subscriptions must not trigger an uncommitted git diff, got: ${JSON.stringify(computeCalls)}`,
+				computeCalls.some(c => c.wd === workingDirectory.toString()),
+				`session-URI / session-changeset subscriptions must trigger a git diff against the working dir, got: ${JSON.stringify(computeCalls)}`,
 			);
 
 			localService.unsubscribe(sessionChangesetUri, 'client-1');
-			localService.unsubscribe(sessionResource, 'client-1');
+			localService.unsubscribe(sessionResource, 'client-2');
 		});
 
 		test('restoreSession drains a pending uncommitted refresh deferred by an earlier addSubscriber', async () => {
@@ -1927,17 +1995,22 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(sessionResource.toString());
 			assert.ok(state);
+			// The session has no working directory, so `_attachGitState`
+			// treats it as transient and does NOT strip the two git-only
+			// catalogue entries. The Branch Changes entry receives the
+			// persisted diff counts seeded by the changeset coordinator.
 			assert.deepStrictEqual(state!.summary.changesets, [
 				{
-					label: 'Uncommitted Changes',
-					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
-				},
-				{
-					label: 'Session Changes',
-					uriTemplate: `${sessionResource.toString()}/changeset/session`,
 					additions: 5,
 					deletions: 2,
 					files: 1,
+					label: 'Branch Changes',
+					uriTemplate: `${sessionResource.toString()}/changeset/session`,
+				},
+				{
+					description: 'Show uncommitted changes in this session',
+					label: 'Uncommitted Changes',
+					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
 				},
 				{
 					label: 'This Turn',
@@ -1975,16 +2048,19 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(sessionResource.toString());
 			assert.ok(state);
-			// Catalogue is seeded by `_buildInitialSummary` / `restoreSession`
-			// (entries with no counts) — but no files were seeded.
+			// Catalogue is seeded by `_buildInitialSummary` / `restoreSession`.
+			// The session has no working directory, so `_attachGitState` does
+			// NOT strip the git-only entries — they remain advertised but
+			// without counts until a real compute lands.
 			assert.deepStrictEqual(state!.summary.changesets, [
 				{
-					label: 'Uncommitted Changes',
-					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
+					label: 'Branch Changes',
+					uriTemplate: `${sessionResource.toString()}/changeset/session`,
 				},
 				{
-					label: 'Session Changes',
-					uriTemplate: `${sessionResource.toString()}/changeset/session`,
+					description: 'Show uncommitted changes in this session',
+					label: 'Uncommitted Changes',
+					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
 				},
 				{
 					label: 'This Turn',
@@ -2153,9 +2229,13 @@ suite('AgentService (node dispatcher)', () => {
 		}
 
 		function defaultCatalogue(sessionStr: string) {
+			// These tests have no working directory resolved, so
+			// `_attachGitState` treats it as transient and does NOT strip
+			// the two git-only entries. All three default entries are
+			// advertised (without counts) until a real compute lands.
 			return [
-				{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted` },
-				{ label: 'Session Changes', uriTemplate: `${sessionStr}/changeset/session` },
+				{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
+				{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 				{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
 			];
 		}
