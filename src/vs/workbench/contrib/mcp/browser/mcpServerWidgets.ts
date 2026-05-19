@@ -336,7 +336,7 @@ export class McpServerHoverWidget extends McpServerWidget {
 		if (!this.mcpServer) {
 			return undefined;
 		}
-		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+		const markdown = new MarkdownString('', { isTrusted: false, supportThemeIcons: true });
 
 		markdown.appendMarkdown(`**${this.mcpServer.label}**`);
 		markdown.appendText(`\n`);
@@ -370,7 +370,7 @@ export class McpServerHoverWidget extends McpServerWidget {
 		}
 
 		if (this.mcpServer.description) {
-			markdown.appendMarkdown(`${this.mcpServer.description}`);
+			markdown.appendMarkdown(this.mcpServer.description);
 		}
 
 		const extensionStatus = this.mcpServerStatusAction.status;
