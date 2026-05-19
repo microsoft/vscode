@@ -15,16 +15,19 @@ import { FileAccess } from '../../../../base/common/network.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Action } from '../../../../base/common/actions.js';
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import product from '../../../../platform/product/common/product.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
@@ -555,40 +558,44 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const fullUriRegEx = /^(https:\/\/)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.ghe\.com\/?$/;
 		const enterprisePromptLabel = this._getEnterpriseInstancePromptLabel();
 
-		const form = append(actions, $('form.onboarding-a-signin-ghe-input'));
-		form.setAttribute('novalidate', 'true');
+		const container = append(actions, $('.onboarding-a-signin-ghe-input'));
+		const submitAction = this.stepDisposables.add(new Action(
+			'onboarding.signIn.enterprise.submit',
+			localize('onboarding.signIn.enterprise.continue', "Continue"),
+			ThemeIcon.asClassName(Codicon.arrowRight),
+			false,
+			async () => {
+				if (!validate()) {
+					return;
+				}
 
-		const row = append(form, $('.onboarding-a-signin-ghe-input-row'));
+				await this._submitEnterpriseInstance(inputBox.value.trim(), isSingleWord);
+			}
+		));
 
-		const input = this._registerStepFocusable(append(row, $<HTMLInputElement>('input.onboarding-a-signin-ghe-input-field')));
-		input.type = 'text';
-		input.spellcheck = false;
-		input.autocomplete = 'off';
-		input.placeholder = localize('onboarding.signIn.enterprise.placeholder', 'i.e. "octocat" or "https://octocat.ghe.com"...');
-		input.setAttribute('aria-label', enterprisePromptLabel);
-		input.value = this.enterpriseInstanceValue;
+		const inputBox = this.stepDisposables.add(new InputBox(container, undefined, {
+			placeholder: localize('onboarding.signIn.enterprise.placeholder', 'i.e. "octocat" or "https://octocat.ghe.com"...'),
+			ariaLabel: enterprisePromptLabel,
+			actions: [submitAction],
+			inputBoxStyles: defaultInputBoxStyles,
+		}));
+		inputBox.value = this.enterpriseInstanceValue;
+		inputBox.paddingRight = 28;
+		const input = this._registerStepFocusable(inputBox.inputElement);
 
-		const submit = this._registerStepFocusable(append(row, $<HTMLButtonElement>('button.onboarding-a-signin-ghe-submit')));
-		submit.type = 'submit';
-		submit.setAttribute('aria-label', localize('onboarding.signIn.enterprise.continue', "Continue"));
-		submit.title = localize('onboarding.signIn.enterprise.continue', "Continue");
-		const submitIcon = append(submit, $('span'));
-		submitIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowRight));
-		submitIcon.setAttribute('aria-hidden', 'true');
-
-		const message = append(form, $('.onboarding-a-signin-ghe-message'));
+		const message = append(container, $('.onboarding-a-signin-ghe-message'));
 
 		let isSingleWord = false;
 		const validate = (): boolean => {
-			const value = input.value.trim();
-			this.enterpriseInstanceValue = input.value;
+			const value = inputBox.value.trim();
+			this.enterpriseInstanceValue = inputBox.value;
 			isSingleWord = false;
-			input.classList.remove('invalid');
+			inputBox.element.classList.remove('error');
 			message.classList.remove('error', 'info');
 
 			if (!value) {
 				message.textContent = enterprisePromptLabel;
-				submit.disabled = true;
+				submitAction.enabled = false;
 				return false;
 			}
 
@@ -596,31 +603,22 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				isSingleWord = true;
 				message.classList.add('info');
 				message.textContent = localize('onboarding.signIn.enterprise.resolve', "Will resolve to {0}", `https://${value}.ghe.com`);
-				submit.disabled = false;
+				submitAction.enabled = true;
 				return true;
 			}
 
 			if (!fullUriRegEx.test(value)) {
-				input.classList.add('invalid');
+				inputBox.element.classList.add('error');
 				message.classList.add('error');
 				message.textContent = localize('onboarding.signIn.enterprise.invalid', 'You must enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.provider.enterprise.name);
-				submit.disabled = true;
+				submitAction.enabled = false;
 				return false;
 			}
 
-			submit.disabled = false;
+			submitAction.enabled = true;
 			message.textContent = '';
 			return true;
 		};
-
-		this.stepDisposables.add(addDisposableListener(form, EventType.SUBMIT, e => {
-			e.preventDefault();
-			if (!validate()) {
-				return;
-			}
-
-			void this._submitEnterpriseInstance(input.value.trim(), isSingleWord);
-		}));
 
 		this.stepDisposables.add(addDisposableListener(input, 'input', () => {
 			validate();
@@ -628,6 +626,12 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		this.stepDisposables.add(addDisposableListener(input, EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.Enter) {
+				e.preventDefault();
+				void submitAction.run();
+				return;
+			}
+
 			if (event.keyCode === KeyCode.Escape) {
 				e.preventDefault();
 				e.stopPropagation();
