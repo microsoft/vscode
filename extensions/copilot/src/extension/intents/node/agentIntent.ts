@@ -977,7 +977,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					conversationId,
 					requestOptions: {
 						temperature: 0,
-						stream: false,
 						...toolOpts,
 					},
 					modelCapabilities,
@@ -1244,6 +1243,13 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		promptContext: IBuildPromptContext,
 		token: vscode.CancellationToken,
 	): void {
+		// Subagent requests must not drive background todo passes. The main
+		// agent's next render will see all accumulated rounds from subagents
+		// via the delta tracker and trigger a single consolidated pass then.
+		if (this.request.subAgentInvocationId) {
+			return;
+		}
+
 		const sessionId = promptContext.conversation?.sessionId;
 		const processor = this._getOrCreateBackgroundTodoProcessor(sessionId);
 		if (!processor) {

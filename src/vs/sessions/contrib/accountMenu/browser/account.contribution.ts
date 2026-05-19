@@ -19,11 +19,11 @@ import { appendUpdateMenuItems as registerUpdateMenuItems } from '../../../../wo
 import { Menus } from '../../../browser/menus.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { $, addDisposableListener, append, disposableWindowInterval, EventType, getDomNodePagePosition } from '../../../../base/browser/dom.js';
+import { $, append, disposableWindowInterval, getDomNodePagePosition } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction, Separator } from '../../../../base/common/actions.js';
-import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -48,8 +48,6 @@ const SESSIONS_ACCOUNT_TITLEBAR_PANEL_WIDTH = 360;
 
 const PERSONALIZE_ACTION_IDS: readonly string[] = [
 	'workbench.action.openSettings',
-	'workbench.action.openGlobalKeybindings',
-	'workbench.action.selectTheme',
 ];
 const SIGN_OUT_ACTION_ID = 'workbench.action.agenticSignOut';
 const SIGN_IN_ACTION_ID = 'workbench.action.agenticSignIn';
@@ -67,6 +65,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.agenticSignIn',
 			title: localize2('signIn', 'Sign In'),
+			icon: Codicon.signIn,
 			menu: {
 				id: AccountMenu,
 				when: ContextKeyExpr.notEquals('defaultAccountStatus', 'available'),
@@ -87,6 +86,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.agenticSignOut',
 			title: localize2('signOut', 'Sign Out'),
+			icon: Codicon.signOut,
 			menu: {
 				id: AccountMenu,
 				when: ContextKeyExpr.equals('defaultAccountStatus', 'available'),
@@ -127,37 +127,16 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// Color Theme (hidden on phone — no theme picker UI on mobile)
-MenuRegistry.appendMenuItem(AccountMenu, {
-	command: {
-		id: 'workbench.action.selectTheme',
-		title: localize('selectColorTheme', "Color Theme"),
-	},
-	when: IsPhoneLayoutContext.negate(),
-	group: '2_settings',
-	order: 1,
-});
-
 // Settings (hidden on phone — no settings UI on mobile)
 MenuRegistry.appendMenuItem(AccountMenu, {
 	command: {
 		id: 'workbench.action.openSettings',
 		title: localize('settings', "Settings"),
+		icon: Codicon.settingsGear,
 	},
 	when: IsPhoneLayoutContext.negate(),
 	group: '2_settings',
-	order: 2,
-});
-
-// Keyboard Shortcuts (hidden on phone — no keybindings UI on mobile)
-MenuRegistry.appendMenuItem(AccountMenu, {
-	command: {
-		id: 'workbench.action.openGlobalKeybindings',
-		title: localize('sessionsAccountMenu.keyboardShortcuts', "Keyboard Shortcuts"),
-	},
-	when: IsPhoneLayoutContext.negate(),
-	group: '2_settings',
-	order: 3,
+	order: 1,
 });
 
 // Update actions
@@ -464,62 +443,55 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 		const title = append(headerSection, $('div.sessions-account-titlebar-panel-title'));
 		title.textContent = this.getPanelHeaderLabel();
-		if (partitioned.signOut) {
-			const headerActionsContainer = append(headerSection, $('.sessions-account-titlebar-panel-header-actions'));
-			this.createPanelButton(headerActionsContainer, partitioned.signOut, panelStore, {
-				classNames: ['sessions-account-titlebar-panel-header-action'],
-				icon: this.getHeaderActionIcon(partitioned.signOut),
-			});
-		}
+		const headerActionsContainer = append(headerSection, $('.sessions-account-titlebar-panel-header-actions'));
 
-		// Personalize section.
-		if (partitioned.personalize.length > 0) {
-			const personalizeId = 'sessions-account-personalize-title';
-			const personalizeSection = append(panel, $('section.sessions-account-titlebar-panel-section', { 'aria-labelledby': personalizeId }));
-			const personalizeHeading = append(personalizeSection, $('div.sessions-account-titlebar-panel-section-title', { id: personalizeId }));
-			personalizeHeading.textContent = localize('sessionsAccountMenu.personalize', "Personalize");
-			const personalizeActionsContainer = append(personalizeSection, $('.sessions-account-titlebar-panel-actions'));
-			for (const action of partitioned.personalize) {
-				this.createPanelButton(personalizeActionsContainer, action, panelStore, {
-					classNames: ['sessions-account-titlebar-panel-action', 'with-icon'],
-					icon: this.getPersonalizeActionIcon(action),
-					includeLabel: true,
-				});
-			}
+		// CTA buttons (Manage Budget, Upgrade) will be rendered here by the dashboard
+		const ctaButtonsContainer = append(headerActionsContainer, $('.sessions-account-titlebar-panel-cta-actions'));
+
+		const headerActionBar = panelStore.add(new ActionBar(headerActionsContainer));
+		panelStore.add(headerActionBar.onWillRun(() => {
+			this.hoverService.hideHover(true);
+			this.clickPanelDisposable.clear();
+		}));
+
+		for (const action of partitioned.personalize) {
+			headerActionBar.push(action, { icon: true, label: false });
+		}
+		if (partitioned.signOut) {
+			headerActionBar.push(partitioned.signOut, { icon: true, label: false });
 		}
 
 		// Other panel actions (sign-in, etc.) — only render if there's at least one non-separator action.
 		if (partitioned.other.some(a => !(a instanceof Separator))) {
 			const actionsSection = append(panel, $('.sessions-account-titlebar-panel-actions'));
+			const actionsActionBar = panelStore.add(new ActionBar(actionsSection, {
+				orientation: ActionsOrientation.VERTICAL,
+			}));
+			panelStore.add(actionsActionBar.onWillRun(() => {
+				this.hoverService.hideHover(true);
+				this.clickPanelDisposable.clear();
+			}));
 			let lastWasSeparator = true;
 			for (const action of partitioned.other) {
 				if (action instanceof Separator) {
 					if (!lastWasSeparator) {
-						append(actionsSection, $('.sessions-account-titlebar-panel-separator'));
+						actionsActionBar.push(action);
 						lastWasSeparator = true;
 					}
 					continue;
 				}
 				lastWasSeparator = false;
-				this.createPanelButton(actionsSection, action, panelStore, {
-					classNames: ['sessions-account-titlebar-panel-action'],
-					includeLabel: true,
-					checked: !!action.checked,
-				});
+				actionsActionBar.push(action, { icon: false, label: true });
 			}
 		}
 
 		// Subscription / Copilot dashboard.
 		const contentSection = append(panel, $('.sessions-account-titlebar-panel-content'));
 		if (this.shouldShowCopilotDashboardHover()) {
-			const subscriptionId = 'sessions-account-subscription-title';
-			const subscriptionSection = append(contentSection, $('section.sessions-account-titlebar-panel-section.subscription', { 'aria-labelledby': subscriptionId }));
-			const subscriptionHeader = append(subscriptionSection, $('.sessions-account-titlebar-panel-section-header'));
-			const subscriptionHeading = append(subscriptionHeader, $('div.sessions-account-titlebar-panel-section-title', { id: subscriptionId }));
-			subscriptionHeading.textContent = localize('sessionsAccountMenu.subscription', "Subscription");
-			// Render the dashboard's title header (plan name + manage / CTA actions)
-			// directly into our section header row via the dashboard's public API.
-			const dashboard = this.createCopilotHoverContent({ titleHeaderContainer: subscriptionHeader });
+			const subscriptionSection = append(contentSection, $('section.sessions-account-titlebar-panel-section.subscription', {
+				'aria-label': localize('sessionsAccountSubscriptionSectionLabel', "Subscription")
+			}));
+			const dashboard = this.createCopilotHoverContent({ compactQuotaLayout: true, ctaButtonsContainer });
 			append(subscriptionSection, dashboard);
 		} else if (!this.isAccountLoading) {
 			const summary = append(contentSection, $('.sessions-account-titlebar-panel-summary'));
@@ -578,43 +550,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		return { signOut, personalize, other };
 	}
 
-	private createPanelButton(
-		parent: HTMLElement,
-		action: IAction,
-		panelStore: DisposableStore,
-		options: { classNames: readonly string[]; icon?: ThemeIcon; includeLabel?: boolean; checked?: boolean },
-	): HTMLButtonElement {
-		const button = append(parent, $('button', { type: 'button' })) as HTMLButtonElement;
-		button.classList.add(...options.classNames);
-		button.disabled = !action.enabled;
-		button.setAttribute('aria-label', action.tooltip || action.label);
-		if (options.checked) {
-			button.classList.add('checked');
-		}
-
-		if (options.icon && options.includeLabel) {
-			const iconElement = append(button, $('span.sessions-account-titlebar-panel-action-icon'));
-			iconElement.classList.add(...ThemeIcon.asClassNameArray(options.icon));
-			const labelElement = append(button, $('span.sessions-account-titlebar-panel-action-label'));
-			append(labelElement, ...renderLabelWithIcons(action.label));
-		} else if (options.icon) {
-			button.title = action.tooltip || action.label;
-			button.classList.add(...ThemeIcon.asClassNameArray(options.icon));
-		} else {
-			append(button, ...renderLabelWithIcons(action.label));
-		}
-
-		panelStore.add(addDisposableListener(button, EventType.CLICK, async event => {
-			event.preventDefault();
-			event.stopPropagation();
-			this.hoverService.hideHover(true);
-			this.clickPanelDisposable.clear();
-			await Promise.resolve(action.run());
-		}));
-
-		return button;
-	}
-
 	private getPanelHeaderLabel(): string {
 		if (this.accountName) {
 			return this.accountName;
@@ -625,32 +560,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 
 		return localize('accountMenuHeaderFallback', "Account");
-	}
-
-	private getHeaderActionIcon(action: IAction): ThemeIcon {
-		switch (action.id) {
-			case 'workbench.action.selectTheme':
-				return Codicon.symbolColor;
-			case 'workbench.action.openSettings':
-				return Codicon.settingsGear;
-			case SIGN_OUT_ACTION_ID:
-				return Codicon.signOut;
-			default:
-				return Codicon.circleLargeFilled;
-		}
-	}
-
-	private getPersonalizeActionIcon(action: IAction): ThemeIcon {
-		switch (action.id) {
-			case 'workbench.action.openSettings':
-				return Codicon.settingsGear;
-			case 'workbench.action.openGlobalKeybindings':
-				return Codicon.keyboard;
-			case 'workbench.action.selectTheme':
-				return Codicon.symbolColor;
-			default:
-				return Codicon.circleLargeFilled;
-		}
 	}
 
 	private shouldShowCopilotDashboardHover(): boolean {
@@ -666,7 +575,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			disableProviderOptions: true,
 			disableCompletionsSnooze: true,
 			disableQuickSettingsCollapsible: true,
-			disableContributedSectionsCollapsible: true,
 			...extraOptions,
 		});
 

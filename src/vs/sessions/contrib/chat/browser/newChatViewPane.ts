@@ -30,7 +30,7 @@ import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IAgentHostFilterService } from '../../remoteAgentHost/common/agentHostFilter.js';
+import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 
 // #region --- New Chat Widget ---
 
@@ -93,7 +93,7 @@ class NewChatWidget extends Disposable {
 		this._register(this._workspacePicker.onDidSelectWorkspace(async workspace => {
 			if (workspace) {
 				const selectedSessionType = this._newChatInput.sessionTypePicker.selectedType;
-				const validSessionTypes = this.sessionsProvidersService.getProvider(workspace.providerId)?.getSessionTypes(workspace.workspace.repositories[0].uri);
+				const validSessionTypes = this.sessionsProvidersService.getProvider(workspace.providerId)?.getSessionTypes(workspace.workspace.folders[0].root);
 				const validSessionType = selectedSessionType ? validSessionTypes?.find(type => type.id === selectedSessionType) : validSessionTypes?.[0];
 				await this._onWorkspaceSelected(workspace, validSessionType?.id);
 			} else {
@@ -171,7 +171,7 @@ class NewChatWidget extends Disposable {
 
 	private _createNewSession(selection: IWorkspaceSelection, sessionTypeId: string | undefined): void {
 		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === selection.providerId);
-		const repoUri = selection.workspace.repositories[0].uri;
+		const repoUri = selection.workspace.folders[0].root;
 
 		// Drop the carried-over sessionTypeId if it doesn't apply to this provider —
 		// happens when the picker upgrades to a different provider after restore and
@@ -212,7 +212,7 @@ class NewChatWidget extends Disposable {
 	 * Returns the workspace URI for the context picker based on the current workspace selection.
 	 */
 	private _getContextFolderUri(): URI | undefined {
-		return this._workspacePicker.selectedProject?.workspace.repositories[0]?.uri;
+		return this._workspacePicker.selectedProject?.workspace.folders[0]?.root;
 	}
 
 	private _renderWorkspacePicker(container: HTMLElement): IDisposable {
@@ -379,7 +379,7 @@ class NewChatWidget extends Disposable {
 		}
 
 		if (selection.workspace.requiresWorkspaceTrust) {
-			const workspaceUri = selection.workspace.repositories[0]?.uri;
+			const workspaceUri = selection.workspace.folders[0]?.root;
 			if (workspaceUri && !await this._requestFolderTrust(workspaceUri)) {
 				return;
 			}

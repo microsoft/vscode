@@ -32,6 +32,7 @@ import { ActiveSessionSupportsMultiChatContext, ISessionsManagementService } fro
 import { ISessionsListModelService } from './sessionsListModelService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
+import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
 
 //  Constants
 
@@ -388,7 +389,7 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 		super({
 			id: 'sessionsView.sectionArchive',
 			title: localize2('archiveSection', "Mark All as Done"),
-			icon: Codicon.check,
+			icon: Codicon.checkAll,
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
@@ -799,6 +800,7 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 					IsActiveSessionArchivedContext.negate(),
 					ActiveSessionContextKeys.HasGitRepository.isEqualTo(true),
 					ActiveSessionContextKeys.HasGitOperationInProgress.negate(),
+					hasActiveSessionFailedCIChecks.negate(),
 					ContextKeyExpr.or(
 						// No changes
 						ActiveSessionContextKeys.HasBranchChanges.negate(),
