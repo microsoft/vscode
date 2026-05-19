@@ -423,9 +423,14 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		}
 		if (this.nextButton) {
 			if (this.currentStepIndex === 0) {
-				// Sign-in step: secondary "Continue without Signing In"
-				this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-secondary';
-				this.nextButton.textContent = localize('onboarding.continueWithoutSignIn', "Continue without Signing In");
+				if (this._userSignedIn) {
+					this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-primary';
+					this.nextButton.textContent = localize('onboarding.continue', "Continue");
+				} else {
+					// Sign-in step: secondary "Continue without Signing In"
+					this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-secondary';
+					this.nextButton.textContent = localize('onboarding.continueWithoutSignIn', "Continue without Signing In");
+				}
 			} else if (this._isLastStep()) {
 				this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-primary';
 				this.nextButton.textContent = localize('onboarding.getStarted', "Get Started");
