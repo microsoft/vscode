@@ -965,7 +965,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	onClientToolCallComplete(_session: URI, _toolCallId: string, _result: ToolCallResult): void {
-		throw new Error('TODO: Phase 10');
+		// Phase 10 — client (MCP) tool completion routing. Until then, every
+		// SDK-owned tool that completes also fires this hook via
+		// `AgentSideEffects` listening on `SessionToolCallComplete` envelopes,
+		// so the body must be a benign no-op rather than throw. Once client
+		// tools are registered via `setClientTools`, this should resolve the
+		// matching pending promise on the SDK session.
 	}
 
 	setClientCustomizations(_clientId: string, _customizations: CustomizationRef[], _progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
