@@ -17,6 +17,7 @@ import {
 	sessionChangesetLabel,
 	thisTurnChangesetLabel,
 	uncommittedChangesetLabel,
+	uncommittedChangesetDescription,
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
@@ -65,11 +66,13 @@ function persistKeyFor(kind: StaticChangesetKind): string {
 /**
  * Builds a single static {@link ChangesetSummary} catalogue entry from a
  * persisted (or live-state-derived) file list. Returns the bare entry
- * (no counts) when `diffs` is undefined.
+ * (no counts) when `diffs` is undefined. Optional `description` is
+ * threaded through when provided.
  */
-function buildStaticCatalogueEntry(label: string, uri: string, diffs: readonly ISessionFileDiff[] | undefined): ChangesetSummary {
+function buildStaticCatalogueEntry(label: string, uri: string, diffs: readonly ISessionFileDiff[] | undefined, description?: string): ChangesetSummary {
+	const base: ChangesetSummary = description ? { label, uriTemplate: uri, description } : { label, uriTemplate: uri };
 	if (!diffs) {
-		return { label, uriTemplate: uri };
+		return base;
 	}
 	let additions = 0;
 	let deletions = 0;
@@ -77,7 +80,7 @@ function buildStaticCatalogueEntry(label: string, uri: string, diffs: readonly I
 		additions += d.diff?.added ?? 0;
 		deletions += d.diff?.removed ?? 0;
 	}
-	return { label, uriTemplate: uri, additions, deletions, files: diffs.length };
+	return { ...base, additions, deletions, files: diffs.length };
 }
 
 function defaultCatalogueWithCounts(
@@ -86,15 +89,15 @@ function defaultCatalogueWithCounts(
 	sessionDiffs: readonly ISessionFileDiff[] | undefined,
 ): ChangesetSummary[] {
 	return [
-		buildStaticCatalogueEntry(uncommittedChangesetLabel(), buildUncommittedChangesetUri(sessionUri), uncommittedDiffs),
 		buildStaticCatalogueEntry(sessionChangesetLabel(), buildSessionChangesetUri(sessionUri), sessionDiffs),
+		buildStaticCatalogueEntry(uncommittedChangesetLabel(), buildUncommittedChangesetUri(sessionUri), uncommittedDiffs, uncommittedChangesetDescription()),
 		{ label: thisTurnChangesetLabel(), uriTemplate: buildTurnChangesetUriTemplate(sessionUri) },
 	];
 }
 
 /**
- * Build the default ordered changeset catalogue (`Uncommitted Changes`,
- * `Session Changes`, `This Turn`) seeded from the live {@link ChangesetState}
+ * Build the default ordered changeset catalogue (`Branch Changes`,
+ * `Uncommitted Changes`, `This Turn`) seeded from the live {@link ChangesetState}
  * for an unopened session that has no live `SessionState` but already has
  * ready changeset states (e.g. from a prior `restoreStaticChangeset` call).
  *
@@ -103,8 +106,11 @@ function defaultCatalogueWithCounts(
  * have no usable counts yet — preserving the long-standing contract that
  * unopened sessions without persisted or live data advertise no catalogue.
  *
- * Clients MUST treat `summary.changesets[0]` as the default — `Uncommitted
- * Changes` is first by virtue of catalogue ordering, not by hardcoded id.
+ * The two static entries (`Branch Changes`, `Uncommitted Changes`) are
+ * git-only — `AgentService._attachGitState` strips them from the live
+ * `summary.changesets` for non-git working directories. The synthesised
+ * catalogue here mirrors the live-state shape so list overlays stay
+ * consistent with the per-session catalogue clients subscribe to.
  */
 export function buildCatalogueFromLiveState(
 	sessionUri: string,
@@ -244,6 +250,15 @@ export interface IAgentHostChangesetService {
 	refreshUncommittedChangeset(session: ProtocolURI): void;
 
 	/**
+	 * Lazy refresh of the session (branch) changeset, kicked off when a
+	 * client first subscribes to `<session>/changeset/session` or the
+	 * session URI itself (e.g. Agents Window observing the session). Mirrors
+	 * {@link refreshUncommittedChangeset} so the catalogue chip stays fresh
+	 * across session opens even when no turn has run since process start.
+	 */
+	refreshSessionChangeset(session: ProtocolURI): void;
+
+	/**
 	 * Computes and publishes the per-turn changeset for `turnId` on `session`.
 	 * Per-turn changesets are not persisted.
 	 */
@@ -332,6 +347,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	refreshUncommittedChangeset(session: ProtocolURI): void {
 		this._scheduleStaticRecompute(session, 'uncommitted');
+	}
+
+	refreshSessionChangeset(session: ProtocolURI): void {
+		this._scheduleStaticRecompute(session, 'session');
 	}
 
 	async computeTurnChangeset(session: ProtocolURI, turnId: string): Promise<ProtocolURI> {

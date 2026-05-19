@@ -64,8 +64,8 @@ suite('AgentHostChangesetService', () => {
 		// Catalogue is seeded by setupSession (mirrors what `_buildInitialSummary`
 		// does in production) — sanity check before exercising registration.
 		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.summary.changesets, [
-			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted` },
-			{ label: 'Session Changes', uriTemplate: `${sessionStr}/changeset/session` },
+			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
+			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 			{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
 		]);
 
@@ -82,8 +82,8 @@ suite('AgentHostChangesetService', () => {
 
 		// Registration must not mutate the seeded catalogue.
 		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.summary.changesets, [
-			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted` },
-			{ label: 'Session Changes', uriTemplate: `${sessionStr}/changeset/session` },
+			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
+			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 			{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
 		]);
 	});
@@ -127,15 +127,16 @@ suite('AgentHostChangesetService', () => {
 		const catalogue = stateManager.getSessionState(sessionStr)?.summary.changesets;
 		assert.deepStrictEqual(catalogue, [
 			{
-				label: 'Uncommitted Changes',
-				uriTemplate: `${sessionStr}/changeset/uncommitted`,
-			},
-			{
-				label: 'Session Changes',
+				label: 'Branch Changes',
 				uriTemplate: changesetUri,
 				additions: 6,
 				deletions: 2,
 				files: 2,
+			},
+			{
+				label: 'Uncommitted Changes',
+				uriTemplate: `${sessionStr}/changeset/uncommitted`,
+				description: 'Show uncommitted changes in this session',
 			},
 			{
 				label: 'This Turn',
@@ -182,15 +183,16 @@ suite('AgentHostChangesetService', () => {
 			],
 			catalogue: [
 				{
-					label: 'Uncommitted Changes',
-					uriTemplate: `${sessionStr}/changeset/uncommitted`,
-				},
-				{
-					label: 'Session Changes',
+					label: 'Branch Changes',
 					uriTemplate: changesetUri,
 					additions: 4,
 					deletions: 1,
 					files: 2,
+				},
+				{
+					label: 'Uncommitted Changes',
+					uriTemplate: `${sessionStr}/changeset/uncommitted`,
+					description: 'Show uncommitted changes in this session',
 				},
 				{
 					label: 'This Turn',
@@ -527,7 +529,7 @@ suite('AgentHostChangesetService', () => {
 			const catalogue = stateManager.getSessionState(sessionStr)?.summary.changesets;
 			const sessionEntry = catalogue?.find(c => c.uriTemplate === `${sessionStr}/changeset/session`);
 			assert.deepStrictEqual(sessionEntry, {
-				label: 'Session Changes',
+				label: 'Branch Changes',
 				uriTemplate: `${sessionStr}/changeset/session`,
 				additions: 3,
 				deletions: 0,
