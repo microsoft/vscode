@@ -145,9 +145,28 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * `addSubscriber`, so this single hook covers both paths.
 	 */
 	onFirstSubscriber(resource: URI): void {
-		const parsed = parseChangesetUri(resource.toString());
+		const resourceStr = resource.toString();
+		const parsed = parseChangesetUri(resourceStr);
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._triggerUncommittedRefresh(parsed.sessionUri);
+			return;
+		}
+		if (parsed?.kind === ChangesetKind.Session) {
+			// Session-changeset compute uses git when a working dir is
+			// available and falls back to the SDK edit-tracker otherwise,
+			// so it doesn't need the same deferral as uncommitted.
+			this._changesets.refreshSessionChangeset(parsed.sessionUri);
+			return;
+		}
+		if (!parsed && this._stateManager.getSessionState(resourceStr)) {
+			// Plain session-URI subscription (Agents Window list / detail
+			// observing the session). Refresh both static changesets so
+			// the catalogue chip doesn't show a stale value just because
+			// no turn has run since process start, no one ever subscribed
+			// to the changeset URIs directly, and the user has been
+			// editing files manually in the working tree.
+			this._triggerUncommittedRefresh(resourceStr);
+			this._changesets.refreshSessionChangeset(resourceStr);
 		}
 	}
 
