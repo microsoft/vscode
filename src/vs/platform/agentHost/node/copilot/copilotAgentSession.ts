@@ -21,9 +21,11 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentSignal } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
+import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -302,7 +304,7 @@ export class CopilotAgentSession extends Disposable {
 	readonly sessionUri: URI;
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
-	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined }>();
+	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; startTimeMs: number; mcpServerName: string | undefined }>();
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
@@ -384,6 +386,7 @@ export class CopilotAgentSession extends Disposable {
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this.sessionId = options.rawSessionId;
@@ -488,6 +491,30 @@ export class CopilotAgentSession extends Disposable {
 			return path;
 		}
 		return join(this._workingDirectory.fsPath, path);
+	}
+
+	private _sendToolInvokedTelemetry(success: boolean, errorCode: string | undefined, toolCall: { readonly toolName: string; readonly startTimeMs: number; readonly mcpServerName: string | undefined }): void {
+		let result: LanguageModelToolInvokedEvent['result'];
+		if (success) {
+			result = 'success';
+		} else if (errorCode === 'rejected' || errorCode === 'denied' || errorCode === 'cancelled') {
+			result = 'userCancelled';
+		} else {
+			result = 'error';
+		}
+
+		const isClientTool = this._clientToolNames.has(toolCall.toolName);
+		const toolSourceKind = toolCall.mcpServerName ? 'mcp' : isClientTool ? 'client' : 'agentHost';
+		const invocationTimeMs = Date.now() - toolCall.startTimeMs;
+
+		this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>('languageModelToolInvoked', {
+			result,
+			chatSessionId: this.sessionUri.toString(),
+			toolId: toolCall.toolName,
+			toolExtensionId: undefined,
+			toolSourceKind,
+			invocationTimeMs,
+		});
 	}
 
 	/**
@@ -1444,7 +1471,7 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
-			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId });
+			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, startTimeMs: Date.now(), mcpServerName: e.data.mcpServerName });
 			const toolKind = getToolKind(e.data.toolName);
 			const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 			const toolClientId = this._clientToolNames.has(e.data.toolName) ? this._appliedSnapshot.clientId : undefined;
@@ -1550,6 +1577,7 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 
+			this._sendToolInvokedTelemetry(e.data.success, e.data.error?.code, tracked);
 			this._emitAction({
 				type: ActionType.SessionToolCallComplete,
 				session: this._protocolSession(),
