@@ -10,9 +10,8 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { ChangesetFileSetAction, SessionAddedNotification } from '../../../common/state/sessionActions.js';
+import type { ChangesetFileSetAction, SessionAddedParams } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import type { INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
 import {
 	dispatchTurnStarted,
 	getActionEnvelope,
@@ -81,19 +80,19 @@ const hasGit = (() => {
 		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-git-diffs' });
 
 		const workingDirectory = URI.file(tmpRoot).toString();
-		await client.call('createSession', { session: nextSessionUri(), provider: 'mock', workingDirectory });
+		await client.call('createSession', { channel: nextSessionUri(), provider: 'mock', workingDirectory });
 
 		const addedNotif = await client.waitForNotification(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+			n.method === 'root/sessionAdded'
 		);
-		const sessionUri = ((addedNotif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource;
+		const sessionUri = (addedNotif.params as SessionAddedParams).summary.resource;
 
-		await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
+		await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		// Also subscribe to the session changeset URI: `changeset/*` envelopes
 		// are scoped to the changeset URI by `_isRelevantToClient`, so a
 		// session-only subscription will not receive them.
 		const sessionChangesetUri = `${sessionUri}/changeset/session`;
-		await client.call<SubscribeResult>('subscribe', { resource: sessionChangesetUri });
+		await client.call<SubscribeResult>('subscribe', { channel: sessionChangesetUri });
 		client.clearReceived();
 
 		// Fire a turn that runs the `terminal-edit:<path>` mock prompt. The mock

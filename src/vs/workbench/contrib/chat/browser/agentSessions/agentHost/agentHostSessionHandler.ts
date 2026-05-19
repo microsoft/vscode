@@ -439,9 +439,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const backendSession = this._resolveSessionUri(sessionResource);
 				const state = this._getSessionState(backendSession.toString());
 				if (state?.activeClient?.clientId === this._config.connection.clientId) {
-					this._dispatchAction({
+					this._dispatchAction(backendSession, {
 						type: ActionType.SessionActiveClientToolsChanged,
-						session: backendSession.toString(),
 						tools: defs,
 					});
 				}
@@ -457,9 +456,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			this._logService.info(`[AgentHost] Continue in background: terminal=${parsed.terminal}, session=${parsed.session}`);
-			this._config.connection.dispatch({
+			this._config.connection.dispatch(parsed.terminal, {
 				type: ActionType.TerminalClaimed,
-				terminal: parsed.terminal,
 				claim: {
 					kind: TerminalClaimKind.Session,
 					session: parsed.session,
@@ -509,7 +507,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// result if the user kept typing while the request was in flight.
 		const result = await this._config.connection.completions({
 			kind: AhpCompletionItemKind.UserMessage,
-			session: backendSession.toString(),
+			channel: backendSession.toString(),
 			text: params.text,
 			offset: params.offset,
 		});
@@ -689,9 +687,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return true;
 				}
 				this._logService.info(`[AgentHost] Cancellation requested for ${sessionKey}, dispatching turnCancelled`);
-				this._config.connection.dispatch({
+				this._config.connection.dispatch(resolvedSession.toString(), {
 					type: ActionType.SessionTurnCancelled,
-					session: sessionKey,
 					turnId,
 				});
 				return true;
@@ -810,9 +807,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// already live in `existingState.config?.values` and don't need to
 			// be re-dispatched.
 			if (request.agentHostSessionConfig && Object.keys(request.agentHostSessionConfig).length > 0) {
-				this._dispatchAction({
+				this._dispatchAction(resolvedSession, {
 					type: ActionType.SessionConfigChanged,
-					session: sessionKey,
 					config: request.agentHostSessionConfig,
 				});
 			}
@@ -884,18 +880,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// --- Steering ---
 		if (currentSteering) {
 			if (currentSteering.id !== prevSteering?.id || currentSteering.text !== prevSteering.userMessage.text) {
-				this._dispatchAction({
+				this._dispatchAction(backendSession, {
 					type: ActionType.SessionPendingMessageSet,
-					session,
 					kind: PendingMessageKind.Steering,
 					id: currentSteering.id,
 					userMessage: { text: currentSteering.text, attachments: currentSteering.attachments },
 				});
 			}
 		} else if (prevSteering) {
-			this._dispatchAction({
+			this._dispatchAction(backendSession, {
 				type: ActionType.SessionPendingMessageRemoved,
-				session,
 				kind: PendingMessageKind.Steering,
 				id: prevSteering.id,
 			});
@@ -905,9 +899,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const currentQueuedIds = new Set(currentQueued.map(q => q.id));
 		for (const prev of prevQueued) {
 			if (!currentQueuedIds.has(prev.id)) {
-				this._dispatchAction({
+				this._dispatchAction(backendSession, {
 					type: ActionType.SessionPendingMessageRemoved,
-					session,
 					kind: PendingMessageKind.Queued,
 					id: prev.id,
 				});
@@ -919,9 +912,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		for (const q of currentQueued) {
 			const prev = prevQueuedById.get(q.id);
 			if (!prev || q.text !== prev.userMessage.text) {
-				this._dispatchAction({
+				this._dispatchAction(backendSession, {
 					type: ActionType.SessionPendingMessageSet,
-					session,
 					kind: PendingMessageKind.Queued,
 					id: q.id,
 					userMessage: { text: q.text, attachments: q.attachments },
@@ -937,17 +929,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (updatedQueued.length > 1 && currentQueued.length === updatedQueued.length) {
 			const needsReorder = currentQueued.some((q, i) => q.id !== updatedQueued[i].id);
 			if (needsReorder) {
-				this._dispatchAction({
+				this._dispatchAction(backendSession, {
 					type: ActionType.SessionQueuedMessagesReordered,
-					session,
 					order: currentQueued.map(q => q.id),
 				});
 			}
 		}
 	}
 
-	private _dispatchAction(action: ClientSessionAction): void {
-		this._config.connection.dispatch(action);
+	private _dispatchAction(channel: URI, action: ClientSessionAction): void {
+		this._config.connection.dispatch(channel.toString(), action);
 	}
 
 	/**
@@ -956,9 +947,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * client-provided tools.
 	 */
 	private _dispatchActiveClient(backendSession: URI, customizations: CustomizationRef[]): void {
-		this._dispatchAction({
+		this._dispatchAction(backendSession, {
 			type: ActionType.SessionActiveClientChanged,
-			session: backendSession.toString(),
 			activeClient: {
 				clientId: this._config.connection.clientId,
 				tools: this._clientToolsObs.get().map(toolDataToDefinition),
@@ -1103,9 +1093,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (selectedModel) {
 			const currentModel = this._getSessionState(session.toString())?.summary.model;
 			if (!this._modelSelectionsEqual(currentModel, selectedModel)) {
-				this._config.connection.dispatch({
+				this._config.connection.dispatch(session.toString(), {
 					type: ActionType.SessionModelChanged,
-					session: session.toString(),
 					model: selectedModel,
 				});
 			}
@@ -1123,18 +1112,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (!previousRequest && protocolState.turns.length > 0) {
 				const truncateAction: SessionTruncatedAction = {
 					type: ActionType.SessionTruncated,
-					session: session.toString(),
 				};
-				this._config.connection.dispatch(truncateAction);
+				this._config.connection.dispatch(session.toString(), truncateAction);
 			} else {
 				const seenAtIndex = protocolState.turns.findIndex(t => t.id === previousRequest!.id);
 				if (seenAtIndex !== -1 && seenAtIndex < protocolState.turns.length - 1) {
 					const truncateAction: SessionTruncatedAction = {
 						type: ActionType.SessionTruncated,
-						session: session.toString(),
 						turnId: previousRequest!.id,
 					};
-					this._config.connection.dispatch(truncateAction);
+					this._config.connection.dispatch(session.toString(), truncateAction);
 				}
 			}
 		}
@@ -1143,14 +1130,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// the provider as a side effect.
 		const turnAction: SessionTurnStartedAction = {
 			type: ActionType.SessionTurnStarted,
-			session: session.toString(),
 			turnId,
 			userMessage: {
 				text: request.message,
 				attachments: messageAttachments.length > 0 ? messageAttachments : undefined,
 			},
 		};
-		this._config.connection.dispatch(turnAction);
+		this._config.connection.dispatch(session.toString(), turnAction);
 
 		// Ensure the editing session records a sentinel checkpoint for this
 		// request so it appears in requestDisablement even if the turn
@@ -1168,9 +1154,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
 				cancelSub.dispose();
 				this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
-				this._config.connection.dispatch({
+				this._config.connection.dispatch(session.toString(), {
 					type: ActionType.SessionTurnCancelled,
-					session: session.toString(),
 					turnId,
 				});
 			}));
@@ -1226,9 +1211,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			this._logService.info(`[AgentHost] Tool confirmation: toolCallId=${toolCallId}, approved=${approved}, selectedOptionId=${selectedOption?.id}`);
 			if (approved) {
-				this._config.connection.dispatch({
+				this._config.connection.dispatch(session.toString(), {
 					type: ActionType.SessionToolCallConfirmed,
-					session: session.toString(),
 					turnId,
 					toolCallId,
 					approved: true,
@@ -1236,9 +1220,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					...(selectedOption ? { selectedOptionId: selectedOption.id } : {}),
 				});
 			} else {
-				this._config.connection.dispatch({
+				this._config.connection.dispatch(session.toString(), {
 					type: ActionType.SessionToolCallConfirmed,
-					session: session.toString(),
 					turnId,
 					toolCallId,
 					approved: false,
@@ -1617,9 +1600,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const toolData = this._toolsService.getToolByName(toolName);
 		if (!toolData) {
 			this._logService.warn(`[AgentHost] Client tool call for unknown tool: ${toolName}`);
-			this._dispatchAction({
+			this._dispatchAction(opts.backendSession, {
 				type: ActionType.SessionToolCallComplete,
-				session: opts.backendSession.toString(),
 				turnId: opts.turnId,
 				toolCallId,
 				result: {
@@ -1640,9 +1622,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		if (!invocation) {
 			this._logService.warn(`[AgentHost] Failed to begin client tool invocation: ${toolName}`);
-			this._dispatchAction({
+			this._dispatchAction(opts.backendSession, {
 				type: ActionType.SessionToolCallComplete,
-				session: opts.backendSession.toString(),
 				turnId: opts.turnId,
 				toolCallId,
 				result: {
@@ -1675,9 +1656,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return;
 				}
 				approvedDispatched = true;
-				this._dispatchAction({
+				this._dispatchAction(opts.backendSession, {
 					type: ActionType.SessionToolCallConfirmed,
-					session: opts.backendSession.toString(),
 					turnId: opts.turnId,
 					toolCallId,
 					approved: true,
@@ -1691,9 +1671,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (cts.token.isCancellationRequested) {
 					return;
 				}
-				this._dispatchAction({
+				this._dispatchAction(opts.backendSession, {
 					type: ActionType.SessionToolCallConfirmed,
-					session: opts.backendSession.toString(),
 					turnId: opts.turnId,
 					toolCallId,
 					approved: false,
@@ -1719,9 +1698,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const message = err instanceof Error ? err.message : String(err);
 				result = { content: [], toolResultError: message };
 			}
-			this._dispatchAction({
+			this._dispatchAction(opts.backendSession, {
 				type: ActionType.SessionToolCallComplete,
-				session: opts.backendSession.toString(),
 				turnId: opts.turnId,
 				toolCallId,
 				result: toolResultToProtocol(result ?? { content: [] }, toolName),
@@ -1770,9 +1748,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				parameters = parsed as Record<string, unknown>;
 			} catch {
 				this._logService.warn(`[AgentHost] Failed to parse tool input for ${toolName}`);
-				this._dispatchAction({
+				this._dispatchAction(opts.backendSession, {
 					type: ActionType.SessionToolCallComplete,
-					session: opts.backendSession.toString(),
 					turnId: opts.turnId,
 					toolCallId,
 					result: {
@@ -1909,17 +1886,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			if (!result.answers) {
-				this._config.connection.dispatch({
+				this._config.connection.dispatch(opts.backendSession.toString(), {
 					type: ActionType.SessionInputCompleted,
-					session: opts.backendSession.toString(),
 					requestId: inputReq.id,
 					response: SessionInputResponseKind.Cancel,
 				});
 			} else {
 				const answers = convertCarouselAnswers(result.answers);
-				this._config.connection.dispatch({
+				this._config.connection.dispatch(opts.backendSession.toString(), {
 					type: ActionType.SessionInputCompleted,
-					session: opts.backendSession.toString(),
 					requestId: inputReq.id,
 					response: SessionInputResponseKind.Accept,
 					answers,
@@ -1974,9 +1949,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			settled = true;
-			this._config.connection.dispatch({
+			this._config.connection.dispatch(opts.backendSession.toString(), {
 				type: ActionType.SessionInputCompleted,
-				session: opts.backendSession.toString(),
 				requestId: inputReq.id,
 				response,
 			});

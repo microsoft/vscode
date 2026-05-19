@@ -388,9 +388,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			ref = this._sessionDataService.openDatabase(URI.parse(session));
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to open session database for turn diff: ${session}`, err);
-			this._stateManager.dispatchServerAction({
+			this._stateManager.dispatchServerAction(turnUri, {
 				type: ActionType.ChangesetStatusChanged,
-				changeset: turnUri,
 				status: ChangesetStatus.Error,
 				error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
 			});
@@ -401,9 +400,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._publishChangesetDiffs(session, turnUri, diffs);
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to compute turn diffs for ${session}/${turnId}`, err);
-			this._stateManager.dispatchServerAction({
+			this._stateManager.dispatchServerAction(turnUri, {
 				type: ActionType.ChangesetStatusChanged,
-				changeset: turnUri,
 				status: ChangesetStatus.Error,
 				error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
 			});
@@ -565,9 +563,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to compute ${kind} diffs`, err);
-			this._stateManager.dispatchServerAction({
+			this._stateManager.dispatchServerAction(changesetUri, {
 				type: ActionType.ChangesetStatusChanged,
-				changeset: changesetUri,
 				status: ChangesetStatus.Error,
 				error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
 			});
@@ -616,9 +613,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			nextFilesById.set(id, edit);
 			const file: ChangesetFile = { id, edit };
-			this._stateManager.dispatchServerAction({
+			this._stateManager.dispatchServerAction(changesetUri, {
 				type: ActionType.ChangesetFileSet,
-				changeset: changesetUri,
 				file,
 			});
 		}
@@ -626,9 +622,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// Emit removals for any file that disappeared in this pass.
 		for (const id of previousIds) {
 			if (!nextFilesById.has(id)) {
-				this._stateManager.dispatchServerAction({
+				this._stateManager.dispatchServerAction(changesetUri, {
 					type: ActionType.ChangesetFileRemoved,
-					changeset: changesetUri,
 					fileId: id,
 				});
 			}
@@ -638,9 +633,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// now that we have a fresh, complete file list.
 		const status = this._stateManager.getChangesetState(changesetUri)?.status;
 		if (status !== ChangesetStatus.Ready) {
-			this._stateManager.dispatchServerAction({
+			this._stateManager.dispatchServerAction(changesetUri, {
 				type: ActionType.ChangesetStatusChanged,
-				changeset: changesetUri,
 				status: ChangesetStatus.Ready,
 			});
 		}

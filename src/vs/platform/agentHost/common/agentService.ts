@@ -802,8 +802,14 @@ export interface IAgentService {
 	 * Dispatch a client-originated action to the server. The server applies
 	 * it to state, triggers side effects, and echoes it back via
 	 * {@link onDidAction} with the client's origin for reconciliation.
+	 *
+	 * `channel` is the protocol URI string identifying the channel the action
+	 * targets (a session URI for session actions, terminal URI for terminal
+	 * actions, or {@link ROOT_STATE_URI} for root actions). Strings are used
+	 * rather than {@link URI} objects so that authority-less scheme URIs
+	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -856,7 +862,15 @@ export interface IAgentConnection {
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined;
 
 	// ---- Action dispatch ----------------------------------------------------
-	dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void;
+	/**
+	 * Dispatch a client-originated action. `channel` is the protocol URI
+	 * string identifying the channel the action targets (a session URI for
+	 * session actions, terminal URI for terminal actions, or
+	 * `ROOT_STATE_URI` for root-config actions). Strings are used rather
+	 * than {@link URI} objects so authority-less scheme URIs like
+	 * `ahp-root://` survive the wire format without normalization.
+	 */
+	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;
