@@ -83,11 +83,30 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
 	const nonTargetPlatforms = copilotPlatforms.filter(p => p !== targetPlatformArch);
 
 	// Strip wrong-architecture @github/copilot-{platform} packages.
-	// All copilot prebuilds are stripped by .moduleignore; the copilot CLI SDK
-	// resolves `node-pty` from VS Code's own node_modules via `hostRequire`.
 	const excludes = nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot-${p}/**`);
 
 	return ['**', ...excludes];
+}
+
+/**
+ * Returns the public @github/copilot-sdk runtime native addon files that must
+ * survive app/remote packaging for the target platform.
+ *
+ * .moduleignore strips @github/copilot/prebuilds/** globally because the
+ * internal extension SDK uses a copied sdk/prebuilds layout. Agent Host starts
+ * the public SDK's CLI from root node_modules/@github/copilot/index.js, whose
+ * runtime addon loader expects these files in the root prebuilds layout.
+ */
+export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, nodeModulesRoot = 'node_modules'): string[] {
+	const { nodePlatform, nodeArch } = toNodePlatformArch(platform, arch);
+	const targetPlatformArch = `${nodePlatform}-${nodeArch}`;
+	const prebuildDir = path.posix.join(nodeModulesRoot, '@github', 'copilot', 'prebuilds', targetPlatformArch);
+
+	return [
+		path.posix.join(prebuildDir, 'runtime.node'),
+		path.posix.join(prebuildDir, 'icu-native.node'),
+		path.posix.join(prebuildDir, 'win32-native.node'),
+	];
 }
 
 /**
