@@ -13,6 +13,7 @@ import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, from
 import { ContentEncoding, type ResourceListResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
+import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
 
 suite('AgentHostFileSystemProvider - URI helpers', () => {
 
@@ -425,7 +426,7 @@ suite('AgentHostFileSystemProvider - permission errors and requestResourceAccess
 		await provider.requestResourceAccess(wrapped, { read: true, write: true });
 
 		assert.deepStrictEqual(connection.requestCalls, [
-			{ uri: URI.file('/etc/foo').toString(), read: true, write: true },
+			{ channel: ROOT_STATE_URI, uri: URI.file('/etc/foo').toString(), read: true, write: true },
 		]);
 	});
 
