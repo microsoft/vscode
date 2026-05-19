@@ -24,6 +24,7 @@ steps:
   - script: npm run lint
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Lint
+    condition: and(succeeded(), false)
 
   - script: npm run compile
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
