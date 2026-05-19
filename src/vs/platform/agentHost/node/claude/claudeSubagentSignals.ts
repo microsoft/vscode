@@ -10,7 +10,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolCallConfirmationReason } from '../../common/state/sessionState.js';
 import type { ClaudeMapperState } from './claudeMapSessionEvents.js';
 import { SUBAGENT_TOOL_NAMES, type SubagentRegistry } from './claudeSubagentRegistry.js';
-import { getClaudeToolDisplayName } from './claudeToolDisplay.js';
+import { buildClaudeToolMeta, getClaudeInvocationMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
 
 /**
  * Phase 12 — SDK tool names that spawn subagent sessions. Re-exported
@@ -145,7 +145,7 @@ export function buildTopLevelSubagentReadyAction(
 	const agentName = typeof input?.subagent_type === 'string' ? input.subagent_type : undefined;
 	const inputJson = block.input !== undefined ? safeStringify(block.input) : undefined;
 	registry.recordSpawn(block.id, { subagentType: agentName, description });
-	const meta: Record<string, unknown> = { toolKind: 'subagent' };
+	const meta: Record<string, unknown> = { ...(buildClaudeToolMeta(block.name) ?? { toolKind: 'subagent' }) };
 	if (description) {
 		meta.subagentDescription = description;
 	}
@@ -159,7 +159,7 @@ export function buildTopLevelSubagentReadyAction(
 			type: ActionType.SessionToolCallReady,
 			turnId,
 			toolCallId: block.id,
-			invocationMessage: description ?? getClaudeToolDisplayName(block.name),
+			invocationMessage: getClaudeInvocationMessage(block.name, getClaudeToolDisplayName(block.name), block.input),
 			...(inputJson !== undefined ? { toolInput: inputJson } : {}),
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			_meta: meta,
@@ -233,9 +233,17 @@ export function emitInnerAssistantSignals(
 		}
 		if (block.type === 'tool_use') {
 			state.startToolBlock(index, block.id, block.name, turnId);
+			// Inner tool input arrives pre-parsed on the synthesized
+			// `assistant` message (not via `input_json_delta` chunks), so
+			// seed the registry directly. Without this the live
+			// `tool_result` handler falls back to a generic
+			// `"{displayName} finished"` past-tense and replay (which
+			// always computes rich text) drifts from live — violating D6.
+			state.toolCalls.seedParsedInput(block.id, block.input);
 			registry.noteInnerTool(block.id, parentToolUseId);
-			const inputJson = block.input !== undefined ? safeStringify(block.input) : undefined;
 			const displayName = getClaudeToolDisplayName(block.name);
+			const meta = buildClaudeToolMeta(block.name);
+			const toolInputStr = getClaudeToolInputString(block.name, block.input);
 			signals.push({
 				kind: 'action',
 				session,
@@ -245,6 +253,7 @@ export function emitInnerAssistantSignals(
 					toolCallId: block.id,
 					toolName: block.name,
 					displayName,
+					...(meta ? { _meta: meta } : {}),
 				},
 			});
 			signals.push({
@@ -254,8 +263,8 @@ export function emitInnerAssistantSignals(
 					type: ActionType.SessionToolCallReady,
 					turnId,
 					toolCallId: block.id,
-					invocationMessage: displayName,
-					...(inputJson !== undefined ? { toolInput: inputJson } : {}),
+					invocationMessage: getClaudeInvocationMessage(block.name, displayName, block.input),
+					...(toolInputStr !== undefined ? { toolInput: toolInputStr } : {}),
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 				},
 			});

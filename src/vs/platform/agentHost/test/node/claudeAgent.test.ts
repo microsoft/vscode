@@ -2810,6 +2810,19 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('onClientToolCallComplete is a benign no-op (Phase 10 not yet implemented)', () => {
+		// `AgentSideEffects` fires `onClientToolCallComplete` for every
+		// server-dispatched `SessionToolCallComplete` envelope, including
+		// the ones the Claude mapper emits for normal SDK tool completions.
+		// Until Phase 10 wires client (MCP) tools through, the body must
+		// be a benign no-op — throwing here corrupts every tool flow.
+		const { agent } = createTestContext(disposables);
+		const session = URI.parse('claude:/sess-1');
+		assert.doesNotThrow(() => {
+			agent.onClientToolCallComplete(session, 'toolu_unknown', { success: true, pastTenseMessage: 'ran' });
+		});
+	});
+
 	// #endregion
 });
 
@@ -2979,8 +2992,8 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 				toolCallId: 'tu_shape',
 				toolName: 'Read',
 				displayName: 'Read file',
-				invocationMessage: 'Read file',
-				toolInput: '{"file_path":"/tmp/foo.txt"}',
+				invocationMessage: { markdown: 'Reading [foo.txt](file:///tmp/foo.txt)' },
+				toolInput: '{\n  "file_path": "/tmp/foo.txt"\n}',
 				confirmationTitle: 'Read file?',
 			},
 			permissionKind: 'read',
