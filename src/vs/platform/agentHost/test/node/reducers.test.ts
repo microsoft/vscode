@@ -5,9 +5,9 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { sessionReducer } from '../../common/state/protocol/reducers.js';
+import { changesetReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, type SessionState } from '../../common/state/sessionState.js';
+import { ChangesetStatus, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, type ChangesetState, type SessionState } from '../../common/state/sessionState.js';
 
 function makeSession(): SessionState {
 	return {
@@ -190,5 +190,72 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 		});
 
 		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
+	});
+});
+
+suite('changesetReducer', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const ready: ChangesetState = { status: ChangesetStatus.Ready, files: [] };
+	const fileA = { id: 'file:///a.ts', edit: { after: { uri: 'file:///a.ts', content: { uri: 'file:///a.ts' } }, diff: { added: 1, removed: 0 } } };
+	const fileARenamed = { id: 'file:///a.ts', edit: { after: { uri: 'file:///a.ts', content: { uri: 'file:///a.ts' } }, diff: { added: 5, removed: 0 } } };
+
+	test('ChangesetFileSet appends a new file', () => {
+		const next = changesetReducer(ready, { type: ActionType.ChangesetFileSet, changeset: 'cs', file: fileA });
+		assert.deepStrictEqual(next.files, [fileA]);
+	});
+
+	test('ChangesetFileSet replaces an existing file by id (upsert)', () => {
+		const seeded = changesetReducer(ready, { type: ActionType.ChangesetFileSet, changeset: 'cs', file: fileA });
+		const next = changesetReducer(seeded, { type: ActionType.ChangesetFileSet, changeset: 'cs', file: fileARenamed });
+		assert.deepStrictEqual(next.files, [fileARenamed]);
+	});
+
+	test('ChangesetFileRemoved removes by id', () => {
+		const seeded = changesetReducer(ready, { type: ActionType.ChangesetFileSet, changeset: 'cs', file: fileA });
+		const next = changesetReducer(seeded, { type: ActionType.ChangesetFileRemoved, changeset: 'cs', fileId: fileA.id });
+		assert.deepStrictEqual(next.files, []);
+	});
+
+	test('ChangesetFileRemoved is a no-op for an unknown id', () => {
+		const seeded = changesetReducer(ready, { type: ActionType.ChangesetFileSet, changeset: 'cs', file: fileA });
+		const next = changesetReducer(seeded, { type: ActionType.ChangesetFileRemoved, changeset: 'cs', fileId: 'file:///nope.ts' });
+		assert.strictEqual(next, seeded);
+	});
+
+	test('ChangesetStatusChanged → Error attaches the error', () => {
+		const err = { errorType: 'computeFailed', message: 'boom' };
+		const next = changesetReducer(ready, { type: ActionType.ChangesetStatusChanged, changeset: 'cs', status: ChangesetStatus.Error, error: err });
+		assert.deepStrictEqual({ status: next.status, error: next.error }, { status: ChangesetStatus.Error, error: err });
+	});
+
+	test('ChangesetStatusChanged → Ready strips a previous error', () => {
+		const errored: ChangesetState = { status: ChangesetStatus.Error, error: { errorType: 'x', message: 'y' }, files: [fileA] };
+		const next = changesetReducer(errored, { type: ActionType.ChangesetStatusChanged, changeset: 'cs', status: ChangesetStatus.Ready });
+		assert.deepStrictEqual({ status: next.status, error: next.error, files: next.files }, { status: ChangesetStatus.Ready, error: undefined, files: [fileA] });
+	});
+
+	test('ChangesetOperationsChanged with array replaces operations', () => {
+		const ops = [{ id: 'stage', label: 'Stage', scopes: [] }];
+		const next = changesetReducer(ready, { type: ActionType.ChangesetOperationsChanged, changeset: 'cs', operations: ops });
+		assert.deepStrictEqual(next.operations, ops);
+	});
+
+	test('ChangesetOperationsChanged with undefined strips operations', () => {
+		const seeded = changesetReducer(ready, { type: ActionType.ChangesetOperationsChanged, changeset: 'cs', operations: [{ id: 'stage', label: 'Stage', scopes: [] }] });
+		const next = changesetReducer(seeded, { type: ActionType.ChangesetOperationsChanged, changeset: 'cs', operations: undefined });
+		assert.strictEqual(next.operations, undefined);
+	});
+
+	test('ChangesetCleared empties files', () => {
+		const seeded = changesetReducer(ready, { type: ActionType.ChangesetFileSet, changeset: 'cs', file: fileA });
+		const next = changesetReducer(seeded, { type: ActionType.ChangesetCleared, changeset: 'cs' });
+		assert.deepStrictEqual(next.files, []);
+	});
+
+	test('ChangesetCleared is a no-op when files are already empty', () => {
+		const next = changesetReducer(ready, { type: ActionType.ChangesetCleared, changeset: 'cs' });
+		assert.strictEqual(next, ready);
 	});
 });

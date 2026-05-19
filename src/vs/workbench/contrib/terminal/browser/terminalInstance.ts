@@ -1705,6 +1705,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		await this._flushXtermData();
 
+		// The terminal may have been disposed during the flush await (e.g. user
+		// closed the tab). Bail out to avoid using disposed services below.
+		if (this.isDisposed) {
+			return;
+		}
+
 		this._exitCode = parsedExitResult?.code;
 		const exitMessage = parsedExitResult?.message;
 

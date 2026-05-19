@@ -186,6 +186,18 @@ export default tseslint.config(
 			'local/code-no-telemetry-common-property': 'warn',
 		}
 	},
+	// Force all gulp imports under build/ to go through the gulp facade
+	{
+		files: [
+			'build/**/*.ts',
+		],
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-direct-gulp-import': 'warn',
+		}
+	},
 	// Disallow 'in' operator except in type predicates
 	{
 		files: [
