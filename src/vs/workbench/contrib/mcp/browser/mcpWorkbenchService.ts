@@ -689,15 +689,17 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			// route through the gallery-only path (matching handleMcpServerByName).
 			if (config.gallery && this.mcpGalleryService.isEnabled()) {
 				try {
+					// Verify by name against the active gallery (not by URL, which would
+					// make outbound requests to untrusted URLs from the protocol payload).
 					const [galleryServer] = await this.mcpGalleryService.getMcpServersFromGallery([{ name }]);
 					if (galleryServer) {
 						const local = this.local.find(e => e.name === galleryServer.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, galleryServer, undefined);
 						this.open(local);
 						return true;
 					}
-					this.logService.error(`MCP server '${name}' not found in gallery, installing as local`);
+					this.logService.info(`MCP server '${name}' not found in gallery, installing as local`);
 				} catch (e) {
-					this.logService.error(`Gallery verification failed for MCP server '${name}', installing as local`, e);
+					this.logService.info(`Gallery verification failed for MCP server '${name}', installing as local`);
 				}
 			}
 
