@@ -5,7 +5,7 @@
 
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { CopilotChatSessionsProvider, COPILOT_MULTI_CHAT_SETTING, CLAUDE_CODE_ENABLED_SETTING, LOCAL_SESSION_ENABLED_SETTING, LocalSessionType } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import '../../copilotChatSessions/browser/copilotChatSessionsActions.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -17,6 +17,7 @@ import { ForkConversationAction } from '../../../../../workbench/contrib/chat/br
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { raceTimeout } from '../../../../../base/common/async.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
@@ -85,16 +86,23 @@ registerAction2(class extends ForkConversationAction {
 				return super._openForkedSession(instantiationService, parentSessionResource, forkedSessionResource);
 			}
 
-			// Local sessions
+			// Local sessions — wait for the forked session to appear, but
+			// bound the wait so a missing session does not hang forever.
 			if (!sessionsManagementService.getSession(forkedSessionResource)) {
-				await new Promise<void>(resolve => {
-					const listener = sessionsManagementService.onDidChangeSessions(() => {
+				let listener: IDisposable | undefined;
+				const appeared = await raceTimeout(new Promise<boolean>(resolve => {
+					listener = sessionsManagementService.onDidChangeSessions(() => {
 						if (sessionsManagementService.getSession(forkedSessionResource)) {
-							listener.dispose();
-							resolve();
+							resolve(true);
 						}
 					});
-				});
+				}), 30_000);
+				listener?.dispose();
+
+				if (!appeared) {
+					logService.error(`Forked session ${forkedSessionResource.toString()} did not appear within timeout`);
+					return;
+				}
 			}
 			await sessionsManagementService.openSession(forkedSessionResource);
 
