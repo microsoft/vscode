@@ -224,6 +224,10 @@ export interface ICommonNativeHostService {
 	installShellCommand(): Promise<void>;
 	uninstallShellCommand(): Promise<void>;
 
+	// macOS Finder action
+	installFinderAction(): Promise<void>;
+	uninstallFinderAction(): Promise<void>;
+
 	// Lifecycle
 	notifyReady(): Promise<void>;
 	relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void>;

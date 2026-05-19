@@ -154,6 +154,8 @@ export class TestNativeHostService implements INativeHostService {
 	async toggleWindowTabsBar(): Promise<void> { }
 	async installShellCommand(): Promise<void> { }
 	async uninstallShellCommand(): Promise<void> { }
+	async installFinderAction(): Promise<void> { }
+	async uninstallFinderAction(): Promise<void> { }
 	async notifyReady(): Promise<void> { }
 	async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined } | undefined): Promise<void> { }
 	async reload(): Promise<void> { }
