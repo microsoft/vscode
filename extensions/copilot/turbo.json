@@ -1,0 +1,109 @@
+{
+	"$schema": "https://turborepo.com/schema.json",
+	"//": [
+		"Task names match the package.json scripts they invoke (typecheck, lint, ...).",
+		"Use `npm run turbo:<task>` (e.g. `npm run turbo:compile`) to opt into the",
+		"Turborepo cache. The plain `npm run <task>` form runs the underlying command",
+		"directly with no caching, preserving the original local-dev behavior."
+	],
+	"globalEnv": [
+		"NODE_ENV"
+	],
+	"tasks": {
+		"typecheck": {
+			"inputs": [
+				"src/**",
+				"chat-lib/**",
+				"test/**",
+				"tsconfig*.json",
+				"package.json",
+				"package-lock.json"
+			],
+			"outputs": [],
+			"cache": true
+		},
+		"lint": {
+			"inputs": [
+				"src/**",
+				"chat-lib/**",
+				"test/**",
+				"eslint.config.mjs",
+				".eslintplugin/**",
+				"package.json",
+				"package-lock.json"
+			],
+			"outputs": [],
+			"cache": true
+		},
+		"compile": {
+			"inputs": [
+				"src/**",
+				"chat-lib/**",
+				".esbuild.ts",
+				"script/**",
+				".vscode/extensions/test-extension/**",
+				"tsconfig*.json",
+				"package.json",
+				"package-lock.json"
+			],
+			"outputs": [
+				"dist/**",
+				"package.json",
+				"node_modules/@vscode/copilot-typescript-server-plugin/dist/**",
+				"node_modules/@vscode/copilot-typescript-server-plugin/package.json"
+			],
+			"env": [
+				"VSCODE_QUALITY",
+				"VSCODE_PUBLISH_COUNTER"
+			],
+			"cache": true
+		},
+		"test:unit": {
+			"dependsOn": [
+				"compile"
+			],
+			"inputs": [
+				"src/**",
+				"chat-lib/**",
+				"test/**",
+				"vite.config.ts",
+				"package.json",
+				"package-lock.json"
+			],
+			"outputs": [],
+			"cache": true
+		},
+		"simulate-ci": {
+			"dependsOn": [
+				"compile"
+			],
+			"inputs": [
+				"test/simulation/baseline.json",
+				"test/simulation/cache/**",
+				"test/simulation/fixtures/**",
+				"test/simulation/**/*.ts",
+				"test/base/**",
+				"test/simulationMain.ts",
+				"package.json",
+				"package-lock.json"
+			],
+			"outputs": [],
+			"env": [
+				"EXTERNAL_CACHE_LAYERS_PATH"
+			],
+			"cache": true
+		},
+		"test:prompt": {
+			"dependsOn": [
+				"compile"
+			],
+			"inputs": [
+				"src/extension/completions-core/vscode-node/prompt/**",
+				"package.json",
+				"package-lock.json"
+			],
+			"outputs": [],
+			"cache": true
+		}
+	}
+}

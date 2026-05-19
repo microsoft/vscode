@@ -1,5 +1,6 @@
 {
 	"name": "copilot-chat",
+	"packageManager": "npm@10.9.2",
 	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
 	"version": "0.50.0",
@@ -6763,7 +6764,14 @@
 		"package": "vsce package",
 		"web": "vscode-test-web --headless --extensionDevelopmentPath=. .",
 		"test:prompt": "mocha \"src/extension/completions-core/vscode-node/prompt/**/test/**/*.test.{ts,tsx}\"",
-		"test:completions-core": "tsx src/extension/completions-core/vscode-node/extension/test/runTest.ts"
+		"test:completions-core": "tsx src/extension/completions-core/vscode-node/extension/test/runTest.ts",
+		"turbo:typecheck": "turbo run typecheck --cache-dir=.turbo",
+		"turbo:lint": "turbo run lint --cache-dir=.turbo",
+		"turbo:compile": "turbo run compile --cache-dir=.turbo",
+		"turbo:test:unit": "turbo run test:unit --cache-dir=.turbo",
+		"turbo:simulate-ci": "turbo run simulate-ci --cache-dir=.turbo",
+		"turbo:test:prompt": "turbo run test:prompt --cache-dir=.turbo",
+		"turbo:ci": "turbo run typecheck lint compile test:unit simulate-ci test:prompt --cache-dir=.turbo"
 	},
 	"devDependencies": {
 		"@azure/identity": "4.9.1",
@@ -6840,6 +6848,7 @@
 		"tar": "^7.5.11",
 		"ts-dedent": "^2.2.0",
 		"tsx": "^4.20.3",
+		"turbo": "2.9.6",
 		"typescript": "^5.8.3",
 		"vite-plugin-top-level-await": "^1.5.0",
 		"vite-plugin-wasm": "^3.5.0",

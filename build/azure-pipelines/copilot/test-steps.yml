@@ -17,34 +17,43 @@ steps:
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Install dotnet cli
 
-  - script: npm run typecheck
-    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-    displayName: Typecheck
+  # Restore Turborepo's local cache so unchanged inputs become cache hits across
+  # typecheck / lint / compile / test:unit / simulate-ci. The simulator is hermetic
+  # in --ci --require-cache mode (no network, baseline + replay cache as oracle), so
+  # it's a great Turbo target — full hit on warm cache eliminates the longest step.
+  #
+  # Cache key segments:
+  #   "turbo-copilot" | OS | branch | <input file globs covering every task's inputs>
+  # Per-branch isolation prevents one PR from polluting another; restoreKeys fall back
+  # first to this branch's most recent cache, then to main as a warm baseline.
+  - task: Cache@2
+    inputs:
+      key: '"turbo-copilot" | "$(Agent.OS)" | "$(Build.SourceBranchName)" | extensions/copilot/turbo.json, extensions/copilot/package.json, extensions/copilot/package-lock.json, extensions/copilot/tsconfig*.json, extensions/copilot/eslint.config.mjs, extensions/copilot/.esbuild.ts, extensions/copilot/vite.config.ts, extensions/copilot/src/**, extensions/copilot/chat-lib/**, extensions/copilot/test/**, extensions/copilot/script/**, extensions/copilot/.eslintplugin/**, extensions/copilot/.vscode/extensions/test-extension/**'
+      restoreKeys: |
+        "turbo-copilot" | "$(Agent.OS)" | "$(Build.SourceBranchName)"
+        "turbo-copilot" | "$(Agent.OS)" | "main"
+      path: $(Build.SourcesDirectory)/extensions/copilot/.turbo
+    displayName: Restore Turborepo cache
 
-  - script: npm run lint
+  # Turbo version pinned via extensions/copilot/package.json devDependencies (and
+  # locked by package-lock.json). Bumps require a deliberate PR that re-validates
+  # cache hit/miss behavior — turbo's hashing semantics can change between versions.
+  #
+  # turbo:ci runs every cacheable task in one invocation: typecheck, lint, compile,
+  # test:unit, simulate-ci, test:prompt. Each task only runs if its declared inputs
+  # changed since the last cache entry; otherwise its stdout is replayed instantly.
+  - script: npm run turbo:ci
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-    displayName: Lint
+    displayName: Typecheck + Lint + Compile + Unit + Simulate + Prompt (Turborepo)
 
-  - script: npm run compile
-    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-    displayName: Compile
-
-  - script: npm run test:unit
-    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-    displayName: Run vitest unit tests
-
-  - script: npm run simulate-ci
-    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-    displayName: Run simulation tests
-
+  # Integration tests below are NOT turbo-cached: they exercise the real Electron
+  # binary via vscode-test under xvfb, so their pass/fail depends on environmental
+  # factors Turbo can't safely hash (display server, electron build, system libs).
+  # Caching them would risk masking environment-specific regressions.
   - ${{ if eq(parameters.runIntegrationTests, true) }}:
     - script: xvfb-run -a npm run test:extension
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
       displayName: Run extension tests
-
-  - script: npm run test:prompt
-    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-    displayName: Run prompt tests
 
   - ${{ if eq(parameters.runIntegrationTests, true) }}:
     - script: xvfb-run -a npm run test:completions-core
