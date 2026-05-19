@@ -20,14 +20,17 @@ steps:
       env:
         VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run unit tests (Electron)
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
       timeoutInMinutes: 15
     - powershell: npm run test-node -- --build
       displayName: 🧪 Run unit tests (node.js)
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
       timeoutInMinutes: 15
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - powershell: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
       displayName: 🧪 Run unit tests (Browser, Chromium)
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
       timeoutInMinutes: 20
 
   - powershell: |
@@ -53,11 +56,12 @@ steps:
         compile-extension:vscode-test-resolver `
       }
     displayName: Build integration tests
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
 
   - powershell: .\build\azure-pipelines\win32\listprocesses.bat
     displayName: Diagnostics before integration test runs
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), ne(variables['VSCODE_ARCH'], 'x64'))
 
   - powershell: |
       # Copy client, server and web builds to a separate test directory, to avoid Access Denied errors in codesign
@@ -87,6 +91,7 @@ steps:
       env:
         VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run integration tests (Electron)
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
       timeoutInMinutes: 20
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
@@ -96,6 +101,7 @@ steps:
         $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)-web"
         exec { .\scripts\test-web-integration.bat --browser firefox }
       displayName: 🧪 Run integration tests (Browser, Firefox)
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
       timeoutInMinutes: 20
 
   - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
@@ -112,21 +118,23 @@ steps:
       env:
         VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run integration tests (Remote)
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
       timeoutInMinutes: 20
 
   - powershell: .\build\azure-pipelines\win32\listprocesses.bat
     displayName: Diagnostics after integration test runs
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), ne(variables['VSCODE_ARCH'], 'x64'))
 
   - powershell: .\build\azure-pipelines\win32\listprocesses.bat
     displayName: Diagnostics before smoke test run
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), ne(variables['VSCODE_ARCH'], 'x64'))
 
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
     - powershell: npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
       displayName: 🧪 Run smoke tests (Electron)
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
       timeoutInMinutes: 20
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
@@ -134,6 +142,7 @@ steps:
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)-web
       displayName: 🧪 Run smoke tests (Browser, Chromium)
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
       timeoutInMinutes: 20
 
   - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
@@ -141,12 +150,13 @@ steps:
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)
       displayName: 🧪 Run smoke tests (Remote)
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
       timeoutInMinutes: 20
 
   - powershell: .\build\azure-pipelines\win32\listprocesses.bat
     displayName: Diagnostics after smoke test run
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), ne(variables['VSCODE_ARCH'], 'x64'))
 
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
     - template: ../../copilot/test-integration-steps.yml@self

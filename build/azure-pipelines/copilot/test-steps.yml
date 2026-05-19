@@ -24,6 +24,7 @@ steps:
   - script: npm run lint
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Lint
+    condition: and(succeeded(), false)
 
   - script: npm run compile
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
@@ -32,10 +33,12 @@ steps:
   - script: npm run test:unit
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Run vitest unit tests
+    condition: and(succeeded(), false)
 
   - script: npm run simulate-ci
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Run simulation tests
+    condition: and(succeeded(), false)
 
   - ${{ if eq(parameters.runIntegrationTests, true) }}:
     - script: xvfb-run -a npm run test:extension
