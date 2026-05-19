@@ -76,10 +76,13 @@ function createNotificationService(): INotificationService {
 		}
 	};
 }
+const testSessionResource = URI.parse('agent-host-copilotcli:/session-1');
+const agentHostProviderId = 'copilotcli';
+const agentHostSessionId = `${agentHostProviderId}:/session-1`;
 
 function createAgentInfo(customizations: readonly CustomizationRef[]): AgentInfo {
 	return {
-		provider: 'copilotcli',
+		provider: agentHostProviderId,
 		displayName: 'Copilot',
 		description: 'Test Agent',
 		models: [],
@@ -87,10 +90,12 @@ function createAgentInfo(customizations: readonly CustomizationRef[]): AgentInfo
 	};
 }
 
+
+
 suite('RemoteAgentHostCustomizationHarness', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const testSessionResource = URI.parse('agent://copilotcli/session-1');
+
 
 	test('removeConfiguredPlugin keeps sibling scopes for the same URI', async () => {
 		const connection = disposables.add(new MockAgentConnection());
@@ -201,7 +206,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: 'agent://copilotcli/session-1',
+				session: agentHostSessionId,
 				customizations: [synced],
 			},
 		});
@@ -252,7 +257,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: 'agent://copilotcli/session-1',
+				session: agentHostSessionId,
 				customizations: [synced],
 			},
 		});
@@ -350,7 +355,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: 'agent://copilotcli/session-1',
+				session: agentHostSessionId,
 				customizations: [synced],
 			},
 		});
@@ -404,7 +409,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: 'agent://copilotcli/session-1',
+				session: agentHostSessionId,
 				customizations: [synced],
 			},
 		});
@@ -458,7 +463,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: 'agent://copilotcli/session-1',
+				session: agentHostSessionId,
 				customizations: [sessionCustomization],
 			},
 		});
@@ -507,7 +512,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: 'agent://copilotcli/session-1',
+				session: agentHostSessionId,
 				customizations: [{
 					customization: pluginRef,
 					enabled: true,
@@ -553,7 +558,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: 'agent://copilotcli/session-1',
+				session: agentHostSessionId,
 				customizations: [{
 					customization: clientPlugin,
 					clientId: 'test-client',
@@ -641,7 +646,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: 'agent://copilotcli/session-1',
+				session: agentHostSessionId,
 				customizations: [
 					{ customization: clientA, clientId: 'test-client', enabled: true },
 					{ customization: clientB, clientId: 'test-client', enabled: true },
