@@ -17,7 +17,8 @@ if (isSanity) {
 }
 
 const packageJsonPath = resolve(__dirname, 'package.json');
-const extensionDevelopmentPath = process.env.COPILOT_TEST_EXTENSION_PATH
+const usePackagedExtension = isSanity && !!process.env.COPILOT_TEST_EXTENSION_PATH;
+const extensionDevelopmentPath = usePackagedExtension
 	? resolve(process.env.COPILOT_TEST_EXTENSION_PATH)
 	: __dirname;
 const sourcePackageJson = patchPackageJson(packageJsonPath, pkg => {
@@ -26,7 +27,7 @@ const sourcePackageJson = patchPackageJson(packageJsonPath, pkg => {
 const patchedPackageJsons = [sourcePackageJson.revert];
 const pkg = sourcePackageJson.pkg;
 
-if (extensionDevelopmentPath !== __dirname) {
+if (usePackagedExtension) {
 	patchedPackageJsons.push(patchPackageJson(resolve(extensionDevelopmentPath, 'package.json'), pkg => {
 		pkg.activationEvents = pkg.activationEvents?.filter(event => event !== 'onStartupFinished');
 	}).revert);
@@ -42,7 +43,7 @@ const config = {
 	extensionDevelopmentPath,
 	env: {
 		COPILOT_API_URL: process.env.COPILOT_API_URL ?? 'https://api.githubcopilot.com',
-		IS_SCENARIO_AUTOMATION: extensionDevelopmentPath !== __dirname ? '1' : process.env.IS_SCENARIO_AUTOMATION,
+		IS_SCENARIO_AUTOMATION: usePackagedExtension ? '1' : process.env.IS_SCENARIO_AUTOMATION,
 	},
 	launchArgs: [
 		'--disable-extensions',

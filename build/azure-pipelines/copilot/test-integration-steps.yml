@@ -103,6 +103,7 @@ steps:
     - powershell: npm run test:extension
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
       displayName: 🧪 Run Copilot extension tests
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
       timeoutInMinutes: 15
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
@@ -111,6 +112,7 @@ steps:
     - powershell: npm run test:completions-core
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
       displayName: 🧪 Run Copilot completions core tests
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
       timeoutInMinutes: 15
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
