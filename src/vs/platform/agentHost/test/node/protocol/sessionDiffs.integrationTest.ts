@@ -10,7 +10,7 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { SessionAddedNotification, SessionDiffsChangedAction } from '../../../common/state/sessionActions.js';
+import type { ChangesetFileSetAction, SessionAddedNotification } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
 import {
@@ -27,7 +27,7 @@ const hasGit = (() => {
 	try { cp.execFileSync('git', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; }
 })();
 
-(hasGit ? suite : suite.skip)('Protocol WebSocket — Git-driven session diffs', function () {
+(hasGit ? suite : suite.skip)('Protocol WebSocket — Git-driven session changeset', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
@@ -64,7 +64,7 @@ const hasGit = (() => {
 		}
 	});
 
-	test('terminal-driven file edit (no ToolResultFileEditContent) is reported via summary.diffs', async function () {
+	test('terminal-driven file edit (no ToolResultFileEditContent) lands in the session changeset', async function () {
 		this.timeout(15_000);
 
 		// Create a session whose working directory is the tmp git repo.
@@ -79,6 +79,11 @@ const hasGit = (() => {
 		const sessionUri = ((addedNotif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource;
 
 		await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
+		// Also subscribe to the session changeset URI: `changeset/*` envelopes
+		// are scoped to the changeset URI by `_isRelevantToClient`, so a
+		// session-only subscription will not receive them.
+		const sessionChangesetUri = `${sessionUri}/changeset/session`;
+		await client.call<SubscribeResult>('subscribe', { resource: sessionChangesetUri });
 		client.clearReceived();
 
 		// Fire a turn that runs the `terminal-edit:<path>` mock prompt. The mock
@@ -87,18 +92,19 @@ const hasGit = (() => {
 		const editedFile = join(tmpRoot, 'from-terminal.txt');
 		dispatchTurnStarted(client, sessionUri, 'turn-1', `terminal-edit:${editedFile}`, 1);
 
-		// Wait for the diff broadcast that comes after the idle event.
-		const diffNotif = await client.waitForNotification(n => isActionNotification(n, 'session/diffsChanged'), 10_000);
-		const action = getActionEnvelope(diffNotif).action as SessionDiffsChangedAction;
-
-		// On macOS, git's `--show-toplevel` resolves symlinks (/var → /private/var)
-		// so the diff URI may differ in prefix; match by basename instead.
-		const matching = action.diffs.find(d => {
-			const u = d.after?.uri ?? d.before?.uri;
+		// Wait for a `changeset/fileSet` action targeting the edited file.
+		// On macOS, git's `--show-toplevel` resolves symlinks (/var →
+		// /private/var) so the URI may differ in prefix; match by basename.
+		const fileSetNotif = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'changeset/fileSet')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as ChangesetFileSetAction;
+			const u = action.file.edit.after?.uri ?? action.file.edit.before?.uri;
 			return typeof u === 'string' && u.endsWith('/from-terminal.txt');
-		});
-		assert.ok(matching, `expected diff for from-terminal.txt; got ${JSON.stringify(action.diffs.map(d => d.after?.uri ?? d.before?.uri))}`);
-		assert.ok(matching!.after, 'expected after-side for newly added file');
-		assert.ok(!matching!.before, 'newly added file should have no before-side');
+		}, 10_000);
+		const action = getActionEnvelope(fileSetNotif).action as ChangesetFileSetAction;
+		assert.ok(action.file.edit.after, 'expected after-side for newly added file');
+		assert.ok(!action.file.edit.before, 'newly added file should have no before-side');
 	});
 });

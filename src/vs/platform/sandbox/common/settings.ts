@@ -8,7 +8,15 @@
  */
 export const enum AgentSandboxSettingId {
 	AgentSandboxEnabled = 'chat.agent.sandbox.enabled',
+	AgentSandboxAllowUnsandboxedCommands = 'chat.agent.sandbox.allowUnsandboxedCommands',
+	AgentSandboxAutoApproveUnsandboxedCommands = 'chat.agent.sandbox.autoApproveUnsandboxedCommands',
+	AgentSandboxAllowAutoApprove = 'chat.agent.sandbox.allowAutoApprove',
+	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.fileSystem.linux',
+	AgentSandboxMacFileSystem = 'chat.agent.sandbox.fileSystem.mac',
+	AgentSandboxAdvancedRuntime = 'chat.agent.sandbox.advanced.runtime',
 	DeprecatedAgentSandboxEnabled = 'chat.agent.sandbox',
+	DeprecatedAgentSandboxLinuxFileSystem = 'chat.agent.sandboxFileSystem.linux',
+	DeprecatedAgentSandboxMacFileSystem = 'chat.agent.sandboxFileSystem.mac',
 }
 
 export const enum AgentSandboxEnabledValue {

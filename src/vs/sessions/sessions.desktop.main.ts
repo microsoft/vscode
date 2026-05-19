@@ -133,6 +133,9 @@ import '../workbench/contrib/debug/electron-browser/extensionHostDebugService.js
 // Extension devtools
 import '../workbench/contrib/extensions/electron-browser/devtoolsExtensionHost.contribution.js';
 
+// Extensions Management (runtime extensions editor, profiling, remote extensions, etc.)
+import '../workbench/contrib/extensions/electron-browser/extensions.contribution.js';
+
 
 // Issues
 import '../workbench/contrib/issue/electron-browser/issue.contribution.js';
@@ -202,23 +205,25 @@ import '../workbench/contrib/policyExport/electron-browser/policyExport.contribu
 import './electron-browser/sessions.desktop.contribution.js';
 
 // Remote Agent Host
-import '../platform/agentHost/electron-browser/agentHostService.js';
+import '../workbench/services/agentHost/electron-browser/agentHostService.js';
 import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
 import '../platform/agentHost/electron-browser/sshRemoteAgentHostService.js';
-import './contrib/remoteAgentHost/electron-browser/tunnelAgentHostService.js';
-import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
-import './contrib/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
-import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
+import './contrib/providers/remoteAgentHost/electron-browser/tunnelAgentHostService.js';
+import './contrib/providers/remoteAgentHost/browser/remoteAgentHost.contribution.js';
+import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
+import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
 // Chat
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 import './contrib/chat/electron-browser/chat.contribution.js';
 
 // Local Agent Host
-import './contrib/agentHost/browser/localAgentHost.contribution.js';
-import './contrib/agentHost/browser/agentSessionSettings.contribution.js';
-import './contrib/agentHost/browser/agentHostSettings.contribution.js';
-import './contrib/agentHost/browser/agentHostSkillButtons.js';
+import './contrib/providers/agentHost/browser/localAgentHost.contribution.js';
+import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';
+import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
+import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';
+import './contrib/providers/agentHost/browser/agentHostSkillButtons.js';
+import './contrib/providers/agentHost/electron-browser/agentHost.contribution.js';
 
 // Tunnel Host (allow remote connections to local agent host)
 import './contrib/tunnelHost/electron-browser/tunnelHost.contribution.js';

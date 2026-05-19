@@ -12,6 +12,27 @@ export async function reopenAsText(resource: vscode.Uri, viewColumn: vscode.View
 	await vscode.commands.executeCommand('vscode.openWith', resource, 'default', viewColumn);
 }
 
+const gitLfsPointerPrefix = 'version https://git-lfs.github.com/spec/v1';
+
+export async function isGitLfsPointer(resource: vscode.Uri): Promise<boolean> {
+	if (resource.scheme !== 'git') {
+		return false;
+	}
+
+	try {
+		const stat = await vscode.workspace.fs.stat(resource);
+		if (stat.size === 0 || stat.size > 1024) {
+			return false;
+		}
+
+		const data = await vscode.workspace.fs.readFile(resource);
+		const text = new TextDecoder().decode(data);
+		return text.startsWith(gitLfsPointerPrefix);
+	} catch {
+		return false;
+	}
+}
+
 export const enum PreviewState {
 	Disposed,
 	Visible,

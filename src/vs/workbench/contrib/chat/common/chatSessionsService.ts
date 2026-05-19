@@ -248,7 +248,7 @@ export interface IChatSession extends IDisposable {
 	 * queued message). The consumer should create a new request+response pair in
 	 * the model and prepare to receive progress via {@link progressObs}.
 	 */
-	readonly onDidStartServerRequest?: Event<{ prompt: string }>;
+	readonly onDidStartServerRequest?: Event<{ prompt: string; variableData?: IChatRequestVariableData }>;
 
 	/**
 	 * Editing session transferred from a previously-untitled chat session in `onDidCommitChatSessionItem`.
@@ -330,18 +330,50 @@ export interface IChatInputCompletionItem {
 	readonly start?: IPosition;
 	readonly end?: IPosition;
 	/** Attachment associated with the item. */
-	readonly attachment: IChatInputCompletionAttachment;
+	readonly attachment: IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment;
 }
 
 /**
  * Resource attachment associated with a completion item. The workbench
  * adds it to the input's variable model when the item is accepted.
  */
-export interface IChatInputCompletionAttachment {
+export interface IChatInputCompletionResourceAttachment {
 	readonly kind: 'resource';
 	readonly uri: URI;
 	readonly displayName?: string;
 	readonly isDirectory?: boolean;
+	/**
+	 * Implementation-defined metadata that MUST be preserved by the
+	 * workbench when the accepted completion is sent back as part of a
+	 * user message attachment.
+	 */
+	readonly _meta?: Record<string, unknown>;
+}
+
+/**
+ * Command attachment associated with a completion item.
+ */
+export interface IChatInputCompletionCommandAttachment {
+	readonly kind: 'command';
+	readonly command: string;
+	readonly description: string;
+	/**
+	 * Implementation-defined metadata that MUST be preserved by the
+	 * workbench when the accepted completion is sent back as part of a
+	 * user message attachment.
+	 */
+	readonly _meta?: Record<string, unknown>;
+}
+
+/**
+ * Skill attachment associated with a completion item. The workbench
+ * adds it to the input's variable model when the item is accepted.
+ */
+export interface IChatInputCompletionSkillAttachment {
+	readonly kind: 'skill';
+	readonly uri: URI;
+	readonly displayName?: string;
+	readonly description?: string;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the
 	 * workbench when the accepted completion is sent back as part of a
@@ -362,6 +394,16 @@ export interface IChatNewSessionRequest {
 	readonly command?: string;
 
 	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
+
+	/**
+	 * The chat-input session resource the user was typing into when this
+	 * request was issued. Set when the chat infrastructure is rewriting an
+	 * untitled session URI to a real one on first send. Controllers can use
+	 * this to bridge any pre-creation state they tracked under the old URI
+	 * (e.g. provisional agent-host sessions) to the new resource that the
+	 * controller returns.
+	 */
+	readonly untitledResource?: URI;
 }
 
 export interface IChatSessionItemsDelta {

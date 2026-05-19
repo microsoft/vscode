@@ -32,7 +32,7 @@ import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../cont
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IAgentSkill, IChatPromptSlashCommand, ICustomAgent, IInstructionFile, IPromptFileContext, IPromptPath, IPromptsService, PromptsStorage } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { isValidPromptType, PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
+import { IChatModel, IChatResponseModel } from '../../contrib/chat/common/model/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatRequestParser, IChatParserContext } from '../../contrib/chat/common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../contrib/chat/browser/attachments/chatVariables.js';
@@ -56,6 +56,10 @@ interface AgentData {
 	id: string;
 	extensionId: ExtensionIdentifier;
 	hasFollowups?: boolean;
+}
+
+interface UnresolvedAnchor {
+	readonly response: IChatResponseModel;
 }
 
 export class MainThreadChatTask implements IChatTask {
@@ -117,7 +121,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _activeTasks = new Map<string, IChatTask>();
 
-	private readonly _unresolvedAnchors = new Map</* requestId */string, Map</* id */ string, IChatContentInlineReference>>();
+	private readonly _unresolvedAnchors = new Map</* requestId */string, Map</* id */ string, UnresolvedAnchor>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -568,11 +572,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				continue;
 			}
 
-			if (revivedProgress.kind === 'inlineReference' && revivedProgress.resolveId) {
+			if (revivedProgress.kind === 'inlineReference' && revivedProgress.resolveId && response) {
 				if (!this._unresolvedAnchors.has(requestId)) {
 					this._unresolvedAnchors.set(requestId, new Map());
 				}
-				this._unresolvedAnchors.get(requestId)?.set(revivedProgress.resolveId, revivedProgress);
+				this._unresolvedAnchors.get(requestId)?.set(revivedProgress.resolveId, { response });
 			}
 
 			chatProgressParts.push(revivedProgress);
@@ -582,15 +586,24 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	$handleAnchorResolve(requestId: string, handle: string, resolveAnchor: Dto<IChatContentInlineReference> | undefined): void {
-		const anchor = this._unresolvedAnchors.get(requestId)?.get(handle);
-		if (!anchor) {
+		const unresolvedAnchorsForRequest = this._unresolvedAnchors.get(requestId);
+		if (!unresolvedAnchorsForRequest) {
 			return;
 		}
 
-		this._unresolvedAnchors.get(requestId)?.delete(handle);
+		const unresolvedAnchor = unresolvedAnchorsForRequest.get(handle);
+		if (!unresolvedAnchor) {
+			return;
+		}
+
+		unresolvedAnchorsForRequest.delete(handle);
+		if (unresolvedAnchorsForRequest.size === 0) {
+			this._unresolvedAnchors.delete(requestId);
+		}
+
 		if (resolveAnchor) {
 			const revivedAnchor = revive(resolveAnchor) as IChatContentInlineReference;
-			anchor.inlineReference = revivedAnchor.inlineReference;
+			unresolvedAnchor.response.resolveInlineReference(handle, revivedAnchor);
 		}
 	}
 

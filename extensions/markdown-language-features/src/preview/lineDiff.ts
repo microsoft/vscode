@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type { MarkdownPreviewInnerChange, MarkdownPreviewLineChanges } from '../../types/previewMessaging';
+import type { MarkdownPreviewChangeIndicator, MarkdownPreviewInnerChange, MarkdownPreviewLineChanges } from '../../types/previewMessaging';
 
 interface LineChanges {
 	readonly added: readonly number[];
@@ -13,6 +13,7 @@ interface LineChanges {
 	readonly modifiedToOriginal: readonly number[];
 	readonly originalInnerChanges: readonly MarkdownPreviewInnerChange[];
 	readonly modifiedInnerChanges: readonly MarkdownPreviewInnerChange[];
+	readonly changeIndicators: readonly MarkdownPreviewChangeIndicator[];
 }
 
 interface LineMappings {
@@ -44,11 +45,12 @@ export class MarkdownPreviewLineDiffProvider {
 		return deleted.length || innerChanges.length ? { deleted, innerChanges } : undefined;
 	}
 
-	public async getModifiedLineChanges(): Promise<MarkdownPreviewLineChanges | undefined> {
+	public async getModifiedLineChanges(options?: { includeChangeIndicators?: boolean }): Promise<MarkdownPreviewLineChanges | undefined> {
 		const changes = await this.#getLineChanges();
 		const added = changes.added;
 		const innerChanges = changes.modifiedInnerChanges;
-		return added.length || innerChanges.length ? { added, innerChanges } : undefined;
+		const changeIndicators = options?.includeChangeIndicators === false ? [] : changes.changeIndicators;
+		return added.length || innerChanges.length || changeIndicators.length ? { added, innerChanges, changeIndicators } : undefined;
 	}
 
 	public async translateOriginalLineToModified(line: number): Promise<number> {
@@ -90,6 +92,7 @@ async function computeLineChanges(originalDocument: vscode.TextDocument, modifie
 	const deleted: number[] = [];
 	const originalInnerChanges: MarkdownPreviewInnerChange[] = [];
 	const modifiedInnerChanges: MarkdownPreviewInnerChange[] = [];
+	const changeIndicators: MarkdownPreviewChangeIndicator[] = [];
 	const mappings = createEmptyLineMappings(originalLineCount, modifiedLineCount);
 
 	let lastOriginalEnd = 0;
@@ -114,6 +117,27 @@ async function computeLineChanges(originalDocument: vscode.TextDocument, modifie
 			mappings.modifiedToOriginal[i] = clampLine(origStart, originalLineCount);
 		}
 
+		// Collect change indicators for deletions and modifications
+		const origChangedCount = origEnd - origStart;
+		if (origChangedCount > 0) {
+			const originalLines: string[] = [];
+			for (let i = origStart; i < origEnd; ++i) {
+				originalLines.push(originalDocument.lineAt(i).text);
+			}
+			const modifiedLines: string[] = [];
+			for (let i = modStart; i < modEnd; ++i) {
+				modifiedLines.push(modifiedDocument.lineAt(i).text);
+			}
+			changeIndicators.push({
+				modifiedLine: modStart,
+				modifiedLineCount: modEnd - modStart,
+				originalLineCount: origChangedCount,
+				originalContent: originalLines.join('\n'),
+				modifiedContent: modifiedLines.join('\n'),
+				type: modEnd === modStart ? 'deletion' : 'modification',
+			});
+		}
+
 		// Collect inner changes (character-level changes within modified lines)
 		if (change.innerChanges) {
 			for (const inner of change.innerChanges) {
@@ -130,7 +154,7 @@ async function computeLineChanges(originalDocument: vscode.TextDocument, modifie
 	fillUnchangedLineMappings(mappings, lastOriginalEnd, originalLineCount, lastModifiedEnd, modifiedLineCount);
 	fillMissingLineMappings(mappings);
 
-	return { added, deleted, originalInnerChanges, modifiedInnerChanges, ...mappings };
+	return { added, deleted, originalInnerChanges, modifiedInnerChanges, changeIndicators, ...mappings };
 }
 
 /**
