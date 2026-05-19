@@ -2306,7 +2306,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.ensureNotificationWidget();
 
-		if (!this._billingBannerWidget.value) {
+		// The billing banner's 3-slide carousel is too tall for compact surfaces
+		// (inline chat, narrow popovers). Skip creating it there; the unused
+		// container collapses via the `:not(.has-billing-banner)` CSS rule.
+		if (!this._billingBannerWidget.value && this.options.renderStyle !== 'compact') {
 			this._billingBannerWidget.value = this.instantiationService.createInstance(ChatBillingBannerWidget, ChatBillingBannerVariant.Panel);
 			this.chatBillingBannerContainer.appendChild(this._billingBannerWidget.value.domNode);
 		}
@@ -3722,10 +3725,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * the input editor below its minimum height, making the input vanish. When
 	 * we detect that, hide the banner so the user always has a usable input.
 	 *
-	 * `scrollHeight` is read from the container so the natural banner height is
-	 * known even while the banner is currently hidden via CSS; this keeps the
-	 * decision stable instead of oscillating once the banner is squeezed out.
+	 * The natural banner height is cached the last time it was measured while
+	 * visible. When the banner is currently hidden via the squeezed class its
+	 * `scrollHeight` would be 0, which would cause the decision to oscillate
+	 * between squeezed and unsqueezed states on every layout. Using the cache
+	 * when squeezed keeps the decision stable across the squeeze threshold.
 	 */
+	private _cachedBannerNaturalHeight = 0;
 	private _updateBillingBannerVisibility(): void {
 		if (!this.chatBillingBannerContainer) {
 			return;
@@ -3735,13 +3741,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		const bannerNaturalHeight = this.chatBillingBannerContainer.scrollHeight;
+		const isCurrentlySqueezed = this.chatBillingBannerContainer.classList.contains('chat-billing-banner-squeezed');
+		if (!isCurrentlySqueezed) {
+			const measured = this.chatBillingBannerContainer.scrollHeight;
+			if (measured > 0) {
+				this._cachedBannerNaturalHeight = measured;
+			}
+		}
+		const bannerNaturalHeight = this._cachedBannerNaturalHeight;
 		if (bannerNaturalHeight === 0) {
 			this.chatBillingBannerContainer.classList.remove('chat-billing-banner-squeezed');
 			return;
 		}
 
-		const isCurrentlySqueezed = this.chatBillingBannerContainer.classList.contains('chat-billing-banner-squeezed');
 		const containerHeight = this.container.offsetHeight;
 		const currentBannerHeight = isCurrentlySqueezed ? 0 : bannerNaturalHeight;
 		const editorHeight = this.previousInputEditorDimension?.height ?? 0;

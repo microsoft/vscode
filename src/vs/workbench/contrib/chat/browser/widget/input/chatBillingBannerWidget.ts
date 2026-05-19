@@ -12,6 +12,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
@@ -72,8 +73,10 @@ const SLIDE_BLOBS: ReadonlyArray<ReadonlyArray<IBlobConfig>> = [
 	],
 ];
 
-const CHARS = ['.', '·', ':', ';', '0', '1', '=', '%', '*', '#', '@'];
-const BG_CHARS = ['0', '1', '.', ';'];
+// allow-any-unicode-next-line
+const CHARS = ['.', '·', '¢', '¤', '£', '¥', '€', '$'];
+// allow-any-unicode-next-line
+const BG_CHARS = ['.', '·', '¢', '$'];
 const FONT_SIZE = 10;
 const SPEED = 0.18;
 const LERP = 0.028;
@@ -105,7 +108,7 @@ class BillingBannerCanvasAnimator extends Disposable {
 	private readonly _ctx: CanvasRenderingContext2D;
 	private readonly _blobs: IBlobState[];
 	private _rafHandle: IDisposable | undefined;
-	private _stopped = false;
+	private _running = false;
 
 	private _width = 0;
 	private _height = 0;
@@ -121,6 +124,7 @@ class BillingBannerCanvasAnimator extends Disposable {
 	constructor(
 		private readonly _canvas: HTMLCanvasElement,
 		private readonly _container: HTMLElement,
+		initialReducedMotion: boolean = false,
 	) {
 		super();
 
@@ -145,21 +149,49 @@ class BillingBannerCanvasAnimator extends Disposable {
 		observer.observe(this._container);
 		this._register(toDisposable(() => observer.disconnect()));
 
-		this._readColor();
+		// `_resize()` reads the live theme color the first time the container
+		// has non-zero dimensions, so no pre-read here.
 		this._resize();
 
+		if (initialReducedMotion) {
+			this._draw(performance.now());
+		} else {
+			this._startLoop();
+		}
+		this._register(toDisposable(() => this._stopLoop()));
+	}
+
+	setReducedMotion(reduced: boolean): void {
+		if (reduced) {
+			if (this._running) {
+				this._stopLoop();
+			}
+			this._draw(performance.now());
+		} else if (!this._running) {
+			this._startLoop();
+		}
+	}
+
+	private _startLoop(): void {
+		if (this._running) {
+			return;
+		}
+		this._running = true;
+		const targetWindow = dom.getWindow(this._container);
 		const tick = (ts: number) => {
-			if (this._stopped) {
+			if (!this._running) {
 				return;
 			}
 			this._draw(ts);
 			this._rafHandle = dom.scheduleAtNextAnimationFrame(targetWindow, () => tick(performance.now()));
 		};
 		this._rafHandle = dom.scheduleAtNextAnimationFrame(targetWindow, () => tick(performance.now()));
-		this._register(toDisposable(() => {
-			this._stopped = true;
-			this._rafHandle?.dispose();
-		}));
+	}
+
+	private _stopLoop(): void {
+		this._running = false;
+		this._rafHandle?.dispose();
+		this._rafHandle = undefined;
 	}
 
 	setSlideTargets(slideIndex: number): void {
@@ -173,10 +205,15 @@ class BillingBannerCanvasAnimator extends Disposable {
 			this._blobs[i].trx = targets[i].rx;
 			this._blobs[i].try = targets[i].ry;
 		}
-	}
-
-	refreshThemeColor(): void {
-		this._readColor();
+		if (!this._running) {
+			for (const b of this._blobs) {
+				b.cx = b.tx; b.cy = b.ty; b.crx = b.trx; b.cry = b.try;
+			}
+			for (let i = 0; i < this._bgGrid.length; i++) {
+				this._bgGrid[i] = BG_CHARS[(Math.random() * BG_CHARS.length) | 0];
+			}
+			this._draw(performance.now());
+		}
 	}
 
 	private _readColor(): void {
@@ -202,6 +239,10 @@ class BillingBannerCanvasAnimator extends Disposable {
 		if (this._width === 0 || this._height === 0) {
 			return;
 		}
+		// Re-read the theme color now that the container is in the live DOM
+		// tree; the constructor runs before attachment so CSS variables aren't
+		// inherited yet at that point.
+		this._readColor();
 		this._canvas.width = this._width * this._dpr;
 		this._canvas.height = this._height * this._dpr;
 		this._ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
@@ -210,6 +251,9 @@ class BillingBannerCanvasAnimator extends Disposable {
 		this._bgGrid = new Array(this._rows * this._cols);
 		for (let i = 0; i < this._bgGrid.length; i++) {
 			this._bgGrid[i] = BG_CHARS[(Math.random() * BG_CHARS.length) | 0];
+		}
+		if (!this._running) {
+			this._draw(performance.now());
 		}
 	}
 
@@ -320,11 +364,13 @@ export class ChatBillingBannerWidget extends Disposable {
 		@IChatBillingBannerService private readonly _bannerService: IChatBillingBannerService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 
 		this.domNode = $('.chat-billing-banner-widget');
 		this.domNode.classList.add(`variant-${_variant}`);
+		this.domNode.classList.toggle('motion-reduced', this._accessibilityService.isMotionReduced());
 
 		// Slide 3 differs by host surface: the panel variant points users at
 		// the in-product Copilot status dashboard, while the Agents variant
@@ -332,17 +378,17 @@ export class ChatBillingBannerWidget extends Disposable {
 		// Copilot subscription state) since the dashboard isn't reachable
 		// from the Agents window.
 		const slide3Desc = _variant === ChatBillingBannerVariant.Agents
-			? localize('billingBanner.slide3.desc.agents', "Credits reset each month. View your Copilot subscription and remaining allowance from your GitHub account in the title bar.")
-			: localize('billingBanner.slide3.desc', "Credits reset each month. Open the Copilot status dashboard to check your remaining allowance, upgrade, or set an overage budget.");
+			? localize('billingBanner.slide3.desc.agents', "Your credits reset monthly. View your Copilot subscription and remaining allowance from your account in the title bar.")
+			: localize('billingBanner.slide3.desc', "Your credits reset monthly. Open the Copilot status dashboard to check your remaining allowance, upgrade, or manage your budget.");
 
 		this._slides = [
 			{
 				title: localize('billingBanner.slide1.title', "Copilot billing has changed"),
-				description: localize('billingBanner.slide1.desc', "Copilot now measures usage in AI credits instead of request counts. Each plan includes a monthly credit allowance, and your subscription price is unchanged."),
+				description: localize('billingBanner.slide1.desc', "Copilot now measures usage in AI credits. Your plan includes a monthly credit allowance, and your subscription price is unchanged."),
 			},
 			{
 				title: localize('billingBanner.slide2.title', "Cost scales with the work done"),
-				description: localize('billingBanner.slide2.desc', "A quick chat costs a fraction of a credit. Agent sessions and more powerful models cost more because they do more. Code completions and next edit suggestions don\u2019t draw from your credits."),
+				description: localize('billingBanner.slide2.desc', "A quick chat can cost a fraction of a credit. Multi-agent workflows and more powerful models cost more because they do more."),
 			},
 			{
 				title: localize('billingBanner.slide3.title', "Monitor and manage your usage"),
@@ -353,7 +399,14 @@ export class ChatBillingBannerWidget extends Disposable {
 		];
 
 		this._register(this._bannerService.onDidChange(() => this._render()));
+		this._register(this._accessibilityService.onDidChangeReducedMotion(() => this._applyReducedMotion()));
 		this._render();
+	}
+
+	private _applyReducedMotion(): void {
+		const reduced = this._accessibilityService.isMotionReduced();
+		this.domNode.classList.toggle('motion-reduced', reduced);
+		this._animator?.setReducedMotion(reduced);
 	}
 
 	private _render(): void {
@@ -371,14 +424,28 @@ export class ChatBillingBannerWidget extends Disposable {
 		dom.clearNode(this.domNode);
 
 		if (!this._bannerService.shouldShow) {
-			this.domNode.parentElement?.classList.remove('has-billing-banner');
+			this._setHostHasBanner(false);
 			return;
 		}
 
-		this.domNode.parentElement?.classList.add('has-billing-banner');
+		this._setHostHasBanner(true);
 		this._step = 0;
 		this._buildCard();
 		this._applyStep(0);
+	}
+
+	/**
+	 * Toggle `has-billing-banner` on both the immediate container and on the
+	 * input-part ancestor that owns layout. CSS rules can then key off either
+	 * level: the container class drives the container's own display, while
+	 * the ancestor class is used to suppress sibling above-input chrome
+	 * (e.g. the getting-started tip) without a `:has()` selector.
+	 */
+	private _setHostHasBanner(on: boolean): void {
+		const container = this.domNode.parentElement;
+		container?.classList.toggle('has-billing-banner', on);
+		const host = container?.parentElement;
+		host?.classList.toggle('has-billing-banner', on);
 	}
 
 	private _buildCard(): void {
@@ -390,7 +457,7 @@ export class ChatBillingBannerWidget extends Disposable {
 		const canvas = dom.append(banner, $('canvas.chat-billing-banner-canvas')) as HTMLCanvasElement;
 		canvas.setAttribute('aria-hidden', 'true');
 
-		this._animator = this._renderDisposables.add(new BillingBannerCanvasAnimator(canvas, banner));
+		this._animator = this._renderDisposables.add(new BillingBannerCanvasAnimator(canvas, banner, this._accessibilityService.isMotionReduced()));
 
 		const body = dom.append(card, $('.chat-billing-banner-body'));
 		this._bodyEl = body;
@@ -450,10 +517,11 @@ export class ChatBillingBannerWidget extends Disposable {
 		this._dismissBtn = this._renderDisposables.add(new Button(navRight, {
 			...defaultButtonStyles,
 			secondary: true,
+			supportIcons: true,
 		}));
 		this._dismissBtn.element.classList.add('chat-billing-banner-cta', 'chat-billing-banner-dismiss');
 		this._dismissBtn.element.style.display = 'none';
-		this._dismissBtn.label = localize('billingBanner.dismiss', "Dismiss");
+		this._dismissBtn.label = `$(${Codicon.check.id}) ${localize('billingBanner.dismiss', "Dismiss")}`;
 		this._renderDisposables.add(this._dismissBtn.onDidClick(() => this._bannerService.markCompleted()));
 
 		this._ctaBtn = this._renderDisposables.add(new Button(navRight, {
@@ -477,7 +545,7 @@ export class ChatBillingBannerWidget extends Disposable {
 			return;
 		}
 
-		if (!this._bodyEl) {
+		if (!this._bodyEl || this._accessibilityService.isMotionReduced()) {
 			this._applyStep(clamped);
 			return;
 		}

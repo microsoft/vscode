@@ -247,11 +247,13 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	}
 
 	/**
-	 * Programmatic entry point that mirrors clicking the title-bar avatar.
-	 * Used by the Copilot billing banner CTA to surface the account panel.
+	 * Programmatic entry point that mirrors clicking the title-bar avatar,
+	 * but is open-only — invoking this while the panel is already visible
+	 * is a no-op (whereas onClick toggles closed). Used by the Copilot
+	 * billing banner CTA to surface the account panel.
 	 */
 	public openAccountPanel(): void {
-		if (!this.container) {
+		if (!this.container || this.isMenuVisible) {
 			return;
 		}
 		this.showCombinedPanel();

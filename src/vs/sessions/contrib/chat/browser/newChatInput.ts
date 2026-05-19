@@ -203,7 +203,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register({ dispose: () => editorOverflowWidgetsDomNode.remove() });
 
 		// Copilot usage-based billing banner — sits above the notification
-		// widget and replaces all other above-input UI when visible.
+		// widget. Coexists with the notification widget and other
+		// above-input UI; visibility is controlled by the banner service
+		// (shows only when the user is on a usage-based plan and hasn't
+		// dismissed it yet).
 		const billingBannerContainer = dom.append(chatInputContainer, dom.$('.chat-billing-banner-container'));
 		const billingBannerWidget = this._register(this.instantiationService.createInstance(ChatBillingBannerWidget, ChatBillingBannerVariant.Agents));
 		billingBannerContainer.appendChild(billingBannerWidget.domNode);

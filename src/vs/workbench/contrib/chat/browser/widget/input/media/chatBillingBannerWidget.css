@@ -3,10 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Container is rendered as a peer above the chat input. Hide entirely while empty. */
-.interactive-session .interactive-input-part > .chat-billing-banner-container:empty,
-.new-chat-input-container > .chat-billing-banner-container:empty {
+/* Container is rendered as a peer above the chat input. The widget toggles
+ * `has-billing-banner` on the container when it has content to show, so an
+ * empty container collapses out of the layout cleanly. (Using `:empty` here
+ * would not work — the widget always renders an inner element.) */
+.interactive-session .interactive-input-part > .chat-billing-banner-container,
+.new-chat-input-container > .chat-billing-banner-container {
 	display: none;
+}
+.interactive-session .interactive-input-part > .chat-billing-banner-container.has-billing-banner,
+.new-chat-input-container > .chat-billing-banner-container.has-billing-banner {
+	display: block;
 }
 
 /* Layout fallback: the chat input part hides the banner via this class when
@@ -17,9 +24,10 @@
 }
 
 /* Pull the banner down so its squared-off bottom slides behind the rounded
- * top of the chat input, hiding the seam. Applies to both host surfaces. */
-.interactive-session .interactive-input-part > .chat-billing-banner-container,
-.new-chat-input-container > .chat-billing-banner-container {
+ * top of the chat input, hiding the seam. Only applies when the banner is
+ * actually visible. */
+.interactive-session .interactive-input-part > .chat-billing-banner-container.has-billing-banner,
+.new-chat-input-container > .chat-billing-banner-container.has-billing-banner {
 	margin-bottom: -14px;
 }
 
@@ -104,6 +112,9 @@
 }
 .chat-billing-banner-widget .chat-billing-banner-body.fading {
 	opacity: 0;
+}
+.chat-billing-banner-widget.motion-reduced .chat-billing-banner-body {
+	transition: none;
 }
 
 .chat-billing-banner-widget .chat-billing-banner-title {
@@ -215,9 +226,7 @@
 	outline-offset: 2px;
 }
 
-/* Primary CTA uses the standard `monaco-button` styles from defaultButtonStyles.
-   Override the default `width: 100%` so the button hugs its label instead of
-   stretching to fill the wrapped nav-right row. */
+/* Primary CTA uses the standard `monaco-button` styles from defaultButtonStyles; override the default `width: 100%` so the button hugs its label instead of stretching to fill the wrapped nav-right row. */
 .chat-billing-banner-widget .monaco-text-button.chat-billing-banner-cta {
 	width: auto;
 	flex: 0 0 auto;

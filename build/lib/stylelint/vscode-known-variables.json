@@ -946,6 +946,8 @@
 		"--mobile-diff-tok-string",
 		"--mobile-diff-tok-keyword",
 		"--mobile-diff-tok-number",
+		"--chat-billing-banner-hero-tint",
+		"--chat-billing-banner-surface",
 		"--chat-editing-last-edit-shift",
 		"--chat-current-response-min-height",
 		"--chat-smooth-delay",

@@ -20,6 +20,7 @@ const SET_ENABLED_COMMAND = '_chat.billing.usageBannerSetEnabled';
 export class ChatBillingBannerContribution extends Disposable {
 
 	private _lastEnabled: boolean | undefined;
+	private _lastAccountId: string | undefined;
 
 	constructor(
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
@@ -30,11 +31,14 @@ export class ChatBillingBannerContribution extends Disposable {
 	}
 
 	private _sync(): void {
-		const enabled = !!this._authService.copilotToken?.isUsageBasedBilling;
-		if (enabled === this._lastEnabled) {
+		const token = this._authService.copilotToken;
+		const enabled = !!token?.isUsageBasedBilling;
+		const accountId = token?.username;
+		if (enabled === this._lastEnabled && accountId === this._lastAccountId) {
 			return;
 		}
 		this._lastEnabled = enabled;
-		void vscode.commands.executeCommand(SET_ENABLED_COMMAND, enabled);
+		this._lastAccountId = accountId;
+		void vscode.commands.executeCommand(SET_ENABLED_COMMAND, enabled, accountId);
 	}
 }
