@@ -252,12 +252,31 @@ export class CodeApplication extends Disposable {
 				thumbnailSize: { width: 0, height: 0 },
 			}).then(sources => { cachedScreenSources = sources; }).catch(() => { /* best-effort */ });
 		};
-		const invalidateScreenSourceCache = () => { cachedScreenSources = undefined; warmUpScreenSources(); };
+		// Topology changes invalidate the cache; only re-warm if the OS already
+		// granted us screen-recording permission (see comment below) so display
+		// reconfiguration before the user clicks Record can't trigger the
+		// permission prompt either.
+		const invalidateScreenSourceCache = () => {
+			cachedScreenSources = undefined;
+			if (!isMacintosh || systemPreferences.getMediaAccessStatus('screen') === 'granted') {
+				warmUpScreenSources();
+			}
+		};
 		electronScreen.on('display-added', invalidateScreenSourceCache);
 		electronScreen.on('display-removed', invalidateScreenSourceCache);
 		electronScreen.on('display-metrics-changed', invalidateScreenSourceCache);
-		// Pre-warm the cache so the first recording doesn't block on DXGI enumeration
-		warmUpScreenSources();
+		// Pre-warm the cache so the first recording doesn't block on DXGI enumeration.
+		// On macOS, calling desktopCapturer.getSources(['screen']) triggers the
+		// TCC Screen Recording permission prompt the first time it runs. We only
+		// want that prompt to appear when the user explicitly clicks Record, so
+		// we gate the eager warm-up on the OS already having granted permission.
+		// systemPreferences.getMediaAccessStatus reads the cached TCC state
+		// without prompting; on platforms that don't have a per-app screen
+		// permission (Linux, Windows) it returns 'granted' so warm-up still runs.
+		const canWarmUpWithoutPrompt = !isMacintosh || systemPreferences.getMediaAccessStatus('screen') === 'granted';
+		if (canWarmUpWithoutPrompt) {
+			warmUpScreenSources();
+		}
 		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
 			try {
 				const frame = request.frame;

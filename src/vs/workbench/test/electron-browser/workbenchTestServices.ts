@@ -148,6 +148,7 @@ export class TestNativeHostService implements INativeHostService {
 	async openExternal(url: string, defaultApplication?: string): Promise<boolean> { return false; }
 	async updateTouchBar(): Promise<void> { }
 	async moveItemToTrash(): Promise<void> { }
+	async getMediaAccessStatus(): Promise<'granted'> { return 'granted'; }
 	async newWindowTab(): Promise<void> { }
 	async showPreviousWindowTab(): Promise<void> { }
 	async showNextWindowTab(): Promise<void> { }

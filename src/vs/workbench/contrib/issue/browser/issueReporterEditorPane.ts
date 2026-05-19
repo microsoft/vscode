@@ -41,6 +41,8 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 
 /** Context key that's `true` whenever any IssueReporter editor is open in any group, even when not focused. */
 export const IssueReporterOpenContext = new RawContextKey<boolean>('issueReporterOpen', false);
@@ -107,6 +109,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 	) {
 		super(IssueReporterEditorPane.ID, group, telemetryService, themeService, storageService);
 		IssueReporterEditorPane.liveInstances.add(this);
@@ -274,12 +277,28 @@ export class IssueReporterEditorPane extends EditorPane {
 
 		// Wire recording start
 		this.inputDisposables.add(this.wizard.onDidRequestStartRecording(async () => {
+			// Check screen-recording permission first (macOS-only concern; other
+			// platforms always report 'granted'). If denied or not-determined-
+			// and-already-prompted, surface the grant-permission notification
+			// without attempting getDisplayMedia (which would just fail again).
+			const permissionState = await this.nativeHostService.getMediaAccessStatus('screen');
+			if (permissionState === 'denied' || permissionState === 'restricted') {
+				this.showScreenRecordingPermissionNotification();
+				this.wizard?.setRecordingState(RecordingState.Idle);
+				return;
+			}
 			try {
 				await this.recordingService.startRecording('video/mp4');
 				this.wizard?.setRecordingState(RecordingState.Recording);
 			} catch (err) {
 				this.logService.error('[IssueReporterEditorPane] Recording failed:', err);
 				this.wizard?.setRecordingState(RecordingState.Idle);
+				// Re-check permission state in case the OS prompt was just
+				// dismissed/denied during this getDisplayMedia call.
+				const postState = await this.nativeHostService.getMediaAccessStatus('screen');
+				if (postState === 'denied' || postState === 'restricted' || postState === 'not-determined') {
+					this.showScreenRecordingPermissionNotification();
+				}
 			}
 		}));
 
@@ -484,6 +503,35 @@ export class IssueReporterEditorPane extends EditorPane {
 		this.wizardInput = undefined;
 		if (this.container) {
 			clearNode(this.container);
+		}
+	}
+
+	/**
+	 * Surface a notification telling the user how to grant Screen Recording
+	 * permission. On macOS, includes a one-click action that deep-links to the
+	 * Privacy & Security pane in System Settings. On other platforms, surfaces
+	 * a generic explanation (the OS-level permission flow there typically
+	 * doesn't require a manual settings trip).
+	 */
+	private showScreenRecordingPermissionNotification(): void {
+		if (isMacintosh) {
+			this.notificationService.prompt(
+				Severity.Warning,
+				localize('screenRecordingPermissionDenied', "{0} needs Screen Recording permission to record videos. Grant access in System Settings, then click Record again.", product.nameShort),
+				[
+					{
+						label: localize('openSystemSettings', "Open System Settings"),
+						run: () => {
+							// Deep link to the Screen Recording pane in macOS Privacy & Security
+							void this.nativeHostService.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+						},
+					},
+				],
+			);
+		} else {
+			this.notificationService.warn(
+				localize('screenRecordingPermissionDeniedGeneric', "Screen recording permission was denied. Allow {0} to record the screen and try again.", product.nameShort)
+			);
 		}
 	}
 

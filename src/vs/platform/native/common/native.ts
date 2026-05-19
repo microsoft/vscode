@@ -189,6 +189,15 @@ export interface ICommonNativeHostService {
 	openExternal(url: string, defaultApplication?: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 
+	/**
+	 * Returns the OS-level media access permission status for the given media
+	 * type. On macOS this maps to Electron's systemPreferences.getMediaAccessStatus,
+	 * which reads the cached TCC state without prompting. On Linux and Windows
+	 * the per-app permission concept doesn't apply and the result is always
+	 * 'granted'.
+	 */
+	getMediaAccessStatus(mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'>;
+
 	isAdmin(): Promise<boolean>;
 	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;
 	isRunningUnderARM64Translation(): Promise<boolean>;

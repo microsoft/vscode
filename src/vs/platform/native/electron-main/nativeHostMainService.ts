@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
@@ -758,6 +758,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<void> {
 		return shell.trashItem(fullPath);
+	}
+
+	async getMediaAccessStatus(windowId: number | undefined, mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'> {
+		// systemPreferences.getMediaAccessStatus is implemented on macOS only.
+		// On Linux and Windows there's no per-app screen-recording permission
+		// concept; the OS handles capture without an app-level gate, so report
+		// 'granted' so the renderer can proceed straight to getDisplayMedia.
+		if (isMacintosh) {
+			return systemPreferences.getMediaAccessStatus(mediaType);
+		}
+		return 'granted';
 	}
 
 	async isAdmin(): Promise<boolean> {
