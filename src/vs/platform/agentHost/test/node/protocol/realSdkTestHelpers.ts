@@ -133,8 +133,8 @@ export async function createRealSession(
 	trackingList: string[],
 	workingDirectory?: string,
 ): Promise<string> {
-	await c.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
-	await c.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
+	await c.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
+	await c.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
 
 	const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
 	// Default to `folder` isolation so the agent runs in the directory the
@@ -142,7 +142,7 @@ export async function createRealSession(
 	// silently relocate the agent into `<workingDirectory>.worktrees/...`
 	// and break tests that assert on filesystem state in the original dir.
 	await c.call('createSession', {
-		session: sessionUri,
+		channel: sessionUri,
 		provider: config.provider,
 		workingDirectory,
 		config: workingDirectory ? { isolation: 'folder' } : undefined,
@@ -153,7 +153,7 @@ export async function createRealSession(
 	// directly without waiting for the notification.
 	trackingList.push(sessionUri);
 
-	const subscribeResult = await c.call<SubscribeResult>('subscribe', { resource: sessionUri });
+	const subscribeResult = await c.call<SubscribeResult>('subscribe', { channel: sessionUri });
 	void (subscribeResult.snapshot!.state as SessionState);
 	c.clearReceived();
 
@@ -163,10 +163,10 @@ export async function createRealSession(
 /** Dispatch a turn with the given user message text. */
 export function dispatchTurn(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): void {
 	c.notify('dispatchAction', {
+		channel: session,
 		clientSeq,
 		action: {
 			type: 'session/turnStarted',
-			session,
 			turnId,
 			userMessage: { text },
 		},
@@ -372,7 +372,7 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
 				}, 2_000);
 				const envelope = getActionEnvelope(ready);
 				processedSeqs.add(envelope.serverSeq);
-				const action = envelope.action as SessionToolCallReadyAction & { session: string; turnId: string };
+				const action = envelope.action as SessionToolCallReadyAction;
 				if (action.confirmed) {
 					continue;
 				}
@@ -388,10 +388,11 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
 				if (!matchingRule) {
 					errors.push(`unexpected tool call: toolName=${toolName ?? '<unknown>'} input=${JSON.stringify(action.toolInput)}`);
 					c.notify('dispatchAction', {
+						channel: envelope.channel,
 						clientSeq: ++approvalSeq,
 						action: {
 							type: 'session/toolCallConfirmed',
-							session: action.session, turnId: action.turnId,
+							turnId: action.turnId,
 							toolCallId: action.toolCallId, approved: false,
 						},
 					});
@@ -402,10 +403,11 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
 				approvedToolNames.add(matchingRule.toolName);
 
 				c.notify('dispatchAction', {
+					channel: envelope.channel,
 					clientSeq: ++approvalSeq,
 					action: {
 						type: 'session/toolCallConfirmed',
-						session: action.session, turnId: action.turnId,
+						turnId: action.turnId,
 						toolCallId: action.toolCallId, approved: true,
 					},
 				});
@@ -513,16 +515,16 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 		test('listModels returns well-shaped model entries after authenticate', async function () {
 			this.timeout(60_000);
 
-			await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: `real-sdk-list-models-${config.provider}` }, 30_000);
+			await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `real-sdk-list-models-${config.provider}` }, 30_000);
 
 			// Subscribe to root state *before* authenticating so we can observe
 			// the agentsChanged action that carries the populated model list.
-			const rootResult = await client.call<SubscribeResult>('subscribe', { resource: ROOT_STATE_URI }, 30_000);
+			const rootResult = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI }, 30_000);
 			const initial = rootResult.snapshot!.state as RootState;
 			const providerAgent = initial.agents.find(a => a.provider === config.provider);
 			assert.ok(providerAgent, `Expected ${config.provider} agent in root state, got: ${initial.agents.map(a => a.provider).join(', ')}`);
 
-			await client.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
+			await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
 
 			// Models load asynchronously after the *first* authenticate against
 			// the shared server. If a sibling test already authenticated, the
@@ -605,10 +607,11 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 				}
 				const action = getActionEnvelope(next).action as { toolCallId: string };
 				client.notify('dispatchAction', {
+					channel: sessionUri,
 					clientSeq: nextSeq++,
 					action: {
 						type: 'session/toolCallConfirmed',
-						session: sessionUri, turnId: 'turn-perm',
+						turnId: 'turn-perm',
 						toolCallId: action.toolCallId, approved: true,
 					},
 				});
@@ -626,8 +629,9 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			const sessionUri = await createRealSession(client, config, `real-sdk-plan-mode-${config.provider}`, createdSessions, URI.file(tempDir).toString());
 
 			client.notify('dispatchAction', {
+				channel: sessionUri,
 				clientSeq: 1,
-				action: { type: 'session/configChanged', session: sessionUri, config: { mode: 'plan' } },
+				action: { type: 'session/configChanged', config: { mode: 'plan' } },
 			});
 			await client.waitForNotification(n => isActionNotification(n, 'session/configChanged'));
 
@@ -660,7 +664,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			);
 			assert.strictEqual(extraSessionNotificationsAfterFollowup.length, 0, 'sending another message should stay on the same session instead of forking');
 
-			const resubscribeResult = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
+			const resubscribeResult = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 			const finalSnapshot = resubscribeResult.snapshot!.state as SessionState;
 			assert.strictEqual(finalSnapshot.summary.resource, sessionUri, 'follow-up turn should keep the original session resource');
 		});
@@ -677,8 +681,9 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			);
 
 			client.notify('dispatchAction', {
+				channel: sessionUri,
 				clientSeq: 2,
-				action: { type: 'session/abortTurn', session: sessionUri },
+				action: { type: 'session/abortTurn' },
 			});
 
 			await client.waitForNotification(n => isActionNotification(n, 'session/abortTurn'), 10_000);
@@ -691,14 +696,14 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			tempDirs.push(tempDir);
 			const workingDirUri = URI.file(tempDir).toString();
 
-			await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: `real-sdk-workdir-${config.provider}` });
-			await client.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() });
+			await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `real-sdk-workdir-${config.provider}` });
+			await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() });
 
 			const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
-			await client.call('createSession', { session: sessionUri, provider: config.provider, workingDirectory: workingDirUri });
+			await client.call('createSession', { channel: sessionUri, provider: config.provider, workingDirectory: workingDirUri });
 			createdSessions.push(sessionUri);
 
-			const subscribeResult = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
+			const subscribeResult = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 			const sessionState = subscribeResult.snapshot!.state as SessionState;
 			assert.strictEqual(sessionState.summary.workingDirectory, workingDirUri,
 				`subscribe snapshot summary should carry the requested working directory`);
@@ -716,23 +721,23 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			const defaultBranch = execSync('git branch --show-current', { cwd: tempDir, encoding: 'utf-8' }).trim();
 			const workingDirUri = URI.file(tempDir).toString();
 
-			await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: `real-sdk-worktree-${config.provider}` });
-			await client.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() });
+			await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `real-sdk-worktree-${config.provider}` });
+			await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() });
 
 			const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
 			await client.call('createSession', {
-				session: sessionUri, provider: config.provider, workingDirectory: workingDirUri,
+				channel: sessionUri, provider: config.provider, workingDirectory: workingDirUri,
 				config: { isolation: 'worktree', branch: defaultBranch },
 			});
 			createdSessions.push(sessionUri);
 
-			await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
+			await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 
 			client.notify('dispatchAction', {
+				channel: sessionUri,
 				clientSeq: 1,
 				action: {
 					type: 'session/activeClientChanged',
-					session: sessionUri,
 					activeClient: {
 						clientId: `real-sdk-worktree-${config.provider}`,
 						displayName: 'Test Client',
@@ -784,10 +789,11 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			const toolReadyAction = getActionEnvelope(toolReadyNotif).action as { confirmed?: string };
 			if (!toolReadyAction.confirmed) {
 				client.notify('dispatchAction', {
+					channel: addedSummary.resource,
 					clientSeq: 4,
 					action: {
 						type: 'session/toolCallConfirmed',
-						session: addedSummary.resource, turnId: 'turn-wt-terminal',
+						turnId: 'turn-wt-terminal',
 						toolCallId: toolStartAction.toolCallId, approved: true,
 					},
 				});
@@ -804,12 +810,12 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			const terminalUri = terminalResourceFromContent(terminalContentAction.content);
 			assert.ok(terminalUri, 'shell tool should expose its terminal resource');
 
-			const terminalSubscribeResult = await client.call<SubscribeResult>('subscribe', { resource: terminalUri });
+			const terminalSubscribeResult = await client.call<SubscribeResult>('subscribe', { channel: terminalUri });
 			const initialTerminalState = terminalSubscribeResult.snapshot!.state as TerminalState;
 			assert.strictEqual(initialTerminalState.cwd, resolvedWorkingDirectoryPath, 'terminal should be created in the resolved worktree directory');
 
 			await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
-			const terminalSnapshot = await client.call<SubscribeResult>('subscribe', { resource: terminalUri });
+			const terminalSnapshot = await client.call<SubscribeResult>('subscribe', { channel: terminalUri });
 			const terminalState = terminalSnapshot.snapshot!.state as TerminalState;
 			assert.ok(terminalText(terminalState).includes(resolvedWorkingDirectoryPath),
 				`pwd output should include the resolved worktree path ${resolvedWorkingDirectoryPath}`);
@@ -880,7 +886,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			assert.ok(typeof subagentSessionUri === 'string' && isSubagentSession(subagentSessionUri),
 				`subagent session URI should be subagent-shaped, got: ${JSON.stringify(subagentSessionUri)}`);
 
-			await client.call<SubscribeResult>('subscribe', { resource: subagentSessionUri });
+			await client.call<SubscribeResult>('subscribe', { channel: subagentSessionUri });
 
 			await client.waitForNotification(n => {
 				if (!isActionNotification(n, 'session/turnComplete')) {

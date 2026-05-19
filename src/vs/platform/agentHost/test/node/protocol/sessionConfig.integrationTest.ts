@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { ActionType, type SessionAddedParams } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import type { SessionState } from '../../../common/state/sessionState.js';
+import { ROOT_STATE_URI, type SessionState } from '../../../common/state/sessionState.js';
 import {
 	getActionEnvelope,
 	isActionNotification,
@@ -38,7 +38,7 @@ suite('Protocol WebSocket - Session Config', function () {
 		this.timeout(10_000);
 		client = new TestProtocolClient(server.port);
 		await client.connect();
-		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-session-config' });
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-session-config' });
 	});
 
 	teardown(function () {
@@ -50,6 +50,7 @@ suite('Protocol WebSocket - Session Config', function () {
 
 		const workingDirectory = URI.file('/mock/workspace').toString();
 		const initial = await client.call<ResolveSessionConfigResult>('resolveSessionConfig', {
+			channel: ROOT_STATE_URI,
 			provider: 'mock',
 			workingDirectory,
 		});
@@ -61,6 +62,7 @@ suite('Protocol WebSocket - Session Config', function () {
 		assert.strictEqual(initial.schema.properties.branch.readOnly, false);
 
 		const folder = await client.call<ResolveSessionConfigResult>('resolveSessionConfig', {
+			channel: ROOT_STATE_URI,
 			provider: 'mock',
 			workingDirectory,
 			config: { isolation: 'folder', branch: 'feature/config' },
@@ -75,6 +77,7 @@ suite('Protocol WebSocket - Session Config', function () {
 		this.timeout(10_000);
 
 		const result = await client.call<SessionConfigCompletionsResult>('sessionConfigCompletions', {
+			channel: ROOT_STATE_URI,
 			provider: 'mock',
 			workingDirectory: URI.file('/mock/workspace').toString(),
 			config: { isolation: 'worktree' },
@@ -92,7 +95,7 @@ suite('Protocol WebSocket - Session Config', function () {
 
 		const config = { isolation: 'worktree', branch: 'feature/config' };
 		await client.call('createSession', {
-			session: nextSessionUri(),
+			channel: nextSessionUri(),
 			provider: 'mock',
 			workingDirectory: URI.file('/mock/workspace').toString(),
 			config,
@@ -114,7 +117,7 @@ suite('Protocol WebSocket - Session Config', function () {
 		this.timeout(10_000);
 
 		await client.call('createSession', {
-			session: nextSessionUri(),
+			channel: nextSessionUri(),
 			provider: 'mock',
 			config: { isolation: 'folder', branch: 'main' },
 		});
@@ -127,10 +130,10 @@ suite('Protocol WebSocket - Session Config', function () {
 		client.clearReceived();
 
 		client.notify('dispatchAction', {
+			channel: session,
 			clientSeq: 1,
 			action: {
 				type: ActionType.SessionConfigChanged,
-				session,
 				config: { branch: 'release' },
 			},
 		});
@@ -172,10 +175,10 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 		try {
 			const client1 = new TestProtocolClient(server1.port);
 			await client1.connect();
-			await client1.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-config-restore-1' });
+			await client1.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-config-restore-1' });
 
 			await client1.call('createSession', {
-				session: nextSessionUri(),
+				channel: nextSessionUri(),
 				provider: 'mock',
 				workingDirectory: URI.file('/mock/workspace').toString(),
 				config: initialConfig,
@@ -187,9 +190,10 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 			// requested one, so capture the real URI from the notification.
 			sessionUri = (addedNotif.params as SessionAddedParams).summary.resource;
 
-			await client1.call<SubscribeResult>('subscribe', { resource: sessionUri });
+			await client1.call<SubscribeResult>('subscribe', { channel: sessionUri });
 
 			client1.notify('dispatchAction', {
+				channel: sessionUri,
 				clientSeq: 1,
 				action: {
 					type: ActionType.SessionConfigChanged,
@@ -222,12 +226,12 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 		try {
 			const client2 = new TestProtocolClient(server2.port);
 			await client2.connect();
-			await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-config-restore-2' });
+			await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-config-restore-2' });
 
 			// Subscribing triggers the restore-on-subscribe path on the server,
 			// which reads `configValues` from the per-session DB and overlays
 			// them on the freshly-resolved schema.
-			const snapshot = await client2.call<SubscribeResult>('subscribe', { resource: sessionUri });
+			const snapshot = await client2.call<SubscribeResult>('subscribe', { channel: sessionUri });
 			const state = snapshot.snapshot!.state as SessionState;
 
 			assert.ok(state.config, 'restored session should have state.config populated');

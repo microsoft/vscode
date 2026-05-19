@@ -245,7 +245,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			session: SESSION,
 			action: {
 				type: ActionType.SessionToolCallReady,
-				session: SESSION_STR,
 				turnId: TURN_ID,
 				toolCallId: 'tu_b',
 				invocationMessage: { markdown: 'Running `git status`' },

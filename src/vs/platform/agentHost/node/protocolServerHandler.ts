@@ -34,7 +34,7 @@ import {
 	type ReconnectParams,
 	type IStateSnapshot,
 } from '../common/state/sessionProtocol.js';
-import { ChangesetOperationScope, ChangesetOperationTargetKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationTargetKind, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 
@@ -841,6 +841,19 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
+		// The root channel has two equivalent string forms (`ahp-root://` and
+		// the URI-roundtripped `ahp-root:`). Treat them interchangeably so a
+		// client that subscribed with either form receives root broadcasts
+		// regardless of which form the envelope carries. See
+		// {@link isAhpRootChannel}.
+		if (isAhpRootChannel(envelope.channel)) {
+			for (const sub of client.subscriptions) {
+				if (isAhpRootChannel(sub)) {
+					return true;
+				}
+			}
+			return false;
+		}
 		return client.subscriptions.has(envelope.channel);
 	}
 

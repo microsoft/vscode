@@ -8,7 +8,7 @@ import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { SessionAddedParams, SessionRemovedParams } from '../../../common/state/protocol/notifications.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { ReconnectResult } from '../../../common/state/sessionProtocol.js';
-import type { SessionState } from '../../../common/state/sessionState.js';
+import { ROOT_STATE_URI, type SessionState } from '../../../common/state/sessionState.js';
 import {
 	createAndSubscribeSession,
 	dispatchTurnStarted,
@@ -47,11 +47,11 @@ suite('Protocol WebSocket — Multi-Client', function () {
 	test('sessionAdded notification is broadcast to all connected clients', async function () {
 		this.timeout(10_000);
 
-		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-add-1' });
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-add-1' });
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-add-2' });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-add-2' });
 
 		client.clearReceived();
 		client2.clearReceived();
@@ -81,10 +81,10 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-remove-2' });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-remove-2' });
 		client2.clearReceived();
 
-		await client.call('disposeSession', { session: sessionUri });
+		await client.call('disposeSession', { channel: sessionUri });
 
 		const n1 = await client.waitForNotification(n =>
 			n.method === 'root/sessionRemoved'
@@ -110,8 +110,8 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-multi-client-2' });
-		await client2.call('subscribe', { resource: sessionUri });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-multi-client-2' });
+		await client2.call('subscribe', { channel: sessionUri });
 		client2.clearReceived();
 
 		dispatchTurnStarted(client, sessionUri, 'turn-mc', 'hello', 1);
@@ -134,8 +134,8 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-cross-msg-2' });
-		await client2.call('subscribe', { resource: sessionUri });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-cross-msg-2' });
+		await client2.call('subscribe', { channel: sessionUri });
 		client.clearReceived();
 		client2.clearReceived();
 
@@ -160,8 +160,8 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-tool-progress-2' });
-		await client2.call('subscribe', { resource: sessionUri });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-tool-progress-2' });
+		await client2.call('subscribe', { channel: sessionUri });
 		client.clearReceived();
 		client2.clearReceived();
 
@@ -189,8 +189,8 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-unsub-helper' });
-		await client2.call('subscribe', { resource: sessionUri });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-unsub-helper' });
+		await client2.call('subscribe', { channel: sessionUri });
 
 		dispatchTurnStarted(client2, sessionUri, 'turn-unsub', 'hello', 1);
 		await client2.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
@@ -209,7 +209,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-scoping-2' });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-scoping-2' });
 		// Client 2 does NOT subscribe to the session
 		client2.clearReceived();
 
@@ -223,7 +223,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		// But disposing the session should still broadcast a notification
 		client2.clearReceived();
-		await client.call('disposeSession', { session: sessionUri });
+		await client.call('disposeSession', { channel: sessionUri });
 
 		const removed = await client2.waitForNotification(n =>
 			n.method === 'root/sessionRemoved'
@@ -243,9 +243,9 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		// Client 2 joins after the turn has completed
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-late-sub-2' });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-late-sub-2' });
 
-		const result = await client2.call<SubscribeResult>('subscribe', { resource: sessionUri });
+		const result = await client2.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		const state = result.snapshot!.state as SessionState;
 		assert.ok(state.turns.length >= 1, `late subscriber should see completed turn, got ${state.turns.length}`);
 		assert.strictEqual(state.turns[0].id, 'turn-late');
@@ -261,8 +261,8 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-cross-perm-2' });
-		await client2.call('subscribe', { resource: sessionUri });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-cross-perm-2' });
+		await client2.call('subscribe', { channel: sessionUri });
 		client.clearReceived();
 		client2.clearReceived();
 
@@ -277,10 +277,10 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		// Client B confirms the tool call
 		client2.notify('dispatchAction', {
+			channel: sessionUri,
 			clientSeq: 1,
 			action: {
 				type: 'session/toolCallConfirmed',
-				session: sessionUri,
 				turnId: 'turn-cross-perm',
 				toolCallId: 'tc-perm-1',
 				approved: true,
