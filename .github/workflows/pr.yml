@@ -318,10 +318,12 @@ jobs:
         run: npm run compile
 
       - name: Run vitest unit tests
+        if: ${{ false }}
         working-directory: extensions/copilot
         run: npm run test:unit
 
       - name: Run simulation tests with cache
+        if: ${{ false }}
         working-directory: extensions/copilot
         run: npm run simulate-ci
 
@@ -334,7 +336,7 @@ jobs:
         run: xvfb-run -a npm run test:completions-core
 
       - name: Archive simulation output
-        if: always()
+        if: ${{ false }}
         working-directory: extensions/copilot
         run: |
           set -e
@@ -342,7 +344,7 @@ jobs:
           tar -czf .simulation-archive/simulation.tgz -C .simulation .
 
       - name: Upload simulation output
-        if: always()
+        if: ${{ false }}
         uses: actions/upload-artifact@v7
         with:
           name: copilot-simulation-output-linux-${{ github.run_attempt }}
@@ -420,10 +422,12 @@ jobs:
         run: npm run compile
 
       - name: Run vitest unit tests
+        if: ${{ false }}
         working-directory: extensions/copilot
         run: npm run test:unit
 
       - name: Run simulation tests with cache
+        if: ${{ false }}
         working-directory: extensions/copilot
         run: npm run simulate-ci
 

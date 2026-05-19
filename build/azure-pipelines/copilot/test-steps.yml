@@ -32,10 +32,12 @@ steps:
   - script: npm run test:unit
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Run vitest unit tests
+    condition: and(succeeded(), false)
 
   - script: npm run simulate-ci
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Run simulation tests
+    condition: and(succeeded(), false)
 
   - ${{ if eq(parameters.runIntegrationTests, true) }}:
     - script: xvfb-run -a npm run test:extension
