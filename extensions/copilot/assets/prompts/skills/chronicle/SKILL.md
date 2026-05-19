@@ -132,8 +132,10 @@ Escape single quotes in the user's query by doubling them (`it's` → `it''s`). 
 
 For each session, build a one-line label from `summary` if present, else from the returned `snippet` (truncate to ~80 chars). Never emit `(no summary)`, `(no metadata)`, or bare session-id lists.
 
+If you applied a time window (e.g. the cloud 90-day default), include it in the header so the user knows the scope; otherwise omit the scope phrase or say "all time". Example:
+
 ```
-**Search results for "<query>"** (<n> sessions, last 90 days)
+**Search results for "<query>"** (<n> sessions, <scope: e.g. "last 90 days" / "all time">)
 
 _owner/repo_
 - `session-id` — **<summary or snippet>**
