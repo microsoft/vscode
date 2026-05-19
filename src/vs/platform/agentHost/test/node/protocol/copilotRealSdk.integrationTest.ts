@@ -42,7 +42,7 @@ const COPILOT_CONFIG: IRealSdkProviderConfig = {
 	provider: 'copilotcli',
 	scheme: 'copilotcli',
 	shellToolName: 'bash',
-	subagentToolName: 'task',
+	subagentToolNames: ['task'],
 	exitPlanModeToolName: 'exit_plan_mode',
 	enabled: REAL_SDK_ENABLED,
 	supportsWorktreeIsolation: true,
