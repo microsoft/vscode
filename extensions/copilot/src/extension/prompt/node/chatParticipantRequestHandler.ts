@@ -256,30 +256,27 @@ export class ChatParticipantRequestHandler {
 					);
 				}
 
-				result = await chatResult;
-				const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
-				const creditsUsed = this._chatQuotaService.getCreditsForTurn(this.turn.id);
-				if (this._authService.copilotToken?.isNoAuthUser) {
-					result.details = endpoint.name;
-				} else {
-					result.details = formatModelDetails(endpoint.name, endpoint.multiplier, creditsUsed);
-				}
+				// Race chatResult against cancellation so that accumulated credits
+				// are reported promptly when the user presses stop, even if the
+				// handler is slow to clean up internally (e.g. awaiting response
+				// handlers in a finally block).
+				result = await Promise.race([
+					chatResult,
+					new Promise<ChatResult>(resolve => {
+						if (this.token.isCancellationRequested) {
+							resolve({ errorDetails: CanceledMessage });
+						} else {
+							const d = this.token.onCancellationRequested(() => {
+								d.dispose();
+								resolve({ errorDetails: CanceledMessage });
+							});
+							chatResult.finally(() => d.dispose());
+						}
+					})
+				]);
 			}
 
-			this._conversationStore.addConversation(this.turn.id, this.conversation);
-
-			// mixin fixed metadata shape into result. Modified in place because the object is already
-			// cached in the conversation store and we want the full information when looking this up
-			// later
-			mixin(result, {
-				metadata: {
-					modelMessageId: this.turn.responseId ?? '',
-					responseId: this.turn.id,
-					sessionId: this.conversation.sessionId,
-					agentId: this.chatAgentArgs.agentId,
-					command: this.request.command
-				}
-			} satisfies ICopilotChatResult, true);
+			result = await this._finalizeResult(result);
 
 			return <ICopilotChatResult>result;
 
@@ -289,6 +286,33 @@ export class ChatParticipantRequestHandler {
 		} finally {
 			this._chatQuotaService.resetTurnCredits(this.turn.id);
 		}
+	}
+
+	private async _finalizeResult(result: ChatResult): Promise<ICopilotChatResult> {
+		const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
+		const creditsUsed = this._chatQuotaService.getCreditsForTurn(this.turn.id);
+		if (this._authService.copilotToken?.isNoAuthUser) {
+			result.details = endpoint.name;
+		} else {
+			result.details = formatModelDetails(endpoint.name, endpoint.multiplier, creditsUsed);
+		}
+
+		this._conversationStore.addConversation(this.turn.id, this.conversation);
+
+		// mixin fixed metadata shape into result. Modified in place because the object is already
+		// cached in the conversation store and we want the full information when looking this up
+		// later
+		mixin(result, {
+			metadata: {
+				modelMessageId: this.turn.responseId ?? '',
+				responseId: this.turn.id,
+				sessionId: this.conversation.sessionId,
+				agentId: this.chatAgentArgs.agentId,
+				command: this.request.command
+			}
+		} satisfies ICopilotChatResult, true);
+
+		return <ICopilotChatResult>result;
 	}
 
 	private async selectIntent(command: CommandDetails | undefined, history: Turn[]): Promise<IIntent> {
