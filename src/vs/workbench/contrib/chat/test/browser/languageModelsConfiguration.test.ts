@@ -148,4 +148,27 @@ suite('LanguageModelsConfiguration', () => {
 		assert.strictEqual(g2.range.startLineNumber, 7);
 		assert.strictEqual(g2.range.endLineNumber, 11);
 	});
+
+	test('parseLanguageModelsConfiguration - models range', () => {
+		const content = `[
+	{
+		"vendor": "vendor",
+		"name": "group",
+		"models": [
+			{ "id": "one" },
+			{ "id": "two" }
+		]
+	}
+]`;
+		const model = testDisposables.add(createTextModel(content));
+		const result = parseLanguageModelsProviderGroups(model);
+
+		assert.deepStrictEqual({
+			startLineNumber: result[0].modelsRange?.startLineNumber,
+			endLineNumber: result[0].modelsRange?.endLineNumber
+		}, {
+			startLineNumber: 5,
+			endLineNumber: 8
+		});
+	});
 });
