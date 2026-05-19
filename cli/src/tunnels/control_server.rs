@@ -811,6 +811,8 @@ async fn handle_serve(
 				Ok(s) => s,
 				Err(e) => {
 					// we don't loop to avoid doing so infinitely: allow the client to reconnect in this case.
+					// Permission errors (ServerNotExecutable) are not "corruption" -- re-downloading
+					// will not fix them, so skip eviction and let the user see the real error.
 					if let AnyError::CodeError(CodeError::ServerUnexpectedExit(ref e)) = e {
 						warning!(
 							c.log,

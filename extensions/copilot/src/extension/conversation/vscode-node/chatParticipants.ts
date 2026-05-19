@@ -295,7 +295,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		let messageString: vscode.MarkdownString;
 		if (this.authenticationService.copilotToken?.isIndividual) {
 			messageString = new vscode.MarkdownString(vscode.l10n.t({
-				message: 'You have reached your additional budget limit for this month. We have automatically switched you to {0} which is included with your plan. [Configure budget]({1}) to keep going.',
+				message: 'You have reached your additional budget limit for this month. We have automatically switched you to {0} which is included with your plan. [Manage budget]({1}) to keep going.',
 				args: [baseEndpoint.name, 'command:chat.enableAdditionalUsage'],
 				// To make sure the translators don't break the link
 				comment: [`{Locked=']({'}`]
