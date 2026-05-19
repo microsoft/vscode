@@ -266,7 +266,11 @@ class TerminalCommandDecoration extends Disposable {
 		}
 		const isInteractive = !decoration.classList.contains(DecorationSelector.Default);
 		decoration.tabIndex = isInteractive ? 0 : -1;
-		decoration.toggleAttribute('aria-disabled', !isInteractive);
+		if (isInteractive) {
+			decoration.removeAttribute('aria-disabled');
+		} else {
+			decoration.setAttribute('aria-disabled', 'true');
+		}
 		const hoverText = tooltip || decorationState.hoverMessage;
 		if (hoverText) {
 			decoration.setAttribute('aria-label', hoverText);
