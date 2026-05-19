@@ -1662,6 +1662,9 @@ export function registerCLIChatCommands(
 			await repository.pull();
 			await repository.push();
 		}
+
+		// Refresh repository state
+		await repository.status();
 	};
 
 	const sync = async (sessionId: string) => {
@@ -1676,6 +1679,9 @@ export function registerCLIChatCommands(
 
 		await repository.pull();
 		await repository.push();
+
+		// Refresh repository state
+		await repository.status();
 	};
 
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.sessions.commit', async (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => {
