@@ -47,8 +47,8 @@ function testIndentationToTabsCommand(lines: string[], selection: Selection, tab
 	testCommand(lines, null, selection, (accessor, sel) => new IndentationToTabsCommand(sel, tabSize), expectedLines, expectedSelection);
 }
 
-function testChangeIndentationWidthCommand(lines: string[], selection: Selection, currentIndentSize: number, newIndentSize: number, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (accessor, sel) => new ChangeIndentationWidthCommand(sel, currentIndentSize, newIndentSize), expectedLines, expectedSelection);
+function testChangeIndentationWidthCommand(lines: string[], selection: Selection, currentIndentSize: number, currentTabSize: number, newIndentSize: number, expectedLines: string[], expectedSelection: Selection): void {
+	testCommand(lines, null, selection, (accessor, sel) => new ChangeIndentationWidthCommand(sel, currentIndentSize, currentTabSize, newIndentSize), expectedLines, expectedSelection);
 }
 
 export function registerLanguage(languageService: ILanguageService, language: Language): IDisposable {
@@ -333,6 +333,7 @@ suite('Change Indentation Width - TypeScript/Javascript', () => {
 			],
 			new Selection(3, 5, 3, 5),
 			2,
+			2,
 			4,
 			[
 				'first',
@@ -356,6 +357,7 @@ suite('Change Indentation Width - TypeScript/Javascript', () => {
 			],
 			new Selection(3, 9, 3, 9),
 			4,
+			4,
 			2,
 			[
 				'first',
@@ -377,6 +379,7 @@ suite('Change Indentation Width - TypeScript/Javascript', () => {
 			],
 			new Selection(2, 4, 2, 4),
 			2,
+			2,
 			4,
 			[
 				'first',
@@ -396,6 +399,7 @@ suite('Change Indentation Width - TypeScript/Javascript', () => {
 			],
 			new Selection(3, 5, 3, 5),
 			2,
+			2,
 			4,
 			[
 				'    ',
@@ -406,7 +410,7 @@ suite('Change Indentation Width - TypeScript/Javascript', () => {
 		);
 	});
 
-	test('tabs treated as currentIndentSize spaces', function () {
+	test('stray tabs expand to tabSize visual columns', function () {
 		testChangeIndentationWidthCommand(
 			[
 				'\tfirst',
@@ -414,7 +418,8 @@ suite('Change Indentation Width - TypeScript/Javascript', () => {
 				'third'
 			],
 			new Selection(2, 3, 2, 3),
-			2,
+			2, // indentSize
+			2, // tabSize
 			4,
 			[
 				'    first',
@@ -422,6 +427,26 @@ suite('Change Indentation Width - TypeScript/Javascript', () => {
 				'third'
 			],
 			new Selection(2, 9, 2, 9)
+		);
+	});
+
+	test('stray tabs use tabSize when tabSize differs from indentSize', function () {
+		testChangeIndentationWidthCommand(
+			[
+				'\tfirst',
+				'\t\tsecond',
+				'third'
+			],
+			new Selection(2, 3, 2, 3),
+			2, // indentSize: each level is 2 spaces
+			4, // tabSize: each tab visually = 4 cols
+			4,
+			[
+				'        first',         // 1 tab = 4 cols = 2 levels @ indentSize 2 → 8 spaces
+				'                second', // 2 tabs = 8 cols = 4 levels → 16 spaces
+				'third'
+			],
+			new Selection(2, 17, 2, 17)
 		);
 	});
 
@@ -433,6 +458,7 @@ suite('Change Indentation Width - TypeScript/Javascript', () => {
 				'    third'
 			],
 			new Selection(2, 3, 2, 3),
+			2,
 			2,
 			2,
 			[

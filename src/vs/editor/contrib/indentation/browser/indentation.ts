@@ -122,12 +122,8 @@ export class ChangeIndentationWidthAction extends EditorAction {
 			return;
 		}
 
-		const selection = editor.getSelection();
-		if (!selection) {
-			return;
-		}
-
 		const modelOpts = model.getOptions();
+		const currentTabSize = modelOpts.tabSize;
 		const currentIndentSize = modelOpts.indentSize;
 		const currentInsertSpaces = modelOpts.insertSpaces;
 
@@ -159,10 +155,16 @@ export class ChangeIndentationWidthAction extends EditorAction {
 				}
 
 				if (currentInsertSpaces) {
-					const command = new ChangeIndentationWidthCommand(selection, currentIndentSize, newIndentSize);
-					editor.pushUndoStop();
-					editor.executeCommands(this.id, [command]);
-					editor.pushUndoStop();
+					// Read selection now (after the picker closed) so we track the
+					// caret position the user actually has, not the one they had
+					// before opening the picker.
+					const selection = editor.getSelection();
+					if (selection) {
+						const command = new ChangeIndentationWidthCommand(selection, currentIndentSize, currentTabSize, newIndentSize);
+						editor.pushUndoStop();
+						editor.executeCommands(this.id, [command]);
+						editor.pushUndoStop();
+					}
 				}
 
 				model.updateOptions({
@@ -685,7 +687,7 @@ function getIndentationEditOperations(model: ITextModel, builder: IEditOperation
 	}
 }
 
-function getChangeIndentationWidthEditOperations(model: ITextModel, builder: IEditOperationBuilder, currentIndentSize: number, newIndentSize: number): void {
+function getChangeIndentationWidthEditOperations(model: ITextModel, builder: IEditOperationBuilder, currentIndentSize: number, currentTabSize: number, newIndentSize: number): void {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
 		// Model is empty
 		return;
@@ -704,7 +706,8 @@ function getChangeIndentationWidthEditOperations(model: ITextModel, builder: IEd
 		const originalIndentationRange = new Range(lineNumber, 1, lineNumber, lastIndentationColumn);
 		const originalIndentation = model.getValueInRange(originalIndentationRange);
 
-		const visualSpaceCount = indentUtils.getSpaceCnt(originalIndentation, currentIndentSize);
+		// Tabs expand to tabSize columns visually, regardless of the indent unit.
+		const visualSpaceCount = indentUtils.getSpaceCnt(originalIndentation, currentTabSize);
 		const indentLevel = Math.floor(visualSpaceCount / currentIndentSize);
 		const remainder = visualSpaceCount - indentLevel * currentIndentSize;
 		const newIndentation = indentUtils.generateIndent(indentLevel * newIndentSize + remainder, newIndentSize, true);
@@ -719,11 +722,11 @@ export class ChangeIndentationWidthCommand implements ICommand {
 
 	private selectionId: string | null = null;
 
-	constructor(private readonly selection: Selection, private currentIndentSize: number, private newIndentSize: number) { }
+	constructor(private readonly selection: Selection, private currentIndentSize: number, private currentTabSize: number, private newIndentSize: number) { }
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		this.selectionId = builder.trackSelection(this.selection);
-		getChangeIndentationWidthEditOperations(model, builder, this.currentIndentSize, this.newIndentSize);
+		getChangeIndentationWidthEditOperations(model, builder, this.currentIndentSize, this.currentTabSize, this.newIndentSize);
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
