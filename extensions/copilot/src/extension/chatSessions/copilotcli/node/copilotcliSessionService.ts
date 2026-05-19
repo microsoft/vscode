@@ -40,11 +40,12 @@ import { IChatSessionWorktreeService } from '../../common/chatSessionWorktreeSer
 import { isUntitledSessionId } from '../../common/utils';
 import { emptyWorkspaceInfo, getWorkingDirectory, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { buildChatHistoryFromEvents, RequestIdDetails, stripReminders } from '../common/copilotCLITools';
+import { ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { ICustomSessionTitleService } from '../common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
 import { SessionIdForCLI } from '../common/utils';
 import { getCopilotCLISessionDir } from './cliHelpers';
-import { formatModelDetails, getAgentFileNameFromFilePath, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isEnabledForCopilotCLI } from './copilotCli';
+import { getAgentFileNameFromFilePath, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isEnabledForCopilotCLI } from './copilotCli';
 import { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { CopilotCLISession, ICopilotCLISession } from './copilotcliSession';
 import { ICopilotCLISkills } from './copilotCLISkills';
@@ -1141,14 +1142,14 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		};
 	}
 
-	private async getModelDetailsById(): Promise<ReadonlyMap<string, string>> {
+	private async getModelDetailsById(): Promise<ReadonlyMap<string, ModelDetailsInfo>> {
 		const models = await this._copilotCLIModels.getModels().catch(ex => {
 			this.logService.error(ex, 'Failed to get models');
 			return [];
 		});
-		const detailsById = new Map<string, string>();
+		const detailsById = new Map<string, ModelDetailsInfo>();
 		for (const model of models) {
-			detailsById.set(model.id.trim().toLowerCase(), formatModelDetails(model));
+			detailsById.set(model.id.trim().toLowerCase(), { name: model.name, multiplier: model.multiplier });
 		}
 		return detailsById;
 	}
