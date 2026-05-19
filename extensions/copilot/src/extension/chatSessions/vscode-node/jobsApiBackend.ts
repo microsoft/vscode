@@ -56,8 +56,8 @@ export class JobsApiBackend implements CloudAgentBackend {
 		return this._octoKitService.getSessionLogs(sessionId, CLOUD_SESSIONS_AUTH_OPTIONS);
 	}
 
-	async fetchSessionList(repoIds: GithubRepoId[] | undefined, isAgentWorkspace: boolean): Promise<CloudSessionData[]> {
-		const sessions = await this.fetchAllSessions(repoIds, isAgentWorkspace, true);
+	async fetchSessionList(repoIds: GithubRepoId[] | undefined, isAgentWorkspace: boolean, refresh: boolean): Promise<CloudSessionData[]> {
+		const sessions = await this.fetchAllSessions(repoIds, isAgentWorkspace, refresh);
 
 		// Group sessions by resource_id and keep only the latest per resource_id.
 		const latestSessionsMap = new Map<number, SessionInfo>();

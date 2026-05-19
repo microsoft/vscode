@@ -172,7 +172,7 @@ export class TaskApiBackend implements CloudAgentBackend {
 		};
 	}
 
-	async fetchSessionList(repoIds: GithubRepoId[] | undefined, _isAgentWorkspace: boolean): Promise<CloudSessionData[]> {
+	async fetchSessionList(repoIds: GithubRepoId[] | undefined, _isAgentWorkspace: boolean, _refresh: boolean): Promise<CloudSessionData[]> {
 		const allTasks: Task[] = [];
 		const listOpts: ListTasksOptions = { per_page: 100 };
 
@@ -263,7 +263,6 @@ export class TaskApiBackend implements CloudAgentBackend {
 				}
 			} catch (e) {
 				this._logService.warn(`Failed to poll task ${sessionId}: ${e}`);
-				return undefined;
 			}
 			await new Promise(resolve => setTimeout(resolve, TASK_SESSION_POLL_INTERVAL_MS));
 		}

@@ -73,10 +73,12 @@ export interface CloudAgentBackend {
 	/**
 	 * Fetch a grouped, UI-ready session list. The backend dedupes by resource and
 	 * resolves the associated pull request (or synthesizes one from task data).
+	 * @param refresh When true, bypass any client-side caches and fetch fresh data.
 	 */
 	fetchSessionList(
 		repoIds: GithubRepoId[] | undefined,
 		isAgentWorkspace: boolean,
+		refresh: boolean,
 	): Promise<CloudSessionData[]>;
 
 	/** Fetch initial prompt / problem statement for a session group. */

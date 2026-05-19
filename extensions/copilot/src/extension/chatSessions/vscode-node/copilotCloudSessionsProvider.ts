@@ -365,7 +365,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				let intervalMs: number;
 				let hasHistoricalSessions: boolean;
 				try {
-					const sessionList = await this._backend.fetchSessionList(repoIds, false);
+					const sessionList = await this._backend.fetchSessionList(repoIds, false, false);
 					hasHistoricalSessions = sessionList.length > 0;
 					intervalMs = this.getRefreshIntervalTime(hasHistoricalSessions);
 				} catch (e) {
@@ -378,7 +378,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				telemetryObj.hasHistoricalSessions = hasHistoricalSessions;
 				const schedulerCallback = async () => {
 					try {
-						const sessionList = await this._backend.fetchSessionList(repoIds, false);
+						const sessionList = await this._backend.fetchSessionList(repoIds, false, true);
 						if (this.cachedSessionsSize !== sessionList.length) {
 							this.refresh();
 						}
@@ -1122,7 +1122,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				this.logService.debug('copilotCloudSessionsProvider#provideChatSessionItems: not a GitHub repo, returning empty');
 				return [];
 			}
-			const sessionList = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentSessionsWorkspace);
+			const sessionList = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentSessionsWorkspace, true);
 			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: fetched ${sessionList.length} grouped sessions`);
 			this.cachedSessionsSize = sessionList.length;
 
