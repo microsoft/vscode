@@ -22,7 +22,6 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sess
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
@@ -165,18 +164,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 
-		// When new sessions appear, check if any are currently displayed in a
-		// chat widget. This handles cases where a session is opened in the
-		// widget without going through sessionsManagementService (e.g., fork).
-		if (e.added.length) {
-			for (const added of e.added) {
-				if (added.sessionId !== currentActive?.sessionId && this.chatWidgetService.getWidgetBySessionResource(added.resource)) {
-					this.setActiveSession(added);
-					return;
-				}
-			}
-		}
-
 		if (!currentActive) {
 			return;
 		}
@@ -194,7 +181,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		for (const provider of this.sessionsProvidersService.getProviders()) {
 			sessions.push(...provider.getSessions());
 		}
-		return deduplicateSessions(sessions);
+		return sessions;
 	}
 
 	getSession(resource: URI): ISession | undefined {
@@ -686,7 +673,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					}
 				};
 
-				disposables.add(this.onDidChangeSessions(() => tryRestore()));
 				disposables.add(this.sessionsProvidersService.onDidChangeProviders(() => tryRestore()));
 
 				// Call immediately in case the session became available between the
@@ -794,36 +780,6 @@ class ActiveSession implements IActiveSession {
 	get chats() { return this._session.chats; }
 	get mainChat() { return this._session.mainChat; }
 	get capabilities() { return this._session.capabilities; }
-	get deduplicationKey() { return this._session.deduplicationKey; }
 }
 
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);
-
-/**
- * Removes duplicate sessions across providers. When multiple sessions share
- * the same {@link ISession.deduplicationKey}, the session from the local
- * agent host provider is preferred; otherwise the first occurrence wins.
- */
-export function deduplicateSessions(sessions: ISession[]): ISession[] {
-	const seen = new Map<string, ISession>();
-	for (const session of sessions) {
-		const key = session.deduplicationKey;
-		if (!key) {
-			continue;
-		}
-		const existing = seen.get(key);
-		if (!existing) {
-			seen.set(key, session);
-		} else if (existing.providerId !== LOCAL_AGENT_HOST_PROVIDER_ID && session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
-			seen.set(key, session);
-		}
-	}
-
-	return sessions.filter(s => {
-		const key = s.deduplicationKey;
-		if (!key) {
-			return true;
-		}
-		return seen.get(key) === s;
-	});
-}

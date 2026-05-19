@@ -557,9 +557,8 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 
-		this._agentHostService.dispatch({
+		this._agentHostService.dispatch(backendSession.toString(), {
 			type: ActionType.SessionConfigChanged,
-			session: backendSession.toString(),
 			config: partial,
 		});
 	}

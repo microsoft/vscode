@@ -20,87 +20,85 @@ export const enum AuthRequiredReason {
 	Expired = 'expired',
 }
 
-// ─── Protocol Notifications ──────────────────────────────────────────────────
+// ─── root/sessionAdded ───────────────────────────────────────────────────────
 
 /**
- * Discriminant values for all protocol notifications.
+ * Broadcast to all clients subscribed to the root channel when a new session
+ * is created.
  *
  * @category Protocol Notifications
- */
-export const enum NotificationType {
-	SessionAdded = 'notify/sessionAdded',
-	SessionRemoved = 'notify/sessionRemoved',
-	SessionSummaryChanged = 'notify/sessionSummaryChanged',
-	AuthRequired = 'notify/authRequired',
-}
-
-/**
- * Broadcast to all connected clients when a new session is created.
- *
- * @category Protocol Notifications
+ * @method root/sessionAdded
+ * @direction Server → Client
+ * @messageType Notification
  * @version 1
  * @example
  * ```json
  * {
  *   "jsonrpc": "2.0",
- *   "method": "notification",
+ *   "method": "root/sessionAdded",
  *   "params": {
- *     "notification": {
- *       "type": "notify/sessionAdded",
- *       "summary": {
- *         "resource": "copilot:/<uuid>",
- *         "provider": "copilot",
- *         "title": "New Session",
- *         "status": 1,
- *         "createdAt": 1710000000000,
- *         "modifiedAt": 1710000000000
- *       }
+ *     "channel": "ahp-root://",
+ *     "summary": {
+ *       "resource": "ahp-session:/<uuid>",
+ *       "provider": "copilot",
+ *       "title": "New Session",
+ *       "status": 1,
+ *       "createdAt": 1710000000000,
+ *       "modifiedAt": 1710000000000
  *     }
  *   }
  * }
  * ```
  */
-export interface SessionAddedNotification {
-	type: NotificationType.SessionAdded;
+export interface SessionAddedParams {
+	/** Channel URI this notification belongs to (the root channel) */
+	channel: URI;
 	/** Summary of the new session */
 	summary: SessionSummary;
 }
 
+// ─── root/sessionRemoved ─────────────────────────────────────────────────────
+
 /**
- * Broadcast to all connected clients when a session is disposed.
+ * Broadcast to all clients subscribed to the root channel when a session is
+ * disposed.
  *
  * @category Protocol Notifications
+ * @method root/sessionRemoved
+ * @direction Server → Client
+ * @messageType Notification
  * @version 1
  * @example
  * ```json
  * {
  *   "jsonrpc": "2.0",
- *   "method": "notification",
+ *   "method": "root/sessionRemoved",
  *   "params": {
- *     "notification": {
- *       "type": "notify/sessionRemoved",
- *       "session": "copilot:/<uuid>"
- *     }
+ *     "channel": "ahp-root://",
+ *     "session": "ahp-session:/<uuid>"
  *   }
  * }
  * ```
  */
-export interface SessionRemovedNotification {
-	type: NotificationType.SessionRemoved;
+export interface SessionRemovedParams {
+	/** Channel URI this notification belongs to (the root channel) */
+	channel: URI;
 	/** URI of the removed session */
 	session: URI;
 }
 
+// ─── root/sessionSummaryChanged ──────────────────────────────────────────────
+
 /**
- * Broadcast to all connected clients when an existing session's summary
- * changes (title, status, `modifiedAt`, model, working directory, read/done
- * state, or diff statistics).
+ * Broadcast to all clients subscribed to the root channel when an existing
+ * session's summary changes (title, status, `modifiedAt`, model, working
+ * directory, read/done state, or diff statistics).
  *
  * This notification lets clients that maintain a cached session list — for
  * example, the result of a previous `listSessions()` call — stay in sync with
  * in-flight sessions without having to subscribe to every session URI
  * individually. It is complementary to, not a replacement for,
- * `notify/sessionAdded` and `notify/sessionRemoved`: those signal lifecycle
+ * `root/sessionAdded` and `root/sessionRemoved`: those signal lifecycle
  * (creation/disposal), while this signals summary-level mutations on an
  * already-known session.
  *
@@ -115,36 +113,38 @@ export interface SessionRemovedNotification {
  *   catalog via `listSessions()` as usual.
  * - The server SHOULD emit this notification whenever any mutable field on
  *   {@link SessionSummary | `SessionSummary`} changes for a session the
- *   server has surfaced via `listSessions()` or `notify/sessionAdded`.
+ *   server has surfaced via `listSessions()` or `root/sessionAdded`.
  *   Servers MAY coalesce or debounce updates for noisy fields (for example,
  *   `modifiedAt` bumps while a turn is streaming, or rapidly changing
  *   `changesets`) at their discretion.
  * - Clients that have no cached entry for `session` MAY ignore the
- *   notification; it is not a substitute for `notify/sessionAdded`.
+ *   notification; it is not a substitute for `root/sessionAdded`.
  *
  * @category Protocol Notifications
+ * @method root/sessionSummaryChanged
+ * @direction Server → Client
+ * @messageType Notification
  * @version 1
  * @example
  * ```json
  * {
  *   "jsonrpc": "2.0",
- *   "method": "notification",
+ *   "method": "root/sessionSummaryChanged",
  *   "params": {
- *     "notification": {
- *       "type": "notify/sessionSummaryChanged",
- *       "session": "copilot:/<uuid>",
- *       "changes": {
- *         "title": "Refactor auth middleware",
- *         "status": 8,
- *         "modifiedAt": 1710000123456
- *       }
+ *     "channel": "ahp-root://",
+ *     "session": "ahp-session:/<uuid>",
+ *     "changes": {
+ *       "title": "Refactor auth middleware",
+ *       "status": 8,
+ *       "modifiedAt": 1710000123456
  *     }
  *   }
  * }
  * ```
  */
-export interface SessionSummaryChangedNotification {
-	type: NotificationType.SessionSummaryChanged;
+export interface SessionSummaryChangedParams {
+	/** Channel URI this notification belongs to (the root channel) */
+	channel: URI;
 	/** URI of the session whose summary changed */
 	session: URI;
 	/**
@@ -156,45 +156,45 @@ export interface SessionSummaryChangedNotification {
 	changes: Partial<SessionSummary>;
 }
 
+// ─── auth/required ───────────────────────────────────────────────────────────
+
 /**
  * Sent by the server when a protected resource requires (re-)authentication.
  *
- * This notification is sent when a previously valid token expires or is
- * revoked, or when the server discovers a new authentication requirement.
+ * This notification MAY be associated with any channel — for example, an
+ * agent advertised on the root channel, or a per-session resource. The
+ * `channel` field identifies the subscription the auth requirement belongs
+ * to; the `resource` field carries the OAuth-protected resource identifier
+ * (per RFC 9728).
+ *
  * Clients should obtain a fresh token and push it via the `authenticate`
  * command.
  *
  * @category Protocol Notifications
+ * @method auth/required
+ * @direction Server → Client
+ * @messageType Notification
  * @version 1
  * @see {@link /specification/authentication | Authentication}
  * @example
  * ```json
  * {
  *   "jsonrpc": "2.0",
- *   "method": "notification",
+ *   "method": "auth/required",
  *   "params": {
- *     "notification": {
- *       "type": "notify/authRequired",
- *       "resource": "https://api.github.com",
- *       "reason": "expired"
- *     }
+ *     "channel": "ahp-root://",
+ *     "resource": "https://api.github.com",
+ *     "reason": "expired"
  *   }
  * }
  * ```
  */
-export interface AuthRequiredNotification {
-	type: NotificationType.AuthRequired;
+export interface AuthRequiredParams {
+	/** Channel URI this notification belongs to */
+	channel: URI;
 	/** The protected resource identifier that requires authentication */
 	resource: string;
 	/** Why authentication is required */
 	reason?: AuthRequiredReason;
 }
 
-/**
- * Discriminated union of all protocol notifications.
- */
-export type ProtocolNotification =
-	| SessionAddedNotification
-	| SessionRemovedNotification
-	| SessionSummaryChangedNotification
-	| AuthRequiredNotification;

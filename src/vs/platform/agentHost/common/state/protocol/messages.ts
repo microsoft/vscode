@@ -9,7 +9,7 @@
 import type { InitializeParams, InitializeResult, PingParams, ReconnectParams, ReconnectResult, SubscribeParams, SubscribeResult, CreateSessionParams, DisposeSessionParams, CreateTerminalParams, DisposeTerminalParams, ListSessionsParams, ListSessionsResult, ResourceReadParams, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, ResourceListParams, ResourceListResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceMoveParams, ResourceMoveResult, ResourceRequestParams, ResourceRequestResult, FetchTurnsParams, FetchTurnsResult, UnsubscribeParams, DispatchActionParams, AuthenticateParams, AuthenticateResult, ResolveSessionConfigParams, ResolveSessionConfigResult, SessionConfigCompletionsParams, SessionConfigCompletionsResult, CompletionsParams, CompletionsResult, InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './commands.js';
 
 import type { ActionEnvelope } from './actions.js';
-import type { ProtocolNotification } from './notifications.js';
+import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams, AuthRequiredParams } from './notifications.js';
 import type { AhpError } from './errors.js';
 
 // ─── JSON-RPC Base Types ─────────────────────────────────────────────────────
@@ -114,13 +114,12 @@ export interface ServerCommandMap {
 
 // ─── Notification Maps ───────────────────────────────────────────────────────
 
-/** Params for the server → client `notification` method. */
-export interface NotificationMethodParams {
-	notification: ProtocolNotification;
-}
-
 /**
  * Registry mapping each client → server notification method to its params type.
+ *
+ * Every notification's params MUST carry a top-level `channel: URI` so that
+ * the server can route the message to the correct subscription. See
+ * {@link UnsubscribeParams} for the canonical "base" shape.
  *
  * @category Notifications
  */
@@ -132,15 +131,18 @@ export interface ClientNotificationMap {
 /**
  * Registry mapping each server → client notification method to its params type.
  *
+ * Every notification's params MUST carry a top-level `channel: URI` so that
+ * the client can dispatch the message to the right subscription.
+ *
  * @category Notifications
  */
 export interface ServerNotificationMap {
 	'action': { params: ActionEnvelope };
-	'notification': { params: NotificationMethodParams };
+	'root/sessionAdded': { params: SessionAddedParams };
+	'root/sessionRemoved': { params: SessionRemovedParams };
+	'root/sessionSummaryChanged': { params: SessionSummaryChangedParams };
+	'auth/required': { params: AuthRequiredParams };
 }
-
-/** Combined notification map for all directions. */
-export type NotificationMap = ClientNotificationMap & ServerNotificationMap;
 
 // ─── Typed Requests ──────────────────────────────────────────────────────────
 
@@ -223,26 +225,6 @@ export type AhpServerResponse<M extends keyof ServerCommandMap = keyof ServerCom
 
 // ─── Typed Notifications ─────────────────────────────────────────────────────
 
-/**
- * A fully typed JSON-RPC notification for a specific AHP notification method.
- *
- * When used as a union (default generic), narrowing on `method` gives typed `params`:
- *
- * ```ts
- * function handle(notif: AhpNotification) {
- *   if (notif.method === 'action') {
- *     notif.params.serverSeq; // typed as number
- *   }
- * }
- * ```
- */
-export type AhpNotification<M extends keyof NotificationMap = keyof NotificationMap> =
-	M extends unknown ? {
-		readonly jsonrpc: '2.0';
-		readonly method: M;
-		readonly params: NotificationMap[M]['params'];
-	} : never;
-
 /** A client → server notification. */
 export type AhpClientNotification<M extends keyof ClientNotificationMap = keyof ClientNotificationMap> =
 	M extends unknown ? {
@@ -258,6 +240,15 @@ export type AhpServerNotification<M extends keyof ServerNotificationMap = keyof 
 		readonly method: M;
 		readonly params: ServerNotificationMap[M]['params'];
 	} : never;
+
+/**
+ * A fully typed JSON-RPC notification — either direction.
+ *
+ * The client → server `dispatchAction` method and the server → client
+ * `action` method are distinct entries in the registries; their params have
+ * unrelated shapes ({@link DispatchActionParams} vs {@link ActionEnvelope}).
+ */
+export type AhpNotification = AhpClientNotification | AhpServerNotification;
 
 // ─── Protocol Message Union ──────────────────────────────────────────────────
 
