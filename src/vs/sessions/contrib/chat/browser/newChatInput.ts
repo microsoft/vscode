@@ -10,6 +10,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isMobile, isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -320,6 +321,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				showStatusBar: false,
 				insertMode: 'insert',
 			},
+			// Chat is prose: enable native autocorrect/autocapitalize/spellcheck on
+			// the input element so the mobile keyboard's auto-correction works for
+			// chat messages. Limited to web mobile (vscode.dev/agents) where this
+			// matters most; desktop users keep the current code-editor-style input
+			// behavior.
+			inputAids: isWeb && isMobile,
 		};
 
 		const widgetOptions: ICodeEditorWidgetOptions = {

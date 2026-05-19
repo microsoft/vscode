@@ -182,10 +182,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this.textArea.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
-		this.textArea.setAttribute('autocorrect', 'off');
-		this.textArea.setAttribute('autocapitalize', 'off');
+		this._writeInputAidAttributes(options);
 		this.textArea.setAttribute('autocomplete', 'off');
-		this.textArea.setAttribute('spellcheck', 'false');
 		this.textArea.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		this.textArea.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
 		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
@@ -580,6 +578,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this.textArea.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
+		this._writeInputAidAttributes(options);
 		this.textArea.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		this.textArea.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
 		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
@@ -674,6 +673,13 @@ export class TextAreaEditContext extends AbstractEditContext {
 		} else {
 			this.textArea.removeAttribute('readonly');
 		}
+	}
+
+	private _writeInputAidAttributes(options: IComputedEditorOptions): void {
+		const inputAids = options.get(EditorOption.inputAids);
+		this.textArea.setAttribute('autocorrect', inputAids ? 'on' : 'off');
+		this.textArea.setAttribute('autocapitalize', inputAids ? 'on' : 'off');
+		this.textArea.setAttribute('spellcheck', inputAids ? 'true' : 'false');
 	}
 
 	private _primaryCursorPosition: Position = new Position(1, 1);

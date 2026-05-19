@@ -71,6 +71,13 @@ export interface IEditorOptions {
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
 	ariaLabel?: string;
+	/**
+	 * Enable native input aids on the editor's input element: `autocorrect`, `autocapitalize`
+	 * and `spellcheck`. Useful for prose-style inputs such as chat where mobile keyboard
+	 * auto-correction is desired. The `autocomplete` attribute (form autofill) is not affected.
+	 * Defaults to `false`.
+	 */
+	inputAids?: boolean;
 
 	/**
 	 * Whether the aria-required attribute should be set on the editors textarea.
@@ -5843,6 +5850,7 @@ export const enum EditorOption {
 	hover,
 	inDiffEditor,
 	inlineSuggest,
+	inputAids,
 	letterSpacing,
 	lightbulb,
 	lineDecorationsWidth,
@@ -6366,6 +6374,9 @@ export const EditorOptions = {
 	inertialScroll: register(new EditorBooleanOption(
 		EditorOption.inertialScroll, 'inertialScroll', false,
 		{ description: nls.localize('inertialScroll', "Make scrolling inertial - mostly useful with touchpad on linux.") }
+	)),
+	inputAids: register(new EditorBooleanOption(
+		EditorOption.inputAids, 'inputAids', false
 	)),
 	letterSpacing: register(new EditorFloatOption(
 		EditorOption.letterSpacing, 'letterSpacing',
