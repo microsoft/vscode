@@ -29,7 +29,7 @@ export function setup(logger: Logger, opts: { web?: boolean; remote?: boolean })
 			const app = this.app as Application;
 
 			await app.workbench.quickaccess.runCommand('smoketest.openCopilotCliChat');
-			await app.workbench.chat.waitForChatEditor();
+			await app.workbench.chat.waitForChatEditor(600);
 			await app.workbench.chat.sendMessage('Reply with one short sentence. Do not run tools or edit files.', 'editor');
 			await app.workbench.chat.waitForResponse(1500, 'editor');
 
