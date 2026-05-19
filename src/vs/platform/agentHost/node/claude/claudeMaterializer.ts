@@ -70,17 +70,19 @@ export class ClaudeMaterializer {
 		proxyHandle: IClaudeProxyHandle,
 		permissionMode: ClaudePermissionMode,
 		canUseTool: NonNullable<Options['canUseTool']>,
+		startMode: 'fresh' | 'resume' = 'fresh',
 	): Promise<ClaudeAgentSession> {
 		if (!provisional.workingDirectory) {
 			throw new Error(`Cannot materialize Claude session ${provisional.sessionId}: workingDirectory is required`);
 		}
 
-		const options = await this._buildOptions(provisional, proxyHandle, permissionMode, canUseTool, false);
+		const isResume = startMode === 'resume';
+		const options = await this._buildOptions(provisional, proxyHandle, permissionMode, canUseTool, isResume);
 
 		// Trace what the SDK gets so live debugging doesn't have to infer
 		// from the absence of a `fileEdit` block whether the edit-tracking
 		// plumbing was wired this session.
-		this._logService.info(`[Claude] session ${provisional.sessionId}: enableFileCheckpointing=${options.enableFileCheckpointing} startMode=fresh`);
+		this._logService.info(`[Claude] session ${provisional.sessionId}: enableFileCheckpointing=${options.enableFileCheckpointing} startMode=${startMode}`);
 
 		const warm = await this._sdkService.startup({ options });
 
