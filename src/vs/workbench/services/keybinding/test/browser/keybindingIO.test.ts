@@ -10,6 +10,8 @@ import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { KeybindingIO } from '../../common/keybindingIO.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { WorkbenchKeybindingService } from '../../browser/keybindingService.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 
 suite('keybindingIO', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -124,6 +126,31 @@ suite('keybindingIO', () => {
 		);
 	});
 
+	test('empty contributed keybinding creates metadata-only rule', () => {
+		const commandId = 'test.emptyKeybindingCommand';
+
+		const rule = WorkbenchKeybindingService.prototype['_asCommandRule'].call(
+			{},
+			new ExtensionIdentifier('test.extension'),
+			false,
+			0,
+			{
+				command: commandId,
+				args: undefined,
+				key: '',
+				mac: undefined,
+				linux: undefined,
+				win: undefined,
+				when: 'editorTextFocus'
+			}
+		);
+
+		assert.ok(rule);
+
+		assert.strictEqual(rule.keybinding, null);
+		assert.strictEqual(rule.id, commandId);
+	});
+
 	test('issue #10452 - invalid command', () => {
 		const strJSON = `[{ "key": "ctrl+k ctrl+f", "command": ["firstcommand", "seccondcommand"] }]`;
 		const userKeybinding = <Object>JSON.parse(strJSON)[0];
@@ -158,4 +185,5 @@ suite('keybindingIO', () => {
 		const keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding);
 		assert.strictEqual((keybindingItem.commandArgs as unknown as { text: string }).text, 'theText');
 	});
+
 });

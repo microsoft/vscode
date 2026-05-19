@@ -13,6 +13,7 @@ import { KeybindingResolver, ResultKind } from '../../common/keybindingResolver.
 import { ResolvedKeybindingItem } from '../../common/resolvedKeybindingItem.js';
 import { USLayoutResolvedKeybinding } from '../../common/usLayoutResolvedKeybinding.js';
 import { createUSLayoutResolvedKeybinding } from './keybindingsTestUtils.js';
+import { KeybindingsRegistry } from '../../common/keybindingsRegistry.js';
 
 function createContext(ctx: any) {
 	return {
@@ -194,7 +195,7 @@ suite('KeybindingResolver', () => {
 			]);
 		});
 
-		test('empty keybinding override is preserved', () => {
+		test('unbound override keybindings are preserved during removal handling', () => {
 			const defaults = [
 				kbItem(KeyCode.KeyA, 'command1', null, undefined, true)
 			];
@@ -206,6 +207,29 @@ suite('KeybindingResolver', () => {
 				kbItem(KeyCode.KeyA, 'command1', null, undefined, true),
 				kbItem(0, 'command1', null, undefined, false)
 			]);
+		});
+
+		test('registry preserves metadata-only extension keybinding rules', () => {
+			const commandId = 'test.metadataOnlyCommand';
+
+			KeybindingsRegistry.setExtensionKeybindings([
+				{
+					id: commandId,
+					keybinding: null,
+					when: ContextKeyExpr.deserialize('editorTextFocus'),
+					weight: 100,
+					extensionId: 'test.extension',
+					isBuiltinExtension: false
+				}
+			]);
+
+			const actual = KeybindingsRegistry
+				.getDefaultKeybindings()
+				.find(item => item.command === commandId);
+
+			assert.ok(actual);
+			assert.strictEqual(actual.keybinding, null);
+			assert.strictEqual(actual.when?.serialize(), 'editorTextFocus');
 		});
 
 		test('issue #138997 - removal in default list', () => {
