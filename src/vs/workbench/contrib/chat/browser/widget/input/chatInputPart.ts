@@ -1381,7 +1381,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!sessionResource) {
 			return;
 		}
-		if (!requests || requests.length === 0 || sessionResource.scheme !== SessionType.CopilotCLI) {
+		if (!requests || requests.length === 0 || getChatSessionType(sessionResource) !== SessionType.CopilotCLI) {
 			return;
 		}
 
