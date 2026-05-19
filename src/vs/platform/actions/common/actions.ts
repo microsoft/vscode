@@ -87,6 +87,7 @@ export class MenuId {
 	static readonly EditorContextCopy = new MenuId('EditorContextCopy');
 	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
 	static readonly EditorContextShare = new MenuId('EditorContextShare');
+	static readonly EditorCodeLensContext = new MenuId('EditorCodeLensContext');
 	static readonly EditorTitle = new MenuId('EditorTitle');
 	static readonly EditorTitleLayout = new MenuId('EditorTitleLayout');
 	static readonly ModalEditorTitle = new MenuId('ModalEditorTitle');
