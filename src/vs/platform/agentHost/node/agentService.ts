@@ -21,7 +21,7 @@ import { ServiceCollection } from '../../instantiation/common/serviceCollection.
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
-import { buildDefaultChangesetCatalogue } from '../common/changesetUri.js';
+import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -452,10 +452,12 @@ export class AgentService extends Disposable implements IAgentService {
 		// run before `SessionReady` is dispatched. Any future change must
 		// keep both halves at create time so client subscriptions resolve
 		// to a `status: computing` snapshot rather than a 404 even on
-		// provisional sessions, and so the catalogue chip renders the three
-		// default entries (`Uncommitted Changes`, `Session Changes`,
-		// `This Turn`) immediately. Pinned by item-2 regression tests in
-		// `agentService.test.ts`.
+		// provisional sessions, and so the catalogue chip renders the
+		// default entries (`Branch Changes`, `Uncommitted Changes`,
+		// `This Turn`) immediately. The first two are git-only: a later
+		// `_attachGitState` strips them once the git probe confirms the
+		// resolved working directory is not a git repo. Pinned by item-2
+		// regression tests in `agentService.test.ts`.
 		this._changesetCoordinator.onSessionCreated(session.toString());
 
 		if (!created.provisional) {
@@ -541,17 +543,30 @@ export class AgentService extends Disposable implements IAgentService {
 	 * working directory (if any) and merges it into `state._meta.git` via
 	 * the state manager. Failures are logged; sessions simply remain without
 	 * git state.
+	 *
+	 * Also gates the two git-only default catalogue entries
+	 * (`Branch Changes`, `Uncommitted Changes`): when the working
+	 * directory is resolved AND the git probe confirms it is not a git
+	 * repo, those entries are stripped from `summary.changesets`, leaving
+	 * only `This Turn`. An absent working directory is treated as
+	 * transient (provisional / pre-materialize / pre-restore) — we do NOT
+	 * strip in that case because there is no path that re-adds the
+	 * entries when a subsequent `onSessionMaterialized` / restore call
+	 * resolves the working directory and the probe succeeds. The
+	 * entries' counts remain unset until a real compute lands, so chip
+	 * rendering naturally skips them in the meantime.
 	 */
 	private _attachGitState(session: URI, workingDirectory: URI | undefined): void {
 		if (!workingDirectory) {
 			return;
 		}
+		const sessionKey = session.toString();
 		this._gitService.getSessionGitState(workingDirectory).then(
 			gitState => {
 				if (!gitState) {
+					this._stripGitOnlyChangesetEntries(sessionKey);
 					return;
 				}
-				const sessionKey = session.toString();
 				const current = this._stateManager.getSessionState(sessionKey)?._meta;
 				// Skip the action if the computed git state hasn't changed; this is
 				// called after every turn, so deduping avoids needless action churn.
@@ -565,6 +580,30 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.warn(`[AgentService] Failed to compute git state for ${session}`, e);
 			},
 		);
+	}
+
+	/**
+	 * Drops the `Branch Changes` and `Uncommitted Changes` entries from
+	 * the session's catalogue. Called only when the git probe has
+	 * definitively determined the working directory is not a git repo.
+	 * An absent / unresolved working directory is treated as transient
+	 * and does NOT trigger a strip — see {@link _attachGitState}.
+	 * Backing per-changeset states (registered unconditionally) are left
+	 * in place — only the catalogue advertisements are stripped.
+	 */
+	private _stripGitOnlyChangesetEntries(sessionKey: string): void {
+		const state = this._stateManager.getSessionState(sessionKey);
+		const current = state?.summary.changesets;
+		if (!current || current.length === 0) {
+			return;
+		}
+		const branchUri = buildSessionChangesetUri(sessionKey);
+		const uncommittedUri = buildUncommittedChangesetUri(sessionKey);
+		const filtered = current.filter(c => c.uriTemplate !== branchUri && c.uriTemplate !== uncommittedUri);
+		if (filtered.length === current.length) {
+			return;
+		}
+		this._stateManager.setSessionChangesets(sessionKey, filtered);
 	}
 
 	private _persistConfigValues(session: URI, values: Record<string, unknown>): void {
