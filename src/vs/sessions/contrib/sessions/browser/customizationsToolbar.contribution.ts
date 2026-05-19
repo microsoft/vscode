@@ -288,9 +288,9 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 					const harnessService = accessor.get(ICustomizationHarnessService);
 					const sessionsManagementService = accessor.get(ISessionsManagementService);
 					const configurationService = accessor.get(IConfigurationService);
-					const harnessId = findHarnessIdForSession(sessionsManagementService.activeSession.get(), harnessService);
-					if (harnessId) {
-						harnessService.setActiveHarness(harnessId);
+					const sessionResource = sessionsManagementService.activeSession.get()?.resource;
+					if (sessionResource) {
+						harnessService.setActiveSession(sessionResource);
 					}
 					const input = AICustomizationManagementEditorInput.getOrCreate();
 					const pane = await editorService.openEditor(input, { pinned: true });
@@ -367,10 +367,7 @@ export class ActiveSessionHarnessSyncContribution extends Disposable implements 
 			// (e.g. agent host, CLI) registers asynchronously after the session
 			// has already been selected.
 			harnessService.availableHarnesses.read(reader);
-			const harnessId = findHarnessIdForSession(session, harnessService);
-			if (harnessId) {
-				harnessService.setActiveHarness(harnessId);
-			}
+			harnessService.setActiveSession(session.resource);
 		}));
 	}
 }
