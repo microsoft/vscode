@@ -534,6 +534,31 @@ suite('git', () => {
 				coAuthors: []
 			}]);
 		});
+
+		test('SHA-256 hash commit', function () {
+			const GIT_OUTPUT_SINGLE_PARENT =
+				'9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'b9469a95e64ad83017429739bd95b527100cdfec700ac1fb15d3d7d1dfd6aa22\n' +
+				'main,branch\n' +
+				'This is a commit message.\x00';
+
+			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
+				hash: '9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098',
+				message: 'This is a commit message.',
+				parents: ['b9469a95e64ad83017429739bd95b527100cdfec700ac1fb15d3d7d1dfd6aa22'],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
+				authorEmail: 'john.doe@mail.com',
+				commitDate: new Date(1580811031000),
+				refNames: ['main', 'branch'],
+				shortStat: undefined,
+				coAuthors: []
+			}]);
+		});
 	});
 
 	suite('parseLsTree', function () {
@@ -564,6 +589,36 @@ suite('git', () => {
 				{ mode: '100644', type: 'blob', object: '257cc5642cb1a054f08cc83f2d943e56fd3ebe99', size: '4', file: 'what.js' },
 				{ mode: '100644', type: 'blob', object: 'be859e3f412fa86513cd8bebe8189d1ea1a3e46d', size: '24', file: 'what.txt' },
 				{ mode: '100644', type: 'blob', object: '56ec42c9dc6fcf4534788f0fe34b36e09f37d085', size: '261186', file: 'what.txt2' }
+			]);
+		});
+
+		test('SHA-256 hashes', function () {
+			const input = `040000 tree b97f4f0b6769e62fe152d5093cdb6a1026325d2d569e9985f639b4bb69081810       -	.vscode
+100644 blob a9ae1893d6ccafabb2718269c180be0dc3924a7480f5040f6fc28ba7a002f3b7  491570	Screen Shot 2018-06-01 at 14.48.05.png
+100644 blob 0667e7cdcbf2caa1d3a5dd708cd90fe08c778b20d01a10e28c5eb72b0b54026e  764420	Screen Shot 2018-06-07 at 20.04.59.png
+100644 blob 78ba54c83767be0aa91a2dd8cda6c5d92a3830971099967eaf5931a7532534e1       4	boom.txt
+100644 blob c048ab7ba31f244f98500c3bf7feb7305a460b1bdba0c7e26a993807a152f77a      11	boomcaboom.txt
+100644 blob 3559a563123a2bebf459117d2e66aa9c319f8df8bffa548a7ddc5caf1d9896c1      24	file.js
+100644 blob 59e884c6dbd018ea43e694e821f96a5b08226b5ef345e65e81e665cc44c59d95     201	file.md
+100644 blob f868215c351673fcd5d26414b144a100f986c63e3a0f2822eee1566e766f95ba       8	hello.js
+100644 blob 78ba54c83767be0aa91a2dd8cda6c5d92a3830971099967eaf5931a7532534e1       4	what.js
+100644 blob 20bf819186af6d79b888c89fd94a010f532544a7d3cd6797fc4344c062e0a303      24	what.txt
+100644 blob dcc9c94a5810b1ac3f3ae52937f7dab8087e205b23b1cdc745308e1227b6713c  261186	what.txt2`;
+
+			const output = parseLsTree(input);
+
+			assert.deepStrictEqual(output, [
+				{ mode: '040000', type: 'tree', object: 'b97f4f0b6769e62fe152d5093cdb6a1026325d2d569e9985f639b4bb69081810', size: '-', file: '.vscode' },
+				{ mode: '100644', type: 'blob', object: 'a9ae1893d6ccafabb2718269c180be0dc3924a7480f5040f6fc28ba7a002f3b7', size: '491570', file: 'Screen Shot 2018-06-01 at 14.48.05.png' },
+				{ mode: '100644', type: 'blob', object: '0667e7cdcbf2caa1d3a5dd708cd90fe08c778b20d01a10e28c5eb72b0b54026e', size: '764420', file: 'Screen Shot 2018-06-07 at 20.04.59.png' },
+				{ mode: '100644', type: 'blob', object: '78ba54c83767be0aa91a2dd8cda6c5d92a3830971099967eaf5931a7532534e1', size: '4', file: 'boom.txt' },
+				{ mode: '100644', type: 'blob', object: 'c048ab7ba31f244f98500c3bf7feb7305a460b1bdba0c7e26a993807a152f77a', size: '11', file: 'boomcaboom.txt' },
+				{ mode: '100644', type: 'blob', object: '3559a563123a2bebf459117d2e66aa9c319f8df8bffa548a7ddc5caf1d9896c1', size: '24', file: 'file.js' },
+				{ mode: '100644', type: 'blob', object: '59e884c6dbd018ea43e694e821f96a5b08226b5ef345e65e81e665cc44c59d95', size: '201', file: 'file.md' },
+				{ mode: '100644', type: 'blob', object: 'f868215c351673fcd5d26414b144a100f986c63e3a0f2822eee1566e766f95ba', size: '8', file: 'hello.js' },
+				{ mode: '100644', type: 'blob', object: '78ba54c83767be0aa91a2dd8cda6c5d92a3830971099967eaf5931a7532534e1', size: '4', file: 'what.js' },
+				{ mode: '100644', type: 'blob', object: '20bf819186af6d79b888c89fd94a010f532544a7d3cd6797fc4344c062e0a303', size: '24', file: 'what.txt' },
+				{ mode: '100644', type: 'blob', object: 'dcc9c94a5810b1ac3f3ae52937f7dab8087e205b23b1cdc745308e1227b6713c', size: '261186', file: 'what.txt2' }
 			]);
 		});
 	});
