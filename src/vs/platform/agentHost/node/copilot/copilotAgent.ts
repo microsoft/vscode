@@ -286,11 +286,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		// Restart the CLI client when session sync setting changes (only if idle)
 		this._register(this._configurationService.onDidRootConfigChange(() => {
-			this._restartClientIfSessionSyncChanged();
+			this._restartClientIfSessionSyncChanged().catch(err =>
+				this._logService.error('[Copilot] Failed to restart client after session sync change', err)
+			);
 		}));
 	}
 
-	private _lastSessionSyncEnabled: boolean | undefined;
+	private _lastSessionSyncEnabled: boolean = this._isSessionSyncEnabled();
 
 	private _isSessionSyncEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true;
