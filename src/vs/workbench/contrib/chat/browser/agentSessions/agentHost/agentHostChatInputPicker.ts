@@ -370,16 +370,11 @@ export class AgentHostChatInputPicker extends Disposable {
 			trigger.classList.toggle('info', value === 'autoApprove');
 		}
 		const label = this._labelFor(schema, value);
-		if (!compact) {
-			const labelSpan = dom.append(trigger, dom.$('span.agent-host-chat-input-picker-label'));
-			labelSpan.textContent = label;
-		}
+		const labelSpan = dom.append(trigger, dom.$('span.agent-host-chat-input-picker-label'));
+		labelSpan.textContent = label;
 		trigger.setAttribute('aria-label', isReadOnly
 			? localize('agentHostChatInputPicker.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, label)
 			: localize('agentHostChatInputPicker.triggerAria', "{0}: {1}", schema.title, label));
-		if (!isReadOnly && !compact) {
-			dom.append(trigger, renderIcon(Codicon.chevronDown));
-		}
 	}
 
 	private _labelFor(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
