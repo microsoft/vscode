@@ -184,7 +184,6 @@ registerTerminalContribution(TerminalClipboardContribution.ID, TerminalClipboard
 
 const terminalAvailableWhenClause = ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated);
 
-// TODO: Move these commands into this terminalContrib/
 registerActiveInstanceAction({
 	id: TerminalCommandId.CopyLastCommand,
 	title: localize2('workbench.action.terminal.copyLastCommand', "Copy Last Command"),
