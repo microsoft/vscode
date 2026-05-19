@@ -2426,16 +2426,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const pickerOptions: IChatInputPickerOptions = {
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
 			actionContext: { widget },
-			hideChevrons: derived(reader => this._stableInputPartWidth.read(reader) < CHAT_INPUT_PICKER_COLLAPSE_WIDTH),
+			compact: derived(reader => this._stableInputPartWidth.read(reader) < CHAT_INPUT_PICKER_COLLAPSE_WIDTH),
 		};
 		const primarySessionPickerOptions: IChatInputPickerOptions = {
 			...pickerOptions,
-			hideChevrons: constObservable(true),
+			compact: constObservable(true),
 		};
 		const secondaryPickerOptions: IChatInputPickerOptions = {
 			...pickerOptions,
 			getOverflowAnchor: () => this.secondaryToolbar.getElement(),
-			hideChevrons: constObservable(true),
+			compact: constObservable(true),
 		};
 
 		this._register(dom.addStandardDisposableListener(toolbarsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
@@ -2538,14 +2538,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this._toolbarRelayoutScheduler.schedule();
 			}
 		}));
-		// When hideChevrons changes, picker items change their rendered size
+		// When compact changes, picker items change their rendered size
 		// but the toolbar's ResizeObserver won't fire (the toolbar element size
 		// didn't change, only its children did). Force a relayout so the
 		// responsive overflow logic re-evaluates with the correct item widths.
 		// The relayout is deferred by a microtask so the picker action view
 		// items' own autoruns have a chance to re-render their labels first.
 		this._register(autorun(reader => {
-			pickerOptions.hideChevrons.read(reader);
+			pickerOptions.compact.read(reader);
 			queueMicrotask(() => this.inputActionsToolbar.relayout());
 		}));
 
@@ -2608,7 +2608,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const genericChipsLane = this._register(this.instantiationService.createInstance(
 			AgentHostGenericConfigChips,
 			widget,
-			secondaryPickerOptions,
 		));
 		genericChipsLane.render(genericChipsContainer);
 		this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryToolbarContainer, MenuId.ChatInputSecondary, {
@@ -2622,7 +2621,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				minItems: 1,
 				actionMinWidth: 48,
 				// Agent-host pickers collapse to icon+chevron when narrow
-				// (see `pickerOptions.hideChevrons` driving compact mode in
+				// (see `pickerOptions.compact` driving compact mode in
 				// `AgentHostChatInputPicker._renderTrigger`). Report a
 				// smaller min-width for them so the responsive layout keeps
 				// them visible instead of overflowing into the menu.
@@ -2724,7 +2723,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 								: action.id === OpenAgentHostPermissionModePickerAction.ID
 									? ClaudeSessionConfigKey.PermissionMode
 									: SessionConfigKey.Mode;
-					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, property, secondaryPickerOptions);
+					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, property);
 					return new AgentHostChatInputPickerActionViewItem(action, picker);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					// Create all pickers and return a container action view item

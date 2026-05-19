@@ -82,7 +82,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		const pickerOptions = this._pickerOptions;
 		if (pickerOptions) {
 			this._register(autorun(reader => {
-				pickerOptions.hideChevrons.read(reader);
+				pickerOptions.compact.read(reader);
 				if (this.element) {
 					this.renderLabel(this.element);
 				}
@@ -192,10 +192,6 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 
 		if (!isDefaultWithIcon) {
 			domChildren.push(dom.$('span.chat-session-option-label', undefined, this.currentOption?.name ?? group?.description ?? localize('chat.sessionPicker.label', "Pick Option")));
-		}
-
-		if (!this._pickerOptions?.hideChevrons.get()) {
-			domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 		}
 
 		dom.reset(element, ...domChildren);

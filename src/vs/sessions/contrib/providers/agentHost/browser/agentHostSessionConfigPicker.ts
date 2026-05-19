@@ -404,9 +404,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		trigger.setAttribute('aria-label', isReadOnly
 			? localize('agentHostSessionConfig.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, label)
 			: localize('agentHostSessionConfig.triggerAria', "{0}: {1}", schema.title, label));
-		if (!isReadOnly) {
-			dom.append(trigger, renderIcon(Codicon.chevronDown));
-		}
 		applyAutoApproveTriggerStyles(trigger, property, value);
 	}
 
@@ -806,7 +803,7 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 				return undefined;
 			}
 			const pickerOptions: IChatInputPickerOptions = {
-				hideChevrons: constObservable(true),
+				compact: constObservable(true),
 			};
 			return instantiationService.createInstance(
 				AgentHostPermissionPickerActionItem,

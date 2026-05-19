@@ -229,9 +229,6 @@ export class SessionTypePicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = modeLabel;
 
-		const chevron = dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
-		chevron.classList.add('sessions-chat-dropdown-chevron');
-
 		this._triggerElement.ariaLabel = localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
 	}
 }

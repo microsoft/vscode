@@ -834,7 +834,7 @@ export class ModelPickerWidget extends Disposable {
 
 	private _selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	private _badge: ModelPickerBadge | undefined;
-	private _hideChevrons: IObservable<boolean> | undefined;
+	private _compact: IObservable<boolean> | undefined;
 
 	private _domNode: HTMLElement | undefined;
 	private _badgeIcon: HTMLElement | undefined;
@@ -878,12 +878,12 @@ export class ModelPickerWidget extends Disposable {
 		}));
 	}
 
-	setHideChevrons(hideChevrons: IObservable<boolean>): void {
-		this._hideChevrons = hideChevrons;
+	setCompact(compact: IObservable<boolean>): void {
+		this._compact = compact;
 		this._register(autorun(reader => {
-			const hide = hideChevrons.read(reader);
+			const isCompact = compact.read(reader);
 			if (this._domNode) {
-				this._domNode.classList.toggle('hide-chevrons', hide);
+				this._domNode.classList.toggle('compact', isCompact);
 			}
 			this._renderLabel();
 		}));
@@ -911,8 +911,8 @@ export class ModelPickerWidget extends Disposable {
 		this._domNode.setAttribute('role', 'group');
 
 		// Apply initial collapsed state now that _domNode exists
-		if (this._hideChevrons?.get()) {
-			this._domNode.classList.toggle('hide-chevrons', true);
+		if (this._compact?.get()) {
+			this._domNode.classList.toggle('compact', true);
 		}
 
 		// Model name button
