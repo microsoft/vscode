@@ -750,6 +750,7 @@ export interface IQuotaSnapshot {
 	readonly resetAt?: number;
 	readonly usageBasedBilling?: boolean;
 	readonly entitlement?: number;
+	readonly quotaRemaining?: number;
 }
 
 interface IQuotas {
@@ -806,6 +807,7 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 				continue;
 			}
 
+			const parsedQuotaRemaining = rawQuotaSnapshot.quota_remaining !== undefined ? Number(rawQuotaSnapshot.quota_remaining) : undefined;
 			const quotaSnapshot: IQuotaSnapshot = {
 				percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
 				unlimited: rawQuotaSnapshot.unlimited,
@@ -813,6 +815,7 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 				usageBasedBilling: entitlementsData.token_based_billing,
 				resetAt: rawQuotaSnapshot.quota_reset_at || undefined,
 				entitlement: parsedEntitlement !== undefined && Number.isSafeInteger(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
+				quotaRemaining: parsedQuotaRemaining !== undefined && Number.isSafeInteger(parsedQuotaRemaining) && parsedQuotaRemaining >= 0 ? parsedQuotaRemaining : undefined,
 			};
 
 			switch (quotaType) {
