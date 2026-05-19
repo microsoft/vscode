@@ -815,6 +815,14 @@ async function resolveRealPathForNonexistent(fsPath: string): Promise<string> {
 	const tail: string[] = [path.basename(fsPath)];
 	let current = path.dirname(fsPath);
 	while (true) {
+		const parent = path.dirname(current);
+		if (parent === current) {
+			// Reached the filesystem root without finding an existing ancestor.
+			// Don't attempt to resolve the root itself — on Windows, realpath('\\')
+			// normalizes to a drive letter (e.g. 'C:\\'), which would otherwise look
+			// like a redirect even though no symlink was involved.
+			return fsPath;
+		}
 		try {
 			const resolved = await realpath(current);
 			return path.join(resolved, ...tail);
@@ -823,12 +831,6 @@ async function resolveRealPathForNonexistent(fsPath: string): Promise<string> {
 			if (code !== 'ENOENT' && code !== 'ENOTDIR') {
 				throw e;
 			}
-		}
-
-		const parent = path.dirname(current);
-		if (parent === current) {
-			// Reached the filesystem root without finding an existing ancestor.
-			return fsPath;
 		}
 		tail.unshift(path.basename(current));
 		current = parent;
