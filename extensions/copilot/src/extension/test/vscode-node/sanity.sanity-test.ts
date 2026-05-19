@@ -138,7 +138,13 @@ suite('Copilot Chat Sanity Test', function () {
 						getResultPromise.then(r => ({ kind: 'resolved' as const, value: r }), e => ({ kind: 'rejected' as const, error: e })),
 						timeout(5_000).then(() => ({ kind: 'still-pending' as const }))
 					]);
-					throw new Error(`${err instanceof Error ? err.message : String(err)} | follow-up: kind=${settled.kind}${'error' in settled ? ` error=${settled.error}` : ''} ${dumpStream()}`);
+					const cause = err instanceof Error ? err : new Error(String(err));
+					const followUpError = 'error' in settled
+						? settled.error instanceof Error
+							? ` error=${settled.error.stack ?? settled.error.message}`
+							: ` error=${String(settled.error)}`
+						: '';
+					throw new Error(`${cause.message} | follow-up: kind=${settled.kind}${followUpError} ${dumpStream()}`, { cause });
 				}
 			};
 
