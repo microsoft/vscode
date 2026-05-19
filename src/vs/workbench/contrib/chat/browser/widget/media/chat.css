@@ -1636,10 +1636,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
-/* Dividers between adjacent items in the secondary toolbar.
- * .chat-input-picker-item normally has overflow:hidden which would clip an
- * absolutely-positioned divider, so disable it here — the inner .action-label
- * already enforces overflow:hidden / text ellipsis. */
+/* Dividers between adjacent items in the secondary toolbar. */
 .interactive-session .chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item.chat-input-picker-item {
 	overflow: visible;
 }
@@ -1711,7 +1708,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label {
 	height: 16px;
-	padding: 3px 6px;
+	padding: 3px 8px;
+	border-radius: 4px;
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
@@ -1845,10 +1843,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	cursor: default;
 }
 
-/* Dividers between adjacent items in the workbench chat input toolbar
- * (not applied in the agents app). Pickers normally have overflow:hidden
- * which would clip an absolutely-positioned divider, so disable it here —
- * the inner .action-label already enforces overflow:hidden / text ellipsis. */
+/* Dividers between adjacent items in the workbench chat input toolbar. */
 .interactive-session .chat-input-toolbar .monaco-action-bar .actions-container > .action-item.chat-input-picker-item {
 	overflow: visible;
 }
@@ -1936,7 +1931,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
-	padding: 3px 6px;
+	padding: 3px 8px;
+	border-radius: 4px;
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);

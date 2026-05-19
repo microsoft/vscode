@@ -154,6 +154,15 @@
 	.new-chat-widget-container .sessions-chat-config-toolbar .sessions-chat-dropdown-label {
 		display: none;
 	}
+
+	/* With both chevron and label hidden the only content is the icon. Center
+	 * it instead of leaving the 30px min-width as left-aligned padding.
+	 * Permission picker keeps its label so its action-item is excluded. */
+	.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item:not(.sessions-chat-permission-picker) .action-label,
+	.new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.sessions-chat-permission-picker) .action-label {
+		justify-content: center;
+		padding: 3px;
+	}
 }
 
 @container (max-width: 240px) {
@@ -181,34 +190,26 @@
 	font-size: 12px;
 }
 
-/* Hide chevrons next to dropdown labels in the bottom row */
 .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon-chevron-down,
 .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot .action-label > .codicon-chevron-down,
 .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
 	display: none;
 }
 
-/* Hide chevrons next to dropdown labels in the input toolbar as well */
-.new-chat-widget-container .sessions-chat-toolbar {
-	gap: 10px;
-}
-
 .new-chat-widget-container .sessions-chat-toolbar .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
 	display: none;
 }
 
-/* Dividers between adjacent items in the new-session bottom row and input toolbar. */
-.new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container,
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar .actions-container,
-.new-chat-widget-container .sessions-chat-config-toolbar .monaco-action-bar .actions-container {
-	gap: 10px;
-}
 
 .new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container > * + *,
 .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar .actions-container > .action-item + .action-item,
 .new-chat-widget-container .sessions-chat-config-toolbar .monaco-action-bar .actions-container > .action-item + .action-item,
 .new-chat-widget-container .sessions-chat-attach-button + .sessions-chat-config-toolbar {
 	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
+}
+
+.new-chat-widget-container .sessions-chat-attach-button + .sessions-chat-config-toolbar {
+	padding-left: 4px;
 }
 
 /* Pickers row - two equal halves */
