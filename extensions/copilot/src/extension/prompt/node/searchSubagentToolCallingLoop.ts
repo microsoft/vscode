@@ -50,7 +50,13 @@ export interface ISearchSubagentToolCallingLoopOptions extends IToolCallingLoopO
 export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubagentToolCallingLoopOptions> {
 
 	public static readonly ID = 'searchSubagentTool';
-	private _budgetShrinkFactor = 1;
+
+	// Successive safety factors applied to the prompt's message budget. The first attempt mirrors
+	// the main agent loop in agentIntent.ts (0.9). Smaller factors are used as fallbacks when either
+	// (a) prompt-tsx throws BudgetExceededError during render, or (b) the API returns a 400 with a
+	// context-overflow reason. We should never propagate context_length_exceeded to the main agent
+	private static readonly SAFETY_FACTORS = [0.9, 0.66, 0.4];
+	private _safetyFactorIndex = 0;
 	private _lastBuildPromptContext: IBuildPromptContext | undefined;
 
 	constructor(
@@ -119,15 +125,19 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 
 	protected async buildPrompt(buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
 		this._lastBuildPromptContext = buildPromptContext;
+		return this._renderPrompt(buildPromptContext, progress, token);
+	}
+
+	private async _renderPrompt(buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
 		const endpoint = await this.getEndpoint();
-		// Use the effective tool call limit from options (already adjusted for thoroughness in the tool)
 		const maxSearchTurns = this.options.toolCallLimit;
 
 		const tools = buildPromptContext.tools?.availableTools;
 		const toolTokens = tools?.length ? await endpoint.acquireTokenizer().countToolTokens(tools) : 0;
-		const messageBudget = Math.max(1, Math.floor((endpoint.modelMaxPromptTokens - toolTokens) * 0.9 * this._budgetShrinkFactor));
-		const renderEndpoint = toolTokens > 0 || this._budgetShrinkFactor < 1 ? endpoint.cloneWithTokenOverride(messageBudget) : endpoint;
 
+		const factor = SearchSubagentToolCallingLoop.SAFETY_FACTORS[this._safetyFactorIndex];
+		const messageBudget = Math.max(1, Math.floor((endpoint.modelMaxPromptTokens - toolTokens) * factor));
+		const renderEndpoint = toolTokens > 0 || factor < 0.9 ? endpoint.cloneWithTokenOverride(messageBudget) : endpoint;
 		const renderer = PromptRenderer.create(
 			this.instantiationService,
 			renderEndpoint,
@@ -138,7 +148,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 				thoroughness: this.options.thoroughness,
 			}
 		);
-		return await renderer.render(progress, token);
+		return renderer.render(progress, token);
 	}
 
 	protected async getAvailableTools(): Promise<LanguageModelToolInformation[]> {
@@ -161,7 +171,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 	protected async fetch({ messages, finishedCb, requestOptions, modelCapabilities, iterationNumber }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
 		const endpoint = await this.getEndpoint();
 		let currentMessages = messages;
-		for (let attempt = 0; ; attempt++) {
+		while (true) {
 			const response = await endpoint.makeChatRequest2({
 				debugName: SearchSubagentToolCallingLoop.ID,
 				messages: currentMessages,
@@ -192,32 +202,52 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 			}, token);
 
 			if (
-				attempt >= CONTEXT_OVERFLOW_SHRINK_FACTORS.length ||
 				token.isCancellationRequested ||
 				!this._lastBuildPromptContext ||
-				!isContextOverflowError(response)
+				!isContextOverflowBadRequest(response)
 			) {
 				return response;
 			}
 
-			// Re-render with a smaller token budget so prompt-tsx prunes lower-priority elements (tool-call history).
-			this._budgetShrinkFactor = CONTEXT_OVERFLOW_SHRINK_FACTORS[attempt];
-			this._logService.warn(`[searchSubagent] context_length_exceeded; re-rendering with shrink factor ${this._budgetShrinkFactor} (attempt ${attempt + 1})`);
+			if (this._safetyFactorIndex >= SearchSubagentToolCallingLoop.SAFETY_FACTORS.length - 1) {
+				this._sendContextOverflowTelemetry('exhausted', endpoint.model, this._safetyFactorIndex);
+				return response;
+			}
+
+			this._safetyFactorIndex++;
+			this._logService.warn(`[searchSubagent] context_length_exceeded from API; re-rendering with smaller safety factor (index ${this._safetyFactorIndex})`);
+			this._sendContextOverflowTelemetry('retried', endpoint.model, this._safetyFactorIndex);
 			const rerendered = await this.buildPrompt(this._lastBuildPromptContext, { report: () => { } }, token);
 			currentMessages = rerendered.messages;
 		}
 	}
-}
 
-/**
- * Successive `_budgetShrinkFactor` values applied to the message budget on reactive retries
- * after a 400 context-overflow response. Length bounds the total number of retries.
- */
-export const CONTEXT_OVERFLOW_SHRINK_FACTORS = [0.66, 0.4, 0.25];
+	private _sendContextOverflowTelemetry(
+		outcome: 'retried' | 'exhausted',
+		model: string,
+		safetyFactorIndex: number,
+	): void {
+		/* __GDPR__
+			"searchSubagent.contextOverflow" : {
+				"owner": "t-guomaggie",
+				"comment": "Tracks when the search subagent shrinks its prompt budget after the model returned a 400 with a context-overflow reason, and whether the shrink path could still recover.",
+				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the loop could still retry. One of: 'retried' (advanced to a smaller safety factor and refetched), 'exhausted' (no more factors to try; failure is surfaced to the tool wrapper)." },
+				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model id used by the subagent." },
+				"safetyFactorIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Index into the SAFETY_FACTORS array after the shrink (0 = first, length-1 = smallest)." }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('searchSubagent.contextOverflow', {
+			outcome,
+			model,
+		}, {
+			safetyFactorIndex,
+		});
+	}
+}
 
 const CONTEXT_OVERFLOW_REASON_PATTERNS = [
 	'context_length_exceeded',
-	'context length is',
+	'context length',
 	'context window',
 	'maximum context',
 	'prompt is too long',
@@ -225,7 +255,7 @@ const CONTEXT_OVERFLOW_REASON_PATTERNS = [
 	'request_too_large',
 ];
 
-export function isContextOverflowError(response: ChatResponse): boolean {
+export function isContextOverflowBadRequest(response: ChatResponse): boolean {
 	if (response.type !== ChatFetchResponseType.BadRequest) {
 		return false;
 	}

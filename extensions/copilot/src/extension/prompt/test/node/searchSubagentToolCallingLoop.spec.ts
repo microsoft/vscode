@@ -16,12 +16,14 @@ import { Conversation, Turn } from '../../../prompt/common/conversation';
 import { IBuildPromptContext } from '../../../prompt/common/intents';
 import { nullRenderPromptResult } from '../../../prompt/node/intents';
 import {
-	CONTEXT_OVERFLOW_SHRINK_FACTORS,
 	ISearchSubagentToolCallingLoopOptions,
 	SearchSubagentToolCallingLoop,
-	isContextOverflowError,
+	isContextOverflowBadRequest,
 } from '../../../prompt/node/searchSubagentToolCallingLoop';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
+
+// Must match SearchSubagentToolCallingLoop.SAFETY_FACTORS.length
+const SAFETY_FACTOR_COUNT = 3;
 
 class TestSearchSubagentToolCallingLoop extends SearchSubagentToolCallingLoop {
 	public buildPromptCalls = 0;
@@ -48,8 +50,8 @@ class TestSearchSubagentToolCallingLoop extends SearchSubagentToolCallingLoop {
 		return nullRenderPromptResult();
 	}
 
-	public get budgetShrinkFactor(): number {
-		return (this as any)._budgetShrinkFactor;
+	public get safetyFactorIndex(): number {
+		return (this as any)._safetyFactorIndex;
 	}
 
 	public primeBuildPromptContext(): void {
@@ -126,17 +128,17 @@ function successResponse(): ChatResponse {
 	} as unknown as ChatResponse;
 }
 
-describe('isContextOverflowError', () => {
+describe('isContextOverflowBadRequest', () => {
 	it('returns true for BadRequest with context_length_exceeded reason', () => {
-		expect(isContextOverflowError(badRequest('context_length_exceeded'))).toBe(true);
+		expect(isContextOverflowBadRequest(badRequest('context_length_exceeded'))).toBe(true);
 	});
 
 	it('matches case-insensitively', () => {
-		expect(isContextOverflowError(badRequest('Context_Length_Exceeded'))).toBe(true);
+		expect(isContextOverflowBadRequest(badRequest('Context_Length_Exceeded'))).toBe(true);
 	});
 
 	it('matches when pattern is in reasonDetail', () => {
-		expect(isContextOverflowError({
+		expect(isContextOverflowBadRequest({
 			type: ChatFetchResponseType.BadRequest,
 			reason: 'invalid_request_error',
 			reasonDetail: 'This model has a maximum context length of 200000 tokens',
@@ -146,26 +148,26 @@ describe('isContextOverflowError', () => {
 	});
 
 	it('matches the "prompt is too long" pattern', () => {
-		expect(isContextOverflowError(badRequest('prompt is too long: 250000 > 200000'))).toBe(true);
+		expect(isContextOverflowBadRequest(badRequest('prompt is too long: 250000 > 200000'))).toBe(true);
 	});
 
 	it('matches the "request too large" pattern', () => {
-		expect(isContextOverflowError(badRequest('Request too large for model'))).toBe(true);
+		expect(isContextOverflowBadRequest(badRequest('Request too large for model'))).toBe(true);
 	});
 
 	it('returns false for BadRequest with unrelated reason', () => {
-		expect(isContextOverflowError(badRequest('invalid_tool_schema'))).toBe(false);
+		expect(isContextOverflowBadRequest(badRequest('invalid_tool_schema'))).toBe(false);
 	});
 
 	it('returns false for non-BadRequest response types', () => {
-		expect(isContextOverflowError(successResponse())).toBe(false);
-		expect(isContextOverflowError({
+		expect(isContextOverflowBadRequest(successResponse())).toBe(false);
+		expect(isContextOverflowBadRequest({
 			type: ChatFetchResponseType.Length,
 			reason: 'context_length_exceeded',
 			requestId: 'r',
 			serverRequestId: undefined,
 		} as ChatResponse)).toBe(false);
-		expect(isContextOverflowError({
+		expect(isContextOverflowBadRequest({
 			type: ChatFetchResponseType.RateLimited,
 			reason: 'r',
 			requestId: 'r',
@@ -217,7 +219,7 @@ describe('SearchSubagentToolCallingLoop.fetch context-overflow retry', () => {
 		expect(response.type).toBe(ChatFetchResponseType.Success);
 		expect(loop.makeChatRequestCalls).toBe(1);
 		expect(loop.buildPromptCalls).toBe(0);
-		expect(loop.budgetShrinkFactor).toBe(1);
+		expect(loop.safetyFactorIndex).toBe(0);
 	});
 
 	it('retries once on context overflow and succeeds with shrunk budget', async () => {
@@ -229,13 +231,12 @@ describe('SearchSubagentToolCallingLoop.fetch context-overflow retry', () => {
 		expect(response.type).toBe(ChatFetchResponseType.Success);
 		expect(loop.makeChatRequestCalls).toBe(2);
 		expect(loop.buildPromptCalls).toBe(1);
-		expect(loop.budgetShrinkFactor).toBe(CONTEXT_OVERFLOW_SHRINK_FACTORS[0]);
+		expect(loop.safetyFactorIndex).toBe(1);
 	});
 
 	it('advances through all shrink factors then succeeds', async () => {
 		const loop = createLoop();
 		loop.responseQueue.push(
-			overflowResponse(),
 			overflowResponse(),
 			overflowResponse(),
 			successResponse(),
@@ -244,21 +245,21 @@ describe('SearchSubagentToolCallingLoop.fetch context-overflow retry', () => {
 		const response = await loop.callFetch(tokenSource.token);
 
 		expect(response.type).toBe(ChatFetchResponseType.Success);
-		expect(loop.makeChatRequestCalls).toBe(4);
-		expect(loop.buildPromptCalls).toBe(CONTEXT_OVERFLOW_SHRINK_FACTORS.length);
-		expect(loop.budgetShrinkFactor).toBe(CONTEXT_OVERFLOW_SHRINK_FACTORS[CONTEXT_OVERFLOW_SHRINK_FACTORS.length - 1]);
+		expect(loop.makeChatRequestCalls).toBe(3);
+		expect(loop.buildPromptCalls).toBe(SAFETY_FACTOR_COUNT - 1);
+		expect(loop.safetyFactorIndex).toBe(SAFETY_FACTOR_COUNT - 1);
 	});
 
 	it('returns the final BadRequest after exhausting shrink factors', async () => {
 		const loop = createLoop();
-		const overflows = Array.from({ length: CONTEXT_OVERFLOW_SHRINK_FACTORS.length + 1 }, overflowResponse);
+		const overflows = Array.from({ length: SAFETY_FACTOR_COUNT }, overflowResponse);
 		loop.responseQueue.push(...overflows);
 
 		const response = await loop.callFetch(tokenSource.token);
 
 		expect(response.type).toBe(ChatFetchResponseType.BadRequest);
-		expect(loop.makeChatRequestCalls).toBe(CONTEXT_OVERFLOW_SHRINK_FACTORS.length + 1);
-		expect(loop.buildPromptCalls).toBe(CONTEXT_OVERFLOW_SHRINK_FACTORS.length);
+		expect(loop.makeChatRequestCalls).toBe(SAFETY_FACTOR_COUNT);
+		expect(loop.buildPromptCalls).toBe(SAFETY_FACTOR_COUNT - 1);
 	});
 
 	it('returns non-overflow BadRequest immediately without retry', async () => {
@@ -270,7 +271,7 @@ describe('SearchSubagentToolCallingLoop.fetch context-overflow retry', () => {
 		expect(response.type).toBe(ChatFetchResponseType.BadRequest);
 		expect(loop.makeChatRequestCalls).toBe(1);
 		expect(loop.buildPromptCalls).toBe(0);
-		expect(loop.budgetShrinkFactor).toBe(1);
+		expect(loop.safetyFactorIndex).toBe(0);
 	});
 
 	it('stops retrying when cancellation is requested', async () => {
