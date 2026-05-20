@@ -577,7 +577,8 @@ describe('translateDebugLogEntry', () => {
 				model: 'claude-sonnet-4-20250514',
 				inputTokens: 8000,
 				outputTokens: 500,
-				cacheReadTokens: 3000,
+				cachedTokens: 3000,
+				ttft: 120,
 			},
 		});
 
@@ -589,6 +590,7 @@ describe('translateDebugLogEntry', () => {
 		expect(events[0].data.inputTokens).toBe(8000);
 		expect(events[0].data.outputTokens).toBe(500);
 		expect(events[0].data.cacheReadTokens).toBe(3000);
+		expect(events[0].data.timeToFirstTokenMs).toBe(120);
 		expect(events[0].data.duration).toBe(450);
 	});
 
@@ -603,6 +605,28 @@ describe('translateDebugLogEntry', () => {
 
 		const events = translateDebugLogEntry(entry, 'sess-1', state);
 		expect(events).toHaveLength(0);
+	});
+
+	it('accepts cacheReadTokens as fallback field name', () => {
+		const state = createSessionTranslationState();
+		state.started = true;
+		const entry = makeDebugEntry({
+			type: 'llm_request',
+			name: 'llm_request',
+			dur: 200,
+			attrs: {
+				model: 'gpt-5.4',
+				inputTokens: 1000,
+				outputTokens: 200,
+				cacheReadTokens: 500,
+			},
+		});
+
+		const events = translateDebugLogEntry(entry, 'sess-1', state);
+
+		expect(events).toHaveLength(1);
+		expect(events[0].data.cacheReadTokens).toBe(500);
+		expect(events[0].data.timeToFirstTokenMs).toBeUndefined();
 	});
 });
 describe('deriveTitleFromUserMessage', () => {

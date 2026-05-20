@@ -89,7 +89,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	private readonly _initializingSessions = new Set<string>();
 
 	/** CHAT spans received before session was initialized, keyed by session ID. */
-	private readonly _pendingChatSpans = new Map<string, ICompletedSpanData[]>();
+	private readonly _pendingChatSpans = new Map<string, { span: ICompletedSpanData; subagentId: string | undefined }[]>();
 
 	// ── Shared state ─────────────────────────────────────────────────────────────
 
@@ -722,7 +722,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 						pending = [];
 						this._pendingChatSpans.set(sessionId, pending);
 					}
-					pending.push(span);
+					pending.push({ span, subagentId });
 					return;
 				}
 				if (operationName !== GenAiOperationName.INVOKE_AGENT || subagentId) {
@@ -747,8 +747,8 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 				const pendingChats = this._pendingChatSpans.get(sessionId);
 				if (pendingChats) {
 					this._pendingChatSpans.delete(sessionId);
-					for (const chatSpan of pendingChats) {
-						const chatEvents = translateSpan(chatSpan, state, context);
+					for (const { span: chatSpan, subagentId: chatSubagentId } of pendingChats) {
+						const chatEvents = translateSpan(chatSpan, state, context, chatSubagentId);
 						if (chatEvents.length > 0) {
 							this._bufferEvents(sessionId, chatEvents);
 						}

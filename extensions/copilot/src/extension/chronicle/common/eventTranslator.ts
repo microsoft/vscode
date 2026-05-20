@@ -382,9 +382,13 @@ export function translateDebugLogEntry(
 					inputTokens,
 					outputTokens,
 				};
-				const cacheReadTokens = entry.attrs.cacheReadTokens;
+				const cacheReadTokens = entry.attrs.cacheReadTokens ?? entry.attrs.cachedTokens;
 				if (typeof cacheReadTokens === 'number') {
 					data.cacheReadTokens = cacheReadTokens;
+				}
+				const ttft = entry.attrs.ttft;
+				if (typeof ttft === 'number') {
+					data.timeToFirstTokenMs = ttft;
 				}
 				if (typeof entry.dur === 'number' && entry.dur > 0) {
 					data.duration = entry.dur;
