@@ -52,11 +52,13 @@ export class NativeIssueService implements IWorkbenchIssueService {
 	private async openWizardReporter(dataOverrides: Partial<IssueReporterData>): Promise<void> {
 		const theme = this.themeService.getColorTheme();
 		const extensionsLoaded = new DeferredPromise<void>();
+		const dataComplete = new DeferredPromise<void>();
 		const issueReporterData: IssueReporterData = Object.assign({
 			styles: getIssueReporterStyles(theme),
 			zoomLevel: getZoomLevel(mainWindow),
 			enabledExtensions: [],
 			whenExtensionsLoaded: extensionsLoaded.p,
+			whenDataComplete: dataComplete.p,
 			restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
 			isInstallationPure: true,
 			isSessionsWindow: this.environmentService.isSessionsWindow,
@@ -64,7 +66,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		}, dataOverrides);
 
 		const openPromise = this.issueFormService.openReporter(issueReporterData);
-		void this.populateReporterDataAsync(issueReporterData, dataOverrides, extensionsLoaded);
+		this.populateReporterDataAsync(issueReporterData, dataOverrides, extensionsLoaded).then(() => dataComplete.complete(), () => dataComplete.complete());
 		return openPromise;
 	}
 

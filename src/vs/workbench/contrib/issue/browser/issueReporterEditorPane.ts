@@ -475,6 +475,17 @@ export class IssueReporterEditorPane extends EditorPane {
 			});
 		}
 
+		// Wait for the full async population (token, integrity check, experiments)
+		// to finish so we can forward late-arriving values into the wizard model.
+		// Note: githubAccessToken doesn't need forwarding — it's read from the
+		// shared data object at submit time, not from the overlay's internal model.
+		await data?.whenDataComplete;
+		if (data) {
+			this.wizard?.updateModel({
+				isInstallationPure: data.isInstallationPure,
+			});
+		}
+
 		// User settings
 		try {
 			const settingsUri = this.userDataProfileService.currentProfile.settingsResource;
