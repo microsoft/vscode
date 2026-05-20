@@ -1749,8 +1749,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * sync.
 	 */
 	private _applySessionStateUpdate(sessionId: string, state: SessionState): void {
+		const previous = this._lastSessionStates.get(sessionId);
 		this._lastSessionStates.set(sessionId, state);
-		this._onDidChangeCustomAgents.fire();
+		// Only fire when the inputs to `getCustomAgents` actually change.
+		// `SessionState` updates fire for every turn-status / activity / meta
+		// change too — firing on all of them caused excessive picker
+		// recomputes (and a feedback loop with `setAgent`).
+		if (previous?.customizations !== state.customizations || previous?.activeClient?.customizations !== state.activeClient?.customizations) {
+			this._onDidChangeCustomAgents.fire();
+		}
 		this._seedRunningConfigFromState(sessionId, state);
 		this._applySessionMetaFromState(sessionId, state);
 	}

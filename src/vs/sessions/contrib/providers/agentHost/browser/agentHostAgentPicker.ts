@@ -7,13 +7,14 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -132,10 +133,10 @@ class AgentHostAgentPickerActionItem extends ChatInputPickerActionViewItem {
 		pickerOptions: IChatInputPickerOptions,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@ICommandService commandService: ICommandService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		const defaultCategory = { label: nls.localize('agentPickerDefaultCategory', "Default"), order: 0 };
 		const customCategory = { label: nls.localize('agentPickerCustomCategory', "Custom Agents"), order: 1 };
@@ -203,20 +204,7 @@ class AgentHostAgentPickerActionItem extends ChatInputPickerActionViewItem {
 		const widgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider,
 			actionBarActionProvider: {
-				getActions: () => [{
-					id: 'sessions.agentHost.agentPicker.configure',
-					label: nls.localize('configureCustomAgents', "Configure Custom Agents..."),
-					tooltip: '',
-					class: undefined,
-					enabled: true,
-					run: async () => {
-						try {
-							await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Agents);
-						} catch {
-							await commandService.executeCommand('workbench.action.chat.configure.customagents');
-						}
-					},
-				}],
+				getActions: () => this.getFooterActions(),
 			},
 			showItemKeybindings: false,
 			reporter: { id: 'NewChatAgentHostAgentPicker', name: 'NewChatAgentHostAgentPicker', includeOptions: true },
@@ -241,17 +229,27 @@ class AgentHostAgentPickerActionItem extends ChatInputPickerActionViewItem {
 		this._register(d);
 	}
 
+	private getFooterActions(): IAction[] {
+		const menu = this.menuService.createMenu(MenuIdAgentHostAgentPicker, this.contextKeyService);
+		const actions = getFlatActionBarActions(menu.getActions({ renderShortTitle: true }));
+		menu.dispose();
+		return actions;
+	}
+
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		this.setAriaLabelAttributes(element);
 
 		const current = this.delegate.currentAgent.get();
-		const icon = current ? Codicon.account : Codicon.agent;
 		const label = current ? current.name : nls.localize('agentPickerDefault', "Agent");
 
 		const elements = [];
 		const collapsed = this.pickerOptions.hideChevrons.get();
-		elements.push(...renderLabelWithIcons(`$(${icon.id})`));
-		if (!collapsed) {
+		// Only the default placeholder shows an icon; a chosen custom
+		// agent is rendered as a plain label.
+		if (!current) {
+			elements.push(...renderLabelWithIcons(`$(${Codicon.agent.id})`));
+		}
+		if (!collapsed || current) {
 			elements.push(dom.$('span.chat-input-picker-label', undefined, label));
 		}
 		dom.reset(element, ...elements);
@@ -355,13 +353,32 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 			initFromActiveSession();
 
 			const disposableStore = new DisposableStore();
-			// Only react to the active session changing. Re-running on
-			// every `session.agent` or `onDidChangeCustomAgents` event
-			// creates a feedback loop with `delegate.setAgent`, which
-			// itself triggers those events.
+			// React to the active session AND to its `session.agent`
+			// observable so server-echoed `SessionAgentChanged` updates
+			// flow back into the picker. The `settingAgentInternally`
+			// guard around the initial pick (below) prevents the autorun
+			// from clobbering an in-flight user selection.
 			disposableStore.add(autorun(reader => {
 				const session = sessionsManagementService.activeSession.read(reader);
-				initAgent(session, session?.agent?.read(undefined), session?.status.read(undefined) === SessionStatus.Untitled);
+				const sessionAgent = session?.agent?.read(reader);
+				const isUntitled = session?.status.read(reader) === SessionStatus.Untitled;
+				initAgent(session, sessionAgent, isUntitled);
+			}));
+
+			// Also re-run when the active session's provider advertises a
+			// different effective custom-agent set (root state, session
+			// state, or active-client customizations changed). The picker
+			// contribution doesn't see those mutations through the
+			// `session.agent` observable.
+			const customAgentsListener = disposableStore.add(new MutableDisposable());
+			disposableStore.add(autorun(reader => {
+				const session = sessionsManagementService.activeSession.read(reader);
+				const provider = getProvider(session);
+				customAgentsListener.value = provider?.onDidChangeCustomAgents(() => {
+					if (!settingAgentInternally) {
+						initFromActiveSession();
+					}
+				});
 			}));
 
 			picker.attachDisposable(disposableStore);

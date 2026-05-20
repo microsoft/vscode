@@ -768,9 +768,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		provider.getSessionConfig(session!.sessionId);
 		agentHost.setSessionState('agents-merge', 'copilotcli', fakeState);
 
-		// Wait one tick so the subscription's `onDidChange` fires through.
-		await timeout(0);
-
 		assert.deepStrictEqual(provider.getCustomAgents(session!.sessionId), [
 			{ uri: 'agent://client-only', name: 'client-only' },
 			{ uri: 'agent://root-a', name: 'root-a' },
@@ -821,7 +818,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const afterRoot = fired;
 		assert.ok(afterRoot > 0, 'expected event to fire on root state change');
 
-		// Session-state update should fire it again.
+		// Session-state update with new customizations should fire it again.
 		provider.getSessionConfig(session!.sessionId);
 		agentHost.setSessionState('cust-events', 'copilotcli', {
 			summary: {
@@ -834,9 +831,37 @@ suite('LocalAgentHostSessionsProvider', () => {
 			},
 			lifecycle: SessionLifecycle.Ready,
 			turns: [],
+			customizations: [{
+				customization: {
+					uri: 'plugin://s',
+					displayName: 'session plugin',
+					agents: [{ uri: 'agent://s', name: 's' }],
+				},
+				enabled: true,
+				status: CustomizationStatus.Loaded,
+			}],
 		});
-		await timeout(0);
-		assert.ok(fired > afterRoot, 'expected event to fire on session state update');
+		assert.ok(fired > afterRoot, 'expected event to fire on session state customization change');
+
+		// A second state update with the SAME customizations reference must
+		// NOT fire — only churn in `customizations` / `activeClient.customizations`
+		// counts.
+		const afterFirstCustomization = fired;
+		agentHost.setSessionState('cust-events', 'copilotcli', {
+			summary: {
+				resource: AgentSession.uri('copilotcli', 'cust-events').toString(),
+				provider: 'copilotcli',
+				title: 'Cust Events Updated',
+				status: ProtocolSessionStatus.Idle,
+				createdAt: 0,
+				modifiedAt: 0,
+			},
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			// Same identity as before:
+			customizations: (provider as unknown as { _lastSessionStates: Map<string, SessionState> })._lastSessionStates.get(session!.sessionId)?.customizations,
+		});
+		assert.strictEqual(fired, afterFirstCustomization, 'expected event NOT to fire when customizations are unchanged');
 	});
 
 	// ---- Session lifecycle -------
