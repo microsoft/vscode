@@ -162,6 +162,9 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 			} satisfies CopilotCLIModelInfo));
 		} catch (ex) {
 			this.logService.error(`[CopilotCLISession] Failed to fetch models`, ex);
+			// Clear cached promise so subsequent calls retry instead of
+			// permanently returning an empty list after a transient failure.
+			this._availableModels = undefined;
 			return [];
 		}
 	}
