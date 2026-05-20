@@ -104,7 +104,6 @@ export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, n
 
 	return [
 		path.posix.join(prebuildDir, 'runtime.node'),
-		path.posix.join(prebuildDir, 'icu-native.node'),
 		path.posix.join(prebuildDir, 'win32-native.node'),
 	];
 }
