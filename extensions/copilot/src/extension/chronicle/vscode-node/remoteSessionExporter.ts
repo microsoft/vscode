@@ -91,6 +91,9 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	/** Sessions currently initializing (prevent concurrent init). */
 	private readonly _initializingSessions = new Set<string>();
 
+	/** Sessions whose cloud-session creation was rate-limited; awaiting retry on a later flush. */
+	private readonly _rateLimitedSessions = new Set<string>();
+
 	/** Per-owner expiry (epoch ms) suppressing further createCloudSession attempts after a policy_blocked response. */
 	private readonly _policyBlockedUntilByOwner = new Map<number, number>();
 
@@ -319,6 +322,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		this._translationStates.clear();
 		this._disabledSessions.clear();
 		this._initializingSessions.clear();
+		this._rateLimitedSessions.clear();
 
 		super.dispose();
 	}
@@ -550,6 +554,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 					this._cloudSessions.delete(session.id);
 					this._translationStates.delete(session.id);
 					this._disabledSessions.delete(session.id);
+					this._rateLimitedSessions.delete(session.id);
 				}
 			},
 		);
@@ -623,6 +628,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			this._cloudSessions.delete(sessionId);
 			this._translationStates.delete(sessionId);
 			this._disabledSessions.delete(sessionId);
+			this._rateLimitedSessions.delete(sessionId);
 		}
 		this._invalidateLocalSyncedCount();
 		this._setSyncState({ kind: 'up-to-date', syncedCount: this._getLocalSyncedCount() });
@@ -718,7 +724,9 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			// typically complete before their parent, and using a sub-agent span as the
 			// init trigger would seed sessionSource/firstCloudWriteSessionSource and
 			// telemetry from the sub-agent's AGENT_NAME instead of the parent's.
-			if (!this._cloudSessions.has(sessionId) && !this._initializingSessions.has(sessionId)) {
+			if (!this._cloudSessions.has(sessionId)
+				&& !this._initializingSessions.has(sessionId)
+				&& !this._rateLimitedSessions.has(sessionId)) {
 				if (operationName !== GenAiOperationName.INVOKE_AGENT || subagentId) {
 					return;
 				}
@@ -912,18 +920,33 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 		if (!result.ok) {
 
-			this._telemetryService.sendMSFTTelemetryErrorEvent('chronicle.cloudSync', {
-				operation: 'createCloudSession',
-				success: 'false',
-				error: result.reason?.substring(0, 100) ?? 'unknown',
-			}, {});
 			if (result.reason === 'policy_blocked') {
+				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
+					operation: 'policyBlocked',
+				}, {
+					sessionCount: 1,
+				});
 				this._disabledSessions.add(sessionId);
+				this._rateLimitedSessions.delete(sessionId);
 				this._markOwnerPolicyBlocked(repo.repoIds.ownerId);
-			} else if (result.reason !== 'rate_limited') {
-				// Rate limits are transient and self-recover via the client's backoff;
-				// leave the session uninitialized so a later flush can retry.
+			} else if (result.reason === 'rate_limited') {
+				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
+					operation: 'rateLimited',
+				}, {
+					sessionCount: 1,
+				});
+				// Transient — the client is self-backing-off. Mark for retry so
+				// buffered events for this session are not dropped as orphans
+				// and a later flush will reattempt initialization.
+				this._rateLimitedSessions.add(sessionId);
+			} else {
+				this._telemetryService.sendMSFTTelemetryErrorEvent('chronicle.cloudSync', {
+					operation: 'createCloudSession',
+					success: 'false',
+					error: result.reason?.substring(0, 100) ?? 'unknown',
+				}, {});
 				this._disabledSessions.add(sessionId);
+				this._rateLimitedSessions.delete(sessionId);
 			}
 			return;
 		}
@@ -935,6 +958,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 				error: 'missing_task_id',
 			}, {});
 			this._disabledSessions.add(sessionId);
+			this._rateLimitedSessions.delete(sessionId);
 			return;
 		}
 
@@ -944,6 +968,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		};
 
 		this._cloudSessions.set(sessionId, cloudIds);
+		this._rateLimitedSessions.delete(sessionId);
 		this._invalidateLocalSyncedCount();
 
 		this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
@@ -1037,6 +1062,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		this._translationStates.delete(sessionId);
 		this._disabledSessions.delete(sessionId);
 		this._initializingSessions.delete(sessionId);
+		this._rateLimitedSessions.delete(sessionId);
 		// Keep _cloudSessions entry — the cloud session ID mapping is needed
 		// for future delete operations (e.g. sidebar delete fires after dispose).
 	}
@@ -1113,6 +1139,14 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			return;
 		}
 
+		// Skip the whole flush while the client is in rate-limit backoff. Calls
+		// would short-circuit anyway, but doing nothing here avoids the
+		// splice/unshift churn on each timer tick. _bufferEvents still enforces
+		// MAX_BUFFER_SIZE so memory stays bounded.
+		if (this._cloudClient.isRateLimited()) {
+			return;
+		}
+
 		this._isFlushing = true;
 		const batch = this._eventBuffer.splice(0, MAX_EVENTS_PER_FLUSH);
 		const batchStart = Date.now();
@@ -1121,7 +1155,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 		try {
 			// Group events by chat session ID for correct cloud session routing
-			const eventsBySession = new Map<string, { events: SessionEvent[]; chatSessionIds: Set<string> }>();
+			const eventsBySession = new Map<string, { events: SessionEvent[]; chatSessionIds: Set<string>; entries: typeof batch }>();
 			const orphanedEntries: typeof batch = [];
 
 			for (const entry of batch) {
@@ -1131,14 +1165,31 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 					if (slot) {
 						slot.events.push(entry.event);
 						slot.chatSessionIds.add(entry.chatSessionId);
+						slot.entries.push(entry);
 					} else {
 						eventsBySession.set(cloudIds.cloudSessionId, {
 							events: [entry.event],
 							chatSessionIds: new Set([entry.chatSessionId]),
+							entries: [entry],
 						});
 					}
 				} else {
 					orphanedEntries.push(entry);
+				}
+			}
+
+			// Retry cloud-session creation for any session previously marked
+			// rate-limited that now has buffered events. The client short-circuits
+			// while still in backoff, so this is cheap when the limit hasn't lifted.
+			if (this._rateLimitedSessions.size > 0 && this._repository) {
+				const repo = this._repository;
+				const level = this._indexingPreference.getStorageLevel(`${repo.owner}/${repo.repo}`);
+				const pending = new Set(orphanedEntries.map(e => e.chatSessionId));
+				const toRetry = [...this._rateLimitedSessions].filter(id =>
+					pending.has(id) && !this._initializingSessions.has(id)
+				);
+				for (const sessionId of toRetry) {
+					await this._createCloudSession(sessionId, repo, level);
 				}
 			}
 
@@ -1147,7 +1198,9 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			if (orphanedEntries.length > 0) {
 				const requeue = orphanedEntries.filter(e =>
 					!this._disabledSessions.has(e.chatSessionId)
-					&& (this._initializingSessions.has(e.chatSessionId) || this._cloudSessions.has(e.chatSessionId))
+					&& (this._initializingSessions.has(e.chatSessionId)
+						|| this._cloudSessions.has(e.chatSessionId)
+						|| this._rateLimitedSessions.has(e.chatSessionId))
 				);
 				if (requeue.length > 0) {
 					this._eventBuffer.unshift(...requeue);
@@ -1159,6 +1212,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			let policyBlockedSessions = 0;
 			let rateLimitedSessions = 0;
 			let submittedCount = 0;
+			const requeueOnRateLimit: typeof batch = [];
 			for (const [cloudSessionId, slot] of eventsBySession) {
 				submittedCount += slot.events.length;
 				const filteredEvents = slot.events.map(e => filterSecretsFromObj(e));
@@ -1177,10 +1231,16 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 					}
 				} else if (result.reason === 'rate_limited') {
 					// Client is already self-backing-off; don't trip the circuit breaker.
+					// Requeue the unsent events so they're retried after the backoff.
 					rateLimitedSessions++;
+					requeueOnRateLimit.push(...slot.entries);
 				} else {
 					hadTransientError = true;
 				}
+			}
+
+			if (requeueOnRateLimit.length > 0) {
+				this._eventBuffer.unshift(...requeueOnRateLimit);
 			}
 
 			const allSuccess = !hadTransientError && policyBlockedSessions === 0 && rateLimitedSessions === 0;

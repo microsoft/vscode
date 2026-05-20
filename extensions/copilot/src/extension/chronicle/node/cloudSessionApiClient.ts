@@ -53,7 +53,7 @@ export class CloudSessionApiClient {
 	) { }
 
 	/** Returns true if we're currently rate-limited and should skip requests. */
-	private _isRateLimited(): boolean {
+	isRateLimited(): boolean {
 		return Date.now() < this._rateLimitedUntil;
 	}
 
@@ -87,7 +87,7 @@ export class CloudSessionApiClient {
 		sessionId: string,
 		indexingLevel: 'user' | 'repo_and_user' = 'user',
 	): Promise<CreateSessionResult> {
-		if (this._isRateLimited()) {
+		if (this.isRateLimited()) {
 			return { ok: false, reason: 'rate_limited' };
 		}
 		try {
@@ -137,7 +137,7 @@ export class CloudSessionApiClient {
 		sessionId: string,
 		events: SessionEvent[],
 	): Promise<SubmitSessionEventsResult> {
-		if (this._isRateLimited()) {
+		if (this.isRateLimited()) {
 			return { ok: false, reason: 'rate_limited' };
 		}
 		try {
@@ -174,7 +174,7 @@ export class CloudSessionApiClient {
 	 * Get a session by ID (used for reattach verification).
 	 */
 	async getSession(sessionId: string): Promise<CloudSession | undefined> {
-		if (this._isRateLimited()) {
+		if (this.isRateLimited()) {
 			return undefined;
 		}
 		try {
@@ -211,7 +211,7 @@ export class CloudSessionApiClient {
 	 */
 	async listSessions(): Promise<Array<{ id: string; task_id?: string; agent_task_id?: string; agent_id?: number; state: string; created_at: string }>> {
 		const allSessions: Array<{ id: string; task_id?: string; agent_task_id?: string; agent_id?: number; state: string; created_at: string }> = [];
-		if (this._isRateLimited()) {
+		if (this.isRateLimited()) {
 			return allSessions;
 		}
 		const pageSize = 100;
@@ -272,7 +272,7 @@ export class CloudSessionApiClient {
 	 * treated as success), or 'error' on failure.
 	 */
 	async deleteSession(taskId: string): Promise<'deleted' | 'not_found' | 'error'> {
-		if (this._isRateLimited()) {
+		if (this.isRateLimited()) {
 			return 'error';
 		}
 		try {
@@ -311,7 +311,7 @@ export class CloudSessionApiClient {
 	 * Single API call that queues all eligible sessions for reindexing.
 	 */
 	async backfillAnalytics(indexingLevel: 'user' | 'repo_and_user'): Promise<{ ok: true; sessionsQueued: number } | { ok: false }> {
-		if (this._isRateLimited()) {
+		if (this.isRateLimited()) {
 			return { ok: false };
 		}
 		try {
