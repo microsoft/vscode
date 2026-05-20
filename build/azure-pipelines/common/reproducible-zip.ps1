@@ -13,6 +13,10 @@
 #   reproducible-zip.ps1 <archive.zip> <touch-dir> <7z source args...>
 #
 # Trailing args are passed verbatim to `7z.exe a -tzip <archive>`.
+#
+# Note: 7-Zip's DOS-time conversion uses Win32 APIs that follow the system
+# time zone (TZ env var is ignored). Azure Pipelines Microsoft-hosted Windows
+# agents are UTC by default, which is what this assumes.
 
 [CmdletBinding()]
 param(

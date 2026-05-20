@@ -15,6 +15,11 @@
 
 set -e
 
+# BSD `date -r`, `touch -t` and Info-ZIP `zip` all read TZ via localtime();
+# force UTC so the DOS time written into the zip central directory does not
+# depend on the build agent's timezone.
+export TZ=UTC0
+
 if [ "$#" -ne 2 ]; then
 	echo "Usage: $0 <archive.zip> <source-dir>" >&2
 	exit 1
