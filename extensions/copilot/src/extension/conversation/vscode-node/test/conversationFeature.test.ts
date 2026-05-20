@@ -152,4 +152,26 @@ suite('Conversation feature test suite', function () {
 			conversationFeature.dispose();
 		}
 	});
+
+	test('activationBlocker resolves on an auth change even when the BYOK query never settles', async function () {
+		// Reproduces the air-gapped startup deadlock: the BYOK detection query (which itself
+		// activates this extension's language-model providers) can hang until extension
+		// activation completes, while extension activation is waiting for `activationBlocker`.
+		// The auth-change event must unconditionally unblock activation regardless of token
+		// or BYOK availability.
+		sandbox.stub(vscode.lm, 'selectChatModels').returns(new Promise<vscode.LanguageModelChat[]>(() => { /* never resolves */ }));
+		sandbox.stub(vscode.lm, 'onDidChangeChatModels').returns({ dispose: () => { } });
+
+		const conversationFeature = instaService.createInstance(ConversationFeature);
+		try {
+			const authService = accessor.get(IAuthenticationService) as unknown as { fireAuthenticationChange(source: string): void };
+			authService.fireAuthenticationChange('test');
+
+			await conversationFeature.activationBlocker;
+			assert.deepStrictEqual(conversationFeature.activated, false);
+			assert.deepStrictEqual(conversationFeature.enabled, false);
+		} finally {
+			conversationFeature.dispose();
+		}
+	});
 });
