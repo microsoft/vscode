@@ -661,14 +661,11 @@ export class ChatSessionStore extends Disposable {
 			return undefined;
 		}
 
-		try {
-			let session: ISerializableChatDataIn;
+		const parseSession = (data: VSBuffer, useLog: boolean): ISerializedChatDataReference => {
 			const log = new ChatSessionOperationLog();
-			if (fromLocation === logStorageLocation) {
-				session = revive(log.read(rawData));
-			} else {
-				session = revive(JSON.parse(rawData.toString()));
-			}
+			const session: ISerializableChatDataIn = useLog
+				? revive(log.read(data))
+				: revive(JSON.parse(data.toString()));
 
 			// TODO Copied from ChatService.ts, cleanup
 			// Revive serialized markdown strings in response data
@@ -686,7 +683,31 @@ export class ChatSessionStore extends Disposable {
 			}
 
 			return { value: normalizeSerializableChatData(session), serializer: log };
+		};
+
+		try {
+			return parseSession(rawData, fromLocation === logStorageLocation);
 		} catch (err) {
+			// When the log file is malformed, attempt recovery from the flat JSON file
+			// before giving up entirely. This handles cases where the log file lost its
+			// initial snapshot entry due to an interrupted write or other corruption.
+			if (fromLocation === logStorageLocation) {
+				let flatData: VSBuffer | undefined;
+				try {
+					flatData = (await this.fileService.readFile(flatStorageLocation)).value;
+				} catch {
+					// flat file may not exist; fall through to report the original error
+				}
+
+				if (flatData) {
+					try {
+						return parseSession(flatData, false);
+					} catch {
+						// flat file also unreadable; fall through to report the original error
+					}
+				}
+			}
+
 			this.reportError('malformedSession', `Malformed session data in ${fromLocation.fsPath}: [${rawData.slice(0, 20).toString()}${rawData.byteLength > 20 ? '...' : ''}]`, err);
 			return undefined;
 		}
