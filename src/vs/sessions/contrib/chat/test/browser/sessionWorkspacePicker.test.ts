@@ -305,7 +305,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		const picker = createTestPicker(disposables, providersService, storage);
 
 		// User picks a local workspace while the remote is still trying to connect.
-		picker.setSelectedWorkspace(URI.file('/local/picked'), false);
+		picker.setSelectedWorkspace(URI.file('/local/picked'), { fireEvent: false });
 
 		// Grace period elapses; remote still disconnected — must not affect user pick.
 		await timeout(10_000);
@@ -445,7 +445,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		// Select the local workspace
 		const resolvedWorkspace = localProvider.resolveWorkspace(URI.file('/local/project'));
 		assert.ok(resolvedWorkspace, 'resolveWorkspace should resolve file:// URIs');
-		picker.setSelectedWorkspace(URI.file('/local/project'), false);
+		picker.setSelectedWorkspace(URI.file('/local/project'), { fireEvent: false });
 
 		// Verify storage: only the local entry should be checked
 		const raw = storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
@@ -521,7 +521,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		assertSelectedProvider(picker, undefined, 'No fallback while checked entry pending');
 
 		// User explicitly picks a Copilot workspace.
-		picker.setSelectedWorkspace(URI.file('/copilot/picked'), false);
+		picker.setSelectedWorkspace(URI.file('/copilot/picked'), { fireEvent: false });
 		assertSelectedProvider(picker, 'default-copilot', 'User pick is honored');
 
 		// Now the late provider for the (still-stored) checked entry arrives.

@@ -93,8 +93,6 @@ Session-level properties are derived from chats:
 - `status` is aggregated (`NeedsInput` > `InProgress` > other)
 - `isRead` is `true` only when all chats are read
 
-A chat may also be marked **read-only** via `IChat.isReadOnly`. Providers use this to surface conversations the user can only observe (e.g. a sub-agent run exposed as a separate chat). The Agents window honors this by hiding the chat input bar entirely while a read-only chat is the active chat.
-
 The active session (`IActiveSession`) extends `ISession` with an `activeChat` observable that tracks which chat the user is viewing.
 
 ### Workspaces and Folders

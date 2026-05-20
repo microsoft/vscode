@@ -26,7 +26,7 @@ import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/co
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
-import { IPickedSessionType } from './sessionTypePicker.js';
+import { IPreferredSessionType } from './sessionTypePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -96,8 +96,10 @@ class NewChatWidget extends Disposable {
 				// fall back to the provider's natural default by passing
 				// only the folder URI.
 				const picked = this._newChatInput.sessionTypePicker.selectedPick;
-				const validForFolder = picked && this.sessionsManagementService.getSessionTypesForFolder(folderUri)
-					.some(t => t.providerId === picked.providerId && t.sessionType.id === picked.sessionTypeId);
+				const folderTypes = picked ? this.sessionsManagementService.getSessionTypes(folderUri) : undefined;
+				const validForFolder = picked && folderTypes!.some(t =>
+					(picked.providerId === undefined || t.providerId === picked.providerId)
+					&& t.sessionType.id === picked.sessionTypeId);
 				await this._onWorkspaceSelected(folderUri, validForFolder ? picked : undefined);
 			} else {
 				await this._onWorkspaceSelected(undefined, undefined);
@@ -164,20 +166,25 @@ class NewChatWidget extends Disposable {
 		const sessionWorkspace = activeSession.workspace.get();
 		const folderUri = sessionWorkspace?.folders[0]?.root;
 		if (folderUri) {
-			this._workspacePicker.setSelectedWorkspace(folderUri, /* fireEvent */ false);
+			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false });
 		}
 
 		return true;
 	}
 
-	private _createNewSession(folderUri: URI, pick: IPickedSessionType | undefined): void {
+	private _createNewSession(folderUri: URI, pick: IPreferredSessionType | undefined): void {
 		// If the carried-over pick can no longer be served for this folder
 		// (the picker upgraded to a different provider after restore), drop
-		// it so the management service picks the natural default.
+		// it so the management service picks the natural default. When the
+		// pick has no providerId yet (legacy stored preference), we accept
+		// any provider that offers the same sessionTypeId.
 		let effectivePick = pick;
 		if (effectivePick) {
-			const available = this.sessionsManagementService.getSessionTypesForFolder(folderUri);
-			if (!available.some(t => t.providerId === effectivePick!.providerId && t.sessionType.id === effectivePick!.sessionTypeId)) {
+			const available = this.sessionsManagementService.getSessionTypes(folderUri);
+			const matches = available.some(t =>
+				(effectivePick!.providerId === undefined || t.providerId === effectivePick!.providerId)
+				&& t.sessionType.id === effectivePick!.sessionTypeId);
+			if (!matches) {
 				effectivePick = undefined;
 			}
 		}
@@ -188,12 +195,12 @@ class NewChatWidget extends Disposable {
 		// agent-host-specific UI (model picker etc.) until the user re-picks the workspace.
 		// If the connection fails, the picker fires onDidSelectWorkspace(undefined) which
 		// clears the pending wait via _onWorkspaceSelected.
-		const availableNow = this.sessionsManagementService.getSessionTypesForFolder(folderUri);
+		const availableNow = this.sessionsManagementService.getSessionTypes(folderUri);
 		if (availableNow.length === 0) {
 			const pendingStore = new DisposableStore();
 			this._pendingSessionTypeWait.value = pendingStore;
 			pendingStore.add(this.sessionsManagementService.onDidChangeSessionTypes(() => {
-				if (this.sessionsManagementService.getSessionTypesForFolder(folderUri).length > 0) {
+				if (this.sessionsManagementService.getSessionTypes(folderUri).length > 0) {
 					this._pendingSessionTypeWait.clear();
 					this._createNewSession(folderUri, pick);
 				}
@@ -379,7 +386,7 @@ class NewChatWidget extends Disposable {
 	 * Handles a workspace selection from the workspace picker.
 	 * Requests folder trust if needed and creates a new session.
 	 */
-	private async _onWorkspaceSelected(folderUri: URI | undefined, pick: IPickedSessionType | undefined): Promise<void> {
+	private async _onWorkspaceSelected(folderUri: URI | undefined, pick: IPreferredSessionType | undefined): Promise<void> {
 		// Cancel any in-flight wait for a previous selection.
 		this._pendingSessionTypeWait.clear();
 
@@ -388,7 +395,7 @@ class NewChatWidget extends Disposable {
 			return;
 		}
 
-		const resolved = this.sessionsManagementService.resolveWorkspaceForFolder(folderUri);
+		const resolved = this.sessionsManagementService.resolveWorkspace(folderUri);
 		if (resolved?.workspace.requiresWorkspaceTrust) {
 			if (!await this._requestFolderTrust(folderUri)) {
 				return;
@@ -410,8 +417,8 @@ class NewChatWidget extends Disposable {
 		this._newChatInput.sendQuery(text);
 	}
 
-	selectWorkspace(folderUri: URI): void {
-		this._workspacePicker.setSelectedWorkspace(folderUri);
+	selectWorkspace(folderUri: URI, providerId?: string): void {
+		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId });
 	}
 }
 
@@ -469,8 +476,8 @@ export class NewChatViewPane extends ViewPane {
 		this._widget?.sendQuery(text);
 	}
 
-	selectWorkspace(folderUri: URI): void {
-		this._widget?.selectWorkspace(folderUri);
+	selectWorkspace(folderUri: URI, providerId?: string): void {
+		this._widget?.selectWorkspace(folderUri, providerId);
 	}
 
 	override setVisible(visible: boolean): void {

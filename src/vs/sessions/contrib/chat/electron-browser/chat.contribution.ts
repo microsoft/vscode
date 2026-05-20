@@ -59,7 +59,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private tryResolveAndSelect(folderUri: URI): boolean {
-		const resolved = this.sessionsManagementService.resolveWorkspaceForFolder(folderUri);
+		const resolved = this.sessionsManagementService.resolveWorkspace(folderUri);
 		if (!resolved) {
 			return false;
 		}

@@ -194,7 +194,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return [...this._sessionTypes];
 	}
 
-	getSessionTypesForFolder(folderUri: URI): IFolderSessionType[] {
+	getSessionTypes(folderUri: URI): IFolderSessionType[] {
 		const result: IFolderSessionType[] = [];
 		for (const provider of this.sessionsProvidersService.getProviders()) {
 			if (!provider.resolveWorkspace(folderUri)) {
@@ -207,7 +207,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return result;
 	}
 
-	resolveWorkspaceForFolder(folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined {
+	resolveWorkspace(folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined {
 		for (const provider of this.sessionsProvidersService.getProviders()) {
 			const workspace = provider.resolveWorkspace(folderUri);
 			if (workspace) {

@@ -34,6 +34,17 @@ export interface IPickedSessionType {
 	readonly sessionTypeId: string;
 }
 
+/**
+ * A stored or in-memory preference. When the providerId is unknown (legacy
+ * storage that only persisted the session type id, or a pick made before
+ * any folder was known) the picker resolves a provider lazily once the
+ * active folder is established.
+ */
+export interface IPreferredSessionType {
+	readonly providerId?: string;
+	readonly sessionTypeId: string;
+}
+
 interface IStoredSessionTypePick {
 	readonly providerId?: string;
 	readonly sessionTypeId: string;
@@ -53,7 +64,13 @@ interface ISessionTypePickerItem {
 
 export class SessionTypePicker extends Disposable {
 
-	protected _picked: IPickedSessionType | undefined;
+	/**
+	 * The currently displayed pick. May be missing `providerId` when restored
+	 * from legacy storage that only persisted the session type id — it will
+	 * be resolved to a concrete provider lazily when consumers create a
+	 * session.
+	 */
+	protected _picked: IPreferredSessionType | undefined;
 	protected readonly _onDidSelectSessionType = this._register(new Emitter<IPickedSessionType | undefined>());
 	readonly onDidSelectSessionType = this._onDidSelectSessionType.event;
 
@@ -78,7 +95,7 @@ export class SessionTypePicker extends Disposable {
 		const refresh = (session: ISession | undefined) => {
 			if (session) {
 				const folderUri = session.workspace.get()?.folders[0]?.root;
-				this._folderSessionTypes = folderUri ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
+				this._folderSessionTypes = folderUri ? this.sessionsManagementService.getSessionTypes(folderUri) : [];
 				// The active session's actual type wins over any stored preference
 				// for trigger-label rendering.
 				this._picked = { providerId: session.providerId, sessionTypeId: session.sessionType };
@@ -102,7 +119,7 @@ export class SessionTypePicker extends Disposable {
 		}));
 	}
 
-	get selectedPick(): IPickedSessionType | undefined {
+	get selectedPick(): IPreferredSessionType | undefined {
 		return this._picked;
 	}
 
@@ -161,7 +178,7 @@ export class SessionTypePicker extends Disposable {
 		// land before the user clicks.
 		const folderUri = session.workspace.get()?.folders[0]?.root;
 		const folderTypes = folderUri
-			? this.sessionsManagementService.getSessionTypesForFolder(folderUri)
+			? this.sessionsManagementService.getSessionTypes(folderUri)
 			: this._folderSessionTypes;
 		this._folderSessionTypes = folderTypes;
 
@@ -256,7 +273,7 @@ export class SessionTypePicker extends Disposable {
 		}
 	}
 
-	private _readStoredPick(): IPickedSessionType | undefined {
+	private _readStoredPick(): IPreferredSessionType | undefined {
 		const raw = this.storageService.get(STORAGE_KEY_LAST_SESSION_TYPE, StorageScope.PROFILE);
 		if (!raw) {
 			return undefined;
@@ -265,15 +282,17 @@ export class SessionTypePicker extends Disposable {
 		// shape where only the sessionTypeId string was stored.
 		try {
 			const parsed = JSON.parse(raw) as IStoredSessionTypePick;
-			if (parsed && typeof parsed.sessionTypeId === 'string' && typeof parsed.providerId === 'string') {
-				return { providerId: parsed.providerId, sessionTypeId: parsed.sessionTypeId };
+			if (parsed && typeof parsed.sessionTypeId === 'string') {
+				return typeof parsed.providerId === 'string'
+					? { providerId: parsed.providerId, sessionTypeId: parsed.sessionTypeId }
+					: { sessionTypeId: parsed.sessionTypeId };
 			}
 		} catch {
-			// fall through to legacy handling
+			// Not JSON — fall through to legacy raw-string handling.
 		}
-		// Legacy string id — no providerId yet. The picker will resolve the
-		// provider lazily based on the active folder.
-		return undefined;
+		// Legacy raw string was just the session type id. Resolution to a
+		// provider happens lazily once the active folder is known.
+		return { sessionTypeId: raw };
 	}
 
 	private _writeStoredPick(pick: IPickedSessionType): void {

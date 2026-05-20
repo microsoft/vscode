@@ -86,19 +86,19 @@ export interface ISessionsManagementService {
 	getAllSessionTypes(): ISessionType[];
 
 	/**
-	 * Get all session types that can serve the given folder URI, across all
+	 * Get all session types that can serve the given workspace URI, across all
 	 * registered providers. Returns one entry per (provider × supported type),
 	 * so the UI can group types by provider when more than one provider can
-	 * serve the same folder.
+	 * serve the same workspace.
 	 */
-	getSessionTypesForFolder(folderUri: URI): IFolderSessionType[];
+	getSessionTypes(workspaceUri: URI): IFolderSessionType[];
 
 	/**
-	 * Resolve a folder URI to a workspace using the first provider whose
+	 * Resolve a workspace URI to a workspace using the first provider whose
 	 * {@link ISessionsProvider.resolveWorkspace} succeeds. Returns `undefined`
 	 * when no registered provider can resolve the URI.
 	 */
-	resolveWorkspaceForFolder(folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined;
+	resolveWorkspace(workspaceUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined;
 
 	/**
 	 * Fires when available session types change (providers added/removed).
@@ -186,12 +186,16 @@ export interface ISessionsManagementService {
 
 	/** Archive a session. */
 	archiveSession(session: ISession): Promise<void>;
+
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
+
 	/** Delete a session. */
 	deleteSession(session: ISession): Promise<void>;
+
 	/** Delete a single chat from a session by its URI. */
 	deleteChat(session: ISession, chatUri: URI): Promise<void>;
+
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;
 }

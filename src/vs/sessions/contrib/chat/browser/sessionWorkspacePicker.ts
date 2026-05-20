@@ -514,10 +514,16 @@ export class WorkspacePicker extends Disposable {
 
 	/**
 	 * Programmatically set the selected workspace by folder URI.
-	 * @param fireEvent Whether to fire the onDidSelectWorkspace event. Defaults to true.
+	 * @param folderUri The folder URI to select.
+	 * @param options.fireEvent Whether to fire the onDidSelectWorkspace event. Defaults to true.
+	 * @param options.providerId Optional providerId hint that wins over any historical
+	 *        recent entry's provider. Use when the caller knows which provider should
+	 *        own the resulting session (e.g. "New Session" invoked from a workspace
+	 *        section in the sessions list, where the existing sessions for the
+	 *        workspace were created by a specific provider).
 	 */
-	setSelectedWorkspace(folderUri: URI, fireEvent = true): void {
-		this._selectFolder(folderUri, fireEvent);
+	setSelectedWorkspace(folderUri: URI, options?: { fireEvent?: boolean; providerId?: string }): void {
+		this._selectFolder(folderUri, options?.fireEvent ?? true, options?.providerId);
 	}
 
 	/**
@@ -558,16 +564,17 @@ export class WorkspacePicker extends Disposable {
 		}
 	}
 
-	private _selectFolder(folderUri: URI, fireEvent = true): void {
+	private _selectFolder(folderUri: URI, fireEvent = true, providerIdHint?: string): void {
 		this._userHasPicked = true;
 		this._connectionStatusWatch.clear();
-		// Prefer the historical providerId stored in the recents for this URI,
-		// so re-picking a Local Agent Host folder restores the Local Agent
-		// Host association even when another provider also resolves the URI.
+		// Prefer the caller-supplied providerId hint, then the historical
+		// providerId stored in the recents for this URI, so re-picking a
+		// Local Agent Host folder restores the Local Agent Host association
+		// even when another provider also resolves the URI.
 		const storedProviderId = this._getStoredRecentWorkspaces()
 			.find(r => this.uriIdentityService.extUri.isEqual(URI.revive(r.uri), folderUri))
 			?.providerId;
-		const resolved = this._resolveFolder(folderUri, storedProviderId);
+		const resolved = this._resolveFolder(folderUri, providerIdHint ?? storedProviderId);
 		this._selectedFolderUri = folderUri;
 		this._selectedResolved = resolved;
 		this._persistSelectedFolder(folderUri, resolved?.providerId);
