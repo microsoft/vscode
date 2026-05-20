@@ -141,7 +141,7 @@ function getLastWindowFocusTime(e: IMouseWheelEvent): number {
 	let lastFocusTime = lastWindowFocusTime.get(targetWindow);
 
 	if (typeof lastFocusTime === 'undefined') {
-		lastFocusTime = 0;
+		lastFocusTime = targetWindow.document.hasFocus() ? Date.now() : 0;
 		lastWindowFocusTime.set(targetWindow, lastFocusTime);
 		targetWindow.addEventListener('focus', () => lastWindowFocusTime.set(targetWindow, Date.now()), true);
 	}

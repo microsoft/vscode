@@ -26,4 +26,41 @@ suite('mouseEvent', () => {
 		assert.strictEqual(isMouseWheelEventFromBeforeWindowFocus(unknownTimestampEvent, 2_200), false);
 		assert.strictEqual(isMouseWheelEventFromBeforeWindowFocus(staleRelativeEvent, 0), false);
 	});
+
+	test('tracks the latest window focus time for wheel event filtering', () => {
+		const originalDateNow = Date.now;
+		const now = 2_200;
+
+		try {
+			Date.now = () => now;
+
+			const focusedWindow = {
+				document: { hasFocus: () => true },
+				performance: { timeOrigin: 1_000 },
+				addEventListener: () => { },
+			} as unknown as Window;
+
+			const staleAfterAlreadyFocusedEvent = { timeStamp: 1_000, view: focusedWindow } as IMouseWheelEvent;
+			assert.strictEqual(isMouseWheelEventFromBeforeWindowFocus(staleAfterAlreadyFocusedEvent), true);
+
+			let focusListener: ((event: Event) => void) | undefined;
+			const initiallyUnfocusedWindow = {
+				document: { hasFocus: () => false },
+				performance: { timeOrigin: 1_000 },
+				addEventListener: (type: string, listener: EventListenerOrEventListenerObject) => {
+					if (type === 'focus' && typeof listener === 'function') {
+						focusListener = listener;
+					}
+				},
+			} as unknown as Window;
+
+			const staleBeforeFocusEvent = { timeStamp: 1_000, view: initiallyUnfocusedWindow } as IMouseWheelEvent;
+			assert.strictEqual(isMouseWheelEventFromBeforeWindowFocus(staleBeforeFocusEvent), false);
+
+			focusListener?.(new Event('focus'));
+			assert.strictEqual(isMouseWheelEventFromBeforeWindowFocus(staleBeforeFocusEvent), true);
+		} finally {
+			Date.now = originalDateNow;
+		}
+	});
 });
