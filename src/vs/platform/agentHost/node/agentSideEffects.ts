@@ -13,6 +13,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { IAgentHostChangesetService } from './agentHostChangesetService.js';
+import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentInfo } from '../common/state/protocol/state.js';
@@ -105,6 +106,7 @@ export class AgentSideEffects extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
@@ -414,7 +416,25 @@ export class AgentSideEffects extends Disposable {
 	 * notify the host so it can refresh git state.
 	 */
 	private _runTurnCompleteSideEffects(sessionKey: ProtocolURI, turnId: string | undefined): void {
-		this._changesets.onTurnComplete(sessionKey, turnId);
+		// Capture the end-of-turn git checkpoint BEFORE notifying the
+		// changeset service so the per-turn changeset recompute can take
+		// the authoritative git-diff fast path (which includes terminal-tool
+		// edits the FileEditTracker misses). The capture is best-effort —
+		// any failure logs and the changeset pipeline falls back to the
+		// `file_edits`-based path. We don't block subsequent side effects
+		// (queued message drain, host notification) on the changeset
+		// completion since those have always been fire-and-forget; the
+		// ordering guarantee we care about is checkpoint-then-changeset.
+		if (turnId !== undefined) {
+			this._checkpointService.captureTurnCheckpoint(URI.parse(sessionKey), turnId).then(() => {
+				this._changesets.onTurnComplete(sessionKey, turnId);
+			}, err => {
+				this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${sessionKey}/${turnId}: ${err instanceof Error ? err.message : String(err)}`);
+				this._changesets.onTurnComplete(sessionKey, turnId);
+			});
+		} else {
+			this._changesets.onTurnComplete(sessionKey, turnId);
+		}
 		this._tryConsumeNextQueuedMessage(sessionKey);
 		this._options.onTurnComplete(sessionKey);
 	}

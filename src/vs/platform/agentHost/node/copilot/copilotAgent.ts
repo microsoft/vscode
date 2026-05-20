@@ -36,6 +36,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../agentHostGitService.js';
+import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { CopilotAgentSession, SessionWrapperFactory, type CopilotSdkMode, type IActiveClientSnapshot } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
@@ -276,6 +277,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
+		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
@@ -850,6 +852,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		this._provisionalSessions.delete(sessionId);
 		await this._storeSessionMetadata(sessionUri, provisional.model, workingDirectory, customizationDirectory, project, true);
+
+		// Capture the per-session baseline (turn/0) git checkpoint so
+		// per-turn diffs computed on `SessionTurnComplete` can reflect the
+		// full working-tree delta — including terminal-tool edits that are
+		// invisible to the FileEditTracker pipeline. Best-effort: a
+		// non-git folder or capture failure leaves the session running
+		// with the legacy `file_edits`-based per-turn diff path.
+		this._checkpointService.captureBaseline(sessionUri, workingDirectory).catch(err => {
+			this._logService.warn(`[Copilot:${sessionId}] Baseline checkpoint capture failed: ${err instanceof Error ? err.message : String(err)}`);
+		});
 
 		this._logService.info(`[Copilot] Session materialized: ${sessionUri.toString()}`);
 		this._onDidMaterializeSession.fire({ session: sessionUri, workingDirectory, project });
