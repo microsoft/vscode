@@ -67,6 +67,10 @@ export namespace ChatEntitlementContextKeys {
 	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
 
 	export const chatAnonymous = new RawContextKey<boolean>('chatAnonymous', false, true);
+
+	export const clientByokEnabled = new RawContextKey<boolean>('github.copilot.clientByokEnabled', true, true);
+
+	export const hasByokModels = new RawContextKey<boolean>('github.copilot.hasByokModels', false, true);
 }
 
 export const IChatEntitlementService = createDecorator<IChatEntitlementService>('chatEntitlementService');
@@ -164,6 +168,7 @@ export interface IChatEntitlementService {
 
 	readonly previewFeaturesDisabled: boolean;
 	readonly clientByokEnabled: boolean;
+	readonly hasByokModels: boolean;
 
 	readonly organisations: string[] | undefined;
 	readonly isInternal: boolean;
@@ -172,6 +177,7 @@ export interface IChatEntitlementService {
 
 	readonly onDidChangeQuotaExceeded: Event<void>;
 	readonly onDidChangeQuotaRemaining: Event<void>;
+	readonly onDidChangeUsageBasedBilling: Event<void>;
 
 	readonly quotas: IQuotas;
 
@@ -228,7 +234,7 @@ export function isProUser(chatEntitlement: ChatEntitlement): boolean {
 export function getChatPlanName(chatEntitlement: ChatEntitlement): string {
 	switch (chatEntitlement) {
 		case ChatEntitlement.EDU:
-			return localize('plan.eduName', 'Copilot EDU');
+			return localize('plan.eduName', 'Copilot Student');
 		case ChatEntitlement.Pro:
 			return localize('plan.proName', 'Copilot Pro');
 		case ChatEntitlement.ProPlus:
@@ -356,6 +362,12 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this.anonymousContextKey = ChatEntitlementContextKeys.chatAnonymous.bindTo(this.contextKeyService);
 		this.anonymousContextKey.set(this.anonymous);
 
+		// Only apply the workbench-side default if no other source (e.g. the Copilot extension)
+		// has already set this key; binding would otherwise reset it to the declared default.
+		if (this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.clientByokEnabled.key) === undefined) {
+			ChatEntitlementContextKeys.clientByokEnabled.bindTo(this.contextKeyService);
+		}
+
 		this.onDidChangeEntitlement = Event.map(
 			Event.filter(
 				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
@@ -462,6 +474,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		return this.contextKeyService.getContextKeyValue<boolean>('github.copilot.clientByokEnabled') === true;
 	}
 
+	get hasByokModels(): boolean {
+		return this.contextKeyService.getContextKeyValue<boolean>('github.copilot.hasByokModels') === true;
+	}
+
 	//#endregion
 
 	//#region --- Quotas
@@ -471,6 +487,9 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	private readonly _onDidChangeQuotaRemaining = this._register(new Emitter<void>());
 	readonly onDidChangeQuotaRemaining = this._onDidChangeQuotaRemaining.event;
+
+	private readonly _onDidChangeUsageBasedBilling = this._register(new Emitter<void>());
+	readonly onDidChangeUsageBasedBilling = this._onDidChangeUsageBasedBilling.event;
 
 	private _quotas: IQuotas;
 	get quotas() { return this._quotas; }
@@ -552,6 +571,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			this._onDidChangeQuotaRemaining.fire();
 		}
 
+		if (oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
+			this._onDidChangeUsageBasedBilling.fire();
+		}
+
 		// Track additional spend configuration changes (only when both values come from server snapshots)
 		if (oldQuota.additionalUsageEnabled !== undefined && quotas.additionalUsageEnabled !== undefined && oldQuota.additionalUsageEnabled !== quotas.additionalUsageEnabled) {
 			this.telemetryService.publicLog2<ChatAdditionalSpendConfigurationEvent, ChatAdditionalSpendConfigurationClassification>('chatAdditionalSpendConfiguration', {
@@ -585,7 +608,13 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	}
 
 	private updateContextKeys(): void {
-		this.chatQuotaExceededContextKey.set(this._quotas.chat?.percentRemaining === 0);
+		const chatExhausted = this._quotas.chat?.percentRemaining === 0;
+		const premiumChatExhausted = this._quotas.premiumChat?.unlimited
+			? this._quotas.premiumChat.hasQuota === false
+			: this._quotas.premiumChat?.percentRemaining === 0;
+		const additionalUsageEnabled = this._quotas.additionalUsageEnabled ?? false;
+
+		this.chatQuotaExceededContextKey.set(chatExhausted || (premiumChatExhausted && !additionalUsageEnabled));
 		this.completionsQuotaExceededContextKey.set(this._quotas.completions?.percentRemaining === 0);
 	}
 
@@ -662,13 +691,23 @@ type EntitlementClassification = {
 	tid: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight'; comment: 'The anonymized analytics id returned by the service'; endpoint: 'GoogleAnalyticsId' };
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
 	sku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SKU of the chat entitlement' };
-	quotaChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat requests available to the user' };
-	quotaPremiumChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of premium chat requests available to the user' };
-	quotaCompletions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of inline suggestions available to the user' };
+	quotaChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The percentage of chat requests remaining for the user' };
+	quotaChatUnlimited: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user has unlimited chat requests' };
+	quotaChatHasQuota: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user currently has chat quota available' };
+	quotaChatEntitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The raw chat quota entitlement count' };
+	quotaPremiumChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The percentage of premium chat requests remaining for the user' };
+	quotaPremiumChatUnlimited: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user has unlimited premium chat requests' };
+	quotaPremiumChatHasQuota: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user currently has premium chat quota available' };
+	quotaPremiumChatEntitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The raw premium chat quota entitlement count' };
+	quotaCompletions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The percentage of completions remaining for the user' };
+	quotaCompletionsUnlimited: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user has unlimited completions' };
+	quotaCompletionsHasQuota: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user currently has completions quota available' };
+	quotaCompletionsEntitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The raw completions quota entitlement count' };
 	quotaResetDate: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The date the quota will reset' };
 	usageBasedBilling: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is on usage-based billing' };
 	additionalUsageEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether overage / additional spend is enabled' };
 	additionalUsageCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of overage interactions used' };
+	canUpgradePlan: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is eligible to upgrade their plan' };
 	owner: 'bpasero';
 	comment: 'Reporting chat entitlements';
 };
@@ -678,12 +717,22 @@ type EntitlementEvent = {
 	tid: string;
 	sku: string | undefined;
 	quotaChat: number | undefined;
+	quotaChatUnlimited: boolean | undefined;
+	quotaChatHasQuota: boolean | undefined;
+	quotaChatEntitlement: number | undefined;
 	quotaPremiumChat: number | undefined;
+	quotaPremiumChatUnlimited: boolean | undefined;
+	quotaPremiumChatHasQuota: boolean | undefined;
+	quotaPremiumChatEntitlement: number | undefined;
 	quotaCompletions: number | undefined;
+	quotaCompletionsUnlimited: boolean | undefined;
+	quotaCompletionsHasQuota: boolean | undefined;
+	quotaCompletionsEntitlement: number | undefined;
 	quotaResetDate: string | undefined;
 	usageBasedBilling: boolean | undefined;
 	additionalUsageEnabled: boolean | undefined;
 	additionalUsageCount: number | undefined;
+	canUpgradePlan: boolean | undefined;
 };
 
 interface IEntitlements {
@@ -697,9 +746,11 @@ interface IEntitlements {
 export interface IQuotaSnapshot {
 	readonly percentRemaining: number;
 	readonly unlimited: boolean;
+	readonly hasQuota?: boolean;
 	readonly resetAt?: number;
 	readonly usageBasedBilling?: boolean;
 	readonly entitlement?: number;
+	readonly quotaRemaining?: number;
 }
 
 interface IQuotas {
@@ -707,6 +758,7 @@ interface IQuotas {
 	readonly resetDateHasTime?: boolean;
 
 	readonly usageBasedBilling?: boolean;
+	readonly canUpgradePlan?: boolean;
 
 	readonly chat?: IQuotaSnapshot;
 	readonly completions?: IQuotaSnapshot;
@@ -720,6 +772,7 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 		resetDate: entitlementsData.quota_reset_date_utc ?? entitlementsData.quota_reset_date ?? entitlementsData.limited_user_reset_date,
 		resetDateHasTime: typeof entitlementsData.quota_reset_date_utc === 'string',
 		usageBasedBilling: entitlementsData.token_based_billing,
+		canUpgradePlan: entitlementsData.can_upgrade_plan,
 	};
 
 	// Legacy Free SKU Quota
@@ -754,12 +807,15 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 				continue;
 			}
 
+			const parsedQuotaRemaining = rawQuotaSnapshot.quota_remaining !== undefined ? Number(rawQuotaSnapshot.quota_remaining) : undefined;
 			const quotaSnapshot: IQuotaSnapshot = {
 				percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
 				unlimited: rawQuotaSnapshot.unlimited,
+				hasQuota: rawQuotaSnapshot.has_quota,
 				usageBasedBilling: entitlementsData.token_based_billing,
 				resetAt: rawQuotaSnapshot.quota_reset_at || undefined,
 				entitlement: parsedEntitlement !== undefined && Number.isSafeInteger(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
+				quotaRemaining: parsedQuotaRemaining !== undefined && Number.isSafeInteger(parsedQuotaRemaining) && parsedQuotaRemaining >= 0 ? parsedQuotaRemaining : undefined,
 			};
 
 			switch (quotaType) {
@@ -874,6 +930,8 @@ export class ChatEntitlementRequests extends Disposable {
 		let entitlement: ChatEntitlement;
 		if (entitlementsData.access_type_sku === 'free_limited_copilot') {
 			entitlement = ChatEntitlement.Free;
+		} else if (entitlementsData.access_type_sku === 'free_educational_quota') {
+			entitlement = ChatEntitlement.EDU;
 		} else if (entitlementsData.can_signup_for_limited) {
 			entitlement = ChatEntitlement.Available;
 		} else if (entitlementsData.copilot_plan === 'individual_edu') {
@@ -906,12 +964,22 @@ export class ChatEntitlementRequests extends Disposable {
 			tid: entitlementsData.analytics_tracking_id,
 			sku: entitlements.sku,
 			quotaChat: entitlements.quotas?.chat?.percentRemaining,
+			quotaChatUnlimited: entitlements.quotas?.chat?.unlimited,
+			quotaChatHasQuota: entitlements.quotas?.chat?.hasQuota,
+			quotaChatEntitlement: entitlements.quotas?.chat?.entitlement,
 			quotaPremiumChat: entitlements.quotas?.premiumChat?.percentRemaining,
+			quotaPremiumChatUnlimited: entitlements.quotas?.premiumChat?.unlimited,
+			quotaPremiumChatHasQuota: entitlements.quotas?.premiumChat?.hasQuota,
+			quotaPremiumChatEntitlement: entitlements.quotas?.premiumChat?.entitlement,
 			quotaCompletions: entitlements.quotas?.completions?.percentRemaining,
+			quotaCompletionsUnlimited: entitlements.quotas?.completions?.unlimited,
+			quotaCompletionsHasQuota: entitlements.quotas?.completions?.hasQuota,
+			quotaCompletionsEntitlement: entitlements.quotas?.completions?.entitlement,
 			quotaResetDate: entitlements.quotas?.resetDate,
 			usageBasedBilling: entitlements.quotas?.usageBasedBilling,
 			additionalUsageEnabled: entitlements.quotas?.additionalUsageEnabled,
-			additionalUsageCount: entitlements.quotas?.additionalUsageCount
+			additionalUsageCount: entitlements.quotas?.additionalUsageCount,
+			canUpgradePlan: entitlements.quotas?.canUpgradePlan
 		});
 
 		return entitlements;

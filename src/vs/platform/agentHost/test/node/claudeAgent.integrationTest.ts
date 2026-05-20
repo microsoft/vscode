@@ -34,7 +34,7 @@
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { Options, PermissionResult, Query, SDKMessage, SDKResultSuccess, SDKSessionInfo, SDKSystemMessage, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { GetSessionMessagesOptions, Options, PermissionResult, Query, SDKMessage, SDKResultSuccess, SDKSessionInfo, SDKSystemMessage, SDKUserMessage, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import type * as http from 'http';
@@ -326,6 +326,18 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 
 	async getSessionInfo(_sessionId: string): Promise<SDKSessionInfo | undefined> {
 		return undefined;
+	}
+
+	async getSessionMessages(_sessionId: string, _options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]> {
+		return [];
+	}
+
+	async listSubagents(_sessionId: string): Promise<readonly string[]> {
+		return [];
+	}
+
+	async getSubagentMessages(_sessionId: string, _agentId: string): Promise<readonly SessionMessage[]> {
+		return [];
 	}
 
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
@@ -827,6 +839,11 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 				{ kind: 'action', type: ActionType.SessionDelta, content: 'reading' },
 				{ kind: 'action', type: ActionType.SessionToolCallStart, toolCallId: TOOL_USE_ID, toolName: 'Read' },
 				{ kind: 'action', type: ActionType.SessionToolCallDelta, toolCallId: TOOL_USE_ID, content: '{"file_path":"/tmp/x"}' },
+				// Phase 8.5 — mapper emits `SessionToolCallReady` at
+				// `content_block_stop` so auto-allowed tools transition out of
+				// `Streaming`; `sessionPermissions` then emits a second Ready
+				// for the pending_confirmation card below.
+				{ kind: 'action', type: ActionType.SessionToolCallReady },
 				{ kind: 'pending_confirmation', toolCallId: TOOL_USE_ID, toolName: 'Read', permissionKind: 'read', permissionPath: '/tmp/x' },
 				{ kind: 'action', type: ActionType.SessionToolCallComplete, toolCallId: TOOL_USE_ID, success: true, content: [{ type: ToolResultContentType.Text, text: 'file contents' }] },
 				{ kind: 'action', type: ActionType.SessionResponsePart, partKind: ResponsePartKind.Markdown, content: '' },

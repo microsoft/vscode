@@ -33,7 +33,7 @@ import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listSe
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { CopilotCLISessionType, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -45,7 +45,7 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
-import { IAgentHostFilterService } from '../../../remoteAgentHost/common/agentHostFilter.js';
+import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 
 const $ = DOM.$;
 
@@ -333,21 +333,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			DOM.clearNode(template.detailsRow);
 			const parts: HTMLElement[] = [];
 
-			const isWorkspaceSession = workspace &&
-				workspace.folders.length > 0 &&
-				workspace?.folders[0]?.gitRepository?.workTreeUri === undefined;
-
-			// Session type icon in details row
-			// Disabling background icon - hacky but couldn't figure out how to do it from the new provider
-			if (element.sessionType !== CopilotCLISessionType.id) {
-				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
-				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(element.icon)}`));
-				parts.push(typeIconEl);
-			} else if (
-				element.sessionType === CopilotCLISessionType.id &&
-				sessionStatus !== SessionStatus.InProgress
-			) {
-				const icon = isWorkspaceSession ? Codicon.folder : Codicon.worktree;
+			if (sessionStatus !== SessionStatus.InProgress) {
+				const isWorkspaceSession = workspace &&
+					workspace.folders.length > 0 &&
+					workspace?.folders[0]?.gitRepository?.workTreeUri === undefined;
+				const icon = workspace?.isVirtualWorkspace ? Codicon.cloud : isWorkspaceSession ? Codicon.folder : Codicon.worktree;
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
 				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 				parts.push(typeIconEl);
@@ -655,7 +645,9 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				: localize('showLessCompact', "Show less");
 		} else {
 			template.textContent = element.kind === 'folders'
-				? localize('showMoreWorkspacesCompact', "+{0} more workspaces", element.remainingCount)
+				? element.remainingCount === 1
+					? localize('showMoreWorkspaceCompact', "+{0} workspace", element.remainingCount)
+					: localize('showMoreWorkspacesCompact', "+{0} workspaces", element.remainingCount)
 				: localize('showMoreCompact', "+{0} more", element.remainingCount);
 		}
 	}
@@ -681,7 +673,9 @@ class SessionsAccessibilityProvider {
 					: localize('showLessAria', "Show fewer sessions");
 			}
 			return element.kind === 'folders'
-				? localize('showMoreWorkspacesAria', "Show {0} more workspaces", element.remainingCount)
+				? element.remainingCount === 1
+					? localize('showMoreWorkspaceAria', "Show {0} more workspace", element.remainingCount)
+					: localize('showMoreWorkspacesAria', "Show {0} more workspaces", element.remainingCount)
 				: localize('showMoreAria', "Show {0} more sessions", element.remainingCount);
 		}
 		const title = element.title.get();
@@ -1121,15 +1115,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		const moreFolderSections: ISessionSection[] = [];
-		// When expanding the "more workspaces" group, the archived ("Done")
-		// section is moved to sit right above the "Show less" action so that
-		// the additional workspaces appear contiguously with the primary ones.
-		const deferArchived = partitionFolders && this.expandedMoreFolders;
+		// The archived ("Done") section should always appear after the
+		// "more workspaces" toggle (both collapsed and expanded states)
+		// so it remains the very last group in the list.
 		let archivedSection: ISessionSection | undefined;
 		for (const section of sections) {
 			if (moreFolderSectionIds.has(section.id)) {
 				moreFolderSections.push(section);
-			} else if (deferArchived && section.id === 'archived') {
+			} else if (partitionFolders && section.id === 'archived') {
 				archivedSection = section;
 			} else {
 				children.push(renderSection(section));
@@ -1141,9 +1134,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 				for (const section of moreFolderSections) {
 					children.push(renderSection(section));
 				}
-				if (archivedSection) {
-					children.push(renderSection(archivedSection));
-				}
 				children.push({
 					element: { showMore: true as const, kind: 'folders' as const, mode: 'less' as const, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },
 				});
@@ -1152,7 +1142,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					element: { showMore: true as const, kind: 'folders' as const, mode: 'more' as const, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: moreFolderSections.length },
 				});
 			}
-		} else if (archivedSection) {
+		}
+		if (archivedSection) {
 			children.push(renderSection(archivedSection));
 		}
 

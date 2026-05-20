@@ -224,9 +224,9 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		return this._inner.getSubscriptionUnmanaged(kind, resource);
 	}
 
-	dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
-		this._log('>>', 'dispatch', action);
-		this._inner.dispatch(action);
+	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+		this._log('>>', 'dispatch', { channel, action });
+		this._inner.dispatch(channel, action);
 	}
 
 	async resourceList(uri: URI): Promise<ResourceListResult> {

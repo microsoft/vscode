@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import type { ILogService } from '../../log/common/log.js';
 import pkg from '@xterm/headless';
 
@@ -89,6 +90,32 @@ export class AgentHostHeadlessTerminal extends Disposable {
 
 	isBracketedPasteMode(): boolean {
 		return this._terminal.modes.bracketedPasteMode;
+	}
+
+	isInAltBuffer(): boolean {
+		return this._terminal.buffer.active === this._terminal.buffer.alternate;
+	}
+
+	createAltBufferPromise(store: DisposableStore): Promise<void> {
+		const deferred = new DeferredPromise<void>();
+		const complete = () => {
+			if (!deferred.isSettled) {
+				this._logService.debug('[AgentHostHeadlessTerminal] Detected alternate buffer entry');
+				deferred.complete();
+			}
+		};
+
+		if (this.isInAltBuffer()) {
+			complete();
+		} else {
+			store.add(this._terminal.buffer.onBufferChange(() => {
+				if (this.isInAltBuffer()) {
+					complete();
+				}
+			}));
+		}
+
+		return deferred.p;
 	}
 
 	clear(): void {

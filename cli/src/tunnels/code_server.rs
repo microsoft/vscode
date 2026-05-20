@@ -74,6 +74,14 @@ pub struct CodeServerArgs {
 	pub without_connection_token: bool,
 	// reconnection
 	pub reconnection_grace_time: Option<u32>,
+	// agent-host bridge: tells the spawned VS Code server where the
+	// canonical agent host is listening so it can register the
+	// `agentHostProxy` IPC channel and let renderers reach the agent
+	// host over the remote-agent connection. The server does NOT spawn
+	// an agent host of its own when these are set.
+	pub agent_host_bridge_host: Option<String>,
+	pub agent_host_bridge_port: Option<u16>,
+	pub agent_host_bridge_connection_token: Option<String>,
 }
 
 impl CodeServerArgs {
@@ -158,6 +166,15 @@ impl CodeServerArgs {
 		}
 		if self.start_server {
 			args.push(String::from("--start-server"));
+		}
+		if let Some(port) = self.agent_host_bridge_port {
+			args.push(format!("--agent-host-bridge-port={port}"));
+			if let Some(host) = &self.agent_host_bridge_host {
+				args.push(format!("--agent-host-bridge-host={host}"));
+			}
+			if let Some(token) = &self.agent_host_bridge_connection_token {
+				args.push(format!("--agent-host-bridge-connection-token={token}"));
+			}
 		}
 		args
 	}
@@ -331,6 +348,28 @@ pub struct ServerBuilder<'a> {
 	launcher_paths: &'a LauncherPaths,
 	server_paths: ServerPaths,
 	http: BoxedHttp,
+}
+
+/// Ensures the given path has execute permissions on Unix.
+/// This is a self-healing measure for cases where the binary was extracted
+/// without execute permissions or where permissions were lost (e.g. on
+/// network filesystems or after interrupted downloads).
+#[cfg(unix)]
+fn ensure_executable(path: &std::path::Path) -> Result<(), std::io::Error> {
+	use std::os::unix::fs::PermissionsExt;
+
+	let metadata = std::fs::metadata(path)?;
+	let mut permissions = metadata.permissions();
+	if permissions.mode() & 0o111 == 0 {
+		permissions.set_mode(permissions.mode() | 0o111);
+		std::fs::set_permissions(path, permissions)?;
+	}
+	Ok(())
+}
+
+#[cfg(not(unix))]
+fn ensure_executable(_path: &std::path::Path) -> Result<(), std::io::Error> {
+	Ok(())
 }
 
 impl<'a> ServerBuilder<'a> {
@@ -609,6 +648,19 @@ impl<'a> ServerBuilder<'a> {
 					Default::default()
 				},
 		);
+
+		// Self-heal: if the server binary lost execute permissions (e.g. on a
+		// network filesystem or after a partial extraction), try to restore them
+		// before attempting to spawn. If this fails, report it clearly so that
+		// the UI does not treat it as generic "corruption" and loop re-downloading.
+		if let Err(e) = ensure_executable(&self.server_paths.executable) {
+			return Err(CodeError::ServerNotExecutable(format!(
+				"{} is not executable and permissions could not be restored: {}",
+				self.server_paths.executable.display(),
+				e
+			))
+			.into());
+		}
 
 		let child = cmd
 			.stderr(std::process::Stdio::piped())
