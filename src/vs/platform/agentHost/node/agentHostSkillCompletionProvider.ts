@@ -65,13 +65,13 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 			return [];
 		}
 
-		const agent = this._getAgent(params.session);
+		const agent = this._getAgent(params.channel);
 		if (!agent) {
 			return [];
 		}
 		this._watchAgent(agent);
 
-		const candidates = await this._getCandidates(agent, typeof params.session === 'string' ? URI.parse(params.session) : params.session);
+		const candidates = await this._getCandidates(agent, typeof params.channel === 'string' ? URI.parse(params.channel) : params.channel);
 		if (token.isCancellationRequested || candidates.length === 0) {
 			return [];
 		}
