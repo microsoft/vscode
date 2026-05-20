@@ -259,6 +259,7 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 			copilotToken = (await this._authService.getCopilotToken()).token;
 		} catch (e) {
 			// No Copilot auth (e.g. signed-out BYOK-only mode).
+			this._lastFetchTime = Date.now();
 			this._lastFetchError = e;
 			return;
 		}
