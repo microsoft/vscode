@@ -41,7 +41,7 @@ export interface IAICustomizationListItem {
 	readonly name: string;
 	readonly filename: string;
 	readonly description?: string;
-	/** Storage origin. Set by core when items come from promptsService; omitted for external provider items. */
+	/** Storage or provider origin. All items, including those from external providers, must provide a source. */
 	readonly source: AICustomizationSource;
 	readonly promptType: PromptsType;
 	readonly disabled: boolean;
