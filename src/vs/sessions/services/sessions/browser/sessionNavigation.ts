@@ -78,10 +78,12 @@ export class SessionsNavigation extends Disposable {
 		this._register(autorun(reader => {
 			const activeSession = this._sessionsManagementService.activeSession.read(reader);
 			const activeChat = activeSession?.activeChat.read(reader);
+			const sessionStatus = activeSession?.status.read(reader);
+			const chatStatus = activeChat?.status.read(reader);
 			if (this._navigating) {
 				return;
 			}
-			if (!activeSession || activeSession.status.read(reader) === SessionStatus.Untitled) {
+			if (!activeSession || sessionStatus === SessionStatus.Untitled) {
 				// User navigated to new-session view: if we have history, remember we're
 				// beyond the stack so Back can return to the last real session.
 				if (this._history.length > 0) {
@@ -91,7 +93,7 @@ export class SessionsNavigation extends Disposable {
 			}
 
 			// Skip untitled chats (new-chat-in-session that hasn't been submitted)
-			const chatResource = activeChat && activeChat.status.read(reader) !== SessionStatus.Untitled
+			const chatResource = activeChat && chatStatus !== SessionStatus.Untitled
 				? activeChat.resource
 				: undefined;
 
@@ -185,7 +187,12 @@ export class SessionsNavigation extends Disposable {
 			const session = this._sessionsManagementService.getSession(entry.sessionResource);
 			if (session) {
 				if (entry.chatResource) {
-					await this._sessionsManagementService.openChat(session, entry.chatResource);
+					const chatExists = session.chats.get().some(c => c.resource.toString() === entry.chatResource!.toString());
+					if (chatExists) {
+						await this._sessionsManagementService.openChat(session, entry.chatResource);
+					} else {
+						await this._sessionsManagementService.openSession(entry.sessionResource);
+					}
 				} else {
 					await this._sessionsManagementService.openSession(entry.sessionResource);
 				}

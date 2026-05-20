@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ICompletedSpanData } from '../../../../platform/otel/common/otelService';
 import type { IDebugLogEntry } from '../../../../platform/chat/common/chatDebugFileLoggerService';
-import { createSessionTranslationState, makeIdleEvent, makeShutdownEvent, translateDebugLogEntry, translateSpan } from '../eventTranslator';
+import { createSessionTranslationState, deriveTitleFromUserMessage, makeIdleEvent, makeShutdownEvent, translateDebugLogEntry, translateSpan } from '../eventTranslator';
 
 function makeSpan(overrides: Partial<ICompletedSpanData> = {}): ICompletedSpanData {
 	return {
@@ -137,42 +137,6 @@ describe('translateSpan', () => {
 		expect(events).toHaveLength(0);
 	});
 
-	it('truncates oversized user message content', () => {
-		const state = createSessionTranslationState();
-		const longMessage = 'x'.repeat(20_000);
-		const span = makeSpan({
-			attributes: {
-				'gen_ai.operation.name': 'invoke_agent',
-				'copilot_chat.user_request': longMessage,
-			},
-		});
-
-		const events = translateSpan(span, state);
-		const userEvent = events.find(e => e.type === 'user.message');
-		expect(userEvent).toBeDefined();
-		expect((userEvent!.data.content as string).length).toBeLessThan(longMessage.length);
-		expect((userEvent!.data.content as string)).toContain('[truncated]');
-	});
-
-	it('truncates oversized tool result content', () => {
-		const state = createSessionTranslationState();
-		state.started = true;
-		const longResult = 'x'.repeat(10_000);
-
-		const span = makeSpan({
-			attributes: {
-				'gen_ai.operation.name': 'execute_tool',
-				'gen_ai.tool.name': 'read_file',
-				'gen_ai.tool.result': longResult,
-			},
-		});
-
-		const events = translateSpan(span, state);
-		const result = events[0].data.result as { content: string };
-		expect(result.content.length).toBeLessThan(longResult.length);
-		expect(result.content).toContain('[truncated]');
-	});
-
 	it('chains parentId across events', () => {
 		const state = createSessionTranslationState();
 		const span1 = makeSpan({
@@ -212,6 +176,123 @@ describe('translateSpan', () => {
 		expect(ctx.branch).toBe('main');
 		expect(ctx.headCommit).toBe('abc123');
 		expect(ctx.hostType).toBe('github');
+	});
+
+	it('drops oversized events and keeps parentId chain valid', () => {
+		const state = createSessionTranslationState();
+		// Assistant text fits, user_request is far larger than MAX_EVENT_SIZE (~100KB).
+		const huge = 'x'.repeat(200_000);
+		const outputMessages = JSON.stringify([
+			{ role: 'assistant', parts: [{ type: 'text', content: 'small reply' }] },
+		]);
+		const span = makeSpan({
+			attributes: {
+				'gen_ai.operation.name': 'invoke_agent',
+				'copilot_chat.user_request': huge,
+				'gen_ai.output.messages': outputMessages,
+			},
+		});
+
+		const events = translateSpan(span, state);
+
+		// user.message should be dropped, session.start + assistant.message kept.
+		expect(events.map(e => e.type)).toEqual(['session.start', 'assistant.message']);
+		expect(state.droppedCount).toBe(1);
+		// Critical: assistant.message must chain to session.start, not the dropped user.message.
+		expect(events[1].parentId).toBe(events[0].id);
+	});
+
+	it('folds sub-agent spans into parent: skips session.start + user.message and tags agentId', () => {
+		// Parent has already started (root invoke_agent emitted session.start + user.message).
+		const state = createSessionTranslationState();
+		state.started = true;
+		state.lastEventId = 'parent-last-event-id';
+
+		const outputMessages = JSON.stringify([
+			{ role: 'assistant', parts: [{ type: 'text', content: 'sub-agent reply' }] },
+		]);
+		const subagentSpan = makeSpan({
+			attributes: {
+				'gen_ai.operation.name': 'invoke_agent',
+				'copilot_chat.user_request': 'synthetic prompt to sub-agent',
+				'gen_ai.output.messages': outputMessages,
+			},
+		});
+
+		const events = translateSpan(subagentSpan, state, undefined, 'child-session-id');
+
+		// Only assistant.message should be emitted; session.start (parent owns it)
+		// and user.message (synthetic sub-agent prompt) must be suppressed.
+		expect(events.map(e => e.type)).toEqual(['assistant.message']);
+		expect(events[0].agentId).toBe('child-session-id');
+		expect(events[0].parentId).toBe('parent-last-event-id');
+	});
+
+	it('tags agentId on tool.execution_start events from sub-agent invoke_agent spans', () => {
+		const state = createSessionTranslationState();
+		state.started = true;
+		state.lastEventId = 'parent-last';
+
+		const outputMessages = JSON.stringify([
+			{
+				role: 'assistant',
+				parts: [
+					{ type: 'text', content: 'calling tool' },
+					{ type: 'tool-call', toolCallId: 'call-1', toolName: 'read_file', args: { path: 'a.ts' } },
+				],
+			},
+		]);
+		const span = makeSpan({
+			attributes: {
+				'gen_ai.operation.name': 'invoke_agent',
+				'gen_ai.output.messages': outputMessages,
+			},
+		});
+
+		const events = translateSpan(span, state, undefined, 'child-session-id');
+
+		expect(events.map(e => e.type)).toEqual(['assistant.message', 'tool.execution_start']);
+		expect(events.every(e => e.agentId === 'child-session-id')).toBe(true);
+	});
+
+	it('tags agentId on tool.execution_complete events from sub-agent execute_tool spans', () => {
+		const state = createSessionTranslationState();
+		state.started = true;
+		state.lastEventId = 'parent-last';
+
+		const span = makeSpan({
+			attributes: {
+				'gen_ai.operation.name': 'execute_tool',
+				'gen_ai.tool.name': 'read_file',
+				'gen_ai.tool.call.id': 'call-1',
+				'gen_ai.tool.result': 'file contents',
+			},
+		});
+
+		const events = translateSpan(span, state, undefined, 'child-session-id');
+
+		expect(events).toHaveLength(1);
+		expect(events[0].type).toBe('tool.execution_complete');
+		expect(events[0].agentId).toBe('child-session-id');
+	});
+
+	it('does not set agentId on events from non-sub-agent (root) spans', () => {
+		const state = createSessionTranslationState();
+		const outputMessages = JSON.stringify([
+			{ role: 'assistant', parts: [{ type: 'text', content: 'root reply' }] },
+		]);
+		const span = makeSpan({
+			attributes: {
+				'gen_ai.operation.name': 'invoke_agent',
+				'copilot_chat.user_request': 'hi',
+				'gen_ai.output.messages': outputMessages,
+			},
+		});
+
+		const events = translateSpan(span, state);
+
+		expect(events.map(e => e.type)).toEqual(['session.start', 'user.message', 'session.title_changed', 'assistant.message']);
+		expect(events.every(e => e.agentId === undefined)).toBe(true);
 	});
 });
 
@@ -296,9 +377,11 @@ describe('translateDebugLogEntry', () => {
 
 		const events = translateDebugLogEntry(entry, 'sess-1', state);
 
-		expect(events).toHaveLength(1);
+		expect(events).toHaveLength(2);
 		expect(events[0].type).toBe('user.message');
 		expect(events[0].data.content).toBe('Fix the bug');
+		expect(events[1].type).toBe('session.title_changed');
+		expect(events[1].data.title).toBe('Fix the bug');
 	});
 
 	it('emits user.message for turn_start entry with userRequest attr', () => {
@@ -311,9 +394,11 @@ describe('translateDebugLogEntry', () => {
 		});
 
 		const events = translateDebugLogEntry(entry, 'sess-1', state);
-		expect(events).toHaveLength(1);
+		expect(events).toHaveLength(2);
 		expect(events[0].type).toBe('user.message');
 		expect(events[0].data.content).toBe('Add tests');
+		expect(events[1].type).toBe('session.title_changed');
+		expect(events[1].data.title).toBe('Add tests');
 	});
 
 	it('emits assistant.message for agent_response entry', () => {
@@ -383,17 +468,43 @@ describe('translateDebugLogEntry', () => {
 		expect(events).toHaveLength(0);
 	});
 
-	it('truncates oversized user message', () => {
+	it('drops oversized entries and keeps parentId chain valid', () => {
 		const state = createSessionTranslationState();
-		state.started = true;
-		const entry = makeDebugEntry({
+		// session.start → kept, huge user_message → dropped, agent_response → kept
+		const start = makeDebugEntry({ type: 'session_start', name: 'session_start' });
+		const huge = makeDebugEntry({
 			type: 'user_message',
 			name: 'user_message',
-			attrs: { content: 'x'.repeat(20_000) },
+			attrs: { content: 'x'.repeat(200_000) },
+		});
+		const reply = makeDebugEntry({
+			type: 'agent_response',
+			name: 'agent_response',
+			attrs: { response: 'small reply' },
 		});
 
-		const events = translateDebugLogEntry(entry, 'sess-1', state);
-		expect((events[0].data.content as string).length).toBeLessThan(20_000);
-		expect((events[0].data.content as string)).toContain('[truncated]');
+		const startEvents = translateDebugLogEntry(start, 'sess-1', state);
+		const dropped = translateDebugLogEntry(huge, 'sess-1', state);
+		const replyEvents = translateDebugLogEntry(reply, 'sess-1', state);
+
+		expect(startEvents).toHaveLength(1);
+		expect(dropped).toHaveLength(0);
+		expect(state.droppedCount).toBe(1);
+		// Critical: assistant.message must chain to session.start, not the dropped user.message.
+		expect(replyEvents[0].parentId).toBe(startEvents[0].id);
+	});
+});
+describe('deriveTitleFromUserMessage', () => {
+	it('returns the content unchanged when shorter than the limit', () => {
+		expect(deriveTitleFromUserMessage('Fix the bug')).toBe('Fix the bug');
+	});
+
+	it('truncates and appends ellipsis when content exceeds the limit', () => {
+		const title = deriveTitleFromUserMessage('a'.repeat(80));
+		expect(title).toBe('a'.repeat(60) + '...');
+	});
+
+	it('returns undefined for empty content', () => {
+		expect(deriveTitleFromUserMessage('')).toBeUndefined();
 	});
 });

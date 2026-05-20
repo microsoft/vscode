@@ -135,16 +135,38 @@
 
 /* Below this width the bottom-row pickers can't fit their labels comfortably,
  * so collapse to icon + chevron only. The .new-chat-widget-container declares
- * `container-type: size` which makes this a size container query. */
+ * `container-type: size` which makes this a size container query. The
+ * permission picker (`.sessions-chat-permission-picker`) gets a more lenient
+ * threshold below because its label ("Autopilot (Preview)" etc.) carries
+ * important state that is worth preserving as long as there is room. */
 @container (max-width: 330px) {
 	/* Bottom-row pickers (Copilot CLI, Default Approvals, Worktree, branch): icon-only */
 	.new-chat-widget-container .new-chat-bottom-container .sessions-chat-dropdown-label {
 		display: none;
 	}
 
+	.new-chat-widget-container .new-chat-bottom-container .sessions-chat-permission-picker .sessions-chat-dropdown-label {
+		display: revert;
+	}
+
 	/* Chat input config toolbar: hide mode picker label (uses sessions-chat-dropdown-label),
 	 * but keep the model picker label (uses chat-input-picker-label) visible. */
 	.new-chat-widget-container .sessions-chat-config-toolbar .sessions-chat-dropdown-label {
+		display: none;
+	}
+
+	/* With both chevron and label hidden the only content is the icon. Center
+	 * it instead of leaving the 30px min-width as left-aligned padding.
+	 * Permission picker keeps its label so its action-item is excluded. */
+	.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item:not(.sessions-chat-permission-picker) .action-label,
+	.new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.sessions-chat-permission-picker) .action-label {
+		justify-content: center;
+		padding: 3px;
+	}
+}
+
+@container (max-width: 240px) {
+	.new-chat-widget-container .new-chat-bottom-container .sessions-chat-permission-picker .sessions-chat-dropdown-label {
 		display: none;
 	}
 }
@@ -156,11 +178,10 @@
 
 /* Match VS Code chat-secondary-toolbar sizing for action items in the bottom row
  * (e.g. session control pickers and repo config pickers) so they align with the
- * mode/model picker font in the input toolbar. The 1px right padding is intentional
- * because the chevron's 16x16 codicon box supplies the visual right padding. */
+ * mode/model picker font in the input toolbar. */
 .new-chat-widget-container .new-chat-bottom-container .action-label {
 	height: 16px;
-	padding: 3px 1px 3px 7px;
+	padding: 3px 6px;
 	font-size: 11px;
 	color: var(--vscode-icon-foreground);
 }
@@ -169,9 +190,26 @@
 	font-size: 12px;
 }
 
-.new-chat-widget-container .new-chat-bottom-container .action-label > .codicon-chevron-down {
-	font-size: 10px;
-	margin-left: 4px;
+.new-chat-widget-container .new-chat-bottom-container .action-label > .codicon-chevron-down,
+.new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot .action-label > .codicon-chevron-down,
+.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
+	display: none;
+}
+
+.new-chat-widget-container .sessions-chat-toolbar .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
+	display: none;
+}
+
+
+.new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container > * + *,
+.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar .actions-container > .action-item + .action-item,
+.new-chat-widget-container .sessions-chat-config-toolbar .monaco-action-bar .actions-container > .action-item + .action-item,
+.new-chat-widget-container .sessions-chat-attach-button + .sessions-chat-config-toolbar {
+	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
+}
+
+.new-chat-widget-container .sessions-chat-attach-button + .sessions-chat-config-toolbar {
+	padding-left: 4px;
 }
 
 /* Pickers row - two equal halves */
@@ -263,7 +301,7 @@
 	display: flex;
 	align-items: center;
 	height: 16px;
-	padding: 3px 1px 3px 7px;
+	padding: 3px 7px 3px 7px;
 	background-color: transparent;
 	border: none;
 	color: var(--vscode-icon-foreground);

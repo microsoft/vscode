@@ -90,6 +90,46 @@ Each phase ships behind the previous one; each is small enough to land as one
 PR and ends at a verifiable boundary (tests, a CLI smoke, or an end-to-end
 manual run).
 
+### Execution order (non-numeric)
+
+Phase numbers are stable identifiers — code comments, plan files
+(`phaseN-plan.md`), and `TODO: Phase N` throws all reference them — so we
+do **not** renumber. The actual landing order diverges from numeric order
+to unblock self-hosting sooner:
+
+**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 11 → 12 → 6.5 → 14 → 15**
+
+Phase 13 (session restoration) is pulled forward immediately after Phase 9
+because it unlocks two high-leverage capabilities:
+
+- **Restoring old chats** — clients can reload an existing transcript and
+  continue it. Today `getSessionMessages` is a stub, so any Claude session
+  is effectively single-process-lifetime.
+- **Self-hosting** — the team can dogfood Claude sessions across agent-host
+  restarts without losing turn history.
+
+Phase 13's dependencies are already met: the SDK exposes
+`getSessionMessages` out-of-process (no live `Query` required, CONTEXT M7),
+the `IClaudeSessionTranscriptStore` seam landed in Phase 5, and Phase 6's
+live mapper exists and can be factored to share with the replay path.
+
+**Deferrals to land Phase 13 early:**
+- **Subagent transcripts** — Phase 13's mapper handles parent-session
+  transcripts only. Subagent URI dispatch (`<parent>/subagent/<toolCallId>`
+  → `getSubagentMessages`) ships when Phase 12 lands. Parent transcripts
+  show subagent `tool_use`/`tool_result` block pairs as completed
+  `ToolCall`s with `_meta.toolKind = 'subagent'`; the workbench renders
+  them as opaque markers until Phase 12 wires the second SDK call.
+- **Tool-call replay fidelity** — without Phase 7, live tool calls don't
+  emit signals, but replayed `tool_use`/`tool_result` pairs still flatten
+  to terminal `ToolCall` states per CONTEXT M7. Replay works; live tool
+  UX still waits for Phase 7.
+- **Fork (Phase 6.5)** — Phase 6.5, if/when it lands, reconstructs the
+  `turnId → SessionMessage.uuid` mapping itself by walking the SDK
+  transcript. Phase 13 deliberately surfaces no by-product map: fork is
+  rare, the mapping is reconstructible, and a wider mapper return type
+  would tax every caller forever to optimize a cold path.
+
 ### Phase 1 — `ICopilotApiService` ✅ **DONE**
 
 Foundational gateway to the Copilot CAPI: token mint + cache + invalidation,
@@ -404,7 +444,7 @@ round-trip correctly.
 Exit criteria: a workbench client sees the Claude provider listed, can pick
 a Claude model, but can't yet send a message.
 
-### Phase 5 — Session lifecycle: create / dispose / list / shutdown
+### Phase 5 — Session lifecycle: create / dispose / list / shutdown ✅ **DONE**
 
 Implement the lifecycle methods that don't require live LLM traffic.
 **Provisional / materialize is the load-bearing model in this phase**
@@ -480,7 +520,7 @@ restarts find materialised sessions; externally-created Claude Code
 sessions appear; agent host can shut down cleanly. Fork is deferred to
 Phase 6.5.
 
-### Phase 6 — `sendMessage` + streaming progress events (single-turn, no tools)
+### Phase 6 — `sendMessage` + streaming progress events (single-turn, no tools) ✅ **DONE**
 
 Wire the proxy + SDK from Phase 3 into a real session. **Port the lifecycle
 machinery from `claudeCodeAgent.ts`:**
@@ -612,37 +652,43 @@ solution backed by Phase 13's mapper.
 
 **Chosen approach (when this phase lands):**
 
-- **Persist `protocolTurnId → lastSdkMessageUuid`** on result-message ingest
-  inside the same handler Phase 13 builds for transcript reconstruction.
-  That mapper sees every SDK message in order and observes `type:'result'`
-  (the only contract-level turn-end signal); it is the right place to
-  capture the mapping without inference.
-- Store the mapping in the session-data DB alongside the existing
-  per-session metadata. Fork becomes O(1) DB lookup, no JSONL walk.
+- **Walk JSONL on demand.** Phase 6.5 calls
+  `sdk.getSessionMessages(srcId, { includeSystemMessages: true })`
+  itself, scans the returned `SessionMessage[]` for the assistant
+  envelope `uuid` corresponding to the desired `turnId` (Phase 13's
+  mapper already documents that `Turn.id === SessionMessage.uuid` for
+  the user-text envelope that starts each turn; the matching assistant
+  envelope is the last `type: 'assistant'` message before the next
+  user-text turn). One JSONL read per fork. Originally planned as a
+  persisted O(1) DB lookup with live ingest on every turn, then as a
+  by-product map returned from Phase 13's mapper — both reverted
+  because fork is the only consumer and is rare. Neither the per-turn
+  write tax nor the wider mapper return type was worth a speedup
+  nobody asked for.
 - `createSession({ fork })` then calls
-  `sdk.forkSession(srcId, { upToMessageId: <looked-up-uuid> })` and routes
-  the new session id through `Options.resume` so the SDK loads the forked
-  transcript.
+  `sdk.forkSession(srcId, { upToMessageId: <looked-up-uuid> })` and
+  routes the new session id through `Options.resume` so the SDK loads
+  the forked transcript.
 - Persist the customization-directory metadata via `setMetadata` on the
   forked session (mirrors
   [`copilotAgent.ts`](../copilot/copilotAgent.ts)).
-- Pre-existing on-disk sessions need a one-time backfill (best-effort, the
-  reverted heuristic is acceptable here since it's a one-shot operation
-  on archived data).
+- **If a second consumer for the mapping ever appears** (e.g.
+  server-side in-place message edit, telemetry uuid joins), add
+  `backfillTurnMapping` on `ClaudeSessionMetadataStore` and populate it
+  from a one-shot mapper pass at `getSessionMessages` time (~30 lines).
 
 **Dependencies:**
 
-- **Hard:** Phase 13 (transcript reconstruction + result-message mapper).
-  Cannot land until the mapper has a stable hook for
-  `turnId → lastSdkMessageUuid` capture on every result-message ingest,
-  including replay during session restoration so pre-existing on-disk
-  sessions get the mapping backfilled.
-- **Soft:** Phase 13's `IClaudeSessionTranscriptStore` (the Phase-5 seam) is
-  the natural place to surface the mapping to `ClaudeAgent`.
+- **Hard:** Phase 13 (transcript reconstruction). Phase 6.5 reuses the
+  same `IClaudeAgentSdkService.getSessionMessages` binding Phase 13
+  added, and consumes `SessionMessage.uuid` directly.
+- **Soft:** Phase 13's `IClaudeSessionTranscriptStore` (the Phase-5 seam)
+  remains unimplemented; revisit only if a caching layer becomes worth
+  the abstraction cost.
 
 **Architectural model:** Copilot's `getNextTurnEventId(turnId)`. Phase 6.5
-is the Claude-side polyfill of that primitive — persisted by us because the
-Claude SDK doesn't provide it.
+is the Claude-side equivalent — except Claude derives the lookup on demand
+from the JSONL transcript, rather than persisting it.
 
 **Materialisation note.** Unlike non-fork `createSession` (Phase 5/6's
 provisional path), `forkSession` writes the forked SDK transcript file
@@ -668,7 +714,7 @@ with restored sessions, and honors the workbench's "keep `[0..N]`
 INCLUSIVE" semantic. The reverted heuristic is **not** retained behind a
 flag.
 
-### Phase 7 — Tool calls + permission + user input
+### Phase 7 — Tool calls + permission + user input ✅ **DONE**
 
 Wire the SDK's tool-use loop through to the agent host's tool infrastructure.
 **Transcript-only in this phase** — file edit tracking is Phase 8.
@@ -731,7 +777,7 @@ Exit criteria: a real "read this file" prompt completes end-to-end.
   — see roadmap.md` marker at the call site so the upgrade path stays
   discoverable. Implement when Phase N introduces multi-action plan UX.
 
-### Phase 8 — File edit tracking
+### Phase 8 — File edit tracking ✅ **DONE**
 
 Build the Claude analog of `fileEditTracker.ts` from `node/copilot/`.
 
@@ -757,7 +803,111 @@ client-side accept of one and reject of the other behaves correctly.
 Exit criteria: file diffs render in the workbench; per-file accept/reject
 works.
 
-### Phase 9 — Abort + steering + model change + shutdown polish
+### Phase 8.5 — Rich tool-call rendering parity with Copilot ✅ **DONE**
+
+Claude's tool-call cards today only carry the static display name from
+[`claudeToolDisplay.ts`](./claudeToolDisplay.ts) (`"Run shell command"`,
+`"Find files"`, ...). Copilot's [`copilotToolDisplay.ts`](../copilot/copilotToolDisplay.ts)
+formats the actual `tool_use.input` into the row title and tags the row
+with a `toolKind` so the workbench renders terminal / search /
+subagent specially. Phase 12 already laid the `_meta.toolKind:
+'subagent'` half down; this phase finishes the parity for the rest of
+the SDK's built-in tools.
+
+Gap surfaced live: a `Bash` permission card reads *"Run shell command"*
+with no command attached, and `Bash` / `Grep` / `Glob` rows render in
+the generic tool renderer instead of the dedicated terminal / search
+renderers.
+
+Scope:
+
+- **Port the Copilot helper shape** into
+  [`claudeToolDisplay.ts`](./claudeToolDisplay.ts), keyed off the SDK's
+  `tool_use.input` schemas:
+  - `getClaudeInvocationMessage(toolName, displayName, input)` →
+    markdown that includes the actual params (`` Running `git status` ``,
+    `Reading [src/foo.ts](src/foo.ts)`, `` Searching for `pattern` ``,
+    `Fetching [https://...](https://...)`).
+  - `getClaudePastTenseMessage(toolName, displayName, input, success)` →
+    success/failure-aware past-tense (`` Ran `git status` ``,
+    `Read foo.ts`, `Searched for ...`); replaces the
+    `"<displayName> finished"` hardcode at
+    [`claudeMapSessionEvents.ts:332`](./claudeMapSessionEvents.ts#L332).
+  - `getClaudeToolKind(toolName)` → `'terminal' | 'subagent' |
+    'search' | undefined`. `Bash` / `BashOutput` / `KillBash` →
+    `'terminal'`; `Grep` / `Glob` → `'search'`; `Task` →
+    `'subagent'` (Phase 12 already does this; consolidate the call
+    site).
+  - `getClaudeShellLanguage(toolName)` → `'bash'` for the shell tools
+    (drives terminal renderer's syntax highlighting).
+  - `getClaudeToolInputString(toolName, input)` → the canonical
+    "input as code" string used for the code block under the row
+    (e.g. the multi-line `command` for `Bash`, the formatted
+    arguments for the rest).
+  - Per-tool input typings live alongside the helpers
+    (`IClaudeBashInput`, `IClaudeGrepInput`, ...), validated
+    defensively (Claude's input can be malformed across SDK
+    versions — fall back to the static display name on shape
+    mismatch).
+- **Wire the helpers through both code paths**:
+  - [`claudeCanUseTool.ts`](./claudeCanUseTool.ts) — set
+    `invocationMessage` on `pending_confirmation` from the rich
+    helper so the **permission card shows the actual command /
+    file / pattern**, not just the display name. Add `toolKind` and
+    `language` to the signal so the card uses the terminal renderer
+    when relevant.
+  - [`claudeMapSessionEvents.ts`](./claudeMapSessionEvents.ts) —
+    set `invocationMessage` on `SessionToolCallReady` for the
+    non-interactive (auto-approved) path, set `pastTenseMessage` on
+    `SessionToolCallComplete`, and emit `_meta.toolKind` /
+    `_meta.language` on the `tool_use` block alongside the existing
+    `_meta.toolKind: 'subagent'` (single canonical path; Phase 12's
+    spawn helpers consume the same field).
+  - **Replay path** — `claudeReplayMapper.ts` writes the same
+    `_meta.toolKind` / `_meta.language` and rich
+    invocation/past-tense on historical `tool_use` blocks so
+    restored sessions render identically to live ones.
+- **Snapshot test** in `claudeToolDisplay.test.ts` covering each tool
+  row × `{ invocation, pastTense, toolKind, language, inputString }`.
+  Mirrors the existing display-name snapshot so any new SDK tool
+  added to the `TOOL_ROWS` table forces a snapshot update.
+
+Tests:
+
+- Unit: snapshot table covers every tool; `getClaudeInvocationMessage`
+  defends against malformed input shapes and falls back cleanly.
+- Integration: an interactive `Bash` request → the
+  `pending_confirmation` signal carries the command in
+  `invocationMessage` and `_meta.toolKind: 'terminal'`; the same flow
+  on completion emits a past-tense message that includes the command.
+
+Manual E2E:
+
+- Live: ask the Claude agent to run a shell command. The permission
+  card should render in the **terminal** style with the command
+  highlighted; the card should read *Running `git status`* (or
+  similar) instead of *Run shell command*. After approval the row
+  collapses to *Ran `git status`*. Same for `Grep` / `Glob`
+  rendering in the search style.
+- Replay: open a historical Claude session that contains shell and
+  search tool calls. The historical rows should render in the same
+  terminal / search style as the live rows.
+
+Exit criteria: Claude tool-call cards (live and replayed) match
+Copilot's rendering quality — permission cards show the actual
+invocation, terminal tools render in the terminal renderer, search
+tools render in the search renderer. Adding a new SDK tool means
+adding one row to `TOOL_ROWS` and updating the snapshot test.
+
+### Phase 9 — Abort + steering + model change + shutdown polish ✅ **DONE**
+
+Implementation contract: [phase9-plan.md](./phase9-plan.md). Unit tests
+green, type-check / layer-check clean, and live E2E (Scenarios A–D from
+[smoke.md](./smoke.md)) completed 2026-05-13 — abort + resend, steering
+preemption with `steering_consumed` echo, `changeModel` hot-swap, and the
+`'max'` → `'xhigh'` clamp warning all verified against a live Claude
+proxy. The yield-restart primitive is in place; tool-set-diff and
+settings-file change triggers are deferred to Phases 10/11 as planned.
 
 Every runtime mutation in this phase classifies into one of M11's three
 buckets — **hot-swap**, **defer-and-coalesce**, or **restart-required**
@@ -918,7 +1068,7 @@ Exit criteria: customization round-trip works; toggle is defer-and-coalesce
 by default and restart-required only when tool sets diverge; workbench
 renders Claude customizations like Copilot's.
 
-### Phase 12 — Subagents
+### Phase 12 — Subagents ✅ **DONE**
 
 Subagents are inner sessions spawned by the SDK (e.g. when the model
 delegates to a sub-task). The protocol has first-class support; we need to
@@ -946,15 +1096,104 @@ Scope:
 Tests: trigger a subagent, verify the signal fires with a valid URI,
 verify `getSessionMessages` returns the subagent transcript.
 
+Manual end-to-end validation (run before each release of this surface):
+
+1. **Live spawn renders correctly.** Launch the Agents window
+   (`./scripts/code.sh --agents`), start a fresh `claude` session, switch
+   the agent picker to **Claude**, and send a prompt that asks for two
+   parallel subagents (e.g. *"Spin up 2 subagents that do something, I
+   want to make sure they render correctly"*). Verify in the chat:
+   - Two parent rows appear, one per Task tool_use, each labeled with
+     the `subagent_type` (e.g. "Explore") rather than the literal tool
+     name. The row's description matches the `description` field from
+     the `tool_use.input` (not the prompt).
+   - Each parent row enters the **Running** state immediately (no stuck
+     `Streaming` spinner) — confirms `buildTopLevelSubagentReadyAction`
+     is emitting the synthetic `SessionToolCallReady` with
+     `_meta.toolKind: 'subagent'` even though the SDK skips `canUseTool`
+     for the Task tool.
+   - Inner tool calls (Glob / Read / etc.) are nested under their
+     parent row, with their own past-tense completion messages.
+   - Each parent row collapses to **Ran subagent** when its
+     `tool_result` lands; no orphan rows survive after the turn ends.
+   - Final assistant text from the parent appears below the subagent
+     rows.
+2. **Replay of a historical session renders correctly.** With the
+   Agents window still open, click an older session in the sidebar that
+   includes Task spawns (any prior chat where the agent delegated to a
+   subagent works). Verify:
+   - The historical parent rows render with the same labels as the
+     live path — confirms the replay mapper
+     (`claudeReplayMapper.ts`) sets `_meta.toolKind: 'subagent'` on
+     completed/cancelled Task tool_use blocks, and the workbench
+     attaches the same UI affordances.
+   - Clicking a subagent marker opens the subagent transcript inline,
+     pulled via `ClaudeAgent.getSessionMessages` →
+     `getSubagentTranscript(uri, registry, sdk, log, token)`. The
+     strategy chain (TextSuffix → PromptMatch → Native) resolves the
+     `agentId` from the parent's primed `SubagentRegistry` on first
+     open and from the cached `spawn.agentId` on subsequent opens.
+   - Inner content (text, thinking, tool calls) appears in the
+     subagent view.
+   - No console errors / no `[Claude]` warn-logs in the renderer or
+     agentHost log for the resolved sessions.
+
+Validated against this build: see the `Spin up 2 subagents...`
+run captured in the Phase 12 plan's Step 14 ("E2E validation")
+appendix; both flows rendered as specified.
+
 Exit criteria: subagent sessions are first-class for clients.
 
-### Phase 13 — Session restoration (no in-place truncate)
+### Phase 13 — Session restoration (no in-place truncate) ✅ **DONE**
+
+> **Execution order:** lands immediately after Phase 9 to unblock chat
+> restoration and self-hosting. See "Execution order (non-numeric)" above.
 
 - **`getSessionMessages(session)`** reconstructs the full turn history from
   the SDK's transcript via `IClaudeSessionTranscriptStore` (Phase 5 seam).
-  Maps `SessionMessage[]` (Anthropic events) → agent host `Turn[]`. The
-  mapper is the same logic used by the live event stream — factor it out in
-  Phase 6 and reuse here. Includes subagent transcripts (Phase 12).
+  Out-of-process: calls SDK `getSessionMessages(sessionId, { dir,
+  includeSystemMessages: true })` — no live `Query` required (CONTEXT M7).
+  Maps `SessionMessage[]` (Anthropic events) → agent host `Turn[]` per the
+  CONTEXT M7 grouping rules:
+  - `('user', text)` → start new `Turn` with `Turn.id = sessionMessage.uuid`.
+  - `('user', tool_result)` → attach to the open `ToolCall`, do NOT start
+    a new `Turn`.
+  - `('user', empty / hook-injected / shouldQuery: false)` → drop.
+  - `('assistant', ...blocks)` → push `Markdown` / `Thinking` /
+    `ToolCall` (terminal `Completed` / `Cancelled` only — no live
+    lifecycle states) parts onto the active `Turn`.
+  - `('system', compact_boundary | allowlisted subtype)` → push
+    `SystemNotificationResponsePart` on the active `Turn`; `compact_boundary`
+    is **not** a Turn boundary (CONTEXT M7).
+  - Tail-Turn `state`: `'completed'` if no orphan `tool_use` blocks remain;
+    otherwise mark incomplete (heuristic — see CONTEXT "Open mapping
+    questions").
+  - Per-Turn `usage` is `undefined` on replay (live-only metadata; CONTEXT
+    M8 asymmetry).
+- **Mapper factor-out from Phase 6.** Phase 6 ships a live mapper for the
+  event stream; Phase 13 lifts that into a shared module so the same code
+  drives both live and replay. Critically, **both drivers must hydrate the
+  same `Map<tool_use_id, turnId>`** (CONTEXT glossary) so `tool_result`
+  events delivered after a session restore resolve back to the announcing
+  `tool_use`'s `turnId`. The mapper is the single seam.
+- **Subagent markers without subagent transcripts.** Parent-transcript
+  `Agent` / `Task` `tool_use` + `tool_result` pairs flatten to a terminal
+  `ToolCall` with `_meta.toolKind = 'subagent'` and the result content
+  inlined per CONTEXT M7. Until Phase 12 lands the
+  `<parent>/subagent/<toolCallId>` URI dispatch and the
+  `getSubagentMessages` second SDK call, opening a subagent marker in the
+  workbench is a no-op (the host throws `TODO: Phase 12` if the URI shape
+  matches).
+- **`turnId → lastSdkMessageUuid` is reconstructed on demand, not exposed.**
+  Phase 13's `mapSessionMessagesToTurns` returns `readonly Turn[]` and
+  nothing else. Phase 6.5 fork (the only consumer of a turn→uuid
+  mapping) walks `SessionMessage[]` itself when it lands. Originally
+  planned as live ingest + replay backfill into per-session DB rows,
+  then as a `{ turns, turnIdToLastAssistantUuid }` mapper return-value
+  by-product; both reverted because fork is rare and neither the
+  per-turn write tax nor the wider mapper return type was worth it.
+  If a second consumer ever appears, `backfillTurnMapping` is a
+  ~30-line add on `ClaudeSessionMetadataStore`.
 - **Do NOT implement `IAgent.truncateSession`**. The SDK's `forkSession`
   always produces a *new* session ID, which conflicts with the protocol's
   expectation that `truncateSession` mutates the existing session URI in
@@ -967,22 +1206,18 @@ Exit criteria: subagent sessions are first-class for clients.
   - The workbench should follow the new URI, just like for any other fork.
   - Adding in-place truncate later would require a URI→sessionId mapping
     layer; we'd revisit when there's user demand.
-- **`turnId → lastSdkMessageUuid` ingest** lands here as the prerequisite
-  for Phase 6.5. The result-message mapper persists a
-  `(turnId, lastAssistantMessageUuid)` pair in session metadata on every
-  completed turn; replay during session restoration backfills pre-existing
-  on-disk sessions. This is the contract-level primitive that Phase 6.5
-  consumes for fork — see "Phase 6.5 — Fork (deferred)" above.
 
 Tests: persist a session, restart the agent host, reload the session,
 verify turns are intact and a new turn appends correctly. Verify
-`turnId → lastSdkMessageUuid` rows are persisted for each completed turn
-on live ingest, and that session restoration replays the mapper to
-backfill them.
+replayed `tool_use` / `tool_result` pairs flatten to terminal
+`ToolCall` states with content inlined. Verify a subagent marker
+appears with `_meta.toolKind = 'subagent'` but its URI is not yet
+dispatchable.
 
-Exit criteria: agent-host restart is invisible; the turn-mapping ingest
-is validated; truncate is documented as fork-by-another-name. Fork
-end-to-end ships in Phase 6.5 (deferred to land alongside this phase).
+Exit criteria: agent-host restart is invisible for parent transcripts;
+self-hosting across restarts works; truncate is documented as
+fork-by-another-name. Subagent transcript fetch ships in Phase 12;
+fork end-to-end ships in Phase 6.5.
 
 ### Phase 14 — Hardening + telemetry
 
@@ -999,36 +1234,65 @@ end-to-end ships in Phase 6.5 (deferred to land alongside this phase).
 
 Exit criteria: ready to enable for external preview.
 
-### Phase 15 — SDK upgrade (> 0.2.112)
+### Phase 15 — SDK distribution via marketplace extension
 
-The initial implementation pins `@anthropic-ai/claude-agent-sdk` at
-**`0.2.112`** — the same version the Copilot extension currently ships
-(`extensions/copilot/package.json`). Versions above 0.2.112 introduce a
-**native binary dependency** (prebuilt platform-specific addons), which
-requires additional build infrastructure and cross-platform packaging work
-beyond the scope of the initial rollout.
+**Status as of 2026-05-13:** the agent host already runs against the latest
+`@anthropic-ai/claude-agent-sdk` rather than `0.2.112`, but the SDK is loaded
+from a path the user supplies (`chat.agentHost.claudeAgent.path` setting →
+`AgentHostClaudeSdkPathEnvVar`, see [`claudeAgentSdkService.ts:148`](./claudeAgentSdkService.ts#L148)).
+That mechanism unblocked development but is **not shippable**: it requires
+every user to install the SDK locally and configure a path.
 
-This phase upgrades to a version > 0.2.112 once that infrastructure is
-in place.
+**Direction:** distribute the SDK as a versioned VS Code extension so users
+get it through the normal install flow.
 
-**Checklist:**
-- Identify the minimum version that provides the desired new SDK capabilities
-  (check changelog / GitHub releases for `@anthropic-ai/claude-agent-sdk`).
-- Audit the native dependency: determine the addon's platform matrix, verify
-  the agent-host build pipeline can package and code-sign it for all
-  supported targets (win32-x64, darwin-x64, darwin-arm64, linux-x64).
-- Validate the upgraded SDK against the full Phase 6–13 integration test
-  matrix (`Query.*` API surface, `enableFileCheckpointing`,
-  `Query.rewindFiles`, `Query.interrupt`).
-- Update `agentHost/package.json` (or the shared platform `package.json`)
-  to the new version and update any API callsites that changed between
-  0.2.112 and the target version.
-- Run the full Phase 6–13 integration test suite against the new SDK version.
-- Coordinate with the Copilot extension team to keep both consumers in sync
-  (or document the divergence intentionally).
+1. **Agent Host gains marketplace-install capability.** Today the agent
+   host is a closed utility process; it cannot fetch or install
+   extensions. Add the IPC + extension-management surface needed for the
+   agent host to install / update / load extensions from the VS Code
+   marketplace (or a registry it trusts).
+2. **Publish a Claude SDK packaging extension to the marketplace.** A
+   thin extension whose only job is to ship a vetted version of
+   `@anthropic-ai/claude-agent-sdk` (and any native deps) and expose its
+   load path to the agent host. Versioned on the marketplace so SDK
+   upgrades become extension updates, not VS Code releases.
+3. **Agent host loads the SDK from the installed extension** instead of
+   from `AgentHostClaudeSdkPathEnvVar`. The env-var path stays as a dev
+   override. The setting `chat.agentHost.claudeAgent.path` is repurposed
+   (or removed) for end users.
 
-Exit criteria: agent host runs on the upgraded SDK with no regressions;
-native dependency is packaged in all production builds.
+**Why this shape:**
+- SDK upgrades ship out-of-band from VS Code (no need to bundle a
+  specific SDK version into every VS Code release).
+- The native-dependency packaging burden moves to the extension's
+  publishing pipeline, which is already a solved problem for VS Code
+  extensions across `win32-x64`, `darwin-x64`, `darwin-arm64`,
+  `linux-x64`.
+- Multiple SDK-packaging extensions could coexist (e.g. an `@stable`
+  extension and a `@preview` extension), letting the user opt into
+  newer SDKs without a VS Code update.
+- Other agent SDKs (future Anthropic / OpenAI / etc. providers) follow
+  the same model.
+
+**Open design points** (to be detailed in a phase plan when scheduled):
+- IPC surface for agent-host-driven extension install (mirror or
+  delegate to the workbench's extension service?).
+- Discovery contract: how does the agent host know which installed
+  extension provides the Claude SDK? (e.g. an extension `contributes`
+  field, a well-known activation event, a manifest-declared capability).
+- Trust model: is the marketplace publisher the source of truth, or
+  does the agent host pin a specific publisher / extension id?
+- Dev override: keep `AgentHostClaudeSdkPathEnvVar` as the
+  non-marketplace fallback for SDK development.
+
+This phase replaces the previous "upgrade the bundled SDK to a newer
+0.2.x" plan, which assumed the SDK would always be a normal `npm`
+dependency. That assumption no longer holds now that the SDK ships
+native binaries.
+
+Exit criteria: a fresh VS Code install can use the Claude agent without
+manually installing the SDK or setting any path. SDK upgrades arrive as
+marketplace extension updates.
 
 ---
 

@@ -317,7 +317,7 @@ export class ChatRequestTelemetry {
 			model: this.resolveModelId(this.opts.options?.userSelectedModelId),
 			permissionLevel: this.opts.options?.modeInfo?.kind === ChatModeKind.Ask ? undefined : this.opts.options?.modeInfo?.permissionLevel,
 			chatMode: this.opts.options?.modeInfo?.modeName ?? this.opts.options?.modeInfo?.modeId,
-			sessionType: getChatSessionType(this.opts.sessionResource),
+			sessionType: getChatSessionTypeForTelemetry(this.opts.sessionResource),
 		});
 	}
 
@@ -362,4 +362,9 @@ export class ChatRequestTelemetry {
 	private resolveModelId(userSelectedModelId: string | undefined): string | undefined {
 		return userSelectedModelId && this.languageModelsService.lookupLanguageModel(userSelectedModelId)?.id;
 	}
+}
+
+function getChatSessionTypeForTelemetry(sessionResource: URI): string {
+	const sessionType = getChatSessionType(sessionResource);
+	return sessionType.startsWith('remote-') ? 'remote-agent-host' : sessionType;
 }
