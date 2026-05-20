@@ -77,11 +77,19 @@ steps:
 
     - script: xvfb-run -a npm run test:sanity
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot sanity tests
+      displayName: 🧪 Run Copilot sanity tests (Marketplace VSIX)
       timeoutInMinutes: 15
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
         COPILOT_TEST_VSIX_PATH: $(Build.SourcesDirectory)/extensions/copilot/.build/copilot-chat-sanity.vsix
+
+    - script: xvfb-run -a npm run test:sanity
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: 🧪 Run Copilot sanity tests (built-in)
+      timeoutInMinutes: 15
+      env:
+        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+        COPILOT_TEST_EXTENSION_PATH: $(COPILOT_TEST_EXTENSION_PATH)
 
   - ${{ if eq(parameters.OS, 'darwin') }}:
     - script: npm run test:extension
@@ -100,11 +108,19 @@ steps:
 
     - script: npm run test:sanity
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot sanity tests
+      displayName: 🧪 Run Copilot sanity tests (Marketplace VSIX)
       timeoutInMinutes: 15
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
         COPILOT_TEST_VSIX_PATH: $(Build.SourcesDirectory)/extensions/copilot/.build/copilot-chat-sanity.vsix
+
+    - script: npm run test:sanity
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: 🧪 Run Copilot sanity tests (built-in)
+      timeoutInMinutes: 15
+      env:
+        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+        COPILOT_TEST_EXTENSION_PATH: $(COPILOT_TEST_EXTENSION_PATH)
 
   - ${{ if eq(parameters.OS, 'win32') }}:
     - powershell: npm run test:extension
@@ -126,8 +142,16 @@ steps:
 
     - powershell: npm run test:sanity
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot sanity tests
+      displayName: 🧪 Run Copilot sanity tests (Marketplace VSIX)
       timeoutInMinutes: 15
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
         COPILOT_TEST_VSIX_PATH: $(Build.SourcesDirectory)/extensions/copilot/.build/copilot-chat-sanity.vsix
+
+    - powershell: npm run test:sanity
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: 🧪 Run Copilot sanity tests (built-in)
+      timeoutInMinutes: 15
+      env:
+        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+        COPILOT_TEST_EXTENSION_PATH: $(COPILOT_TEST_EXTENSION_PATH)

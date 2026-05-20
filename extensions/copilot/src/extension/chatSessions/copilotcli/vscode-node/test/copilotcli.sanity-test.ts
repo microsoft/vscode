@@ -34,7 +34,10 @@ interface PersistedSessionEvent {
 interface PackagedCopilotCLIOutcome {
 	readonly assistantMessages: string;
 	readonly queryErrors: readonly string[];
+	readonly authErrors: readonly string[];
+	readonly allEventsTail: string;
 	readonly logTail: string;
+	readonly diagnostics: string;
 }
 
 /**
@@ -176,17 +179,45 @@ suite('Copilot CLI Chat Sanity Test', function () {
 		}
 
 		const outcome = await readPackagedCopilotCLIOutcome(logBefore);
+		const verdict = classifyOutcome(outcome);
+		const commonContext = `Likely cause: ${verdict}\n\nQuery (native/SDK) errors:\n${outcome.queryErrors.join('\n') || '(none)'}\n\nAuth errors:\n${outcome.authErrors.join('\n') || '(none)'}\n\nSession events tail:\n${outcome.allEventsTail || '(none)'}\n\nLog tail:\n${outcome.logTail || '(empty)'}\n\nDiagnostics:\n${outcome.diagnostics}`;
+
 		assert.deepStrictEqual(
 			outcome.queryErrors,
 			[],
-			`Copilot CLI packaged command surfaced SDK query errors:\n${outcome.queryErrors.join('\n')}\n\nLog tail:\n${outcome.logTail}`
+			`Copilot CLI packaged command surfaced SDK query / native-load errors.\n\n${commonContext}`
+		);
+
+		assert.deepStrictEqual(
+			outcome.authErrors,
+			[],
+			`Copilot CLI packaged command surfaced authentication errors.\n\n${commonContext}`
 		);
 
 		assert.match(
 			outcome.assistantMessages,
 			/pong/i,
-			`Copilot CLI packaged command did not produce a real model response. Assistant messages:\n${outcome.assistantMessages || '(none)'}\n\nLog tail:\n${outcome.logTail}`
+			`Copilot CLI packaged command did not produce a real model response. Assistant messages:\n${outcome.assistantMessages || '(none)'}\n\n${commonContext}`
 		);
+	}
+
+	function classifyOutcome(outcome: PackagedCopilotCLIOutcome): string {
+		if (outcome.queryErrors.length) {
+			return 'native module / SDK boot failure (matched isQueryFailure)';
+		}
+		if (outcome.authErrors.length) {
+			return 'authentication failure (matched isAuthFailure)';
+		}
+		if (!outcome.logTail && !outcome.allEventsTail) {
+			return 'extension never produced logs or session events (activation or command dispatch failed)';
+		}
+		if (outcome.logTail && !outcome.allEventsTail) {
+			return 'session never started (command reached extension but participant did not boot a session)';
+		}
+		if (outcome.allEventsTail && !outcome.assistantMessages) {
+			return 'session started but no assistant.message emitted (possible silent SDK error — inspect session events tail)';
+		}
+		return 'unknown';
 	}
 
 	async function assertCopilotCLIResponse(getLoggedErrors: () => readonly string[]): Promise<void> {
@@ -247,7 +278,11 @@ suite('Copilot CLI Chat Sanity Test', function () {
 	}
 
 	function isQueryFailure(message: string): boolean {
-		return /\[CopilotCLISession\]CopilotCLI error: \(query\)|\(query\) Execution failed|Native addon ".*" not found|Failed to load @github\/copilot\/sdk|Unable to find node-pty binaries|Failed to create (?:node-pty|ripgrep) shim/.test(message);
+		return /\[CopilotCLISession\]CopilotCLI error: \(query\)|\(query\) Execution failed|Native addon ".*" not found|Failed to load @github\/copilot\/sdk|Unable to find node-pty binaries|Failed to create (?:node-pty|ripgrep) shim|Cannot find module|runtime\.node|pty\.node/.test(message);
+	}
+
+	function isAuthFailure(message: string): boolean {
+		return /Authorization failed|Unauthorized|\b401\b|No model available|policy enablement|sign in to GitHub|getGitHubSession.*undefined|Authentication (?:failed|required)/i.test(message);
 	}
 
 	async function assertInstalledVsixExtension(extension: vscode.Extension<unknown>): Promise<void> {
@@ -287,29 +322,102 @@ suite('Copilot CLI Chat Sanity Test', function () {
 
 	async function readPackagedCopilotCLIOutcome(logBefore: string): Promise<PackagedCopilotCLIOutcome> {
 		let lastLogTail = '';
+		let lastSessionId: string | undefined;
+		let lastLogPath: string | undefined;
+		let lastFullLogLength = 0;
+		let lastAllEventsTail = '';
 		for (let attempt = 0; attempt < 100; attempt++) {
-			const logAfter = await readCopilotChatLog();
-			lastLogTail = logAfter.slice(logBefore.length);
+			const logResult = await readCopilotChatLogWithPath();
+			lastLogPath = logResult.path;
+			lastFullLogLength = logResult.contents.length;
+			// Guard against rotation / shrinkage — fall back to full contents if the
+			// pre-command snapshot is longer than the current file.
+			lastLogTail = logResult.contents.length >= logBefore.length
+				? logResult.contents.slice(logBefore.length)
+				: logResult.contents;
 			const queryLogErrors = lastLogTail.split(/\r?\n/).filter(isQueryFailure);
-			if (queryLogErrors.length) {
-				return { assistantMessages: '', queryErrors: queryLogErrors, logTail: lastLogTail };
+			const authLogErrors = lastLogTail.split(/\r?\n/).filter(isAuthFailure);
+			if (queryLogErrors.length || authLogErrors.length) {
+				return {
+					assistantMessages: '',
+					queryErrors: queryLogErrors,
+					authErrors: authLogErrors,
+					allEventsTail: lastAllEventsTail,
+					logTail: lastLogTail,
+					diagnostics: await collectDiagnostics(lastLogPath, lastFullLogLength, lastSessionId),
+				};
 			}
 
-			const actualSessionId = extractLatestSessionId(lastLogTail);
-			if (actualSessionId) {
-				const events = await tryReadSessionEvents(actualSessionId);
+			lastSessionId = extractLatestSessionId(lastLogTail) ?? lastSessionId;
+			if (lastSessionId) {
+				const events = await tryReadSessionEvents(lastSessionId);
 				if (events?.length) {
+					lastAllEventsTail = events.slice(-20)
+						.map(event => `${event.type}: ${JSON.stringify(event.data ?? {}).slice(0, 300)}`)
+						.join('\n');
+					const sessionErrors = events.filter(event => event.type === 'session.error').map(formatSessionError);
 					return {
 						assistantMessages: events.filter(event => event.type === 'assistant.message').map(event => event.data?.content ?? '').join('\n'),
-						queryErrors: events.filter(event => event.type === 'session.error').map(formatSessionError).filter(isQueryFailure),
+						queryErrors: sessionErrors.filter(isQueryFailure),
+						authErrors: sessionErrors.filter(isAuthFailure),
+						allEventsTail: lastAllEventsTail,
 						logTail: lastLogTail,
+						diagnostics: await collectDiagnostics(lastLogPath, lastFullLogLength, lastSessionId),
 					};
 				}
 			}
 			await new Promise(resolve => setTimeout(resolve, 100));
 		}
 
-		return { assistantMessages: '', queryErrors: [], logTail: lastLogTail };
+		return {
+			assistantMessages: '',
+			queryErrors: [],
+			authErrors: [],
+			allEventsTail: lastAllEventsTail,
+			logTail: lastLogTail,
+			diagnostics: await collectDiagnostics(lastLogPath, lastFullLogLength, lastSessionId),
+		};
+	}
+
+	async function collectDiagnostics(logPath: string | undefined, fullLogLength: number, sessionId: string | undefined): Promise<string> {
+		const logsRoot = getTestLogsRoot();
+		const token = process.env.GITHUB_PAT ?? process.env.GITHUB_OAUTH_TOKEN ?? '';
+		const lines = [
+			`authEnv=GITHUB_PAT:${!!process.env.GITHUB_PAT} GITHUB_OAUTH_TOKEN:${!!process.env.GITHUB_OAUTH_TOKEN} tokenLen:${token.length} tokenPrefix:${token.slice(0, 4) || '(empty)'}`,
+			`copilotApiUrl=${process.env.COPILOT_API_URL ?? '(unset)'}`,
+			`isScenarioAutomation=${process.env.IS_SCENARIO_AUTOMATION ?? '(unset)'}`,
+			`logsRoot=${logsRoot} (exists=${await fs.access(logsRoot).then(() => true).catch(() => false)})`,
+			`copilotChatLogPath=${logPath ?? '(not found)'}`,
+			`copilotChatLogLength=${fullLogLength}`,
+			`sessionId=${sessionId ?? '(none extracted)'}`,
+		];
+		if (sessionId) {
+			const eventsFile = getCopilotCLISessionEventsFile(sessionId);
+			lines.push(`sessionEventsFile=${eventsFile} (exists=${await fs.access(eventsFile).then(() => true).catch(() => false)})`);
+		}
+		if (!logPath) {
+			const all = await findFiles(logsRoot, 'GitHub Copilot Chat.log', 6).catch(() => []);
+			lines.push(`copilotChatLogCandidates=${all.length ? all.join(', ') : '(none)'}`);
+		}
+		// Fall back to extension host log — activation errors and synchronous
+		// native-module load failures land there, not in the Copilot Chat channel.
+		const exthostLogPath = await findNewestFile(logsRoot, 'exthost.log', 6);
+		if (exthostLogPath) {
+			const exthostContents = await fs.readFile(exthostLogPath, 'utf8').catch(() => '');
+			const interestingLines = exthostContents.split(/\r?\n/).filter(line => /copilot|github|MODULE_NOT_FOUND|dlopen|node-pty|ripgrep|runtime\.node|pty\.node/i.test(line)).slice(-30);
+			lines.push(`exthostLog=${exthostLogPath} (bytes=${exthostContents.length})`);
+			if (interestingLines.length) {
+				lines.push(`exthostLogRelevant:\n  ${interestingLines.join('\n  ')}`);
+			}
+		} else {
+			lines.push(`exthostLog=(not found)`);
+		}
+		return lines.join('\n');
+	}
+
+	async function readCopilotChatLogWithPath(): Promise<{ path: string | undefined; contents: string }> {
+		const logPath = await findNewestFile(getTestLogsRoot(), 'GitHub Copilot Chat.log', 5);
+		return { path: logPath, contents: logPath ? await fs.readFile(logPath, 'utf8') : '' };
 	}
 
 	async function tryReadSessionEvents(sessionId: string): Promise<PersistedSessionEvent[] | undefined> {
