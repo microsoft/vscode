@@ -29,6 +29,8 @@ export interface ISessionsChangeEvent {
 export interface IActiveSession extends ISession {
 	/** The currently active chat within this session. */
 	readonly activeChat: IObservable<IChat>;
+
+	readonly isCreated: IObservable<boolean>;
 }
 
 /**

@@ -14,39 +14,10 @@ import { assertReturnsDefined } from '../../../base/common/types.js';
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, SessionsFocusContext } from '../../common/contextkeys.js';
-import { ChatCompositeBar } from './chatCompositeBar.js';
-import { $, prepend } from '../../../base/browser/dom.js';
-import { ISerializableView, IViewSize, SerializableGrid } from '../../../base/browser/ui/grid/grid.js';
-import { Emitter, Event } from '../../../base/common/event.js';
-
-/**
- * Placeholder leaf view used as the initial occupant of the {@link SessionsPart}
- * internal grid. Future commits will replace this with real session views.
- */
-class SessionsPlaceholderView implements ISerializableView {
-
-	readonly element: HTMLElement = $('.sessionspart-placeholder');
-
-	readonly minimumWidth = 0;
-	readonly maximumWidth = Number.POSITIVE_INFINITY;
-	readonly minimumHeight = 0;
-	readonly maximumHeight = Number.POSITIVE_INFINITY;
-
-	private readonly _onDidChange = new Emitter<IViewSize | undefined>();
-	readonly onDidChange: Event<IViewSize | undefined> = this._onDidChange.event;
-
-	layout(_width: number, _height: number, _top: number, _left: number): void {
-		// no-op
-	}
-
-	toJSON(): object {
-		return { type: 'sessions.placeholder' };
-	}
-
-	dispose(): void {
-		this._onDidChange.dispose();
-	}
-}
+import { $ } from '../../../base/browser/dom.js';
+import { SerializableGrid } from '../../../base/browser/ui/grid/grid.js';
+import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { SessionView } from './sessionView.js';
 
 export class SessionsPart extends Part {
 
@@ -65,13 +36,11 @@ export class SessionsPart extends Part {
 	/** Border width on the card (1px each side) */
 	static readonly BORDER_WIDTH = 1;
 
-	/** Height of the session composite bar when visible */
-	private static readonly SESSION_BAR_HEIGHT = 35;
+	/** Internal grid that hosts the part's session views. */
+	private _gridWidget: SerializableGrid<SessionView> | undefined;
 
-	private _sessionCompositeBar: ChatCompositeBar | undefined;
-
-	/** Internal grid that hosts the part's leaf views. */
-	private _gridWidget: SerializableGrid<SessionsPlaceholderView> | undefined;
+	/** Stable host view that switches between concrete session view kinds internally. */
+	private _sessionView: SessionView | undefined;
 
 	protected _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
@@ -86,7 +55,7 @@ export class SessionsPart extends Part {
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(
 			Parts.SESSIONS_PART,
@@ -106,31 +75,23 @@ export class SessionsPart extends Part {
 		parent.classList.add('sessionspart');
 
 		super.create(parent);
-
-		// Create the session composite bar and prepend it before the content area
-		this._sessionCompositeBar = this._register(this.instantiationService.createInstance(ChatCompositeBar));
-		prepend(parent, this._sessionCompositeBar.element);
-
-		// Relayout when session bar visibility changes
-		this._register(this._sessionCompositeBar.onDidChangeVisibility(() => {
-			if (this._lastLayout) {
-				this.layout(this._lastLayout.width, this._lastLayout.height, this._lastLayout.top, this._lastLayout.left);
-			}
-		}));
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		const contentArea = $('.content');
 		parent.appendChild(contentArea);
 
-		// Internal grid that hosts session views. Starts with a single empty
-		// placeholder leaf so that {@link SerializableGrid.layout} has
-		// something to size; real session views will replace it later.
-		const placeholder = new SessionsPlaceholderView();
-		this._gridWidget = this._register(new SerializableGrid(placeholder));
+		// The grid keeps a single stable host view. That host delegates to
+		// concrete session views and handles DOM switching internally.
+		this._sessionView = this._register(this.instantiationService.createInstance(SessionView));
+		this._gridWidget = this._register(new SerializableGrid(this._sessionView));
 		contentArea.appendChild(this._gridWidget.element);
 
 		return contentArea;
+	}
+
+	openSession(session: IActiveSession | undefined): void {
+		this._sessionView?.openSession(session);
 	}
 
 	override updateStyles(): void {
@@ -152,9 +113,6 @@ export class SessionsPart extends Part {
 
 		this._lastLayout = { width, height, top, left };
 
-		// Account for the session composite bar height when visible
-		const sessionBarHeight = this._sessionCompositeBar?.visible ? SessionsPart.SESSION_BAR_HEIGHT : 0;
-
 		// Compute content dimensions accounting for visual margins and border.
 		// MARGIN_BOTTOM applies only when the panel is visible (paired with the panel's
 		// 5px top margin to center the sash). When the panel is hidden the card fills its
@@ -167,7 +125,7 @@ export class SessionsPart extends Part {
 		// Size the content area with the reduced dimensions.
 		const { contentSize } = this.layoutContents(
 			width - marginLeft - marginRight - borderTotal,
-			height - SessionsPart.MARGIN_TOP - marginBottom - borderTotal - sessionBarHeight
+			height - SessionsPart.MARGIN_TOP - marginBottom - borderTotal
 		);
 
 		// Layout the internal grid widget within the content area.

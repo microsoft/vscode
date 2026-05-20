@@ -239,6 +239,24 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return cts.token;
 	}
 
+	/**
+	 * Recompute and update the active session's `isCreated` observable based on
+	 * the current active chat status and the new-session/new-chat-in-session
+	 * context keys. A session is considered "created" once its active chat is
+	 * no longer untitled, or while a request is in flight (i.e. neither the
+	 * new-session nor new-chat-in-session view is being shown).
+	 */
+	private _refreshIsCreated(): void {
+		const active = this._activeSession.get();
+		if (!(active instanceof ActiveSession)) {
+			return;
+		}
+		const status = active.activeChat.get().status.get();
+		const isCreated = status !== SessionStatus.Untitled
+			|| (!this.isNewChatSessionContext.get());
+		active.setIsCreated(isCreated);
+	}
+
 	async openChat(session: ISession, chatUri: URI): Promise<void> {
 		const t0 = Date.now();
 		const token = this._startOpenSession();
@@ -265,11 +283,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// If the chat is untitled (not yet sent), show the new-chat-in-session view
 		if (chat && chat.status.get() === SessionStatus.Untitled) {
 			this._isNewChatInSessionContext.set(true);
+			this._refreshIsCreated();
 			this.logService.trace(`[SessionsManagement] openChat done total=${Date.now() - t0}ms uri=${chatUri.toString()} path=untitled`);
 			return;
 		}
 
 		this._isNewChatInSessionContext.set(false);
+		this._refreshIsCreated();
 		try {
 			await this.chatWidgetService.openSession(chatUri, ChatViewPaneTarget);
 		} catch (e) {
@@ -298,6 +318,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.isNewChatSessionContext.set(false);
 		this._isNewChatInSessionContext.set(false);
 		this.setActiveSession(sessionData);
+		this._refreshIsCreated();
 		if (!await this._waitForSessionToLoad(sessionData, token)) {
 			this.logService.trace(`[SessionsManagement] openSession cancelled while waiting for session to load uri=${sessionResource.toString()}`);
 			return;
@@ -327,6 +348,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._startOpenSession();
 		if (!this.isNewChatSessionContext.get()) {
 			this.isNewChatSessionContext.set(true);
+			this._refreshIsCreated();
 		}
 
 		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === providerId);
@@ -350,6 +372,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._pendingNewSession = undefined;
 		this.isNewChatSessionContext.set(false);
 		this._isNewChatInSessionContext.set(false);
+		this._refreshIsCreated();
 
 		const setActiveChatToLast = () => {
 			const activeSession = this._activeSession.get();
@@ -388,6 +411,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._pendingNewSession = undefined;
 		this.isNewChatSessionContext.set(false);
 		this._isNewChatInSessionContext.set(false);
+		this._refreshIsCreated();
 
 		// Keep the sent chat as the active chat
 		if (this._activeChatObservable) {
@@ -418,6 +442,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.setActiveSession(this._pendingNewSession ?? undefined);
 		this.isNewChatSessionContext.set(true);
 		this._isNewChatInSessionContext.set(false);
+		this._refreshIsCreated();
 		this._onDidOpenNewSessionView.fire();
 
 		// Clear isActive so the new-session view is restored on reload
@@ -446,6 +471,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		this._isNewChatInSessionContext.set(true);
+		this._refreshIsCreated();
 	}
 
 	private setActiveSession(session: ISession | undefined, force?: boolean): void {
@@ -506,6 +532,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			const activeSession = new ActiveSession(session, activeChatObs);
 
 			this._activeSession.set(activeSession, undefined);
+			this._refreshIsCreated();
+
+			// Keep isCreated in sync with the active chat status
+			this._activeSessionDisposables.add(autorun(reader => {
+				const chat = activeChatObs.read(reader);
+				chat.status.read(reader);
+				this._refreshIsCreated();
+			}));
 
 			// Track archived state changes for the active session
 			let wasArchived = session.isArchived.get();
@@ -636,6 +670,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// which would cancel our restore token.
 		this.isNewChatSessionContext.set(false);
 		this._isNewChatInSessionContext.set(false);
+		this._refreshIsCreated();
 
 		const sessionResource = URI.parse(lastActive.sessionResource);
 		const token = this._startOpenSession();
@@ -767,10 +802,18 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
  * session state without a stale shallow copy.
  */
 class ActiveSession implements IActiveSession {
+
+	private readonly _isCreated = observableValue<boolean>('activeSessionIsCreated', false);
+	readonly isCreated: IObservable<boolean> = this._isCreated;
+
 	constructor(
 		private readonly _session: ISession,
 		readonly activeChat: IObservable<IChat>,
 	) { }
+
+	setIsCreated(value: boolean): void {
+		this._isCreated.set(value, undefined);
+	}
 
 	get sessionId() { return this._session.sessionId; }
 	get resource() { return this._session.resource; }

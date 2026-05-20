@@ -34,7 +34,7 @@ import { IAgentHostFilterService } from '../../../services/agentHostFilter/commo
 
 // #region --- New Chat Widget ---
 
-class NewChatWidget extends Disposable {
+export class NewChatWidget extends Disposable {
 
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: NewChatInputWidget;

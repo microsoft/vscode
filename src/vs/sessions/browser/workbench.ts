@@ -62,7 +62,6 @@ import { IMarkdownRendererService } from '../../platform/markdown/browser/markdo
 import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { TitleService } from './parts/titlebarPart.js';
-import { ISessionsPartService } from './parts/sessionsPartService.js';
 import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { EditorMaximizedContext, IsPhoneLayoutContext, KeyboardVisibleContext } from '../common/contextkeys.js';
 import {
@@ -75,6 +74,7 @@ import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { autorun } from '../../base/common/observable.js';
 import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
+import { ISessionsPartService } from './parts/sessionsPartService.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 
 //#region Workbench Options
@@ -316,6 +316,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private paneCompositeService!: IPaneCompositePartService;
 	private viewDescriptorService!: IViewDescriptorService;
 	private sessionsManagementService!: ISessionsManagementService;
+	private sessionsPartService!: ISessionsPartService;
 	private instantiationService!: IInstantiationService;
 	private storageService!: IStorageService;
 
@@ -997,10 +998,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.paneCompositeService = accessor.get(IPaneCompositePartService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
 		this.sessionsManagementService = accessor.get(ISessionsManagementService);
+		// Forces eager creation of the sessions part so it registers itself with the
+		// layout service before renderWorkbench() looks it up via getPart().
+		this.sessionsPartService = accessor.get(ISessionsPartService);
 		this.instantiationService = accessor.get(IInstantiationService);
 		this.storageService = accessor.get(IStorageService);
 		accessor.get(ITitleService);
-		accessor.get(ISessionsPartService);
 
 		// Register layout listeners
 		this.registerLayoutListeners();
@@ -1171,6 +1174,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Welcome — must be created early in layout so the widget can gate
 		// other UI until sign-in / chat setup is complete.
 		instantiationService.invokeFunction(accessor => accessor.get(ISessionsSetUpService));
+
+		// Wire the sessions part to the sessions management service now that
+		// the part has been created via renderWorkbench().
+		this.sessionsPartService.init();
 	}
 
 	/**

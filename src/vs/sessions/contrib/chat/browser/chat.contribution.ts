@@ -24,6 +24,8 @@ import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { SessionsAICustomizationWorkspaceService } from './aiCustomizationWorkspaceService.js';
 import { SessionsCustomizationHarnessService } from './customizationHarnessService.js';
+import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
+import { ChatViewFactory } from './chatView.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
@@ -79,6 +81,7 @@ registerSingleton(ISessionTaskRunnerRegistry, SessionTaskRunnerRegistry, Instant
 registerSingleton(ISessionsTasksService, SessionsTasksService, InstantiationType.Delayed);
 registerSingleton(IAICustomizationWorkspaceService, SessionsAICustomizationWorkspaceService, InstantiationType.Delayed);
 registerSingleton(ICustomizationHarnessService, SessionsCustomizationHarnessService, InstantiationType.Delayed);
+registerSingleton(IChatViewFactory, ChatViewFactory, InstantiationType.Delayed);
 
 // register accessibility help
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());

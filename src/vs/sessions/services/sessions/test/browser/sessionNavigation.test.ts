@@ -101,6 +101,7 @@ class MockSessionStore implements ISessionsManagementService {
 			const activeChat = chat ?? session.chats.get()[0] ?? stubChat;
 			const active: IActiveSession = {
 				...session,
+				isCreated: constObservable(true),
 				activeChat: observableValue<IChat>(`test.activeChat-${session.sessionId}`, activeChat),
 			};
 			this.activeSession.set(active, undefined);
