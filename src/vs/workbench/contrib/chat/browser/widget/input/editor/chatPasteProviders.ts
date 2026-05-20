@@ -686,7 +686,7 @@ class PasteHtmlProvider implements DocumentPasteEditProvider {
 	public readonly providedPasteEditKinds = [this.kind];
 
 	public readonly copyMimeTypes = [];
-	public readonly pasteMimeTypes = ['text/html'];
+	public readonly pasteMimeTypes = [Mimes.html];
 
 	async provideDocumentPasteEdits(model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
 		if (model.uri.scheme !== Schemas.vscodeChatInput) {
@@ -698,14 +698,14 @@ class PasteHtmlProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const entry = dataTransfer.get('text/html');
+		const entry = dataTransfer.get(Mimes.html);
 		const htmlText = await entry?.asString();
 		if (!htmlText || token.isCancellationRequested) {
 			return;
 		}
 
 		// Skip if the HTML is trivially plain text (no meaningful tags)
-		if (!/<(a|strong|b|em|i|h[1-6]|code|pre|ul|ol|li|blockquote|del|s|strike|img)\b/i.test(htmlText)) {
+		if (!/<(a|strong|b|em|i|h[1-6]|code|pre|ul|ol|li|blockquote|del|s|strike|img|hr)\b/i.test(htmlText)) {
 			return;
 		}
 
@@ -722,6 +722,7 @@ class PasteHtmlProvider implements DocumentPasteEditProvider {
 				insertText: markdown,
 				title: localize('pasteHtmlAsMarkdown', 'Paste as Markdown'),
 				kind: this.kind,
+				handledMimeType: Mimes.html,
 				yieldTo: [
 					{ kind: new HierarchicalKind('chat.attach.text') },
 					{ kind: new HierarchicalKind('chat.attach.image') },

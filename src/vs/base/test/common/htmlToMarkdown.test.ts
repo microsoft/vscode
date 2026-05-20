@@ -43,6 +43,20 @@ suite('htmlToMarkdown', () => {
 		);
 	});
 
+	test('converts syntax-highlighted code blocks by stripping inner tags', () => {
+		assert.strictEqual(
+			convertHtmlToMarkdown('<pre><code><span class="kw">const</span> x = <span class="num">1</span>;</code></pre>'),
+			'```\nconst x = 1;\n```'
+		);
+	});
+
+	test('preserves indentation in code blocks', () => {
+		assert.strictEqual(
+			convertHtmlToMarkdown('<pre><code>function foo() {\n  return 1;\n}</code></pre>'),
+			'```\nfunction foo() {\n  return 1;\n}\n```'
+		);
+	});
+
 	test('converts unordered lists', () => {
 		const html = '<ul><li>one</li><li>two</li><li>three</li></ul>';
 		assert.strictEqual(convertHtmlToMarkdown(html), '- one\n- two\n- three');

@@ -29,10 +29,10 @@ export function convertHtmlToMarkdown(html: string): string {
 	md = md.replace(/<h6[^>]*>([\s\S]*?)<\/h6>/gi, (_m, inner) => `\n###### ${inlineClean(inner)}\n`);
 
 	// Code blocks: <pre><code>…</code></pre>
-	md = md.replace(/<pre[^>]*>\s*<code[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi, (_m, inner) => `\n\`\`\`\n${decodeEntities(inner).trim()}\n\`\`\`\n`);
+	md = md.replace(/<pre[^>]*>\s*<code[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi, (_m, inner) => `\n\`\`\`\n${cleanCodeBlock(inner)}\n\`\`\`\n`);
 
 	// Standalone <pre> without <code>
-	md = md.replace(/<pre[^>]*>([\s\S]*?)<\/pre>/gi, (_m, inner) => `\n\`\`\`\n${decodeEntities(inner).trim()}\n\`\`\`\n`);
+	md = md.replace(/<pre[^>]*>([\s\S]*?)<\/pre>/gi, (_m, inner) => `\n\`\`\`\n${cleanCodeBlock(inner)}\n\`\`\`\n`);
 
 	// Blockquote
 	md = md.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_m, inner) => {
@@ -104,6 +104,19 @@ function inlineClean(html: string): string {
 	result = result.replace(/<br\s*\/?>/gi, '\n');
 	result = result.replace(/<[^>]+>/g, '');
 	return decodeEntities(result);
+}
+
+/** Strip tags, normalise <br>, and decode entities inside a code block while preserving indentation. */
+function cleanCodeBlock(html: string): string {
+	let result = html;
+	// Normalise <br> to newlines
+	result = result.replace(/<br\s*\/?>/gi, '\n');
+	// Strip all HTML tags (e.g. syntax-highlighting <span>s)
+	result = result.replace(/<[^>]+>/g, '');
+	result = decodeEntities(result);
+	// Trim only leading/trailing newlines, preserving indentation
+	result = result.replace(/^\n+|\n+$/g, '');
+	return result;
 }
 
 /** Decode the most common HTML entities. */
