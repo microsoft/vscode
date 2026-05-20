@@ -565,7 +565,6 @@ class NewSession extends Disposable {
 			changes,
 			checkpoints,
 			modelId: this._modelId,
-			agent: this._agent,
 			mode, isArchived, isRead, description, lastTurnEnd,
 		};
 		const authPending = ctx.authenticationPending;
