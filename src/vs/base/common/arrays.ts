@@ -447,11 +447,11 @@ export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArra
 export function range(to: number): number[];
 export function range(from: number, to: number): number[];
 export function range(arg: number, to?: number): number[] {
-	let from = typeof to === 'number' ? arg : 0;
+	const from = typeof to === 'number' ? arg : 0;
 
 	if (typeof to !== 'number') {
 		to = arg;
-	} 
+	}
 
 	const result: number[] = [];
 
@@ -589,7 +589,7 @@ export function mapFilter<T, U>(array: ReadonlyArray<T>, fn: (t: T) => U | undef
 }
 
 export function withoutDuplicates<T>(array: ReadonlyArray<T>): T[] {
-	return distinct(array);
+	return distinct(Array.from(array));
 }
 
 export function asArray<T>(x: T | T[]): T[];
