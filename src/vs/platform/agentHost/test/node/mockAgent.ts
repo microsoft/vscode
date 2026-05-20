@@ -178,16 +178,14 @@ export class MockAgent implements IAgent {
 				status: CustomizationStatus.Loaded,
 			},
 		}));
-		if (results.length > 0) {
-			this._onDidSessionProgress.fire({
-				kind: 'action',
-				session,
-				action: {
-					type: ActionType.SessionCustomizationsChanged,
-					customizations: results.map(result => result.customization),
-				},
-			});
-		}
+		this._onDidSessionProgress.fire({
+			kind: 'action',
+			session,
+			action: {
+				type: ActionType.SessionCustomizationsChanged,
+				customizations: results.map(result => result.customization),
+			},
+		});
 		return results;
 	}
 

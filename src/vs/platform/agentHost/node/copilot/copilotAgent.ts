@@ -1964,7 +1964,13 @@ class PluginController extends Disposable {
 				return;
 			}
 			published.set(customization.customization.uri, { ...customization });
-			publish?.({ type: ActionType.SessionCustomizationUpdated, ...customization });
+			publish?.({
+				type: ActionType.SessionCustomizationUpdated,
+				customization: customization.customization,
+				enabled: customization.enabled,
+				status: customization.status,
+				statusMessage: customization.statusMessage,
+			});
 		};
 
 		const prev = this._clientSync;

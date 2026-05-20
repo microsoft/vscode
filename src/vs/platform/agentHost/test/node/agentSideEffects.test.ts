@@ -1012,7 +1012,11 @@ suite('AgentSideEffects', () => {
 			}]);
 			const customizationActions = envelopes
 				.filter(e => e.action.type === ActionType.SessionCustomizationsChanged);
-			assert.strictEqual(customizationActions.length, 0);
+			assert.strictEqual(customizationActions.length, 1);
+			assert.deepStrictEqual(customizationActions[0].action, {
+				type: ActionType.SessionCustomizationsChanged,
+				customizations: [],
+			});
 		});
 
 		test('clears client customizations when activeClient is null', () => {
