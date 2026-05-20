@@ -93,6 +93,8 @@ onceDocumentLoaded(() => {
 		'text/html'
 	);
 
+	stripEventHandlerAttributes(markDownHtml);
+
 	const newElements = [...markDownHtml.body.children];
 	document.body.append(...newElements);
 	for (const el of newElements) {
@@ -275,6 +277,9 @@ window.addEventListener('message', async event => {
 					metaElement.remove();
 				}
 			}
+
+			// Strip inline event handler attributes as an additional defense-in-depth measure
+			stripEventHandlerAttributes(newContent);
 
 			if (data.source !== documentResource) {
 				documentResource = data.source;
@@ -752,6 +757,22 @@ function areNodesEqual(a: Element, b: Element): boolean {
 	return aChildren.length === bChildren.length && aChildren.every((x, i) => areNodesEqual(x, bChildren[i]));
 }
 
+
+/**
+ * Strips all inline event handler attributes (e.g. `onclick`, `onerror`) from every element
+ * in a parsed document. This is a defense-in-depth measure: the webview's Content Security
+ * Policy already blocks these handlers, but removing them explicitly ensures they cannot
+ * execute even if the CSP is somehow bypassed.
+ */
+function stripEventHandlerAttributes(doc: Document): void {
+	for (const el of Array.from(doc.querySelectorAll('*'))) {
+		for (const attr of Array.from(el.attributes)) {
+			if (attr.name.toLowerCase().startsWith('on')) {
+				el.removeAttribute(attr.name);
+			}
+		}
+	}
+}
 
 function domEval(el: Element): void {
 	const preservedScriptAttributes: (keyof HTMLScriptElement)[] = [
