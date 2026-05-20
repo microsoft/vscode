@@ -12,7 +12,8 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
  */
 export const GitHubPaths = {
 	copilotSettings: 'settings/copilot/features',
-	billingBudgets: 'settings/billing/budgets?utm_source=vscode',
+	billingBudgets: 'settings/copilot/features?utm_source=vscode',
+	copilotUpgrade: 'github-copilot/upgrade?utm_source=vscode',
 } as const;
 
 export interface IDefaultAccountProvider {

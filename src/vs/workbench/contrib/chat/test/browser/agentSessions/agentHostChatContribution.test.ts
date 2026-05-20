@@ -331,6 +331,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._sessions.set(AgentSession.id(meta.session), meta);
 	}
 
+	fireNotification(notification: INotification): void {
+		this._onDidNotification.fire(notification);
+	}
+
 	dispose(): void {
 		this._onDidAction.dispose();
 		this._onDidNotification.dispose();
@@ -426,7 +430,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		_serviceBrand: undefined,
 	});
 	instantiationService.stub(IOutputService, { getChannel: () => undefined });
-	instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null });
+	instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null, onDidChangeWorkspaceFolders: Event.None });
 	instantiationService.stub(IChatEditingService, {
 		registerEditingSessionProvider: () => toDisposable(() => { }),
 	});
@@ -844,6 +848,115 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(listCalls, 2);
 		});
 
+		test('refresh filters out sessions whose workingDirectory is not in any workspace folder', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const workspaceFolder = URI.file('/workspace/root');
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkspace: () => ({ id: '', folders: [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }] }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: Event.None,
+			});
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'in-ws'), startTime: 1000, modifiedTime: 2000, summary: 'In workspace', workingDirectory: URI.file('/workspace/root/sub') });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'out-ws'), startTime: 1000, modifiedTime: 2000, summary: 'Outside workspace', workingDirectory: URI.file('/other/place') });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'no-wd'), startTime: 1000, modifiedTime: 2000, summary: 'No working directory' });
+
+			const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
+
+			await listController.refresh(CancellationToken.None);
+
+			assert.deepStrictEqual(listController.items.map(item => item.label), ['In workspace']);
+		});
+
+		test('refresh does not filter when no workspace folders are open', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'a'), startTime: 1000, modifiedTime: 2000, summary: 'A', workingDirectory: URI.file('/any/path') });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'b'), startTime: 1000, modifiedTime: 2000, summary: 'B' });
+
+			await listController.refresh(CancellationToken.None);
+
+			assert.strictEqual(listController.items.length, 2);
+		});
+
+		test('workspace folder change re-fetches and updates the filtered session list', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const workspaceFolder = URI.file('/workspace/root');
+			let folders: { uri: URI; name: string; index: number; toResource: () => URI }[] = [];
+			const onDidChangeWorkspaceFolders = disposables.add(new Emitter<{ readonly added: never[]; readonly removed: never[]; readonly changed: never[] }>());
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkspace: () => ({ id: '', folders: [...folders] }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			});
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'in-ws'), startTime: 1000, modifiedTime: 2000, summary: 'In workspace', workingDirectory: URI.file('/workspace/root/sub') });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'out-ws'), startTime: 1000, modifiedTime: 2000, summary: 'Outside workspace', workingDirectory: URI.file('/other/place') });
+
+			const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
+
+			// Initially: no folders → no filter → both sessions visible.
+			await listController.refresh(CancellationToken.None);
+			assert.strictEqual(listController.items.length, 2);
+
+			// Open a workspace folder → only the in-workspace session should remain.
+			folders = [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }];
+			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+			await timeout(0);
+
+			assert.deepStrictEqual(listController.items.map(item => item.label), ['In workspace']);
+		});
+
+		test('sessionAdded notification filters out sessions outside the workspace', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const workspaceFolder = URI.file('/workspace/root');
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkspace: () => ({ id: '', folders: [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }] }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: Event.None,
+			});
+
+			const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
+
+			await listController.refresh(CancellationToken.None);
+			assert.strictEqual(listController.items.length, 0);
+
+			// Simulate a remote session being added in another workspace.
+			agentHostService.fireNotification({
+				type: 'root/sessionAdded',
+				summary: {
+					resource: AgentSession.uri('copilot', 'foreign').toString(),
+					provider: 'copilot',
+					title: 'Foreign workspace session',
+					status: SessionStatus.Idle,
+					createdAt: 1000,
+					modifiedAt: 2000,
+					workingDirectory: URI.file('/other/workspace').toString(),
+				},
+			} as INotification);
+
+			assert.strictEqual(listController.items.length, 0);
+
+			// And one in our workspace should be included.
+			agentHostService.fireNotification({
+				type: 'root/sessionAdded',
+				summary: {
+					resource: AgentSession.uri('copilot', 'local').toString(),
+					provider: 'copilot',
+					title: 'Local session',
+					status: SessionStatus.Idle,
+					createdAt: 1000,
+					modifiedAt: 2000,
+					workingDirectory: URI.file('/workspace/root/sub').toString(),
+				},
+			} as INotification);
+
+			assert.deepStrictEqual(listController.items.map(item => item.label), ['Local session']);
+		});
+
 		test('newChatSessionItem creates final-looking resource used for requested backend session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { listController, sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -876,6 +989,7 @@ suite('AgentHostChatContribution', () => {
 			instantiationService.stub(IWorkspaceContextService, {
 				getWorkspace: () => ({ id: '', folders: [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }] }),
 				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: Event.None,
 			});
 
 			const rebindCalls: { oldResource: URI; newResource: URI; provider: string; workingDirectory: URI | undefined }[] = [];

@@ -8,8 +8,7 @@ import { VsCodeApi } from './vscodeApi';
 declare function acquireVsCodeApi(): VsCodeApi;
 const vscode = acquireVsCodeApi();
 
-
-initializeMermaidWebview(vscode).then(panZoomHandler => {
+initializeMermaidWebview(vscode, { defaultView: 'fit' }).then(panZoomHandler => {
 	if (!panZoomHandler) {
 		return;
 	}

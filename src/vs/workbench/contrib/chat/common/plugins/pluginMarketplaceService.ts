@@ -68,6 +68,8 @@ export interface IGitUrlPluginSource {
 	readonly url: string;
 	readonly ref?: string;
 	readonly sha?: string;
+	/** Subdirectory within the repository where the plugin lives (for `git-subdir` sources). */
+	readonly path?: string;
 }
 
 export interface INpmPluginSource {
@@ -978,21 +980,31 @@ export function parsePluginSource(
 				path: rawSource.path,
 			};
 		}
-		case 'url': {
+		case 'url':
+		case 'git-subdir': {
 			if (typeof rawSource.url !== 'string' || !rawSource.url) {
-				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': url source is missing required 'url' field`);
+				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': ${rawSource.source} source is missing required 'url' field`);
 				return undefined;
 			}
-			if (!rawSource.url.toLowerCase().endsWith('.git')) {
+			if (rawSource.source === 'url' && !rawSource.url.toLowerCase().endsWith('.git')) {
 				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': url source must end with '.git'`);
 				return undefined;
 			}
 			if (!isOptionalString(rawSource.ref)) {
-				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': url source 'ref' must be a string when provided`);
+				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': ${rawSource.source} source 'ref' must be a string when provided`);
 				return undefined;
 			}
 			if (!isOptionalGitSha(rawSource.sha)) {
-				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': url source 'sha' must be a full 40-character commit hash when provided`);
+				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': ${rawSource.source} source 'sha' must be a full 40-character commit hash when provided`);
+				return undefined;
+			}
+			if (rawSource.source === 'git-subdir') {
+				if (typeof rawSource.path !== 'string' || !rawSource.path) {
+					logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': git-subdir source is missing required 'path' field`);
+					return undefined;
+				}
+			} else if (!isOptionalString(rawSource.path)) {
+				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': url source 'path' must be a string when provided`);
 				return undefined;
 			}
 			return {
@@ -1000,6 +1012,7 @@ export function parsePluginSource(
 				url: rawSource.url,
 				ref: rawSource.ref,
 				sha: rawSource.sha,
+				path: rawSource.path,
 			};
 		}
 		case 'npm': {
@@ -1063,7 +1076,7 @@ export function getPluginSourceLabel(descriptor: IPluginSourceDescriptor): strin
 		case PluginSourceKind.GitHub:
 			return descriptor.path ? `${descriptor.repo}/${descriptor.path}` : descriptor.repo;
 		case PluginSourceKind.GitUrl:
-			return descriptor.url;
+			return descriptor.path ? `${descriptor.url}/${descriptor.path}` : descriptor.url;
 		case PluginSourceKind.Npm:
 			return descriptor.version ? `${descriptor.package}@${descriptor.version}` : descriptor.package;
 		case PluginSourceKind.Pip:
@@ -1087,7 +1100,8 @@ export function hasSourceChanged(installed: IPluginSourceDescriptor, marketplace
 				|| installed.path !== (marketplace as typeof installed).path;
 		case PluginSourceKind.GitUrl:
 			return installed.ref !== (marketplace as typeof installed).ref
-				|| installed.sha !== (marketplace as typeof installed).sha;
+				|| installed.sha !== (marketplace as typeof installed).sha
+				|| installed.path !== (marketplace as typeof installed).path;
 		case PluginSourceKind.Npm:
 			return installed.version !== (marketplace as typeof installed).version;
 		case PluginSourceKind.Pip:

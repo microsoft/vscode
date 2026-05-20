@@ -15,6 +15,7 @@ import { buildDefaultChangesetCatalogue } from '../../common/changesetUri.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
+import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -50,6 +51,7 @@ suite('AgentHostChangesetService', () => {
 			new NullLogService(),
 			createNullSessionDataService(),
 			createNoopGitService(),
+			NULL_CHECKPOINT_SERVICE,
 		));
 	});
 
@@ -246,7 +248,7 @@ suite('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE));
 
 			localStateManager.createSession({
 				resource: sessionUri.toString(),
@@ -319,7 +321,7 @@ suite('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE));
 
 			localStateManager.createSession({
 				resource: sessionUri.toString(),
@@ -379,7 +381,7 @@ suite('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE));
 
 			const sessionStr = sessionUri.toString();
 			localStateManager.createSession({
@@ -558,6 +560,7 @@ suite('AgentHostChangesetService', () => {
 				new NullLogService(),
 				createNullSessionDataService(),
 				createNoopGitService(),
+				NULL_CHECKPOINT_SERVICE,
 			));
 		}
 
@@ -634,6 +637,7 @@ suite('AgentHostChangesetService', () => {
 				new NullLogService(),
 				createSessionDataService(sessionDb),
 				createNoopGitService(),
+				NULL_CHECKPOINT_SERVICE,
 			));
 			svc.setTurnSubscriberProbe(() => true);
 

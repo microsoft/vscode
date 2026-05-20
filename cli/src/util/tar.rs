@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use crate::util::errors::{wrap, WrappedError};
+use crate::util::extract_safety::{
+	ensure_canonical_within_root, prepare_extraction_root, safe_extract_join,
+};
 
 use flate2::read::GzDecoder;
 use std::fs::{self, File};
@@ -69,6 +72,8 @@ where
 	let mut entries_so_far = 0;
 	let mut last_reported_at = 0;
 
+	let canonical_root = prepare_extraction_root(parent_path)?;
+
 	// reset since skip logic read the tar already:
 	tar_gz
 		.rewind()
@@ -93,15 +98,18 @@ where
 				.path()
 				.map_err(|e| wrap(e, "error reading entry path"))?;
 
-			let path = parent_path.join(if skip_first {
-				entry_path.iter().skip(1).collect::<PathBuf>()
+			let relative: PathBuf = if skip_first {
+				entry_path.iter().skip(1).collect()
 			} else {
 				entry_path.into_owned()
-			});
+			};
+
+			let path = safe_extract_join(&canonical_root, &relative)?;
 
 			if let Some(p) = path.parent() {
 				fs::create_dir_all(p)
 					.map_err(|e| wrap(e, format!("could not create dir for {}", p.display())))?;
+				ensure_canonical_within_root(&canonical_root, p)?;
 			}
 
 			entry
