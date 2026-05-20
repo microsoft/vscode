@@ -206,8 +206,9 @@ export function concatArrays<T extends any[]>(...arrays: T): T[number][number][]
 	const result: T[number][number][] = [];
 
 	for (const arr of arrays) {
-		for (const element of arr) {
-			result.push(element);
+		const offset = result.length;
+		for (let i = 0; i < arr.length; i++) {
+			result[offset + i] = arr[i];
 		}
 	}
 
