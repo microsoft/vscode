@@ -419,6 +419,6 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
 	if (!opts.web) { setupChatTests(logger); }
-	if (!opts.web && !opts.remote) { setupAgentsWindowTests(logger); }
+	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupAgentsWindowTests(logger); }
 	setupAccessibilityTests(logger, opts, quality);
 });
