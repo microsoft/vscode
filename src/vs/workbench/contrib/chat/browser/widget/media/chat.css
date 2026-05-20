@@ -1972,7 +1972,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-input-toolbar .action-item:has(.codicon-add) .codicon-add {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
@@ -2345,7 +2345,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .codicon {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-icon-label-iconpath.codicon {

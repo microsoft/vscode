@@ -279,10 +279,6 @@
 	display: flex;
 }
 
-.sessions-chat-loading-spinner .codicon {
-	font-size: 14px;
-}
-
 /* Attach row (pills only, above editor, inside input area) */
 .sessions-chat-attach-row {
 	display: flex;
@@ -322,7 +318,7 @@
 }
 
 .monaco-workbench .sessions-chat-attach-button .codicon[class*='codicon-'] {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 /* Attached context container */
@@ -359,7 +355,7 @@
 }
 
 .sessions-chat-attachment-pill .codicon {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact) !important;
 	flex-shrink: 0;
 	padding: 0 3px;
 }

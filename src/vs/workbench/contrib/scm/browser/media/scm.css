@@ -657,12 +657,12 @@
 
 .monaco-hover.history-item-hover .history-item-hover-container p > span > span.codicon.codicon-tag,
 .monaco-hover.history-item-hover .history-item-hover-container p > span > span.codicon.codicon-target {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	margin-bottom: 2px !important;
 }
 
 .monaco-hover.history-item-hover .history-item-hover-container p > span > span.codicon.codicon-cloud {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	margin-bottom: 1px !important;
 }
 

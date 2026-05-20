@@ -43,7 +43,7 @@
 }
 
 .monaco-workbench .merge-editor .code-view > .header > span.description .codicon {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -54,7 +54,7 @@
 }
 
 .monaco-workbench .merge-editor .code-view > .header > span.detail .codicon {
-	font-size: 13px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 /* for input1|2 -> align details to the left  */

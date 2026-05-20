@@ -110,7 +110,7 @@
 }
 
 .agent-host-filter-combo .agent-host-filter-icon .codicon {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .agent-host-filter-combo .agent-host-filter-chevron .codicon {
@@ -162,7 +162,7 @@
 }
 
 .agent-host-filter-combo .agent-host-filter-connect .codicon {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .agent-host-filter-combo .agent-host-filter-connect.connected .codicon {

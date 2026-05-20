@@ -111,7 +111,7 @@
 		}
 
 		.codicon {
-			font-size: 14px;
+			font-size: var(--vscode-codiconFontSize-compact);
 		}
 	}
 
@@ -171,7 +171,7 @@
 
 		.codicon {
 			color: inherit;
-			font-size: 14px;
+			font-size: var(--vscode-codiconFontSize-compact);
 			flex-shrink: 0;
 			opacity: 1;
 		}
