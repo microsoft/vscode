@@ -572,7 +572,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _serializeAgentSelection(agent: AgentSelection): string {
-		return JSON.stringify({ uri: agent.uri, name: agent.name });
+		return JSON.stringify({ uri: agent.uri });
 	}
 
 	private _parseAgentSelection(raw: string | undefined): AgentSelection | undefined {
@@ -581,13 +581,28 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		try {
 			const value: unknown = JSON.parse(raw);
-			if (value && typeof value === 'object' && typeof (value as AgentSelection).uri === 'string' && typeof (value as AgentSelection).name === 'string') {
-				return { uri: (value as AgentSelection).uri, name: (value as AgentSelection).name };
+			if (value && typeof value === 'object' && typeof (value as AgentSelection).uri === 'string') {
+				return { uri: (value as AgentSelection).uri };
 			}
 		} catch {
 			// Bad / stale metadata — treat as unset.
 		}
 		return undefined;
+	}
+
+	/**
+	 * Resolves an {@link AgentSelection}'s SDK-facing name by looking it up in
+	 * the active client snapshot's parsed plugin agents. Falls back to the
+	 * agent URI when no matching plugin agent is found.
+	 */
+	private _resolveAgentName(snapshot: IActiveClientSnapshot, agent: AgentSelection): string {
+		for (const plugin of snapshot.plugins) {
+			const found = plugin.agents.find(a => a.uri.toString() === agent.uri);
+			if (found) {
+				return found.name;
+			}
+		}
+		return agent.uri;
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
@@ -866,7 +881,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const raw = await client.createSession({
 				model: provisional.model?.id,
 				reasoningEffort: this._getReasoningEffort(provisional.model),
-				...(provisional.agent ? { agent: provisional.agent.name } : {}),
+				...(provisional.agent ? { agent: this._resolveAgentName(snapshot, provisional.agent) } : {}),
 				sessionId,
 				streaming: true,
 				workingDirectory: workingDirectory?.fsPath,
@@ -1499,7 +1514,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const raw = await client.resumeSession(sessionId, {
 					...config,
 					workingDirectory: workingDirectory?.fsPath,
-					...(storedMetadata.agent ? { agent: storedMetadata.agent.name } : {}),
+					...(storedMetadata.agent ? { agent: this._resolveAgentName(snapshot, storedMetadata.agent) } : {}),
 				});
 				this._logService.info(`[Copilot:${sessionId}] SDK resumeSession succeeded`);
 				return new CopilotSessionWrapper(raw);
@@ -1521,7 +1536,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					streaming: true,
 					model: storedMetadata.model?.id,
 					reasoningEffort: this._getReasoningEffort(storedMetadata.model),
-					...(storedMetadata.agent ? { agent: storedMetadata.agent.name } : {}),
+					...(storedMetadata.agent ? { agent: this._resolveAgentName(snapshot, storedMetadata.agent) } : {}),
 					workingDirectory: workingDirectory?.fsPath,
 				});
 				this._logService.info(`[Copilot:${sessionId}] Fallback createSession succeeded`);
@@ -1848,15 +1863,13 @@ class SessionDiscoveredEntry extends Disposable {
 			}
 			const pluginDir = URI.parse(bundleResult.ref.uri);
 			const plugin = await this._resolvePlugin(pluginDir);
-			const enrichedRef = plugin
-				? { ...bundleResult.ref, agents: toCustomizationAgentRefs(plugin.agents) }
-				: bundleResult.ref;
 			this._resolved = {
 				customization: {
-					customization: enrichedRef,
+					customization: bundleResult.ref,
 					enabled: true,
 					status: plugin ? CustomizationStatus.Loaded : CustomizationStatus.Error,
 					statusMessage: plugin ? undefined : localize('copilotAgent.pluginParseError', "Error parsing plugin."),
+					...(plugin ? { agents: toCustomizationAgentRefs(plugin.agents) } : {}),
 				},
 				pluginDir,
 				plugin,
@@ -2105,9 +2118,10 @@ class PluginController extends Disposable {
 
 		return {
 			customization: {
-				customization: { ...customization, agents: toCustomizationAgentRefs(parsed.agents) },
+				customization,
 				enabled: true,
 				status: CustomizationStatus.Loaded,
+				agents: toCustomizationAgentRefs(parsed.agents),
 			},
 			pluginDir,
 			plugin: parsed,
@@ -2139,8 +2153,9 @@ class PluginController extends Disposable {
 		return {
 			customization: {
 				...item.customization,
-				customization: { ...item.customization.customization, agents: toCustomizationAgentRefs(parsed.agents) },
+				customization: item.customization.customization,
 				clientId,
+				agents: toCustomizationAgentRefs(parsed.agents),
 			},
 			pluginDir: item.pluginDir,
 			plugin: parsed,

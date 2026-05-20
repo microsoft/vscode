@@ -8,7 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { URI, StringOrMarkdown, ErrorInfo, FileEdit, UsageInfo } from '../common/state.js';
-import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type UserMessage, type ResponsePart, type ToolCallResult, type ToolResultContent, type ToolDefinition, type SessionActiveClient, type SessionCustomization, type CustomizationRef, type SessionInputAnswer, type SessionInputRequest, type SessionInputResponseKind, type ConfirmationOption, type CustomizationStatus, type AgentSelection } from './state.js';
+import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type UserMessage, type ResponsePart, type ToolCallResult, type ToolResultContent, type ToolDefinition, type SessionActiveClient, type SessionCustomization, type CustomizationRef, type CustomizationAgentRef, type SessionInputAnswer, type SessionInputRequest, type SessionInputResponseKind, type ConfirmationOption, type CustomizationStatus, type AgentSelection } from './state.js';
 import type { ModelSelection } from '../channels-root/state.js';
 import type { ChangesetSummary } from '../channels-changeset/state.js';
 
@@ -605,6 +605,12 @@ export interface SessionCustomizationUpdatedAction {
 	status?: CustomizationStatus;
 	/** New human-readable status detail */
 	statusMessage?: string;
+	/**
+	 * Custom agents contributed by this customization, as resolved by the
+	 * agent host. Populated only by the agent host. See
+	 * {@link SessionCustomization.agents} for absent-vs-empty semantics.
+	 */
+	agents?: CustomizationAgentRef[];
 }
 
 // ─── Config Actions ──────────────────────────────────────────────────────────

@@ -704,10 +704,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				customizations: [{
 					uri: 'plugin://root-copilot',
 					displayName: 'root copilot plugin',
-					agents: [
-						{ uri: 'agent://root-a', name: 'root-a' },
-						{ uri: 'agent://shared', name: 'shared', description: 'from root' },
-					],
 				}],
 			} as AgentInfo,
 			{
@@ -718,7 +714,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				customizations: [{
 					uri: 'plugin://root-openai',
 					displayName: 'openai-only plugin',
-					agents: [{ uri: 'agent://openai-only', name: 'openai-only' }],
 				}],
 			} as AgentInfo,
 		]);
@@ -744,13 +739,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 				customization: {
 					uri: 'plugin://session-1',
 					displayName: 'session plugin',
-					agents: [
-						{ uri: 'agent://shared', name: 'shared', description: 'from session' },
-						{ uri: 'agent://session-only', name: 'session-only' },
-					],
 				},
 				enabled: true,
 				status: CustomizationStatus.Loaded,
+				agents: [
+					{ uri: 'agent://shared', name: 'shared', description: 'from session' },
+					{ uri: 'agent://session-only', name: 'session-only' },
+				],
 			}],
 			activeClient: {
 				clientId: 'workbench',
@@ -758,7 +753,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				customizations: [{
 					uri: 'plugin://client-1',
 					displayName: 'client plugin',
-					agents: [{ uri: 'agent://client-only', name: 'client-only' }],
 				}],
 			},
 		};
@@ -788,7 +782,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				customizations: [{
 					uri: 'plugin://root',
 					displayName: 'root plugin',
-					agents: [{ uri: 'agent://root-only', name: 'root-only' }],
 				}],
 			} as AgentInfo,
 		]);
@@ -835,10 +828,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 				customization: {
 					uri: 'plugin://s',
 					displayName: 'session plugin',
-					agents: [{ uri: 'agent://s', name: 's' }],
 				},
 				enabled: true,
 				status: CustomizationStatus.Loaded,
+				agents: [{ uri: 'agent://s', name: 's' }],
 			}],
 		});
 		assert.ok(fired > afterRoot, 'expected event to fire on session state customization change');

@@ -20,7 +20,7 @@ import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../
 import { buildUncommittedChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentSelection, CustomizationAgentRef, CustomizationRef, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary, type ChangesetSummary } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentSelection, CustomizationAgentRef, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary, type ChangesetSummary } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -165,7 +165,7 @@ export class AgentHostSessionAdapter implements ISession {
 		this.status = observableValue<SessionStatus>('status', metadata.status !== undefined ? mapProtocolStatus(metadata.status) : SessionStatus.Completed);
 		this.modelId = observableValue<string | undefined>('modelId', metadata.model ? `${resourceScheme}:${metadata.model.id}` : undefined);
 		this.agentSelection = metadata.agent;
-		this.agent = observableValue<ISessionAgentRef | undefined>('agent', metadata.agent ? { uri: metadata.agent.uri, name: metadata.agent.name } : undefined);
+		this.agent = observableValue<ISessionAgentRef | undefined>('agent', metadata.agent ? { uri: metadata.agent.uri, name: metadata.agent.uri } : undefined);
 		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
 		this._activity = observableValue('activity', metadata.activity);
 		this._project = metadata.project;
@@ -338,7 +338,7 @@ export class AgentHostSessionAdapter implements ISession {
 			}
 
 			this.agentSelection = metadata.agent;
-			const nextAgent = metadata.agent ? { uri: metadata.agent.uri, name: metadata.agent.name } : undefined;
+			const nextAgent = metadata.agent ? { uri: metadata.agent.uri, name: metadata.agent.uri } : undefined;
 			if (!agentRefEquals(this.agent.get(), nextAgent)) {
 				this.agent.set(nextAgent, tx);
 				didChange = true;
@@ -716,7 +716,7 @@ class NewSession extends Disposable {
 					provider: this.agentProvider,
 					session: backendUri,
 					workingDirectory: this.workspaceUri,
-					...(this._selectedAgent ? { agent: { uri: this._selectedAgent.uri, name: this._selectedAgent.name } } : {}),
+					...(this._selectedAgent ? { agent: { uri: this._selectedAgent.uri } } : {}),
 				});
 			} catch (err) {
 				this._logService.warn(`[${this._providerId}] Eager createSession failed for ${backendUri.toString()}: ${err}`);
@@ -1416,42 +1416,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
 		if (cached && rawId && connection) {
-			cached.agentSelection = agent ? { uri: agent.uri, name: agent.name } : undefined;
+			cached.agentSelection = agent ? { uri: agent.uri } : undefined;
 			cached.agent.set(agent, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
-			const action = { type: ActionType.SessionAgentChanged as const, ...(agent ? { agent: { uri: agent.uri, name: agent.name } } : {}) };
+			const action = { type: ActionType.SessionAgentChanged as const, ...(agent ? { agent: { uri: agent.uri } } : {}) };
 			connection.dispatch(sessionUri.toString(), action);
 		}
 	}
 
 	getCustomAgents(sessionId: string): readonly CustomizationAgentRef[] {
-		// Resolve the agent provider for this session so we can scope root
-		// customizations to the agents that match (a host may advertise
-		// multiple agents, each with its own customizations).
-		let agentProvider: string | undefined;
-		if (this._newSession?.sessionId === sessionId) {
-			agentProvider = this._newSession.agentProvider;
-		} else {
-			const rawId = this._rawIdFromChatId(sessionId);
-			const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-			agentProvider = cached?.agentProvider;
-		}
-
-		const rootCustomizations: CustomizationRef[] = [];
-		if (this._lastRootState && agentProvider) {
-			for (const agent of this._lastRootState.agents) {
-				if (agent.provider === agentProvider && agent.customizations) {
-					rootCustomizations.push(...agent.customizations);
-				}
-			}
-		}
-
 		const sessionState = this._lastSessionStates.get(sessionId);
-		const sessionCustomizations = sessionState?.customizations;
-		const activeClientCustomizations = sessionState?.activeClient?.customizations;
-
-		return getEffectiveAgents(rootCustomizations, activeClientCustomizations, sessionCustomizations);
+		return getEffectiveAgents(sessionState?.customizations);
 	}
 
 	// -- Session actions ------------------------------------------------------
@@ -1990,7 +1966,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		cached.agentSelection = agent;
-		const nextAgent = agent ? { uri: agent.uri, name: agent.name } : undefined;
+		const nextAgent = agent ? { uri: agent.uri, name: agent.uri } : undefined;
 		if (!agentRefEquals(cached.agent.get(), nextAgent)) {
 			cached.agent.set(nextAgent, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });

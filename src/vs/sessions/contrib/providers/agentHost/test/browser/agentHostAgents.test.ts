@@ -5,19 +5,15 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { CustomizationStatus, type CustomizationRef, type SessionCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationStatus, type CustomizationAgentRef, type SessionCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { getEffectiveAgents } from '../../browser/agentHostAgents.js';
 
-function ref(uri: string, agents?: { uri: string; name: string; description?: string }[]): CustomizationRef {
-	return { uri, displayName: uri, ...(agents ? { agents } : {}) };
-}
-
-function sessionCustomization(customization: CustomizationRef, clientId?: string): SessionCustomization {
+function sc(uri: string, agents?: CustomizationAgentRef[], enabled = true): SessionCustomization {
 	return {
-		customization,
-		enabled: true,
+		customization: { uri, displayName: uri },
+		enabled,
 		status: CustomizationStatus.Loaded,
-		...(clientId ? { clientId } : {}),
+		...(agents ? { agents } : {}),
 	};
 }
 
@@ -25,51 +21,52 @@ suite('getEffectiveAgents', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('returns an empty list when no customizations contribute agents', () => {
-		assert.deepStrictEqual(getEffectiveAgents(undefined, undefined, undefined), []);
-		assert.deepStrictEqual(getEffectiveAgents([ref('plugin://a')], [ref('plugin://b')], []), []);
+		assert.deepStrictEqual(getEffectiveAgents(undefined), []);
+		assert.deepStrictEqual(getEffectiveAgents([sc('plugin://a'), sc('plugin://b', [])]), []);
 	});
 
 	test('treats undefined `agents` as unknown and empty array as no agents', () => {
-		const root = [ref('plugin://a', [{ uri: 'agent://review', name: 'review' }])];
-		const client = [{ ...ref('plugin://b'), agents: [] as { uri: string; name: string }[] }];
-		const result = getEffectiveAgents(root, client, undefined);
+		const result = getEffectiveAgents([
+			sc('plugin://a', [{ uri: 'agent://review', name: 'review' }]),
+			sc('plugin://b', []),
+		]);
 		assert.deepStrictEqual(result, [{ uri: 'agent://review', name: 'review' }]);
 	});
 
-	test('merges agents across layers and de-dupes by uri (session wins)', () => {
-		const sharedAgent = { uri: 'agent://shared', name: 'shared' };
-		const result = getEffectiveAgents(
-			[ref('plugin://root', [
-				{ ...sharedAgent, description: 'from root' },
-				{ uri: 'agent://only-root', name: 'only-root' },
-			])],
-			[ref('plugin://client', [
-				{ ...sharedAgent, description: 'from client' },
-				{ uri: 'agent://only-client', name: 'only-client' },
-			])],
-			[sessionCustomization(ref('plugin://session', [
-				{ ...sharedAgent, description: 'from session' },
-				{ uri: 'agent://only-session', name: 'only-session' },
-			]))],
-		);
+	test('skips disabled session customizations', () => {
+		const result = getEffectiveAgents([
+			sc('plugin://a', [{ uri: 'agent://a', name: 'a' }], false),
+			sc('plugin://b', [{ uri: 'agent://b', name: 'b' }]),
+		]);
+		assert.deepStrictEqual(result, [{ uri: 'agent://b', name: 'b' }]);
+	});
+
+	test('de-dupes by uri (first-seen wins)', () => {
+		const result = getEffectiveAgents([
+			sc('plugin://a', [
+				{ uri: 'agent://shared', name: 'shared', description: 'from a' },
+				{ uri: 'agent://only-a', name: 'only-a' },
+			]),
+			sc('plugin://b', [
+				{ uri: 'agent://shared', name: 'shared', description: 'from b' },
+				{ uri: 'agent://only-b', name: 'only-b' },
+			]),
+		]);
 		assert.deepStrictEqual(result, [
-			{ uri: 'agent://only-client', name: 'only-client' },
-			{ uri: 'agent://only-root', name: 'only-root' },
-			{ uri: 'agent://only-session', name: 'only-session' },
-			{ uri: 'agent://shared', name: 'shared', description: 'from session' },
+			{ uri: 'agent://only-a', name: 'only-a' },
+			{ uri: 'agent://only-b', name: 'only-b' },
+			{ uri: 'agent://shared', name: 'shared', description: 'from a' },
 		]);
 	});
 
 	test('sorts by name, breaking ties by uri', () => {
-		const result = getEffectiveAgents(
-			[ref('plugin://a', [
+		const result = getEffectiveAgents([
+			sc('plugin://a', [
 				{ uri: 'agent://z', name: 'beta' },
 				{ uri: 'agent://x', name: 'beta' },
 				{ uri: 'agent://y', name: 'alpha' },
-			])],
-			undefined,
-			undefined,
-		);
+			]),
+		]);
 		assert.deepStrictEqual(result.map(a => a.uri), ['agent://y', 'agent://x', 'agent://z']);
 	});
 });
