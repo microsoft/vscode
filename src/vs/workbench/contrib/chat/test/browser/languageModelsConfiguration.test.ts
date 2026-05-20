@@ -171,4 +171,21 @@ suite('LanguageModelsConfiguration', () => {
 			endLineNumber: 8
 		});
 	});
+
+	test('parseLanguageModelsConfiguration - empty models range', () => {
+		const content = JSON.stringify([{
+			vendor: 'vendor',
+			name: 'group',
+			models: []
+		}], null, '\t');
+		const model = testDisposables.add(createTextModel(content));
+		const result = parseLanguageModelsProviderGroups(model);
+
+		assert.deepStrictEqual(result[0].modelsRange, {
+			startLineNumber: 5,
+			startColumn: 13,
+			endLineNumber: 5,
+			endColumn: 15
+		});
+	});
 });

@@ -1226,13 +1226,32 @@ suite('LanguageModels - Provider Group Management', function () {
 		assert.deepStrictEqual({
 			encodedApiKeyUsesSecretStorage: encodedApiKey.startsWith('${input:chat.lm.secret.'),
 			newSecretValue: await secretStorageService.get(secretKey),
+			oldSecretValue: await secretStorageService.get('existing-secret'),
 			settings: updatedGroup?.settings,
 			identity: { name: updatedGroup?.name, vendor: updatedGroup?.vendor }
 		}, {
 			encodedApiKeyUsesSecretStorage: true,
 			newSecretValue: 'new-api-key',
+			oldSecretValue: undefined,
 			settings: { model: { temperature: 0.7 } },
 			identity: { name: 'Custom Group', vendor: 'custom-vendor' }
+		});
+	});
+
+	test('updateLanguageModelsProviderGroupApiKey leaves the existing secret unchanged when the value is unchanged', async function () {
+		acceptedInputValues.push('old-api-key');
+		await secretStorageService.set('existing-secret', 'old-api-key');
+
+		await languageModelsService.updateLanguageModelsProviderGroupApiKey('custom-vendor', 'Custom Group');
+
+		assert.deepStrictEqual({
+			updateCalls,
+			secretKeys: await secretStorageService.keys(),
+			secretValue: await secretStorageService.get('existing-secret')
+		}, {
+			updateCalls: [],
+			secretKeys: ['existing-secret'],
+			secretValue: 'old-api-key'
 		});
 	});
 

@@ -1342,7 +1342,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		try {
 			const existingConfiguration = await this._resolveConfiguration(existing, schema);
 			const apiKey = await this.promptForValue(existing.name, 'apiKey', apiKeySchema, !!schema.required?.includes('apiKey'), existingConfiguration);
-			if (apiKey === undefined) {
+			if (apiKey === undefined || apiKey === existingConfiguration.apiKey) {
 				return;
 			}
 
@@ -1352,6 +1352,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				settings: existing.settings
 			};
 			await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(existing, updated);
+			await this._deleteSecretsInConfiguration(existing, schema);
 		} catch (error) {
 			if (isCancellationError(error)) {
 				return;

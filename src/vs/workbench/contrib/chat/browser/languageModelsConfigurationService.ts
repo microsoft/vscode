@@ -173,13 +173,22 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 			if (!targetRange) {
 				return;
 			}
+			const models = options.group.models;
+			const isModelsArray = options.snippetTarget === 'models' && Array.isArray(models);
+			const emptyModelsArray = isModelsArray && models.length === 0;
+			const insertBeforeModelsArrayEnd = emptyModelsArray || (isModelsArray && targetRange.startLineNumber === targetRange.endLineNumber);
 			const lastPropertyLine = targetRange.endLineNumber - 1;
-			const lastPropertyLineLength = model.getLineLength(lastPropertyLine);
-			const insertPosition = { lineNumber: lastPropertyLine, column: lastPropertyLineLength + 1 };
+			const insertPosition = insertBeforeModelsArrayEnd ? {
+				lineNumber: targetRange.endLineNumber,
+				column: targetRange.endColumn - 1
+			} : {
+				lineNumber: lastPropertyLine,
+				column: model.getLineLength(lastPropertyLine) + 1
+			};
 			codeEditor.setPosition(insertPosition);
 			codeEditor.revealPositionNearTop(insertPosition);
 			codeEditor.focus();
-			SnippetController2.get(codeEditor)?.insert(',\n' + options.snippet);
+			SnippetController2.get(codeEditor)?.insert(emptyModelsArray ? options.snippet : ',\n' + options.snippet);
 		} else {
 			if (!options.group.range) {
 				return;
