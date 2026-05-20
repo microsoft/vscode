@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BasePromptElementProps, PromptElement } from '@vscode/prompt-tsx';
+import { isMinimalHarnessFamily } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import type { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { CopilotIdentityRules } from '../base/copilotIdentity';
 import { SafetyRules } from '../base/safetyRules';
 import { DefaultAgentPrompt, DefaultAgentPromptProps, DefaultReminderInstructions, DefaultToolReferencesHint, ReminderInstructionsProps, ToolReferencesHintProps } from './defaultAgentInstructions';
+import { DefaultMinimalPrompt, DefaultMinimalReminderInstructions, DefaultMinimalToolReferencesHint } from './defaultMinimalPrompt';
 
 export type SystemPrompt = new (props: DefaultAgentPromptProps, ...args: any[]) => PromptElement<DefaultAgentPromptProps>;
 
@@ -98,10 +100,16 @@ export const PromptRegistry = new class {
 		const promptResolverCtor = await this.getPromptResolver(endpoint);
 		const agentPrompt = promptResolverCtor ? instantiationService.createInstance(promptResolverCtor) : undefined;
 
+		// When no resolver matches and the endpoint opts into the minimal stack
+		// (e.g. `family === 'Experimental'`), fall back to a stripped-back prompt
+		// instead of the verbose default. Models with their own resolver are
+		// untouched, and so are unknown models whose family isn't in the allowlist.
+		const useMinimal = !agentPrompt && isMinimalHarnessFamily(endpoint);
+
 		return {
-			SystemPrompt: agentPrompt?.resolveSystemPrompt(endpoint) ?? DefaultAgentPrompt,
-			ReminderInstructionsClass: agentPrompt?.resolveReminderInstructions?.(endpoint) ?? DefaultReminderInstructions,
-			ToolReferencesHintClass: agentPrompt?.resolveToolReferencesHint?.(endpoint) ?? DefaultToolReferencesHint,
+			SystemPrompt: agentPrompt?.resolveSystemPrompt(endpoint) ?? (useMinimal ? DefaultMinimalPrompt : DefaultAgentPrompt),
+			ReminderInstructionsClass: agentPrompt?.resolveReminderInstructions?.(endpoint) ?? (useMinimal ? DefaultMinimalReminderInstructions : DefaultReminderInstructions),
+			ToolReferencesHintClass: agentPrompt?.resolveToolReferencesHint?.(endpoint) ?? (useMinimal ? DefaultMinimalToolReferencesHint : DefaultToolReferencesHint),
 			CopilotIdentityRulesClass: agentPrompt?.resolveCopilotIdentityRules?.(endpoint) ?? CopilotIdentityRules,
 			SafetyRulesClass: agentPrompt?.resolveSafetyRules?.(endpoint) ?? SafetyRules,
 			userQueryTagName: agentPrompt?.resolveUserQueryTagName?.(endpoint) ?? 'userRequest',

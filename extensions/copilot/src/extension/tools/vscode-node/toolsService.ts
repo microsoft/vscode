@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { isGpt55 } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { isGpt55, isMinimalHarnessFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { CopilotChatAttr, emitToolCallEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiToolType, StdAttr, truncateForOTel } from '../../../platform/otel/common/index';
@@ -21,6 +21,28 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { getContributedToolName, getToolName, mapContributedToolNamesInSchema, mapContributedToolNamesInString, ToolName } from '../common/toolNames';
 import { ICopilotTool, ICopilotToolExtension, modelSpecificToolApplies, ToolRegistry } from '../common/toolsRegistry';
 import { BaseToolsService } from '../common/toolsService';
+
+/**
+ * Tools allowed under the "minimal harness" (opt-in via `chat.modelCapabilityOverrides`
+ * setting `family: "experimental"`). Restricted to the basic agentic primitives:
+ * terminal, file read, file edit, and search. Everything else is filtered out
+ * regardless of what the request or model would otherwise enable.
+ */
+const MINIMAL_HARNESS_TOOL_ALLOWLIST: ReadonlySet<ToolName> = new Set<ToolName>([
+	// Terminal
+	ToolName.CoreRunInTerminal,
+	ToolName.CoreGetTerminalOutput,
+	// Read
+	ToolName.ReadFile,
+	ToolName.ListDirectory,
+	// Edit
+	ToolName.EditFile,
+	ToolName.CreateFile,
+	// Search
+	ToolName.Codebase,
+	ToolName.FindFiles,
+	ToolName.FindTextInFiles,
+]);
 
 export class ToolsService extends BaseToolsService {
 	declare _serviceBrand: undefined;
@@ -275,10 +297,20 @@ export class ToolsService extends BaseToolsService {
 		const modelSpecificOverrides = new Map(this.getToolOverridesForEndpoint(endpoint, tools));
 		const modelSpecificTools = this.getModelSpecificTools();
 
+		// Minimal harness: restrict to a tiny allowlist (terminal / read / edit / search).
+		// Opt-in via `chat.modelCapabilityOverrides` -> `family: "experimental"`. Used to
+		// evaluate capable agentic models against the bare-minimum tool surface.
+		const minimalHarness = isMinimalHarnessFamily(endpoint);
+
 		return tools
 			.filter(tool => {
 				// 0. If the tool was a model specific tool with an override, it'll be mixed in in the 'map' later.
 				if (modelSpecificTools.get(tool.name)?.tool.overridesTool) {
+					return false;
+				}
+
+				// Minimal harness: only allow the curated set, regardless of what was requested.
+				if (minimalHarness && !MINIMAL_HARNESS_TOOL_ALLOWLIST.has(tool.name as ToolName)) {
 					return false;
 				}
 
