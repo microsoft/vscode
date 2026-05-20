@@ -10,11 +10,18 @@
 		"vscode": "^1.55.0"
 	},
 	"activationEvents": [
-		"onStartupFinished"
+		"onStartupFinished",
+		"onAuthenticationRequest:github"
 	],
 	"main": "./extension.js",
 	"extensionKind": ["ui"],
 	"contributes": {
+		"authentication": [
+			{
+				"id": "github",
+				"label": "GitHub"
+			}
+		],
 		"commands": [
 			{
 				"command": "smoketest.getExtensionHostPidAndBlock",
@@ -27,6 +34,10 @@
 			{
 				"command": "smoketest.openCopilotCliChat",
 				"title": "Smoke Test: Open CLI Test Session"
+			},
+			{
+				"command": "smoketest.getCopilotCliDiagnostics",
+				"title": "Smoke Test: Get CLI Diagnostics"
 			}
 		]
 	}
