@@ -30,7 +30,11 @@ suite('MCP - Sampling Log', () => {
 	setup(() => {
 		storage = ds.add(new TestStorageService());
 		log = ds.add(new McpSamplingLog(storage));
-		clock = sinon.useFakeTimers();
+		// `shouldClearNativeTimers` silently absorbs `clearTimeout` calls for
+		// native timer IDs scheduled outside the fake clock (e.g. by cross-test
+		// background schedulers) instead of emitting a `console.warn` that would
+		// fail the renderer's no-console-output assertion.
+		clock = sinon.useFakeTimers({ shouldClearNativeTimers: true });
 		clock.setSystemTime(new Date('2023-10-01T00:00:00Z').getTime());
 	});
 
