@@ -449,7 +449,7 @@
 	}
 
 	.monaco-button-dropdown > .monaco-button.monaco-dropdown-button.codicon[class*='codicon-'] {
-		font-size: 12px;
+		font-size: var(--vscode-codiconFontSize-compact);
 	}
 }
 
@@ -485,7 +485,7 @@
 		}
 
 		.codicon {
-			font-size: 12px;
+			font-size: var(--vscode-codiconFontSize-compact);
 		}
 
 		&:hover  {

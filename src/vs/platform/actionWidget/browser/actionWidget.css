@@ -132,7 +132,7 @@
 }
 
 .action-widget .monaco-list-row.action .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .action-widget .monaco-list-row.action .action-list-item-toolbar .codicon {

@@ -183,7 +183,7 @@
 }
 
 .models-widget .models-table-container .monaco-table-td .model-token-limits .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 /** Capabilities column styling **/

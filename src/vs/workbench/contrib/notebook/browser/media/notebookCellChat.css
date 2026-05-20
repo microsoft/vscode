@@ -135,7 +135,7 @@
 
 .monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .label.info > .codicon {
 	padding: 0 5px;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	line-height: 18px;
 }
 

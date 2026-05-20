@@ -161,7 +161,7 @@
 }
 
 .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
 	/* Override the base .monaco-action-bar .action-item .codicon { width:16px; height:16px }
 	 * so the leading icon sizes naturally to its font-size, matching the bottom-row pickers. */
@@ -402,7 +402,7 @@
 }
 
 .sessions-chat-attachment-remove .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	padding: 0;
 }
 
@@ -442,7 +442,7 @@
 
 .sessions-chat-dnd-overlay .attach-context-overlay-text .codicon {
 	height: 12px;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	margin-right: 3px;
 }
 

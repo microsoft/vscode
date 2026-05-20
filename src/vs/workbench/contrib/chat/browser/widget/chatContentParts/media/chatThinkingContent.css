@@ -35,7 +35,7 @@
 		}
 
 		.codicon {
-			font-size: 12px;
+			font-size: var(--vscode-codiconFontSize-compact);
 		}
 
 		.rendered-markdown.collapsible-title-content {

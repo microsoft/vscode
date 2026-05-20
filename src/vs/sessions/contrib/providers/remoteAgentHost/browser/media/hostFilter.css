@@ -114,7 +114,7 @@
 }
 
 .agent-host-filter-combo .agent-host-filter-chevron .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	opacity: 0.8;
 }
 

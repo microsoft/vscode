@@ -252,7 +252,7 @@
 }
 
 .inline-edit-alternative-action-label .codicon {
-	font-size: 12px !important;
+	font-size: var(--vscode-codiconFontSize-compact) !important;
 	padding-right: 4px;
 }
 
