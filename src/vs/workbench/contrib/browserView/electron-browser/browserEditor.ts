@@ -42,7 +42,7 @@ import { AddressBarInputPreviewWidget } from './addressBarInputPreviewWidget.js'
 import { Emitter } from '../../../../base/common/event.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { BrowserSearchEnabledSettingId, BrowserSearchEngineId, BrowserSearchEngineSettingId, DEFAULT_BROWSER_SEARCH_ENGINE, buildSearchUrl, resolveAddressBarInputType } from '../common/browserSearch.js';
+import { BrowserSearchEnabledSettingId, BrowserSearchEngineId, BrowserSearchEngineSettingId, DEFAULT_BROWSER_SEARCH_ENGINE, buildSearchUrl, getBrowserSearchEngine, resolveAddressBarInputType } from '../common/browserSearch.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -122,6 +122,10 @@ class BrowserNavigationBar extends Disposable {
 	private readonly _urlDisplay: HTMLElement;
 	private readonly _siteInfoWidget: SiteInfoWidget;
 	private readonly _inputPreviewWidget: AddressBarInputPreviewWidget;
+	private readonly _ghostTextOverlay: HTMLElement;
+	private readonly _ghostTextMirror: HTMLElement;
+	private readonly _ghostTextSuffix: HTMLElement;
+	private _ghostTextValue: string | undefined;
 	private _certError: IBrowserViewCertificateError | undefined;
 	private readonly _urlBarWidgetsContainer: HTMLElement;
 
@@ -186,6 +190,16 @@ class BrowserNavigationBar extends Disposable {
 		urlInputWrapper.appendChild(this._urlDisplay);
 		urlInputWrapper.appendChild(this._urlInput);
 
+		// Inline ghost text overlay: a transparent mirror of the input value
+		// pushes the visible suffix to the trailing edge of the user's text.
+		this._ghostTextOverlay = $('.browser-url-ghost-text');
+		this._ghostTextOverlay.setAttribute('aria-hidden', 'true');
+		this._ghostTextMirror = $('span.browser-url-ghost-text-mirror');
+		this._ghostTextSuffix = $('span.browser-url-ghost-text-suffix');
+		this._ghostTextOverlay.appendChild(this._ghostTextMirror);
+		this._ghostTextOverlay.appendChild(this._ghostTextSuffix);
+		urlInputWrapper.appendChild(this._ghostTextOverlay);
+
 		this._urlBarWidgetsContainer = $('.browser-url-bar-widgets');
 
 		urlContainer.appendChild(siteInfoContainer);
@@ -229,6 +243,11 @@ class BrowserNavigationBar extends Disposable {
 			this._updateInputPreview();
 		}));
 
+		// Keep the ghost-text overlay glued to the input as it scrolls horizontally.
+		this._register(addDisposableListener(this._urlInput, EventType.SCROLL, () => {
+			this._ghostTextOverlay.style.transform = `translateX(${-this._urlInput.scrollLeft}px)`;
+		}));
+
 		// Select all URL bar text when the URL bar receives focus (like in regular browsers)
 		this._register(addDisposableListener(this._urlInput, EventType.FOCUS, () => {
 			this._urlInput.select();
@@ -257,21 +276,56 @@ class BrowserNavigationBar extends Disposable {
 	private _updateInputPreview(): void {
 		if (this._certError) {
 			this._inputPreviewWidget.setPreview(undefined);
+			this._setGhostText(undefined);
 			return;
 		}
 		const searchEnabled = this._configurationService.getValue<boolean>(BrowserSearchEnabledSettingId);
 		if (!searchEnabled) {
 			this._inputPreviewWidget.setPreview(undefined);
+			this._setGhostText(undefined);
 			return;
 		}
 		const value = this._urlInput.value.trim();
 		if (!value) {
 			// While focused with an empty input, hint at the default action.
 			this._inputPreviewWidget.setPreview('search');
+			this._setGhostText(undefined);
 			return;
 		}
 		const kind = resolveAddressBarInputType(value);
-		this._inputPreviewWidget.setPreview(kind === 'url' ? 'url' : 'search');
+		const isSearch = kind !== 'url';
+		this._inputPreviewWidget.setPreview(isSearch ? 'search' : 'url');
+		if (isSearch) {
+			const engineId = this._configurationService.getValue<BrowserSearchEngineId>(BrowserSearchEngineSettingId) ?? DEFAULT_BROWSER_SEARCH_ENGINE;
+			const engineName = getBrowserSearchEngine(engineId).displayName;
+			this._setGhostText(' - ' + localize(
+				{ comment: ['Ghost text shown after the user\'s query in the address bar. {0} is the search engine name, e.g. Bing or Google.'], key: 'browser.addressBar.ghostText.search' },
+				"{0} Search",
+				engineName,
+			));
+		} else {
+			this._setGhostText(undefined);
+		}
+	}
+
+	/**
+	 * Update the inline ghost-text overlay. Pass `undefined` to hide. The
+	 * overlay is also hidden when the input is empty or its content overflows
+	 * the visible area (the suffix would not be visible anyway).
+	 */
+	private _setGhostText(suffix: string | undefined): void {
+		if (suffix !== this._ghostTextValue) {
+			this._ghostTextValue = suffix;
+			this._ghostTextSuffix.textContent = suffix ?? '';
+		}
+		const value = this._urlInput.value;
+		this._ghostTextMirror.textContent = value;
+		const shouldShow =
+			suffix !== undefined &&
+			value.length > 0 &&
+			this._urlInput.scrollWidth <= this._urlInput.clientWidth;
+		this._ghostTextOverlay.classList.toggle('visible', shouldShow);
+		this._ghostTextOverlay.style.transform = `translateX(${-this._urlInput.scrollLeft}px)`;
 	}
 
 	private _getPlaceholder(): string {
@@ -345,6 +399,7 @@ class BrowserNavigationBar extends Disposable {
 		this._urlInput.style.display = 'none';
 		this._urlDisplay.style.display = '';
 		this._inputPreviewWidget.setPreview(undefined);
+		this._setGhostText(undefined);
 		this._updateDisplay();
 	}
 
@@ -381,6 +436,7 @@ class BrowserNavigationBar extends Disposable {
 		this._certError = undefined;
 		this._siteInfoWidget.setCertificateError(undefined);
 		this._inputPreviewWidget.setPreview(undefined);
+		this._setGhostText(undefined);
 		this._updateDisplay();
 	}
 }
