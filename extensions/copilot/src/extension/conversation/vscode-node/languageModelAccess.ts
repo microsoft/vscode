@@ -116,6 +116,9 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchem
 		} else if (family.startsWith('gpt-')) {
 			defaultEffort = effortLevels.includes('medium') ? 'medium' : undefined;
 		}
+		if (!defaultEffort) {
+			defaultEffort = effortLevels[0];
+		}
 
 		properties.reasoningEffort = {
 			type: 'string',
