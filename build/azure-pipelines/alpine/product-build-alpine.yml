@@ -198,7 +198,7 @@ jobs:
           ARCHIVE_PATH="$(Build.ArtifactStagingDirectory)/out/server/vscode-server-$TARGET.tar.gz"
           DIR_PATH="$(realpath ../vscode-server-$TARGET)"
           mkdir -p $(dirname $ARCHIVE_PATH)
-          tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-$TARGET
+          build/azure-pipelines/common/reproducible-tar.sh "$ARCHIVE_PATH" -C .. vscode-server-$TARGET
           echo "##vso[task.setvariable variable=SERVER_DIR_PATH]$DIR_PATH"
           echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
         env:
@@ -213,7 +213,7 @@ jobs:
           ARCHIVE_PATH="$(Build.ArtifactStagingDirectory)/out/web/vscode-server-$TARGET-web.tar.gz"
           DIR_PATH="$(realpath ../vscode-server-$TARGET-web)"
           mkdir -p $(dirname $ARCHIVE_PATH)
-          tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-$TARGET-web
+          build/azure-pipelines/common/reproducible-tar.sh "$ARCHIVE_PATH" -C .. vscode-server-$TARGET-web
           echo "##vso[task.setvariable variable=WEB_DIR_PATH]$DIR_PATH"
           echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
         env:

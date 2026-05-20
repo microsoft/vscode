@@ -17,7 +17,7 @@ sudo apt-get install -y curl apt-transport-https ca-certificates
 SNAP_ROOT="$(pwd)/.build/linux/snap/$VSCODE_ARCH"
 
 # Create snap package
-BUILD_VERSION="$(date +%s)"
+BUILD_VERSION="$(git log -1 --pretty=%ct)"
 SNAP_FILENAME="code-$VSCODE_QUALITY-$VSCODE_ARCH-$BUILD_VERSION.snap"
 SNAP_PATH="$SNAP_ROOT/$SNAP_FILENAME"
 case $VSCODE_ARCH in

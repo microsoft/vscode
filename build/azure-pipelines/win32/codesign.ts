@@ -45,7 +45,7 @@ async function main() {
 	if (process.env['BUILT_CLIENT']) {
 		printBanner('Package client');
 		const clientArchivePath = `.build/win32-${arch}/VSCode-win32-${arch}.zip`;
-		await $`7z.exe a -tzip ${clientArchivePath} ../VSCode-win32-${arch}/* "-xr!CodeSignSummary*.md"`.pipe(process.stdout);
+		await $`build/azure-pipelines/common/reproducible-zip.ps1 ${clientArchivePath} ../VSCode-win32-${arch} ../VSCode-win32-${arch}/* "-xr!CodeSignSummary*.md"`.pipe(process.stdout);
 		await $`7z.exe l ${clientArchivePath}`.pipe(process.stdout);
 	}
 
@@ -53,7 +53,7 @@ async function main() {
 	if (process.env['BUILT_SERVER']) {
 		printBanner('Package server');
 		const serverArchivePath = `.build/win32-${arch}/vscode-server-win32-${arch}.zip`;
-		await $`7z.exe a -tzip ${serverArchivePath} ../vscode-server-win32-${arch}`.pipe(process.stdout);
+		await $`build/azure-pipelines/common/reproducible-zip.ps1 ${serverArchivePath} ../vscode-server-win32-${arch} ../vscode-server-win32-${arch}`.pipe(process.stdout);
 		await $`7z.exe l ${serverArchivePath}`.pipe(process.stdout);
 	}
 
@@ -61,7 +61,7 @@ async function main() {
 	if (process.env['BUILT_WEB']) {
 		printBanner('Package server (web)');
 		const webArchivePath = `.build/win32-${arch}/vscode-server-win32-${arch}-web.zip`;
-		await $`7z.exe a -tzip ${webArchivePath} ../vscode-server-win32-${arch}-web`.pipe(process.stdout);
+		await $`build/azure-pipelines/common/reproducible-zip.ps1 ${webArchivePath} ../vscode-server-win32-${arch}-web ../vscode-server-win32-${arch}-web`.pipe(process.stdout);
 		await $`7z.exe l ${webArchivePath}`.pipe(process.stdout);
 	}
 

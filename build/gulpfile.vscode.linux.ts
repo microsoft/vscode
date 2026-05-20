@@ -17,12 +17,13 @@ import { recommendedDeps as rpmRecommendedDependencies } from './linux/rpm/dep-l
 import * as path from 'path';
 import * as cp from 'child_process';
 import { promisify } from 'util';
+import { getSourceDateEpoch } from './lib/sourceDateEpoch.ts';
 
 const exec = promisify(cp.exec);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 
-const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
+const linuxPackageRevision = getSourceDateEpoch();
 
 function getDebPackageArch(arch: string): string {
 	switch (arch) {
@@ -126,7 +127,8 @@ function buildDebPackage(arch: string) {
 	return async () => {
 		await exec(`chmod 755 ${product.applicationName}-${debArch}/DEBIAN/postinst ${product.applicationName}-${debArch}/DEBIAN/prerm ${product.applicationName}-${debArch}/DEBIAN/postrm`, { cwd });
 		await exec('mkdir -p deb', { cwd });
-		await exec(`fakeroot dpkg-deb -Zxz -b ${product.applicationName}-${debArch} deb`, { cwd });
+		const env = { ...process.env, SOURCE_DATE_EPOCH: String(linuxPackageRevision) };
+		await exec(`fakeroot dpkg-deb -Zxz -b ${product.applicationName}-${debArch} deb`, { cwd, env });
 	};
 }
 
@@ -222,7 +224,8 @@ function buildRpmPackage(arch: string) {
 
 	return async () => {
 		await exec(`mkdir -p ${destination}`);
-		await exec(`HOME="$(pwd)/${destination}" rpmbuild -bb ${rpmBuildPath}/SPECS/${product.applicationName}.spec --target=${rpmArch}`);
+		const env = { ...process.env, SOURCE_DATE_EPOCH: String(linuxPackageRevision) };
+		await exec(`HOME="$(pwd)/${destination}" rpmbuild -bb ${rpmBuildPath}/SPECS/${product.applicationName}.spec --target=${rpmArch}`, { env });
 		await exec(`cp "${rpmOut}/$(ls ${rpmOut})" ${destination}/`);
 	};
 }

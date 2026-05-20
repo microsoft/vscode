@@ -521,7 +521,7 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 	const scannedExtensions: IScannedBuiltinExtension[] = [];
 
 	try {
-		const extensionsFolders = fs.readdirSync(extensionsRoot);
+		const extensionsFolders = fs.readdirSync(extensionsRoot).sort();
 		for (const extensionFolder of extensionsFolders) {
 			if (exclude.indexOf(extensionFolder) >= 0) {
 				continue;
@@ -534,7 +534,7 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 			if (!isWebExtension(packageJSON)) {
 				continue;
 			}
-			const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
+			const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder)).sort();
 			const packageNLSPath = children.filter(child => child === 'package.nls.json')[0];
 			const packageNLS = packageNLSPath ? JSON.parse(fs.readFileSync(path.join(extensionsRoot, extensionFolder, packageNLSPath)).toString()) : undefined;
 			const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];

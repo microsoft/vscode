@@ -130,7 +130,7 @@ jobs:
           npm run gulp vscode-web-min-ci
           ARCHIVE_PATH="$(Build.ArtifactStagingDirectory)/out/web/vscode-web.tar.gz"
           mkdir -p $(dirname $ARCHIVE_PATH)
-          tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-web
+          build/azure-pipelines/common/reproducible-tar.sh "$ARCHIVE_PATH" -C .. vscode-web
           echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
