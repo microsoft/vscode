@@ -73,10 +73,14 @@ export class UrlChunkEmbeddingsIndex extends Disposable {
 			this.getEmbeddingsForFiles(embeddingType, files.map(file => new UrlContent(file.uri, file.content)), EmbeddingsComputeQos.Batch, token)
 		]), token);
 
+		if (!queryEmbedding) {
+			return files.map(() => []);
+		}
+
 		return this.computeChunkScores(fileChunksAndEmbeddings, queryEmbedding);
 	}
 
-	private async computeEmbeddings(embeddingType: EmbeddingType, str: string, inputType: EmbeddingInputType, token: CancellationToken): Promise<Embedding> {
+	private async computeEmbeddings(embeddingType: EmbeddingType, str: string, inputType: EmbeddingInputType, token: CancellationToken): Promise<Embedding | undefined> {
 		const embeddings = await this._embeddingsComputer.computeEmbeddings(embeddingType, [str], { inputType }, new TelemetryCorrelationId('UrlChunkEmbeddingsIndex::computeEmbeddings'), token);
 		return embeddings.values[0];
 	}
