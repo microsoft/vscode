@@ -557,7 +557,7 @@
 		}
 
 		.codicon {
-			font-size: 15px;
+			font-size: 16px;
 			margin: 0;
 			color: var(--vscode-statusBarItem-errorForeground);
 		}

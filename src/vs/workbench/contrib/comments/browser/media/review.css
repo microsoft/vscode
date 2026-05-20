@@ -595,7 +595,7 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 .monaco-editor .comment-range-glyph.comment-thread-unresolved:before,
 .monaco-editor .comment-range-glyph.comment-thread-draft:before {
 	font-family: "codicon";
-	font-size: 13px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	width: 18px !important;
 	line-height: 100%;
 	border-radius: 3px;
