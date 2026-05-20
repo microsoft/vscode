@@ -77,6 +77,55 @@ export interface IAgentHostGitService {
 	 * not exist or the directory is not a git work tree.
 	 */
 	showBlob(workingDirectory: URI, sha: string, repoRelativePath: string): Promise<VSBuffer | undefined>;
+
+	// ---- Checkpoint plumbing (used by IAgentHostCheckpointService) -------
+
+	/**
+	 * Captures the current working tree (including untracked files) as a
+	 * tree object, returning the tree OID. Uses a throwaway `GIT_INDEX_FILE`
+	 * so the user's real index is untouched. Returns `undefined` when the
+	 * directory is not a git work tree.
+	 */
+	captureWorkingTreeAsTree(workingDirectory: URI): Promise<string | undefined>;
+
+	/**
+	 * Creates a commit object from a tree (optionally chained to a parent)
+	 * and returns its OID. Does NOT update any ref.
+	 */
+	commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string): Promise<string | undefined>;
+
+	/**
+	 * Updates a ref to point at `newOid`. Creates the ref if missing.
+	 */
+	updateRef(repositoryRoot: URI, ref: string, newOid: string): Promise<void>;
+
+	/**
+	 * Batch-deletes the given refs via `git update-ref --stdin -z`.
+	 * Missing refs are tolerated.
+	 */
+	deleteRefs(repositoryRoot: URI, refs: readonly string[]): Promise<void>;
+
+	/**
+	 * Resolves a ref/object expression to its OID, e.g. `revParse(repo, 'refs/agents/abc/...')`
+	 * or `revParse(repo, '<commit>^{tree}')`. Returns `undefined` when the
+	 * ref does not exist.
+	 */
+	revParse(repositoryRoot: URI, expression: string): Promise<string | undefined>;
+
+	/**
+	 * Computes per-file diffs between two refs (typically two consecutive
+	 * checkpoint refs) by shelling out to
+	 * `git diff --raw --numstat --diff-filter=ADMR -z <fromRef> <toRef>`.
+	 * Returns the same {@link ISessionFileDiff} shape as
+	 * {@link computeSessionFileDiffs}: `before.content` is a `git-blob:`
+	 * URI anchored on `fromRef`, `after.content` is a `git-blob:` URI
+	 * anchored on `toRef`. Returns `undefined` on git failure.
+	 *
+	 * Used by the changeset service to materialise per-turn diffs from
+	 * checkpoint refs when they are available — that path captures
+	 * terminal-tool edits the FileEditTracker pipeline misses.
+	 */
+	computeFileDiffsBetweenRefs(workingDirectory: URI, options: { readonly sessionUri: string; readonly fromRef: string; readonly toRef: string }): Promise<readonly ISessionFileDiff[] | undefined>;
 }
 
 /**
@@ -347,6 +396,91 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 	async getSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined> {
 		return this._computeSessionGitState(workingDirectory);
+	}
+
+	async captureWorkingTreeAsTree(workingDirectory: URI): Promise<string | undefined> {
+		const inside = await this._runGit(workingDirectory, ['rev-parse', '--is-inside-work-tree']);
+		if (inside?.trim() !== 'true') {
+			return undefined;
+		}
+		const repoRoot = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel']))?.trim();
+		if (!repoRoot) {
+			return undefined;
+		}
+		const repositoryRoot = URI.file(repoRoot);
+		const tempDir = URI.joinPath(this._environmentService.tmpDir, `agent-host-checkpoint-${generateUuid()}`);
+		await this._fileService.createFolder(tempDir);
+		const indexFile = URI.joinPath(tempDir, 'index').fsPath;
+		const env: Record<string, string> = { GIT_INDEX_FILE: indexFile, COMMAND_HOOK_LOCK: '1' };
+		try {
+			// Seed the temp index from HEAD; for empty repos seed from the empty tree.
+			const seeded = await this._runGit(repositoryRoot, ['read-tree', 'HEAD'], { env });
+			if (seeded === undefined) {
+				await this._runGit(repositoryRoot, ['read-tree', EMPTY_TREE_OBJECT], { env });
+			}
+			// Stage the entire working tree (including untracked, excluding ignored).
+			await this._runGit(repositoryRoot, ['add', '-A', '--', ':/'], { env });
+			const tree = (await this._runGit(repositoryRoot, ['write-tree'], { env }))?.trim();
+			return tree || undefined;
+		} finally {
+			try { await this._fileService.del(tempDir, { recursive: true, useTrash: false }); } catch { /* best-effort */ }
+		}
+	}
+
+	async commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string): Promise<string | undefined> {
+		const args = ['commit-tree', treeOid];
+		if (parentOid) {
+			args.push('-p', parentOid);
+		}
+		args.push('-m', message);
+		const out = await this._runGit(repositoryRoot, args, { throwOnError: true });
+		return out?.trim() || undefined;
+	}
+
+	async updateRef(repositoryRoot: URI, ref: string, newOid: string): Promise<void> {
+		await this._runGit(repositoryRoot, ['update-ref', ref, newOid], { throwOnError: true });
+	}
+
+	async deleteRefs(repositoryRoot: URI, refs: readonly string[]): Promise<void> {
+		if (refs.length === 0) {
+			return;
+		}
+		// Use `update-ref --stdin -z` so all deletions go through a single git
+		// invocation. Each command is `delete SP <ref> NUL [<expected_oid>] NUL`;
+		// we omit the expected oid so already-missing refs don't fail the batch.
+		const stdin = refs.map(ref => `delete ${ref}\x00\x00`).join('');
+		await new Promise<void>((resolve) => {
+			const proc = cp.execFile('git', ['update-ref', '--stdin', '-z'], { cwd: repositoryRoot.fsPath, timeout: 10_000 }, () => {
+				// Tolerate non-zero exits — missing refs are not fatal for cleanup.
+				resolve();
+			});
+			proc.stdin?.end(stdin);
+		});
+	}
+
+	async revParse(repositoryRoot: URI, expression: string): Promise<string | undefined> {
+		const out = await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', expression]);
+		return out?.trim() || undefined;
+	}
+
+	async computeFileDiffsBetweenRefs(workingDirectory: URI, options: { readonly sessionUri: string; readonly fromRef: string; readonly toRef: string }): Promise<readonly ISessionFileDiff[] | undefined> {
+		const repoRoot = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel']))?.trim();
+		if (!repoRoot) {
+			return undefined;
+		}
+		const repositoryRoot = URI.file(repoRoot);
+		// Validate both refs resolve before invoking `git diff` so a missing
+		// ref returns undefined rather than producing a confusing error.
+		const fromOid = (await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', options.fromRef]))?.trim();
+		const toOid = (await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', options.toRef]))?.trim();
+		if (!fromOid || !toOid) {
+			return undefined;
+		}
+		const raw = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', fromOid, toOid, '--']);
+		if (raw === undefined) {
+			return undefined;
+		}
+		return parseGitDiffRawNumstat(raw, repositoryRoot, options.sessionUri, fromOid);
 	}
 
 	private async _computeSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined> {

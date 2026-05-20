@@ -8,6 +8,7 @@ import assert from 'assert';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { Disposable, type DisposableStore, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -35,6 +36,7 @@ import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.j
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotBranchNameHintFromMessage, getCopilotWorktreeBranchName, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
+import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { CopilotAgentSession, type SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
@@ -86,6 +88,12 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async getSessionGitState(): Promise<undefined> { return undefined; }
 	async computeSessionFileDiffs(): Promise<undefined> { return undefined; }
 	async showBlob(): Promise<undefined> { return undefined; }
+	async captureWorkingTreeAsTree(): Promise<undefined> { return undefined; }
+	async commitTree(): Promise<undefined> { return undefined; }
+	async updateRef(): Promise<void> { }
+	async deleteRefs(): Promise<void> { }
+	async revParse(): Promise<undefined> { return undefined; }
+	async computeFileDiffsBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
 class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
@@ -136,6 +144,7 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 	}
 
 	deleteSessionData(): Promise<void> { return Promise.resolve(); }
+	readonly onWillDeleteSessionData = Event.None;
 	cleanupOrphanedData(): Promise<void> { return Promise.resolve(); }
 	whenIdle(): Promise<void> { return Promise.resolve(); }
 }
@@ -251,7 +260,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 	) {
-		super(logService, instantiationService, fileService, sessionDataService, gitService, terminalManager, configurationService, new MockAgentHostOTelService(), completions);
+		super(logService, instantiationService, fileService, sessionDataService, gitService, terminalManager, configurationService, new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 

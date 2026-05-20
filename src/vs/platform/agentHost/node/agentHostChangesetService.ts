@@ -31,6 +31,7 @@ import {
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from './agentHostGitService.js';
+import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, type IIncrementalDiffOptions } from './sessionDiffAggregator.js';
 
@@ -325,6 +326,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
+		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 	) {
 		super();
 		this._diffComputeService = this._register(new NodeWorkerDiffComputeService(this._logService));
@@ -396,7 +398,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return turnUri;
 		}
 		try {
-			const diffs = await computeTurnDiffs(session, ref.object, this._diffComputeService, turnId);
+			// Prefer the checkpoint-ref git diff when available — that path
+			// captures terminal-tool edits the FileEditTracker pipeline
+			// (`file_edits` rows) misses. Falls back to the SDK-tracked
+			// aggregator when checkpoints aren't set up (non-git folder
+			// isolation, baseline never captured, or capture failure).
+			const diffs = await this._computeTurnDiffsPreferCheckpoint(session, ref.object, turnId);
 			this._publishChangesetDiffs(session, turnUri, diffs);
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to compute turn diffs for ${session}/${turnId}`, err);
@@ -409,6 +416,39 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			ref.dispose();
 		}
 		return turnUri;
+	}
+
+	private async _computeTurnDiffsPreferCheckpoint(session: ProtocolURI, db: ISessionDatabase, turnId: string): Promise<readonly ISessionFileDiff[]> {
+		const pair = await this._checkpointService.getTurnCheckpointPair(URI.parse(session), turnId);
+		if (pair && pair.parent !== pair.current) {
+			// A no-op turn checkpoint reuses the parent ref (so per-turn
+			// diff is empty by construction) — short-circuit to an empty
+			// list instead of asking git for the (empty) diff.
+			const workingDir = await this._resolveWorkingDirectory(db);
+			if (workingDir) {
+				const fromRefDiffs = await this._gitService.computeFileDiffsBetweenRefs(workingDir, {
+					sessionUri: session,
+					fromRef: pair.parent,
+					toRef: pair.current,
+				});
+				if (fromRefDiffs) {
+					return fromRefDiffs;
+				}
+			}
+		} else if (pair && pair.parent === pair.current) {
+			return [];
+		}
+		// Fallback: SDK-tracked file_edits aggregator.
+		return computeTurnDiffs(session, db, this._diffComputeService, turnId);
+	}
+
+	private async _resolveWorkingDirectory(db: ISessionDatabase): Promise<URI | undefined> {
+		// Checkpoint baseline writes `checkpoint.workingDir` alongside
+		// `checkpoint.baseRef`. We use that as the canonical working
+		// directory for checkpoint diff computation; reading it here keeps
+		// the changeset service out of agent-specific metadata keys.
+		const raw = await db.getMetadata('checkpoint.workingDir');
+		return raw ? URI.parse(raw) : undefined;
 	}
 
 	// ---- Lifecycle hooks invoked by AgentSideEffects -----------------------

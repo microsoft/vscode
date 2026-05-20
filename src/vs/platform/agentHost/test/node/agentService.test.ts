@@ -8,7 +8,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { joinPath } from '../../../../base/common/resources.js';
@@ -31,6 +31,7 @@ import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
 import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
+import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 
 /**
@@ -73,6 +74,7 @@ suite('AgentService (node dispatcher)', () => {
 			openDatabase: () => { throw new Error('not implemented'); },
 			tryOpenDatabase: async () => undefined,
 			deleteSessionData: async () => { },
+			onWillDeleteSessionData: Event.None,
 			cleanupOrphanedData: async () => { },
 			whenIdle: async () => { },
 		};
@@ -138,7 +140,7 @@ suite('AgentService (node dispatcher)', () => {
 			const tempDir = URI.file(mkdtempSync(`${tmpdir()}/agent-host-config-`));
 			try {
 				const rootConfigResource = joinPath(tempDir, 'agent-host-config.json');
-				const svc = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), rootConfigResource));
+				const svc = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), NULL_CHECKPOINT_SERVICE, rootConfigResource));
 				const agent = new MockAgent('copilot');
 				disposables.add(toDisposable(() => agent.dispose()));
 				svc.registerProvider(agent);
@@ -482,6 +484,7 @@ suite('AgentService (node dispatcher)', () => {
 					dispose: () => { },
 				}),
 				deleteSessionData: async () => { },
+				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
 			};
@@ -539,6 +542,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
 			};
@@ -585,6 +589,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
 			};
@@ -620,6 +625,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
 			};
@@ -663,6 +669,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
 			};
@@ -735,6 +742,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
 			};
@@ -777,6 +785,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
 			};
@@ -857,6 +866,12 @@ suite('AgentService (node dispatcher)', () => {
 				getSessionGitState: async (uri: URI) => { calls.push(uri.fsPath); return gitState; },
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,
+				captureWorkingTreeAsTree: async () => undefined,
+				commitTree: async () => undefined,
+				updateRef: async () => { },
+				deleteRefs: async () => { },
+				revParse: async () => undefined,
+				computeFileDiffsBetweenRefs: async () => undefined,
 			};
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const agent = new MockAgent('copilot');
@@ -899,6 +914,12 @@ suite('AgentService (node dispatcher)', () => {
 				getSessionGitState: async () => undefined,
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,
+				captureWorkingTreeAsTree: async () => undefined,
+				commitTree: async () => undefined,
+				updateRef: async () => { },
+				deleteRefs: async () => { },
+				revParse: async () => undefined,
+				computeFileDiffsBetweenRefs: async () => undefined,
 			};
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const agent = new MockAgent('copilot');
