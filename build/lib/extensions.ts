@@ -649,9 +649,14 @@ export function buildExtensionMedia(isWatch: boolean, outputRoot?: string): Prom
 
 function watchTypeCheckExtensionMedia(tsconfigPath: string, config: { taskName: string; noEmit?: boolean }): Promise<void> {
 	const srcDir = path.dirname(tsconfigPath);
-	const watchInput = watcher(path.join(srcDir, '**'), { cwd: root, base: srcDir, dot: true, readDelay: 200 });
+	const watchInput = watcher([
+		path.join(srcDir, '**', '*.{ts,tsx,d.ts}'),
+		tsconfigPath,
+		'!' + path.join(srcDir, '**', 'node_modules', '**'),
+		'!' + path.join(srcDir, '**', 'out', '**'),
+		'!' + path.join(srcDir, '**', 'dist', '**'),
+	], { cwd: root, base: srcDir, dot: true, readDelay: 200 });
 	const stream = watchInput
-		.pipe(filter(['**/*.ts'], { dot: true }))
 		.pipe(util2.debounce(() => {
 			const tsgoStream = createTsgoStream(tsconfigPath, config);
 			// Always emit 'end' (even on tsgo error) so the debounce resets to idle
