@@ -354,8 +354,9 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		sessionsManagementService.openNewSessionView();
 		const view = await viewsService.openView<NewChatViewPane>(NewChatViewId, true);
 		const workspace = context.sessions[0].workspace.get();
-		if (view && workspace) {
-			view.selectWorkspace({ providerId: context.sessions[0].providerId, workspace });
+		const folderUri = workspace?.folders[0]?.root;
+		if (view && folderUri) {
+			view.selectWorkspace(folderUri);
 		}
 		// On mobile web, the sidebar drawer covers the viewport; close it so
 		// the new session view becomes visible after creation. Routes through

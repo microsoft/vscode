@@ -93,6 +93,8 @@ Session-level properties are derived from chats:
 - `status` is aggregated (`NeedsInput` > `InProgress` > other)
 - `isRead` is `true` only when all chats are read
 
+A chat may also be marked **read-only** via `IChat.isReadOnly`. Providers use this to surface conversations the user can only observe (e.g. a sub-agent run exposed as a separate chat). The Agents window honors this by hiding the chat input bar entirely while a read-only chat is the active chat.
+
 The active session (`IActiveSession`) extends `ISession` with an `activeChat` observable that tracks which chat the user is viewing.
 
 ### Workspaces and Folders
@@ -116,13 +118,23 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
 ### Creating a New Session
 
 ```
-1. User picks a workspace in the workspace picker
-   → SessionsManagementService.createNewSession(providerId, workspaceUri, sessionTypeId?)
-   → Looks up provider in SessionsProvidersService
-   → Calls provider.createNewSession(workspaceUri, sessionTypeId)
+1. User picks a folder in the workspace picker
+   → WorkspacePicker fires onDidSelectWorkspace(folderUri)
+   → SessionsManagementService.createNewSession(folderUri, options?)
+   → Iterates providers, picks the first one whose resolveWorkspace(folderUri)
+     succeeds (filtered by options.sessionTypeId when given)
+   → Calls provider.createNewSession(folderUri, sessionTypeId)
    → Returns ISession, set as activeSession
 
-2. User types a message and sends
+2. User picks a different session type for the same folder
+   → SessionTypePicker queries getSessionTypesForFolder(folderUri),
+     groups entries by provider, shows them in the dropdown
+   → On selection, fires onDidSelectSessionType({ providerId, sessionTypeId })
+   → SessionsManagementService.createNewSession(folderUri, { providerId, sessionTypeId })
+     routes through the picked provider — even when the same sessionType.id
+     is also offered by another provider
+
+3. User types a message and sends
    → SessionsManagementService.sendAndCreateChat(session, {query, attachedContext})
    → Delegates to provider.sendAndCreateChat(sessionId, options)
    → Provider sends request, returns committed session

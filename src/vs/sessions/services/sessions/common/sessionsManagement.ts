@@ -9,8 +9,37 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IChat, ISession, ISessionType } from './session.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
 import { ISendRequestOptions } from './sessionsProvider.js';
+
+/**
+ * A session type advertised by a specific provider for a given folder URI.
+ * Returned by {@link ISessionsManagementService.getSessionTypesForFolder} so
+ * the UI can group types by provider when more than one provider can serve
+ * the same folder.
+ */
+export interface IFolderSessionType {
+	readonly providerId: string;
+	readonly sessionType: ISessionType;
+}
+
+/**
+ * Options for {@link ISessionsManagementService.createNewSession}.
+ */
+export interface ICreateNewSessionOptions {
+	/**
+	 * Force creation through a specific provider. When omitted, the service
+	 * iterates registered providers and picks the first one whose
+	 * {@link ISessionsProvider.resolveWorkspace} succeeds for the folder URI
+	 * (and, when `sessionTypeId` is given, whose `getSessionTypes` includes it).
+	 */
+	readonly providerId?: string;
+	/**
+	 * The session type to use. When omitted, defaults to the first type the
+	 * chosen provider advertises for the folder URI.
+	 */
+	readonly sessionTypeId?: string;
+}
 
 export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session supports multiple chats"));
 
@@ -57,6 +86,21 @@ export interface ISessionsManagementService {
 	getAllSessionTypes(): ISessionType[];
 
 	/**
+	 * Get all session types that can serve the given folder URI, across all
+	 * registered providers. Returns one entry per (provider × supported type),
+	 * so the UI can group types by provider when more than one provider can
+	 * serve the same folder.
+	 */
+	getSessionTypesForFolder(folderUri: URI): IFolderSessionType[];
+
+	/**
+	 * Resolve a folder URI to a workspace using the first provider whose
+	 * {@link ISessionsProvider.resolveWorkspace} succeeds. Returns `undefined`
+	 * when no registered provider can resolve the URI.
+	 */
+	resolveWorkspaceForFolder(folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined;
+
+	/**
 	 * Fires when available session types change (providers added/removed).
 	 */
 	readonly onDidChangeSessionTypes: Event<void>;
@@ -99,10 +143,16 @@ export interface ISessionsManagementService {
 	openNewSessionView(): void;
 
 	/**
-	 * Create a new session for the given workspace.
-	 * Delegates to the provider identified by providerId.
+	 * Create a new session for the given folder.
+	 *
+	 * When `options.providerId` is omitted, iterates registered providers and
+	 * picks the first one whose {@link ISessionsProvider.resolveWorkspace}
+	 * succeeds for `folderUri` (and, when `options.sessionTypeId` is given,
+	 * whose `getSessionTypes` includes it). When `options.sessionTypeId` is
+	 * omitted, defaults to the chosen provider's first advertised type for
+	 * the folder.
 	 */
-	createNewSession(providerId: string, workspaceUri: URI, sessionTypeId?: string): ISession;
+	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession;
 
 	/**
 	 * Unset the new session
