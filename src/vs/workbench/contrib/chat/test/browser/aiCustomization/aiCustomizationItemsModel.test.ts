@@ -21,7 +21,7 @@ import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemPro
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
-import { ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IAgentSource, ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { basename } from '../../../../../../base/common/resources.js';
 
@@ -92,7 +92,7 @@ suite('AICustomizationItemsModel', () => {
 					target: Target.VSCode,
 					visibility: { agentInvocable: true, userInvocable: true },
 					enabled: !disabledPromptFilesResult.has(promptFile.uri),
-					source: { storage: PromptsStorage.local },
+					source: IAgentSource.fromPromptPath(promptFile),
 					agentInstructions: { content: '', toolReferences: [] },
 				};
 			}
