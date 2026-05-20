@@ -11,7 +11,7 @@ export const proxyFetch = getProxyFetch();
 
 /**
  * Return a fetch function that routes through the given proxy URL, or
- * return the global fetch if the URL was empty or invalid.
+ * return the default undici fetch if the URL was empty or invalid.
  */
 function getProxyFetch(url: string | undefined = process.env.HTTPS_PROXY): typeof undiciFetch {
 	if (!url) {
