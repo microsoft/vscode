@@ -53,6 +53,14 @@ function rgbStringToHex(value: string): string | undefined {
 
 function pickColor(...varNames: string[]): string | undefined {
 	for (const name of varNames) {
+		// Peek at the raw custom property first: setting `style.color = 'var(--missing)'`
+		// silently drops the declaration and the probe falls back to the inherited
+		// `color` (typically the webview foreground), which would otherwise mask later
+		// fallbacks in `varNames`.
+		if (!readCssVar(name)) {
+			continue;
+		}
+
 		const hex = resolveCssColor(`var(${name})`);
 		if (hex) {
 			return hex;
@@ -62,7 +70,7 @@ function pickColor(...varNames: string[]): string | undefined {
 }
 
 function readCssVar(name: string): string {
-	return getComputedStyle(document.body).getPropertyValue(name).trim();
+	return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
 /**
