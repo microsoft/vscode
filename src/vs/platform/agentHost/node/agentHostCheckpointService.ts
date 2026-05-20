@@ -19,7 +19,7 @@ import { IAgentHostGitService } from './agentHostGitService.js';
  * `disposeSessionData` so they can resolve the repo without per-call
  * working-directory plumbing.
  */
-const META_CHECKPOINT_WORKING_DIR = 'checkpoint.workingDir';
+export const META_CHECKPOINT_WORKING_DIR = 'checkpoint.workingDir';
 
 export class AgentHostCheckpointService extends Disposable implements IAgentHostCheckpointService {
 	declare readonly _serviceBrand: undefined;

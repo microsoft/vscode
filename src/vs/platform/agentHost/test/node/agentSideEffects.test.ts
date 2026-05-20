@@ -30,6 +30,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
+import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChangesetService, StaticChangesetKind } from '../../node/agentHostChangesetService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -91,6 +92,7 @@ function createTestSideEffects(
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
 		[IAgentHostChangesetService, changesets],
+		[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 		[ITelemetryService, telemetryService],
 	), /*strict*/ true));
 	return disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, options));

@@ -480,7 +480,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		if (raw === undefined) {
 			return undefined;
 		}
-		return parseGitDiffRawNumstat(raw, repositoryRoot, options.sessionUri, fromOid);
+		return parseGitDiffRawNumstat(raw, repositoryRoot, options.sessionUri, fromOid, toOid);
 	}
 
 	private async _computeSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined> {
@@ -607,9 +607,23 @@ export function parseUntrackedPaths(output: string | undefined): string[] {
  * is followed by two extra path segments (old, new); the numstat segment
  * has an empty path field followed by old/new path segments.
  *
+ * `beforeRef` is the commit the `before` side is anchored on (typically a
+ * merge-base or the lower bound of a ref-to-ref diff).
+ *
+ * `afterRef` controls how the `after` side is built:
+ * - When `undefined` (the merge-base → working-tree case) the `after`
+ *   content URI points at the on-disk working-tree file. The diff editor
+ *   reads the file from disk as the user currently sees it.
+ * - When set (the ref → ref case, e.g. checkpoint diffs) both `after.uri`
+ *   and `after.content.uri` are built as `git-blob:` URIs anchored on that
+ *   commit, so the after pane reflects the state at that commit
+ *   regardless of what is currently on disk. This also makes the diff
+ *   correct when the file does not (or no longer) exists in the working
+ *   tree.
+ *
  * Exported for tests.
  */
-export function parseGitDiffRawNumstat(output: string, repositoryRoot: URI, sessionUri: string, mergeBaseCommit: string): ISessionFileDiff[] {
+export function parseGitDiffRawNumstat(output: string, repositoryRoot: URI, sessionUri: string, beforeRef: string, afterRef?: string): ISessionFileDiff[] {
 	const segments = output.split('\x00');
 	const changes: { kind: FileEditKind; oldPath?: string; newPath?: string }[] = [];
 	const numStats = new Map<string, { added: number; removed: number }>();
@@ -674,14 +688,19 @@ export function parseGitDiffRawNumstat(output: string, repositoryRoot: URI, sess
 			...(hasBefore && change.oldPath ? {
 				before: {
 					uri: URI.joinPath(repositoryRoot, change.oldPath).toString(),
-					content: { uri: buildGitBlobUri(sessionUri, mergeBaseCommit, change.oldPath) },
+					content: { uri: buildGitBlobUri(sessionUri, beforeRef, change.oldPath) },
 				},
 			} : {}),
 			...(hasAfter && change.newPath ? {
-				after: {
-					uri: URI.joinPath(repositoryRoot, change.newPath).toString(),
-					content: { uri: URI.joinPath(repositoryRoot, change.newPath).toString() },
-				},
+				after: afterRef !== undefined
+					? {
+						uri: buildGitBlobUri(sessionUri, afterRef, change.newPath),
+						content: { uri: buildGitBlobUri(sessionUri, afterRef, change.newPath) },
+					}
+					: {
+						uri: URI.joinPath(repositoryRoot, change.newPath).toString(),
+						content: { uri: URI.joinPath(repositoryRoot, change.newPath).toString() },
+					},
 			} : {}),
 			diff: { added: stats?.added ?? 0, removed: stats?.removed ?? 0 },
 		};

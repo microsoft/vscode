@@ -34,6 +34,7 @@ import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from './agentHostGitServi
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, type IIncrementalDiffOptions } from './sessionDiffAggregator.js';
+import { META_CHECKPOINT_WORKING_DIR } from './agentHostCheckpointService.js';
 
 /**
  * Metadata key under which the {@link ISessionFileDiff}[] for the
@@ -421,9 +422,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private async _computeTurnDiffsPreferCheckpoint(session: ProtocolURI, db: ISessionDatabase, turnId: string): Promise<readonly ISessionFileDiff[]> {
 		const pair = await this._checkpointService.getTurnCheckpointPair(URI.parse(session), turnId);
 		if (pair && pair.parent !== pair.current) {
-			// A no-op turn checkpoint reuses the parent ref (so per-turn
-			// diff is empty by construction) — short-circuit to an empty
-			// list instead of asking git for the (empty) diff.
 			const workingDir = await this._resolveWorkingDirectory(db);
 			if (workingDir) {
 				const fromRefDiffs = await this._gitService.computeFileDiffsBetweenRefs(workingDir, {
@@ -436,6 +434,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				}
 			}
 		} else if (pair && pair.parent === pair.current) {
+			// A no-op turn checkpoint reuses the parent ref (so per-turn
+			// diff is empty by construction) — short-circuit to an empty
+			// list instead of asking git for the (empty) diff.
 			return [];
 		}
 		// Fallback: SDK-tracked file_edits aggregator.
@@ -447,7 +448,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// `checkpoint.baseRef`. We use that as the canonical working
 		// directory for checkpoint diff computation; reading it here keeps
 		// the changeset service out of agent-specific metadata keys.
-		const raw = await db.getMetadata('checkpoint.workingDir');
+		const raw = await db.getMetadata(META_CHECKPOINT_WORKING_DIR);
 		return raw ? URI.parse(raw) : undefined;
 	}
 
