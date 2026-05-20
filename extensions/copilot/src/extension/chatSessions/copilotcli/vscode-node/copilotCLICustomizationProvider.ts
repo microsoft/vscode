@@ -138,7 +138,7 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 				name: basename(uri),
 				description: undefined,
 				groupKey: 'agent-instructions',
-				source:  'local', // these are surfaced by the extension, even if they come from the workspace
+				source: 'local', // these are surfaced by the extension, even if they come from the workspace
 				extensionId: undefined,
 				pluginUri: undefined
 			});
