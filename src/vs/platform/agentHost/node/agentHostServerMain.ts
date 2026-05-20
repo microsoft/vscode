@@ -201,7 +201,7 @@ async function main(): Promise<void> {
 	const instantiationService = new InstantiationService(diServices);
 	const gitService = instantiationService.createInstance(AgentHostGitService);
 	diServices.set(IAgentHostGitService, gitService);
-	const checkpointService = instantiationService.createInstance(AgentHostCheckpointService);
+	const checkpointService = disposables.add(instantiationService.createInstance(AgentHostCheckpointService));
 	diServices.set(IAgentHostCheckpointService, checkpointService);
 
 	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
