@@ -42,6 +42,7 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -444,6 +445,16 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 			const modeName = mode?.isBuiltin ? undefined : mode?.name.get();
 			this.setOption(AGENT_OPTION_ID, modeName ?? '');
 		}
+	}
+
+	getAgentHostSessionConfig(): Record<string, unknown> {
+		const config: Record<string, unknown> = {
+			[SessionConfigKey.Isolation]: this._isolationMode === 'worktree' ? 'worktree' : 'folder',
+		};
+		if (this._isolationMode === 'worktree' && this._branch) {
+			config[SessionConfigKey.Branch] = this._branch;
+		}
+		return config;
 	}
 
 	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void {
@@ -2046,6 +2057,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			},
 			agentIdSilent: contribution?.type,
 			attachedContext,
+			agentHostSessionConfig: session instanceof CopilotCLISession ? session.getAgentHostSessionConfig() : undefined,
 		};
 
 		// Claude sessions use the ChatSessionItemController API which creates
@@ -2393,6 +2405,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			},
 			agentIdSilent: contribution?.type,
 			attachedContext,
+			agentHostSessionConfig: newChatSession.getAgentHostSessionConfig(),
 		};
 
 		// Open chat widget
