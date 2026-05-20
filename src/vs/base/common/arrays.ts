@@ -203,7 +203,13 @@ export function forEachWithNeighbors<T>(arr: T[], f: (before: T | undefined, ele
 }
 
 export function concatArrays<T extends any[]>(...arrays: T): T[number][number][] {
-	return [].concat(...arrays);
+	const result: T[number][number][] = [];
+
+	for (const arr of arrays) {
+		result.push(...arr);
+	}
+
+	return result;
 }
 
 interface IMutableSplice<T> extends ISplice<T> {
@@ -439,7 +445,7 @@ export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArra
 export function range(to: number): number[];
 export function range(from: number, to: number): number[];
 export function range(arg: number, to?: number): number[] {
-	let from = typeof to === 'number' ? arg : 0;
+	let from: number;
 
 	if (typeof to === 'number') {
 		from = arg;
@@ -584,8 +590,7 @@ export function mapFilter<T, U>(array: ReadonlyArray<T>, fn: (t: T) => U | undef
 }
 
 export function withoutDuplicates<T>(array: ReadonlyArray<T>): T[] {
-	const s = new Set(array);
-	return Array.from(s);
+	return distinct(array);
 }
 
 export function asArray<T>(x: T | T[]): T[];
