@@ -202,13 +202,15 @@ export function forEachWithNeighbors<T>(arr: T[], f: (before: T | undefined, ele
 	}
 }
 
-export function concatArrays<T extends any[]>(...arrays: T): T[number][number][] {
-	const result: T[number][number][] = [];
+export function concatArrays<T extends ReadonlyArray<unknown>>(...arrays: T[]): T[number][] {
+	const result: T[number][] = [];
 
 	for (const arr of arrays) {
 		const offset = result.length;
 		for (let i = 0; i < arr.length; i++) {
-			result[offset + i] = arr[i];
+			if (i in arr) {
+				result[offset + i] = arr[i];
+			}
 		}
 	}
 
