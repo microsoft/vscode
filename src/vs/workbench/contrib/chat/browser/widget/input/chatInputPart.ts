@@ -126,6 +126,7 @@ import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatInputNotificationService } from './chatInputNotificationService.js';
 import { ChatBillingBannerVariant, ChatBillingBannerWidget } from './chatBillingBannerWidget.js';
+import { IChatBillingBannerService } from './chatBillingBannerService.js';
 import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
@@ -580,6 +581,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatAttachmentWidgetRegistry private readonly _chatAttachmentWidgetRegistry: IChatAttachmentWidgetRegistry,
 		@IChatInputNotificationService private readonly chatInputNotificationService: IChatInputNotificationService,
 		@IChatPhoneInputPresenter private readonly chatPhoneInputPresenter: IChatPhoneInputPresenter,
+		@IChatBillingBannerService private readonly chatBillingBannerService: IChatBillingBannerService,
 	) {
 		super();
 
@@ -1698,6 +1700,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Auto-dismiss notifications that requested it
 		this.chatInputNotificationService.handleMessageSent();
 
+		// First user-sent message is treated as an implicit acknowledgement of
+		// the billing onboarding banner, so we dismiss it permanently.
+		if (isUserQuery) {
+			this.chatBillingBannerService.markCompleted();
+		}
+
 		if (this._chatSessionIsEmpty) {
 			this._chatSessionIsEmpty = false;
 			this._emptyInputState.set(undefined, undefined);
@@ -2315,7 +2323,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// The billing banner's 3-slide carousel is too tall for compact surfaces
 		// (inline chat, narrow popovers) and competes for attention on launcher
 		// surfaces (welcome editor, quick chat). Skip creating it there; the
-		// unused container collapses via the `:not(.has-billing-banner)` CSS rule.
+		// banner container is hidden by default and only revealed when the
+		// widget toggles `.has-billing-banner` on it, so an unused container
+		// collapses out of the layout cleanly.
 		if (!this._billingBannerWidget.value && this.options.renderStyle !== 'compact' && !this.options.suppressBillingBanner) {
 			this._billingBannerWidget.value = this.instantiationService.createInstance(ChatBillingBannerWidget, ChatBillingBannerVariant.Panel);
 			this.chatBillingBannerContainer.appendChild(this._billingBannerWidget.value.domNode);

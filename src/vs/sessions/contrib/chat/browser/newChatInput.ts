@@ -55,6 +55,7 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { ChatBillingBannerVariant, ChatBillingBannerWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatBillingBannerWidget.js';
+import { IChatBillingBannerService } from '../../../../workbench/contrib/chat/browser/widget/input/chatBillingBannerService.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 
@@ -163,6 +164,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IStorageService private readonly storageService: IStorageService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IChatBillingBannerService private readonly chatBillingBannerService: IChatBillingBannerService,
 	) {
 		super();
 		this._modelPickerInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
@@ -561,6 +563,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._editor.updateOptions({ readOnly: true });
 		this._updateSendButtonState();
 		this._updateInputLoadingState();
+
+		// First user-sent message is treated as an implicit acknowledgement of
+		// the billing onboarding banner, so we dismiss it permanently.
+		this.chatBillingBannerService.markCompleted();
 
 		try {
 			await this.options.sendRequest(query, attachedContext);

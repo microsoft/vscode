@@ -488,17 +488,3 @@
 	border-top-right-radius: 0;
 	border-top: none;
 }
-
-/* --- Copilot usage billing banner (agents window) --- */
-
-/* The widget toggles `has-billing-banner` on the container when it has
- * content to show. Drive visibility off that class instead of `:empty`,
- * which never matches since the widget always renders an inner element. */
-.new-chat-input-container > .chat-billing-banner-container {
-	display: none;
-}
-.new-chat-input-container > .chat-billing-banner-container.has-billing-banner {
-	display: block;
-	/* Tuck the banner under the rounded top of the input area. */
-	margin-bottom: -10px;
-}

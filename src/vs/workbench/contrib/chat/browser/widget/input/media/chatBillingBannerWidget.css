@@ -65,6 +65,7 @@
 }
 
 .chat-billing-banner-widget .chat-billing-banner-card {
+	position: relative;
 	border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
 	/* Round the top, square the bottom so the card visually tucks under the
 	 * chat input. Drop the bottom border for the same reason. */
@@ -108,13 +109,6 @@
 /* Body text */
 .chat-billing-banner-widget .chat-billing-banner-body {
 	padding: 12px 16px 4px;
-	transition: opacity 0.16s ease;
-}
-.chat-billing-banner-widget .chat-billing-banner-body.fading {
-	opacity: 0;
-}
-.chat-billing-banner-widget.motion-reduced .chat-billing-banner-body {
-	transition: none;
 }
 
 .chat-billing-banner-widget .chat-billing-banner-title {
@@ -133,80 +127,39 @@
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.5;
 	margin: 0;
-	display: -webkit-box;
-	-webkit-line-clamp: 3;
-	-webkit-box-orient: vertical;
-	overflow: hidden;
-	min-height: 4.5em;
 }
 
-/* Nav row */
-.chat-billing-banner-widget .chat-billing-banner-nav {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: 4px 12px 10px;
-	gap: 8px;
-	flex-wrap: wrap;
-	row-gap: 8px;
-	min-height: 26px;
-}
-
-.chat-billing-banner-widget .chat-billing-banner-nav-left {
-	display: flex;
-	align-items: center;
-	gap: 2px;
-	min-width: 0;
-}
-
-.chat-billing-banner-widget .chat-billing-banner-arrow {
+/* Close (×) button floats top-right over the hero. Uses the secondary
+ * button palette so it stays legible over the animated canvas. */
+.chat-billing-banner-widget .chat-billing-banner-close {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	z-index: 1;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 22px;
-	height: 22px;
+	width: 26px;
+	height: 26px;
 	padding: 0;
-	background: transparent;
-	border: none;
-	color: var(--vscode-foreground);
+	background: var(--vscode-button-secondaryBackground);
+	border: 1px solid var(--vscode-button-border, transparent);
+	color: var(--vscode-button-secondaryForeground);
 	line-height: 1;
 	cursor: pointer;
 	border-radius: 4px;
 	font-family: inherit;
 }
-.chat-billing-banner-widget .chat-billing-banner-arrow .codicon {
+.chat-billing-banner-widget .chat-billing-banner-close .codicon {
 	font-size: 14px;
 	line-height: 1;
 }
-.chat-billing-banner-widget .chat-billing-banner-arrow:disabled {
-	opacity: 0.4;
-	cursor: default;
+.chat-billing-banner-widget .chat-billing-banner-close:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
 }
-.chat-billing-banner-widget .chat-billing-banner-arrow:not(:disabled):hover {
-	background: var(--vscode-toolbar-hoverBackground);
-}
-.chat-billing-banner-widget .chat-billing-banner-arrow:focus-visible {
+.chat-billing-banner-widget .chat-billing-banner-close:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
-}
-
-/* Counter */
-.chat-billing-banner-widget .chat-billing-banner-counter {
-	font-size: 11px;
-	color: var(--vscode-descriptionForeground);
-	padding-left: 6px;
-	min-width: 24px;
-}
-
-.chat-billing-banner-widget .chat-billing-banner-nav-right {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	flex-shrink: 0;
-	flex-wrap: wrap;
-	justify-content: flex-end;
-	/* Keep the CTA group flush right even when it wraps to its own row. */
-	margin-left: auto;
 }
 
 .chat-billing-banner-widget .chat-billing-banner-link {
@@ -226,8 +179,14 @@
 	outline-offset: 2px;
 }
 
-/* Primary CTA uses the standard `monaco-button` styles from defaultButtonStyles; override the default `width: 100%` so the button hugs its label instead of stretching to fill the wrapped nav-right row. */
+/* Primary CTA floats top-left over the hero. Uses standard `monaco-button`
+ * styles from defaultButtonStyles; override the default `width: 100%` so
+ * the button hugs its label. */
 .chat-billing-banner-widget .monaco-text-button.chat-billing-banner-cta {
+	position: absolute;
+	top: 6px;
+	left: 6px;
+	z-index: 1;
 	width: auto;
 	flex: 0 0 auto;
 	min-width: auto;
