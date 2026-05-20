@@ -57,6 +57,8 @@ import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, createAgentHostClientResourceConnec
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
+import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
+import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
 import { join } from '../../../base/common/path.js';
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
@@ -123,6 +125,12 @@ async function startAgentHost(): Promise<void> {
 		instantiationService = new InstantiationService(diServices);
 		const gitService = instantiationService.createInstance(AgentHostGitService);
 		diServices.set(IAgentHostGitService, gitService);
+		// Checkpoint service depends on session data + git services, so
+		// construct it AFTER both are registered. Consumed by CopilotAgent
+		// (baseline capture) and AgentService's inner DI (changeset
+		// pipeline / end-of-turn capture).
+		const checkpointService = disposables.add(instantiationService.createInstance(AgentHostCheckpointService));
+		diServices.set(IAgentHostCheckpointService, checkpointService);
 		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
 		diServices.set(ICopilotApiService, copilotApiService);
 		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
@@ -131,7 +139,7 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
-		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));
