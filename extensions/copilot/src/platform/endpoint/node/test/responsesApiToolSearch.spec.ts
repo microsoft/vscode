@@ -147,6 +147,29 @@ describe('createResponsesRequestBody tools', () => {
 		expect(tools.find(t => t.name === 'another_deferred_tool')).toBeUndefined();
 	});
 
+	it('omits client tool_search when the request has zero deferred tools', () => {
+		const endpoint = createMockEndpoint('gpt-5.4');
+
+		const options = createMockOptions({
+			requestOptions: {
+				tools: [
+					createFunctionTool('read_file', 'Read a file', { path: { type: 'string' } }, ['path']),
+					createFunctionTool('grep_search', 'Search for text', { query: { type: 'string' } }, ['query']),
+					createFunctionTool('tool_search', 'Search tools', { query: { type: 'string' } }, ['query']),
+				]
+			}
+		});
+
+		const body = accessor.get(IInstantiationService).invokeFunction(
+			createResponsesRequestBody, options, endpoint.model, endpoint
+		);
+
+		const tools = body.tools as any[];
+		expect(tools.find(t => t.type === 'tool_search')).toBeUndefined();
+		expect(tools.every(t => !t.defer_loading)).toBe(true);
+		expect(tools.map(t => t.name)).toEqual(['read_file', 'grep_search']);
+	});
+
 	it('does not defer tools for unsupported models', () => {
 		const endpoint = createMockEndpoint('gpt-4o');
 

@@ -1228,6 +1228,26 @@ describe('createMessagesRequestBody tool search deferral', () => {
 		expect(tools.find(t => t.name === 'some_mcp_tool')?.defer_loading).toBe(true);
 	});
 
+	test('omits tool_search machinery when tool_search is present but every request tool is non-deferred', () => {
+		const endpoint = createMockEndpoint(true);
+		const options = createOptions([
+			makeTool('read_file'),
+			makeTool('grep_search'),
+			makeTool(CUSTOM_TOOL_SEARCH_NAME),
+		]);
+
+		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
+
+		const tools = body.tools as AnthropicMessagesTool[];
+		// RED contract for later phases: when no request tool is deferred, the
+		// request should omit the client-side tool_search scaffold entirely.
+		expect(tools.map(tool => ({ name: tool.name, defer_loading: tool.defer_loading }))).toEqual([
+			{ name: 'read_file', defer_loading: undefined },
+			{ name: 'grep_search', defer_loading: undefined },
+		]);
+		expect(tools.find(tool => tool.name === CUSTOM_TOOL_SEARCH_NAME)).toBeUndefined();
+	});
+
 	test('does not defer when endpoint does not support tool search', () => {
 		const endpoint = createMockEndpoint(false);
 		const options = createOptions([makeTool('read_file'), makeTool('some_mcp_tool'), makeTool(CUSTOM_TOOL_SEARCH_NAME)]);

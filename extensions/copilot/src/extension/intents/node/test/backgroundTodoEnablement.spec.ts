@@ -102,6 +102,10 @@ describe('getAgentTools background todo enablement', () => {
 		return tools.some(t => t.name === ToolName.CoreManageTodoList);
 	}
 
+	function hasTool(tools: readonly { name: string }[], name: string): boolean {
+		return tools.some(tool => tool.name === name);
+	}
+
 	test('background todo agent is enabled only when experiment is on and todo is not explicit', () => {
 		const request = new TestChatRequest('fix the bug');
 		configService.setConfig(ConfigKey.Advanced.BackgroundTodoAgentEnabled, false);
@@ -136,6 +140,12 @@ describe('getAgentTools background todo enablement', () => {
 		(request as any).toolReferences = [{ name: 'read_file' }];
 		const tools = await instantiationService.invokeFunction(getAgentTools, request, mockEndpoint);
 		expect(hasTodoTool(tools)).toBe(false);
+	});
+
+	test('publishes vscode_askQuestions on the initial agent request without explicit tool picker opt-in', async () => {
+		const request = new TestChatRequest('fix the bug');
+		const tools = await instantiationService.invokeFunction(getAgentTools, request, mockEndpoint);
+		expect(hasTool(tools, ToolName.CoreAskQuestions)).toBe(true);
 	});
 });
 
