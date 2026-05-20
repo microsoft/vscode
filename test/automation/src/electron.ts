@@ -19,8 +19,18 @@ export interface IElectronConfiguration {
 }
 
 export async function resolveElectronConfiguration(options: LaunchOptions): Promise<IElectronConfiguration> {
-	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, crashesPath, extraArgs } = options;
+	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, crashesPath, extraArgs, extraEnv } = options;
 	const env = { ...process.env };
+
+	if (extraEnv) {
+		for (const [key, value] of Object.entries(extraEnv)) {
+			if (value === undefined) {
+				delete env[key];
+			} else {
+				env[key] = value;
+			}
+		}
+	}
 
 	const args: string[] = [
 		'--skip-release-notes',
