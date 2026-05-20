@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import mermaid, { MermaidConfig } from 'mermaid';
-import { loadExtensionConfig, registerMermaidAddons, renderMermaidBlocksInElement } from '../shared';
+import { buildMermaidConfig, loadExtensionConfig, registerMermaidAddons, renderMermaidBlocksInElement } from '../shared';
 import { DiagramManager } from '../shared/diagramManager';
 import { IDisposable } from '../shared/disposable';
+import { VsCodeMermaidThemeTracker } from '../shared/vsCodeTheme';
 
 let currentAbortController: AbortController | undefined;
 let currentDisposables: IDisposable[] = [];
 const diagramManager = new DiagramManager(loadExtensionConfig());
+const themeTracker = new VsCodeMermaidThemeTracker();
 
 async function init() {
 	for (const disposable of currentDisposables) {
@@ -22,15 +24,16 @@ async function init() {
 	currentAbortController = new AbortController();
 	const signal = currentAbortController.signal;
 
+	// `vscode.markdown.updateContent` fires after theme switches refresh the preview, so resolve
+	// the theme variables from the live CSS variables before rebuilding mermaid's config.
+	themeTracker.refresh();
+
 	const extConfig = loadExtensionConfig();
 	diagramManager.updateConfig(extConfig);
 
 	const config: MermaidConfig = {
-		startOnLoad: false,
+		...buildMermaidConfig(extConfig, themeTracker),
 		maxTextSize: extConfig.maxTextSize,
-		theme: (document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
-			? extConfig.darkModeTheme
-			: extConfig.lightModeTheme) as MermaidConfig['theme'],
 	};
 
 	mermaid.initialize(config);
