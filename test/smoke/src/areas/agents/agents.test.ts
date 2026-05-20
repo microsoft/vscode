@@ -129,7 +129,7 @@ export function setup(logger: Logger) {
 			const app = this.app as Application;
 
 			await app.workbench.agents.waitForNewSessionView();
-			await app.workbench.agents.selectSessionType('Copilot');
+			await app.workbench.agents.selectSessionType('Copilot CLI');
 
 			const requestsBefore = mockServer.requestCount();
 			await app.workbench.agents.submitNewSessionPrompt(`hello world [scenario:${COPILOT_SCENARIO_ID}]`);

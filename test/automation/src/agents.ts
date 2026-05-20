@@ -85,10 +85,27 @@ export class Agents {
 	 */
 	async selectSessionType(label: string): Promise<void> {
 		await this.code.waitForElement(SESSION_TYPE_PICKER);
-		await this.code.waitAndClick(SESSION_TYPE_PICKER);
 
 		const itemSel = `.action-widget .monaco-list-row`;
-		await this.code.waitForElement(itemSel, el => !!el && (el.textContent ?? '').trim().length > 0);
+		const maxAttempts = 5;
+
+		// The dropdown entries are populated asynchronously by the session
+		// provider. Clicking the picker before the entries exist silently
+		// opens an empty widget that immediately closes. Retry the click
+		// until populated rows appear.
+		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+			await this.code.waitAndClick(SESSION_TYPE_PICKER);
+			try {
+				await this.code.waitForElement(itemSel, el => !!el && (el.textContent ?? '').trim().length > 0, 30 /* ~3 seconds */);
+				break;
+			} catch {
+				if (attempt === maxAttempts) {
+					throw new Error(`Session type picker did not populate after ${maxAttempts} attempts`);
+				}
+				// Wait before retrying to give the provider time to populate
+				await new Promise(r => setTimeout(r, 2000));
+			}
+		}
 
 		const items = await this.code.waitForElements(itemSel, /* recursive */ true);
 		const matchIndex = items.findIndex(el => (el.textContent ?? '').trim().toLowerCase().includes(label.toLowerCase()));
