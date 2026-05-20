@@ -2526,6 +2526,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const utilitySmallId = this._resolveUtilitySmallModelId();
 		if (utilitySmallId) {
 			sendOptions.userSelectedModelId = utilitySmallId;
+			this._logService.debug(`RunInTerminalTool: Steering messages for background terminal ${termId} will use model '${utilitySmallId}'`);
+		} else {
+			this._logService.debug(`RunInTerminalTool: 'copilot/copilot-utility-small' alias unavailable; steering messages for background terminal ${termId} will use conversation model '${sendOptions.userSelectedModelId ?? '<default>'}'`);
 		}
 
 		// Continue the output monitor in background mode for prompt-for-input detection.
