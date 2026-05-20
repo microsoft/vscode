@@ -36,20 +36,22 @@ export class ToolsContribution extends Disposable {
 		}
 
 		const modelSpecificTools = this._register(new DisposableMap<string>());
-		this._register(autorunIterableDelta(
-			reader => toolsService.modelSpecificTools.read(reader),
-			({ addedValues, removedValues }) => {
-				for (const { definition } of removedValues) {
-					modelSpecificTools.deleteAndDispose(definition.name);
-				}
-				for (const { definition, tool } of addedValues) {
-					if (isVscodeLanguageModelTool(tool)) {
-						modelSpecificTools.set(definition.name, vscode.lm.registerToolDefinition(definition, tool));
+		if (typeof vscode.lm.registerToolDefinition === 'function') {
+			this._register(autorunIterableDelta(
+				reader => toolsService.modelSpecificTools.read(reader),
+				({ addedValues, removedValues }) => {
+					for (const { definition } of removedValues) {
+						modelSpecificTools.deleteAndDispose(definition.name);
 					}
-				}
-			},
-			v => v.definition,
-		));
+					for (const { definition, tool } of addedValues) {
+						if (isVscodeLanguageModelTool(tool)) {
+							modelSpecificTools.set(definition.name, vscode.lm.registerToolDefinition(definition, tool));
+						}
+					}
+				},
+				v => v.definition,
+			));
+		}
 
 		this._register(vscode.commands.registerCommand('github.copilot.debug.resetVirtualToolGroups', async () => {
 			await toolGrouping.clear();
