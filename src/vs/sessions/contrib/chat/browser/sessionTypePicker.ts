@@ -11,7 +11,7 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
-import { IFolderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ISession } from '../../../services/sessions/common/session.js';
@@ -75,7 +75,7 @@ export class SessionTypePicker extends Disposable {
 	readonly onDidSelectSessionType = this._onDidSelectSessionType.event;
 
 	/** Session types the active session's folder can be served by, across all providers. */
-	protected _folderSessionTypes: IFolderSessionType[] = [];
+	protected _folderSessionTypes: IProviderSessionType[] = [];
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	protected _triggerElement: HTMLElement | undefined;
@@ -95,7 +95,7 @@ export class SessionTypePicker extends Disposable {
 		const refresh = (session: ISession | undefined) => {
 			if (session) {
 				const folderUri = session.workspace.get()?.folders[0]?.root;
-				this._folderSessionTypes = folderUri ? this.sessionsManagementService.getSessionTypes(folderUri) : [];
+				this._folderSessionTypes = folderUri ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
 				// The active session's actual type wins over any stored preference
 				// for trigger-label rendering.
 				this._picked = { providerId: session.providerId, sessionTypeId: session.sessionType };
@@ -178,7 +178,7 @@ export class SessionTypePicker extends Disposable {
 		// land before the user clicks.
 		const folderUri = session.workspace.get()?.folders[0]?.root;
 		const folderTypes = folderUri
-			? this.sessionsManagementService.getSessionTypes(folderUri)
+			? this.sessionsManagementService.getSessionTypesForFolder(folderUri)
 			: this._folderSessionTypes;
 		this._folderSessionTypes = folderTypes;
 

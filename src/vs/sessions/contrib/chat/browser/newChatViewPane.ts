@@ -96,7 +96,7 @@ class NewChatWidget extends Disposable {
 				// fall back to the provider's natural default by passing
 				// only the folder URI.
 				const picked = this._newChatInput.sessionTypePicker.selectedPick;
-				const folderTypes = picked ? this.sessionsManagementService.getSessionTypes(folderUri) : undefined;
+				const folderTypes = picked ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : undefined;
 				const validForFolder = picked && folderTypes!.some(t =>
 					(picked.providerId === undefined || t.providerId === picked.providerId)
 					&& t.sessionType.id === picked.sessionTypeId);
@@ -180,7 +180,7 @@ class NewChatWidget extends Disposable {
 		// any provider that offers the same sessionTypeId.
 		let effectivePick = pick;
 		if (effectivePick) {
-			const available = this.sessionsManagementService.getSessionTypes(folderUri);
+			const available = this.sessionsManagementService.getSessionTypesForFolder(folderUri);
 			const matches = available.some(t =>
 				(effectivePick!.providerId === undefined || t.providerId === effectivePick!.providerId)
 				&& t.sessionType.id === effectivePick!.sessionTypeId);
@@ -195,12 +195,12 @@ class NewChatWidget extends Disposable {
 		// agent-host-specific UI (model picker etc.) until the user re-picks the workspace.
 		// If the connection fails, the picker fires onDidSelectWorkspace(undefined) which
 		// clears the pending wait via _onWorkspaceSelected.
-		const availableNow = this.sessionsManagementService.getSessionTypes(folderUri);
+		const availableNow = this.sessionsManagementService.getSessionTypesForFolder(folderUri);
 		if (availableNow.length === 0) {
 			const pendingStore = new DisposableStore();
 			this._pendingSessionTypeWait.value = pendingStore;
 			pendingStore.add(this.sessionsManagementService.onDidChangeSessionTypes(() => {
-				if (this.sessionsManagementService.getSessionTypes(folderUri).length > 0) {
+				if (this.sessionsManagementService.getSessionTypesForFolder(folderUri).length > 0) {
 					this._pendingSessionTypeWait.clear();
 					this._createNewSession(folderUri, pick);
 				}

@@ -13,12 +13,12 @@ import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
 import { ISendRequestOptions } from './sessionsProvider.js';
 
 /**
- * A session type advertised by a specific provider for a given folder URI.
- * Returned by {@link ISessionsManagementService.getSessionTypesForFolder} so
- * the UI can group types by provider when more than one provider can serve
- * the same folder.
+ * A (provider, session-type) pair returned by
+ * {@link ISessionsManagementService.getSessionTypesForFolder} so the UI can
+ * group session types by provider when more than one provider can serve the
+ * same folder.
  */
-export interface IFolderSessionType {
+export interface IProviderSessionType {
 	readonly providerId: string;
 	readonly sessionType: ISessionType;
 }
@@ -91,7 +91,7 @@ export interface ISessionsManagementService {
 	 * so the UI can group types by provider when more than one provider can
 	 * serve the same workspace.
 	 */
-	getSessionTypes(workspaceUri: URI): IFolderSessionType[];
+	getSessionTypesForFolder(folderUri: URI): IProviderSessionType[];
 
 	/**
 	 * Resolve a workspace URI to a workspace using the first provider whose
