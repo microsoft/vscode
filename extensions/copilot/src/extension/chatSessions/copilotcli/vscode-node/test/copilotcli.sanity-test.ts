@@ -96,7 +96,9 @@ suite('Copilot CLI Chat Sanity Test', function () {
 
 		if (useExternalExtension) {
 			process.env.IS_SCENARIO_AUTOMATION = '1';
-			disposables.push(registerGitHubAuthenticationProvider(token));
+			if (!useInstalledVsix) {
+				disposables.push(registerGitHubAuthenticationProvider(token));
+			}
 			if (useInstalledVsix) {
 				await assertInstalledVsixExtension(extension);
 			}
@@ -282,7 +284,7 @@ suite('Copilot CLI Chat Sanity Test', function () {
 	}
 
 	function isAuthFailure(message: string): boolean {
-		return /Authorization failed|Unauthorized|\b401\b|No model available|policy enablement|sign in to GitHub|getGitHubSession.*undefined|Authentication (?:failed|required)/i.test(message);
+		return /Authorization failed|Unauthorized|\b401\b|No model available|policy enablement|sign in to GitHub|getGitHubSession.*undefined|Authentication (?:failed|required)|Timed out waiting for authentication provider|authentication provider ['"]github['"]/i.test(message);
 	}
 
 	async function assertInstalledVsixExtension(extension: vscode.Extension<unknown>): Promise<void> {
@@ -295,8 +297,8 @@ suite('Copilot CLI Chat Sanity Test', function () {
 		const bundledExtensionPath = process.env.COPILOT_TEST_EXTENSION_PATH ? await realpathOrResolve(process.env.COPILOT_TEST_EXTENSION_PATH) : undefined;
 		assert.notStrictEqual(extensionPath, bundledExtensionPath, `Expected installed VSIX extension, but resolved bundled extension.\n${extensionInfo}`);
 
-		const extractedVsixExtensionPath = process.env.COPILOT_TEST_VSIX_EXTENSION_PATH ? await realpathOrResolve(process.env.COPILOT_TEST_VSIX_EXTENSION_PATH) : undefined;
-		assert.strictEqual(extensionPath, extractedVsixExtensionPath, `Expected extracted VSIX extension, but resolved another Copilot Chat extension.\n${extensionInfo}\nExpected extracted VSIX extension path: ${extractedVsixExtensionPath ?? '(none)'}`);
+		const installedVsixExtensionPath = process.env.COPILOT_TEST_INSTALLED_VSIX_EXTENSION_PATH ? await realpathOrResolve(process.env.COPILOT_TEST_INSTALLED_VSIX_EXTENSION_PATH) : undefined;
+		assert.strictEqual(extensionPath, installedVsixExtensionPath, `Expected installed VSIX extension, but resolved another Copilot Chat extension.\n${extensionInfo}\nExpected installed VSIX extension path: ${installedVsixExtensionPath ?? '(none)'}`);
 	}
 
 	function formatResolvedExtensionInfo(extension: vscode.Extension<unknown>, extensionPath: string): string {
@@ -309,7 +311,7 @@ suite('Copilot CLI Chat Sanity Test', function () {
 			`Resolved extension path: ${extensionPath}`,
 			`Resolved extension package: ${extension.packageJSON?.publisher}.${extension.packageJSON?.name}@${extension.packageJSON?.version}`,
 			`Expected VSIX basename: ${process.env.COPILOT_TEST_VSIX_BASENAME ?? '(none)'}`,
-			`Expected extracted VSIX extension path: ${process.env.COPILOT_TEST_VSIX_EXTENSION_PATH ?? '(none)'}`,
+			`Expected installed VSIX extension path: ${process.env.COPILOT_TEST_INSTALLED_VSIX_EXTENSION_PATH ?? '(none)'}`,
 			`Source extension path: ${process.env.COPILOT_TEST_SOURCE_EXTENSION_PATH ?? '(none)'}`,
 			`Bundled extension path: ${process.env.COPILOT_TEST_EXTENSION_PATH ?? '(none)'}`,
 			`All Github.copilot-chat extensions:\n${matchingExtensions || '(none)'}`,
