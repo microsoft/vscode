@@ -27,6 +27,7 @@ function makeToolInfo(name: string): vscode.LanguageModelToolInformation {
 suite('ToolSearchTool', () => {
 	test('searches only deferred tools enabled for the active request', async () => {
 		const searchedToolNames: string[][] = [];
+		const nonDeferred = new Set(['read_file']);
 		const tool = new ToolSearchTool(
 			{
 				searchToolsByQuery: async (_query: string, tools: readonly vscode.LanguageModelToolInformation[]) => {
@@ -41,10 +42,13 @@ suite('ToolSearchTool', () => {
 					makeToolInfo('disabled_deferred_tool'),
 				],
 			} as any,
+			{
+				isNonDeferredTool: (name: string) => nonDeferred.has(name),
+			} as any,
 			{ trace() { } } as any,
 		);
 
-		await (tool as any).resolveInput?.(
+		const resolvedInput = await (tool as any).resolveInput?.(
 			{ query: 'deferred tool' },
 			{
 				tools: {
@@ -60,11 +64,97 @@ suite('ToolSearchTool', () => {
 		);
 
 		await tool.invoke(
-			{ input: { query: 'deferred tool' } } as vscode.LanguageModelToolInvocationOptions<{ query: string }>,
+				{ input: resolvedInput } as vscode.LanguageModelToolInvocationOptions<{ query: string }>,
 			{ isCancellationRequested: false } as vscode.CancellationToken,
 		);
 
 		expect(searchedToolNames).toEqual([['enabled_deferred_tool']]);
+	});
+
+	test('keeps deferred tool snapshots isolated per resolved request input', async () => {
+		const searchedToolNames: string[][] = [];
+		const nonDeferred = new Set(['read_file']);
+		const tool = new ToolSearchTool(
+			{
+				searchToolsByQuery: async (_query: string, tools: readonly vscode.LanguageModelToolInformation[]) => {
+					searchedToolNames.push(tools.map(candidate => candidate.name));
+					return tools.map(candidate => candidate.name);
+				},
+			} as any,
+			{
+				tools: [
+					makeToolInfo('read_file'),
+					makeToolInfo('request_a_tool'),
+					makeToolInfo('request_b_tool'),
+				],
+			} as any,
+			{
+				isNonDeferredTool: (name: string) => nonDeferred.has(name),
+			} as any,
+			{ trace() { } } as any,
+		);
+
+		const requestAInput = await (tool as any).resolveInput?.(
+			{ query: 'request a' },
+			{
+				tools: {
+					toolReferences: [],
+					toolInvocationToken: undefined as never,
+					availableTools: [
+						makeToolInfo('read_file'),
+						makeToolInfo('request_a_tool'),
+					],
+				},
+			},
+			0,
+		);
+
+		await (tool as any).resolveInput?.(
+			{ query: 'request b' },
+			{
+				tools: {
+					toolReferences: [],
+					toolInvocationToken: undefined as never,
+					availableTools: [
+						makeToolInfo('read_file'),
+						makeToolInfo('request_b_tool'),
+					],
+				},
+			},
+			0,
+		);
+
+		await tool.invoke(
+			{ input: requestAInput } as vscode.LanguageModelToolInvocationOptions<{ query: string }>,
+			{ isCancellationRequested: false } as vscode.CancellationToken,
+		);
+
+		expect(searchedToolNames).toEqual([['request_a_tool']]);
+	});
+
+	test('fails explicitly when invoke runs without request-scoped resolveInput context', async () => {
+		const nonDeferred = new Set(['read_file']);
+		const tool = new ToolSearchTool(
+			{
+				searchToolsByQuery: async () => {
+					throw new Error('search should not run without resolveInput context');
+				},
+			} as any,
+			{
+				tools: [
+					makeToolInfo('enabled_deferred_tool'),
+				],
+			} as any,
+			{
+				isNonDeferredTool: (name: string) => nonDeferred.has(name),
+			} as any,
+			{ trace() { } } as any,
+		);
+
+		await expect(tool.invoke(
+			{ input: { query: 'deferred tool' } } as vscode.LanguageModelToolInvocationOptions<{ query: string }>,
+			{ isCancellationRequested: false } as vscode.CancellationToken,
+		)).rejects.toThrow('ToolSearchTool: request-scoped deferred tools are unavailable. Ensure resolveInput is called before invoke.');
 	});
 });
 
