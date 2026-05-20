@@ -80,7 +80,7 @@ import { IOutputAnalyzer } from './outputAnalyzer.js';
 import { SandboxOutputAnalyzer, outputLooksSandboxBlocked } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
-import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
+import { ILanguageModelsService, LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
 import { isSessionAutoApproveLevel, isTerminalAutoApproveAllowed, isToolEligibleForTerminalAutoApproval } from './terminalToolAutoApprove.js';
 import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { ChatElicitationRequestPart } from '../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
@@ -619,6 +619,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
@@ -2116,6 +2117,25 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return lines.join('\n');
 	}
 
+	/**
+	 * Resolves the `copilot/copilot-utility-small` alias identifier for use as
+	 * `userSelectedModelId` on terminal-tool steering messages (background
+	 * completion / input-needed / disposal notifications). The alias is
+	 * published by the copilot extension and already honors the
+	 * `chat.utilitySmallModel` setting. Returns `undefined` if the alias is
+	 * not available, in which case the caller leaves the conversation model
+	 * in place.
+	 */
+	private _resolveUtilitySmallModelId(): string | undefined {
+		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
+			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
+			if (metadata && metadata.vendor === 'copilot' && metadata.id === 'copilot-utility-small') {
+				return identifier;
+			}
+		}
+		return undefined;
+	}
+
 	private async _getOutputAnalyzerMessage(exitCode: number | undefined, exitResult: string, commandLine: string, isSandboxWrapped: boolean): Promise<string | undefined> {
 		for (const analyzer of this._outputAnalyzers) {
 			const message = await analyzer.analyze({ exitCode, exitResult, commandLine, isSandboxWrapped });
@@ -2489,8 +2509,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return;
 		}
 
-		// Capture model/mode/tools from the last request so the steering message
-		// uses the same settings as the original conversation (not defaults).
+		// Capture mode/tools from the last request so the steering message uses
+		// the same settings as the original conversation (not defaults). The
+		// model is intentionally not inherited - these steering notifications
+		// are agent-internal turns and should be billed to the copilot utility
+		// small alias when available, falling back to the conversation model.
 		const lastRequest = sessionRef.object.lastRequest;
 		const sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools> } = {};
 		if (lastRequest) {
@@ -2499,6 +2522,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (lastRequest.userSelectedTools) {
 				sendOptions.userSelectedTools = constObservable(lastRequest.userSelectedTools);
 			}
+		}
+		const utilitySmallId = this._resolveUtilitySmallModelId();
+		if (utilitySmallId) {
+			sendOptions.userSelectedModelId = utilitySmallId;
 		}
 
 		// Continue the output monitor in background mode for prompt-for-input detection.
