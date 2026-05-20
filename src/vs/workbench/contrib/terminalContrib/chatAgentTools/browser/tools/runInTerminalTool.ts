@@ -2126,14 +2126,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * not available, in which case the caller leaves the conversation model
 	 * in place.
 	 */
-	private _resolveUtilitySmallModelId(): string | undefined {
-		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
-			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
-			if (metadata && metadata.vendor === 'copilot' && metadata.id === 'copilot-utility-small') {
-				return identifier;
-			}
-		}
-		return undefined;
+	private async _resolveUtilitySmallModelId(): Promise<string | undefined> {
+		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
+		return models[0];
 	}
 
 	private async _getOutputAnalyzerMessage(exitCode: number | undefined, exitResult: string, commandLine: string, isSandboxWrapped: boolean): Promise<string | undefined> {
@@ -2486,7 +2481,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * to detect prompts-for-input while the terminal runs in the background.
 	 * The output monitor is cancelled and disposed when a command finishes.
 	 */
-	private _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor?: OutputMonitor, alreadyNotifiedInputNeededOutput?: string): void {
+	private async _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor?: OutputMonitor, alreadyNotifiedInputNeededOutput?: string): Promise<void> {
 		// Dispose any previous background notification for this terminal instance to prevent
 		// listener accumulation (e.g. multiple onDidInputData subscriptions) when the same
 		// foreground terminal is reused across run_in_terminal invocations.
@@ -2523,7 +2518,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				sendOptions.userSelectedTools = constObservable(lastRequest.userSelectedTools);
 			}
 		}
-		const utilitySmallId = this._resolveUtilitySmallModelId();
+		const utilitySmallId = await this._resolveUtilitySmallModelId();
 		if (utilitySmallId) {
 			sendOptions.userSelectedModelId = utilitySmallId;
 			this._logService.debug(`RunInTerminalTool: Steering messages for background terminal ${termId} will use model '${utilitySmallId}'`);
