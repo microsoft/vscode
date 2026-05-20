@@ -9,12 +9,13 @@ import { QuickAccess } from './quickaccess';
 const AGENTS_WORKBENCH = '.agent-sessions-workbench';
 const NEW_SESSION_VIEW = '.sessions-chat-widget .new-chat-widget-container';
 const SESSION_TYPE_PICKER = '.sessions-chat-session-type-picker .action-label';
+const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
 const NEW_CHAT_EDITOR = `${NEW_SESSION_VIEW} .sessions-chat-editor .monaco-editor[role="code"]`;
 const SEND_BUTTON_ENABLED = `${NEW_SESSION_VIEW} .sessions-chat-send-button .monaco-button:not(.disabled)`;
 const RESPONSE = `${AGENTS_WORKBENCH} .interactive-item-container.interactive-response`;
 const RESPONSE_COMPLETE = `${RESPONSE}:not(.chat-response-loading)`;
 
-export class Agents {
+export class AgentsWindow {
 
 	constructor(private code: Code, private quickaccess: QuickAccess) { }
 
@@ -67,11 +68,14 @@ export class Agents {
 	}
 
 	/**
-	 * Wait until the new-session homepage is visible and ready.
-	 * The homepage shows when no session is active yet.
+	 * Wait until the new-session homepage is visible and the session type
+	 * picker is populated (i.e. no longer has the `.hidden` class). The
+	 * picker is hidden until the provider has loaded session types; clicking
+	 * it before that point silently does nothing.
 	 */
 	async waitForNewSessionView(retryCount: number = 600): Promise<void> {
 		await this.code.waitForElement(NEW_SESSION_VIEW, undefined, retryCount);
+		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE, undefined, retryCount);
 	}
 
 	/**
@@ -84,17 +88,16 @@ export class Agents {
 	 * wait for at least the requested label to appear before committing.
 	 */
 	async selectSessionType(label: string): Promise<void> {
-		await this.code.waitForElement(SESSION_TYPE_PICKER);
+		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
 
 		const itemSel = `.action-widget .monaco-list-row`;
-		const maxAttempts = 5;
+		const maxAttempts = 3;
 
-		// The dropdown entries are populated asynchronously by the session
-		// provider. Clicking the picker before the entries exist silently
-		// opens an empty widget that immediately closes. Retry the click
-		// until populated rows appear.
+		// The picker click can silently do nothing if the active session
+		// isn't fully initialized yet. Retry the click until the dropdown
+		// rows appear.
 		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-			await this.code.waitAndClick(SESSION_TYPE_PICKER);
+			await this.code.waitAndClick(SESSION_TYPE_PICKER_VISIBLE);
 			try {
 				await this.code.waitForElement(itemSel, el => !!el && (el.textContent ?? '').trim().length > 0, 30 /* ~3 seconds */);
 				break;
@@ -102,7 +105,6 @@ export class Agents {
 				if (attempt === maxAttempts) {
 					throw new Error(`Session type picker did not populate after ${maxAttempts} attempts`);
 				}
-				// Wait before retrying to give the provider time to populate
 				await new Promise(r => setTimeout(r, 2000));
 			}
 		}

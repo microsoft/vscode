@@ -115,8 +115,8 @@ export function setup(logger: Logger) {
 
 			// `--enable-smoke-test-driver` (set by the runner) skips the auth dialog.
 			const windowsBefore = app.code.driver.getAllWindows().length;
-			await app.workbench.agents.openCurrentFolderInAgentsWindow();
-			await app.workbench.agents.switchToAgentsWindow(windowsBefore);
+			await app.workbench.agentsWindow.openCurrentFolderInAgentsWindow();
+			await app.workbench.agentsWindow.switchToAgentsWindow(windowsBefore);
 		});
 
 		after(async function () {
@@ -128,13 +128,13 @@ export function setup(logger: Logger) {
 		it('sends hello world via Copilot session type and receives a mocked response', async function () {
 			const app = this.app as Application;
 
-			await app.workbench.agents.waitForNewSessionView();
-			await app.workbench.agents.selectSessionType('Copilot CLI');
+			await app.workbench.agentsWindow.waitForNewSessionView();
+			await app.workbench.agentsWindow.selectSessionType('Copilot CLI');
 
 			const requestsBefore = mockServer.requestCount();
-			await app.workbench.agents.submitNewSessionPrompt(`hello world [scenario:${COPILOT_SCENARIO_ID}]`);
+			await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${COPILOT_SCENARIO_ID}]`);
 
-			const text = await app.workbench.agents.waitForAssistantText(COPILOT_REPLY);
+			const text = await app.workbench.agentsWindow.waitForAssistantText(COPILOT_REPLY);
 			logger.log(`Agents Window (Copilot) response: ${text}`);
 
 			assert.ok(
@@ -143,17 +143,17 @@ export function setup(logger: Logger) {
 			);
 		});
 
-		it.skip('sends hello world via Claude session type and receives a mocked response', async function () {
+		it('sends hello world via Claude session type and receives a mocked response', async function () {
 			const app = this.app as Application;
 
-			await app.workbench.agents.startNewSession();
-			await app.workbench.agents.waitForNewSessionView();
-			await app.workbench.agents.selectSessionType('Claude');
+			await app.workbench.agentsWindow.startNewSession();
+			await app.workbench.agentsWindow.waitForNewSessionView();
+			await app.workbench.agentsWindow.selectSessionType('Claude');
 
 			const requestsBefore = mockServer.requestCount();
-			await app.workbench.agents.submitNewSessionPrompt(`hello world [scenario:${CLAUDE_SCENARIO_ID}]`);
+			await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${CLAUDE_SCENARIO_ID}]`);
 
-			const text = await app.workbench.agents.waitForAssistantText(CLAUDE_REPLY);
+			const text = await app.workbench.agentsWindow.waitForAssistantText(CLAUDE_REPLY);
 			logger.log(`Agents Window (Claude) response: ${text}`);
 
 			assert.ok(
@@ -162,17 +162,17 @@ export function setup(logger: Logger) {
 			);
 		});
 
-		it.skip('sends hello world via Local session type and receives a mocked response', async function () {
+		it('sends hello world via Local session type and receives a mocked response', async function () {
 			const app = this.app as Application;
 
-			await app.workbench.agents.startNewSession();
-			await app.workbench.agents.waitForNewSessionView();
-			await app.workbench.agents.selectSessionType('Local');
+			await app.workbench.agentsWindow.startNewSession();
+			await app.workbench.agentsWindow.waitForNewSessionView();
+			await app.workbench.agentsWindow.selectSessionType('Local');
 
 			const requestsBefore = mockServer.requestCount();
-			await app.workbench.agents.submitNewSessionPrompt(`hello world [scenario:${LOCAL_SCENARIO_ID}]`);
+			await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${LOCAL_SCENARIO_ID}]`);
 
-			const text = await app.workbench.agents.waitForAssistantText(LOCAL_REPLY);
+			const text = await app.workbench.agentsWindow.waitForAssistantText(LOCAL_REPLY);
 			logger.log(`Agents Window (Local) response: ${text}`);
 
 			assert.ok(
