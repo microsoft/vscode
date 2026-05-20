@@ -101,7 +101,7 @@ Each session operates on an **`ISessionWorkspace`** containing one or more **`IS
 
 Workspaces carry a `group` label (e.g., `"Local"`, `"Remote"`) used by the workspace picker to organize entries into tabs via the `SESSION_WORKSPACE_GROUP_LOCAL` / `SESSION_WORKSPACE_GROUP_REMOTE` constants.
 
-Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side only for newly created sessions, after the session reports a concrete `gitRepository.workTreeUri`. Restored sessions, untitled placeholders, and runtimes that declare `capabilities.runsWorktreeCreatedTasks` are skipped so setup tasks are not re-run on window open or double-run with server-side provisioning.
+Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side only for newly created sessions, after the session reports a concrete `gitRepository.workTreeUri`. Restored sessions and runtimes that declare `capabilities.runsWorktreeCreatedTasks` are skipped so setup tasks are not re-run on window open or double-run with server-side provisioning; untitled placeholders are deferred until they become committed worktree sessions.
 
 ### Session Types
 

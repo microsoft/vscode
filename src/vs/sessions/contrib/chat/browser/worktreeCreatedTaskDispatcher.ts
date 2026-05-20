@@ -32,7 +32,7 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 	// Track per-session disposables (one per in-flight session subscription) so
 	// we tear them down when the session is removed.
 	private readonly _sessionDisposables = this._register(new DisposableMap<string>());
-	private readonly _startedAt = Date.now();
+	private readonly _dispatchedSessions = new Set<string>();
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -42,38 +42,41 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 		super();
 
 		for (const session of this._sessionsManagementService.getSessions()) {
-			if (session.status.get() === SessionStatus.Untitled) {
-				this._trackSession(session, true);
-			}
+			this._trackSession(session);
 		}
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => this._onDidChangeSessions(e)));
 	}
 
 	private _onDidChangeSessions(e: ISessionsChangeEvent): void {
+		const removedTrackedSessions: ISession[] = [];
 		for (const session of e.removed) {
+			if (this._sessionDisposables.get(session.sessionId) && !this._dispatchedSessions.has(session.sessionId)) {
+				removedTrackedSessions.push(session);
+			}
 			this._sessionDisposables.deleteAndDispose(session.sessionId);
+			this._dispatchedSessions.delete(session.sessionId);
 		}
 		for (const session of e.added) {
 			this._trackSession(session);
 		}
+		const replacement = e.added.length === 0 && e.changed.length === 1 && removedTrackedSessions.length === 1
+			? removedTrackedSessions[0]
+			: undefined;
 		for (const session of e.changed) {
-			this._trackSession(session);
+			this._trackSession(session, replacement?.providerId === session.providerId && replacement.sessionType === session.sessionType);
 		}
 	}
 
-	private _trackSession(session: ISession, allowPredatedSession = false): void {
+	private _trackSession(session: ISession, allowReadySession = false): void {
 		if (session.capabilities.runsWorktreeCreatedTasks) {
 			// The session's runtime already runs these tasks itself.
 			return;
 		}
-		if (!allowPredatedSession && session.createdAt.getTime() < this._startedAt) {
-			// Restored sessions can be reported as "added" while providers
-			// hydrate on window open. Only sessions created after this dispatcher
-			// starts are eligible for the one-shot worktree-created hook.
+		if (this._sessionDisposables.get(session.sessionId)) {
 			return;
 		}
-		if (this._sessionDisposables.get(session.sessionId)) {
+		if (!allowReadySession && !this._isPendingWorktreeSession(session)) {
 			return;
 		}
 
@@ -96,8 +99,17 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 				return;
 			}
 			dispatched = true;
+			this._dispatchedSessions.add(session.sessionId);
 			void this._dispatchWorktreeCreatedTasks(session);
 		}));
+	}
+
+	private _isPendingWorktreeSession(session: ISession): boolean {
+		return session.status.get() === SessionStatus.Untitled || session.loading.get() || !this._hasWorktree(session);
+	}
+
+	private _hasWorktree(session: ISession): boolean {
+		return session.workspace.get()?.folders.some(folder => !!folder.gitRepository?.workTreeUri) ?? false;
 	}
 
 	private async _dispatchWorktreeCreatedTasks(session: ISession): Promise<void> {
