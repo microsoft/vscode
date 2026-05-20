@@ -243,13 +243,13 @@ class AgentHostAgentPickerActionItem extends ChatInputPickerActionViewItem {
 		const label = current ? current.name : nls.localize('agentPickerDefault', "Agent");
 
 		const elements = [];
-		const collapsed = this.pickerOptions.hideChevrons.get();
+		const compact = this.pickerOptions.compact.get();
 		// Only the default placeholder shows an icon; a chosen custom
 		// agent is rendered as a plain label.
 		if (!current) {
 			elements.push(...renderLabelWithIcons(`$(${Codicon.agent.id})`));
 		}
-		if (!collapsed || current) {
+		if (!compact || current) {
 			elements.push(dom.$('span.chat-input-picker-label', undefined, label));
 		}
 		dom.reset(element, ...elements);
@@ -318,7 +318,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 			};
 
 			const pickerOptions: IChatInputPickerOptions = {
-				hideChevrons: observableValue('hideChevrons', false),
+				compact: observableValue('compact', false),
 			};
 			const action = { id: 'sessions.agentHost.agentPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 			const picker = scopedInstantiationService.createInstance(AgentHostAgentPickerActionItem, action, delegate, pickerOptions);

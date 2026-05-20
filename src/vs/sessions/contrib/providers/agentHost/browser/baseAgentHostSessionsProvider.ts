@@ -829,12 +829,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected _rootConfig: RootConfigState | undefined;
 
 	/**
-	 * Last-known root state, seeded from {@link _syncSessionTypesFromRootState}.
-	 * Used to compute the effective custom-agent set per session.
-	 */
-	protected _lastRootState: RootState | undefined;
-
-	/**
 	 * Last-known session state per session ID, seeded from
 	 * {@link _applySessionStateUpdate}. Holds the snapshot used to extract
 	 * `customizations` and `activeClient.customizations` for the picker.
@@ -982,7 +976,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * id/label set actually changed.
 	 */
 	protected _syncSessionTypesFromRootState(rootState: RootState): void {
-		this._lastRootState = rootState;
 		this._onDidChangeCustomAgents.fire();
 		const next = rootState.agents.map((agent): ISessionType => ({
 			id: agent.provider,
