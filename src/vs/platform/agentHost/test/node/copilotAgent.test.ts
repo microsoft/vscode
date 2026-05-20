@@ -48,7 +48,7 @@ class TestAgentPluginManager implements IAgentPluginManager {
 
 	readonly basePath = URI.from({ scheme: 'inmemory', path: '/agentPlugins' });
 
-	async syncCustomizations(_clientId: string, _customizations: CustomizationRef[], _progress?: (status: SessionCustomization[]) => void): Promise<ISyncedCustomization[]> {
+	async syncCustomizations(_clientId: string, _customizations: CustomizationRef[], _progress?: (status: SessionCustomization) => void): Promise<ISyncedCustomization[]> {
 		return [];
 	}
 }
@@ -607,7 +607,7 @@ suite('CopilotAgent', () => {
 		class SpyingPluginManager extends TestAgentPluginManager {
 			public readonly calls: { clientId: string; customizations: CustomizationRef[] }[] = [];
 
-			override async syncCustomizations(clientId: string, customizations: CustomizationRef[], _progress?: (status: SessionCustomization[]) => void): Promise<ISyncedCustomization[]> {
+			override async syncCustomizations(clientId: string, customizations: CustomizationRef[], _progress?: (status: SessionCustomization) => void): Promise<ISyncedCustomization[]> {
 				this.calls.push({ clientId, customizations: [...customizations] });
 				return [];
 			}

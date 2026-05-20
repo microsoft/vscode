@@ -169,7 +169,7 @@ export class MockAgent implements IAgent {
 		return this.customizations;
 	}
 
-	async setClientCustomizations(clientId: string, customizations: CustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
+	async setClientCustomizations(session: URI, clientId: string, customizations: CustomizationRef[]): Promise<ISyncedCustomization[]> {
 		this.setClientCustomizationsCalls.push({ clientId, customizations });
 		const results: ISyncedCustomization[] = customizations.map(c => ({
 			customization: {
@@ -178,7 +178,16 @@ export class MockAgent implements IAgent {
 				status: CustomizationStatus.Loaded,
 			},
 		}));
-		progress?.(results);
+		if (results.length > 0) {
+			this._onDidSessionProgress.fire({
+				kind: 'action',
+				session,
+				action: {
+					type: ActionType.SessionCustomizationsChanged,
+					customizations: results.map(result => result.customization),
+				},
+			});
+		}
 		return results;
 	}
 
