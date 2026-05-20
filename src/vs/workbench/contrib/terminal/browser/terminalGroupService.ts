@@ -340,6 +340,9 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			return;
 		}
 		const oldIndex = this.activeGroupIndex;
+		if (oldIndex < 0 || oldIndex >= this.groups.length) {
+			return;
+		}
 		let newIndex = oldIndex + delta;
 		if (newIndex < 0) {
 			newIndex = this.groups.length - 1;
