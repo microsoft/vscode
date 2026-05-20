@@ -53,7 +53,8 @@ interface PackagedCopilotCLIOutcome {
 suite('Copilot CLI Chat Sanity Test', function () {
 	this.timeout(1000 * 60 * 2); // 2 minutes
 
-	const usePackagedExtension = !!process.env.COPILOT_TEST_EXTENSION_PATH;
+	const useExternalExtension = !!process.env.COPILOT_TEST_EXTENSION_PATH || !!process.env.COPILOT_TEST_VSIX_PATH;
+	const useInstalledVsix = !!process.env.COPILOT_TEST_VSIX_PATH;
 	let realInstaAccessor: IInstantiationService | undefined;
 	let realContext: vscode.ExtensionContext | undefined;
 	let sandbox: sinon.SinonSandbox;
@@ -73,7 +74,7 @@ suite('Copilot CLI Chat Sanity Test', function () {
 
 		sandbox = sinon.createSandbox();
 
-		if (!usePackagedExtension) {
+		if (!useExternalExtension) {
 			const createChatParticipant = vscode.chat.createChatParticipant.bind(vscode.chat);
 			sandbox.stub(vscode.chat, 'createChatParticipant').callsFake((...args: Parameters<typeof vscode.chat.createChatParticipant>) => {
 				const [id, handler] = args;
@@ -90,9 +91,12 @@ suite('Copilot CLI Chat Sanity Test', function () {
 		const token = process.env.GITHUB_PAT ?? process.env.GITHUB_OAUTH_TOKEN;
 		assert.ok(token, 'Expected GITHUB_PAT or GITHUB_OAUTH_TOKEN to be set for Copilot CLI sanity auth. Run `npm run get_token` first.');
 
-		if (usePackagedExtension) {
+		if (useExternalExtension) {
 			process.env.IS_SCENARIO_AUTOMATION = '1';
 			disposables.push(registerGitHubAuthenticationProvider(token));
+			if (useInstalledVsix) {
+				await assertInstalledVsixExtension(extension);
+			}
 			await extension.activate();
 		} else {
 			sandbox.stub(vscode.commands, 'registerCommand').returns({ dispose: () => { } });
@@ -132,7 +136,7 @@ suite('Copilot CLI Chat Sanity Test', function () {
 	});
 
 	test('Copilot CLI participant streams a response without query error', async function () {
-		if (usePackagedExtension) {
+		if (useExternalExtension) {
 			await assertPackagedCopilotCLIResponse();
 			return;
 		}
@@ -243,7 +247,42 @@ suite('Copilot CLI Chat Sanity Test', function () {
 	}
 
 	function isQueryFailure(message: string): boolean {
-		return /\[CopilotCLISession\]CopilotCLI error: \(query\)|\(query\) Execution failed/.test(message);
+		return /\[CopilotCLISession\]CopilotCLI error: \(query\)|\(query\) Execution failed|Native addon ".*" not found|Failed to load @github\/copilot\/sdk|Unable to find node-pty binaries|Failed to create (?:node-pty|ripgrep) shim/.test(message);
+	}
+
+	async function assertInstalledVsixExtension(extension: vscode.Extension<unknown>): Promise<void> {
+		const extensionPath = await realpathOrResolve(extension.extensionPath);
+		const extensionInfo = formatResolvedExtensionInfo(extension, extensionPath);
+		console.log(`[Copilot CLI Sanity] ${extensionInfo.replaceAll('\n', '\n[Copilot CLI Sanity] ')}`);
+		const sourceExtensionPath = process.env.COPILOT_TEST_SOURCE_EXTENSION_PATH ? await realpathOrResolve(process.env.COPILOT_TEST_SOURCE_EXTENSION_PATH) : undefined;
+		assert.notStrictEqual(extensionPath, sourceExtensionPath, `Expected installed VSIX extension, but resolved source extension.\n${extensionInfo}`);
+
+		const bundledExtensionPath = process.env.COPILOT_TEST_EXTENSION_PATH ? await realpathOrResolve(process.env.COPILOT_TEST_EXTENSION_PATH) : undefined;
+		assert.notStrictEqual(extensionPath, bundledExtensionPath, `Expected installed VSIX extension, but resolved bundled extension.\n${extensionInfo}`);
+
+		const extractedVsixExtensionPath = process.env.COPILOT_TEST_VSIX_EXTENSION_PATH ? await realpathOrResolve(process.env.COPILOT_TEST_VSIX_EXTENSION_PATH) : undefined;
+		assert.strictEqual(extensionPath, extractedVsixExtensionPath, `Expected extracted VSIX extension, but resolved another Copilot Chat extension.\n${extensionInfo}\nExpected extracted VSIX extension path: ${extractedVsixExtensionPath ?? '(none)'}`);
+	}
+
+	function formatResolvedExtensionInfo(extension: vscode.Extension<unknown>, extensionPath: string): string {
+		const matchingExtensions = vscode.extensions.all
+			.filter(candidate => candidate.id.toLowerCase() === 'github.copilot-chat')
+			.map(candidate => `${candidate.id} -> ${candidate.extensionPath}`)
+			.join('\n');
+		return [
+			`Resolved extension id: ${extension.id}`,
+			`Resolved extension path: ${extensionPath}`,
+			`Resolved extension package: ${extension.packageJSON?.publisher}.${extension.packageJSON?.name}@${extension.packageJSON?.version}`,
+			`Expected VSIX basename: ${process.env.COPILOT_TEST_VSIX_BASENAME ?? '(none)'}`,
+			`Expected extracted VSIX extension path: ${process.env.COPILOT_TEST_VSIX_EXTENSION_PATH ?? '(none)'}`,
+			`Source extension path: ${process.env.COPILOT_TEST_SOURCE_EXTENSION_PATH ?? '(none)'}`,
+			`Bundled extension path: ${process.env.COPILOT_TEST_EXTENSION_PATH ?? '(none)'}`,
+			`All Github.copilot-chat extensions:\n${matchingExtensions || '(none)'}`,
+		].join('\n');
+	}
+
+	async function realpathOrResolve(candidatePath: string): Promise<string> {
+		return path.resolve(await fs.realpath(candidatePath).catch(() => candidatePath));
 	}
 
 	async function readPackagedCopilotCLIOutcome(logBefore: string): Promise<PackagedCopilotCLIOutcome> {

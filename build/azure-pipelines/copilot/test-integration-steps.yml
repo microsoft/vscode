@@ -53,6 +53,12 @@ steps:
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Compile copilot
 
+  - script: |
+      node -e "require('fs').mkdirSync('.build', { recursive: true })"
+      npx vsce package -o .build/copilot-chat-sanity.vsix --allow-package-secrets sendgrid
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Package Copilot VSIX for sanity
+
   # Run Copilot integration tests
   - ${{ if eq(parameters.OS, 'linux') }}:
     - script: xvfb-run -a npm run test:extension
@@ -75,7 +81,7 @@ steps:
       timeoutInMinutes: 15
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
-        COPILOT_TEST_EXTENSION_PATH: $(COPILOT_TEST_EXTENSION_PATH)
+        COPILOT_TEST_VSIX_PATH: $(Build.SourcesDirectory)/extensions/copilot/.build/copilot-chat-sanity.vsix
 
   - ${{ if eq(parameters.OS, 'darwin') }}:
     - script: npm run test:extension
@@ -98,7 +104,7 @@ steps:
       timeoutInMinutes: 15
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
-        COPILOT_TEST_EXTENSION_PATH: $(COPILOT_TEST_EXTENSION_PATH)
+        COPILOT_TEST_VSIX_PATH: $(Build.SourcesDirectory)/extensions/copilot/.build/copilot-chat-sanity.vsix
 
   - ${{ if eq(parameters.OS, 'win32') }}:
     - powershell: npm run test:extension
@@ -124,4 +130,4 @@ steps:
       timeoutInMinutes: 15
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
-        COPILOT_TEST_EXTENSION_PATH: $(COPILOT_TEST_EXTENSION_PATH)
+        COPILOT_TEST_VSIX_PATH: $(Build.SourcesDirectory)/extensions/copilot/.build/copilot-chat-sanity.vsix
