@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as cp from 'child_process';
 import * as path from 'path';
 import { Application, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
@@ -98,6 +99,12 @@ export function setup(logger: Logger) {
 			// with the smoke-test workspace folder pre-selected. Subsequent tests
 			// reuse this window and just start fresh sessions.
 			const app = this.app as Application;
+
+			// Reset any uncommitted changes left by earlier smoke test suites
+			// (e.g. the Tasks test modifies .vscode/tasks.json). A dirty
+			// workspace prevents worktree creation and triggers the
+			// "uncommitted changes" confirmation flow which aborts the session.
+			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
 
 			// overrideProxyUrl redirects all Copilot SDK traffic to our mock server
 			// and enables HMAC auth — no real GitHub token required.
