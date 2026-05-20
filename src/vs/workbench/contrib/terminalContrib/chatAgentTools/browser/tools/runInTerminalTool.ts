@@ -2481,7 +2481,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * to detect prompts-for-input while the terminal runs in the background.
 	 * The output monitor is cancelled and disposed when a command finishes.
 	 */
-	private async _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor?: OutputMonitor, alreadyNotifiedInputNeededOutput?: string): Promise<void> {
+	private _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor?: OutputMonitor, alreadyNotifiedInputNeededOutput?: string): void {
 		// Dispose any previous background notification for this terminal instance to prevent
 		// listener accumulation (e.g. multiple onDidInputData subscriptions) when the same
 		// foreground terminal is reused across run_in_terminal invocations.
@@ -2518,13 +2518,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				sendOptions.userSelectedTools = constObservable(lastRequest.userSelectedTools);
 			}
 		}
-		const utilitySmallId = await this._resolveUtilitySmallModelId();
-		if (utilitySmallId) {
-			sendOptions.userSelectedModelId = utilitySmallId;
-			this._logService.debug(`RunInTerminalTool: Steering messages for background terminal ${termId} will use model '${utilitySmallId}'`);
-		} else {
-			this._logService.debug(`RunInTerminalTool: 'copilot/copilot-utility-small' alias unavailable; steering messages for background terminal ${termId} will use conversation model '${sendOptions.userSelectedModelId ?? '<default>'}'`);
-		}
+		const utilitySmallIdPromise = this._resolveUtilitySmallModelId().then(utilitySmallId => {
+			if (utilitySmallId) {
+				this._logService.debug(`RunInTerminalTool: Steering messages for background terminal ${termId} will use model '${utilitySmallId}'`);
+			} else {
+				this._logService.debug(`RunInTerminalTool: 'copilot/copilot-utility-small' alias unavailable; steering messages for background terminal ${termId} will use conversation model '${sendOptions.userSelectedModelId ?? '<default>'}'`);
+			}
+			return utilitySmallId;
+		}, err => {
+			this._logService.debug(`RunInTerminalTool: Failed to resolve 'copilot/copilot-utility-small' alias for terminal ${termId}; steering messages will use conversation model. Error: ${err}`);
+			return undefined;
+		});
+		const resolveSendOptions = async (): Promise<typeof sendOptions> => {
+			const utilitySmallId = await utilitySmallIdPromise;
+			return utilitySmallId ? { ...sendOptions, userSelectedModelId: utilitySmallId } : sendOptions;
+		};
 
 		// Continue the output monitor in background mode for prompt-for-input detection.
 		// The monitor wakes only on new terminal data (not on a fixed interval), so
@@ -2641,13 +2649,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 				this._logService.debug(`RunInTerminalTool: Input needed in background terminal ${termId}, notifying chat session`);
 
-				this._chatService.sendRequest(chatSessionResource, message, {
-					...sendOptions,
+				resolveSendOptions().then(opts => this._chatService.sendRequest(chatSessionResource, message, {
+					...opts,
 					queue: ChatRequestQueueKind.Steering,
 					isSystemInitiated: true,
 					systemInitiatedLabel: localize('terminalAssessingOutput', "`{0}` may need input", commandName),
 					terminalExecutionId: termId,
-				}).catch(e => {
+				})).catch(e => {
 					this._logService.warn(`RunInTerminalTool: Failed to send input-needed notification for terminal ${termId}`, e);
 				});
 			}));
@@ -2695,13 +2703,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			this._logService.debug(`RunInTerminalTool: Command completed in background terminal ${termId}, notifying chat session`);
 
-			this._chatService.sendRequest(chatSessionResource, message, {
-				...sendOptions,
+			resolveSendOptions().then(opts => this._chatService.sendRequest(chatSessionResource, message, {
+				...opts,
 				queue: ChatRequestQueueKind.Steering,
 				isSystemInitiated: true,
 				systemInitiatedLabel: localize('terminalCommandCompleted', "`{0}` completed", commandName),
 				terminalExecutionId: termId,
-			}).catch(e => {
+			})).catch(e => {
 				this._logService.warn(`RunInTerminalTool: Failed to send completion notification for terminal ${termId}`, e);
 			});
 
@@ -2763,13 +2771,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			disposeNotification();
 			const message = `[Terminal ${termId} notification: terminal exited${exitCodeText}. The terminal process ended before the command could complete normally; further commands cannot be sent to this terminal ID.]\nTerminal output:\n${currentOutput}`;
 			this._logService.debug(`RunInTerminalTool: Background terminal ${termId} disposed${exitCodeText}, notifying chat session`);
-			this._chatService.sendRequest(chatSessionResource, message, {
-				...sendOptions,
+			resolveSendOptions().then(opts => this._chatService.sendRequest(chatSessionResource, message, {
+				...opts,
 				queue: ChatRequestQueueKind.Steering,
 				isSystemInitiated: true,
 				systemInitiatedLabel: localize('terminalProcessExited', "`{0}` terminal exited", commandName),
 				terminalExecutionId: termId,
-			}).catch(e => {
+			})).catch(e => {
 				this._logService.warn(`RunInTerminalTool: Failed to send terminal-exited notification for terminal ${termId}`, e);
 			});
 		}));
