@@ -398,6 +398,27 @@ suite('LocalAgentHostSessionsProvider', () => {
 		);
 	});
 
+	test('session icons match the session type icon', () => {
+		agentHost.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+			{ provider: 'claude-code', displayName: 'Claude', description: '', models: [] } as AgentInfo,
+			{ provider: 'unknown-agent', displayName: 'Unknown', description: '', models: [] } as AgentInfo,
+		]);
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'cli-sess', { title: 'CLI', provider: 'copilotcli' });
+		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude-code' });
+		fireSessionAdded(agentHost, 'unknown-sess', { title: 'Unknown', provider: 'unknown-agent' });
+
+		assert.deepStrictEqual(
+			provider.getSessions().map(s => ({ sessionType: s.sessionType, icon: s.icon.id })).sort((a, b) => a.sessionType.localeCompare(b.sessionType)),
+			[
+				{ sessionType: 'claude-code', icon: 'claude' },
+				{ sessionType: 'copilotcli', icon: 'copilot' },
+				{ sessionType: 'unknown-agent', icon: 'vm' },
+			],
+		);
+	});
+
 	// ---- Workspace resolution -------
 
 	test('resolveWorkspace builds workspace from URI', () => {
