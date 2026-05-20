@@ -313,9 +313,9 @@ function normalizePath(path: string): string {
 	}
 
 	// Trailing separator
-	if (path.length > 1 && /[/\\]$/.test(path)) {
-		// Remove trailing separator, but preserve root paths
-		// (e.g., "/" on Linux/macOS or "C:\" on Windows)
+	if (path !== dirname(path) && /[/\\]$/.test(path)) {
+		// Remove trailing separators from non-root paths, while preserving
+		// filesystem roots such as "/" on Linux/macOS and "C:\" or UNC roots on Windows.
 		path = path.substring(0, path.length - 1);
 	}
 
