@@ -23,6 +23,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { ChatResponseNotebookEditPart, ChatResponseTextEditPart, ChatToolInvocationPart, ExtendedLanguageModelToolResult, LanguageModelTextPart, MarkdownString, Range } from '../../../vscodeTypes';
 import { Conversation, Turn } from '../../prompt/common/conversation';
 import { IBuildPromptContext } from '../../prompt/common/intents';
+import type { IToolCallLoopResult } from '../../intents/node/toolCallingLoop';
 import { SearchSubagentToolCallingLoop, isContextOverflowBadRequest } from '../../prompt/node/searchSubagentToolCallingLoop';
 import { ToolName } from '../common/toolNames';
 import { CopilotToolMode, ICopilotTool, ICopilotToolCtor, ToolRegistry } from '../common/toolsRegistry';
@@ -49,10 +50,20 @@ const THOROUGHNESS_MULTIPLIERS: Record<NonNullable<ISearchSubagentParams['thorou
 	deep: 2,
 };
 
-const CONTEXT_OVERFLOW_FALLBACK = `<final_answer>\nThe search subagent was unable to complete this query because the accumulated search context exceeded the model's context window. Consider issuing a more focused query.\n</final_answer>`;
+export const CONTEXT_OVERFLOW_FALLBACK = `<final_answer>\nThe search subagent was unable to complete this query because the accumulated search context exceeded the model's context window. Consider issuing a more focused query.\n</final_answer>`;
 
 function computeToolCallLimitForThoroughness(baseLimit: number, thoroughness: NonNullable<ISearchSubagentParams['thoroughness']>): number {
 	return Math.max(1, Math.round(baseLimit * THOROUGHNESS_MULTIPLIERS[thoroughness]));
+}
+
+export function mapLoopResponseToText(result: IToolCallLoopResult): string {
+	if (result.response.type === ChatFetchResponseType.Success) {
+		return result.toolCallRounds.at(-1)?.response ?? result.round.response ?? '';
+	}
+	if (isContextOverflowBadRequest(result.response)) {
+		return CONTEXT_OVERFLOW_FALLBACK;
+	}
+	return `The search subagent request failed with this message:\n${result.response.type}: ${result.response.reason}`;
 }
 
 class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
@@ -171,17 +182,7 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 		let subagentResponse: string;
 		try {
 			const loopResult = await this.requestLogger.captureInvocation(searchSubagentToken, () => loop.run(stream, token));
-			if (loopResult.response.type === ChatFetchResponseType.Success) {
-				subagentResponse = loopResult.toolCallRounds.at(-1)?.response ?? loopResult.round.response ?? '';
-			} else if (isContextOverflowBadRequest(loopResult.response)) {
-				// All in-loop budget shrinks failed to fit. Return a graceful "no results" message
-				// rather than surfacing the API error to the main agent — this keeps autopilot from
-				// retrying the entire turn on a context_length_exceeded that the subagent can't
-				// recover from anyway
-				subagentResponse = CONTEXT_OVERFLOW_FALLBACK;
-			} else {
-				subagentResponse = `The search subagent request failed with this message:\n${loopResult.response.type}: ${loopResult.response.reason}`;
-			}
+			subagentResponse = mapLoopResponseToText(loopResult);
 		} catch (err) {
 			if (!(err instanceof BudgetExceededError)) {
 				throw err;
