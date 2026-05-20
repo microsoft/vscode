@@ -9,8 +9,6 @@ import { Emitter } from '../../../../base/common/event.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -23,11 +21,17 @@ suite('TerminalSandboxEngine', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
-	let configurationService: TestConfigurationService;
+	let sandboxSettings: Map<string, unknown>;
+	let sandboxSettingsEmitter: Emitter<void>;
 	let fileService: MockFileService;
 	let createdFiles: Map<string, string>;
 	let createFileCount: number;
 	let createdFolders: string[];
+
+	function setSandboxSetting(key: string, value: unknown): void {
+		sandboxSettings.set(key, value);
+		sandboxSettingsEmitter.fire();
+	}
 
 	class MockFileService {
 		private readonly _realpaths = new Map<string, string>();
@@ -76,6 +80,8 @@ suite('TerminalSandboxEngine', () => {
 			checkSandboxDependencies: (): Promise<ISandboxDependencyStatus | undefined> => Promise.resolve({ bubblewrapInstalled: true, socatInstalled: true }),
 			getWindowsMxcFilesystemPolicy: (): Promise<IWindowsMxcFilesystemPolicy | undefined> => Promise.resolve(undefined),
 			getWindowsMxcEnvironment: (): Promise<string[] | undefined> => Promise.resolve(undefined),
+			getSandboxSetting: <T>(settingId: string): T | undefined => sandboxSettings.has(settingId) ? sandboxSettings.get(settingId) as T : undefined,
+			onDidChangeSandboxSettings: sandboxSettingsEmitter.event,
 			...overrides,
 		};
 		return Object.assign(host, { rootsEmitter });
@@ -108,12 +114,12 @@ suite('TerminalSandboxEngine', () => {
 		createFileCount = 0;
 		createdFolders = [];
 		instantiationService = store.add(new TestInstantiationService());
-		configurationService = new TestConfigurationService();
+		sandboxSettings = new Map();
+		sandboxSettingsEmitter = store.add(new Emitter<void>());
 		fileService = new MockFileService();
 
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+		sandboxSettings.set(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 
-		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
@@ -168,7 +174,7 @@ suite('TerminalSandboxEngine', () => {
 	});
 
 	test('resolves filesystem paths and expands home on Linux when writing the config', async () => {
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
 			allowRead: ['~/read-link'],
 			allowWrite: ['/write-link'],
 			denyRead: ['~/deny-read-link'],
@@ -200,7 +206,7 @@ suite('TerminalSandboxEngine', () => {
 	});
 
 	test('keeps filesystem paths without symlinks when writing the config', async () => {
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
 			allowRead: ['~/read-plain'],
 			allowWrite: ['/write-plain'],
 			denyRead: ['~/deny-read-plain'],
@@ -226,7 +232,7 @@ suite('TerminalSandboxEngine', () => {
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
 
 		// Disable the sandbox so the engine never creates a temp dir.
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
 
 		strictEqual(engine.getTempDir(), undefined);
 		await engine.cleanupTempDir(); // must not throw

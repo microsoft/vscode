@@ -11,8 +11,7 @@ import * as platform from '../../../../base/common/platform.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -20,7 +19,8 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
+import { AgentHostSandboxConfigKey } from '../../common/sandboxConfigSchema.js';
+import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { TerminalClaimKind, type TerminalClaim, type TerminalInfo } from '../../common/state/protocol/state.js';
 import { formatTerminalText, IAgentHostTerminalManager, type ICommandFinishedEvent, type ISendTextOptions } from '../../node/agentHostTerminalManager.js';
@@ -100,16 +100,45 @@ suite('CopilotShellTools', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createServices(options?: { sandboxEnabled?: boolean; deletedFolders?: string[] }): { instantiationService: IInstantiationService; terminalManager: TestAgentHostTerminalManager; configurationService: TestConfigurationService } {
+	interface IFakeAgentConfigurationService {
+		readonly service: IAgentConfigurationService;
+		setSandboxValue(key: string, value: unknown): void;
+	}
+
+	function createFakeAgentConfigurationService(initial?: Record<string, unknown>): IFakeAgentConfigurationService {
+		const configValues: Record<string, unknown> = { ...initial };
+		const emitter = disposables.add(new Emitter<void>());
+		const service: IAgentConfigurationService = {
+			_serviceBrand: undefined,
+			onDidRootConfigChange: emitter.event,
+			getEffectiveValue: () => undefined,
+			getEffectiveWorkingDirectory: () => undefined,
+			getSessionConfigValues: () => undefined,
+			updateSessionConfig: () => { /* no-op */ },
+			getRootValue: ((_schema: unknown, key: string) => configValues[key]) as IAgentConfigurationService['getRootValue'],
+			updateRootConfig: () => { /* no-op */ },
+			persistRootConfig: () => { /* no-op */ },
+		};
+		return {
+			service,
+			setSandboxValue(key, value) {
+				configValues[key] = value;
+				emitter.fire();
+			},
+		};
+	}
+
+	function createServices(options?: { sandboxEnabled?: boolean; deletedFolders?: string[] }): { instantiationService: IInstantiationService; terminalManager: TestAgentHostTerminalManager; agentConfigurationService: IFakeAgentConfigurationService } {
 		const terminalManager = new TestAgentHostTerminalManager();
-		const configurationService = new TestConfigurationService();
+		const initialSandboxValues: Record<string, unknown> = {};
 		if (options?.sandboxEnabled) {
-			configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+			initialSandboxValues[AgentHostSandboxConfigKey.Enabled] = AgentSandboxEnabledValue.On;
 		}
+		const agentConfigurationService = createFakeAgentConfigurationService(initialSandboxValues);
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IAgentHostTerminalManager, terminalManager);
-		services.set(IConfigurationService, configurationService);
+		services.set(IAgentConfigurationService, agentConfigurationService.service);
 		services.set(IFileService, {
 			createFile: async () => ({} as never),
 			createFolder: async () => ({} as never),
@@ -122,7 +151,7 @@ suite('CopilotShellTools', () => {
 		services.set(IProductService, { dataFolderName: '.test-data' } as Partial<IProductService> as IProductService);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		services.set(IInstantiationService, instantiationService);
-		return { instantiationService, terminalManager, configurationService };
+		return { instantiationService, terminalManager, agentConfigurationService };
 	}
 
 	async function waitForSentTexts(terminalManager: TestAgentHostTerminalManager, count: number): Promise<void> {
@@ -660,10 +689,10 @@ suite('CopilotShellTools', () => {
 			// Sandbox is not supported on Windows.
 			this.skip();
 		}
-		const { instantiationService, terminalManager, configurationService } = createServices({ sandboxEnabled: true });
+		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
 		// `requiresUnsandboxConfirmation` only fires when unsandboxed commands are allowed AND a
 		// blocked domain is detected — otherwise the engine keeps the command sandboxed.
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
+		agentConfigurationService.setSandboxValue(AgentHostSandboxConfigKey.AllowUnsandboxedCommands, true);
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');

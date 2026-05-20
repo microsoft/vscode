@@ -20,6 +20,7 @@ import { TerminalClaimKind, type TerminalSessionClaim } from '../../common/state
 import { isZsh } from '../agentHostShellUtils.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { createAgentHostSandboxEngine } from './agentHostSandboxEngine.js';
+import { IAgentConfigurationService } from '../agentConfigurationService.js';
 
 /**
  * Maximum scrollback content (in bytes) returned to the model in tool results.
@@ -124,6 +125,7 @@ export class ShellManager extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
+		@IAgentConfigurationService private readonly _agentConfigurationService: IAgentConfigurationService,
 	) {
 		super();
 
@@ -167,6 +169,7 @@ export class ShellManager extends Disposable {
 				this._instantiationService,
 				this._environmentService,
 				this._productService,
+				this._agentConfigurationService,
 				sessionId,
 				this.workingDirectory,
 			);

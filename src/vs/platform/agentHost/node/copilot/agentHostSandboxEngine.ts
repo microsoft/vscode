@@ -14,6 +14,8 @@ import { IProductService } from '../../../product/common/productService.js';
 import type { ISandboxDependencyStatus, ISandboxHelperService } from '../../../sandbox/common/sandboxHelperService.js';
 import { SandboxHelperService } from '../../../sandbox/node/sandboxHelper.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
+import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { sandboxConfigSchema, sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
 
 /** Subdirectory under the user home + product data folder where the engine creates its temp dir. */
 const SANDBOX_TEMP_DIR_NAME = 'tmp';
@@ -25,6 +27,7 @@ const SANDBOX_TEMP_DIR_NAME = 'tmp';
  */
 class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 	readonly onDidChangeRoots = Event.None;
+	readonly onDidChangeSandboxSettings: Event<void>;
 	private readonly _sandboxHelper: ISandboxHelperService;
 
 	constructor(
@@ -32,11 +35,13 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 		private readonly _workingDirectory: URI | undefined,
 		private readonly _environmentService: INativeEnvironmentService,
 		private readonly _productService: IProductService,
+		private readonly _agentConfigurationService: IAgentConfigurationService,
 	) {
 		// `ISandboxHelperService` is not registered in the agent host DI container,
 		// so construct the node implementation directly. The helper just probes for
 		// bubblewrap / sandbox-exec binaries on the local machine.
 		this._sandboxHelper = new SandboxHelperService();
+		this.onDidChangeSandboxSettings = this._agentConfigurationService.onDidRootConfigChange;
 	}
 
 	async getOS(): Promise<OperatingSystem> {
@@ -74,6 +79,19 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 	async checkSandboxDependencies(): Promise<ISandboxDependencyStatus | undefined> {
 		return this._sandboxHelper.checkSandboxDependencies();
 	}
+
+	getSandboxSetting<T>(settingId: string): T | undefined {
+		// The agent host stores sandbox settings under prefix-free keys
+		// (e.g. `enabled` rather than `chat.agent.sandbox.enabled`). Map from
+		// the engine's modern setting ID into that namespace; unknown IDs
+		// (which include all deprecated keys — handled host-side by the
+		// workbench client) resolve to undefined.
+		const key = sandboxSettingIdToAgentHostKey[settingId];
+		if (key === undefined) {
+			return undefined;
+		}
+		return this._agentConfigurationService.getRootValue(sandboxConfigSchema, key) as T | undefined;
+	}
 }
 
 /**
@@ -86,9 +104,11 @@ export function createAgentHostSandboxEngine(
 	instantiationService: IInstantiationService,
 	environmentService: IEnvironmentService,
 	productService: IProductService,
+	agentConfigurationService: IAgentConfigurationService,
 	sessionId: string,
 	workingDirectory: URI | undefined,
 ): TerminalSandboxEngine {
-	const host = new AgentHostTerminalSandboxHost(sessionId, workingDirectory, environmentService as INativeEnvironmentService, productService);
+	const host = new AgentHostTerminalSandboxHost(sessionId, workingDirectory, environmentService as INativeEnvironmentService, productService, agentConfigurationService);
 	return instantiationService.createInstance(TerminalSandboxEngine, host);
 }
+

@@ -10,7 +10,6 @@ import { posix, win32 } from '../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { matchesDomainPattern, normalizeDomain } from '../../networkFilter/common/domainMatcher.js';
@@ -78,6 +77,19 @@ export interface ITerminalSandboxEngineHost {
 	getWindowsMxcFilesystemPolicy(): Promise<IWindowsMxcFilesystemPolicy | undefined>;
 	/** Resolves host environment variables needed by the Windows MXC process container. */
 	getWindowsMxcEnvironment(): Promise<string[] | undefined>;
+	/**
+	 * Returns the effective value of a sandbox-related configuration setting,
+	 * or `undefined` when the setting is not configured. Implementations are
+	 * responsible for mapping deprecated keys to modern ones (the engine
+	 * only ever asks for the modern setting IDs).
+	 */
+	getSandboxSetting<T>(settingId: string): T | undefined;
+	/**
+	 * Fires when any value returned by {@link getSandboxSetting} may have
+	 * changed. The engine invalidates its sandbox-config file on each event.
+	 * Implementations should pre-filter to sandbox-relevant keys.
+	 */
+	readonly onDidChangeSandboxSettings: Event<void>;
 }
 
 /**
@@ -120,16 +132,13 @@ export class TerminalSandboxEngine extends Disposable {
 
 	constructor(
 		private readonly _host: ITerminalSandboxEngineHost,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IWindowsMxcTerminalSandboxRuntime private readonly _windowsMxcRuntime: IWindowsMxcTerminalSandboxRuntime,
 	) {
 		super();
-		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, (e: IConfigurationChangeEvent | undefined) => {
-			if (this._affectsSandboxConfiguration(e)) {
-				this.setNeedsForceUpdateConfigFile();
-			}
+		this._register(Event.runAndSubscribe(this._host.onDidChangeSandboxSettings, () => {
+			this.setNeedsForceUpdateConfigFile();
 		}));
 		this._register(this._host.onDidChangeRoots(() => this.setNeedsForceUpdateConfigFile()));
 	}
@@ -159,8 +168,8 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains {
-		const allowedDomains = this._getSettingValue<string[]>(AgentNetworkDomainSettingId.AllowedNetworkDomains, AgentNetworkDomainSettingId.DeprecatedSandboxAllowedNetworkDomains, AgentNetworkDomainSettingId.DeprecatedOldAllowedNetworkDomains) ?? [];
-		const deniedDomains = this._getSettingValue<string[]>(AgentNetworkDomainSettingId.DeniedNetworkDomains, AgentNetworkDomainSettingId.DeprecatedSandboxDeniedNetworkDomains, AgentNetworkDomainSettingId.DeprecatedOldDeniedNetworkDomains) ?? [];
+		const allowedDomains = this._getSettingValue<string[]>(AgentNetworkDomainSettingId.AllowedNetworkDomains) ?? [];
+		const deniedDomains = this._getSettingValue<string[]>(AgentNetworkDomainSettingId.DeniedNetworkDomains) ?? [];
 		return { allowedDomains, deniedDomains };
 	}
 
@@ -340,27 +349,6 @@ export class TerminalSandboxEngine extends Disposable {
 
 	// ---- private helpers ----------------------------------------------------
 
-	private _affectsSandboxConfiguration(e: IConfigurationChangeEvent | undefined): boolean {
-		if (!e) {
-			return true; // initial run-and-subscribe
-		}
-		return e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxEnabled)
-			|| e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled)
-			|| e.affectsConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxEnabled)
-			|| e.affectsConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains)
-			|| e.affectsConfiguration(AgentNetworkDomainSettingId.DeprecatedSandboxAllowedNetworkDomains)
-			|| e.affectsConfiguration(AgentNetworkDomainSettingId.DeprecatedOldAllowedNetworkDomains)
-			|| e.affectsConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains)
-			|| e.affectsConfiguration(AgentNetworkDomainSettingId.DeprecatedSandboxDeniedNetworkDomains)
-			|| e.affectsConfiguration(AgentNetworkDomainSettingId.DeprecatedOldDeniedNetworkDomains)
-			|| e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxLinuxFileSystem)
-			|| e.affectsConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxLinuxFileSystem)
-			|| e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxMacFileSystem)
-			|| e.affectsConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxMacFileSystem)
-			|| e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxWindowsFileSystem)
-			|| e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxAdvancedRuntime);
-	}
-
 	private async _checkSandboxDependencies(forceRefresh = false): Promise<boolean> {
 		const os = await this.getOS();
 		if (os === OperatingSystem.Windows) {
@@ -509,7 +497,7 @@ export class TerminalSandboxEngine extends Disposable {
 			return this._getSandboxConfiguredWindowsEnabledValue() === AgentSandboxEnabledValue.AllowNetwork;
 		}
 		const value = this._getSandboxConfiguredEnabledValue();
-		return value === true || value === AgentSandboxEnabledValue.On || value === AgentSandboxEnabledValue.AllowNetwork;
+		return value === AgentSandboxEnabledValue.On || value === AgentSandboxEnabledValue.AllowNetwork;
 	}
 
 	private async _resolveRuntimeInfo(): Promise<void> {
@@ -537,10 +525,10 @@ export class TerminalSandboxEngine extends Disposable {
 
 		const allowNetwork = await this.isSandboxAllowNetworkEnabled();
 		const linuxFileSystemSetting = this._os === OperatingSystem.Linux
-			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, AgentSandboxSettingId.DeprecatedAgentSandboxLinuxFileSystem) ?? {}
+			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxLinuxFileSystem) ?? {}
 			: {};
 		const macFileSystemSetting = this._os === OperatingSystem.Macintosh
-			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxMacFileSystem, AgentSandboxSettingId.DeprecatedAgentSandboxMacFileSystem) ?? {}
+			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxMacFileSystem) ?? {}
 			: {};
 		const windowsFileSystemSetting = this._os === OperatingSystem.Windows
 			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxWindowsFileSystem) ?? {}
@@ -774,8 +762,8 @@ export class TerminalSandboxEngine extends Disposable {
 		return root ? [this._getUriPath(root)] : [];
 	}
 
-	private _getSandboxConfiguredEnabledValue(): AgentSandboxEnabledValue | boolean {
-		return this._getSettingValue<AgentSandboxEnabledValue | boolean>(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxSettingId.DeprecatedAgentSandboxEnabled) ?? AgentSandboxEnabledValue.Off;
+	private _getSandboxConfiguredEnabledValue(): AgentSandboxEnabledValue {
+		return this._getSettingValue<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxEnabled) ?? AgentSandboxEnabledValue.Off;
 	}
 
 	private _getSandboxConfiguredWindowsEnabledValue(): AgentSandboxEnabledValue {
@@ -793,25 +781,7 @@ export class TerminalSandboxEngine extends Disposable {
 		return this._getSettingValue<boolean>(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands) === true;
 	}
 
-	private _getSettingValue<T>(settingId: AgentSandboxSettingId | AgentNetworkDomainSettingId, ...deprecatedSettingIds: (AgentSandboxSettingId | AgentNetworkDomainSettingId)[]): T | undefined {
-		const setting = this._configurationService.inspect<T>(settingId);
-		if (setting.userValue !== undefined) {
-			return setting.value;
-		}
-		if (deprecatedSettingIds.length > 0) {
-			const userConfiguredKeys = this._configurationService.keys().user;
-			for (const deprecatedId of deprecatedSettingIds) {
-				const deprecated = this._configurationService.inspect<T>(deprecatedId);
-				// Some deprecated settings are parent keys of newer settings, for example
-				// `chat.agent.sandbox` and `chat.agent.sandbox.fileSystem.linux`. Inspecting the
-				// parent key can return the namespace object even when the deprecated key itself
-				// was not configured, so only fall back when the exact deprecated key exists.
-				if (deprecated.userValue !== undefined && userConfiguredKeys.includes(deprecatedId)) {
-					this._logService.warn(`TerminalSandboxEngine: Using deprecated setting ${deprecatedId} because ${settingId} is not set. Please update your settings to use ${settingId} instead.`);
-					return deprecated.value;
-				}
-			}
-		}
-		return setting.value;
+	private _getSettingValue<T>(settingId: AgentSandboxSettingId | AgentNetworkDomainSettingId): T | undefined {
+		return this._host.getSandboxSetting<T>(settingId);
 	}
 }
