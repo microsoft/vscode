@@ -108,6 +108,8 @@
 	column-gap: 2px;
 	row-gap: 2px;
 	place-content: center;
+	margin-right: 3px;
+	margin-left: 2px;
 	color: var(--vscode-terminalCommandDecoration-defaultBackground);
 	pointer-events: none;
 }
