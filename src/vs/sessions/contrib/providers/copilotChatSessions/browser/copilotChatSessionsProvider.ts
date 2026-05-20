@@ -842,6 +842,14 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 				return;
 			}
 
+			const folder = this.sessionWorkspace.folders[0];
+			const baseGitRepo: ISessionGitRepository = folder.gitRepository ?? {
+				uri: folder.root,
+				workTreeUri: undefined,
+				baseBranchName: undefined,
+				gitHubInfo: constObservable(undefined),
+			};
+
 			this._register(autorun((reader) => {
 				const state = repo.state.read(reader);
 				const head = state.HEAD;
@@ -850,14 +858,6 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 					? `${head.upstream.remote}/${head.upstream.name}`
 					: undefined;
 				const uncommittedChanges = state.workingTreeChanges.length + state.untrackedChanges.length + state.indexChanges.length;
-
-				const folder = this.sessionWorkspace.folders[0];
-				const baseGitRepo: ISessionGitRepository = folder.gitRepository ?? {
-					uri: folder.root,
-					workTreeUri: undefined,
-					baseBranchName: undefined,
-					gitHubInfo: constObservable(undefined),
-				};
 
 				this._workspaceData.set({
 					...this.sessionWorkspace,
