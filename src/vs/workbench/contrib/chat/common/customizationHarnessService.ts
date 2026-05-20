@@ -12,7 +12,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { AICustomizationManagementSection, AICustomizationPromptsStorage, BUILTIN_STORAGE, IStorageSourceFilter } from './aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSource, AICustomizationSources, BUILTIN_STORAGE, IStorageSourceFilter } from './aiCustomizationWorkspaceService.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
 import { IAgentSource, IChatPromptSlashCommand, ICustomAgent, IPromptsService, IResolvedChatPromptSlashCommand, matchesSessionType, PromptsStorage } from './promptSyntax/service/promptsService.js';
@@ -164,8 +164,8 @@ export interface ICustomizationItem {
 	readonly type: string;
 	readonly name: string;
 	readonly description?: string;
-	/** Storage origin (local, user, extension, plugin, builtin). Set by providers that know the source. */
-	readonly storage?: AICustomizationPromptsStorage;
+	/** Customization source (local, user, extension, plugin, builtin). Set by providers that know the source. */
+	readonly source: AICustomizationSource;
 	/** The extension identifier that contributed this customization, if any. */
 	readonly extensionId: string | undefined;
 	/** The URI of the plugin that contributed this customization, if any. */
@@ -400,16 +400,16 @@ export function getCliUserRoots(userHome: URI): readonly URI[] {
  * Core passes `[PromptsStorage.extension]`; sessions passes its
  * BUILTIN_STORAGE constant.
  */
-function buildAllSources(extras: readonly string[]): readonly string[] {
-	return [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, ...extras];
+function buildAllSources(extras: readonly AICustomizationSource[]): readonly AICustomizationSource[] {
+	return [AICustomizationSources.local, AICustomizationSources.user, AICustomizationSources.plugin, ...extras];
 }
 
 /**
  * Creates a "VS Code" harness descriptor that shows all storage sources
  * with no user-root restrictions.
  */
-export function createVSCodeHarnessDescriptor(extras: readonly string[]): IHarnessDescriptor {
-	const filter: IStorageSourceFilter = { sources: buildAllSources(extras) };
+export function createVSCodeHarnessDescriptor(sources: readonly AICustomizationSource[]): IHarnessDescriptor {
+	const filter: IStorageSourceFilter = { sources: buildAllSources(sources) };
 	return {
 		id: SessionType.Local,
 		label: localize('harness.local', "Local"),
@@ -443,7 +443,7 @@ function createRestrictedHarnessDescriptor(
 	label: string,
 	icon: ThemeIcon,
 	restrictedUserRoots: readonly URI[],
-	extras: readonly string[],
+	extras: readonly AICustomizationSource[],
 	options?: IRestrictedHarnessOptions,
 ): IHarnessDescriptor {
 	const allSources = buildAllSources(extras);
@@ -474,7 +474,7 @@ function createRestrictedHarnessDescriptor(
 /**
  * Creates a "Copilot CLI" harness descriptor.
  */
-export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras: readonly string[]): IHarnessDescriptor {
+export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras: readonly AICustomizationSource[]): IHarnessDescriptor {
 	return createRestrictedHarnessDescriptor(
 		SessionType.CopilotCLI,
 		localize('harness.cli', "Copilot CLI"),
@@ -663,13 +663,13 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		if (!items) {
 			return [];
 		}
-		const result = [];
+		const result: IChatPromptSlashCommand[] = [];
 		for (const item of items) {
 			if ((item.enabled !== false) && (item.type === PromptsType.prompt || item.type === PromptsType.skill)) {
 				// `IChatPromptSlashCommand.storage` is `PromptsStorage`, so coerce
 				// the wider provider-supplied storage (which may be `BUILTIN_STORAGE`)
 				// down to the closest narrow value.
-				const storage = item.storage;
+				const storage = item.source;
 				const narrowStorage: PromptsStorage = storage !== undefined && storage !== BUILTIN_STORAGE
 					? storage as PromptsStorage
 					: PromptsStorage.local;
@@ -701,11 +701,11 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		}
 
 		const getSource = (item: ICustomizationItem): IAgentSource => {
-			if (item.storage === PromptsStorage.extension && item.extensionId) {
+			if (item.source === PromptsStorage.extension && item.extensionId) {
 				return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(item.extensionId) };
-			} else if (item.storage === PromptsStorage.plugin && item.pluginUri) {
+			} else if (item.source === PromptsStorage.plugin && item.pluginUri) {
 				return { storage: PromptsStorage.plugin, pluginUri: item.pluginUri };
-			} else if (item.storage === PromptsStorage.user) {
+			} else if (item.source === PromptsStorage.user) {
 				return { storage: PromptsStorage.user };
 			}
 			return { storage: PromptsStorage.local };

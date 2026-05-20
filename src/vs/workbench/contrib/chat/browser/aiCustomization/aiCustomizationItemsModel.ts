@@ -161,13 +161,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	) {
 		super();
 
-		this.itemNormalizer = new AICustomizationItemNormalizer(
-			workspaceContextService,
-			workspaceService,
-			labelService,
-			this.agentPluginService,
-			productService,
-		);
+		this.itemNormalizer = new AICustomizationItemNormalizer(labelService, productService);
 		this.promptsServiceItemProvider = new PromptsServiceCustomizationItemProvider(
 			() => this.harnessService.getActiveDescriptor(),
 			this.promptsService,
