@@ -280,8 +280,9 @@ export interface CLIAgentInfo {
 	readonly agent: Readonly<SweCustomAgent>;
 	/** File URI for prompt-file agents, synthetic `copilotcli:` URI for SDK-only agents. */
 	readonly sourceUri: URI;
-	readonly extensionId?: string;
-	readonly pluginUri?: URI;
+	readonly source: vscode.ChatResourceSource;
+	readonly extensionId: string | undefined;
+	readonly pluginUri: URI | undefined;
 }
 
 export interface ICopilotCLIAgents {
@@ -374,7 +375,7 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 			});
 		}
 
-		return this._agentsPromise.then(infos => infos.map(i => ({ agent: this.cloneAgent(i.agent), sourceUri: i.sourceUri })));
+		return this._agentsPromise.then(infos => infos.map(i => ({ agent: this.cloneAgent(i.agent), sourceUri: i.sourceUri, source: i.source, extensionId: i.extensionId, pluginUri: i.pluginUri })));
 	}
 
 	async getAgentsImpl(): Promise<readonly CLIAgentInfo[]> {
@@ -435,6 +436,9 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 				...(model ? { model } : {}),
 			},
 			sourceUri: customAgent.uri,
+			source: customAgent.source,
+			extensionId: customAgent.extensionId,
+			pluginUri: customAgent.pluginUri
 		};
 	}
 
