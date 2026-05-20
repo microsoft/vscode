@@ -84,6 +84,9 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 	async setModelConfiguration(_modelId: string, _values: IStringDictionary<unknown>): Promise<void> {
 	}
 
+	async setModelPickerVisibility(_modelId: string, _visible: boolean): Promise<void> {
+	}
+
 	getModelConfigurationActions(_modelId: string): IAction[] {
 		return [];
 	}

@@ -837,6 +837,7 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 		// Auto model cannot be pinned
 		if (entry.model.metadata.id !== 'auto') {
 			primaryActions.push(this.createPinAction(entry.model.identifier));
+			primaryActions.push(this.createVisibilityAction(entry.model.identifier, entry.model.metadata.isUserSelectable !== false));
 		}
 
 		const configActions = this.languageModelsService.getModelConfigurationActions(entry.model.identifier);
@@ -867,6 +868,20 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 				} else {
 					this.languageModelsService.pinModel(modelIdentifier);
 				}
+				this.viewModel.refresh();
+			}
+		});
+	}
+
+	private createVisibilityAction(modelIdentifier: string, isVisible: boolean): IAction {
+		return toAction({
+			id: isVisible ? `hide.${modelIdentifier}` : `show.${modelIdentifier}`,
+			label: isVisible
+				? localize('models.hideModel', "Hide from Model Picker")
+				: localize('models.showModel', "Show in Model Picker"),
+			class: ThemeIcon.asClassName(isVisible ? Codicon.eye : Codicon.eyeClosed),
+			run: async () => {
+				await this.languageModelsService.setModelPickerVisibility(modelIdentifier, !isVisible);
 				this.viewModel.refresh();
 			}
 		});

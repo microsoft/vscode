@@ -335,7 +335,16 @@ export class ChatLanguageModelsDataContribution extends Disposable implements IW
 							settings: {
 								type: 'object',
 								properties: {
-									[metadata.id]: metadata.configurationSchema
+									[metadata.id]: {
+										...metadata.configurationSchema,
+										properties: {
+											...metadata.configurationSchema.properties,
+											isUserSelectable: {
+												type: 'boolean',
+												description: localize('settings.modelPickerVisibility', "Whether the model is shown in the model picker.")
+											}
+										}
+									}
 								}
 							}
 						}

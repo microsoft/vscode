@@ -124,6 +124,14 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	async setModelConfiguration(_modelId: string, _values: IStringDictionary<unknown>): Promise<void> {
 	}
 
+	async setModelPickerVisibility(modelId: string, visible: boolean): Promise<void> {
+		const metadata = this.models.get(modelId);
+		if (metadata) {
+			this.models.set(modelId, { ...metadata, isUserSelectable: visible });
+			this._onDidChangeLanguageModels.fire(metadata.vendor);
+		}
+	}
+
 	getModelConfigurationActions(_modelId: string): IAction[] {
 		return [];
 	}

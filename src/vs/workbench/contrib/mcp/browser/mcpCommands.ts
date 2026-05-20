@@ -1095,7 +1095,7 @@ export class McpConfigureSamplingModels extends Action2 {
 		const existingIds = new Set(mcpSampling.getConfig(server).allowedModels);
 		const allItems: IQuickPickItem[] = lmService.getLanguageModelIds().map(id => {
 			const model = lmService.lookupLanguageModel(id)!;
-			if (!model.isUserSelectable) {
+			if (model.isUserSelectable === false) {
 				return undefined;
 			}
 			return {
