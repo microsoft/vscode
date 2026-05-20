@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindowById } from '../../../../base/browser/dom.js';
-import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
-import { timeout } from '../../../../base/common/async.js';
-import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { basename } from '../../../../base/common/path.js';
-import { isString } from '../../../../base/common/types.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
-import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
-import { TerminalLocation, type IShellLaunchConfig, type ShellIntegrationInjectionFailureReason } from '../../../../platform/terminal/common/terminal.js';
-import type { IWorkbenchContribution } from '../../../common/contributions.js';
-import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { ITerminalEditorService, ITerminalService, type ITerminalInstance } from './terminal.js';
+import { getWindowById } from '../../../../../base/browser/dom.js';
+import { isAuxiliaryWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { basename } from '../../../../../base/common/path.js';
+import { isString } from '../../../../../base/common/types.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalLocation, type IShellLaunchConfig, type ShellIntegrationInjectionFailureReason } from '../../../../../platform/terminal/common/terminal.js';
+import type { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { ITerminalEditorService, ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 
 export class TerminalTelemetryContribution extends Disposable implements IWorkbenchContribution {
 	static ID = 'terminalTelemetry';
