@@ -48,8 +48,8 @@ export class AgentsWindow {
 
 	/**
 	 * Wait for a new Electron window to appear beyond the current count,
-	 * then switch the driver to it. Returns once the new window has had a
-	 * moment to install the workbench DOM.
+	 * then switch the driver to it. Returns once the Agents Window's
+	 * workbench DOM is present so the caller can immediately drive UI.
 	 */
 	async switchToAgentsWindow(previousWindowCount: number, timeoutMs: number = 30_000): Promise<void> {
 		const deadline = Date.now() + timeoutMs;
@@ -58,8 +58,9 @@ export class AgentsWindow {
 			if (windows.length > previousWindowCount) {
 				const newIndex = windows.length - 1;
 				this.code.driver.switchToWindow(newIndex);
-				// Give the new window time to install workbench DOM
-				await new Promise(r => setTimeout(r, 2000));
+				// Wait for the Agents workbench DOM to be installed instead of
+				// sleeping a fixed amount — Copilot review feedback #317545.
+				await this.code.waitForElement(AGENTS_WORKBENCH);
 				return;
 			}
 			await new Promise(r => setTimeout(r, 300));
