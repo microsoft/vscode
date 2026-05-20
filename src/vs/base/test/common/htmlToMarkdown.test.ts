@@ -25,6 +25,21 @@ suite('htmlToMarkdown', () => {
 		);
 	});
 
+	test('strips dangerous schemes from links', () => {
+		assert.strictEqual(
+			convertHtmlToMarkdown('<a href="javascript:alert(1)">click</a>'),
+			'click'
+		);
+		assert.strictEqual(
+			convertHtmlToMarkdown('<a href="vbscript:run">run</a>'),
+			'run'
+		);
+		assert.strictEqual(
+			convertHtmlToMarkdown('<a href="data:text/html,<h1>hi</h1>">data</a>'),
+			'data'
+		);
+	});
+
 	test('converts bold and italic', () => {
 		assert.strictEqual(convertHtmlToMarkdown('<strong>bold</strong>'), '**bold**');
 		assert.strictEqual(convertHtmlToMarkdown('<b>bold</b>'), '**bold**');
@@ -62,9 +77,9 @@ suite('htmlToMarkdown', () => {
 		assert.strictEqual(convertHtmlToMarkdown(html), '- one\n- two\n- three');
 	});
 
-	test('converts ordered lists to bullet items', () => {
+	test('converts ordered lists to numbered items', () => {
 		const html = '<ol><li>first</li><li>second</li></ol>';
-		assert.strictEqual(convertHtmlToMarkdown(html), '- first\n- second');
+		assert.strictEqual(convertHtmlToMarkdown(html), '1. first\n2. second');
 	});
 
 	test('converts line breaks', () => {
@@ -147,5 +162,20 @@ suite('htmlToMarkdown', () => {
 		assert.ok(md.includes('[the website](https://code.visualstudio.com)'));
 		assert.ok(md.includes('- Fast'));
 		assert.ok(md.includes('- Extensible'));
+	});
+
+	test('decodes numeric HTML entities', () => {
+		assert.strictEqual(convertHtmlToMarkdown('&#60;tag&#62;'), '<tag>');
+		assert.strictEqual(convertHtmlToMarkdown('&#x3C;tag&#x3E;'), '<tag>');
+		assert.strictEqual(convertHtmlToMarkdown('&#8212;'), '—');
+		assert.strictEqual(convertHtmlToMarkdown('&#x2014;'), '—');
+	});
+
+	test('falls back to tag-stripping for very large input', () => {
+		const large = '<b>' + 'x'.repeat(200_001) + '</b>';
+		const result = convertHtmlToMarkdown(large);
+		// Should strip tags but NOT apply markdown bold formatting
+		assert.ok(!result.includes('**'));
+		assert.ok(!result.includes('<b>'));
 	});
 });

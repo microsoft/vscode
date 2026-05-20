@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { alert } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { createStringDataTransferItem, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../../../../base/common/dataTransfer.js';
 import { convertHtmlToMarkdown } from '../../../../../../../base/common/htmlToMarkdown.js';
-import { alert } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { HierarchicalKind } from '../../../../../../../base/common/hierarchicalKind.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../../../base/common/marshalling.js';
@@ -693,7 +693,8 @@ class PasteHtmlProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		// Only activate on automatic paste, not explicit "Paste As"
+		// Only activate on automatic paste — for explicit "Paste As" the user
+		// likely wants the raw text or an attachment, not a converted markdown form.
 		if (context.triggerKind !== DocumentPasteTriggerKind.Automatic) {
 			return;
 		}
@@ -716,19 +717,16 @@ class PasteHtmlProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		return {
-			dispose() { },
-			edits: [{
-				insertText: markdown,
-				title: localize('pasteHtmlAsMarkdown', 'Paste as Markdown'),
-				kind: this.kind,
-				handledMimeType: Mimes.html,
-				yieldTo: [
-					{ kind: new HierarchicalKind('chat.attach.text') },
-					{ kind: new HierarchicalKind('chat.attach.image') },
-				],
-			}],
-		};
+		return createEditSession({
+			insertText: markdown,
+			title: localize('pasteHtmlAsMarkdown', 'Paste as Markdown'),
+			kind: this.kind,
+			handledMimeType: Mimes.html,
+			yieldTo: [
+				{ kind: new HierarchicalKind('chat.attach.text') },
+				{ kind: new HierarchicalKind('chat.attach.image') },
+			],
+		});
 	}
 }
 

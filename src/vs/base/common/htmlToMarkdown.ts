@@ -11,7 +11,14 @@
  * italic, code, lists) when inserted into a Markdown-aware surface such as
  * the chat input.
  */
+const maxInputLength = 200_000;
+
 export function convertHtmlToMarkdown(html: string): string {
+	// Bail out on very large inputs to avoid regex backtracking cost
+	if (html.length > maxInputLength) {
+		return html.replace(/<[^>]+>/g, '');
+	}
+
 	// Work on a mutable copy
 	let md = html;
 
@@ -40,9 +47,19 @@ export function convertHtmlToMarkdown(html: string): string {
 		return `\n${lines.join('\n')}\n`;
 	});
 
-	// List items - convert before stripping the list wrapper
+	// Ordered list items — number them before stripping the <ol> wrapper
+	md = md.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_m, inner) => {
+		let index = 0;
+		const numbered = inner.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_liM: string, liInner: string) => {
+			index++;
+			return `${index}. ${inlineClean(liInner).trim()}\n`;
+		});
+		return `\n${numbered.replace(/<[^>]+>/g, '')}\n`;
+	});
+
+	// Unordered list items - convert before stripping the list wrapper
 	md = md.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_m, inner) => `- ${inlineClean(inner).trim()}\n`);
-	md = md.replace(/<\/?[ou]l[^>]*>/gi, '\n');
+	md = md.replace(/<\/?ul[^>]*>/gi, '\n');
 
 	// Paragraphs and divs → double newline
 	md = md.replace(/<\/p>/gi, '\n\n');
@@ -59,7 +76,7 @@ export function convertHtmlToMarkdown(html: string): string {
 	// --- inline elements --------------------------------------------------
 
 	// Links - must come before we strip remaining tags
-	md = md.replace(/<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, href, text) => `[${inlineClean(text).trim()}](${href})`);
+	md = md.replace(/<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, href, text) => sanitizeLink(href, inlineClean(text).trim()));
 
 	// Images
 	md = md.replace(/<img\s[^>]*alt="([^"]*)"[^>]*src="([^"]*)"[^>]*\/?>/gi, '![$1]($2)');
@@ -96,7 +113,7 @@ export function convertHtmlToMarkdown(html: string): string {
 function inlineClean(html: string): string {
 	// Process nested inline elements first
 	let result = html;
-	result = result.replace(/<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, href, text) => `[${inlineClean(text).trim()}](${href})`);
+	result = result.replace(/<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, href, text) => sanitizeLink(href, inlineClean(text).trim()));
 	result = result.replace(/<(strong|b)(\s[^>]*)?>([\s\S]*?)<\/\1>/gi, (_m, _tag, _attrs, inner) => `**${inlineClean(inner)}**`);
 	result = result.replace(/<(em|i)(\s[^>]*)?>([\s\S]*?)<\/\1>/gi, (_m, _tag, _attrs, inner) => `*${inlineClean(inner)}*`);
 	result = result.replace(/<code(\s[^>]*)?>([\s\S]*?)<\/code>/gi, (_m, _attrs, inner) => `\`${decodeEntities(inner)}\``);
@@ -119,7 +136,15 @@ function cleanCodeBlock(html: string): string {
 	return result;
 }
 
-/** Decode the most common HTML entities. */
+/** Produce a markdown link, stripping dangerous schemes like `javascript:`. */
+function sanitizeLink(href: string, text: string): string {
+	if (/^(javascript|vbscript|data):/i.test(href.trim())) {
+		return text;
+	}
+	return `[${text}](${href})`;
+}
+
+/** Decode the most common HTML entities, including numeric character references. */
 function decodeEntities(text: string): string {
 	return text
 		.replace(/&amp;/g, '&')
@@ -127,5 +152,18 @@ function decodeEntities(text: string): string {
 		.replace(/&gt;/g, '>')
 		.replace(/&quot;/g, '"')
 		.replace(/&#39;/g, '\'')
-		.replace(/&nbsp;/g, ' ');
+		.replace(/&nbsp;/g, ' ')
+		.replace(/&#x(?<hex>[0-9a-fA-F]+);/g, (...args) => safeFromCodePoint(parseInt(args.at(-1).hex, 16)))
+		.replace(/&#(?<dec>\d+);/g, (...args) => safeFromCodePoint(parseInt(args.at(-1).dec, 10)));
+}
+
+function safeFromCodePoint(code: number): string {
+	if (code >= 0 && code <= 0x10FFFF) {
+		try {
+			return String.fromCodePoint(code);
+		} catch {
+			// invalid code point
+		}
+	}
+	return '';
 }
