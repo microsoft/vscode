@@ -590,7 +590,7 @@ export function mapFilter<T, U>(array: ReadonlyArray<T>, fn: (t: T) => U | undef
 }
 
 export function withoutDuplicates<T>(array: ReadonlyArray<T>): T[] {
-	return distinct(Array.from(array));
+	return distinct(array);
 }
 
 export function asArray<T>(x: T | T[]): T[];
