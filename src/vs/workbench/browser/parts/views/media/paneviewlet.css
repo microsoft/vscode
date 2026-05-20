@@ -62,7 +62,7 @@
 }
 
 .monaco-pane-view .pane > .pane-header .description .codicon {
-	font-size: 9px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	margin-left: 2px;
 }
 

@@ -1449,7 +1449,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-clear-button-container .monaco-button .codicon {
-	font-size: 10px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-foreground);
 }
 
@@ -1732,7 +1732,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .monaco-workbench .interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label .codicon-chevron-down {
-	font-size: 10px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	margin-left: 4px;
 	opacity: 0.75;
 }
@@ -1978,7 +1978,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
 .monaco-workbench .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down,
 .monaco-workbench .interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down {
-	font-size: 10px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	margin-left: 4px;
 	opacity: 0.75;
 }
@@ -2304,7 +2304,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-plus {
 	padding-left: 4px;
-	font-size: 11px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .action-item.chat-attached-context-attachment.chat-add-files:hover,
