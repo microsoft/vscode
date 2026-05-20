@@ -30,6 +30,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
+import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChangesetService, StaticChangesetKind } from '../../node/agentHostChangesetService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -91,6 +92,7 @@ function createTestSideEffects(
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
 		[IAgentHostChangesetService, changesets],
+		[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 		[ITelemetryService, telemetryService],
 	), /*strict*/ true));
 	return disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, options));
@@ -2669,7 +2671,7 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(changesets.toolCallEdits, [{ session: sessionUri.toString(), turnId: 'turn-1' }]);
 		});
 
-		test('turn complete fires onTurnComplete once with the right turn id', () => {
+		test('turn complete fires onTurnComplete once with the right turn id', async () => {
 			setupSession();
 			startTurn('turn-1');
 
@@ -2686,6 +2688,13 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: { type: ActionType.SessionTurnComplete, turnId: 'turn-1' },
 			});
+
+			// `_runTurnCompleteSideEffects` now defers the
+			// `changesets.onTurnComplete` call behind the checkpoint capture
+			// promise (`captureTurnCheckpoint(...).then(...)`). Yield a
+			// microtask so the resolved promise's `.then` continuation
+			// runs before we assert.
+			await Promise.resolve();
 
 			assert.deepStrictEqual(changesets.turnCompletes, [{ session: sessionUri.toString(), turnId: 'turn-1' }]);
 		});

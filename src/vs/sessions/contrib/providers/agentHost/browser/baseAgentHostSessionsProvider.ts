@@ -898,7 +898,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`Agent session URI has no provider scheme: ${meta.session.toString()}`);
 		}
 		return new AgentHostSessionAdapter(meta, this.id, this.resourceSchemeForProvider(provider), provider, {
-			icon: this.icon,
+			icon: this.iconForAgentProvider(provider) ?? this.icon,
 			loading: this.authenticationPending,
 			mapDiffUri: this._diffUriMapper(),
 			gitHubService: this._gitHubService,
@@ -1065,7 +1065,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			workspace,
 			sessionType,
 			providerId: this.id,
-			icon: this.icon,
+			icon: sessionType.icon,
 			resourceScheme: this.resourceSchemeForProvider(sessionType.id),
 			authenticationPending: this.authenticationPending,
 			logService: this._logService,

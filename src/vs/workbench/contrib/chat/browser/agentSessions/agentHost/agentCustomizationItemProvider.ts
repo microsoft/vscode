@@ -13,7 +13,6 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { CustomizationStatus, type SessionCustomization, type AgentInfo, type CustomizationRef, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
-import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -23,6 +22,7 @@ import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agen
 import { SKILL_FILENAME } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 
 
 const REMOTE_HOST_GROUP = 'remote-host';
@@ -118,7 +118,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			type: 'plugin',
 			name: customization.displayName,
 			description: customization.description,
-			storage: PromptsStorage.plugin,
+			source: AICustomizationSources.plugin,
 			status: toStatusString(sessionCustomization?.status),
 			statusMessage: sessionCustomization?.statusMessage,
 			enabled: sessionCustomization?.enabled ?? true,
@@ -166,7 +166,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				items.set(customizationItemKey(sessionCustomization.customization, sessionCustomization.clientId), item);
 			} else {
 				// create a dummy parent item for the synthetic bundle, it does not go into the items map, just need it to expand.
-				item = { uri: this.toRemoteUri(sessionCustomization.customization), type: 'plugin', name: '', storage: PromptsStorage.plugin, groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined };
+				item = { uri: this.toRemoteUri(sessionCustomization.customization), type: 'plugin', name: '', source: AICustomizationSources.plugin, groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined };
 			}
 
 			// Always expand plugin contents so individual files are visible.
@@ -324,7 +324,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				type: promptType,
 				name: displayName,
 				description,
-				storage: PromptsStorage.plugin,
+				source: AICustomizationSources.plugin,
 				groupKey,
 				extensionId: undefined,
 				pluginUri: isBundleItem ? undefined : pluginUri,
