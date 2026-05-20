@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, terminalCommandLineMatchesToolInput } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -655,6 +655,9 @@ suite('stateToProgressAdapter', () => {
 				],
 			});
 			const invocation = toolCallStateToInvocation(tc);
+			if (invocation.toolSpecificData?.kind === 'terminal') {
+				invocation.toolSpecificData.terminalCommandId = 'cmd-echo-hi';
+			}
 
 			finalizeToolInvocation(invocation, {
 				status: ToolCallStatus.Completed,
@@ -674,9 +677,10 @@ suite('stateToProgressAdapter', () => {
 
 			assert.ok(invocation.toolSpecificData);
 			assert.strictEqual(invocation.toolSpecificData.kind, 'terminal');
-			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput: { text: string }; terminalCommandState: { exitCode: number } };
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandId?: string; terminalCommandOutput: { text: string }; terminalCommandState: { exitCode: number } };
 			assert.strictEqual(termData.terminalCommandOutput.text, 'output text');
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
+			assert.strictEqual(termData.terminalCommandId, 'cmd-echo-hi');
 			assert.strictEqual(IChatToolInvocation.resultDetails(invocation), undefined);
 		});
 
@@ -1218,6 +1222,21 @@ suite('stateToProgressAdapter', () => {
 
 			updateRunningToolSpecificData(invocation, runningTc);
 			assert.strictEqual(invocation.toolSpecificData, originalData, 'toolSpecificData should not change');
+		});
+	});
+
+	suite('terminalCommandLineMatchesToolInput', () => {
+
+		test('matches shell-history-suppressed commands', () => {
+			assert.strictEqual(terminalCommandLineMatchesToolInput(' npm run compile', 'npm run compile'), true);
+		});
+
+		test('matches JSON tool input command fields', () => {
+			assert.strictEqual(terminalCommandLineMatchesToolInput(' npm run compile', '{"command":"npm run compile"}'), true);
+		});
+
+		test('does not match the previous-command repro case', () => {
+			assert.strictEqual(terminalCommandLineMatchesToolInput(' cat .vscode/tasks.json', 'npm run compile'), false);
 		});
 	});
 });

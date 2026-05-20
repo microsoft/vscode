@@ -367,6 +367,23 @@ function getTerminalInput(tc: ToolCallState): string | undefined {
 
 	return undefined;
 }
+
+export function terminalCommandLineMatchesToolInput(commandLine: string | undefined, toolInput: string | undefined): boolean {
+	const normalizedCommandLine = commandLine?.trimStart();
+	let normalizedToolInput = toolInput?.trimStart();
+	if (normalizedToolInput) {
+		try {
+			const parsed = JSON.parse(normalizedToolInput);
+			if (typeof parsed?.command === 'string') {
+				normalizedToolInput = parsed.command.trimStart();
+			}
+		} catch {
+			// Tool input is often already the command string.
+		}
+	}
+	return !!normalizedCommandLine && !!normalizedToolInput && normalizedCommandLine === normalizedToolInput;
+}
+
 function getTerminalOutput(tc: ToolCallState) {
 	const text = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running ? tc.content?.find(c => c.type === 'text')?.text : undefined;
 	return text ? { text } : undefined;
@@ -943,6 +960,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 			commandLine: existing?.commandLine || { original: getTerminalInput(tc) || '' },
 			language: getTerminalLanguage(tc),
 			terminalToolSessionId: terminalContentUri ? makeAhpTerminalToolSessionId(terminalContentUri, backendSession) : existing?.terminalToolSessionId,
+			terminalCommandId: existing?.terminalCommandId,
 			terminalCommandOutput: getTerminalOutput(tc),
 			terminalCommandState: { exitCode: isCompleted && tc.success ? 0 : 1 },
 			terminalCommandUri: terminalContentUri ? URI.parse(terminalContentUri) : existing?.terminalCommandUri,

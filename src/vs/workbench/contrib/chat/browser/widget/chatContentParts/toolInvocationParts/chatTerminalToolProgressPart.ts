@@ -60,6 +60,7 @@ import { PANEL_BACKGROUND } from '../../../../../../common/theme.js';
 import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
+import { terminalCommandLineMatchesToolInput } from '../../../agentSessions/agentHost/stateToProgressAdapter.js';
 
 /**
  * Minimum number of rows to display in the terminal output view.
@@ -956,7 +957,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		store.add(ahpSource.onCommandExecuted(cmd => {
 			// Set terminalCommandId on tool invocation data for future lookups
-			if (!this._terminalData.terminalCommandId && cmd.id) {
+			if (!this._terminalData.terminalCommandId && cmd.id && this._commandMatchesToolInput(cmd)) {
 				this._terminalData.terminalCommandId = cmd.id;
 				this._updateToolbarContextKeys(terminalInstance, this._terminalData.terminalToolSessionId);
 			}
@@ -1184,12 +1185,30 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				if (targetId) {
 					return ahpSource.getCommandById(targetId);
 				}
-				// No specific command ID — return executing or most recent
-				return ahpSource.executingCommandObject ?? ahpSource.commands[ahpSource.commands.length - 1];
+				const mayStillBeRunning = this._terminalData.terminalCommandState?.exitCode === undefined
+					&& (!IChatToolInvocation.isComplete(this.toolInvocation) || this._terminalData.isBackground === true || this._terminalData.didContinueInBackground === true);
+				if (mayStillBeRunning) {
+					const executing = ahpSource.executingCommandObject;
+					return this._commandMatchesToolInput(executing) ? executing : undefined;
+				}
+				for (let i = ahpSource.commands.length - 1; i >= 0; i--) {
+					const command = ahpSource.commands[i];
+					if (this._commandMatchesToolInput(command)) {
+						return command;
+					}
+				}
+				if (ahpSource.commands.length === 1) {
+					return ahpSource.commands[0];
+				}
+				return undefined;
 			}
 		}
 
 		return undefined;
+	}
+
+	private _commandMatchesToolInput(command: ITerminalCommand | undefined): boolean {
+		return terminalCommandLineMatchesToolInput(command?.command, this._commandText);
 	}
 }
 

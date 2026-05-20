@@ -56,7 +56,7 @@ import { getAgentHostIcon } from '../agentSessions.js';
 import { AgentHostEditingSession } from './agentHostEditingSession.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, userMessageToVariableData, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, terminalCommandLineMatchesToolInput, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, userMessageToVariableData, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 
 // =============================================================================
 // AgentHostSessionHandler - renderer-side handler for a single agent host
@@ -2067,8 +2067,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (!terminalCommandId) {
 				const source = this._terminalChatService.getAhpCommandSource(sessionId);
 				if (source) {
-					// Use the executing command or the most recent completed command
-					const cmd = source.executingCommandObject ?? source.commands[source.commands.length - 1];
+					// Only associate commands whose shell-integration command line
+					// matches this tool input. When a reused shell starts a new
+					// command, the terminal content reference can arrive just before
+					// the command-executed event; falling back to the previous command
+					// in that window shows stale output in chat.
+					const candidates = source.executingCommandObject
+						? [source.executingCommandObject, ...source.commands.slice().reverse()]
+						: source.commands.slice().reverse();
+					const cmd = candidates.find(cmd => terminalCommandLineMatchesToolInput(cmd.command, toolInput));
 					terminalCommandId = cmd?.id;
 				}
 			}
