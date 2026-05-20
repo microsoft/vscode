@@ -441,10 +441,16 @@ export class CodexAgent extends Disposable implements IAgent {
 			entry.state.thread = codex.startThread(threadOptions);
 			entry.state.threadOptionsKey = desiredKey;
 		} else if (entry.state.threadOptionsKey !== desiredKey) {
-			const existingId = entry.state.thread.id;
-			entry.state.thread = existingId
-				? codex.resumeThread(existingId, threadOptions)
-				: codex.startThread(threadOptions);
+			// Always start a fresh thread on model/config change rather than
+			// resuming the existing one. `resumeThread(id, newOptions)` sends
+			// the new model to the same CAPI integration endpoint that served
+			// the original thread, but CAPI's Responses endpoint restricts
+			// available models by integrator — a model that works on a fresh
+			// thread may be rejected when swapped into an existing one.
+			// Starting fresh avoids the "model_not_available_for_integrator"
+			// error. The workbench maintains the conversation context
+			// independently of the CLI's thread state.
+			entry.state.thread = codex.startThread(threadOptions);
 			entry.state.threadOptionsKey = desiredKey;
 			this._logService.info(`[Codex:${sessionId}] thread rebuilt for model swap: model=${entry.state.model?.id ?? '<default>'} effort=${effort ?? '<default>'}`);
 		}
