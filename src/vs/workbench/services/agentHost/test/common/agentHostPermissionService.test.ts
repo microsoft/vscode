@@ -178,14 +178,14 @@ suite('AgentHostPermissionService', () => {
 	test('request resolves immediately when already granted', async () => {
 		const { service } = createService();
 		disposables.add(service.grantImplicitRead('host', URI.file('/plugins/foo')));
-		await service.request('host', { uri: URI.file('/plugins/foo/x.md').toString(), read: true });
+		await service.request('host', { channel: 'ahp-root://', uri: URI.file('/plugins/foo/x.md').toString(), read: true });
 		assert.strictEqual(service.allPending.get().length, 0);
 	});
 
 	test('allow grants in-memory until connection closes', async () => {
 		const { service, config } = createService();
 		const uri = URI.file('/etc/foo');
-		const promise = service.request('host', { uri: uri.toString(), read: true });
+		const promise = service.request('host', { channel: 'ahp-root://', uri: uri.toString(), read: true });
 
 		// Wait for canonicalization + enqueue.
 		await new Promise(resolve => setTimeout(resolve, 0));
@@ -207,7 +207,7 @@ suite('AgentHostPermissionService', () => {
 
 	test('allow for write also covers read on the same URI', async () => {
 		const { service } = createService();
-		const promise = service.request('host', { uri: URI.file('/etc/foo').toString(), write: true });
+		const promise = service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), write: true });
 
 		await new Promise(resolve => setTimeout(resolve, 0));
 		const pending = service.allPending.get();
@@ -224,7 +224,7 @@ suite('AgentHostPermissionService', () => {
 
 	test('allow for read does not grant write', async () => {
 		const { service } = createService();
-		const promise = service.request('host', { uri: URI.file('/etc/foo').toString(), read: true });
+		const promise = service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), read: true });
 
 		await new Promise(resolve => setTimeout(resolve, 0));
 		service.allPending.get()[0].allow();
@@ -236,7 +236,7 @@ suite('AgentHostPermissionService', () => {
 
 	test('request rejects with CancellationError on deny', async () => {
 		const { service } = createService();
-		const promise = service.request('host', { uri: URI.file('/etc/foo').toString(), read: true });
+		const promise = service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), read: true });
 		await new Promise(resolve => setTimeout(resolve, 0));
 		service.allPending.get()[0].deny();
 		await assert.rejects(promise, (err: unknown) => err instanceof CancellationError);
@@ -244,7 +244,7 @@ suite('AgentHostPermissionService', () => {
 
 	test('allowAlways persists the grant', async () => {
 		const { service, config } = createService();
-		const promise = service.request('host', { uri: URI.file('/etc/foo').toString(), read: true });
+		const promise = service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), read: true });
 		await new Promise(resolve => setTimeout(resolve, 0));
 		service.allPending.get()[0].allowAlways();
 		await promise;
@@ -265,7 +265,7 @@ suite('AgentHostPermissionService', () => {
 		const service = disposables.add(new AgentHostPermissionService(config, createStubFileService(), new NullLogService()));
 
 		const uri = URI.file('/etc/foo');
-		const promise = service.request('host', { uri: uri.toString(), read: true });
+		const promise = service.request('host', { channel: 'ahp-root://', uri: uri.toString(), read: true });
 		await new Promise(resolve => setTimeout(resolve, 0));
 		service.allPending.get()[0].allowAlways();
 		await promise;
@@ -276,7 +276,7 @@ suite('AgentHostPermissionService', () => {
 
 	test('allowAlways for write persists rw', async () => {
 		const { service, config } = createService();
-		const promise = service.request('host', { uri: URI.file('/etc/foo').toString(), write: true });
+		const promise = service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), write: true });
 		await new Promise(resolve => setTimeout(resolve, 0));
 		service.allPending.get()[0].allowAlways();
 		await promise;
@@ -292,14 +292,14 @@ suite('AgentHostPermissionService', () => {
 			},
 		});
 		// Already covered by parent — request resolves without prompting.
-		await service.request('host', { uri: URI.file('/etc/foo').toString(), read: true });
+		await service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), read: true });
 		assert.strictEqual(config.lastUpdate, undefined);
 	});
 
 	test('concurrent identical requests share one pending entry', async () => {
 		const { service } = createService();
-		const a = service.request('host', { uri: URI.file('/etc/foo').toString(), read: true });
-		const b = service.request('host', { uri: URI.file('/etc/foo').toString(), read: true });
+		const a = service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), read: true });
+		const b = service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), read: true });
 
 		await new Promise(resolve => setTimeout(resolve, 0));
 		assert.strictEqual(service.allPending.get().length, 1);
@@ -313,7 +313,7 @@ suite('AgentHostPermissionService', () => {
 				[URI.file('/etc/foo').toString()]: AgentHostAccessMode.Read,
 			},
 		});
-		const promise = service.request('host', { uri: URI.file('/etc/foo').toString(), write: true });
+		const promise = service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), write: true });
 		await new Promise(resolve => setTimeout(resolve, 0));
 		assert.strictEqual(service.allPending.get().length, 1);
 		assert.strictEqual(service.allPending.get()[0].mode, AgentHostPermissionMode.Write);
@@ -324,7 +324,7 @@ suite('AgentHostPermissionService', () => {
 
 	test('connectionClosed rejects pending and clears the queue', async () => {
 		const { service } = createService();
-		const promise = service.request('host', { uri: URI.file('/etc/foo').toString(), read: true });
+		const promise = service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), read: true });
 		await new Promise(resolve => setTimeout(resolve, 0));
 		service.connectionClosed('host');
 		await assert.rejects(promise, (err: unknown) => err instanceof CancellationError);
@@ -351,7 +351,7 @@ suite('AgentHostPermissionService', () => {
 
 	test('findPending returns the pending request by id', async () => {
 		const { service } = createService();
-		const promise = service.request('host', { uri: URI.file('/etc/foo').toString(), read: true });
+		const promise = service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), read: true });
 		await new Promise(resolve => setTimeout(resolve, 0));
 		const [pending] = service.allPending.get();
 		assert.strictEqual(service.findPending(pending.id), pending);
@@ -382,8 +382,8 @@ suite('AgentHostPermissionService', () => {
 		disposables.add(service.grantImplicitRead('host-a', URI.file('/plugins/a')));
 		disposables.add(service.grantImplicitRead('host-b', URI.file('/plugins/b')));
 
-		const pendingA = service.request('host-a', { uri: URI.file('/etc/a').toString(), read: true });
-		const pendingB = service.request('host-b', { uri: URI.file('/etc/b').toString(), read: true });
+		const pendingA = service.request('host-a', { channel: 'ahp-root://', uri: URI.file('/etc/a').toString(), read: true });
+		const pendingB = service.request('host-b', { channel: 'ahp-root://', uri: URI.file('/etc/b').toString(), read: true });
 		await new Promise(resolve => setTimeout(resolve, 0));
 
 		service.connectionClosed('host-a');
@@ -402,8 +402,8 @@ suite('AgentHostPermissionService', () => {
 
 	test('pendingFor returns only this host\'s requests, with normalized address', async () => {
 		const { service } = createService();
-		const a = service.request('host-a', { uri: URI.file('/etc/a').toString(), read: true });
-		const b = service.request('ws://host-b', { uri: URI.file('/etc/b').toString(), read: true });
+		const a = service.request('host-a', { channel: 'ahp-root://', uri: URI.file('/etc/a').toString(), read: true });
+		const b = service.request('ws://host-b', { channel: 'ahp-root://', uri: URI.file('/etc/b').toString(), read: true });
 		await new Promise(resolve => setTimeout(resolve, 0));
 
 		assert.strictEqual(service.pendingFor('host-a').get().length, 1);
@@ -423,7 +423,7 @@ suite('AgentHostPermissionService', () => {
 		// for the smaller scope first lets the user decline the dangerous
 		// part without ever seeing it.
 		const { service } = createService();
-		const promise = service.request('host', { uri: URI.file('/etc/foo').toString(), read: true, write: true });
+		const promise = service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), read: true, write: true });
 		await new Promise(resolve => setTimeout(resolve, 0));
 
 		let pending = service.allPending.get();
@@ -462,7 +462,7 @@ suite('AgentHostPermissionService', () => {
 
 	test('allowAlways defaults to APPLICATION scope when no value is configured anywhere', async () => {
 		const { service, config } = createService();
-		const promise = service.request('host', { uri: URI.file('/etc/foo').toString(), read: true });
+		const promise = service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), read: true });
 		await new Promise(resolve => setTimeout(resolve, 0));
 		service.allPending.get()[0].allowAlways();
 		await promise;
@@ -496,7 +496,7 @@ suite('AgentHostPermissionService', () => {
 		};
 		const service = disposables.add(new AgentHostPermissionService(config, createStubFileService(), new NullLogService()));
 
-		const promise = service.request('host', { uri: URI.file('/etc/foo').toString(), read: true });
+		const promise = service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), read: true });
 		await new Promise(resolve => setTimeout(resolve, 0));
 		service.allPending.get()[0].allowAlways();
 		await promise;
@@ -527,7 +527,7 @@ suite('AgentHostPermissionService', () => {
 		};
 		const service = disposables.add(new AgentHostPermissionService(config, createStubFileService(), new NullLogService()));
 
-		const promise = service.request('host', { uri: URI.file('/etc/foo').toString(), read: true });
+		const promise = service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), read: true });
 		await new Promise(resolve => setTimeout(resolve, 0));
 		service.allPending.get()[0].allowAlways();
 		await promise;

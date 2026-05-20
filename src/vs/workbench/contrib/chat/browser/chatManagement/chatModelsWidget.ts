@@ -271,9 +271,12 @@ abstract class ModelsTableColumnRenderer<T extends IModelTableColumnTemplateData
 		const isGroup = isLanguageModelGroupEntry(element);
 		const isStatus = isStatusEntry(element);
 		templateData.container.classList.add('models-table-column');
-		templateData.container.parentElement!.classList.toggle('models-vendor-row', isVendor || isGroup);
-		templateData.container.parentElement!.classList.toggle('models-model-row', !isVendor && !isGroup);
-		templateData.container.parentElement!.classList.toggle('models-status-row', isStatus);
+		const row = templateData.container.parentElement!;
+		row.classList.toggle('models-vendor-row', isVendor || isGroup);
+		row.classList.toggle('models-model-row', !isVendor && !isGroup);
+		row.classList.toggle('models-status-row', isStatus);
+		const isHidden = (isVendor && element.hidden) || (!isVendor && !isGroup && !isStatus && (element as ILanguageModelEntry).model?.hidden);
+		row.classList.toggle('models-row-hidden', !!isHidden);
 		if (isVendor) {
 			this.renderVendorElement(element, index, templateData);
 		} else if (isGroup) {
@@ -336,6 +339,7 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 
 	override renderVendorElement(entry: ILanguageModelProviderEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
 		this.renderCollapsableElement(entry, templateData);
+		this.renderGroupVisibilityElement(entry, templateData);
 	}
 
 	override renderGroupElement(entry: ILanguageModelGroupEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
@@ -360,6 +364,39 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
+		this.renderModelVisibilityElement(entry, templateData);
+	}
+
+	private renderGroupVisibilityElement(entry: ILanguageModelProviderEntry, templateData: IToggleCollapseColumnTemplateData): void {
+		const hidden = entry.hidden;
+		templateData.actionBar.push({
+			id: hidden ? 'showGroup' : 'hideGroup',
+			label: hidden
+				? localize('models.showGroup', "Show All Models")
+				: localize('models.hideGroup', "Hide All Models"),
+			tooltip: hidden
+				? localize('models.showGroup', "Show All Models")
+				: localize('models.hideGroup', "Hide All Models"),
+			class: `model-visibility-toggle ${ThemeIcon.asClassName(hidden ? Codicon.eyeClosed : Codicon.eye)}`,
+			enabled: true,
+			run: () => this.viewModel.toggleGroupHidden(entry),
+		}, { icon: true, label: false });
+	}
+
+	private renderModelVisibilityElement(entry: ILanguageModelEntry, templateData: IToggleCollapseColumnTemplateData): void {
+		const hidden = entry.model.hidden;
+		templateData.actionBar.push({
+			id: hidden ? 'showModel' : 'hideModel',
+			label: hidden
+				? localize('models.showModel', "Show Model")
+				: localize('models.hideModel', "Hide Model"),
+			tooltip: hidden
+				? localize('models.showModel', "Show Model")
+				: localize('models.hideModel', "Hide Model"),
+			class: `model-visibility-toggle ${ThemeIcon.asClassName(hidden ? Codicon.eyeClosed : Codicon.eye)}`,
+			enabled: true,
+			run: () => this.viewModel.toggleModelHidden(entry),
+		}, { icon: true, label: false });
 	}
 }
 
@@ -367,7 +404,6 @@ interface IModelNameColumnTemplateData extends IModelTableColumnTemplateData {
 	readonly statusIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly modelStatusIcon: HTMLElement;
-	readonly actionBar: ActionBar;
 }
 
 class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumnTemplateData> {
@@ -388,13 +424,11 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		const statusIcon = DOM.append(nameContainer, $('.status-icon'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameContainer, $('.model-name'))));
 		const modelStatusIcon = DOM.append(nameContainer, $('.model-status-icon'));
-		const actionBar = disposables.add(new ActionBar(DOM.append(nameContainer, $('.model-name-actions'))));
 		return {
 			container,
 			statusIcon,
 			nameLabel,
 			modelStatusIcon,
-			actionBar,
 			disposables,
 			elementDisposables
 		};
@@ -402,7 +436,6 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 
 	override renderElement(entry: IViewModelEntry, index: number, templateData: IModelNameColumnTemplateData): void {
 		DOM.clearNode(templateData.modelStatusIcon);
-		templateData.actionBar.clear();
 		templateData.nameLabel.element.classList.remove('error-status', 'warning-status', 'info-status');
 		super.renderElement(entry, index, templateData);
 	}
@@ -1094,8 +1127,8 @@ export class ChatModelsWidget extends Disposable {
 				label: '',
 				tooltip: '',
 				weight: 0.05,
-				minimumWidth: 40,
-				maximumWidth: 40,
+				minimumWidth: 64,
+				maximumWidth: 64,
 				templateId: GutterColumnRenderer.TEMPLATE_ID,
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
@@ -1170,14 +1203,18 @@ export class ChatModelsWidget extends Disposable {
 				accessibilityProvider: {
 					getAriaLabel: (e: IViewModelEntry) => {
 						if (isLanguageModelProviderEntry(e)) {
-							return localize('vendor.ariaLabel', '{0} Models', e.vendorEntry.group.name);
+							return e.hidden
+								? localize('vendor.hidden.ariaLabel', '{0} Models (hidden)', e.vendorEntry.group.name)
+								: localize('vendor.ariaLabel', '{0} Models', e.vendorEntry.group.name);
 						} else if (isLanguageModelGroupEntry(e)) {
 							return e.id === 'visible' ? localize('visible.ariaLabel', 'Visible Models') : localize('hidden.ariaLabel', 'Hidden Models');
 						} else if (isStatusEntry(e)) {
 							return localize('status.ariaLabel', 'Status: {0}', e.message);
 						}
 						const ariaLabels = [];
-						ariaLabels.push(localize('model.name', '{0} from {1}', e.model.metadata.name, e.model.provider.vendor.displayName));
+						ariaLabels.push(e.model.hidden
+							? localize('model.name.hidden', '{0} from {1} (hidden)', e.model.metadata.name, e.model.provider.vendor.displayName)
+							: localize('model.name', '{0} from {1}', e.model.metadata.name, e.model.provider.vendor.displayName));
 						if (e.model.metadata.maxInputTokens || e.model.metadata.maxOutputTokens) {
 							const totalTokens = (e.model.metadata.maxInputTokens ?? 0) + (e.model.metadata.maxOutputTokens ?? 0);
 							ariaLabels.push(localize('model.contextSize.totalTokens', 'Context size: {0} tokens', formatTokenCount(totalTokens)));
@@ -1255,6 +1292,21 @@ export class ChatModelsWidget extends Disposable {
 					}));
 				}
 
+				// Hide/show action — single action for all selected models
+				const allHidden = selectedModelEntries.every(e => e.model.hidden);
+				actions.push(toAction({
+					id: allHidden ? 'showModels' : 'hideModels',
+					label: allHidden
+						? (selectedModelEntries.length === 1
+							? localize('models.showModel', "Show Model")
+							: localize('models.showModelsPlural', "Show Models"))
+						: (selectedModelEntries.length === 1
+							? localize('models.hideModel', "Hide Model")
+							: localize('models.hideModelsPlural', "Hide Models")),
+					class: ThemeIcon.asClassName(allHidden ? Codicon.eyeClosed : Codicon.eye),
+					run: () => this.viewModel.setModelsHidden(selectedModelEntries, !allHidden),
+				}));
+
 				// Show per-model configuration actions for a single model
 				if (selectedModelEntries.length === 1) {
 					const configActions = this.languageModelsService.getModelConfigurationActions(selectedModelEntries[0].model.identifier);
@@ -1276,6 +1328,15 @@ export class ChatModelsWidget extends Disposable {
 				if (isLanguageModelProviderEntry(entry)) {
 					configureGroup = entry.vendorEntry.group.name;
 					configureVendor = entry.vendorEntry.vendor;
+
+					actions.push(toAction({
+						id: entry.hidden ? 'showGroup' : 'hideGroup',
+						label: entry.hidden
+							? localize('models.showGroup', "Show All Models")
+							: localize('models.hideGroup', "Hide All Models"),
+						class: ThemeIcon.asClassName(entry.hidden ? Codicon.eyeClosed : Codicon.eye),
+						run: () => this.viewModel.toggleGroupHidden(entry),
+					}));
 				}
 			}
 

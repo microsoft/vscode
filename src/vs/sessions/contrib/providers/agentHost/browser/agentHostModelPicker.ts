@@ -23,6 +23,7 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
+import { INewChatModelPickerService } from '../../../chat/browser/newChatModelPicker.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
@@ -114,7 +115,7 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig, 'sessions.agentHost.modelPicker',
-			() => {
+			(_action, _options, scopedInstantiationService) => {
 				const currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentModel', undefined);
 				let settingModelInternally = false;
 				const delegate: IModelPickerDelegate = {
@@ -146,10 +147,10 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 					showFeatured: () => true,
 				};
 				const pickerOptions: IChatInputPickerOptions = {
-					hideChevrons: observableValue('hideChevrons', false),
+					compact: observableValue('compact', false),
 				};
 				const action = { id: 'sessions.agentHost.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
-				const modelPicker = instantiationService.createInstance(ModelPickerActionItem, action, delegate, pickerOptions);
+				const modelPicker = scopedInstantiationService.createInstance(ModelPickerActionItem, action, delegate, pickerOptions);
 
 				const initModel = (session: ISession | undefined, sessionModelId: string | undefined, isUntitled: boolean) => {
 					const models = getAgentHostModels(languageModelsService, session);
@@ -190,18 +191,21 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 					initModel(session, sessionModelId, isUntitled);
 				}));
 
-				return new AgentHostPickerActionViewItem(modelPicker, disposableStore);
+				return scopedInstantiationService.createInstance(AgentHostPickerActionViewItem, modelPicker, disposableStore);
 			},
 		));
 	}
 }
 
 class AgentHostPickerActionViewItem extends BaseActionViewItem {
-	constructor(private readonly picker: { render(container: HTMLElement): void; dispose(): void }, disposable?: DisposableStore) {
+	constructor(
+		private readonly picker: { render(container: HTMLElement): void; openModelPicker(): void; dispose(): void },
+		disposable: DisposableStore,
+		@INewChatModelPickerService newChatModelPickerService: INewChatModelPickerService,
+	) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
-		if (disposable) {
-			this._register(disposable);
-		}
+		this._register(newChatModelPickerService.registerModelPicker(() => this.picker.openModelPicker()));
+		this._register(disposable);
 	}
 
 	override render(container: HTMLElement): void {

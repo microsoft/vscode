@@ -443,7 +443,6 @@ export class ClaudeSdkPipeline extends Disposable {
 							session: this.sessionUri,
 							action: {
 								type: ActionType.SessionTurnComplete,
-								session: this.sessionUri.toString(),
 								turnId: completed.turnId,
 							},
 						});

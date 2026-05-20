@@ -8,10 +8,12 @@ import {
 	CustomizationHarnessServiceBase,
 	ICustomizationHarnessService,
 	createVSCodeHarnessDescriptor,
+
 } from '../../common/customizationHarnessService.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
 import { SessionType } from '../../common/chatSessionsService.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 /**
  * Core implementation of the customization harness service.
@@ -21,7 +23,7 @@ import { SessionType } from '../../common/chatSessionsService.js';
  */
 class CustomizationHarnessService extends CustomizationHarnessServiceBase {
 	constructor(
-		@IPromptsService promptsService: IPromptsService
+		@IPromptsService promptsService: IPromptsService,
 	) {
 		const localExtras = [PromptsStorage.extension, BUILTIN_STORAGE];
 		super(
@@ -29,6 +31,19 @@ class CustomizationHarnessService extends CustomizationHarnessServiceBase {
 			SessionType.Local,
 			promptsService,
 		);
+	}
+
+	override getSessionResourceForHarness(sessionType: string): URI {
+		// const lastUsedSession = this.agentSessionsService.model.sessions
+		// 	.filter(session => session.providerType === sessionType)
+		// 	.sort((a, b) => (b.timing.lastRequestEnded ?? b.timing.created) - (a.timing.lastRequestEnded ?? a.timing.created))
+		// 	.at(0);
+
+		// if (lastUsedSession) {
+		// 	return lastUsedSession.resource;
+		// }
+
+		return super.getSessionResourceForHarness(sessionType);
 	}
 }
 

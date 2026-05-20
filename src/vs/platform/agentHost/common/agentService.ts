@@ -13,7 +13,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IAgentSubscription } from './state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
-import { ProtectedResourceMetadata, type ConfigSchema, type FileEdit, type MessageAttachment, type ModelSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
+import { ProtectedResourceMetadata, type ChangesetSummary, type ConfigSchema, type MessageAttachment, type ModelSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionCustomization, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
@@ -226,7 +226,15 @@ export interface IAgentSessionMetadata {
 	readonly customizationDirectory?: URI;
 	readonly isRead?: boolean;
 	readonly isArchived?: boolean;
-	readonly diffs?: readonly FileEdit[];
+	/**
+	 * Catalogue of changesets the agent can produce for this session — the
+	 * {@link ChangesetSummary | catalogue} that travels on
+	 * `SessionSummary.changesets`. Lightweight summary entries (id / label /
+	 * URI template / aggregate counts) without per-file detail; clients
+	 * subscribe to a specific expanded changeset URI when they need the full
+	 * file list.
+	 */
+	readonly changesets?: readonly ChangesetSummary[];
 	/**
 	 * Side-channel metadata mirroring {@link SessionState._meta}, propagated
 	 * to clients via per-session state subscriptions.
@@ -794,8 +802,14 @@ export interface IAgentService {
 	 * Dispatch a client-originated action to the server. The server applies
 	 * it to state, triggers side effects, and echoes it back via
 	 * {@link onDidAction} with the client's origin for reconciliation.
+	 *
+	 * `channel` is the protocol URI string identifying the channel the action
+	 * targets (a session URI for session actions, terminal URI for terminal
+	 * actions, or {@link ROOT_STATE_URI} for root actions). Strings are used
+	 * rather than {@link URI} objects so that authority-less scheme URIs
+	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -848,7 +862,15 @@ export interface IAgentConnection {
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined;
 
 	// ---- Action dispatch ----------------------------------------------------
-	dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void;
+	/**
+	 * Dispatch a client-originated action. `channel` is the protocol URI
+	 * string identifying the channel the action targets (a session URI for
+	 * session actions, terminal URI for terminal actions, or
+	 * `ROOT_STATE_URI` for root-config actions). Strings are used rather
+	 * than {@link URI} objects so authority-less scheme URIs like
+	 * `ahp-root://` survive the wire format without normalization.
+	 */
+	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;

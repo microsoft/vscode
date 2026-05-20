@@ -1314,6 +1314,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._exitReason = reason ?? TerminalExitReason.Unknown;
 		}
 
+		// Dispose the resize debouncer before the process manager so that no
+		// resize callbacks can fire after ptyProcessReady has been nulled.
+		this._resizeDebouncer?.dispose();
+		this._resizeDebouncer = undefined;
+
 		this._processManager.dispose();
 		// Process manager dispose/shutdown doesn't fire process exit, trigger with undefined if it
 		// hasn't happened yet
@@ -1704,6 +1709,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._isExiting = true;
 
 		await this._flushXtermData();
+
+		// The terminal may have been disposed during the flush await (e.g. user
+		// closed the tab). Bail out to avoid using disposed services below.
+		if (this.isDisposed) {
+			return;
+		}
 
 		this._exitCode = parsedExitResult?.code;
 		const exitMessage = parsedExitResult?.message;
@@ -2108,7 +2119,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _updateTitleProperties(title: string | undefined, eventSource: TitleEventSource): string {
-		if (!title) {
+		if (title === undefined) {
 			return this._processName;
 		}
 		switch (eventSource) {
@@ -2379,6 +2390,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async rename(title?: string, source?: TitleEventSource) {
+		if (title !== undefined && !title) {
+			title = undefined;
+		}
 		this._setTitle(title, source ?? TitleEventSource.Api);
 	}
 

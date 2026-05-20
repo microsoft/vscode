@@ -7,24 +7,20 @@ import es from 'event-stream';
 import fs from 'fs';
 import cp from 'child_process';
 import glob from 'glob';
-import gulp from 'gulp';
+import { gulp, filter, rename, buffer, vinylZip, jsonEditor } from './gulp/facade.ts';
 import path from 'path';
 import crypto from 'crypto';
 import { Stream } from 'stream';
 import File from 'vinyl';
 import { createStatsStream } from './stats.ts';
 import * as util2 from './util.ts';
-import filter from 'gulp-filter';
-import rename from 'gulp-rename';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
-import buffer from 'gulp-buffer';
 import * as jsoncParser from 'jsonc-parser';
 import { getProductionDependencies } from './dependencies.ts';
 import { type IExtensionDefinition, getExtensionStream } from './builtInExtensions.ts';
 import { fetchUrls, fetchGithub } from './fetch.ts';
 import { createTsgoStream, spawnTsgo } from './tsgo.ts';
-import vzip from 'gulp-vinyl-zip';
 
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
@@ -232,8 +228,6 @@ const baseHeaders = {
 };
 
 export function fromMarketplace(serviceUrl: string, { name: extensionName, version, sha256, metadata }: IExtensionDefinition): Stream {
-	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
-
 	const [publisher, name] = extensionName.split('.');
 	const url = `${serviceUrl}/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
 
@@ -248,18 +242,16 @@ export function fromMarketplace(serviceUrl: string, { name: extensionName, versi
 		},
 		checksumSha256: sha256
 	})
-		.pipe(vzip.src())
+		.pipe(vinylZip.src())
 		.pipe(filter('extension/**'))
 		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
 		.pipe(packageJsonFilter)
 		.pipe(buffer())
-		.pipe(json({ __metadata: metadata }))
+		.pipe(jsonEditor({ __metadata: metadata }))
 		.pipe(packageJsonFilter.restore);
 }
 
 export function fromVsix(vsixPath: string, { name: extensionName, version, sha256, metadata }: IExtensionDefinition): Stream {
-	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
-
 	fancyLog('Using local VSIX for extension:', ansiColors.yellow(`${extensionName}@${version}`), '...');
 
 	const packageJsonFilter = filter('package.json', { restore: true });
@@ -275,19 +267,17 @@ export function fromVsix(vsixPath: string, { name: extensionName, version, sha25
 			}
 			return f;
 		}))
-		.pipe(vzip.src())
+		.pipe(vinylZip.src())
 		.pipe(filter('extension/**'))
 		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
 		.pipe(packageJsonFilter)
 		.pipe(buffer())
-		.pipe(json({ __metadata: metadata }))
+		.pipe(jsonEditor({ __metadata: metadata }))
 		.pipe(packageJsonFilter.restore);
 }
 
 
 export function fromGithub({ name, version, repo, sha256, metadata }: IExtensionDefinition): Stream {
-	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
-
 	fancyLog('Downloading extension from GH:', ansiColors.yellow(`${name}@${version}`), '...');
 
 	const packageJsonFilter = filter('package.json', { restore: true });
@@ -298,12 +288,12 @@ export function fromGithub({ name, version, repo, sha256, metadata }: IExtension
 		checksumSha256: sha256
 	})
 		.pipe(buffer())
-		.pipe(vzip.src())
+		.pipe(vinylZip.src())
 		.pipe(filter('extension/**'))
 		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
 		.pipe(packageJsonFilter)
 		.pipe(buffer())
-		.pipe(json({ __metadata: metadata }))
+		.pipe(jsonEditor({ __metadata: metadata }))
 		.pipe(packageJsonFilter.restore);
 }
 

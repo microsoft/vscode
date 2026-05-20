@@ -17,10 +17,11 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { ActionType, isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { CustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, ROOT_STATE_URI, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, type SessionState, type SessionSummary, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, type SessionState, type SessionSummary, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -142,7 +143,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	// Protocol methods
 	public override readonly clientId = 'test-window-1';
-	public dispatchedActions: { action: SessionAction | TerminalAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
+	public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 
 	/** Returns dispatched actions filtered to turn-related types only
 	 *  (excludes lifecycle actions like activeClientChanged). */
@@ -157,7 +158,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			return { resource: resourceStr, state: existingState, fromSeq: 0 };
 		}
 		// Root state subscription
-		if (resourceStr === ROOT_STATE_URI) {
+		if (isAhpRootChannel(resourceStr)) {
 			return {
 				resource: resourceStr,
 				state: {
@@ -182,8 +183,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		};
 	}
 	unsubscribe(_resource: URI): void { }
-	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
-		this.dispatchedActions.push({ action, clientId, clientSeq });
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+		this.dispatchedActions.push({ channel, action, clientId, clientSeq });
 	}
 	private _nextSeq = 1;
 	nextClientSeq(): number {
@@ -293,14 +294,14 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			onDidApplyAction: entry.onDidApply.event,
 		} satisfies IAgentSubscription<T>;
 	}
-	override dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
-		this.dispatchedActions.push({ action, clientId: this.clientId, clientSeq: this._nextSeq++ });
+	override dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 		// Apply state-management actions optimistically so state-dependent
 		// logic (e.g. customization re-dispatch) sees the correct activeClient.
 		// Turn lifecycle actions (turnStarted, toolCallConfirmed, etc.) are applied
 		// later via fireAction when the server echoes them back.
 		if (isSessionAction(action) && action.type === 'session/activeClientChanged') {
-			const entry = this._liveSubscriptions.get(action.session);
+			const entry = this._liveSubscriptions.get(channel.toString());
 			if (entry) {
 				const noop = () => { };
 				entry.state = sessionReducer(entry.state, action as Parameters<typeof sessionReducer>[1], noop);
@@ -314,7 +315,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._onDidAction.fire(envelope);
 		// Route action to matching live subscriptions
 		if (isSessionAction(envelope.action)) {
-			const sessionUri = envelope.action.session;
+			const sessionUri = envelope.channel;
 			const entry = this._liveSubscriptions.get(sessionUri);
 			if (entry) {
 				const noop = () => { };
@@ -594,11 +595,11 @@ async function startTurn(
 	// Filter for turn-related dispatches only (skip activeClientChanged etc.)
 	const turnDispatches = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/turnStarted');
 	const lastDispatch = turnDispatches[turnDispatches.length - 1] ?? agentHostService.dispatchedActions[agentHostService.dispatchedActions.length - 1];
-	const session = (lastDispatch?.action as ITurnStartedAction)?.session;
+	const session = lastDispatch?.channel.toString();
 	const turnId = (lastDispatch?.action as ITurnStartedAction)?.turnId;
 
 	const fire = (action: SessionAction) => {
-		agentHostService.fireAction({ action, serverSeq: seq.v++, origin: undefined });
+		agentHostService.fireAction({ channel: session!, action, serverSeq: seq.v++, origin: undefined });
 	};
 
 	// Echo the turnStarted action to clear the pending write-ahead entry.
@@ -606,6 +607,7 @@ async function startTurn(
 	// the server's turnComplete clears it, preventing the turn from finishing.
 	if (lastDispatch) {
 		agentHostService.fireAction({
+			channel: lastDispatch.channel.toString(),
 			action: lastDispatch.action,
 			serverSeq: seq.v++,
 			origin: { clientId: agentHostService.clientId, clientSeq: lastDispatch.clientSeq },
@@ -653,14 +655,15 @@ async function startDynamicAgentTurn(
 
 	const turnDispatches = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/turnStarted');
 	const lastDispatch = turnDispatches[turnDispatches.length - 1] ?? agentHostService.dispatchedActions[agentHostService.dispatchedActions.length - 1];
-	const session = (lastDispatch?.action as ITurnStartedAction)?.session;
+	const session = lastDispatch?.channel.toString();
 	const turnId = (lastDispatch?.action as ITurnStartedAction)?.turnId;
 	const fire = (action: SessionAction) => {
-		agentHostService.fireAction({ action, serverSeq: seq.v++, origin: undefined });
+		agentHostService.fireAction({ channel: session!, action, serverSeq: seq.v++, origin: undefined });
 	};
 
 	if (lastDispatch) {
 		agentHostService.fireAction({
+			channel: lastDispatch.channel.toString(),
 			action: lastDispatch.action,
 			serverSeq: seq.v++,
 			origin: { clientId: agentHostService.clientId, clientSeq: lastDispatch.clientSeq },
@@ -961,8 +964,8 @@ suite('AgentHostChatContribution', () => {
 			const dispatch1 = agentHostService.turnActions[0];
 			const action1 = dispatch1.action as ITurnStartedAction;
 			// Echo the turnStarted to clear pending write-ahead
-			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
-			agentHostService.fireAction({ action: { type: 'session/turnComplete', session: action1.session, turnId: action1.turnId } as SessionAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
+			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: { type: 'session/turnComplete', turnId: action1.turnId } as SessionAction, serverSeq: 2, origin: undefined });
 			await turn1Promise;
 
 			// Second turn
@@ -973,14 +976,14 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			const dispatch2 = agentHostService.turnActions[1];
 			const action2 = dispatch2.action as ITurnStartedAction;
-			agentHostService.fireAction({ action: dispatch2.action, serverSeq: 3, origin: { clientId: agentHostService.clientId, clientSeq: dispatch2.clientSeq } });
-			agentHostService.fireAction({ action: { type: 'session/turnComplete', session: action2.session, turnId: action2.turnId } as SessionAction, serverSeq: 4, origin: undefined });
+			agentHostService.fireAction({ channel: dispatch2.channel.toString(), action: dispatch2.action, serverSeq: 3, origin: { clientId: agentHostService.clientId, clientSeq: dispatch2.clientSeq } });
+			agentHostService.fireAction({ channel: dispatch2.channel.toString(), action: { type: 'session/turnComplete', turnId: action2.turnId } as SessionAction, serverSeq: 4, origin: undefined });
 			await turn2Promise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 2);
 			assert.strictEqual(
-				(agentHostService.turnActions[0].action as ITurnStartedAction).session.toString(),
-				(agentHostService.turnActions[1].action as ITurnStartedAction).session.toString(),
+				agentHostService.turnActions[0].channel.toString(),
+				agentHostService.turnActions[1].channel.toString(),
 			);
 		}));
 
@@ -1016,8 +1019,8 @@ suite('AgentHostChatContribution', () => {
 
 			const dispatch = agentHostService.turnActions[0];
 			const action = dispatch.action as ITurnStartedAction;
-			agentHostService.fireAction({ action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
-			agentHostService.fireAction({ action: { type: 'session/turnComplete', session: action.session, turnId: action.turnId } as SessionAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'session/turnComplete', turnId: action.turnId } as SessionAction, serverSeq: 2, origin: undefined });
 			await turnPromise;
 
 			assert.deepStrictEqual(agentHostService.turnActions.map(d => (d.action as ITurnStartedAction).userMessage.text), ['Recovered']);
@@ -1247,16 +1250,17 @@ suite('AgentHostChatContribution', () => {
 		test('events from other sessions are ignored', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			// Delta from a different session — will be ignored (session not subscribed)
 			agentHostService.fireAction({
-				action: { type: 'session/delta', session: AgentSession.uri('copilot', 'other-session').toString(), turnId, partId: 'md-other', content: 'wrong' } as SessionAction,
+				channel: AgentSession.uri('copilot', 'other-session').toString(),
+				action: { type: 'session/delta', turnId, partId: 'md-other', content: 'wrong' } as SessionAction,
 				serverSeq: 100,
 				origin: undefined,
 			});
-			fire({ type: 'session/responsePart', session, turnId, part: { kind: 'markdown', id: 'md-1', content: 'right' } } as SessionAction);
-			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			fire({ type: 'session/responsePart', turnId, part: { kind: 'markdown', id: 'md-1', content: 'right' } } as SessionAction);
+			fire({ type: 'session/turnComplete', turnId } as SessionAction);
 
 			await turnPromise;
 
@@ -1269,11 +1273,10 @@ suite('AgentHostChatContribution', () => {
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-input-request-test' });
 			chatWidgetService.setWidgetForSession(sessionResource);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
 
 			fire({
 				type: ActionType.SessionInputRequested,
-				session,
 				request: {
 					id: 'input-1',
 					message: 'Need more information',
@@ -1299,7 +1302,6 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.dispatchedActions.length = 0;
 			fire({
 				type: ActionType.SessionInputCompleted,
-				session,
 				requestId: 'input-1',
 				response: SessionInputResponseKind.Accept,
 				answers: {
@@ -1330,7 +1332,7 @@ suite('AgentHostChatContribution', () => {
 			});
 			assert.strictEqual(agentHostService.dispatchedActions.some(dispatched => dispatched.action.type === ActionType.SessionInputCompleted), false);
 
-			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			fire({ type: ActionType.SessionTurnComplete, turnId });
 			await turnPromise;
 		}));
 
@@ -1339,11 +1341,10 @@ suite('AgentHostChatContribution', () => {
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-local-input-request-test' });
 			chatWidgetService.setWidgetForSession(sessionResource);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
 
 			fire({
 				type: ActionType.SessionInputRequested,
-				session,
 				request: {
 					id: 'input-1',
 					message: 'Need more information',
@@ -1370,7 +1371,6 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.dispatchedActions.length = 0;
 			fire({
 				type: ActionType.SessionInputCompleted,
-				session,
 				requestId: 'input-1',
 				response: SessionInputResponseKind.Accept,
 				answers: {
@@ -1386,7 +1386,7 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(chatWidgetService.clearQuestionCarouselCalls, []);
 			assert.strictEqual(agentHostService.dispatchedActions.some(dispatched => dispatched.action.type === ActionType.SessionInputCompleted), false);
 
-			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			fire({ type: ActionType.SessionTurnComplete, turnId });
 			await turnPromise;
 		}));
 
@@ -1395,11 +1395,10 @@ suite('AgentHostChatContribution', () => {
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-cancelled-input-request-test' });
 			chatWidgetService.setWidgetForSession(sessionResource);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
 
 			fire({
 				type: ActionType.SessionInputRequested,
-				session,
 				request: {
 					id: 'input-1',
 					message: 'Need more information',
@@ -1425,7 +1424,6 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.dispatchedActions.length = 0;
 			fire({
 				type: ActionType.SessionInputCompleted,
-				session,
 				requestId: 'input-1',
 				response: SessionInputResponseKind.Cancel,
 			});
@@ -1440,18 +1438,17 @@ suite('AgentHostChatContribution', () => {
 			]);
 			assert.strictEqual(agentHostService.dispatchedActions.some(dispatched => dispatched.action.type === ActionType.SessionInputCompleted), false);
 
-			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			fire({ type: ActionType.SessionTurnComplete, turnId });
 			await turnPromise;
 		}));
 
 		test('url-style input request renders an elicitation part with the URL', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({
 				type: ActionType.SessionInputRequested,
-				session,
 				request: {
 					id: 'url-1',
 					message: 'Please authorize',
@@ -1471,18 +1468,17 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(part.acceptButtonLabel.includes('example.com'), 'accept button should reference the URL authority');
 			assert.strictEqual(collected.flat().some(p => p.kind === 'questionCarousel'), false, 'url-style requests must not also render a question carousel');
 
-			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			fire({ type: ActionType.SessionTurnComplete, turnId });
 			await turnPromise;
 		}));
 
 		test('url input request accept opens URL and dispatches Accept', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, openerService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({
 				type: ActionType.SessionInputRequested,
-				session,
 				request: {
 					id: 'url-1',
 					url: 'https://example.com/auth',
@@ -1506,18 +1502,17 @@ suite('AgentHostChatContribution', () => {
 				response: (completions[0].action as { response: SessionInputResponseKind }).response,
 			}, { requestId: 'url-1', response: SessionInputResponseKind.Accept });
 
-			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			fire({ type: ActionType.SessionTurnComplete, turnId });
 			await turnPromise;
 		}));
 
 		test('url input request decline dispatches Decline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({
 				type: ActionType.SessionInputRequested,
-				session,
 				request: {
 					id: 'url-1',
 					url: 'https://example.com/auth',
@@ -1537,7 +1532,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual((completions[0].action as { response: SessionInputResponseKind }).response, SessionInputResponseKind.Decline);
 			assert.strictEqual(part.state.get(), ElicitationState.Rejected);
 
-			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			fire({ type: ActionType.SessionTurnComplete, turnId });
 			await turnPromise;
 		}));
 
@@ -1545,11 +1540,10 @@ suite('AgentHostChatContribution', () => {
 			const { sessionHandler, agentHostService, chatAgentService, openerService } = createContribution(disposables);
 			openerService.openShouldFail = true;
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({
 				type: ActionType.SessionInputRequested,
-				session,
 				request: { id: 'url-1', url: 'https://example.com/auth' },
 			});
 			await timeout(10);
@@ -1566,7 +1560,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual((completions[0].action as { response: SessionInputResponseKind }).response, SessionInputResponseKind.Decline);
 			assert.strictEqual(part.state.get(), ElicitationState.Rejected);
 
-			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			fire({ type: ActionType.SessionTurnComplete, turnId });
 			await turnPromise;
 		}));
 
@@ -1574,11 +1568,10 @@ suite('AgentHostChatContribution', () => {
 			const { sessionHandler, agentHostService, chatAgentService, openerService } = createContribution(disposables);
 			openerService.openResult = false;
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({
 				type: ActionType.SessionInputRequested,
-				session,
 				request: { id: 'url-1', url: 'https://example.com/auth' },
 			});
 			await timeout(10);
@@ -1595,24 +1588,23 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual((completions[0].action as { response: SessionInputResponseKind }).response, SessionInputResponseKind.Decline);
 			assert.strictEqual(part.state.get(), ElicitationState.Rejected);
 
-			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			fire({ type: ActionType.SessionTurnComplete, turnId });
 			await turnPromise;
 		}));
 
 		test('url input request abandoned at turn end dispatches Cancel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({
 				type: ActionType.SessionInputRequested,
-				session,
 				request: { id: 'url-1', url: 'https://example.com/auth' },
 			});
 			await timeout(10);
 
 			agentHostService.dispatchedActions.length = 0;
-			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			fire({ type: ActionType.SessionTurnComplete, turnId });
 			await turnPromise;
 
 			const completions = agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.SessionInputCompleted);
@@ -1626,11 +1618,10 @@ suite('AgentHostChatContribution', () => {
 		test('url input request completion from another client does not redispatch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({
 				type: ActionType.SessionInputRequested,
-				session,
 				request: { id: 'url-1', url: 'https://example.com/auth' },
 			});
 			await timeout(10);
@@ -1641,7 +1632,6 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.dispatchedActions.length = 0;
 			fire({
 				type: ActionType.SessionInputCompleted,
-				session,
 				requestId: 'url-1',
 				response: SessionInputResponseKind.Accept,
 			});
@@ -1649,7 +1639,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(part.state.get(), ElicitationState.Accepted);
 
-			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			fire({ type: ActionType.SessionTurnComplete, turnId });
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.dispatchedActions.some(d => d.action.type === ActionType.SessionInputCompleted), false);
@@ -1658,11 +1648,10 @@ suite('AgentHostChatContribution', () => {
 		test('url input request server-side dismissal rejects the part and does not redispatch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({
 				type: ActionType.SessionInputRequested,
-				session,
 				request: { id: 'url-1', url: 'https://example.com/auth' },
 			});
 			await timeout(10);
@@ -1673,7 +1662,6 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.dispatchedActions.length = 0;
 			fire({
 				type: ActionType.SessionInputCompleted,
-				session,
 				requestId: 'url-1',
 				response: SessionInputResponseKind.Cancel,
 			});
@@ -1681,7 +1669,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(part.state.get(), ElicitationState.Rejected);
 
-			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			fire({ type: ActionType.SessionTurnComplete, turnId });
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.dispatchedActions.some(d => d.action.type === ActionType.SessionInputCompleted), false);
@@ -1799,9 +1787,9 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, collected, session, turnId } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			agentHostService.fireAction({
+				channel: session,
 				action: {
 					type: 'session/error',
-					session,
 					turnId,
 					error: { errorType: 'test_error', message: 'Something went wrong' },
 				} as SessionAction,
@@ -2001,6 +1989,7 @@ suite('AgentHostChatContribution', () => {
 			// Echo the confirmation so the reducer transitions tc → Running,
 			// then complete the turn cleanly.
 			agentHostService.fireAction({
+				channel: confirmedDispatches[0].channel.toString(),
 				action: confirmedDispatches[0].action,
 				serverSeq: 100,
 				origin: { clientId: agentHostService.clientId, clientSeq: confirmedDispatches[0].clientSeq },
@@ -2050,6 +2039,7 @@ suite('AgentHostChatContribution', () => {
 				return (a.action as IToolCallConfirmedAction).toolCallId === 'tc-recon';
 			})!;
 			agentHostService.fireAction({
+				channel: firstConfirm.channel.toString(),
 				action: firstConfirm.action,
 				serverSeq: 100,
 				origin: { clientId: agentHostService.clientId, clientSeq: firstConfirm.clientSeq },
@@ -2132,6 +2122,93 @@ suite('AgentHostChatContribution', () => {
 			if (response.type === 'response') {
 				assert.strictEqual(response.parts.length, 1);
 				assert.strictEqual((response.parts[0] as IChatMarkdownContent).content.value, '4');
+			}
+		});
+
+		test('restores agent feedback attachments into request history variable data', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/feedback-history' });
+			const feedbackFile = URI.file('/workspace/foo.ts');
+			const sessionUri = AgentSession.uri('copilot', 'feedback-history');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'turn-1',
+					userMessage: {
+						text: '/act-on-feedback',
+						attachments: [{
+							type: MessageAttachmentKind.Simple,
+							label: 'Feedback',
+							displayKind: AgentFeedbackAttachmentDisplayKind,
+							modelRepresentation: 'Feedback text for the model',
+							_meta: {
+								[AgentFeedbackAttachmentMetadataKey]: {
+									sessionResource: sessionResource.toString(),
+									feedbackItems: [{
+										id: 'feedback-1',
+										text: 'Please simplify this.',
+										resourceUri: feedbackFile.toString(),
+										range: {
+											start: { line: 1, character: 2 },
+											end: { line: 3, character: 4 },
+										},
+									}],
+								},
+							},
+						}],
+					},
+					responseParts: [],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			} as SessionState);
+
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			assert.strictEqual(session.history.length, 2);
+			const request = session.history[0];
+			assert.strictEqual(request.type, 'request');
+			if (request.type === 'request') {
+				assert.ok(request.variableData);
+				const variables = request.variableData.variables;
+				const feedbackVariable = variables[0];
+				assert.strictEqual(feedbackVariable.kind, 'agentFeedback');
+				assert.deepStrictEqual({
+					...feedbackVariable,
+					sessionResource: feedbackVariable.sessionResource.toString(),
+					feedbackItems: feedbackVariable.feedbackItems.map(item => ({
+						...item,
+						resourceUri: item.resourceUri.toString(),
+					})),
+				}, {
+					kind: 'agentFeedback',
+					id: feedbackVariable.id,
+					name: 'Feedback',
+					value: 'Feedback text for the model',
+					sessionResource: sessionResource.toString(),
+					feedbackItems: [{
+						id: 'feedback-1',
+						text: 'Please simplify this.',
+						resourceUri: feedbackFile.toString(),
+						range: { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 },
+					}],
+					_meta: {
+						[AgentFeedbackAttachmentMetadataKey]: {
+							sessionResource: sessionResource.toString(),
+							feedbackItems: [{
+								id: 'feedback-1',
+								text: 'Please simplify this.',
+								resourceUri: feedbackFile.toString(),
+								range: {
+									start: { line: 1, character: 2 },
+									end: { line: 3, character: 4 },
+								},
+							}],
+						},
+					},
+				});
 			}
 		});
 
@@ -2501,9 +2578,9 @@ suite('AgentHostChatContribution', () => {
 
 			// Simulate a server-side error (e.g. sendMessage failure on the server)
 			agentHostService.fireAction({
+				channel: session,
 				action: {
 					type: 'session/error',
-					session,
 					turnId,
 					error: { errorType: 'connection_error', message: 'connection lost' },
 				} as SessionAction,
@@ -2668,6 +2745,63 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(turnAction.userMessage.attachments, [
 				{ type: MessageAttachmentKind.Resource, uri: URI.file('/workspace/test.ts').toString(), label: 'test.ts', displayKind: 'document', _meta: { provider: 'fs', score: 0.42 } },
 			]);
+		}));
+
+		test('agent feedback variable becomes simple attachment with structured metadata', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/feedback-test' });
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: '/act-on-feedback',
+				sessionResource,
+				variables: {
+					variables: [
+						upcastPartial({
+							kind: 'agentFeedback',
+							id: 'feedback-var',
+							name: 'Feedback',
+							value: 'Feedback text for the model',
+							sessionResource,
+							feedbackItems: [{
+								id: 'feedback-1',
+								text: 'Please simplify this.',
+								resourceUri: URI.file('/workspace/foo.ts'),
+								range: new Range(2, 3, 4, 5),
+								codeSelection: 'const value = compute();',
+								diffHunks: '@@ -1 +1 @@',
+								sourcePRReviewCommentId: 'thread-1',
+							}],
+							_meta: { source: 'test' },
+						}),
+					],
+				},
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.userMessage.attachments, [{
+				type: MessageAttachmentKind.Simple,
+				label: 'Feedback',
+				modelRepresentation: 'Feedback text for the model',
+				displayKind: AgentFeedbackAttachmentDisplayKind,
+				_meta: {
+					source: 'test',
+					[AgentFeedbackAttachmentMetadataKey]: {
+						sessionResource: sessionResource.toString(),
+						feedbackItems: [{
+							id: 'feedback-1',
+							text: 'Please simplify this.',
+							resourceUri: URI.file('/workspace/foo.ts').toString(),
+							range: {
+								start: { line: 1, character: 2 },
+								end: { line: 3, character: 4 },
+							},
+						}],
+					},
+				},
+			}]);
 		}));
 
 		test('directory variable with file:// URI becomes directory attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -2877,6 +3011,7 @@ suite('AgentHostChatContribution', () => {
 			const requestedDir = URI.file('/source');
 			const resolvedDir = URI.file('/worktree');
 			const expectedSelectionUri = URI.file('/worktree/sub/foo.ts');
+			const feedbackUri = URI.file('/source/commented.ts');
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
 				workingDirectoryResolver: { resolve: () => requestedDir },
 			});
@@ -2898,6 +3033,20 @@ suite('AgentHostChatContribution', () => {
 							enabled: true,
 							value: { uri: URI.file('/source/sub/foo.ts'), range: new Range(2, 3, 4, 5) },
 						}),
+						upcastPartial({
+							kind: 'agentFeedback',
+							id: 'v-feedback',
+							name: 'Feedback',
+							value: 'Feedback text for the model',
+							sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/new-turntest' }),
+							feedbackItems: [{
+								id: 'feedback-1',
+								text: 'Please simplify this.',
+								resourceUri: feedbackUri,
+								range: new Range(6, 1, 6, 8),
+								codeSelection: 'compute',
+							}],
+						}),
 					],
 				},
 			});
@@ -2918,6 +3067,26 @@ suite('AgentHostChatContribution', () => {
 						range: {
 							start: { line: 1, character: 2 },
 							end: { line: 3, character: 4 },
+						},
+					},
+				},
+				{
+					type: MessageAttachmentKind.Simple,
+					label: 'Feedback',
+					modelRepresentation: 'Feedback text for the model',
+					displayKind: AgentFeedbackAttachmentDisplayKind,
+					_meta: {
+						[AgentFeedbackAttachmentMetadataKey]: {
+							sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/new-turntest' }).toString(),
+							feedbackItems: [{
+								id: 'feedback-1',
+								text: 'Please simplify this.',
+								resourceUri: feedbackUri.toString(),
+								range: {
+									start: { line: 5, character: 0 },
+									end: { line: 5, character: 7 },
+								},
+							}],
 						},
 					},
 				},
@@ -3109,8 +3278,8 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			const turnDispatch = agentHostService.turnActions[0];
 			const turnAction = turnDispatch.action as ITurnStartedAction;
-			agentHostService.fireAction({ action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
-			agentHostService.fireAction({ action: { type: 'session/turnComplete', session: turnAction.session, turnId: turnAction.turnId } as SessionAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'session/turnComplete', turnId: turnAction.turnId } as SessionAction, serverSeq: 2, origin: undefined });
 			await turnPromise;
 
 			const configChanged = agentHostService.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged);
@@ -3157,8 +3326,8 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			const turnDispatch = agentHostService.turnActions[0];
 			const turnAction = turnDispatch.action as ITurnStartedAction;
-			agentHostService.fireAction({ action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
-			agentHostService.fireAction({ action: { type: 'session/turnComplete', session: turnAction.session, turnId: turnAction.turnId } as SessionAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'session/turnComplete', turnId: turnAction.turnId } as SessionAction, serverSeq: 2, origin: undefined });
 			await turnPromise;
 
 			const configChanged = agentHostService.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged) as { action: { config: Record<string, unknown>; replace?: boolean } } | undefined;
@@ -3292,13 +3461,13 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(chatAgentService.registeredAgents.has('connection-test'));
 
 			// Verify it can run a turn through the IAgentConnection path
-			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, {
+			const { turnPromise, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, {
 				message: 'Test message',
 				agentId: 'connection-test',
 			});
 
-			fire({ type: 'session/delta', session, turnId, content: 'Response' } as SessionAction);
-			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			fire({ type: 'session/delta', turnId, content: 'Response' } as SessionAction);
+			fire({ type: 'session/turnComplete', turnId } as SessionAction);
 			await turnPromise;
 
 			// Turn dispatched via connection.dispatchAction
@@ -3436,7 +3605,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Fire a delta action to simulate the server streaming more text
 			agentHostService.fireAction({
-				action: { type: 'session/delta', session: sessionUri.toString(), turnId: 'turn-active', partId: 'md-active', content: ' and more' } as SessionAction,
+				channel: sessionUri.toString(), action: { type: 'session/delta', turnId: 'turn-active', partId: 'md-active', content: ' and more' } as SessionAction,
 				serverSeq: 1,
 				origin: undefined,
 			});
@@ -3465,7 +3634,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Fire turnComplete to finish the active turn
 			agentHostService.fireAction({
-				action: { type: 'session/turnComplete', session: sessionUri.toString(), turnId: 'turn-active' } as SessionAction,
+				channel: sessionUri.toString(), action: { type: 'session/turnComplete', turnId: 'turn-active' } as SessionAction,
 				serverSeq: 1,
 				origin: undefined,
 			});
@@ -3533,7 +3702,7 @@ suite('AgentHostChatContribution', () => {
 			// Complete the turn so the awaitConfirmation promise and its internal
 			// DisposableStore are cleaned up before test teardown.
 			agentHostService.fireAction({
-				action: { type: 'session/turnComplete', session: sessionUri.toString(), turnId: 'turn-active' } as SessionAction,
+				channel: sessionUri.toString(), action: { type: 'session/turnComplete', turnId: 'turn-active' } as SessionAction,
 				serverSeq: 1,
 				origin: undefined,
 			});
@@ -3637,7 +3806,6 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(action, 'queued message should be dispatched to the agent host');
 			assert.deepStrictEqual(action, {
 				type: ActionType.SessionPendingMessageSet,
-				session: backendSession.toString(),
 				kind: 'queued',
 				id: 'queued-request-1',
 				userMessage: { text, attachments: undefined },
@@ -3679,7 +3847,6 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(action, 'queued message text update should be dispatched to the agent host');
 			assert.deepStrictEqual(action, {
 				type: ActionType.SessionPendingMessageSet,
-				session: backendSession.toString(),
 				kind: 'queued',
 				id: 'queued-request-1',
 				userMessage: { text, attachments: undefined },
@@ -3707,10 +3874,10 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			const dispatch1 = agentHostService.turnActions[0];
 			const action1 = dispatch1.action as ITurnStartedAction;
-			const session = action1.session;
+			const session = dispatch1.channel.toString();
 			// Echo + complete the first turn
-			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
-			agentHostService.fireAction({ action: { type: 'session/turnComplete', session, turnId: action1.turnId } as SessionAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
+			agentHostService.fireAction({ channel: session, action: { type: 'session/turnComplete', session, turnId: action1.turnId } as SessionAction, serverSeq: 2, origin: undefined });
 			await turn1Promise;
 
 			// Now simulate a server-initiated turn (e.g. from a consumed queued message)
@@ -3719,9 +3886,9 @@ suite('AgentHostChatContribution', () => {
 			disposables.add(chatSession.onDidStartServerRequest!(e => serverRequestEvents.push(e)));
 
 			agentHostService.fireAction({
+				channel: session,
 				action: {
 					type: 'session/turnStarted',
-					session,
 					turnId: serverTurnId,
 					userMessage: { text: 'queued message text' },
 				} as SessionAction,
@@ -3759,14 +3926,15 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			const dispatch1 = agentHostService.turnActions[0];
 			const action1 = dispatch1.action as ITurnStartedAction;
-			const session = action1.session;
-			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
-			agentHostService.fireAction({ action: { type: 'session/turnComplete', session, turnId: action1.turnId } as SessionAction, serverSeq: 2, origin: undefined });
+			const session = dispatch1.channel.toString();
+			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
+			agentHostService.fireAction({ channel: session, action: { type: 'session/turnComplete', session, turnId: action1.turnId } as SessionAction, serverSeq: 2, origin: undefined });
 			await turn1Promise;
 
 			// Server-initiated turn
 			const serverTurnId = 'server-turn-progress';
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/turnStarted', session, turnId: serverTurnId, userMessage: { text: 'auto queued' } } as SessionAction,
 				serverSeq: 3, origin: undefined,
 			});
@@ -3774,10 +3942,12 @@ suite('AgentHostChatContribution', () => {
 
 			// Stream a response part + delta
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/responsePart', session, turnId: serverTurnId, part: { kind: 'markdown', id: 'md-srv', content: 'Hello ' } } as SessionAction,
 				serverSeq: 4, origin: undefined,
 			});
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/delta', session, turnId: serverTurnId, partId: 'md-srv', content: 'world' } as SessionAction,
 				serverSeq: 5, origin: undefined,
 			});
@@ -3791,6 +3961,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Complete the turn
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/turnComplete', session, turnId: serverTurnId } as SessionAction,
 				serverSeq: 6, origin: undefined,
 			});
@@ -3836,8 +4007,8 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			const dispatch = agentHostService.turnActions[0];
 			const action = dispatch.action as ITurnStartedAction;
-			agentHostService.fireAction({ action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
-			agentHostService.fireAction({ action: { type: 'session/turnComplete', session: action.session, turnId: action.turnId } as SessionAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'session/turnComplete', turnId: action.turnId } as SessionAction, serverSeq: 2, origin: undefined });
 			await turnPromise;
 
 			assert.strictEqual(serverRequestEvents.length, 0, 'Client-dispatched turns should not trigger onDidStartServerRequest');
@@ -3863,14 +4034,15 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			const dispatch1 = agentHostService.turnActions[0];
 			const action1 = dispatch1.action as ITurnStartedAction;
-			const session = action1.session;
-			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
-			agentHostService.fireAction({ action: { type: 'session/turnComplete', session, turnId: action1.turnId } as SessionAction, serverSeq: 2, origin: undefined });
+			const session = dispatch1.channel.toString();
+			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
+			agentHostService.fireAction({ channel: session, action: { type: 'session/turnComplete', session, turnId: action1.turnId } as SessionAction, serverSeq: 2, origin: undefined });
 			await turn1Promise;
 
 			// Server-initiated turn
 			const serverTurnId = 'server-turn-tool-dedup';
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/turnStarted', session, turnId: serverTurnId, userMessage: { text: 'queued' } } as SessionAction,
 				serverSeq: 3, origin: undefined,
 			});
@@ -3878,10 +4050,12 @@ suite('AgentHostChatContribution', () => {
 
 			// Tool start + ready (auto-confirmed)
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/toolCallStart', session, turnId: serverTurnId, toolCallId: 'tc-srv-1', toolName: 'bash', displayName: 'Bash' } as SessionAction,
 				serverSeq: 4, origin: undefined,
 			});
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/toolCallReady', session, turnId: serverTurnId, toolCallId: 'tc-srv-1', invocationMessage: 'Running Bash', confirmed: 'not-needed' } as SessionAction,
 				serverSeq: 5, origin: undefined,
 			});
@@ -3889,6 +4063,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Tool complete
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/toolCallComplete', session, turnId: serverTurnId, toolCallId: 'tc-srv-1', result: { success: true, pastTenseMessage: 'Ran Bash' } } as SessionAction,
 				serverSeq: 6, origin: undefined,
 			});
@@ -3896,10 +4071,12 @@ suite('AgentHostChatContribution', () => {
 
 			// Fire additional state changes that might cause re-processing
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/responsePart', session, turnId: serverTurnId, part: { kind: 'markdown', id: 'md-after', content: 'Done.' } } as SessionAction,
 				serverSeq: 7, origin: undefined,
 			});
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/turnComplete', session, turnId: serverTurnId } as SessionAction,
 				serverSeq: 8, origin: undefined,
 			});
@@ -3931,9 +4108,9 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			const dispatch1 = agentHostService.turnActions[0];
 			const action1 = dispatch1.action as ITurnStartedAction;
-			const session = action1.session;
-			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
-			agentHostService.fireAction({ action: { type: 'session/turnComplete', session, turnId: action1.turnId } as SessionAction, serverSeq: 2, origin: undefined });
+			const session = dispatch1.channel.toString();
+			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
+			agentHostService.fireAction({ channel: session, action: { type: 'session/turnComplete', session, turnId: action1.turnId } as SessionAction, serverSeq: 2, origin: undefined });
 			await turn1Promise;
 
 			// Fire turnStarted followed immediately by a response part.
@@ -3943,10 +4120,12 @@ suite('AgentHostChatContribution', () => {
 			// is not missed.
 			const serverTurnId = 'server-turn-md-initial';
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/turnStarted', session, turnId: serverTurnId, userMessage: { text: 'queued' } } as SessionAction,
 				serverSeq: 3, origin: undefined,
 			});
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/responsePart', session, turnId: serverTurnId, part: { kind: 'markdown', id: 'md-init', content: 'Initial text' } } as SessionAction,
 				serverSeq: 4, origin: undefined,
 			});
@@ -3960,6 +4139,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Complete the turn
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/turnComplete', session, turnId: serverTurnId } as SessionAction,
 				serverSeq: 5, origin: undefined,
 			});
@@ -3986,13 +4166,14 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			const dispatch1 = agentHostService.turnActions[0];
 			const action1 = dispatch1.action as ITurnStartedAction;
-			const session = action1.session;
-			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
-			agentHostService.fireAction({ action: { type: 'session/turnComplete', session, turnId: action1.turnId } as SessionAction, serverSeq: 2, origin: undefined });
+			const session = dispatch1.channel.toString();
+			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
+			agentHostService.fireAction({ channel: session, action: { type: 'session/turnComplete', session, turnId: action1.turnId } as SessionAction, serverSeq: 2, origin: undefined });
 			await turn1Promise;
 
 			// Add a queued message to the protocol state so it's tracked.
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/pendingMessageSet', session, kind: 'queued', id: 'q-1', userMessage: { text: 'will be consumed' } } as SessionAction,
 				serverSeq: 3, origin: undefined,
 			});
@@ -4002,6 +4183,7 @@ suite('AgentHostChatContribution', () => {
 			// and the queued message disappears in the same state change.
 			chatService.removePendingRequestCalls.length = 0;
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/turnStarted', session, turnId: 'server-turn-q', userMessage: { text: 'will be consumed' }, queuedMessageId: 'q-1' } as SessionAction,
 				serverSeq: 4, origin: undefined,
 			});
@@ -4030,13 +4212,14 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			const dispatch1 = agentHostService.turnActions[0];
 			const action1 = dispatch1.action as ITurnStartedAction;
-			const session = action1.session;
-			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
-			agentHostService.fireAction({ action: { type: 'session/turnComplete', session, turnId: action1.turnId } as SessionAction, serverSeq: 2, origin: undefined });
+			const session = dispatch1.channel.toString();
+			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
+			agentHostService.fireAction({ channel: session, action: { type: 'session/turnComplete', session, turnId: action1.turnId } as SessionAction, serverSeq: 2, origin: undefined });
 			await turn1Promise;
 
 			// Set a steering message on the protocol state.
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/pendingMessageSet', session, kind: 'steering', id: 'steer-1', userMessage: { text: 'be more careful' } } as SessionAction,
 				serverSeq: 3, origin: undefined,
 			});
@@ -4045,6 +4228,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Steering message is consumed by the agent.
 			agentHostService.fireAction({
+				channel: session,
 				action: { type: 'session/pendingMessageRemoved', session, kind: 'steering', id: 'steer-1' } as SessionAction,
 				serverSeq: 4, origin: undefined,
 			});
@@ -4236,11 +4420,10 @@ suite('AgentHostChatContribution', () => {
 			const childTurnId = 'child-turn-1';
 			const childToolCallId = 'tc-child-1';
 			const fireChild = (action: SessionAction) => {
-				agentHostService.fireAction({ action, serverSeq: 1000, origin: undefined });
+				agentHostService.fireAction({ channel: childSessionUri, action, serverSeq: 1000, origin: undefined });
 			};
 			fireChild({
 				type: 'session/turnStarted',
-				session: childSessionUri,
 				turnId: childTurnId,
 				userMessage: { text: '' },
 			} as SessionAction);

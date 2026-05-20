@@ -427,7 +427,7 @@ suite('parsePluginSource', () => {
 
 	test('parses url object source', () => {
 		const result = parsePluginSource({ source: 'url', url: 'https://gitlab.com/team/plugin.git' }, undefined, logContext);
-		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitUrl, url: 'https://gitlab.com/team/plugin.git', ref: undefined, sha: undefined });
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitUrl, url: 'https://gitlab.com/team/plugin.git', ref: undefined, sha: undefined, path: undefined });
 	});
 
 	test('returns undefined for url source missing url field', () => {
@@ -436,6 +436,30 @@ suite('parsePluginSource', () => {
 
 	test('returns undefined for url source not ending in .git', () => {
 		assert.strictEqual(parsePluginSource({ source: 'url', url: 'https://gitlab.com/team/plugin' }, undefined, logContext), undefined);
+	});
+
+	test('parses git-subdir object source', () => {
+		const result = parsePluginSource({ source: 'git-subdir', url: 'https://github.com/acme/monorepo.git', path: 'tools/claude-plugin' }, undefined, logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitUrl, url: 'https://github.com/acme/monorepo.git', ref: undefined, sha: undefined, path: 'tools/claude-plugin' });
+	});
+
+	test('parses git-subdir object source with ref and sha', () => {
+		const result = parsePluginSource({ source: 'git-subdir', url: 'https://example.com/repo.git', path: 'plugins/foo', ref: 'v2.0.0', sha: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0' }, undefined, logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitUrl, url: 'https://example.com/repo.git', ref: 'v2.0.0', sha: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0', path: 'plugins/foo' });
+	});
+
+	test('parses git-subdir source without .git suffix', () => {
+		// git-subdir does not require .git suffix (Azure DevOps / AWS CodeCommit compatibility)
+		const result = parsePluginSource({ source: 'git-subdir', url: 'https://dev.azure.com/org/project/_git/repo', path: 'plugins/foo' }, undefined, logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitUrl, url: 'https://dev.azure.com/org/project/_git/repo', ref: undefined, sha: undefined, path: 'plugins/foo' });
+	});
+
+	test('returns undefined for git-subdir source missing url field', () => {
+		assert.strictEqual(parsePluginSource({ source: 'git-subdir', path: 'plugins/foo' }, undefined, logContext), undefined);
+	});
+
+	test('returns undefined for git-subdir source missing path field', () => {
+		assert.strictEqual(parsePluginSource({ source: 'git-subdir', url: 'https://example.com/repo.git' }, undefined, logContext), undefined);
 	});
 
 	test('parses npm object source', () => {
@@ -504,6 +528,10 @@ suite('getPluginSourceLabel', () => {
 
 	test('formats url source', () => {
 		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.GitUrl, url: 'https://example.com/repo.git' }), 'https://example.com/repo.git');
+	});
+
+	test('formats url source with path', () => {
+		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.GitUrl, url: 'https://example.com/repo.git', path: 'plugins/foo' }), 'https://example.com/repo.git/plugins/foo');
 	});
 
 	test('formats npm source without version', () => {

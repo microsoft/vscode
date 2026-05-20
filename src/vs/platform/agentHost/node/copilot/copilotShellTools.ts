@@ -191,7 +191,7 @@ export class ShellManager extends Disposable {
 		const executable = await this.getResolvedExecutable();
 
 		await this._terminalManager.createTerminal({
-			terminal: terminalUri,
+			channel: terminalUri,
 			claim,
 			name: shellDisplayName,
 			cwd: cwd ?? this._workingDirectory?.fsPath,

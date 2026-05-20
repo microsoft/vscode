@@ -217,7 +217,6 @@ export class ClaudeAgentSession extends Disposable {
 				session: this.sessionUri,
 				action: {
 					type: ActionType.SessionInputRequested,
-					session: this.sessionUri.toString(),
 					request,
 				},
 				...(parentToolCallId !== undefined ? { parentToolCallId } : {}),

@@ -36,16 +36,18 @@ export async function activate(ctx: RendererContext<void>) {
 
 			const temp = document.createElement('div');
 			temp.innerHTML = result;
-			renderMermaidBlocksInElement(temp, (mermaidContainer, content) => {
+			renderMermaidBlocksInElement(temp, (mermaidContainer, content, _contentHash, isError) => {
 				const liveEl = shadowRoot?.getElementById(mermaidContainer.id);
 				if (liveEl) {
 					liveEl.dataset.vscodeContext = mermaidContainer.dataset.vscodeContext ?? '';
 					liveEl.innerHTML = content;
-					diagramManager.setup(liveEl.id, liveEl);
+					if (!isError) {
+						diagramManager.setup(liveEl.id, liveEl);
+					}
 				} else {
 					console.warn('Could not find live element to render mermaid to');
 				}
-			});
+			}, new AbortController().signal);
 			return temp.innerHTML;
 		};
 		return md;

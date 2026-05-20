@@ -38,7 +38,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	private _rootStateValue: RootState = { agents: [] };
 	override readonly rootState;
 
-	readonly dispatchedActions: StateAction[] = [];
+	readonly dispatchedActions: { channel: string; action: StateAction }[] = [];
 
 	constructor() {
 		super();
@@ -56,8 +56,8 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		this._rootStateValue = rootState;
 	}
 
-	override dispatch(action: StateAction): void {
-		this.dispatchedActions.push(action);
+	override dispatch(channel: string, action: StateAction): void {
+		this.dispatchedActions.push({ channel, action });
 	}
 
 	fireAction(envelope: ActionEnvelope): void {
@@ -76,10 +76,13 @@ function createNotificationService(): INotificationService {
 		}
 	};
 }
+const testSessionResource = URI.parse('agent-host-copilotcli:/session-1');
+const agentHostProviderId = 'copilotcli';
+const agentHostSessionId = `${agentHostProviderId}:/session-1`;
 
 function createAgentInfo(customizations: readonly CustomizationRef[]): AgentInfo {
 	return {
-		provider: 'copilotcli',
+		provider: agentHostProviderId,
 		displayName: 'Copilot',
 		description: 'Test Agent',
 		models: [],
@@ -87,8 +90,12 @@ function createAgentInfo(customizations: readonly CustomizationRef[]): AgentInfo
 	};
 }
 
+
+
 suite('RemoteAgentHostCustomizationHarness', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+
 
 	test('removeConfiguredPlugin keeps sibling scopes for the same URI', async () => {
 		const connection = disposables.add(new MockAgentConnection());
@@ -116,9 +123,12 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		await controller.removeConfiguredPlugin(pluginA);
 
 		assert.deepStrictEqual(connection.dispatchedActions, [{
-			type: ActionType.RootConfigChanged,
-			config: {
-				customizations: [pluginB],
+			channel: 'ahp-root://',
+			action: {
+				type: ActionType.RootConfigChanged,
+				config: {
+					customizations: [pluginB],
+				},
 			},
 		}]);
 	});
@@ -154,7 +164,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			new NullLogService(),
 		));
 
-		const items = await provider.provideChatSessionCustomizations(CancellationToken.None);
+		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 		assert.strictEqual(items.length, 2);
 		assert.notStrictEqual(items[0].itemKey, items[1].itemKey);
 	});
@@ -195,16 +205,16 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: 'agent://copilotcli/session-1',
 				customizations: [synced],
 			},
 		});
 
-		const items = await provider.provideChatSessionCustomizations(CancellationToken.None);
+		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 		assert.strictEqual(items.length, 2);
 		assert.notStrictEqual(items[0].itemKey, items[1].itemKey);
 	});
@@ -246,16 +256,16 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: 'agent://copilotcli/session-1',
 				customizations: [synced],
 			},
 		});
 
-		const items = await provider.provideChatSessionCustomizations(CancellationToken.None);
+		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 		assert.strictEqual(items.length, 2);
 
 		const hostItem = items.find(i => i.name === 'Host Plugin');
@@ -344,16 +354,16 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: 'agent://copilotcli/session-1',
 				customizations: [synced],
 			},
 		});
 
-		const items = await provider.provideChatSessionCustomizations(CancellationToken.None);
+		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 		// The synthetic bundle itself should NOT appear as a top-level item
 		assert.ok(!items.some(i => i.name === 'VS Code Synced Data'), 'synthetic bundle should be hidden');
 		// But its expanded child should appear
@@ -398,16 +408,16 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: 'agent://copilotcli/session-1',
 				customizations: [synced],
 			},
 		});
 
-		const items = await provider.provideChatSessionCustomizations(CancellationToken.None);
+		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 		// No top-level item (bundle is hidden), but check that plugin expansion
 		// attempted with the original scheme — not agent-host://
 		// This is verified indirectly: canHandleResource returns false so
@@ -452,16 +462,16 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: 'agent://copilotcli/session-1',
 				customizations: [sessionCustomization],
 			},
 		});
 
-		const items = await provider.provideChatSessionCustomizations(CancellationToken.None);
+		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 		// Host-scoped plugin from root + session customization → merged into one entry
 		// The session customization entry updates status/statusMessage
 		const sessionItem = items.find(i => i.status === 'error');
@@ -501,14 +511,14 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		disposables.add(provider.onDidChange(() => changeCount++));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: 'agent://copilotcli/session-1',
 				customizations: [{
 					customization: pluginRef,
-					enabled: true,
+					enabled: true
 				}],
 			},
 		});
@@ -547,20 +557,20 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: 'agent://copilotcli/session-1',
 				customizations: [{
 					customization: clientPlugin,
 					clientId: 'test-client',
-					enabled: true,
+					enabled: true
 				}],
 			},
 		});
 
-		const items = await provider.provideChatSessionCustomizations(CancellationToken.None);
+		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 		const hostItem = items.find(i => i.name === 'Host Plugin');
 		const clientItem = items.find(i => i.name === 'Client Plugin');
 
@@ -597,9 +607,12 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		assert.strictEqual(connection.dispatchedActions.length, 1);
 		assert.deepStrictEqual(connection.dispatchedActions[0], {
-			type: ActionType.RootConfigChanged,
-			config: {
-				customizations: [pluginA, pluginC],
+			channel: 'ahp-root://',
+			action: {
+				type: ActionType.RootConfigChanged,
+				config: {
+					customizations: [pluginA, pluginC],
+				},
 			},
 		});
 	});
@@ -635,11 +648,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: 'agent://copilotcli/session-1',
 				customizations: [
 					{ customization: clientA, clientId: 'test-client', enabled: true },
 					{ customization: clientB, clientId: 'test-client', enabled: true },
@@ -647,7 +660,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			},
 		});
 
-		const items = await provider.provideChatSessionCustomizations(CancellationToken.None);
+		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 		assert.strictEqual(items.length, 2);
 		assert.ok(items.find(i => i.name === 'Client A'), 'should have Client A');
 		assert.ok(items.find(i => i.name === 'Client B'), 'should have Client B');
@@ -710,7 +723,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			new NullLogService(),
 		));
 
-		const items = await provider.provideChatSessionCustomizations(CancellationToken.None);
+		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 
 		const skillItems = items.filter(i => i.type === PromptsType.skill);
 		assert.deepStrictEqual(
@@ -780,6 +793,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		const harnessId = 'remote-agent-host-test';
+		const testSessionResource = URI.parse('remote-agent-host-test:///test-session');
 		const descriptor: IHarnessDescriptor = {
 			id: harnessId,
 			label: 'Remote Agent Host (test)',
@@ -789,7 +803,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 		const harnessService = disposables.add(new CustomizationHarnessServiceBase([descriptor], harnessId, new MockPromptsService()));
 
-		const commands = await harnessService.getSlashCommands(harnessId, CancellationToken.None);
+		const commands = await harnessService.getSlashCommands(testSessionResource, CancellationToken.None);
 		const skillCommand = commands.find(c => c.type === PromptsType.skill);
 		assert.ok(skillCommand, 'should have a skill slash command');
 		assert.strictEqual(skillCommand.name, 'skills-bundle:lint', 'skill command name should be plugin-prefixed');
