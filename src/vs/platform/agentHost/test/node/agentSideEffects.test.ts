@@ -2671,7 +2671,7 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(changesets.toolCallEdits, [{ session: sessionUri.toString(), turnId: 'turn-1' }]);
 		});
 
-		test('turn complete fires onTurnComplete once with the right turn id', () => {
+		test('turn complete fires onTurnComplete once with the right turn id', async () => {
 			setupSession();
 			startTurn('turn-1');
 
@@ -2688,6 +2688,13 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: { type: ActionType.SessionTurnComplete, turnId: 'turn-1' },
 			});
+
+			// `_runTurnCompleteSideEffects` now defers the
+			// `changesets.onTurnComplete` call behind the checkpoint capture
+			// promise (`captureTurnCheckpoint(...).then(...)`). Yield a
+			// microtask so the resolved promise's `.then` continuation
+			// runs before we assert.
+			await Promise.resolve();
 
 			assert.deepStrictEqual(changesets.turnCompletes, [{ session: sessionUri.toString(), turnId: 'turn-1' }]);
 		});
