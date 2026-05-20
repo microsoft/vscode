@@ -89,6 +89,15 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	 * replacement), so this flag naturally resets on reconnect.
 	 */
 	private _cacheValid = false;
+	/**
+	 * Incremented whenever the in-memory list is mutated outside of
+	 * {@link refresh}. Used to detect races where a `root/sessionAdded`,
+	 * `root/sessionRemoved`, or `root/sessionSummaryChanged` notification
+	 * arrives while a `listSessions()` round-trip is in flight — in that
+	 * case our snapshot is stale and we must discard it and re-fetch
+	 * instead of overwriting the just-updated `_items`/`_cachedSummaries`.
+	 */
+	private _mutationGeneration = 0;
 
 	constructor(
 		private readonly _sessionType: string,
@@ -112,6 +121,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				if (!this._isWorkingDirectoryInWorkspace(workingDir)) {
 					return;
 				}
+				this._mutationGeneration++;
 				this._cachedSummaries.set(rawId, n.summary);
 				const item = this._makeItemFromSummary(rawId, n.summary);
 				const existingIndex = this._items.findIndex(item => item.resource.path === `/${rawId}`);
@@ -126,6 +136,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				this._pendingNewSessions.delete(removedId);
 				const idx = this._items.findIndex(item => item.resource.path === `/${removedId}`);
 				if (idx >= 0) {
+					this._mutationGeneration++;
 					const [removed] = this._items.splice(idx, 1);
 					this._cachedSummaries.delete(removedId);
 					this._onDidChangeChatSessionItems.fire({ removed: [removed.resource] });
@@ -136,6 +147,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				if (!cached) {
 					return;
 				}
+				this._mutationGeneration++;
 				const updated = { ...cached, ...n.changes };
 				this._cachedSummaries.set(rawId, updated);
 
@@ -203,60 +215,86 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		return item;
 	}
 
-	async refresh(_token: CancellationToken): Promise<void> {
+	async refresh(token: CancellationToken): Promise<void> {
 		if (this._cacheValid) {
 			// Cache is kept in sync by notify/sessionAdded,
 			// notify/sessionRemoved, and notify/sessionSummaryChanged. No
 			// need to round-trip through the agent host on every refresh.
-			this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this._items });
+			if (this._items.length > 0) {
+				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this._items });
+			}
 			return;
 		}
 		const previousResources = this._items.map(item => item.resource);
+		const startGeneration = this._mutationGeneration;
+		let sessions;
 		try {
-			const sessions = await this._connection.listSessions();
-			const filtered = sessions.filter(s =>
-				AgentSession.provider(s.session) === this._provider
-				&& this._isWorkingDirectoryInWorkspace(s.workingDirectory)
-			);
-			this._cachedSummaries.clear();
-			this._items = filtered.map(s => {
-				const rawId = AgentSession.id(s.session);
-				this._pendingNewSessions.delete(rawId);
-				let status = s.status ?? SessionStatus.Idle;
-				if (s.isRead) {
-					status |= SessionStatus.IsRead;
-				}
-				if (s.isArchived) {
-					status |= SessionStatus.IsArchived;
-				}
-				this._cachedSummaries.set(rawId, {
-					resource: s.session.toString(),
-					provider: this._provider,
-					title: s.summary ?? `Session ${rawId.substring(0, 8)}`,
-					status,
-					activity: s.activity,
-					createdAt: s.startTime,
-					modifiedAt: s.modifiedTime,
-					workingDirectory: s.workingDirectory?.toString(),
-					changesets: s.changesets ? [...s.changesets] : undefined,
-				});
-				return this._makeItem(rawId, {
-					title: s.summary,
-					status,
-					activity: s.activity,
-					workingDirectory: s.workingDirectory,
-					createdAt: s.startTime,
-					modifiedAt: s.modifiedTime,
-					changesets: s.changesets,
-				});
-			});
-			this._cacheValid = true;
+			sessions = await this._connection.listSessions();
 		} catch {
+			// If notifications mutated the list while we were fetching,
+			// the in-memory state is more up-to-date than our (now failed)
+			// fetch. Bail out without clobbering it.
+			if (startGeneration !== this._mutationGeneration) {
+				return;
+			}
+			if (this._items.length === 0) {
+				return;
+			}
+			const removed = previousResources;
 			this._cachedSummaries.clear();
 			this._items = [];
+			this._onDidChangeChatSessionItems.fire({ removed });
+			return;
 		}
+		// If notifications mutated the list between the request and the
+		// response, our snapshot is stale — discard it and re-fetch
+		// instead of overwriting the just-updated `_items` /
+		// `_cachedSummaries`.
+		if (startGeneration !== this._mutationGeneration) {
+			return this.refresh(token);
+		}
+		const filtered = sessions.filter(s =>
+			AgentSession.provider(s.session) === this._provider
+			&& this._isWorkingDirectoryInWorkspace(s.workingDirectory)
+		);
+		this._cachedSummaries.clear();
+		this._items = filtered.map(s => {
+			const rawId = AgentSession.id(s.session);
+			this._pendingNewSessions.delete(rawId);
+			let status = s.status ?? SessionStatus.Idle;
+			if (s.isRead) {
+				status |= SessionStatus.IsRead;
+			}
+			if (s.isArchived) {
+				status |= SessionStatus.IsArchived;
+			}
+			this._cachedSummaries.set(rawId, {
+				resource: s.session.toString(),
+				provider: this._provider,
+				title: s.summary ?? `Session ${rawId.substring(0, 8)}`,
+				status,
+				activity: s.activity,
+				createdAt: s.startTime,
+				modifiedAt: s.modifiedTime,
+				workingDirectory: s.workingDirectory?.toString(),
+				changesets: s.changesets ? [...s.changesets] : undefined,
+			});
+			return this._makeItem(rawId, {
+				title: s.summary,
+				status,
+				activity: s.activity,
+				workingDirectory: s.workingDirectory,
+				createdAt: s.startTime,
+				modifiedAt: s.modifiedTime,
+				changesets: s.changesets,
+			});
+		});
+		this._cacheValid = true;
 		const currentResources = new Set(this._items.map(item => item.resource.toString()));
 		const removed = previousResources.filter(r => !currentResources.has(r.toString()));
+		if (this._items.length === 0 && removed.length === 0) {
+			return;
+		}
 		this._onDidChangeChatSessionItems.fire({
 			...(this._items.length > 0 ? { addedOrUpdated: this._items } : undefined),
 			...(removed.length > 0 ? { removed } : undefined),
