@@ -163,12 +163,38 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		this._logService.info('[AgentHost:renderer] Direct MessagePort connection established');
 		this._onAgentHostStart.fire();
 
-		// Subscribe to root state
-		this.subscribe(URI.parse(ROOT_STATE_URI)).then(snapshot => {
-			this._subscriptionManager.handleRootSnapshot(snapshot.state as RootState, snapshot.fromSeq);
-		}).catch(err => {
-			this._logService.error('[AgentHost:renderer] Failed to subscribe to root state', err);
-		});
+		// Subscribe to root state with retries. The agent host utility
+		// process may still be initializing its IPC channels when we first
+		// try to subscribe, causing a "Channel name 'agentHost' timed out"
+		// error. Retry with exponential backoff so the renderer picks up
+		// root state without requiring a manual window reload.
+		this._subscribeToRootStateWithRetry();
+	}
+
+	private async _subscribeToRootStateWithRetry(maxAttempts: number = 5): Promise<void> {
+		const rootUri = URI.parse(ROOT_STATE_URI);
+		let delay = 1000;
+		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+			if (this.isDisposed) {
+				return;
+			}
+			try {
+				const snapshot = await this.subscribe(rootUri);
+				this._subscriptionManager.handleRootSnapshot(snapshot.state as RootState, snapshot.fromSeq);
+				if (attempt > 1) {
+					this._logService.info(`[AgentHost:renderer] Root state subscription succeeded on attempt ${attempt}`);
+				}
+				return;
+			} catch (err) {
+				if (attempt === maxAttempts) {
+					this._logService.error('[AgentHost:renderer] Failed to subscribe to root state after all retries', err);
+					return;
+				}
+				this._logService.info(`[AgentHost:renderer] Root state subscription attempt ${attempt} failed, retrying in ${delay}ms...`);
+				await new Promise<void>(resolve => setTimeout(resolve, delay));
+				delay = Math.min(delay * 2, 8000);
+			}
+		}
 	}
 
 	private _updateTelemetryLevel(): void {

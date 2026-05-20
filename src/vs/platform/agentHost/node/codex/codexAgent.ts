@@ -4,26 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CCAModel } from '@vscode/copilot-api';
-import { Codex, type Thread, type ThreadEvent, type ModelReasoningEffort } from '@openai/codex-sdk';
+import { Codex, type Thread, type ModelReasoningEffort, type ApprovalMode, type SandboxMode } from '@openai/codex-sdk';
+import { SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { createSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata } from '../../common/agentService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { type ModelSelection, type ToolDefinition, PolicyState } from '../../common/state/protocol/state.js';
 import { CustomizationRef, SessionInputResponseKind, type MessageAttachment, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { ICodexProxyHandle, ICodexProxyService } from './codexProxyService.js';
+import { createCodexTurnState, mapCodexEvent } from './codexMapSessionEvents.js';
+import { CodexSessionConfigKey, narrowApprovalPolicy, narrowSandboxMode } from './codexSessionConfigKeys.js';
+import { resolvePromptWithAttachments } from './codexPromptResolver.js';
 
 /**
  * Heuristic for picking OpenAI-family models out of the Copilot CAPI
@@ -35,12 +40,16 @@ function isCodexModel(m: CCAModel): boolean {
 }
 
 function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo {
+	const policyState = m.policy?.state as PolicyState | undefined;
+	const multiplier = m.billing?.multiplier;
 	return {
 		provider,
 		id: m.id,
 		name: m.name,
 		maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
 		supportsVision: !!m.capabilities?.supports?.vision,
+		...(policyState ? { policyState } : {}),
+		...(typeof multiplier === 'number' ? { _meta: { multiplierNumeric: multiplier } } : {}),
 	};
 }
 
@@ -57,7 +66,28 @@ interface ICodexSession {
 	readonly workingDirectory: URI | undefined;
 	thread: Thread | undefined;
 	model: ModelSelection | undefined;
+	/** Active `approvalPolicy` for the thread; updated on each sendMessage from the live session config. */
+	approvalPolicy: ApprovalMode | undefined;
+	/** Active `sandboxMode` for the thread. */
+	sandboxMode: SandboxMode | undefined;
+	/**
+	 * `model.id|effort|approval|sandbox` key captured when {@link thread}
+	 * was constructed. The codex `Thread` binds these flags at
+	 * `startThread()` / `resumeThread()` time and replays them on every
+	 * `runStreamed()`, so any change requires rebuilding the wrapper.
+	 */
+	threadOptionsKey: string | undefined;
 	abortController: AbortController;
+	/** Steering prompt buffered by {@link CodexAgent.setPendingMessages}. Consumed on next `sendMessage`. */
+	pendingSteeringPrompt: string | undefined;
+}
+
+function makeThreadOptionsKey(
+	model: ModelSelection | undefined,
+	approvalPolicy: ApprovalMode | undefined,
+	sandboxMode: SandboxMode | undefined,
+): string {
+	return `${model?.id ?? ''}|${resolveCodexEffort(model) ?? ''}|${approvalPolicy ?? ''}|${sandboxMode ?? ''}`;
 }
 
 /**
@@ -86,7 +116,9 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _githubToken: string | undefined;
 	private _proxyHandle: ICodexProxyHandle | undefined;
-	private readonly _sessions = new Map<string, ICodexSession>();
+	private readonly _sessions = new DisposableMap<string, ICodexSessionEntry>();
+	private readonly _provisionalSessions = new Map<string, ICodexSession>();
+	private readonly _sessionSequencer = new SequencerByKey<string>();
 	private _shutdownPromise: Promise<void> | undefined;
 	private _codex: Codex | undefined;
 
@@ -94,6 +126,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@ILogService private readonly _logService: ILogService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@ICodexProxyService private readonly _codexProxyService: ICodexProxyService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 	}
@@ -115,6 +148,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return false;
 		}
 		if (this._githubToken === token && this._codex) {
+			this._logService.info('[Codex] Auth token unchanged');
 			return true;
 		}
 		// Acquire the proxy handle BEFORE committing the new token /
@@ -156,6 +190,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			},
 		});
 		oldHandle?.dispose();
+		this._logService.info('[Codex] Auth token updated');
 		void this._refreshModels();
 		return true;
 	}
@@ -202,21 +237,38 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const sessionId = config.session ? AgentSession.id(config.session) : generateUuid();
 		const sessionUri = AgentSession.uri(this.id, sessionId);
+
+		// Return existing materialized session.
 		const existing = this._sessions.get(sessionId);
 		if (existing) {
 			return {
-				session: existing.sessionUri,
-				workingDirectory: existing.workingDirectory,
-				provisional: !existing.thread,
+				session: existing.state.sessionUri,
+				workingDirectory: existing.state.workingDirectory,
+				provisional: !existing.state.thread,
 			};
 		}
-		this._sessions.set(sessionId, {
+
+		// Return existing provisional session.
+		const existingProvisional = this._provisionalSessions.get(sessionId);
+		if (existingProvisional) {
+			return {
+				session: existingProvisional.sessionUri,
+				workingDirectory: existingProvisional.workingDirectory,
+				provisional: true,
+			};
+		}
+
+		this._provisionalSessions.set(sessionId, {
 			sessionId,
 			sessionUri,
 			workingDirectory: config.workingDirectory,
 			thread: undefined,
 			model: config.model,
+			approvalPolicy: narrowApprovalPolicy(config.config?.[CodexSessionConfigKey.ApprovalPolicy]),
+			sandboxMode: narrowSandboxMode(config.config?.[CodexSessionConfigKey.SandboxMode]),
+			threadOptionsKey: undefined,
 			abortController: new AbortController(),
+			pendingSteeringPrompt: undefined,
 		});
 		return {
 			session: sessionUri,
@@ -226,13 +278,57 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
-		// Minimal Phase 1 surface: reuse only the platform `Permissions`
-		// property so the host's auto-approval UI keeps working. Approval
-		// modes, sandboxing, and web search are deferred.
+		// Codex collapses the platform's `autoApprove` / `mode` two-axis
+		// approval surface onto its single `approvalPolicy` axis (the codex
+		// CLI's `--config approval_policy=`). `sandboxMode` mirrors the
+		// codex CLI's `--sandbox` flag. Both default at codex's defaults
+		// when omitted. The platform-shared `Permissions` property is
+		// reused unchanged so the host's auto-approval UI still works.
 		const sessionSchema = createSchema({
+			[CodexSessionConfigKey.ApprovalPolicy]: schemaProperty<ApprovalMode>({
+				type: 'string',
+				title: localize('codex.sessionConfig.approvalPolicy', "Approvals"),
+				description: localize('codex.sessionConfig.approvalPolicyDescription', "How Codex requests approval for tool calls."),
+				enum: ['never', 'on-request', 'on-failure', 'untrusted'],
+				enumLabels: [
+					localize('codex.sessionConfig.approvalPolicy.never', "Never Ask"),
+					localize('codex.sessionConfig.approvalPolicy.onRequest', "On Request"),
+					localize('codex.sessionConfig.approvalPolicy.onFailure', "On Failure"),
+					localize('codex.sessionConfig.approvalPolicy.untrusted', "Untrusted Only"),
+				],
+				enumDescriptions: [
+					localize('codex.sessionConfig.approvalPolicy.neverDescription', "Auto-approve every tool call."),
+					localize('codex.sessionConfig.approvalPolicy.onRequestDescription', "Let the model decide when to ask for approval."),
+					localize('codex.sessionConfig.approvalPolicy.onFailureDescription', "Only ask for approval after a tool call fails."),
+					localize('codex.sessionConfig.approvalPolicy.untrustedDescription', "Ask only when the model invokes an untrusted command."),
+				],
+				default: 'on-request',
+				sessionMutable: true,
+			}),
+			[CodexSessionConfigKey.SandboxMode]: schemaProperty<SandboxMode>({
+				type: 'string',
+				title: localize('codex.sessionConfig.sandboxMode', "Sandbox"),
+				description: localize('codex.sessionConfig.sandboxModeDescription', "Filesystem and network restrictions applied to tool calls."),
+				enum: ['read-only', 'workspace-write', 'danger-full-access'],
+				enumLabels: [
+					localize('codex.sessionConfig.sandboxMode.readOnly', "Read-Only"),
+					localize('codex.sessionConfig.sandboxMode.workspaceWrite', "Workspace Write"),
+					localize('codex.sessionConfig.sandboxMode.dangerFullAccess', "Full Access (Dangerous)"),
+				],
+				enumDescriptions: [
+					localize('codex.sessionConfig.sandboxMode.readOnlyDescription', "Tool calls can read the workspace but cannot modify files or open network connections."),
+					localize('codex.sessionConfig.sandboxMode.workspaceWriteDescription', "Tool calls can read and write within the workspace; network is still blocked."),
+					localize('codex.sessionConfig.sandboxMode.dangerFullAccessDescription', "Tool calls have unrestricted disk and network access."),
+				],
+				default: 'workspace-write',
+				sessionMutable: true,
+			}),
 			[SessionConfigKey.Permissions]: platformSessionSchema.definition[SessionConfigKey.Permissions],
 		});
-		const values = sessionSchema.validateOrDefault(_params.config, {});
+		const values = sessionSchema.validateOrDefault(_params.config, {
+			[CodexSessionConfigKey.ApprovalPolicy]: 'on-request' satisfies ApprovalMode,
+			[CodexSessionConfigKey.SandboxMode]: 'workspace-write' satisfies SandboxMode,
+		});
 		return Promise.resolve({ schema: sessionSchema.toProtocol(), values });
 	}
 
@@ -240,41 +336,86 @@ export class CodexAgent extends Disposable implements IAgent {
 		return Promise.resolve({ items: [] });
 	}
 
-	async sendMessage(sessionUri: URI, prompt: string, _attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+	async sendMessage(sessionUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
 		const sessionId = AgentSession.id(sessionUri);
-		const entry = this._sessions.get(sessionId);
-		if (!entry) {
-			throw new Error(`Codex session not found: ${sessionId}`);
-		}
-		const effectiveTurnId = turnId ?? generateUuid();
+		return this._sessionSequencer.queue(sessionId, () => this._sendMessageCore(sessionUri, sessionId, prompt, attachments, turnId));
+	}
 
-		if (!entry.thread) {
-			const codex = this._ensureAuthenticated();
-			const effort = resolveCodexEffort(entry.model);
-			entry.thread = codex.startThread({
-				...(entry.workingDirectory ? { workingDirectory: entry.workingDirectory.fsPath } : {}),
-				...(entry.model?.id ? { model: entry.model.id } : {}),
-				...(effort ? { modelReasoningEffort: effort } : {}),
-				skipGitRepoCheck: true,
-			});
-			this._onDidMaterializeSession.fire({
-				session: sessionUri,
-				workingDirectory: entry.workingDirectory,
-				project: undefined,
-			});
+	private async _sendMessageCore(
+		sessionUri: URI,
+		sessionId: string,
+		prompt: string,
+		attachments: readonly MessageAttachment[] | undefined,
+		turnId: string | undefined,
+	): Promise<void> {
+		const effectiveTurnId = turnId ?? generateUuid();
+		const codex = this._ensureAuthenticated();
+
+		// --- Resolve or materialize the session entry ---
+		let entry = this._sessions.get(sessionId);
+		if (!entry) {
+			const provisional = this._provisionalSessions.get(sessionId);
+			if (provisional) {
+				entry = this._materializeProvisional(sessionId, provisional);
+			} else {
+				// Session exists on disk (e.g. after an agent-host restart)
+				// but not in memory. Try to resume it. Mirrors Claude's
+				// `_resumeSession` path in `sendMessage`.
+				entry = this._resumeSession(sessionId, sessionUri);
+			}
 		}
+
+		// --- Read live session config ---
+		const liveConfig = this._configurationService.getSessionConfigValues(sessionUri.toString());
+		const liveApproval = narrowApprovalPolicy(liveConfig?.[CodexSessionConfigKey.ApprovalPolicy]) ?? entry.state.approvalPolicy;
+		const liveSandbox = narrowSandboxMode(liveConfig?.[CodexSessionConfigKey.SandboxMode]) ?? entry.state.sandboxMode;
+		entry.state.approvalPolicy = liveApproval;
+		entry.state.sandboxMode = liveSandbox;
+
+		// --- Rebuild the Thread when options drift ---
+		const desiredKey = makeThreadOptionsKey(entry.state.model, liveApproval, liveSandbox);
+		const effort = resolveCodexEffort(entry.state.model);
+		const threadOptions = {
+			...(entry.state.workingDirectory ? { workingDirectory: entry.state.workingDirectory.fsPath } : {}),
+			...(entry.state.model?.id ? { model: entry.state.model.id } : {}),
+			...(effort ? { modelReasoningEffort: effort } : {}),
+			...(liveApproval ? { approvalPolicy: liveApproval } : {}),
+			...(liveSandbox ? { sandboxMode: liveSandbox } : {}),
+			skipGitRepoCheck: true,
+		};
+		if (!entry.state.thread) {
+			entry.state.thread = codex.startThread(threadOptions);
+			entry.state.threadOptionsKey = desiredKey;
+		} else if (entry.state.threadOptionsKey !== desiredKey) {
+			const existingId = entry.state.thread.id;
+			entry.state.thread = existingId
+				? codex.resumeThread(existingId, threadOptions)
+				: codex.startThread(threadOptions);
+			entry.state.threadOptionsKey = desiredKey;
+			this._logService.info(`[Codex:${sessionId}] thread rebuilt for model swap: model=${entry.state.model?.id ?? '<default>'} effort=${effort ?? '<default>'}`);
+		}
+
+		// --- Resolve prompt with attachments + steering ---
+		const resolvedPrompt = this._resolveFullPrompt(prompt, attachments, entry.state);
 
 		try {
-			const { events } = await entry.thread.runStreamed(prompt, { signal: entry.abortController.signal });
+			// A previous turn that was aborted leaves `abortController` in
+			// an aborted state. Re-arm here so the new turn's `signal`
+			// starts fresh; otherwise `runStreamed` would short-circuit.
+			if (entry.state.abortController.signal.aborted) {
+				entry.state.abortController = new AbortController();
+			}
+			const turnState = createCodexTurnState();
+			const { events } = await entry.state.thread.runStreamed(resolvedPrompt, { signal: entry.state.abortController.signal });
 			for await (const event of events) {
-				this._mapEvent(sessionUri, effectiveTurnId, event);
+				for (const signal of mapCodexEvent(sessionUri, effectiveTurnId, event, turnState)) {
+					this._onDidSessionProgress.fire(signal);
+				}
 			}
 			this._fire(sessionUri, { type: ActionType.SessionTurnComplete, turnId: effectiveTurnId });
 		} catch (err) {
-			if (err instanceof CancellationError || entry.abortController.signal.aborted) {
+			if (err instanceof CancellationError || entry.state.abortController.signal.aborted) {
 				this._fire(sessionUri, { type: ActionType.SessionTurnCancelled, turnId: effectiveTurnId });
-				// Re-arm the abort controller for the next turn.
-				entry.abortController = new AbortController();
 				return;
 			}
 			const message = err instanceof Error ? err.message : String(err);
@@ -287,63 +428,80 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private _mapEvent(sessionUri: URI, turnId: string, event: ThreadEvent): void {
-		switch (event.type) {
-			case 'item.completed': {
-				const item = event.item;
-				if (item.type === 'agent_message' && item.text) {
-					this._fire(sessionUri, {
-						type: ActionType.SessionResponsePart,
-						turnId,
-						part: { kind: ResponsePartKind.Markdown, id: item.id, content: item.text },
-					});
-				} else if (item.type === 'reasoning' && item.text) {
-					this._fire(sessionUri, {
-						type: ActionType.SessionResponsePart,
-						turnId,
-						part: { kind: ResponsePartKind.Reasoning, id: item.id, content: item.text },
-					});
-				} else if (item.type === 'error') {
-					this._fire(sessionUri, {
-						type: ActionType.SessionError,
-						turnId,
-						error: { errorType: 'CodexError', message: item.message },
-					});
-				}
-				return;
-			}
-			case 'turn.completed': {
-				const u = event.usage;
-				this._fire(sessionUri, {
-					type: ActionType.SessionUsage,
-					turnId,
-					usage: {
-						inputTokens: u.input_tokens,
-						outputTokens: u.output_tokens,
-						cacheReadTokens: u.cached_input_tokens,
-					},
-				});
-				return;
-			}
-			case 'turn.failed': {
-				this._fire(sessionUri, {
-					type: ActionType.SessionError,
-					turnId,
-					error: { errorType: 'CodexError', message: event.error.message },
-				});
-				return;
-			}
-			case 'error': {
-				this._fire(sessionUri, {
-					type: ActionType.SessionError,
-					turnId,
-					error: { errorType: 'CodexError', message: event.message },
-				});
-				return;
-			}
-			default:
-				return;
+	/**
+	 * Promote a provisional session into a materialized entry in
+	 * {@link _sessions}. Fires {@link onDidMaterializeSession}.
+	 */
+	private _materializeProvisional(sessionId: string, provisional: ICodexSession): ICodexSessionEntry {
+		this._provisionalSessions.delete(sessionId);
+		const entry = this._createSessionEntry(provisional);
+		this._onDidMaterializeSession.fire({
+			session: provisional.sessionUri,
+			workingDirectory: provisional.workingDirectory,
+			project: undefined,
+		});
+		return entry;
+	}
+
+	/**
+	 * Reconstruct a session entry for a session id that exists on disk
+	 * but not in memory (e.g. after an agent-host restart). Mirrors
+	 * Claude's `_resumeSession`. The codex SDK's `resumeThread(id)`
+	 * re-attaches to an existing thread's JSONL on disk, so
+	 * `sendMessage` can continue the conversation.
+	 */
+	private _resumeSession(sessionId: string, sessionUri: URI): ICodexSessionEntry {
+		this._logService.info(`[Codex:${sessionId}] resuming session from disk`);
+		const state: ICodexSession = {
+			sessionId,
+			sessionUri,
+			workingDirectory: undefined,
+			thread: undefined,
+			model: undefined,
+			approvalPolicy: undefined,
+			sandboxMode: undefined,
+			threadOptionsKey: undefined,
+			abortController: new AbortController(),
+			pendingSteeringPrompt: undefined,
+		};
+		const entry = this._createSessionEntry(state);
+		this._onDidMaterializeSession.fire({
+			session: sessionUri,
+			workingDirectory: undefined,
+			project: undefined,
+		});
+		return entry;
+	}
+
+	private _createSessionEntry(state: ICodexSession): ICodexSessionEntry {
+		const entry: ICodexSessionEntry = {
+			state,
+			sessionUri: state.sessionUri,
+			workingDirectory: state.workingDirectory,
+			dispose: () => {
+				state.abortController.abort();
+			},
+		};
+		this._sessions.set(state.sessionId, entry);
+		return entry;
+	}
+
+	/**
+	 * Build the final prompt string from the raw user prompt, protocol
+	 * attachments, and any buffered steering message.
+	 */
+	private _resolveFullPrompt(
+		prompt: string,
+		attachments: readonly MessageAttachment[] | undefined,
+		state: ICodexSession,
+	): string {
+		const resolved = resolvePromptWithAttachments(prompt, attachments);
+		const steering = state.pendingSteeringPrompt;
+		if (steering) {
+			state.pendingSteeringPrompt = undefined;
+			return `${steering}\n\n${resolved}`;
 		}
+		return resolved;
 	}
 
 	private _fire(sessionUri: URI, action: SessionAction): void {
@@ -364,27 +522,73 @@ export class CodexAgent extends Disposable implements IAgent {
 		return Promise.resolve([]);
 	}
 
-	async disposeSession(session: URI): Promise<void> {
+	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
 		const sessionId = AgentSession.id(session);
 		const entry = this._sessions.get(sessionId);
-		if (entry) {
-			entry.abortController.abort();
-			this._sessions.delete(sessionId);
+		if (!entry) {
+			const provisional = this._provisionalSessions.get(sessionId);
+			if (!provisional) {
+				return undefined;
+			}
+			return {
+				session: provisional.sessionUri,
+				startTime: Date.now(),
+				modifiedTime: Date.now(),
+				model: provisional.model,
+				workingDirectory: provisional.workingDirectory,
+			};
+		}
+		return {
+			session: entry.state.sessionUri,
+			startTime: Date.now(),
+			modifiedTime: Date.now(),
+			model: entry.state.model,
+			workingDirectory: entry.state.workingDirectory,
+		};
+	}
+
+	async disposeSession(session: URI): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		// Remove from materialized sessions (DisposableMap calls dispose).
+		if (this._sessions.has(sessionId)) {
+			this._sessions.deleteAndDispose(sessionId);
+			return;
+		}
+		// Remove from provisional sessions.
+		const provisional = this._provisionalSessions.get(sessionId);
+		if (provisional) {
+			provisional.abortController.abort();
+			this._provisionalSessions.delete(sessionId);
 		}
 	}
 
 	async abortSession(session: URI): Promise<void> {
-		const entry = this._sessions.get(AgentSession.id(session));
-		entry?.abortController.abort();
+		const sessionId = AgentSession.id(session);
+		const entry = this._sessions.get(sessionId);
+		if (entry) {
+			entry.state.abortController.abort();
+			return;
+		}
+		const provisional = this._provisionalSessions.get(sessionId);
+		provisional?.abortController.abort();
 	}
 
 	async changeModel(session: URI, model: ModelSelection): Promise<void> {
-		const entry = this._sessions.get(AgentSession.id(session));
+		const sessionId = AgentSession.id(session);
+		const entry = this._sessions.get(sessionId);
 		if (entry) {
-			entry.model = model;
-			// Model swaps only take effect on the next thread, since
-			// Codex threads bind their model at startThread().
+			entry.state.model = model;
+			return;
 		}
+		const provisional = this._provisionalSessions.get(sessionId);
+		if (provisional) {
+			provisional.model = model;
+		}
+		// Don't rebuild the thread here — the change only matters for the
+		// next turn, and `sendMessage` will compare `threadOptionsKey`
+		// against the desired key and call `resumeThread(id, newOptions)`.
+		// Doing it lazily avoids spawning a transient codex process for a
+		// model change that the user might still be tweaking in the picker.
 	}
 
 	respondToPermissionRequest(_requestId: string, _approved: boolean): void {
@@ -396,8 +600,23 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Codex SDK has no equivalent of the Claude `ask_user` tool yet.
 	}
 
-	setPendingMessages(_session: URI, _steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
-		// Steering / mid-turn injection is not modeled by the Codex SDK.
+	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+		// The Codex SDK has no mid-turn injection mechanism, but we can
+		// buffer a steering message and prepend it to the next user prompt.
+		// Queued messages are consumed server-side and intentionally ignored.
+		const sessionId = AgentSession.id(session);
+		const entry = this._sessions.get(sessionId);
+		if (entry) {
+			entry.state.pendingSteeringPrompt = steeringMessage?.userMessage.text;
+			if (steeringMessage) {
+				this._logService.trace(`[Codex:${sessionId}] steering message buffered (${steeringMessage.userMessage.text.length} chars)`);
+			}
+			return;
+		}
+		const provisional = this._provisionalSessions.get(sessionId);
+		if (provisional) {
+			provisional.pendingSteeringPrompt = steeringMessage?.userMessage.text;
+		}
 	}
 
 	setClientTools(_session: URI, _clientId: string, _tools: ToolDefinition[]): void {
@@ -419,17 +638,25 @@ export class CodexAgent extends Disposable implements IAgent {
 	shutdown(): Promise<void> {
 		return this._shutdownPromise ??= (async () => {
 			for (const entry of this._sessions.values()) {
-				entry.abortController.abort();
+				entry.state.abortController.abort();
 			}
-			this._sessions.clear();
+			this._sessions.clearAndDisposeAll();
+			for (const provisional of this._provisionalSessions.values()) {
+				provisional.abortController.abort();
+			}
+			this._provisionalSessions.clear();
 		})();
 	}
 
 	override dispose(): void {
 		for (const entry of this._sessions.values()) {
-			entry.abortController.abort();
+			entry.state.abortController.abort();
 		}
-		this._sessions.clear();
+		this._sessions.clearAndDisposeAll();
+		for (const provisional of this._provisionalSessions.values()) {
+			provisional.abortController.abort();
+		}
+		this._provisionalSessions.clear();
 		super.dispose();
 		this._proxyHandle?.dispose();
 		this._proxyHandle = undefined;
@@ -437,4 +664,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._codex = undefined;
 		this._models.set([], undefined);
 	}
+}
+
+/**
+ * Materialized session entry held in the {@link DisposableMap}. Wraps the
+ * mutable {@link ICodexSession} state with an `IDisposable` contract for
+ * the map's lifecycle management.
+ */
+interface ICodexSessionEntry extends IDisposable {
+	readonly state: ICodexSession;
+	readonly sessionUri: URI;
+	readonly workingDirectory: URI | undefined;
 }
