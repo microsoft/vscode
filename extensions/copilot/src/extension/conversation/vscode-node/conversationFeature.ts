@@ -253,6 +253,11 @@ export class ConversationFeature implements IExtensionContribution {
 	}
 
 	private registerParticipantDetectionProvider() {
+		// Many BYOK models are slow and we don't want to risk invalid detection with those, at least for now.
+		if (!this.authenticationService.anyGitHubSession) {
+			return;
+		}
+
 		if ('registerChatParticipantDetectionProvider' in vscode.chat) {
 			const provider = this.instantiationService.createInstance(IntentDetector);
 			return vscode.chat.registerChatParticipantDetectionProvider(provider);

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { commands, extensions, window } from 'vscode';
 import { IAuthenticationService, MinimalModeError } from '../../../platform/authentication/common/authentication';
+import { TokenErrorReason } from '../../../platform/authentication/common/copilotToken';
 import { ContactSupportError, EnterpriseManagedError, GitHubLoginFailedError, InvalidTokenError, NotSignedUpError, RateLimitedError, SubscriptionExpiredError } from '../../../platform/authentication/vscode-node/copilotTokenManager';
 import { SESSION_LOGIN_MESSAGE } from '../../../platform/authentication/vscode-node/session';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -141,7 +142,7 @@ export class ContextKeysContribution extends Disposable {
 			const reason = e.message || e;
 			const data = TelemetryData.createAndMarkAsIssued({ reason });
 			this._telemetryService.sendGHTelemetryErrorEvent('activationFailed', data.properties, data.measurements);
-			if (reason === 'GitHubLoginFailed') {
+			if (reason === ('GitHubLoginFailed' satisfies TokenErrorReason)) {
 				// Expected in BYOK / air-gapped flows where the user is not signed in to GitHub.
 				this._logService.debug(SESSION_LOGIN_MESSAGE);
 			} else {
