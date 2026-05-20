@@ -938,19 +938,29 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
+		let isFindOpen = false;
+		let findPattern = '';
+		const updateFindPatternState = () => {
+			const hasFindPattern = isFindOpen && findPattern.length > 0;
+			if (hasFindPattern !== this.hasFindPattern) {
+				this.hasFindPattern = hasFindPattern;
+				this.update();
+			}
+		};
+
 		this._register(this.tree.onDidChangeFindOpenState(open => {
+			isFindOpen = open;
 			this._onDidChangeFindOpenState.fire(open);
+			updateFindPatternState();
 		}));
 
 		// Only treat the find as "active" for layout purposes (bypassing workspace
-		// capping and per-group limits) once the user has actually typed a pattern.
-		// Opening the empty find widget should not reorder the list.
+		// capping and per-group limits) once the user has actually typed a pattern
+		// and the find widget is open. Opening the empty find widget should not
+		// reorder the list, and closing find should restore the capped layout.
 		this._register(this.tree.onDidChangeFindPattern(pattern => {
-			const hasPattern = pattern.length > 0;
-			if (hasPattern !== this.hasFindPattern) {
-				this.hasFindPattern = hasPattern;
-				this.update();
-			}
+			findPattern = pattern;
+			updateFindPatternState();
 		}));
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(() => {
