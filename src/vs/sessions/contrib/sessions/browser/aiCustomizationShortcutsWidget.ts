@@ -167,9 +167,9 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	}
 
 	private async _openWelcomePage(): Promise<void> {
-		const activeSessionType = this.sessionsManagementService.activeSession.get()?.sessionType;
-		if (activeSessionType && this.harnessService.findHarnessById(activeSessionType)) {
-			this.harnessService.setActiveHarness(activeSessionType);
+		const sessionResource = this.sessionsManagementService.activeSession.get()?.resource;
+		if (sessionResource) {
+			this.harnessService.setActiveSession(sessionResource);
 		}
 
 		const input = AICustomizationManagementEditorInput.getOrCreate();

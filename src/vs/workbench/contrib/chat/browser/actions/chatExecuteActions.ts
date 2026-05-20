@@ -386,6 +386,26 @@ class SwitchToNextModelAction extends Action2 {
 	}
 }
 
+class SwitchToNextPinnedModelAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.switchToNextPinnedModel';
+
+	constructor() {
+		super({
+			id: SwitchToNextPinnedModelAction.ID,
+			title: localize2('interactive.switchToNextPinnedModel.label', "Switch to Next Pinned Model"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ChatContextKeys.enabled,
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		widget?.input.switchToNextPinnedModel();
+	}
+}
+
 export class OpenModelPickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.openModelPicker';
 
@@ -1032,7 +1052,6 @@ interface IGetHandoffsArgs {
 	 */
 	sourceCustomAgent?: string;
 
-	sessionType?: string;
 }
 
 /**
@@ -1058,11 +1077,11 @@ class GetHandoffsAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: unknown[]) {
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const modeService = accessor.get(IChatModeService);
 		const arg = args.at(0) as IGetHandoffsArgs | undefined;
 
-		const { builtin, custom } = modeService.getModes(arg?.sessionType ?? localChatSessionType);
+		const { builtin, custom } = await modeService.getLocalModes();
 		let allModes: readonly IChatMode[] = [...builtin, ...custom];
 
 		if (arg?.sourceCustomAgent) {
@@ -1189,6 +1208,7 @@ export function registerChatExecuteActions(): DisposableStore {
 	store.add(registerAction2(ChatSubmitWithCodebaseAction));
 	store.add(registerAction2(ToggleChatModeAction));
 	store.add(registerAction2(SwitchToNextModelAction));
+	store.add(registerAction2(SwitchToNextPinnedModelAction));
 	store.add(registerAction2(OpenModelPickerAction));
 	store.add(registerAction2(OpenPermissionPickerAction));
 	store.add(registerAction2(OpenModePickerAction));

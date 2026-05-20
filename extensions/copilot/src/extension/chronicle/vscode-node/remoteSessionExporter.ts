@@ -22,7 +22,7 @@ import { IExtensionContribution } from '../../common/contributions';
 import { CircuitBreaker } from '../common/circuitBreaker';
 import {
 	createSessionTranslationState,
-	makeShutdownEvent,
+	deriveTitleFromUserMessage,
 	translateSpan,
 	type SessionTranslationState,
 } from '../common/eventTranslator';
@@ -439,7 +439,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			{ label: '$(checklist) ' + vscode.l10n.t('Select All ({0} sessions)', rows.length), sessionId: selectAllId },
 			...rows.map(row => {
 				const label = row.first_message
-					? row.first_message.length > 60 ? row.first_message.substring(0, 60) + '...' : row.first_message
+					? deriveTitleFromUserMessage(row.first_message) ?? row.id.substring(0, 8)
 					: row.id.substring(0, 8);
 				const description = [
 					row.repository,
@@ -526,10 +526,10 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 						}
 					}
 
-					// Delete from cloud using the stored cloud session ID
+					// Delete from cloud using the stored cloud task ID
 					const cached = this._cloudSessions.get(session.id);
 					if (cached) {
-						const result = await this._cloudClient.deleteSession(cached.cloudSessionId);
+						const result = await this._cloudClient.deleteSession(cached.cloudTaskId);
 						switch (result) {
 							case 'deleted': cloudDeleted++; break;
 							case 'not_found': cloudDeleted++; break; // Already gone — count as success
@@ -604,7 +604,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			if (cloudEnabled && wasCloudSynced) {
 				const cached = this._cloudSessions.get(sessionId)!;
 				try {
-					await this._cloudClient.deleteSession(cached.cloudSessionId);
+					await this._cloudClient.deleteSession(cached.cloudTaskId);
 				} catch {
 					// Best effort — don't block the caller
 				}
@@ -690,15 +690,27 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 	private _handleSpan(span: ICompletedSpanData): void {
 		try {
-			const sessionId = this._getSessionId(span);
+			// For sub-agent spans, fold events into the parent session so they
+			// appear as one continuous timeline in the cloud rather than
+			// surfacing each sub-agent invocation as its own standalone session.
+			const parentChatSessionId = span.attributes[CopilotChatAttr.PARENT_CHAT_SESSION_ID] as string | undefined;
+			const ownChatSessionId = (span.attributes[CopilotChatAttr.CHAT_SESSION_ID] as string | undefined)
+				?? (span.attributes[GenAiAttr.CONVERSATION_ID] as string | undefined)
+				?? (span.attributes[CopilotChatAttr.SESSION_ID] as string | undefined);
+			const sessionId = parentChatSessionId ?? ownChatSessionId;
+			const subagentId = parentChatSessionId ? ownChatSessionId : undefined;
 			const operationName = span.attributes[GenAiAttr.OPERATION_NAME] as string | undefined;
 			if (!sessionId || this._disabledSessions.has(sessionId)) {
 				return;
 			}
 
-			// Only start tracking on invoke_agent (real user interaction)
+			// Only start tracking on invoke_agent (real user interaction).
+			// Sub-agent invoke_agent spans must never initialize the parent: child spans
+			// typically complete before their parent, and using a sub-agent span as the
+			// init trigger would seed sessionSource/firstCloudWriteSessionSource and
+			// telemetry from the sub-agent's AGENT_NAME instead of the parent's.
 			if (!this._cloudSessions.has(sessionId) && !this._initializingSessions.has(sessionId)) {
-				if (operationName !== GenAiOperationName.INVOKE_AGENT) {
+				if (operationName !== GenAiOperationName.INVOKE_AGENT || subagentId) {
 					return;
 				}
 				// Trigger lazy initialization — don't await, buffer events in the meantime
@@ -708,7 +720,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			// Translate span to cloud events
 			const state = this._getOrCreateTranslationState(sessionId);
 			const context = this._extractContext(span);
-			const events = translateSpan(span, state, context);
+			const events = translateSpan(span, state, context, subagentId);
 
 			if (events.length > 0) {
 				this._bufferEvents(sessionId, events);
@@ -717,12 +729,6 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		} catch {
 			// Non-fatal — individual span processing failure
 		}
-	}
-
-	private _getSessionId(span: ICompletedSpanData): string | undefined {
-		return (span.attributes[CopilotChatAttr.CHAT_SESSION_ID] as string | undefined)
-			?? (span.attributes[GenAiAttr.CONVERSATION_ID] as string | undefined)
-			?? (span.attributes[CopilotChatAttr.SESSION_ID] as string | undefined);
 	}
 
 	private _getOrCreateTranslationState(sessionId: string): SessionTranslationState {
@@ -965,17 +971,15 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	// ── Session disposal ─────────────────────────────────────────────────────────
 
 	private _handleSessionDispose(sessionId: string): void {
-		const state = this._translationStates.get(sessionId);
-		if (state && this._cloudSessions.has(sessionId)) {
-			const event = makeShutdownEvent(state);
-			this._bufferEvents(sessionId, [event]);
-		}
-
-		// Keep _cloudSessions entry — the cloud session ID mapping is needed
-		// for future delete operations (e.g. sidebar delete fires after dispose).
+		// Note: VS Code fires onDidDisposeChatSession routinely (opening a new
+		// chat disposes the previous editor view) — it is not a true session
+		// shutdown. Emitting `session.shutdown` here would cause the cloud UI
+		// to hide the session as completed.
 		this._translationStates.delete(sessionId);
 		this._disabledSessions.delete(sessionId);
 		this._initializingSessions.delete(sessionId);
+		// Keep _cloudSessions entry — the cloud session ID mapping is needed
+		// for future delete operations (e.g. sidebar delete fires after dispose).
 	}
 
 	// ── Buffering ────────────────────────────────────────────────────────────────

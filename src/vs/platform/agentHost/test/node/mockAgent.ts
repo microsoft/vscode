@@ -14,7 +14,7 @@ import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryReco
 import { ProtectedResourceMetadata, type MessageAttachment, type ModelSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationStatus, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, parseSubagentSessionUri, type CustomizationRef, type PendingMessage, type SessionCustomization, type StringOrMarkdown, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { CustomizationStatus, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, parseSubagentSessionUri, type CustomizationRef, type PendingMessage, type SessionCustomization, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
@@ -487,7 +487,7 @@ export class ScriptedMockAgent implements IAgent {
 			case 'with-usage':
 				this._fireSequence([
 					_markdown(session, sessionStr, tid, 'Usage response.'),
-					_usage(session, sessionStr, tid, { inputTokens: 100, outputTokens: 50, model: 'mock-model' }),
+					_usage(session, sessionStr, tid, { inputTokens: 100, outputTokens: 50, model: 'mock-model', _meta: { cost: 0.5 } }),
 					_idle(session, sessionStr, tid),
 				]);
 				break;
@@ -502,7 +502,6 @@ export class ScriptedMockAgent implements IAgent {
 					initialReasoning,
 					_action(session, {
 						type: ActionType.SessionReasoning,
-						session: sessionStr,
 						turnId: tid,
 						partId,
 						content: ' about this...',
@@ -544,7 +543,6 @@ export class ScriptedMockAgent implements IAgent {
 					// Client tools don't get auto-ready — toolStart with toolClientId only emits tool_start
 					this._onDidSessionProgress.fire(_action(session, {
 						type: ActionType.SessionToolCallStart,
-						session: sessionStr,
 						turnId: tid,
 						toolCallId: 'tc-client-1',
 						toolName: 'runTests',
@@ -571,7 +569,6 @@ export class ScriptedMockAgent implements IAgent {
 					await timeout(10);
 					this._onDidSessionProgress.fire(_action(session, {
 						type: ActionType.SessionToolCallStart,
-						session: sessionStr,
 						turnId: tid,
 						toolCallId: 'tc-client-perm-1',
 						toolName: 'runTests',
@@ -603,6 +600,7 @@ export class ScriptedMockAgent implements IAgent {
 					{ kind: 'subagent_started', session, toolCallId: 'tc-task-1', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Exploration helper' },
 					..._toolStart(session, sessionStr, tid, 'tc-inner-1', 'echo_tool', 'Echo Tool', 'Inner tool running...', { parentToolCallId: 'tc-task-1' }),
 					_toolComplete(session, sessionStr, tid, 'tc-inner-1', { pastTenseMessage: 'Ran inner tool', content: [{ type: ToolResultContentType.Text, text: 'inner-ok' }], success: true }, 'tc-task-1'),
+					{ kind: 'subagent_completed', session, toolCallId: 'tc-task-1' },
 					_toolComplete(session, sessionStr, tid, 'tc-task-1', { pastTenseMessage: 'Subagent done', content: [{ type: ToolResultContentType.Text, text: 'task-ok' }], success: true }),
 					_markdown(session, sessionStr, tid, 'Subagent finished.'),
 					_idle(session, sessionStr, tid),
@@ -774,7 +772,6 @@ function _action(session: URI, action: import('../../common/state/sessionActions
 function _markdown(session: URI, sessionStr: string, turnId: string, content: string, parentToolCallId?: string): IAgentActionSignal {
 	return _action(session, {
 		type: ActionType.SessionResponsePart,
-		session: sessionStr,
 		turnId,
 		part: { kind: ResponsePartKind.Markdown, id: `mock-md-${++_mockPartIdCounter}`, content },
 	}, parentToolCallId);
@@ -784,7 +781,6 @@ function _markdown(session: URI, sessionStr: string, turnId: string, content: st
 function _reasoning(session: URI, sessionStr: string, turnId: string, content: string): IAgentActionSignal {
 	return _action(session, {
 		type: ActionType.SessionResponsePart,
-		session: sessionStr,
 		turnId,
 		part: { kind: ResponsePartKind.Reasoning, id: `mock-rs-${++_mockPartIdCounter}`, content },
 	});
@@ -792,22 +788,22 @@ function _reasoning(session: URI, sessionStr: string, turnId: string, content: s
 
 /** Creates a {@link ActionType.SessionTurnComplete} signal. */
 function _idle(session: URI, sessionStr: string, turnId: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.SessionTurnComplete, session: sessionStr, turnId });
+	return _action(session, { type: ActionType.SessionTurnComplete, turnId });
 }
 
 /** Creates a {@link ActionType.SessionError} signal. */
 function _error(session: URI, sessionStr: string, turnId: string, errorType: string, message: string, stack?: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.SessionError, session: sessionStr, turnId, error: { errorType, message, stack } });
+	return _action(session, { type: ActionType.SessionError, turnId, error: { errorType, message, stack } });
 }
 
 /** Creates a {@link ActionType.SessionTitleChanged} signal. */
 function _titleChanged(session: URI, sessionStr: string, title: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.SessionTitleChanged, session: sessionStr, title });
+	return _action(session, { type: ActionType.SessionTitleChanged, title });
 }
 
 /** Creates a {@link ActionType.SessionUsage} signal. */
-function _usage(session: URI, sessionStr: string, turnId: string, usage: { inputTokens?: number; outputTokens?: number; model?: string; cacheReadTokens?: number }): IAgentActionSignal {
-	return _action(session, { type: ActionType.SessionUsage, session: sessionStr, turnId, usage });
+function _usage(session: URI, sessionStr: string, turnId: string, usage: UsageInfo): IAgentActionSignal {
+	return _action(session, { type: ActionType.SessionUsage, turnId, usage });
 }
 
 /**
@@ -834,7 +830,6 @@ function _toolStart(session: URI, sessionStr: string, turnId: string, toolCallId
 	}
 	const signals: IAgentActionSignal[] = [_action(session, {
 		type: ActionType.SessionToolCallStart,
-		session: sessionStr,
 		turnId,
 		toolCallId,
 		toolName,
@@ -845,7 +840,6 @@ function _toolStart(session: URI, sessionStr: string, turnId: string, toolCallId
 	if (!opts?.toolClientId) {
 		signals.push(_action(session, {
 			type: ActionType.SessionToolCallReady,
-			session: sessionStr,
 			turnId,
 			toolCallId,
 			invocationMessage,
@@ -858,7 +852,7 @@ function _toolStart(session: URI, sessionStr: string, turnId: string, toolCallId
 
 /** Creates a {@link ActionType.SessionToolCallComplete} signal. */
 function _toolComplete(session: URI, sessionStr: string, turnId: string, toolCallId: string, result: ToolCallResult, parentToolCallId?: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.SessionToolCallComplete, session: sessionStr, turnId, toolCallId, result }, parentToolCallId);
+	return _action(session, { type: ActionType.SessionToolCallComplete, turnId, toolCallId, result }, parentToolCallId);
 }
 
 /** Creates a {@link IAgentToolPendingConfirmationSignal}. */

@@ -93,14 +93,15 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		dispatchTurnStarted(client, sessionUri, 'turn-cancel', 'slow', 1);
 
 		client.notify('dispatchAction', {
+			channel: sessionUri,
 			clientSeq: 2,
-			action: { type: 'session/turnCancelled', session: sessionUri, turnId: 'turn-cancel' },
+			action: { type: 'session/turnCancelled', turnId: 'turn-cancel' },
 		});
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnCancelled'));
 
-		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const state = snapshot.snapshot.state as SessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const state = snapshot.snapshot!.state as SessionState;
 		assert.ok(state.turns.length >= 1);
 		assert.strictEqual(state.turns[state.turns.length - 1].state, 'cancelled');
 	});
@@ -117,8 +118,8 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		await new Promise(resolve => setTimeout(resolve, 200));
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const state = snapshot.snapshot.state as SessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const state = snapshot.snapshot!.state as SessionState;
 		assert.ok(state.turns.length >= 2, `expected >= 2 turns but got ${state.turns.length}`);
 		assert.strictEqual(state.turns[0].id, 'turn-m1');
 		assert.strictEqual(state.turns[1].id, 'turn-m2');
@@ -136,7 +137,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		await new Promise(resolve => setTimeout(resolve, 200));
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const result = await client.call<FetchTurnsResult>('fetchTurns', { session: sessionUri, limit: 10 });
+		const result = await client.call<FetchTurnsResult>('fetchTurns', { channel: sessionUri, limit: 10 });
 		assert.ok(result.turns.length >= 2);
 		assert.strictEqual(typeof result.hasMore, 'boolean');
 	});
@@ -148,19 +149,21 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		dispatchTurnStarted(client, sessionUri, 'turn-usage', 'with-usage', 1);
 
 		const usageNotif = await client.waitForNotification(n => isActionNotification(n, 'session/usage'));
-		const usageAction = getActionEnvelope(usageNotif).action as { type: string; usage: { inputTokens: number; outputTokens: number } };
+		const usageAction = getActionEnvelope(usageNotif).action as { type: string; usage: { inputTokens: number; outputTokens: number; _meta?: Record<string, unknown> } };
 		assert.strictEqual(usageAction.usage.inputTokens, 100);
 		assert.strictEqual(usageAction.usage.outputTokens, 50);
+		assert.deepStrictEqual(usageAction.usage._meta, { cost: 0.5 });
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const state = snapshot.snapshot.state as SessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const state = snapshot.snapshot!.state as SessionState;
 		assert.ok(state.turns.length >= 1);
 		const turn = state.turns[state.turns.length - 1];
 		assert.ok(turn.usage);
 		assert.strictEqual(turn.usage!.inputTokens, 100);
 		assert.strictEqual(turn.usage!.outputTokens, 50);
+		assert.deepStrictEqual(turn.usage!._meta, { cost: 0.5 });
 	});
 
 	test('modifiedAt updates on turn completion', async function () {
@@ -168,16 +171,16 @@ suite('Protocol WebSocket — Turn Execution', function () {
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-modifiedAt');
 
-		const initialSnapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const initialModifiedAt = (initialSnapshot.snapshot.state as SessionState).summary.modifiedAt;
+		const initialSnapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const initialModifiedAt = (initialSnapshot.snapshot!.state as SessionState).summary.modifiedAt;
 
 		await new Promise(resolve => setTimeout(resolve, 50));
 
 		dispatchTurnStarted(client, sessionUri, 'turn-mod', 'hello', 1);
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const updatedSnapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const updatedModifiedAt = (updatedSnapshot.snapshot.state as SessionState).summary.modifiedAt;
+		const updatedSnapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const updatedModifiedAt = (updatedSnapshot.snapshot!.state as SessionState).summary.modifiedAt;
 		assert.ok(updatedModifiedAt >= initialModifiedAt);
 	});
 
@@ -194,10 +197,10 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		// the parent session URI + parent toolCallId.
 		const childUri = buildSubagentSessionUri(sessionUri, 'tc-task-1');
 
-		const parentSnapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const parentState = parentSnapshot.snapshot.state as SessionState;
-		const childSnapshot = await client.call<SubscribeResult>('subscribe', { resource: childUri });
-		const childState = childSnapshot.snapshot.state as SessionState;
+		const parentSnapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const parentState = parentSnapshot.snapshot!.state as SessionState;
+		const childSnapshot = await client.call<SubscribeResult>('subscribe', { channel: childUri });
+		const childState = childSnapshot.snapshot!.state as SessionState;
 
 		// Parent turn should contain the `task` tool call but NOT the inner one.
 		const parentTurn = parentState.turns[parentState.turns.length - 1];

@@ -32,7 +32,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const COMMENT_MARKER = '<!-- screenshot-diff-report -->';
 const EXPAND_FIRST_N = 5;
 const EXCLUDED_LABELS = new Set(['animated', 'flaky']);
-const MAX_BODY_BYTES = 750 * 1024;
+const MAX_BODY_BYTES = 300 * 1024;
 
 // ---------------------------------------------------------------------------
 // Pixel-level image comparison
@@ -262,7 +262,32 @@ function shouldIncludeInReport(labels: readonly string[] | undefined): boolean {
 	return !labels?.some(l => EXCLUDED_LABELS.has(l));
 }
 
-function diffManifests(local: LocalManifest, base: BaseCommitResponse): DiffResult {
+function collectErrored(local: LocalManifest): ErroredDiffEntry[] {
+	const errored: ErroredDiffEntry[] = [];
+	for (const cur of local.fixtures) {
+		if (!cur.hasError && cur.imageHash && cur.imagePath) {
+			continue;
+		}
+		const errorEvents = (cur.events ?? []).filter(e => e.isError);
+		const errorMessage = errorEvents.map(e => e.message).filter(Boolean).join('; ')
+			|| 'unknown error (no image hash produced)';
+		const errorStack = errorEvents.map(e => e.stack).find(s => s !== undefined);
+		errored.push({
+			fixtureId: cur.fixtureId,
+			labels: cur.labels,
+			errorMessage,
+			errorStack,
+		});
+	}
+	return errored;
+}
+
+function diffManifests(local: LocalManifest, base: BaseCommitResponse | null): DiffResult {
+	const errored = collectErrored(local);
+	if (!base) {
+		return { changed: [], added: [], removed: [], errored };
+	}
+
 	const baseByFixture = new Map<string, BaseFixture>();
 	for (const f of base.fixtures) {
 		baseByFixture.set(f.fixtureId, f);
@@ -275,20 +300,9 @@ function diffManifests(local: LocalManifest, base: BaseCommitResponse): DiffResu
 	const changed: ChangedDiffEntry[] = [];
 	const added: AddedDiffEntry[] = [];
 	const removed: RemovedDiffEntry[] = [];
-	const errored: ErroredDiffEntry[] = [];
 
 	for (const cur of local.fixtures) {
 		if (cur.hasError || !cur.imageHash || !cur.imagePath) {
-			const errorEvents = (cur.events ?? []).filter(e => e.isError);
-			const errorMessage = errorEvents.map(e => e.message).filter(Boolean).join('; ')
-				|| 'unknown error (no image hash produced)';
-			const errorStack = errorEvents.map(e => e.stack).find(s => s !== undefined);
-			errored.push({
-				fixtureId: cur.fixtureId,
-				labels: cur.labels,
-				errorMessage,
-				errorStack,
-			});
 			continue;
 		}
 		const baseEntry = baseByFixture.get(cur.fixtureId);
@@ -332,7 +346,7 @@ function loadImageUrl(serviceUrl: string, hash: string): string {
 function generateMarkdown(
 	diff: DiffResult,
 	serviceUrl: string,
-	baseSha: string,
+	baseSha: string | null,
 	currentSha: string,
 	pixelDiffs: ReadonlyMap<string, ImageDiffResult>,
 ): string {
@@ -357,7 +371,11 @@ function generateMarkdown(
 	const lines: string[] = [];
 	lines.push('## Screenshot Changes');
 	lines.push('');
-	lines.push(`**Base:** \`${baseSha.slice(0, 8)}\` **Current:** \`${currentSha.slice(0, 8)}\``);
+	if (baseSha) {
+		lines.push(`**Base:** \`${baseSha.slice(0, 8)}\` **Current:** \`${currentSha.slice(0, 8)}\``);
+	} else {
+		lines.push(`**Current:** \`${currentSha.slice(0, 8)}\` _(base manifest unavailable — only rendering errors are reported)_`);
+	}
 	lines.push('');
 
 	if (significantChanged.length > 0 || insignificantChangedCount > 0) {
@@ -424,7 +442,8 @@ function generateMarkdown(
 		for (let i = 0; i < errored.length; i++) {
 			const entry = errored[i];
 			const open = i < EXPAND_FIRST_N ? ' open' : '';
-			const header = `<details${open}><summary><code>${entry.fixtureId}</code> — ${escapeMarkdown(entry.errorMessage)}</summary>`;
+			const headerMessage = entry.errorMessage.split('\n').map(l => l.trim()).find(l => l.length > 0) ?? entry.errorMessage;
+			const header = `<details${open}><summary><code>${entry.fixtureId}</code> — ${escapeMarkdown(headerMessage)}</summary>`;
 			const fullStack = entry.errorStack ?? entry.errorMessage;
 			const fullBlock = `${header}\n\n\`\`\`\n${fullStack}\n\`\`\`\n\n</details>\n`;
 
@@ -475,9 +494,9 @@ function escapeMarkdown(text: string): string {
 }
 
 async function main(): Promise<void> {
-	const [serviceUrl, baseSha, currentSha, baseManifestPath, localManifestPath] = process.argv.slice(2);
-	if (!serviceUrl || !baseSha || !currentSha || !baseManifestPath || !localManifestPath) {
-		console.error('Usage: node build/lib/screenshotDiffReport.ts <service-url> <base-sha> <current-sha> <base-manifest> <local-manifest>');
+	const [serviceUrl, baseShaArg, currentSha, baseManifestPathArg, localManifestPath] = process.argv.slice(2);
+	if (!serviceUrl || !currentSha || !localManifestPath) {
+		console.error('Usage: node build/lib/screenshotDiffReport.ts <service-url> <base-sha|""> <current-sha> <base-manifest|""> <local-manifest>');
 		process.exit(1);
 	}
 
@@ -485,13 +504,17 @@ async function main(): Promise<void> {
 		console.error(`Local manifest not found: ${localManifestPath}`);
 		process.exit(1);
 	}
-	if (!fs.existsSync(baseManifestPath)) {
-		console.error(`Base manifest not found: ${baseManifestPath}. Skipping diff.`);
-		process.exit(0);
+
+	const baseManifestPath = baseManifestPathArg && fs.existsSync(baseManifestPathArg) ? baseManifestPathArg : null;
+	if (baseManifestPathArg && !baseManifestPath) {
+		console.error(`Base manifest not found: ${baseManifestPathArg}. Reporting fixture errors only.`);
 	}
+	const baseSha = baseManifestPath ? baseShaArg : null;
 
 	const local = JSON.parse(fs.readFileSync(localManifestPath, 'utf8')) as LocalManifest;
-	const base = JSON.parse(fs.readFileSync(baseManifestPath, 'utf8')) as BaseCommitResponse;
+	const base = baseManifestPath
+		? JSON.parse(fs.readFileSync(baseManifestPath, 'utf8')) as BaseCommitResponse
+		: null;
 
 	const diff = diffManifests(local, base);
 	console.error(`Compare result: ${diff.changed.length} changed, ${diff.added.length} added, ${diff.removed.length} removed, ${diff.errored.length} errored.`);

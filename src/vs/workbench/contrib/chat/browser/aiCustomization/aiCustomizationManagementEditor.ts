@@ -92,7 +92,6 @@ import { ICustomizationHarnessService, matchesWorkspaceSubpath } from '../../com
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage } from './aiCustomizationWelcomePage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { SessionType } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
 
@@ -454,7 +453,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 			layout: (width, _, height) => {
 				this.sidebarContainer.style.width = `${width}px`;
 				if (height !== undefined) {
-					this.sectionsList.layout(height - 8, width);
+					// Subtract sidebar-content padding (4px each side = 8px) and the
+					// header row height. Without subtracting the header the sections
+					// list overflows and the bottom items are clipped.
+					const headerHeight = this.sidebarHeaderContainer?.offsetHeight ?? 0;
+					this.sectionsList.layout(Math.max(0, height - 8 - headerHeight), width);
 				}
 			},
 		}, savedWidth, undefined, true);
@@ -503,7 +506,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * When disabled, the editor behaves as if "Local" is always selected.
 	 */
 	private get isHarnessSelectorEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled) !== false;
+		return false; //this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled) !== false;
 	}
 
 	/**
@@ -512,14 +515,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * section, the first visible section is selected instead.
 	 */
 	private rebuildVisibleSections(): void {
-		let hidden: Set<string>;
-		if (this.isHarnessSelectorEnabled) {
-			const activeId = this.harnessService.activeHarness.get();
-			const descriptor = this.harnessService.findHarnessById(activeId);
-			hidden = new Set(descriptor?.hiddenSections ?? []);
-		} else {
-			hidden = new Set(); // Local harness has no hidden sections
-		}
+		const activeId = this.harnessService.activeHarness.get();
+		const descriptor = this.harnessService.findHarnessById(activeId);
+		const hidden = new Set(descriptor?.hiddenSections ?? []);
 
 		this.sections.length = 0;
 		for (const s of this.allSections) {
@@ -592,15 +590,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// React to harness changes — rebuild visible sections and refresh counts.
 		// Also track availableHarnesses to handle agent registration/unregistration.
 		this.editorDisposables.add(autorun(reader => {
-			const available = this.harnessService.availableHarnesses.read(reader);
+			this.harnessService.availableHarnesses.read(reader);
 			const activeId = this.harnessService.activeHarness.read(reader);
-
-			// If the active harness is no longer available, fall back to the default
-			if (!available.some(h => h.id === activeId) && available.length > 0) {
-				this.harnessService.setActiveHarness(available[0].id);
-				return; // setActiveHarness will trigger another autorun cycle
-			}
-
 			this.harnessContextKey.set(activeId);
 			this.rebuildVisibleSections();
 			this.ensureHarnessDropdown();
@@ -617,19 +608,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this._previousActiveHarnessId = activeId;
 		}));
 
-		// When the harness selector setting is off, lock to Local harness.
-		// In Sessions (single CLI harness) the dropdown is already hidden and
-		// setActiveHarness(VSCode) is a safe no-op since the CLI harness
-		// remains active — filtering stays correct for that window.
-		if (!this.isHarnessSelectorEnabled) {
-			this.harnessService.setActiveHarness(SessionType.Local);
-		}
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled)) {
-				if (!this.isHarnessSelectorEnabled) {
-					this.harnessService.setActiveHarness(SessionType.Local);
-				}
-			}
 			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled)) {
 				this.onStructuredPreviewSettingChanged();
 			}
@@ -654,7 +633,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 
 		// Harness dropdown (shown when multiple harnesses available)
-		this.createHarnessDropdown(headerRow);
+		//this.createHarnessDropdown(headerRow);
 		this.updateHomeButtonStyle();
 	}
 
@@ -743,7 +722,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const actions = harnesses.map(h => {
 			const action = new Action(h.id, h.label, ThemeIcon.asClassName(h.icon), true, () => {
-				this.harnessService.setActiveHarness(h.id);
+				this.harnessService.setActiveSession(this.harnessService.getSessionResourceForHarness(h.id));
 			});
 			action.checked = h.id === activeId;
 			return action;
@@ -818,10 +797,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return button;
 	}
 
-	private injectBackArrowIntoSearchRow(widget: { prependToSearchRow(el: HTMLElement): void }, onClick?: () => void): void {
-		widget.prependToSearchRow(this.createBackArrowButton(onClick));
-	}
-
 	private createContent(): void {
 		const contentInner = DOM.append(this.contentContainer, $('.content-inner'));
 
@@ -832,7 +807,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.promptsContentContainer = DOM.append(contentInner, $('.prompts-content-container'));
 		this.listWidget = this.editorDisposables.add(this.instantiationService.createInstance(AICustomizationListWidget));
 		this.promptsContentContainer.appendChild(this.listWidget.element);
-		this.injectBackArrowIntoSearchRow(this.listWidget);
 
 		// Handle item selection
 		this.editorDisposables.add(this.listWidget.onDidSelectItem(item => {
@@ -883,13 +857,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.mcpContentContainer = DOM.append(contentInner, $('.mcp-content-container'));
 			this.mcpListWidget = this.editorDisposables.add(this.instantiationService.createInstance(McpListWidget));
 			this.mcpContentContainer.appendChild(this.mcpListWidget.element);
-			this.injectBackArrowIntoSearchRow(this.mcpListWidget, () => {
-				if (this.mcpListWidget!.isInBrowseMode()) {
-					this.mcpListWidget!.exitBrowseMode();
-				} else {
-					this.showWelcomePage();
-				}
-			});
 
 			// Embedded MCP server detail view
 			this.mcpDetailContainer = DOM.append(contentInner, $('.mcp-detail-container'));
@@ -909,13 +876,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.pluginContentContainer = DOM.append(contentInner, $('.plugin-content-container'));
 			this.pluginListWidget = this.editorDisposables.add(this.instantiationService.createInstance(PluginListWidget));
 			this.pluginContentContainer.appendChild(this.pluginListWidget.element);
-			this.injectBackArrowIntoSearchRow(this.pluginListWidget, () => {
-				if (this.pluginListWidget!.isInBrowseMode()) {
-					this.pluginListWidget!.exitBrowseMode();
-				} else {
-					this.showWelcomePage();
-				}
-			});
 
 			// Embedded plugin detail view
 			this.pluginDetailContainer = DOM.append(contentInner, $('.plugin-detail-container'));
@@ -1060,6 +1020,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Load items for the new section (only for prompts-based sections)
 		if (this.isPromptsSection(section)) {
 			void this.listWidget.setSection(section);
+		}
+
+		// Re-layout after visibility change so the newly-visible widget can
+		// measure its flex-computed container height correctly. Without this,
+		// a widget that was previously hidden (offsetHeight === 0) keeps its
+		// stale listContainer height and clips items at the bottom.
+		if (this.dimension) {
+			this.layout(this.dimension);
 		}
 
 		this.ensureSectionsListReflectsActiveSection(section);

@@ -11,9 +11,10 @@ import { IFetcherService } from '../../../platform/networking/common/fetcherServ
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IStringDictionary } from '../../../util/vs/base/common/collections';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { byokKnownModelToAPIInfo, resolveModelInfo } from '../common/byokProvider';
+import { resolveModelInfo } from '../common/byokProvider';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
+import { byokKnownModelToAPIInfoWithEffort } from './byokModelInfo';
 import { IBYOKStorageService } from './byokStorageService';
 
 export function resolveCustomOAIUrl(modelId: string, url: string): string {
@@ -61,6 +62,8 @@ interface _CustomOAIModelConfig {
 	editTools?: EndpointEditToolName[];
 	requestHeaders?: Record<string, string>;
 	zeroDataRetentionEnabled?: boolean;
+	supportsReasoningEffort?: string[];
+	reasoningEffortFormat?: 'chat-completions' | 'responses';
 }
 
 export interface CustomOAIModelConfig extends _CustomOAIModelConfig {
@@ -121,7 +124,7 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 		if (Array.isArray(configuration?.models)) {
 			for (const modelConfig of configuration.models) {
 				models.push({
-					...byokKnownModelToAPIInfo(this._name, modelConfig.id, modelConfig),
+					...byokKnownModelToAPIInfoWithEffort(this._name, modelConfig.id, modelConfig),
 					url: modelConfig.url
 				});
 			}
@@ -142,7 +145,9 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 			thinking: modelConfiguration?.thinking ?? false,
 			streaming: modelConfiguration?.streaming,
 			requestHeaders: modelConfiguration?.requestHeaders,
-			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled
+			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled,
+			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
+			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
 		};
 		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
 		if (modelCapabilities?.url?.includes('/responses')) {

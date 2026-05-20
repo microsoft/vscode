@@ -269,10 +269,19 @@ export class ChatService extends Disposable implements IChatService {
 		const liveLocalChats = Array.from(this._sessionModels.values())
 			.filter(session => this.shouldStoreSession(session));
 
-		this._chatSessionStore.storeSessions(liveLocalChats);
-
 		const liveNonLocalChats = Array.from(this._sessionModels.values())
 			.filter(session => !LocalChatSessionUri.parseLocalSessionId(session.sessionResource));
+
+		// Synchronously update the index for all live sessions and flush it to
+		// storage. This is critical because `onWillSaveState` is synchronous —
+		// after this handler returns the storage service flushes its databases.
+		// The async file-write work kicked off below may complete after the
+		// flush, but the index must be up-to-date before the flush happens so
+		// that sessions are discoverable after a reload.
+		this._chatSessionStore.updateAndFlushIndexSync(liveLocalChats, liveNonLocalChats);
+
+		// Kick off async file writes for session data.
+		this._chatSessionStore.storeSessions(liveLocalChats);
 		this._chatSessionStore.storeSessionsMetadataOnly(liveNonLocalChats);
 	}
 
@@ -280,6 +289,9 @@ export class ChatService extends Disposable implements IChatService {
 	 * Only persist local sessions from chat that are not imported.
 	 */
 	private shouldStoreSession(session: ChatModel): boolean {
+		if (session.isDeleted) {
+			return false;
+		}
 		if (!LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
 			return false;
 		}
@@ -401,10 +413,12 @@ export class ChatService extends Disposable implements IChatService {
 			.filter(entry => !this._sessionModels.has(LocalChatSessionUri.forSession(entry.sessionId)) && entry.initialLocation === ChatAgentLocation.Chat && !entry.isEmpty)
 			.map((entry): IChatDetail => {
 				const sessionResource = LocalChatSessionUri.forSession(entry.sessionId);
+				const { workingDirectory: workingDirectoryStr, ...rest } = entry;
 				return ({
-					...entry,
+					...rest,
 					sessionResource,
 					isActive: this._sessionModels.has(sessionResource),
+					workingDirectory: workingDirectoryStr ? URI.parse(workingDirectoryStr) : undefined,
 				});
 			});
 	}
@@ -413,10 +427,12 @@ export class ChatService extends Disposable implements IChatService {
 		const index = await this._chatSessionStore.getIndex();
 		const metadata: IChatSessionEntryMetadata | undefined = index[sessionResource.toString()];
 		if (metadata) {
+			const { workingDirectory: workingDirectoryStr, ...rest } = metadata;
 			return {
-				...metadata,
+				...rest,
 				sessionResource,
 				isActive: this._sessionModels.has(sessionResource),
+				workingDirectory: workingDirectoryStr ? URI.parse(workingDirectoryStr) : undefined,
 			};
 		}
 
@@ -424,11 +440,15 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private shouldBeInHistory(entry: ChatModel): boolean {
-		return !entry.isImported && !!LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation === ChatAgentLocation.Chat;
+		return !entry.isImported && !entry.isDeleted && !!LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation === ChatAgentLocation.Chat;
 	}
 
 	async removeHistoryEntry(sessionResource: URI): Promise<void> {
 		await this._chatSessionStore.deleteSession(this.toLocalSessionId(sessionResource));
+		const model = this._sessionModels.get(sessionResource);
+		if (model) {
+			model.markDeleted();
+		}
 		this._onDidDisposeSession.fire({ sessionResources: [sessionResource], reason: 'cleared' });
 	}
 
@@ -772,7 +792,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			if (providedSession.onDidStartServerRequest) {
-				disposables.add(providedSession.onDidStartServerRequest(({ prompt }) => {
+				disposables.add(providedSession.onDidStartServerRequest(({ prompt, variableData }) => {
 					// Complete any in-flight request
 					if (lastRequest?.response && !lastRequest.response.isComplete) {
 						lastRequest.response.complete();
@@ -781,7 +801,7 @@ export class ChatService extends Disposable implements IChatService {
 					// Create a new request in the model
 					const agent = this.chatAgentService.getAgent(chatSessionType);
 					const parsedRequest = parseAgentHostHistoryPrompt(prompt, agent);
-					lastRequest = model.addRequest(parsedRequest, { variables: [] }, 0, undefined, agent);
+					lastRequest = model.addRequest(parsedRequest, variableData ?? { variables: [] }, 0, undefined, agent);
 
 					// Reset progress tracking for the new turn
 					lastProgressLength = 0;
@@ -916,7 +936,7 @@ export class ChatService extends Disposable implements IChatService {
 				// since the alias registration below may change the lookup.
 				const initialSessionOptions = this.chatSessionService.getSessionOptions(sessionResource);
 
-				const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions }, CancellationToken.None);
+				const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions, untitledResource: sessionResource }, CancellationToken.None);
 				if (newItem) {
 					// Register alias so session-option lookups work with the new resource
 					this.chatSessionService.registerSessionResourceAlias(sessionResource, newItem.resource);
@@ -1279,6 +1299,7 @@ export class ChatService extends Disposable implements IChatService {
 							hooks: collectedHooks,
 							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
 							isSystemInitiated: options?.isSystemInitiated,
+							workingDirectory: model.workingDirectory,
 						};
 
 						let isInitialTools = true;
@@ -1922,5 +1943,6 @@ export async function chatModelToChatDetail(model: IChatModel): Promise<IChatDet
 		isActive: true,
 		stats: await awaitStatsForSession(model),
 		lastResponseState: model.lastRequest?.response?.state ?? ResponseModelState.Pending,
+		workingDirectory: model.workingDirectory,
 	};
 }

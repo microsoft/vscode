@@ -6,12 +6,22 @@
 import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { Event } from '../../../base/common/event.js';
 import type { FileEditKind } from './state/sessionState.js';
 
 export const ISessionDataService = createDecorator<ISessionDataService>('sessionDataService');
 
 /** Filename of the per-session SQLite database. */
 export const SESSION_DB_FILENAME = 'session.db';
+
+/**
+ * Subdirectory under a session's data directory that holds snapshotted
+ * user-message attachments (e.g. pasted images, fetched file references).
+ * The agent host writes these on dispatch so large blobs stay out of the
+ * in-memory state tree, and reads of files under this directory are
+ * auto-approved by the agent's permission flow.
+ */
+export const SESSION_ATTACHMENTS_DIRNAME = 'attachments';
 
 // ---- File-edit types ----------------------------------------------------
 
@@ -95,6 +105,33 @@ export interface ISessionDatabase extends IDisposable {
 	 * or `undefined` if there are no turns.
 	 */
 	getFirstTurnEventId(): Promise<string | undefined>;
+
+	/**
+	 * Associates a git checkpoint ref (e.g. `refs/agents/<sid>/checkpoints/turn/N`)
+	 * with a turn. Idempotent — last writer wins per turn.
+	 */
+	setTurnCheckpointRef(turnId: string, ref: string): Promise<void>;
+
+	/**
+	 * Retrieves the checkpoint ref previously stored for a turn, or
+	 * `undefined` if none.
+	 */
+	getTurnCheckpointRef(turnId: string): Promise<string | undefined>;
+
+	/**
+	 * Returns the checkpoint ref of the most recent turn (in insertion
+	 * order) prior to `turnId` that has a non-null `checkpoint_ref`.
+	 * Used to resolve the parent checkpoint for end-of-turn diffs without
+	 * persisting an explicit parent column.
+	 */
+	getPreviousCheckpointRef(turnId: string): Promise<string | undefined>;
+
+	/**
+	 * Returns every non-null `checkpoint_ref` recorded against any turn in
+	 * this session. Used by checkpoint cleanup to enumerate refs precisely
+	 * (rather than scanning `for-each-ref` on the underlying repo).
+	 */
+	getAllCheckpointRefs(): Promise<string[]>;
 
 	/**
 	 * Deletes the given turn and all turns inserted after it, along
@@ -244,6 +281,23 @@ export interface ISessionDataService {
 	deleteSessionData(session: URI): Promise<void>;
 
 	/**
+	 * Fires immediately before a session's data directory (and the
+	 * SQLite database within it) is deleted by {@link deleteSessionData}.
+	 *
+	 * Subscribers can register asynchronous cleanup work via
+	 * {@link IWillDeleteSessionDataEvent.waitUntil}; the deletion is
+	 * blocked until all registered promises settle. Used by
+	 * `IAgentHostCheckpointService.disposeSessionData` to read the exact
+	 * list of checkpoint refs from the (still-readable) database and
+	 * delete them before the directory is removed.
+	 *
+	 * Subscribers must own their own error handling — exceptions
+	 * propagated out of `waitUntil` promises are logged and ignored;
+	 * deletion proceeds regardless.
+	 */
+	readonly onWillDeleteSessionData: Event<IWillDeleteSessionDataEvent>;
+
+	/**
 	 * Deletes data directories that do not correspond to any known session.
 	 * Called at startup; safe to call multiple times.
 	 */
@@ -256,4 +310,16 @@ export interface ISessionDataService {
 	 * otherwise be lost when the process exits.
 	 */
 	whenIdle(): Promise<void>;
+}
+
+/**
+ * Payload of {@link ISessionDataService.onWillDeleteSessionData}.
+ */
+export interface IWillDeleteSessionDataEvent {
+	readonly session: URI;
+	/**
+	 * Register an asynchronous task that must settle before the session's
+	 * data directory is removed.
+	 */
+	waitUntil(promise: Promise<unknown>): void;
 }

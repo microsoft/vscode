@@ -25,7 +25,7 @@ import { ISelection } from '../../../../../editor/common/core/selection.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../nls.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
+import { canLog, ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
@@ -312,6 +312,7 @@ export interface IChatResponseModel {
 	setVote(vote: ChatAgentVoteDirection): void;
 	setUsage(usage: IChatUsage): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
+	resolveInlineReference(resolveId: string, resolvedReference: IChatContentInlineReference): boolean;
 	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean): void;
 	/**
 	 * Adopts any partially-undo {@link response} as the {@link entireResponse}.
@@ -927,6 +928,25 @@ export class Response extends AbstractResponse implements IDisposable {
 		this._contentChanged();
 	}
 
+	public resolveInlineReference(resolveId: string, resolvedReference: IChatContentInlineReference): boolean {
+		for (let i = 0; i < this._responseParts.length; i++) {
+			const current = this._responseParts[i];
+			if (current.kind !== 'inlineReference' || current.resolveId !== resolveId) {
+				continue;
+			}
+
+			this._responseParts[i] = {
+				...current,
+				inlineReference: resolvedReference.inlineReference,
+				name: resolvedReference.name ?? current.name,
+			};
+			this._contentChanged();
+			return true;
+		}
+
+		return false;
+	}
+
 	private _mergeOrPushTextEditGroup(uri: URI, edits: TextEdit[], done: boolean | undefined, isExternalEdit: boolean | undefined): void {
 		for (const candidate of this._responseParts) {
 			if (candidate.kind === 'textEditGroup' && !candidate.done && isEqual(candidate.uri, uri)) {
@@ -1366,6 +1386,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._response.updateContent(responsePart, quiet);
 	}
 
+	resolveInlineReference(resolveId: string, resolvedReference: IChatContentInlineReference): boolean {
+		return this._response.resolveInlineReference(resolveId, resolvedReference);
+	}
+
 	/**
 	 * Adds an undo stop at the current position in the stream.
 	 */
@@ -1584,6 +1608,13 @@ export interface IChatModel extends IDisposable {
 	readonly repoData: IExportableRepoData | undefined;
 	setRepoData(data: IExportableRepoData | undefined): void;
 
+	/**
+	 * The working directory URI associated with this session.
+	 * Only set in the sessions/agents window context.
+	 */
+	readonly workingDirectory: URI | undefined;
+	setWorkingDirectory(uri: URI | undefined): void;
+
 	readonly onDidChangePendingRequests: Event<void>;
 	getPendingRequests(): readonly IChatPendingRequest[];
 }
@@ -1768,6 +1799,8 @@ export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 've
 	repoData?: IExportableRepoData;
 	/** Pending requests that were queued but not yet processed */
 	pendingRequests?: ISerializablePendingRequestData[];
+	/** The working directory URI associated with this session (sessions/agents window). */
+	workingDirectory?: string;
 }
 
 /**
@@ -2020,13 +2053,14 @@ class InputModel implements IInputModel {
 	private readonly _state: ReturnType<typeof observableValue<IChatModelInputState | undefined>>;
 	readonly state: IObservable<IChatModelInputState | undefined>;
 
-	constructor(initialState: IChatModelInputState | undefined) {
+	constructor(initialState: IChatModelInputState | undefined, private readonly logger: ILogService) {
 		this._state = observableValueOpts({ debugName: 'inputModelState', equalsFn: equals }, initialState);
 		this.state = this._state;
 	}
 
 	setState(state: Partial<IChatModelInputState>): void {
 		const current = this._state.get();
+		_logChangesToStateModel(state, current, this.logger);
 		this._state.set({
 			// If current is undefined, provide defaults for required fields
 			attachments: [],
@@ -2104,6 +2138,14 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 	public setRepoData(data: IExportableRepoData | undefined): void {
 		this._repoData = data;
+	}
+
+	private _workingDirectory: URI | undefined;
+	public get workingDirectory(): URI | undefined {
+		return this._workingDirectory;
+	}
+	public setWorkingDirectory(uri: URI | undefined): void {
+		this._workingDirectory = uri;
 	}
 
 	getPendingRequests(): readonly IChatPendingRequest[] {
@@ -2269,6 +2311,14 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._isImported;
 	}
 
+	private _isDeleted = false;
+	get isDeleted(): boolean {
+		return this._isDeleted;
+	}
+	markDeleted(): void {
+		this._isDeleted = true;
+	}
+
 	private _customTitle: string | undefined;
 	get customTitle(): string | undefined {
 		return this._customTitle;
@@ -2359,12 +2409,14 @@ export class ChatModel extends Disposable implements IChatModel {
 			inputText: serializedInputState.inputText,
 			selections: serializedInputState.selections,
 			permissionLevel: serializedInputState.permissionLevel,
-		});
+		}, this.logService);
 
 		this.dataSerializer = dataRef?.serializer;
 		this._initialResponderUsername = initialData?.responderUsername;
 
 		this._repoData = isValidFullData && initialData.repoData ? initialData.repoData : undefined;
+
+		this._workingDirectory = isValidFullData && initialData.workingDirectory ? URI.parse(initialData.workingDirectory) : undefined;
 
 		// Hydrate pending requests from serialized data
 		if (isValidFullData && initialData.pendingRequests) {
@@ -2776,7 +2828,9 @@ export class ChatModel extends Disposable implements IChatModel {
 			throw new Error('acceptResponseProgress: Adding progress to a completed response');
 		}
 
-		if (progress.kind === 'usedContext' || progress.kind === 'reference') {
+		if (progress.kind === 'usage') {
+			request.response.setUsage(progress);
+		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
 		} else if (progress.kind === 'codeCitation') {
 			request.response.applyCodeCitation(progress);
@@ -2890,6 +2944,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			creationDate: this._timestamp,
 			customTitle: this._customTitle,
 			inputState: this.inputModel.toJSON(),
+			workingDirectory: this._workingDirectory?.toString(),
 		};
 	}
 
@@ -3042,4 +3097,27 @@ export namespace ChatResponseResource {
 			index: Number(index),
 		};
 	}
+}
+
+function _logChangesToStateModel(newState: Partial<IChatModelInputState> | undefined, oldState: Partial<IChatModelInputState> | undefined, logger: ILogService) {
+	if (canLog(logger.getLevel(), LogLevel.Debug) || newState?.selectedModel?.identifier === oldState?.selectedModel?.identifier) {
+		return;
+	}
+	const stack = new Error().stack;
+	const message = `[ChatModelChanged] ChatModel Input State model changed: ${newState?.selectedModel?.identifier} (was: ${oldState?.selectedModel?.identifier}) ${stack}`;
+	logger.debug(message);
+}
+
+export function logChangesToStateModel(model: IInputModel | undefined, message: string, newState: Partial<IChatModelInputState> | undefined, oldState: Partial<IChatModelInputState> | undefined, logger: ILogService) {
+	if (canLog(logger.getLevel(), LogLevel.Debug)) {
+		return;
+	}
+	message = [message,
+		`model.selectedModel: ${model?.state.get()?.selectedModel?.identifier}`,
+		`new state: ${newState?.selectedModel?.identifier}`,
+		`old state: ${oldState?.selectedModel?.identifier}`,
+		new Error().stack
+	].join(', ');
+
+	logger.debug(`[ChatModelChanged] Chat Model Changed,${message}`);
 }

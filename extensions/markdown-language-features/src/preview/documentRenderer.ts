@@ -13,7 +13,7 @@ import { WebviewResourceProvider } from '../util/resources';
 import { generateUuid } from '../util/uuid';
 import { MarkdownPreviewConfiguration, MarkdownPreviewConfigurationManager } from './previewConfig';
 import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from './security';
-import type { MarkdownPreviewInnerChange, MarkdownPreviewLineChanges } from '../../types/previewMessaging';
+import type { DiffScrollSyncData, MarkdownPreviewInnerChange, MarkdownPreviewLineChanges } from '../../types/previewMessaging';
 
 
 /**
@@ -78,6 +78,7 @@ export class MdDocumentRenderer {
 		state: any | undefined,
 		imageInfo: readonly ImageInfo[],
 		lineChanges: MarkdownPreviewLineChanges | undefined,
+		diffScrollSync: DiffScrollSyncData | undefined,
 		token: vscode.CancellationToken
 	): Promise<MarkdownContentProviderOutput> {
 		const sourceUri = markdownDocument.uri;
@@ -88,6 +89,7 @@ export class MdDocumentRenderer {
 			line: initialLine,
 			selectedLine,
 			lineChanges,
+			diffScrollSync,
 			scrollPreviewWithEditor: config.scrollPreviewWithEditor,
 			scrollEditorWithPreview: config.scrollEditorWithPreview,
 			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor,
@@ -242,9 +244,10 @@ export class MdDocumentRenderer {
 
 	#getScripts(resourceProvider: WebviewResourceProvider, nonce: string): string {
 		const out: string[] = [];
-		for (const resource of this.#contributionProvider.contributions.previewScripts) {
-			out.push(`<script async
-				src="${escapeAttribute(resourceProvider.asWebviewUri(resource))}"
+		for (const script of this.#contributionProvider.contributions.previewScripts) {
+			const type = script.type ? ` type="${escapeAttribute(script.type)}"` : '';
+			out.push(`<script async${type}
+				src="${escapeAttribute(resourceProvider.asWebviewUri(script.resource))}"
 				nonce="${nonce}"
 				charset="UTF-8"></script>`);
 		}

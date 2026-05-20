@@ -16,10 +16,10 @@ import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../chat/co
 import { getTextPart } from '../../chat/common/globalStringUtils';
 import { CHAT_MODEL, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
-import { isAnthropicContextEditingEnabled } from '../../networking/common/anthropic';
+import { isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, ICopilotToolCall, OptionalChatRequestParams } from '../../networking/common/fetch';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
-import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../networking/common/networking';
+import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride } from '../../networking/common/networking';
 import { CAPIChatMessage, ChatCompletion, FinishedCompletionReason, RawMessageConversionCallback } from '../../networking/common/openai';
 import { prepareChatCompletionForReturn } from '../../networking/node/chatStream';
 import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
@@ -29,7 +29,7 @@ import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/t
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
-import { isAnthropicFamily, isGeminiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
+import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
 import { CustomModel, IChatModelInformation, IModelTokenPrices, ModelSupportedEndpoint } from '../common/endpointProvider';
 import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from './messagesApi';
@@ -183,7 +183,8 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.modelProvider = modelMetadata.vendor;
 		this.name = modelMetadata.name;
 		this.version = modelMetadata.version;
-		this.family = modelMetadata.capabilities.family;
+		const capabilityOverride = getModelCapabilityOverride(this.model, this._configurationService);
+		this.family = capabilityOverride?.family ?? modelMetadata.capabilities.family;
 		this.tokenizer = modelMetadata.capabilities.tokenizer;
 		this.showInModelPicker = modelMetadata.model_picker_enabled;
 		this.isPremium = modelMetadata.billing?.is_premium;
@@ -199,8 +200,8 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.minThinkingBudget = modelMetadata.capabilities.supports.min_thinking_budget;
 		this.maxThinkingBudget = modelMetadata.capabilities.supports.max_thinking_budget;
 		this.supportsReasoningEffort = modelMetadata.capabilities.supports.reasoning_effort;
-		this.supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this.model, this._configurationService, this._expService);
-		this.supportsContextEditing = modelMetadata.capabilities.supports.context_editing ?? modelSupportsContextEditing(this.model);
+		this.supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this);
+		this.supportsContextEditing = modelMetadata.capabilities.supports.context_editing ?? modelSupportsContextEditing(this);
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;
 		this.maxPromptImages = modelMetadata.capabilities.limits?.vision?.max_prompt_images;
@@ -210,7 +211,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	// so getExtraHeaders can gate the interleaved-thinking header on whether thinking is actually enabled for the
 	// request, rather than using the location check. Once plumbed, replace isAllowedConversationAgentModel with
 	// an enableThinking check for the thinking header (keep location gate for context management / tool search).
-	public getExtraHeaders(_location?: ChatLocation): Record<string, string> {
+	public getExtraHeaders(location?: ChatLocation, interactionTypeOverride?: InteractionTypeOverride): Record<string, string> {
 		const headers: Record<string, string> = { ...this.modelMetadata.requestHeaders };
 
 		if (this.useMessagesApi) {
@@ -220,12 +221,12 @@ export class ChatEndpoint implements IChatEndpoint {
 			}
 		}
 
-		Object.assign(headers, this.getAnthropicBetaHeader());
+		Object.assign(headers, this.getAnthropicBetaHeader(location, interactionTypeOverride));
 
 		return headers;
 	}
 
-	protected getAnthropicBetaHeader(): Record<string, string> {
+	protected getAnthropicBetaHeader(location?: ChatLocation, interactionTypeOverride?: InteractionTypeOverride): Record<string, string> {
 		if (!this.useMessagesApi) {
 			return {};
 		}
@@ -238,6 +239,12 @@ export class ChatEndpoint implements IChatEndpoint {
 		}
 		if (isAnthropicContextEditingEnabled(this, this._configurationService, this._expService)) {
 			betas.push('context-management-2025-06-27');
+		}
+		// Mirror the body-side gate from messagesApi.ts so the beta header is never sent for
+		// requests that won't actually emit `ttl: '1h'` (subagents, non-Agent locations, etc.).
+		const isSubagent = interactionTypeOverride === 'conversation-subagent';
+		if (isExtendedCacheTtlEnabled(this, this._configurationService, this._expService, location, isSubagent)) {
+			betas.push('extended-cache-ttl-2025-04-11');
 		}
 		return betas.length > 0 ? { 'anthropic-beta': betas.join(',') } : {};
 	}

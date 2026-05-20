@@ -313,17 +313,18 @@ suite('AgentHostClientTools', () => {
 			override readonly onAgentHostStart = Event.None;
 
 			private readonly _liveSubscriptions = new Map<string, { state: SessionState; emitter: Emitter<SessionState> }>();
-			public dispatchedActions: (SessionAction | TerminalAction | IRootConfigChangedAction)[] = [];
+			public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | IRootConfigChangedAction }[] = [];
 
-			override dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
-				this.dispatchedActions.push(action);
+			override dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+				this.dispatchedActions.push({ channel, action });
 				if (isSessionAction(action)) {
-					this.applySessionAction(action);
+					this.applySessionAction(channel, action);
 				}
 			}
 
-			applySessionAction(action: SessionAction): void {
-				const entry = this._ensureLiveSubscription(action.session);
+			applySessionAction(channel: string | URI, action: SessionAction): void {
+				const channelStr = typeof channel === 'string' ? channel : channel.toString();
+				const entry = this._ensureLiveSubscription(channelStr);
 				entry.state = sessionReducer(entry.state, action as Parameters<typeof sessionReducer>[1], () => { });
 				entry.emitter.fire(entry.state);
 			}
@@ -536,7 +537,7 @@ suite('AgentHostClientTools', () => {
 			// no activeClientToolsChanged should be dispatched.
 			// But the observable should now reflect the new tools.
 			const toolsChangedActions = connection.dispatchedActions.filter(
-				a => isSessionAction(a) && a.type === 'session/activeClientToolsChanged'
+				a => isSessionAction(a.action) && a.action.type === 'session/activeClientToolsChanged'
 			);
 			// No sessions active = no dispatches
 			assert.strictEqual(toolsChangedActions.length, 0);
@@ -558,24 +559,21 @@ suite('AgentHostClientTools', () => {
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
 
-			connection.applySessionAction({
+			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionTurnStarted,
-				session: backendSession,
 				turnId: 'turn-1',
 				userMessage: { text: 'run the task' },
 			} as SessionAction);
-			connection.applySessionAction({
+			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionToolCallStart,
-				session: backendSession,
 				turnId: 'turn-1',
 				toolCallId: 'tool-call-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
 				toolClientId: connection.clientId,
 			} as SessionAction);
-			connection.applySessionAction({
+			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionToolCallReady,
-				session: backendSession,
 				turnId: 'turn-1',
 				toolCallId: 'tool-call-1',
 				invocationMessage: 'Run Task',
@@ -598,9 +596,9 @@ suite('AgentHostClientTools', () => {
 				parameters: { task: 'build' },
 				chatStreamToolCallId: 'tool-call-1',
 			}]);
-			assert.ok(connection.dispatchedActions.some(action => isSessionAction(action)
-				&& action.type === ActionType.SessionToolCallComplete
-				&& action.toolCallId === 'tool-call-1'));
+			assert.ok(connection.dispatchedActions.some(entry => isSessionAction(entry.action)
+				&& entry.action.type === ActionType.SessionToolCallComplete
+				&& entry.action.toolCallId === 'tool-call-1'));
 		});
 
 		test('reconnecting to an active turn with owned client tool completes the initial snapshot invocation', async () => {
@@ -608,24 +606,21 @@ suite('AgentHostClientTools', () => {
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
 
-			connection.applySessionAction({
+			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionTurnStarted,
-				session: backendSession,
 				turnId: 'turn-1',
 				userMessage: { text: 'run the task' },
 			} as SessionAction);
-			connection.applySessionAction({
+			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionToolCallStart,
-				session: backendSession,
 				turnId: 'turn-1',
 				toolCallId: 'tool-call-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
 				toolClientId: connection.clientId,
 			} as SessionAction);
-			connection.applySessionAction({
+			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionToolCallReady,
-				session: backendSession,
 				turnId: 'turn-1',
 				toolCallId: 'tool-call-1',
 				invocationMessage: 'Run Task',
@@ -670,24 +665,21 @@ suite('AgentHostClientTools', () => {
 			const subagentBackendSession = buildSubagentSessionUri(backendSession, parentToolCallId);
 
 			// Parent turn with a `task` tool that spawns a subagent.
-			connection.applySessionAction({
+			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionTurnStarted,
-				session: backendSession,
 				turnId: 'turn-1',
 				userMessage: { text: 'do work' },
 			});
-			connection.applySessionAction({
+			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionToolCallStart,
-				session: backendSession,
 				turnId: 'turn-1',
 				toolCallId: parentToolCallId,
 				toolName: 'task',
 				displayName: 'Task',
 				_meta: { toolKind: 'subagent' },
 			});
-			connection.applySessionAction({
+			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionToolCallReady,
-				session: backendSession,
 				turnId: 'turn-1',
 				toolCallId: parentToolCallId,
 				invocationMessage: 'Spawning subagent',
@@ -698,24 +690,21 @@ suite('AgentHostClientTools', () => {
 			// Subagent turn carrying a client-provided tool call (toolClientId
 			// matches the renderer's clientId so the renderer owns the
 			// invocation).
-			connection.applySessionAction({
+			connection.applySessionAction(URI.parse(subagentBackendSession), {
 				type: ActionType.SessionTurnStarted,
-				session: subagentBackendSession,
 				turnId: 'sub-turn-1',
 				userMessage: { text: '' },
 			});
-			connection.applySessionAction({
+			connection.applySessionAction(URI.parse(subagentBackendSession), {
 				type: ActionType.SessionToolCallStart,
-				session: subagentBackendSession,
 				turnId: 'sub-turn-1',
 				toolCallId: 'inner-tool-call-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
 				toolClientId: connection.clientId,
 			});
-			connection.applySessionAction({
+			connection.applySessionAction(URI.parse(subagentBackendSession), {
 				type: ActionType.SessionToolCallReady,
-				session: subagentBackendSession,
 				turnId: 'sub-turn-1',
 				toolCallId: 'inner-tool-call-1',
 				invocationMessage: 'Run Task',
@@ -737,14 +726,14 @@ suite('AgentHostClientTools', () => {
 			// The completion must be dispatched against the subagent session
 			// URI (the agent will then resolve it to the parent session that
 			// owns the SDK deferred).
-			const completion = connection.dispatchedActions.find(action =>
-				isSessionAction(action)
-				&& action.type === ActionType.SessionToolCallComplete
-				&& action.toolCallId === 'inner-tool-call-1'
+			const completionEntry = connection.dispatchedActions.find(entry =>
+				isSessionAction(entry.action)
+				&& entry.action.type === ActionType.SessionToolCallComplete
+				&& entry.action.toolCallId === 'inner-tool-call-1'
 			);
-			assert.ok(completion, 'completion for the inner client tool should be dispatched');
+			assert.ok(completionEntry, 'completion for the inner client tool should be dispatched');
 			assert.strictEqual(
-				isSessionAction(completion!) ? completion.session : undefined,
+				completionEntry.channel.toString(),
 				subagentBackendSession,
 				'completion should target the subagent session URI'
 			);

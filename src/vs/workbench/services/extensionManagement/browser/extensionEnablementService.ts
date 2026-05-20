@@ -58,6 +58,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	private readonly _chatExtensionId: string | undefined;
 	private _extensionUnificationEnabled: boolean;
 
+	// Sessions window allow-list (lowercased extension ids)
+	private readonly _sessionsWindowAllowedExtensions: ReadonlySet<string>;
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IGlobalExtensionEnablementService protected readonly globalExtensionEnablementService: IGlobalExtensionEnablementService,
@@ -103,6 +106,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		// Extension unification
 		this._completionsExtensionId = productService.defaultChatAgent?.extensionId.toLowerCase();
 		this._chatExtensionId = productService.defaultChatAgent?.chatExtensionId.toLowerCase();
+		this._sessionsWindowAllowedExtensions = new Set<string>((productService.sessionsWindowAllowedExtensions ?? []).map(id => id.toLowerCase()));
 		const unificationExtensions = [this._completionsExtensionId, this._chatExtensionId].filter(id => !!id);
 
 		// Disabling extension unification should immediately disable the unified extension flow
@@ -635,6 +639,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private _isDisabledBySessionsWindow(extension: IExtension): boolean {
 		if (!this.environmentService.isSessionsWindow) {
+			return false;
+		}
+
+		// Allow-listed extensions are always enabled in the sessions window.
+		if (this._sessionsWindowAllowedExtensions.has(extension.identifier.id.toLowerCase())) {
 			return false;
 		}
 

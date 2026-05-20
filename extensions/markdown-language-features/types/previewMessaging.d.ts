@@ -16,10 +16,39 @@ export interface MarkdownPreviewInnerChange {
 	readonly endColumn: number;
 }
 
+export interface MarkdownPreviewChangeIndicator {
+	/** 0-based line number in the modified document where the change occurred */
+	readonly modifiedLine: number;
+	/** Number of lines in the modified document that are part of this change */
+	readonly modifiedLineCount: number;
+	/** Number of lines deleted/replaced from the original */
+	readonly originalLineCount: number;
+	/** The original text content that was deleted or replaced */
+	readonly originalContent: string;
+	/** Character-level changes within originalContent, using originalContent-relative line numbers */
+	readonly originalInnerChanges?: readonly MarkdownPreviewInnerChange[];
+	/** The modified text content (for modifications) */
+	readonly modifiedContent: string;
+	/** Character-level changes within modifiedContent, using modifiedContent-relative line numbers */
+	readonly modifiedInnerChanges?: readonly MarkdownPreviewInnerChange[];
+	/** Whether this is a pure deletion or a modification of existing lines */
+	readonly type: 'deletion' | 'modification';
+}
+
 export interface MarkdownPreviewLineChanges {
 	readonly added?: readonly number[];
 	readonly deleted?: readonly number[];
 	readonly innerChanges?: readonly MarkdownPreviewInnerChange[];
+	readonly changeIndicators?: readonly MarkdownPreviewChangeIndicator[];
+}
+
+export interface DiffScrollSyncData {
+	/** Shared BroadcastChannel name for this diff pair */
+	readonly channelName: string;
+	/** Which side of the diff this preview represents */
+	readonly role: 'original' | 'modified';
+	/** Mapping from the other side's line numbers to this side's line numbers */
+	readonly lineMappings: readonly number[];
 }
 
 export namespace FromWebviewMessage {
@@ -79,6 +108,7 @@ export namespace ToWebviewMessage {
 		readonly type: 'updateContent';
 		readonly content: string;
 		readonly lineChanges?: MarkdownPreviewLineChanges;
+		readonly diffScrollSync?: DiffScrollSyncData;
 	}
 
 	export interface CopyImageContent extends BaseMessage {

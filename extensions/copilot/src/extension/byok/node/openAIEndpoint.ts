@@ -5,7 +5,7 @@
 import type { CancellationToken } from 'vscode';
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { ChatFetchResponseType, ChatResponse } from '../../../platform/chat/common/commonTypes';
-import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
 import { IChatModelInformation } from '../../../platform/endpoint/common/endpointProvider';
 import { ChatEndpoint } from '../../../platform/endpoint/node/chatEndpoint';
@@ -110,7 +110,7 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	private static readonly _maxHeaderValueLength = 8192;
 	private static readonly _maxCustomHeaderCount = 20;
 
-	private readonly _customHeaders: Record<string, string>;
+	protected readonly _customHeaders: Record<string, string>;
 	constructor(
 		_modelMetadata: IChatModelInformation,
 		protected readonly _apiKey: string,
@@ -237,19 +237,23 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	override createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {
 		if (this.useResponsesApi) {
 			// Handle Responses API: customize the body directly
-			options.ignoreStatefulMarker = false;
+			const zdr = !!this.modelMetadata.zeroDataRetentionEnabled;
+			// When ZDR is on the server refuses to retain responses, so we must
+			// not chain via `previous_response_id` and must not ask it to `store`.
+			options.ignoreStatefulMarker = zdr;
 			const body = super.createRequestBody(options);
-			body.store = true;
+			body.store = !zdr;
 			body.n = undefined;
 			body.stream_options = undefined;
 			if (!this.modelMetadata.capabilities.supports.thinking) {
 				body.reasoning = undefined;
 				body.include = undefined;
 			}
-			if (body.previous_response_id && (!body.previous_response_id.startsWith('resp_') || this.modelMetadata.zeroDataRetentionEnabled)) {
+			if (body.previous_response_id && (!body.previous_response_id.startsWith('resp_') || zdr)) {
 				// Don't use a response ID from CAPI or when zero data retention is enabled
 				body.previous_response_id = undefined;
 			}
+			this._applyReasoningEffort(body, options);
 			return body;
 		} else if (this.useMessagesApi) {
 			// Delegate to base ChatEndpoint for Messages API dispatch
@@ -263,7 +267,41 @@ export class OpenAIEndpoint extends ChatEndpoint {
 				}
 			};
 			const body = createCapiRequestBody(options, this.model, callback);
+			this._applyReasoningEffort(body, options);
 			return body;
+		}
+	}
+
+	/**
+	 * Forwards the per-request reasoning effort to the model body in the shape the endpoint expects.
+	 * Default shape mirrors the API path (`Responses` \u2192 nested `reasoning.effort`, `Chat Completions` \u2192 top-level `reasoning_effort`).
+	 * `IChatModelInformation.reasoningEffortFormat` overrides the default so users hosting OpenAI-compatible servers
+	 * with diverging conventions (e.g. nested `reasoning.effort` on `/chat/completions`) can opt in deterministically.
+	 */
+	private _applyReasoningEffort(body: IEndpointBody, options: ICreateEndpointBodyOptions): void {
+		const supports = this.supportsReasoningEffort;
+		if (!supports?.length) {
+			return;
+		}
+		const format = this.modelMetadata.reasoningEffortFormat
+			?? (this.useResponsesApi ? 'responses' : 'chat-completions');
+		const override = this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride);
+		const requested = override || options.modelCapabilities?.reasoningEffort || body.reasoning?.effort || body.reasoning_effort;
+		const effort = requested && supports.includes(requested) ? requested : undefined;
+		// Scrub any pre-populated effort first so unsupported values (e.g. the hard-coded `medium` default
+		// from `createResponsesRequestBody`) cannot leak through, then write the resolved value into the
+		// expected shape.
+		if (body.reasoning) {
+			const { effort: _drop, ...rest } = body.reasoning;
+			body.reasoning = Object.keys(rest).length > 0 ? rest : undefined;
+		}
+		body.reasoning_effort = undefined;
+		if (effort) {
+			if (format === 'responses') {
+				body.reasoning = { ...body.reasoning, effort };
+			} else {
+				body.reasoning_effort = effort;
+			}
 		}
 	}
 
@@ -286,12 +324,19 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		if (body) {
 			if (this.modelMetadata.capabilities.supports.thinking) {
 				delete body.temperature;
-				body['max_completion_tokens'] = body.max_tokens;
+				if (!this.useMessagesApi && !this.useResponsesApi) {
+					// OpenAI Chat Completions thinking models (e.g. o1/o3) require `max_completion_tokens` instead of `max_tokens`.
+					// Responses bodies use `max_output_tokens` natively, and Messages requires `max_tokens` — neither needs this rename.
+					body['max_completion_tokens'] = body.max_tokens;
+					delete body.max_tokens;
+				}
+			}
+			// Chat Completions: drop `max_tokens` so the server defaults to its maximum (preferred for BYOK).
+			// Responses uses `max_output_tokens`, so this delete is a no-op there. Messages requires `max_tokens`, so leave it alone.
+			if (!this.useMessagesApi) {
 				delete body.max_tokens;
 			}
-			// Removing max tokens defaults to the maximum which is what we want for BYOK
-			delete body.max_tokens;
-			if (!this.useResponsesApi && body.stream) {
+			if (!this.useResponsesApi && !this.useMessagesApi && body.stream) {
 				body['stream_options'] = { 'include_usage': true };
 			}
 		}

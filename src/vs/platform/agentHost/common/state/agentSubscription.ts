@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertNever } from '../../../../base/common/assert.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, IRootConfigChangedAction, SessionAction, StateAction, isSessionAction } from './sessionActions.js';
-import { rootReducer, sessionReducer } from './sessionReducers.js';
+import { ActionEnvelope, ChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isSessionAction } from './sessionActions.js';
+import { changesetReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, TerminalAction } from './protocol/action-origin.generated.js';
-import type { RootState, SessionState, TerminalState } from './protocol/state.js';
+import type { ChangesetState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
-import { StateComponents } from './sessionState.js';
+import { isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
 
 // --- Public API --------------------------------------------------------------
 
@@ -115,10 +116,10 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 
 	/**
 	 * Process an incoming action envelope. The subscription determines
-	 * whether the action is relevant via {@link _isRelevantAction}.
+	 * whether the action is relevant via {@link _isRelevantEnvelope}.
 	 */
 	receiveEnvelope(envelope: ActionEnvelope): void {
-		if (!this._isRelevantAction(envelope.action)) {
+		if (!this._isRelevantEnvelope(envelope)) {
 			return;
 		}
 
@@ -143,8 +144,8 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	/** Apply the reducer to confirmed state. Subclasses must implement. */
 	protected abstract _applyReducer(state: T, action: StateAction): T;
 
-	/** Whether the given action targets this subscription. */
-	protected abstract _isRelevantAction(action: StateAction): boolean;
+	/** Whether the given envelope targets this subscription. */
+	protected abstract _isRelevantEnvelope(envelope: ActionEnvelope): boolean;
 
 	/** Return optimistic state if write-ahead is active, otherwise `undefined`. */
 	protected _getOptimisticState(): T | undefined {
@@ -189,8 +190,8 @@ export class RootStateSubscription extends BaseAgentSubscription<RootState> {
 		return rootReducer(state, action as RootAction, this._log);
 	}
 
-	protected override _isRelevantAction(action: StateAction): boolean {
-		return action.type.startsWith('root/');
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return isAhpRootChannel(envelope.channel) && envelope.action.type.startsWith('root/');
 	}
 }
 
@@ -199,6 +200,11 @@ export class RootStateSubscription extends BaseAgentSubscription<RootState> {
 interface IPendingAction {
 	readonly clientSeq: number;
 	readonly action: SessionAction;
+}
+
+export interface IPendingSessionAction extends IPendingAction {
+	/** URI of the session this action targets, as stored on the subscription. */
+	readonly sessionUri: string;
 }
 
 /**
@@ -247,8 +253,8 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 		return sessionReducer(state, action as IProtocolSessionAction, this._log);
 	}
 
-	protected override _isRelevantAction(action: StateAction): boolean {
-		return isSessionAction(action) && action.session === this._sessionUri;
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return isSessionAction(envelope.action) && envelope.channel === this._sessionUri;
 	}
 
 	protected override _onSnapshotApplied(fromSeq: number): void {
@@ -311,6 +317,31 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 		this._pendingActions.length = 0;
 		this._optimisticState = undefined;
 	}
+
+	/**
+	 * Snapshot of the currently-pending optimistic actions, with the session
+	 * URI included so callers can re-issue them across a reconnect. The
+	 * actions remain in the subscription so the optimistic state continues
+	 * to reflect them — the client must explicitly drop entries echoed back
+	 * by the server.
+	 */
+	getPendingActions(): IPendingSessionAction[] {
+		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action, sessionUri: this._sessionUri }));
+	}
+
+	/**
+	 * Drop the pending entry whose `clientSeq` matches the supplied value.
+	 * Used during reconnect to evict actions the server already echoed back
+	 * in the replay buffer so they're not resent.
+	 */
+	dropPendingByClientSeq(clientSeq: number): boolean {
+		const idx = this._pendingActions.findIndex(p => p.clientSeq === clientSeq);
+		if (idx === -1) {
+			return false;
+		}
+		this._pendingActions.splice(idx, 1);
+		return true;
+	}
 }
 
 // --- Terminal State Subscription ---------------------------------------------
@@ -332,8 +363,41 @@ export class TerminalStateSubscription extends BaseAgentSubscription<TerminalSta
 		return terminalReducer(state, action as TerminalAction, this._log);
 	}
 
-	protected override _isRelevantAction(action: StateAction): boolean {
-		return action.type.startsWith('terminal/') && (action as { terminal: string }).terminal === this._terminalUri;
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return envelope.action.type.startsWith('terminal/') && envelope.channel === this._terminalUri;
+	}
+}
+
+// --- Changeset State Subscription --------------------------------------------
+
+/**
+ * Subscription to a changeset at an expanded changeset URI (e.g.
+ * `<sessionUri>/changeset/session`).
+ *
+ * Server-only mutations — no write-ahead. The subscription itself does NOT
+ * self-tear-down on lifecycle events; cleanup is driven externally:
+ * - Workbench-side: `BaseAgentHostSessionsProvider._handleSessionRemoved`
+ *   disposes the per-session subscription map, which releases this
+ *   subscription's `IReference` and triggers `_releaseSubscription` on
+ *   the manager.
+ * - Wire layer: {@link IAgentConnection} refcounts the underlying server
+ *   subscription so multiple consumers can share one wire-level subscribe.
+ */
+export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetState> {
+
+	private readonly _changesetUri: string;
+
+	constructor(changesetUri: string, clientId: string, log: (msg: string) => void) {
+		super(clientId, log);
+		this._changesetUri = changesetUri;
+	}
+
+	protected override _applyReducer(state: ChangesetState, action: StateAction): ChangesetState {
+		return changesetReducer(state, action as ChangesetAction, this._log);
+	}
+
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return isChangesetAction(envelope.action) && envelope.channel === this._changesetUri;
 	}
 }
 
@@ -395,7 +459,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	getSubscriptionUnmanaged<T>(resource: URI): IAgentSubscription<T> | undefined {
 		const entry = this._subscriptions.get(resource);
-		return entry?.sub as unknown as IAgentSubscription<T> | undefined;
+		return entry?.sub as IAgentSubscription<T> | undefined;
 	}
 
 	/**
@@ -453,15 +517,102 @@ export class AgentSubscriptionManager extends Disposable {
 	/**
 	 * Dispatch a client action. Applies optimistically to the relevant
 	 * subscription if applicable, then returns the clientSeq.
+	 *
+	 * `channel` is the protocol URI string identifying the channel the
+	 * action targets (a session URI for session actions, etc.).
 	 */
-	dispatchOptimistic(action: SessionAction | TerminalAction | IRootConfigChangedAction): number {
+	dispatchOptimistic(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): number {
 		if (isSessionAction(action)) {
-			const entry = this._subscriptions.get(URI.parse(action.session));
-			if (entry && entry.sub instanceof SessionStateSubscription) {
+			const entry = this._subscriptions.get(URI.parse(channel));
+			if (entry?.sub instanceof SessionStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
 		}
 		return this._seqAllocator();
+	}
+
+	/**
+	 * URIs currently subscribed to via {@link getSubscription}. Used to
+	 * build the `subscriptions` payload for a `reconnect` RPC so the
+	 * server can restore them in one round-trip.
+	 *
+	 * Does NOT include the always-live root state, which the protocol
+	 * client manages separately.
+	 */
+	currentSubscriptionUris(): URI[] {
+		return [...this._subscriptions.keys()];
+	}
+
+	/**
+	 * Snapshot of every pending optimistic action across all session
+	 * subscriptions. Callers use this to replay actions after a transport
+	 * reconnect; entries are kept on their subscriptions until they're
+	 * either echoed back by the server or explicitly dropped via
+	 * {@link dropPendingSessionAction}.
+	 */
+	getPendingSessionActions(): IPendingSessionAction[] {
+		const out: IPendingSessionAction[] = [];
+		for (const { sub } of this._subscriptions.values()) {
+			if (sub instanceof SessionStateSubscription) {
+				out.push(...sub.getPendingActions());
+			}
+		}
+		return out;
+	}
+
+	/**
+	 * Remove a single pending optimistic action for a session by its
+	 * `clientSeq`. Used during reconnect to evict actions the server
+	 * already processed (and replayed back to us) so they're not resent.
+	 */
+	dropPendingSessionAction(sessionUri: string, clientSeq: number): void {
+		const entry = this._subscriptions.get(URI.parse(sessionUri));
+		if (entry?.sub instanceof SessionStateSubscription) {
+			entry.sub.dropPendingByClientSeq(clientSeq);
+		}
+	}
+
+	/**
+	 * Apply a fresh snapshot to a subscribed resource — used when the server
+	 * responds to a `reconnect` request with `type: 'snapshot'` because the
+	 * replay buffer no longer covers the client's gap. Routes to the root
+	 * subscription when {@link ROOT_STATE_URI} matches, otherwise reseats the
+	 * matching entry in {@link _subscriptions}. Unknown resources are ignored.
+	 */
+	applyReconnectSnapshot(resource: string, state: unknown, fromSeq: number): void {
+		if (isAhpRootChannel(resource)) {
+			this._rootState.handleSnapshot(state as RootState, fromSeq);
+			return;
+		}
+		const entry = this._subscriptions.get(URI.parse(resource));
+		if (!entry) {
+			return;
+		}
+		// Clear any pending optimistic actions before reseating confirmed
+		// state \u2014 they were predicated on the pre-disconnect confirmed
+		// state and won't reconcile correctly against a fresh snapshot.
+		if (entry.sub instanceof SessionStateSubscription) {
+			entry.sub.clearPending();
+		}
+		entry.sub.handleSnapshot(state as never, fromSeq);
+	}
+
+	/**
+	 * Mark a set of subscriptions as no longer resumable on the server
+	 * (reported via `ReconnectReplayResult.missing`). The subscriptions
+	 * themselves stay alive so consumers continue to hold valid references,
+	 * but their value transitions to an `Error` until they're recreated.
+	 */
+	markSubscriptionsMissing(missing: readonly URI[]): void {
+		for (const resource of missing) {
+			const entry = this._subscriptions.get(resource);
+			if (entry) {
+				if (entry.sub instanceof SessionStateSubscription) {
+					entry.sub.clearPending();
+				}
+				entry.sub.setError(new Error(`Subscription no longer available after reconnect: ${resource.toString()}`));
+			}
+		}
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -471,8 +622,12 @@ export class AgentSubscriptionManager extends Disposable {
 				return new SessionStateSubscription(key, this._clientId, this._seqAllocator, this._log);
 			case StateComponents.Terminal:
 				return new TerminalStateSubscription(key, this._clientId, this._log);
+			case StateComponents.Changeset:
+				return new ChangesetStateSubscription(key, this._clientId, this._log);
+			case StateComponents.Root:
+				throw new Error('_createSubscription: root subscription is managed separately');
 			default:
-				return new TerminalStateSubscription(key, this._clientId, this._log);
+				assertNever(kind, `_createSubscription: unsupported StateComponents kind: ${kind}`);
 		}
 	}
 
