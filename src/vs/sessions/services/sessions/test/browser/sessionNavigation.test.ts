@@ -84,6 +84,8 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly _serviceBrand: undefined;
 
 	readonly activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+	readonly visibleSessions = observableValue<readonly IActiveSession[]>('test.visibleSessions', []);
+	readonly stickySessionIds = observableValue<readonly string[]>('test.stickySessionIds', []);
 	readonly onDidChangeSessions = Event.None;
 	readonly onDidChangeSessionTypes = Event.None;
 
@@ -163,6 +165,8 @@ class MockSessionStore implements ISessionsManagementService {
 	openNewChatInSession(_session: ISession): void { throw new Error('not implemented'); }
 	openPreviousSession(): Promise<void> { throw new Error('not implemented'); }
 	openNextSession(): Promise<void> { throw new Error('not implemented'); }
+	toggleSessionStickiness(_session: ISession): void { throw new Error('not implemented'); }
+	setActive(_session: IActiveSession): void { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	deleteSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }

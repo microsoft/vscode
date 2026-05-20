@@ -192,7 +192,16 @@ export class SessionsView extends ViewPane {
 			grouping: () => this.currentGrouping,
 			sorting: () => this.currentSorting,
 			findWidgetContainer,
-			onSessionOpen: (resource, preserveFocus) => {
+			onSessionOpen: (resource, preserveFocus, sideBySide) => {
+				if (sideBySide) {
+					// Alt-click: toggle the session's visibility in the sessions grid
+					// rather than opening it as the active session.
+					const session = this.sessionsManagementService.getSession(resource);
+					if (session) {
+						this.sessionsManagementService.toggleSessionStickiness(session);
+					}
+					return;
+				}
 				this.sessionsManagementService.openSession(resource, { preserveFocus }).then(() => {
 					if (isWeb && isMobile) {
 						this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);

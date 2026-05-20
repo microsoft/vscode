@@ -16,7 +16,7 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IReader, autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
@@ -191,7 +191,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	private readonly _motionReducedSignal;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean },
+		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; stickySessionIds: IObservable<readonly string[]> },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
@@ -273,6 +273,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.container.classList.toggle('archived', isArchived);
 			// Only apply pinned styling when not archived to avoid persistent toolbars on archived sessions
 			template.container.classList.toggle('pinned', isPinned && !isArchived);
+		}));
+
+		// Sticky styling — reactive on the management service's sticky id list
+		template.elementDisposables.add(autorun(reader => {
+			const stickyIds = this.options.stickySessionIds.read(reader);
+			template.container.classList.toggle('sticky', stickyIds.includes(element.sessionId));
 		}));
 
 		// Icon — reactive based on status, read state, PR, and motion preference.
@@ -689,7 +695,7 @@ export interface ISessionsListControlOptions {
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
 	readonly findWidgetContainer?: HTMLElement;
-	onSessionOpen(resource: URI, preserveFocus: boolean): void;
+	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
 }
 
 /**
@@ -802,7 +808,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const accessibilityService = instantiationService.invokeFunction(accessor => accessor.get(IAccessibilityService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s) },
+			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), stickySessionIds: this._sessionsManagementService.stickySessionIds },
 			approvalModel,
 			instantiationService,
 			contextKeyService,
@@ -893,7 +899,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			if (!isSessionSection(element)) {
 				this.markRead(element);
-				this.options.onSessionOpen(element.resource, e.editorOptions.preserveFocus ?? false);
+				this.options.onSessionOpen(element.resource, e.editorOptions.preserveFocus ?? false, e.sideBySide);
 			}
 		}));
 

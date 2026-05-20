@@ -10,7 +10,7 @@ import { getClientArea } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { SessionsPart } from './sessionsPart.js';
 import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
-import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { autorun } from '../../../base/common/observable.js';
 
 export const ISessionsPartService = createDecorator<ISessionsPartService>('sessionsPartService');
@@ -51,14 +51,24 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	}
 
 	init(): void {
+		// Reflect changes to the visible-sessions model in the grid. Active session
+		// is read from the same autorun so the part can mark the active slot in a
+		// single reconciliation pass.
 		this._register(autorun(reader => {
-			const activeSession = this.sessionsManagementService.activeSession.read(reader);
-			this._openSession(activeSession);
+			const visible = this.sessionsManagementService.visibleSessions.read(reader);
+			const active = this.sessionsManagementService.activeSession.read(reader);
+			this._mainPart.updateVisibleSessions(visible, active);
 		}));
-	}
 
-	private _openSession(session: IActiveSession | undefined): void {
-		this._mainPart.openSession(session);
+		// When a session view in the grid receives focus, promote that session to
+		// the active session. The id is guaranteed to correspond to a session in
+		// the visibility model (the part only fires for non-placeholder slots).
+		this._register(this._mainPart.onDidFocusSession(sessionId => {
+			const session = this.sessionsManagementService.visibleSessions.get().find(s => s.sessionId === sessionId);
+			if (session) {
+				this.sessionsManagementService.setActive(session);
+			}
+		}));
 	}
 }
 

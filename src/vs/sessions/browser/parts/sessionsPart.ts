@@ -12,12 +12,24 @@ import { agentsPanelBackground, agentsPanelBorder, agentsPanelForeground } from 
 import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
+import { Direction, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, SessionsFocusContext } from '../../common/contextkeys.js';
-import { $ } from '../../../base/browser/dom.js';
-import { SerializableGrid } from '../../../base/browser/ui/grid/grid.js';
+import { $, addDisposableListener, EventType } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Color } from '../../../base/common/color.js';
+import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
+
+/** Sentinel key used in {@link SessionsPart._views} when no session is active. */
+const PLACEHOLDER_KEY = '__placeholder__';
+
+interface IGridSlot {
+	readonly view: SessionView;
+	readonly disposables: DisposableStore;
+}
 
 export class SessionsPart extends Part {
 
@@ -39,8 +51,18 @@ export class SessionsPart extends Part {
 	/** Internal grid that hosts the part's session views. */
 	private _gridWidget: SerializableGrid<SessionView> | undefined;
 
-	/** Stable host view that switches between concrete session view kinds internally. */
-	private _sessionView: SessionView | undefined;
+	/**
+	 * Views currently mounted in the grid, in display order (left-to-right).
+	 * The first entry is always a placeholder view (key {@link PLACEHOLDER_KEY})
+	 * when no sessions are visible. Otherwise entries are keyed by session id.
+	 */
+	private readonly _views = new Map<string, IGridSlot>();
+	/** Grid order — keys of {@link _views} in left-to-right order. */
+	private _gridOrder: string[] = [];
+
+	private readonly _onDidFocusSession = this._register(new Emitter<string>());
+	/** Fired when a session view in the grid receives keyboard focus. */
+	readonly onDidFocusSession: Event<string> = this._onDidFocusSession.event;
 
 	protected _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
@@ -81,17 +103,115 @@ export class SessionsPart extends Part {
 		const contentArea = $('.content');
 		parent.appendChild(contentArea);
 
-		// The grid keeps a single stable host view. That host delegates to
-		// concrete session views and handles DOM switching internally.
-		this._sessionView = this._register(this.instantiationService.createInstance(SessionView));
-		this._gridWidget = this._register(new SerializableGrid(this._sessionView));
+		// Seed the grid with a placeholder view so SerializableGrid always has
+		// at least one leaf. Replaced when visible sessions become available.
+		const placeholder = this._createSlot(PLACEHOLDER_KEY);
+		this._gridWidget = this._register(new SerializableGrid(placeholder.view, { styles: { separatorBorder: this._gridSeparatorBorder } }));
+		this._views.set(PLACEHOLDER_KEY, placeholder);
+		this._gridOrder = [PLACEHOLDER_KEY];
 		contentArea.appendChild(this._gridWidget.element);
 
 		return contentArea;
 	}
 
-	openSession(session: IActiveSession | undefined): void {
-		this._sessionView?.openSession(session);
+	/**
+	 * Reconcile the grid with the desired set of visible sessions. Creates a
+	 * {@link SessionView} per session, removes views no longer in the visible
+	 * list, reorders remaining views to match `visible`, and rebinds each view
+	 * to its session.
+	 */
+	updateVisibleSessions(visible: readonly IActiveSession[], active: IActiveSession | undefined): void {
+		if (!this._gridWidget) {
+			return;
+		}
+
+		const desiredKeys: string[] = visible.length > 0
+			? visible.map(s => s.sessionId)
+			: [PLACEHOLDER_KEY];
+		const desiredKeySet = new Set(desiredKeys);
+
+		// Add new views first so the grid never goes empty during reconciliation.
+		// New views are appended to the right; they will be moved into the correct
+		// position by the reorder pass below.
+		for (const key of desiredKeys) {
+			if (this._views.has(key)) {
+				continue;
+			}
+			const slot = this._createSlot(key);
+			const reference = this._views.get(this._gridOrder[this._gridOrder.length - 1])!.view;
+			this._gridWidget.addView(slot.view, Sizing.Distribute, reference, Direction.Right);
+			this._views.set(key, slot);
+			this._gridOrder.push(key);
+		}
+
+		// Remove views no longer desired (always leaves at least one — desiredKeys
+		// is non-empty because of the placeholder fallback).
+		for (const key of [...this._gridOrder]) {
+			if (desiredKeySet.has(key)) {
+				continue;
+			}
+			const slot = this._views.get(key);
+			if (!slot) {
+				continue;
+			}
+			this._gridWidget.removeView(slot.view, Sizing.Distribute);
+			slot.disposables.dispose();
+			this._views.delete(key);
+			this._gridOrder = this._gridOrder.filter(k => k !== key);
+		}
+
+		// Reorder remaining views to match `desiredKeys` left-to-right. After the
+		// add/remove passes, `_gridOrder` contains exactly the desired keys but
+		// possibly in the wrong order; move any out-of-place view next to its
+		// already-positioned predecessor (or to the left of the first view at i=0).
+		for (let i = 0; i < desiredKeys.length; i++) {
+			const target = desiredKeys[i];
+			if (this._gridOrder[i] === target) {
+				continue;
+			}
+			const targetView = this._views.get(target)!.view;
+			if (i === 0) {
+				const refView = this._views.get(this._gridOrder[0])!.view;
+				this._gridWidget.moveView(targetView, Sizing.Distribute, refView, Direction.Left);
+			} else {
+				const refView = this._views.get(this._gridOrder[i - 1])!.view;
+				this._gridWidget.moveView(targetView, Sizing.Distribute, refView, Direction.Right);
+			}
+			this._gridOrder = this._gridOrder.filter(k => k !== target);
+			this._gridOrder.splice(i, 0, target);
+		}
+
+		// Bind each remaining view to its session (or to undefined for placeholder).
+		for (let i = 0; i < visible.length; i++) {
+			const session = visible[i];
+			this._views.get(session.sessionId)?.view.openSession(session);
+		}
+		if (visible.length === 0) {
+			this._views.get(PLACEHOLDER_KEY)?.view.openSession(undefined);
+		}
+
+		// Mark the active session's element for styling/focus indication.
+		const activeId = active?.sessionId;
+		for (const [key, slot] of this._views) {
+			slot.view.element.classList.toggle('is-active', key === activeId);
+		}
+	}
+
+	private _createSlot(key: string): IGridSlot {
+		const disposables = new DisposableStore();
+		const view = disposables.add(this.instantiationService.createInstance(SessionView));
+		// Promote a visible session to the active session when its view receives
+		// focus. The placeholder slot has no session to activate.
+		if (key !== PLACEHOLDER_KEY) {
+			disposables.add(addDisposableListener(view.element, EventType.FOCUS_IN, () => {
+				this._onDidFocusSession.fire(key);
+			}, true));
+		}
+		return { view, disposables };
+	}
+
+	private get _gridSeparatorBorder(): Color {
+		return this.theme.getColor(agentsPanelBorder) || this.theme.getColor(contrastBorder) || Color.transparent;
 	}
 
 	override updateStyles(): void {
@@ -104,6 +224,8 @@ export class SessionsPart extends Part {
 		container.style.setProperty('--part-border-color', this.getColor(agentsPanelBorder) || 'transparent');
 		container.style.setProperty('--part-foreground', this.getColor(agentsPanelForeground) || '');
 		container.style.backgroundColor = this.getColor(agentsPanelBackground) || '';
+
+		this._gridWidget?.style({ separatorBorder: this._gridSeparatorBorder });
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
@@ -133,6 +255,15 @@ export class SessionsPart extends Part {
 
 		// Store the full grid-allocated dimensions so that Part.relayout() works correctly.
 		super.layout(width, height, top, left);
+	}
+
+	override dispose(): void {
+		for (const slot of this._views.values()) {
+			slot.disposables.dispose();
+		}
+		this._views.clear();
+		this._gridOrder = [];
+		super.dispose();
 	}
 
 	toJSON(): object {

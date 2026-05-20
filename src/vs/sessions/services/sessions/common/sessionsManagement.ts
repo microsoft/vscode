@@ -76,6 +76,34 @@ export interface ISessionsManagementService {
 	readonly activeSession: IObservable<IActiveSession | undefined>;
 
 	/**
+	 * Observable list of sessions currently displayed in the sessions part's
+	 * grid, in their grid order (left-to-right). Always contains the active
+	 * session (if any) plus any sessions marked sticky via
+	 * {@link toggleSessionStickiness}, plus a single transient session — the
+	 * last active session that was not marked sticky.
+	 */
+	readonly visibleSessions: IObservable<readonly IActiveSession[]>;
+
+	/**
+	 * Observable list of session ids that are currently sticky in the grid.
+	 * Order is not meaningful; consumers should treat this as a set.
+	 */
+	readonly stickySessionIds: IObservable<readonly string[]>;
+
+	/**
+	 * Toggle a session's stickiness in the grid.
+	 * - If the session is currently sticky: removes it. If it was the active
+	 *   session, it becomes the transient session instead so it stays in the
+	 *   grid until something else takes its place.
+	 * - If the session is not sticky: marks it sticky. If it was the transient
+	 *   session, the transient slot is cleared. Otherwise the new sticky
+	 *   session is inserted into the grid next to the active one.
+	 */
+	toggleSessionStickiness(session: ISession): void;
+
+	setActive(session: IActiveSession): void;
+
+	/**
 	 * Select an existing session as the active session.
 	 * Sets `isNewChatSession` context to false and opens the active chat belonging to the session.
 	 */
