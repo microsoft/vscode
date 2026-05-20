@@ -1,9 +1,9 @@
 {
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
-		"rootDir": ".",
+		"rootDir": "..",
 		"outDir": "./dist/",
-		"module": "es2020",
+		"jsx": "react",
 		"lib": [
 			"ES2024",
 			"DOM",
@@ -12,6 +12,12 @@
 		"types": [
 			"node"
 		],
-		"skipLibCheck": true
-	}
+		"typeRoots": [
+			"../node_modules/@types"
+		]
+	},
+	"include": [
+		"./**/*",
+		"../common/**/*"
+	]
 }
