@@ -23,6 +23,7 @@ steps:
         APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
         APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
         echo "##vso[task.setvariable variable=VSCODE_UNDER_TEST]$APP_ROOT/$APP_NAME"
+        echo "##vso[task.setvariable variable=COPILOT_TEST_EXTENSION_PATH]$APP_ROOT/resources/app/extensions/copilot"
       displayName: Compute VS Code build path
 
   - ${{ if eq(parameters.OS, 'darwin') }}:
@@ -33,6 +34,7 @@ steps:
         ProductJsonPath=$(find "$APP_ROOT" -name "product.json" -type f | head -n 1)
         BINARY_NAME=$(jq -r '.nameShort' "$ProductJsonPath")
         echo "##vso[task.setvariable variable=VSCODE_UNDER_TEST]$APP_ROOT/$APP_NAME/Contents/MacOS/$BINARY_NAME"
+        echo "##vso[task.setvariable variable=COPILOT_TEST_EXTENSION_PATH]$APP_ROOT/$APP_NAME/Contents/Resources/app/extensions/copilot"
       displayName: Compute VS Code build path
 
   - ${{ if eq(parameters.OS, 'win32') }}:
@@ -40,14 +42,22 @@ steps:
         $AppRoot = "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
         $ProductJsonPath = (Get-ChildItem -Path "$AppRoot" -Name "product.json" -Recurse | Select-Object -First 1)
         $AppProductJson = Get-Content -Raw -Path "$AppRoot\$ProductJsonPath" | ConvertFrom-Json
+        $AppResourcesPath = Split-Path -Parent "$AppRoot\$ProductJsonPath"
         $AppNameShort = $AppProductJson.nameShort
         Write-Host "##vso[task.setvariable variable=VSCODE_UNDER_TEST]$AppRoot\$AppNameShort.exe"
+        Write-Host "##vso[task.setvariable variable=COPILOT_TEST_EXTENSION_PATH]$AppResourcesPath\extensions\copilot"
       displayName: Compute VS Code build path
 
   # Compile copilot extension for tests
   - script: npm run compile
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Compile copilot
+
+  - script: |
+      node -e "require('fs').mkdirSync('.build', { recursive: true })"
+      npx vsce package -o .build/copilot-chat-sanity.vsix --allow-package-secrets sendgrid
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Package Copilot VSIX for sanity
 
   # Run Copilot integration tests
   - ${{ if eq(parameters.OS, 'linux') }}:
@@ -67,10 +77,19 @@ steps:
 
     - script: xvfb-run -a npm run test:sanity
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot sanity tests
+      displayName: 🧪 Run Copilot sanity tests (Marketplace VSIX)
       timeoutInMinutes: 15
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+        COPILOT_TEST_VSIX_PATH: $(Build.SourcesDirectory)/extensions/copilot/.build/copilot-chat-sanity.vsix
+
+    - script: xvfb-run -a npm run test:sanity
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: 🧪 Run Copilot sanity tests (built-in)
+      timeoutInMinutes: 15
+      env:
+        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+        COPILOT_TEST_EXTENSION_PATH: $(COPILOT_TEST_EXTENSION_PATH)
 
   - ${{ if eq(parameters.OS, 'darwin') }}:
     - script: npm run test:extension
@@ -89,15 +108,25 @@ steps:
 
     - script: npm run test:sanity
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot sanity tests
+      displayName: 🧪 Run Copilot sanity tests (Marketplace VSIX)
       timeoutInMinutes: 15
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+        COPILOT_TEST_VSIX_PATH: $(Build.SourcesDirectory)/extensions/copilot/.build/copilot-chat-sanity.vsix
+
+    - script: npm run test:sanity
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: 🧪 Run Copilot sanity tests (built-in)
+      timeoutInMinutes: 15
+      env:
+        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+        COPILOT_TEST_EXTENSION_PATH: $(COPILOT_TEST_EXTENSION_PATH)
 
   - ${{ if eq(parameters.OS, 'win32') }}:
     - powershell: npm run test:extension
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
       displayName: 🧪 Run Copilot extension tests
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
       timeoutInMinutes: 15
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
@@ -106,13 +135,23 @@ steps:
     - powershell: npm run test:completions-core
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
       displayName: 🧪 Run Copilot completions core tests
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
       timeoutInMinutes: 15
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
     - powershell: npm run test:sanity
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot sanity tests
+      displayName: 🧪 Run Copilot sanity tests (Marketplace VSIX)
       timeoutInMinutes: 15
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+        COPILOT_TEST_VSIX_PATH: $(Build.SourcesDirectory)/extensions/copilot/.build/copilot-chat-sanity.vsix
+
+    - powershell: npm run test:sanity
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: 🧪 Run Copilot sanity tests (built-in)
+      timeoutInMinutes: 15
+      env:
+        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+        COPILOT_TEST_EXTENSION_PATH: $(COPILOT_TEST_EXTENSION_PATH)
