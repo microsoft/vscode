@@ -82,4 +82,32 @@ suite('typescript.jsDocSnippet', () => {
 				' */'
 			));
 	});
+
+	test('Should properly escape closing braces in parameter types', async () => {
+		assert.strictEqual(
+			templateToSnippet(joinLines(
+				'/**',
+				' * @param {string} arg',
+				' */'
+			)).value,
+			joinLines(
+				'/**',
+				' * @param {string\\} arg ${1}',
+				' */'
+			));
+	});
+
+	test('Should properly escape backslashes in parameter names', async () => {
+		assert.strictEqual(
+			templateToSnippet(joinLines(
+				'/**',
+				' * @param path\\to\\arg',
+				' */'
+			)).value,
+			joinLines(
+				'/**',
+				' * @param path\\\\to\\\\arg ${1}',
+				' */'
+			));
+	});
 });
