@@ -249,5 +249,57 @@ suite('SessionsManagementService', () => {
 		// The active session should remain unchanged
 		assert.strictEqual(service.activeSession.get()?.sessionId, 'original');
 	});
+
+	test('restoreLastActiveSession waits for session to appear via onDidChangeSessions', async () => {
+		const targetSession = stubSession({ sessionId: 'target', providerId: 'test' });
+		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+
+		let sessions: ISession[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			constructor() { super(targetSession); }
+			override getSessions(): ISession[] { return sessions; }
+		};
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const chatWidgetService = new TestChatWidgetService();
+		const agentSessionsService = new TestAgentSessionsService();
+
+		// Seed storage so the management service treats `targetSession` as the
+		// last active session and tries to restore it on startup.
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(
+			'agentSessions.activeSessionStates',
+			JSON.stringify([{ sessionResource: targetSession.resource.toString(), isActive: true }]),
+			1 /* StorageScope.WORKSPACE */,
+			1 /* StorageTarget.MACHINE */,
+		);
+
+		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+		instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+		instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+		instantiationService.stub(IChatWidgetService, chatWidgetService);
+		instantiationService.stub(IAgentSessionsService, agentSessionsService);
+		instantiationService.stub(IProgressService, new TestProgressService());
+
+		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+
+		// At this point the provider does not yet know about the session
+		// (mimicking an agent host provider whose cache has not loaded yet).
+		const restorePromise = service.restoreLastActiveSession();
+		await Promise.resolve();
+		assert.deepStrictEqual(chatWidgetService.opened.map(uri => uri.toString()), []);
+
+		// Now the provider learns about the session and fires its change event.
+		// `onDidChangeProviders` does NOT fire here — only the per-provider
+		// session change event — so the fix must subscribe to it as well.
+		sessions = [targetSession];
+		onDidChangeSessions.fire({ added: [targetSession], removed: [], changed: [] });
+
+		await restorePromise;
+		assert.deepStrictEqual(chatWidgetService.opened.map(uri => uri.toString()), [targetSession.resource.toString()]);
+	});
 });
 
