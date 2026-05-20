@@ -49,7 +49,7 @@ export function getEffectiveAgents(
 
 	// Highest priority first so first-seen wins keeps the runtime-correct entry.
 	if (sessionCustomizations) {
-		collectFromRefs(sessionCustomizations.map(s => s.customization));
+		collectFromRefs(sessionCustomizations.filter(s => s.enabled !== false).map(s => s.customization));
 	}
 	collectFromRefs(activeClientCustomizations);
 	collectFromRefs(rootCustomizations);
