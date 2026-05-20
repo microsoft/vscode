@@ -1111,15 +1111,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		const moreFolderSections: ISessionSection[] = [];
-		// When expanding the "more workspaces" group, the archived ("Done")
-		// section is moved to sit right above the "Show less" action so that
-		// the additional workspaces appear contiguously with the primary ones.
-		const deferArchived = partitionFolders && this.expandedMoreFolders;
+		// The archived ("Done") section should always appear after the
+		// "more workspaces" toggle (both collapsed and expanded states)
+		// so it remains the very last group in the list.
 		let archivedSection: ISessionSection | undefined;
 		for (const section of sections) {
 			if (moreFolderSectionIds.has(section.id)) {
 				moreFolderSections.push(section);
-			} else if (deferArchived && section.id === 'archived') {
+			} else if (partitionFolders && section.id === 'archived') {
 				archivedSection = section;
 			} else {
 				children.push(renderSection(section));
@@ -1131,9 +1130,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 				for (const section of moreFolderSections) {
 					children.push(renderSection(section));
 				}
-				if (archivedSection) {
-					children.push(renderSection(archivedSection));
-				}
 				children.push({
 					element: { showMore: true as const, kind: 'folders' as const, mode: 'less' as const, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },
 				});
@@ -1142,7 +1138,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					element: { showMore: true as const, kind: 'folders' as const, mode: 'more' as const, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: moreFolderSections.length },
 				});
 			}
-		} else if (archivedSection) {
+		}
+		if (archivedSection) {
 			children.push(renderSection(archivedSection));
 		}
 
