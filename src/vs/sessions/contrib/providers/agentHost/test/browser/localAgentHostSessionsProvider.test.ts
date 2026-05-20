@@ -15,10 +15,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, IAgentHostService, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { NotificationType } from '../../../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ActionType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -51,7 +50,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly clientId = 'test-local-client';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public disposedSessions: URI[] = [];
-	public dispatchedActions: { action: SessionAction | TerminalAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
+	public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
@@ -125,12 +124,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return this.resolveSessionConfigResult;
 	}
 
-	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
-		this.dispatchedActions.push({ action, clientId, clientSeq });
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+		this.dispatchedActions.push({ channel, action, clientId, clientSeq });
 	}
 
-	override dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
-		this.dispatchedActions.push({ action, clientId: this.clientId, clientSeq: this._nextSeq++ });
+	override dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 	}
 
 	// Test helpers
@@ -279,6 +278,7 @@ function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?:
 	const provider = opts?.provider ?? 'copilotcli';
 	const sessionUri = AgentSession.uri(provider, rawId);
 	agentHost.fireNotification({
+		channel: 'ahp-root://',
 		type: NotificationType.SessionAdded,
 		summary: {
 			resource: sessionUri.toString(),
@@ -297,6 +297,7 @@ function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?:
 function fireSessionRemoved(agentHost: MockAgentHostService, rawId: string, provider = 'copilotcli'): void {
 	const sessionUri = AgentSession.uri(provider, rawId);
 	agentHost.fireNotification({
+		channel: 'ahp-root://',
 		type: NotificationType.SessionRemoved,
 		session: sessionUri.toString(),
 	});
@@ -615,7 +616,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session!.modelId.get(), 'agent-host-copilotcli:new-model');
 		assert.deepStrictEqual(agentHost.dispatchedActions.at(-1)?.action, {
 			type: ActionType.SessionModelChanged,
-			session: AgentSession.uri('copilotcli', 'set-model').toString(),
 			model: { id: 'new-model' },
 		});
 	});
@@ -631,7 +631,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.deepStrictEqual(agentHost.dispatchedActions.at(-1)?.action, {
 			type: ActionType.SessionModelChanged,
-			session: AgentSession.uri('copilotcli', 'set-model-config').toString(),
 			model: { id: 'configured-model', config: { thinkingLevel: 'high' } },
 		});
 	});
@@ -897,7 +896,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const dispatched = agentHost.dispatchedActions[0];
 		assert.strictEqual(dispatched.action.type, ActionType.SessionTitleChanged);
 		assert.strictEqual((dispatched.action as { title: string }).title, 'New Title');
-		const actionSession = (dispatched.action as { session: string }).session;
+		const actionSession = dispatched.channel.toString();
 		assert.strictEqual(AgentSession.provider(actionSession), 'copilotcli');
 		assert.strictEqual(AgentSession.id(actionSession), 'rename-sess');
 		assert.strictEqual(dispatched.clientId, 'test-local-client');
@@ -936,9 +935,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
 		agentHost.fireAction({
+			channel: AgentSession.uri('copilotcli', 'echo-sess').toString(),
 			action: {
 				type: ActionType.SessionTitleChanged,
-				session: AgentSession.uri('copilotcli', 'echo-sess').toString(),
 				title: 'Server Title',
 			},
 			serverSeq: 1,
@@ -961,9 +960,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
 		agentHost.fireAction({
+			channel: AgentSession.uri('copilotcli', 'model-change').toString(),
 			action: {
 				type: ActionType.SessionModelChanged,
-				session: AgentSession.uri('copilotcli', 'model-change').toString(),
 				model: { id: 'new-model' } satisfies ModelSelection,
 			},
 			serverSeq: 1,
@@ -991,9 +990,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
 		agentHost.fireAction({
+			channel: AgentSession.uri('copilotcli', 'turn-sess').toString(),
 			action: {
 				type: 'session/turnComplete',
-				session: AgentSession.uri('copilotcli', 'turn-sess').toString(),
 			},
 			serverSeq: 1,
 			origin: undefined,
@@ -1264,11 +1263,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 
 		const sessionUri = AgentSession.uri('copilotcli', 'rep-1').toString();
-		const configChanged = agentHost.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged && (d.action as { session: string }).session === sessionUri);
+		const configChanged = agentHost.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged && d.channel === sessionUri);
 		assert.ok(configChanged, 'a SessionConfigChanged action should be dispatched');
 		assert.deepStrictEqual(configChanged.action, {
 			type: ActionType.SessionConfigChanged,
-			session: sessionUri,
 			config: { autoApprove: 'autoApprove', isolation: 'worktree', branch: 'main' },
 			replace: true,
 		});
@@ -1340,9 +1338,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await waitForSessionConfig(provider, session!.sessionId, c => c?.values.autoApprove === 'default');
 
 		agentHost.fireAction({
+			channel: AgentSession.uri('copilotcli', 'cfg-merge').toString(),
 			action: {
 				type: ActionType.SessionConfigChanged,
-				session: AgentSession.uri('copilotcli', 'cfg-merge').toString(),
 				config: { autoApprove: 'autoApprove' },
 			},
 			serverSeq: 1,
@@ -1381,9 +1379,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await waitForSessionConfig(provider, session!.sessionId, c => c?.values.autoApprove === 'default');
 
 		agentHost.fireAction({
+			channel: AgentSession.uri('copilotcli', 'cfg-replace').toString(),
 			action: {
 				type: ActionType.SessionConfigChanged,
-				session: AgentSession.uri('copilotcli', 'cfg-replace').toString(),
 				config: { autoApprove: 'autoApprove', isolation: 'worktree' },
 				replace: true,
 			},

@@ -592,32 +592,8 @@
 					]
 				},
 				"tags": [
-					"enable_other_tool_install_extension",
-					"enable_other_tool_get_project_setup_info"
+					"enable_other_tool_install_extension"
 				]
-			},
-			{
-				"name": "copilot_getProjectSetupInfo",
-				"displayName": "%github.copilot.tools.getProjectSetupInfo.name%",
-				"when": "config.github.copilot.chat.newWorkspaceCreation.enabled && !config.github.copilot.chat.projectSetupInfoSkill.enabled",
-				"toolReferenceName": "getProjectSetupInfo",
-				"legacyToolReferenceFullNames": [
-					"new/getProjectSetupInfo"
-				],
-				"modelDescription": "Do not call this tool without first calling the tool to create a workspace. This tool provides a project setup information for a Visual Studio Code workspace based on a project type and programming language.",
-				"inputSchema": {
-					"type": "object",
-					"properties": {
-						"projectType": {
-							"type": "string",
-							"description": "The type of project to create. Supported values are: 'python-script', 'python-project', 'mcp-server', 'model-context-protocol-server', 'vscode-extension', 'next-js', 'vite' and 'other'"
-						}
-					},
-					"required": [
-						"projectType"
-					]
-				},
-				"tags": []
 			},
 			{
 				"name": "copilot_installExtension",
@@ -1343,7 +1319,6 @@
 				"name": "vscode",
 				"description": "",
 				"tools": [
-					"getProjectSetupInfo",
 					"installExtension",
 					"memory",
 					"newWorkspace",
@@ -3516,6 +3491,22 @@
 							"experimental"
 						]
 					},
+					"github.copilot.chat.cloudAgentBackend.version": {
+						"type": "string",
+						"default": "v1",
+						"enum": [
+							"v1",
+							"v2"
+						],
+						"enumDescriptions": [
+							"%github.copilot.config.cloudAgentBackend.version.v1%",
+							"%github.copilot.config.cloudAgentBackend.version.v2%"
+						],
+						"markdownDescription": "%github.copilot.config.cloudAgentBackend.version%",
+						"tags": [
+							"experimental"
+						]
+					},
 					"github.copilot.chat.switchAgent.enabled": {
 						"type": "boolean",
 						"default": false,
@@ -4261,6 +4252,24 @@
 						],
 						"description": "%github.copilot.config.anthropic.promptCaching.extendedTtlMessages%"
 					},
+					"github.copilot.chat.modelCapabilityOverrides": {
+						"type": "object",
+						"default": {},
+						"markdownDescription": "%github.copilot.config.modelCapabilityOverrides%",
+						"additionalProperties": {
+							"type": "object",
+							"properties": {
+								"family": {
+									"type": "string",
+									"description": "Alias the model's family for capability routing (e.g. 'claude-opus-4.7')."
+								}
+							},
+							"additionalProperties": false
+						},
+						"tags": [
+							"advanced"
+						]
+					},
 					"github.copilot.chat.freezeCustomizationsIndex": {
 						"type": "boolean",
 						"default": true,
@@ -4280,16 +4289,6 @@
 							"onExp"
 						],
 						"description": "%github.copilot.config.installExtensionSkill.enabled%"
-					},
-					"github.copilot.chat.projectSetupInfoSkill.enabled": {
-						"type": "boolean",
-						"default": false,
-						"tags": [
-							"advanced",
-							"experimental",
-							"onExp"
-						],
-						"description": "%github.copilot.config.projectSetupInfoSkill.enabled%"
 					},
 					"github.copilot.chat.debug.promptOverrideString": {
 						"type": [
@@ -6634,14 +6633,14 @@
 		"chatSkills": [
 			{
 				"path": "./assets/prompts/skills/project-setup-info-local/SKILL.md",
-				"when": "config.github.copilot.chat.projectSetupInfoSkill.enabled && !config.github.copilot.chat.newWorkspace.useContext7",
+				"when": "!config.github.copilot.chat.newWorkspace.useContext7",
 				"sessionTypes": [
 					"local"
 				]
 			},
 			{
 				"path": "./assets/prompts/skills/project-setup-info-context7/SKILL.md",
-				"when": "config.github.copilot.chat.projectSetupInfoSkill.enabled && config.github.copilot.chat.newWorkspace.useContext7",
+				"when": "config.github.copilot.chat.newWorkspace.useContext7",
 				"sessionTypes": [
 					"local"
 				]

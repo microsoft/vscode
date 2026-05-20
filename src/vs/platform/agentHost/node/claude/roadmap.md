@@ -803,7 +803,7 @@ client-side accept of one and reject of the other behaves correctly.
 Exit criteria: file diffs render in the workbench; per-file accept/reject
 works.
 
-### Phase 8.5 — Rich tool-call rendering parity with Copilot
+### Phase 8.5 — Rich tool-call rendering parity with Copilot ✅ **DONE**
 
 Claude's tool-call cards today only carry the static display name from
 [`claudeToolDisplay.ts`](./claudeToolDisplay.ts) (`"Run shell command"`,

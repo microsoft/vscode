@@ -821,14 +821,21 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return disposables;
 	}
 
-	async $provideChatSessionCustomizations(handle: number, token: CancellationToken): Promise<IChatSessionCustomizationItemDto[] | undefined> {
+	async $provideChatSessionCustomizations(handle: number, sessionResource: UriComponents | undefined, token: CancellationToken): Promise<IChatSessionCustomizationItemDto[] | undefined> {
 		const providerData = this._customizationProviders.get(handle);
 		if (!providerData) {
 			return undefined;
 		}
 
+		// The proposed API requires a real session URI; bail out when the
+		// internal caller (e.g. the management UI populating a global list)
+		// has nothing scoped to forward.
+		if (!sessionResource) {
+			return undefined;
+		}
+
 		try {
-			const items = await providerData.provider.provideChatSessionCustomizations(token);
+			const items = await providerData.provider.provideChatSessionCustomizations(URI.revive(sessionResource), token);
 			if (!items) {
 				return undefined;
 			}
