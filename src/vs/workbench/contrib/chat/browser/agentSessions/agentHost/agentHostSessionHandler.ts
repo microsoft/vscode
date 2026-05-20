@@ -1832,7 +1832,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						id: q.id,
 						type: 'text',
 						title,
-						message,
+						detailedMessage,
 						required: q.required,
 					};
 			}
