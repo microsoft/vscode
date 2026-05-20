@@ -135,4 +135,20 @@ suite('Conversation feature test suite', function () {
 			conversationFeature.dispose();
 		}
 	});
+
+	test('The feature activates without a Copilot token when a non-copilot (BYOK) language model is available', async function () {
+		sandbox.stub(vscode.lm, 'selectChatModels').resolves([
+			{ vendor: 'ollama', id: 'llama3', name: 'llama3', family: 'llama3' } as any
+		]);
+		sandbox.stub(vscode.lm, 'onDidChangeChatModels').returns({ dispose: () => { } });
+
+		const conversationFeature = instaService.createInstance(ConversationFeature);
+		try {
+			// No Copilot token is set; activation should be driven by BYOK availability.
+			await conversationFeature.activationBlocker;
+			assert.deepStrictEqual(conversationFeature.activated, true);
+		} finally {
+			conversationFeature.dispose();
+		}
+	});
 });
