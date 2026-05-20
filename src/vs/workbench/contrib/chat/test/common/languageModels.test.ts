@@ -1169,6 +1169,9 @@ suite('LanguageModels - Provider Group Management', function () {
 			{
 				vendor: 'custom-vendor',
 				displayName: 'Custom Vendor',
+				// Cast needed: TypeFromJsonSchema resolves the `anyOf`+`$ref` configuration
+				// field to `undefined`, but this provider-management test needs the
+				// runtime schema so the vendor is treated as configurable.
 				configuration: {
 					type: 'object',
 					required: ['apiKey'],
