@@ -142,7 +142,7 @@ steps:
         }
         $env:IS_SCENARIO_AUTOMATION = '1'
         $env:COPILOT_CLI_UI_SMOKE = '1'
-        npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+        npm run smoketest-no-compile -- --tracing --electronArgs="--disable-extension=vscode.github-authentication" --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
       displayName: 🧪 Run smoke tests (Electron)
       timeoutInMinutes: 20
 

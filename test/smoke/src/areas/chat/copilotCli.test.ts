@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { Application, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 
@@ -28,17 +31,84 @@ export function setup(logger: Logger, opts: { web?: boolean; remote?: boolean })
 		it('opens a Copilot CLI session and receives a response', async function () {
 			const app = this.app as Application;
 
-			await app.workbench.quickaccess.runCommand('smoketest.openCopilotCliChat');
-			await app.workbench.chat.waitForChatEditor(600);
-			await app.workbench.chat.sendMessage('Reply with one short sentence. Do not run tools or edit files.', 'editor');
-			await app.workbench.chat.waitForResponse(1500, 'editor');
+			try {
+				await app.workbench.quickaccess.runCommand('smoketest.openCopilotCliChat');
+				await app.workbench.chat.waitForChatEditor(600);
+				await app.workbench.chat.sendMessage('Reply with one short sentence. Do not run tools or edit files.', 'editor');
+				await app.workbench.chat.waitForResponse(1500, 'editor');
+			} catch (error) {
+				throw new Error(`Copilot CLI smoke test failed before a complete response was visible.\n${formatError(error)}\n\n${await getCopilotCliDiagnostics(app)}`);
+			}
 
 			const responseText = (await app.workbench.chat.getLatestResponseText('editor')).trim();
-			assert.ok(responseText.length > 0, 'Expected Copilot CLI to produce a non-empty response');
+			assert.ok(responseText.length > 0, `Expected Copilot CLI to produce a non-empty response.\n\n${await getCopilotCliDiagnostics(app)}`);
 
 			const normalizedResponse = responseText.toLowerCase();
 			const matchedFailureMarker = failureMarkers.find(marker => normalizedResponse.includes(marker.toLowerCase()));
-			assert.ok(!matchedFailureMarker, `Copilot CLI response contained failure marker "${matchedFailureMarker}": ${responseText}`);
+			assert.ok(!matchedFailureMarker, `Copilot CLI response contained failure marker "${matchedFailureMarker}": ${responseText}\n\n${await getCopilotCliDiagnostics(app)}`);
 		});
 	});
+}
+
+async function getCopilotCliDiagnostics(app: Application): Promise<string> {
+	const logs = await app.code.driver.getLogs();
+	const copilotChatLog = findNewestLog(logs, 'GitHub Copilot Chat.log');
+	const extensionHostLog = findNewestLog(logs, 'exthost.log');
+	const copilotChatTail = tail(copilotChatLog?.contents ?? '', 12000);
+	const extensionHostRelevantTail = tail(extensionHostLog?.contents ?? '', 16000)
+		.split(/\r?\n/)
+		.filter(line => /copilot|github|MODULE_NOT_FOUND|dlopen|node-pty|ripgrep|runtime\.node|pty\.node|authentication|auth/i.test(line))
+		.slice(-50)
+		.join('\n');
+	const sessionEventsTail = readSessionEventsTail(extractLatestSessionId(copilotChatTail));
+
+	return [
+		'Copilot CLI diagnostics:',
+		`authEnv=GITHUB_PAT:${!!process.env.GITHUB_PAT} GITHUB_OAUTH_TOKEN:${!!process.env.GITHUB_OAUTH_TOKEN} VSCODE_COPILOT_CHAT_TOKEN:${!!process.env.VSCODE_COPILOT_CHAT_TOKEN}`,
+		`copilotApiUrl=${process.env.COPILOT_API_URL ?? '(unset)'}`,
+		`isScenarioAutomation=${process.env.IS_SCENARIO_AUTOMATION ?? '(unset)'}`,
+		`copilotCliUiSmoke=${process.env.COPILOT_CLI_UI_SMOKE ?? '(unset)'}`,
+		`copilotChatLog=${copilotChatLog?.relativePath ?? '(not found)'}`,
+		`copilotChatLogTail:\n${copilotChatTail || '(empty)'}`,
+		`extensionHostLog=${extensionHostLog?.relativePath ?? '(not found)'}`,
+		`extensionHostRelevantTail:\n${extensionHostRelevantTail || '(empty)'}`,
+		`copilotCliSessionEventsTail:\n${sessionEventsTail || '(empty)'}`,
+	].join('\n\n');
+}
+
+function formatError(error: unknown): string {
+	if (error instanceof Error) {
+		return error.stack ?? error.message;
+	}
+	return String(error);
+}
+
+function findNewestLog(logs: readonly { relativePath: string; contents: string }[], fileName: string): { relativePath: string; contents: string } | undefined {
+	return logs.find(log => log.relativePath.endsWith(fileName));
+}
+
+function tail(contents: string, maxLength: number): string {
+	return contents.slice(Math.max(0, contents.length - maxLength));
+}
+
+function extractLatestSessionId(log: string): string | undefined {
+	let sessionId: string | undefined;
+	for (const match of log.matchAll(/Using Copilot CLI session: ([0-9a-f-]+)/g)) {
+		sessionId = match[1];
+	}
+	return sessionId;
+}
+
+function readSessionEventsTail(sessionId: string | undefined): string {
+	if (!sessionId) {
+		return '';
+	}
+
+	const stateRoot = process.env.XDG_STATE_HOME ?? os.homedir();
+	const eventsPath = path.join(stateRoot, '.copilot', 'session-state', sessionId, 'events.jsonl');
+	if (!fs.existsSync(eventsPath)) {
+		return `Session events file not found: ${eventsPath}`;
+	}
+
+	return tail(fs.readFileSync(eventsPath, 'utf8'), 12000);
 }
