@@ -27,7 +27,8 @@
     "untrustedWorkspaces": {
       "supported": "limited",
       "restrictedConfigurations": [
-        "github-enterprise.uri"
+        "github-enterprise.uri",
+        "github.copilot.enterprise.uri"
       ]
     }
   },
@@ -46,6 +47,13 @@
         "authorizationServerGlobs": [
           "*"
         ]
+      },
+      {
+        "label": "GitHub Copilot Enterprise",
+        "id": "github-enterprise-copilot",
+        "authorizationServerGlobs": [
+          "*"
+        ]
       }
     ],
     "configuration": [
@@ -55,6 +63,12 @@
           "github-enterprise.uri": {
             "type": "string",
             "markdownDescription": "%config.github-enterprise.uri.description%",
+            "pattern": "^(?:$|(https?)://(?!github\\.com).*)"
+          },
+          "github.copilot.enterprise.uri": {
+            "type": "string",
+            "scope": "application",
+            "markdownDescription": "%config.github-copilot-enterprise.uri.description%",
             "pattern": "^(?:$|(https?)://(?!github\\.com).*)"
           },
           "github-authentication.useElectronFetch": {

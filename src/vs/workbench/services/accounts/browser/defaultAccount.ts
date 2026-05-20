@@ -46,6 +46,8 @@ interface IDefaultAccountConfig {
 		};
 		readonly enterpriseProviderConfig: string;
 		readonly enterpriseProviderUriSetting: string;
+		readonly enterpriseProviderUriFallbackSetting: string;
+		readonly enterpriseProviderLegacyIds: readonly string[];
 		readonly scopes: string[][];
 	};
 	readonly tokenEntitlementUrl: string;
@@ -102,6 +104,8 @@ function toDefaultAccountConfig(defaultChatAgent: IDefaultChatAgent): IDefaultAc
 			},
 			enterpriseProviderConfig: `${defaultChatAgent.completionsAdvancedSetting}.authProvider`,
 			enterpriseProviderUriSetting: defaultChatAgent.providerUriSetting,
+			enterpriseProviderUriFallbackSetting: 'github-enterprise.uri',
+			enterpriseProviderLegacyIds: ['github-enterprise'],
 			scopes: defaultChatAgent.providerScopes,
 		},
 		entitlementUrl: defaultChatAgent.entitlementUrl,
@@ -881,7 +885,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	}
 
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
-		if (this.configurationService.getValue<string | undefined>(this.defaultAccountConfig.authenticationProvider.enterpriseProviderConfig) === this.defaultAccountConfig.authenticationProvider.enterprise.id) {
+		const configuredProvider = this.configurationService.getValue<string | undefined>(this.defaultAccountConfig.authenticationProvider.enterpriseProviderConfig);
+		if (configuredProvider === this.defaultAccountConfig.authenticationProvider.enterprise.id || this.defaultAccountConfig.authenticationProvider.enterpriseProviderLegacyIds.includes(configuredProvider ?? '')) {
 			return {
 				...this.defaultAccountConfig.authenticationProvider.enterprise,
 				enterprise: true
@@ -909,11 +914,17 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	}
 
 	private getEnterpriseUrl(): URL | undefined {
-		const value = this.configurationService.getValue(this.defaultAccountConfig.authenticationProvider.enterpriseProviderUriSetting);
-		if (!isString(value)) {
-			return undefined;
+		const configuredValue = this.configurationService.getValue(this.defaultAccountConfig.authenticationProvider.enterpriseProviderUriSetting);
+		if (isString(configuredValue) && configuredValue.trim().length > 0) {
+			return new URL(configuredValue);
 		}
-		return new URL(value);
+
+		const fallbackValue = this.configurationService.getValue(this.defaultAccountConfig.authenticationProvider.enterpriseProviderUriFallbackSetting);
+		if (isString(fallbackValue) && fallbackValue.trim().length > 0) {
+			return new URL(fallbackValue);
+		}
+
+		return undefined;
 	}
 
 	async signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null> {

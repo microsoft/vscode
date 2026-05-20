@@ -29,6 +29,9 @@ export const GITHUB_SCOPE_READ_USER = ['read:user'];
 // The same scopes that GitHub Pull Request, GitHub Repositories, and others use
 export const GITHUB_SCOPE_ALIGNED = ['read:user', 'user:email', 'repo', 'workflow'];
 
+export const COPILOT_GITHUB_ENTERPRISE_URI_SETTING = 'github.copilot.enterprise.uri';
+export const LEGACY_GITHUB_ENTERPRISE_URI_SETTING = 'github-enterprise.uri';
+
 export class MinimalModeError extends Error {
 	constructor() {
 		super('The authentication service is in minimal mode.');
@@ -339,9 +342,28 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 }
 
 export function authProviderId(configurationService: IConfigurationService): AuthProviderId {
+	const configuredProvider = configurationService.getConfig(ConfigKey.Shared.AuthProvider);
 	return (
-		configurationService.getConfig(ConfigKey.Shared.AuthProvider) === AuthProviderId.GitHubEnterprise
-			? AuthProviderId.GitHubEnterprise
+		isGitHubEnterpriseAuthProvider(configuredProvider)
+			? AuthProviderId.GitHubEnterpriseCopilot
 			: AuthProviderId.GitHub
 	);
+}
+
+export function isGitHubEnterpriseAuthProvider(providerId: string | undefined): boolean {
+	return providerId === AuthProviderId.GitHubEnterprise || providerId === AuthProviderId.GitHubEnterpriseCopilot;
+}
+
+export function getCopilotEnterpriseUri(configurationService: IConfigurationService): string | undefined {
+	const copilotUri = configurationService.getNonExtensionConfig<string>(COPILOT_GITHUB_ENTERPRISE_URI_SETTING);
+	if (typeof copilotUri === 'string' && copilotUri.trim().length > 0) {
+		return copilotUri;
+	}
+
+	const legacyUri = configurationService.getNonExtensionConfig<string>(LEGACY_GITHUB_ENTERPRISE_URI_SETTING);
+	if (typeof legacyUri === 'string' && legacyUri.trim().length > 0) {
+		return legacyUri;
+	}
+
+	return undefined;
 }

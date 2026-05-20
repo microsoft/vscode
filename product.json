@@ -104,7 +104,7 @@
 				"name": "GitHub"
 			},
 			"enterprise": {
-				"id": "github-enterprise",
+				"id": "github-enterprise-copilot",
 				"name": "GHE"
 			},
 			"google": {
@@ -117,7 +117,7 @@
 			}
 		},
 		"providerExtensionId": "vscode.github-authentication",
-		"providerUriSetting": "github-enterprise.uri",
+		"providerUriSetting": "github.copilot.enterprise.uri",
 		"providerScopes": [
 			[
 				"read:user",
@@ -152,6 +152,9 @@
 			"GitHub.copilot-chat"
 		],
 		"github-enterprise": [
+			"GitHub.copilot-chat"
+		],
+		"github-enterprise-copilot": [
 			"GitHub.copilot-chat"
 		]
 	},

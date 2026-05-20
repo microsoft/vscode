@@ -32,6 +32,12 @@ export enum AuthProviderType {
 	githubEnterprise = 'github-enterprise'
 }
 
+interface GitHubAuthenticationProviderRegistrationOptions {
+	readonly ghesUri?: vscode.Uri;
+	readonly providerId?: string;
+	readonly providerLabel?: string;
+}
+
 interface GitHubAuthenticationProviderOptions extends vscode.AuthenticationProviderSessionOptions {
 	/**
 	 * This is specific to GitHub and is used to determine which social sign-in provider to use.
@@ -141,12 +147,14 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	constructor(
 		private readonly context: vscode.ExtensionContext,
 		uriHandler: UriEventHandler,
-		ghesUri?: vscode.Uri
+		options?: GitHubAuthenticationProviderRegistrationOptions
 	) {
 		const { aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
 		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(aiKey));
 
+		const ghesUri = options?.ghesUri;
 		const type = ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
+		const providerId = options?.providerId ?? type;
 
 		this._logger = new Log(type);
 
@@ -177,8 +185,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		this._disposable = vscode.Disposable.from(
 			this._telemetryReporter,
 			vscode.authentication.registerAuthenticationProvider(
-				type,
-				this._githubServer.friendlyName,
+				providerId,
+				options?.providerLabel ?? this._githubServer.friendlyName,
 				this,
 				{
 					supportsMultipleAccounts: true,

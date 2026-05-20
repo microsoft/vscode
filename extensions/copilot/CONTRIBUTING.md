@@ -389,7 +389,7 @@ Object.assign(product, {
 					'name': 'GitHub'
 				},
 				'enterprise': {
-					'id': 'github-enterprise',
+					'id': 'github-enterprise-copilot',
 					'name': 'GHE.com'
 				},
 				'google': {
@@ -401,7 +401,7 @@ Object.assign(product, {
 					'name': 'Apple'
 				}
 			},
-			'providerUriSetting': 'github-enterprise.uri',
+			'providerUriSetting': 'github.copilot.enterprise.uri',
 			'providerScopes': [
 				[
 					'user:email'

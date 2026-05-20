@@ -5,13 +5,11 @@
 
 import * as l10n from '@vscode/l10n';
 import type { CancellationToken, McpHttpServerDefinition, McpServerDefinitionProvider } from 'vscode';
-import { authProviderId, IAuthenticationService } from '../../../platform/authentication/common/authentication';
+import { authProviderId, COPILOT_GITHUB_ENTERPRISE_URI_SETTING, getCopilotEnterpriseUri, IAuthenticationService, LEGACY_GITHUB_ENTERPRISE_URI_SETTING } from '../../../platform/authentication/common/authentication';
 import { AuthProviderId, ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { Event } from '../../../util/vs/base/common/event';
 import { URI } from '../../../util/vs/base/common/uri';
-
-const EnterpriseURLConfig = 'github-enterprise.uri';
 
 export class GitHubMcpDefinitionProvider implements McpServerDefinitionProvider<McpHttpServerDefinition> {
 
@@ -52,8 +50,8 @@ export class GitHubMcpDefinitionProvider implements McpServerDefinitionProvider<
 					return true;
 				}
 				// If they change the GHE URL
-				if (e.affectsConfiguration(EnterpriseURLConfig)) {
-					logService.debug('GitHubMcpDefinitionProvider: Configuration change affects GitHub Enterprise URL.');
+				if (e.affectsConfiguration(COPILOT_GITHUB_ENTERPRISE_URI_SETTING) || e.affectsConfiguration(LEGACY_GITHUB_ENTERPRISE_URI_SETTING)) {
+					logService.debug('GitHubMcpDefinitionProvider: Configuration change affects GitHub Enterprise URL configuration.');
 					return true;
 				}
 				return false;
@@ -92,7 +90,7 @@ export class GitHubMcpDefinitionProvider implements McpServerDefinitionProvider<
 	}
 
 	private get gheConfig(): string | undefined {
-		return this.configurationService.getNonExtensionConfig<string>(EnterpriseURLConfig);
+		return getCopilotEnterpriseUri(this.configurationService);
 	}
 
 	private getGheUri(): URI {
@@ -113,7 +111,7 @@ export class GitHubMcpDefinitionProvider implements McpServerDefinitionProvider<
 		const channel = this.channel;
 		const isSignedIn = !!this.authenticationService.permissiveGitHubSession;
 
-		const basics = providerId === AuthProviderId.GitHubEnterprise
+		const basics = providerId === AuthProviderId.GitHubEnterpriseCopilot
 			? { label: 'GitHub Enterprise', uri: this.getGheUri() }
 			: { label: 'GitHub', uri: URI.parse('https://api.githubcopilot.com/mcp/') };
 
