@@ -42,6 +42,7 @@ import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatRequestTextPart } from '../../../../chat/common/requestParser/chatParserTypes.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { IToolResultCompressor } from '../../../../chat/common/tools/toolResultCompressor.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -225,6 +226,9 @@ suite('RunInTerminalTool', () => {
 				return [];
 			},
 		});
+		instantiationService.stub(ILanguageModelsService, {
+			selectLanguageModels: async () => [],
+		} as unknown as ILanguageModelsService);
 		instantiationService.stub(ITerminalProfileResolverService, {
 			getDefaultProfile: async () => ({ path: 'bash' } as ITerminalProfile)
 		});
@@ -237,6 +241,14 @@ suite('RunInTerminalTool', () => {
 
 	function setAutoApprove(value: { [key: string]: { approve: boolean; matchCommandLine?: boolean } | boolean }) {
 		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
+	}
+
+	// Flush microtasks so async steering-request dispatch (which awaits the
+	// utility-small model resolution) completes before assertions.
+	async function flushSteeringRequests() {
+		for (let i = 0; i < 5; i++) {
+			await Promise.resolve();
+		}
 	}
 
 	function setConfig(key: string, value: unknown) {
@@ -2194,7 +2206,7 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
-	test('should dedupe rapid repeated background input-needed notifications', () => {
+	test('should dedupe rapid repeated background input-needed notifications', async () => {
 		const termId = 'test-input-needed-term';
 		const sessionResource = LocalChatSessionUri.forSession('test-input-needed-session');
 		let output = 'Enter value:';
@@ -2231,14 +2243,16 @@ suite('RunInTerminalTool', () => {
 
 		inputNeededEmitter.fire();
 		inputNeededEmitter.fire();
+		await flushSteeringRequests();
 		strictEqual(capturedSteeringRequests.length, 1, 'Expected duplicate rapid input-needed events to be suppressed');
 
 		output = 'Confirm (y/N):';
 		inputNeededEmitter.fire();
+		await flushSteeringRequests();
 		strictEqual(capturedSteeringRequests.length, 2, 'Expected a changed prompt to trigger a new notification');
 	});
 
-	test('should suppress background input-needed notification when the terminal is disposed', () => {
+	test('should suppress background input-needed notification when the terminal is disposed', async () => {
 		const termId = 'test-input-needed-disposed-term';
 		const sessionResource = LocalChatSessionUri.forSession('test-input-needed-disposed-session');
 		const output = 'Press ENTER or type command to continue';
@@ -2281,10 +2295,11 @@ suite('RunInTerminalTool', () => {
 		// terminal is gone.
 		isDisposed = true;
 		inputNeededEmitter.fire();
+		await flushSteeringRequests();
 		strictEqual(capturedSteeringRequests.length, 0, 'Closing the terminal should not produce a spurious input-needed chat turn');
 	});
 
-	test('should suppress redundant input-needed notification for output already returned via foreground inputNeeded', () => {
+	test('should suppress redundant input-needed notification for output already returned via foreground inputNeeded', async () => {
 		const termId = 'test-input-needed-already-notified-term';
 		const sessionResource = LocalChatSessionUri.forSession('test-input-needed-already-notified-session');
 		let output = 'package name: (test_npm_init) ';
@@ -2324,16 +2339,18 @@ suite('RunInTerminalTool', () => {
 			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'mkdir -p foo && cd foo && npm init', toolSpecificData, outputMonitor, output);
 
 		inputNeededEmitter.fire();
+		await flushSteeringRequests();
 		strictEqual(capturedSteeringRequests.length, 0, 'Should not re-notify for output the agent already received via the foreground inputNeeded race');
 
 		// Once the prompt actually changes (new data has arrived), a fresh notification
 		// should be sent so the agent learns about the new prompt state.
 		output = 'version: (1.0.0) ';
 		inputNeededEmitter.fire();
+		await flushSteeringRequests();
 		strictEqual(capturedSteeringRequests.length, 1, 'Expected a new notification once the prompt output changes');
 	});
 
-	test('should preserve session terminal association after inputNeeded so fg terminal is reused', () => {
+	test('should preserve session terminal association after inputNeeded so fg terminal is reused', async () => {
 		const termId = 'test-input-cleanup-term';
 		const sessionResource = LocalChatSessionUri.forSession('test-input-cleanup-session');
 
@@ -2381,6 +2398,7 @@ suite('RunInTerminalTool', () => {
 
 		// Fire inputNeeded — this simulates the output monitor detecting a prompt
 		inputNeededEmitter.fire();
+		await flushSteeringRequests();
 		strictEqual(capturedSteeringRequests.length, 1, 'Should send steering request for input needed');
 
 		// The key assertion: fg terminal association is preserved (not deleted)

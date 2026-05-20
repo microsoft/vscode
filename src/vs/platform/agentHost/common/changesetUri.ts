@@ -38,10 +38,13 @@ const TURN_CHANGESET_PREFIX = 'turn/';
 const TURN_TEMPLATE_VARIABLE = '{turnId}';
 
 /** Localized human-readable label for the session-wide changeset entry. */
-export const sessionChangesetLabel = (): string => localize('sessionChangeset.label', "Session Changes");
+export const sessionChangesetLabel = (): string => localize('branchChangeset.label', "Branch Changes");
 
 /** Localized human-readable label for the uncommitted-changes changeset entry. */
 export const uncommittedChangesetLabel = (): string => localize('uncommittedChangeset.label', "Uncommitted Changes");
+
+/** Localized human-readable description for the uncommitted-changes changeset entry. */
+export const uncommittedChangesetDescription = (): string => localize('uncommittedChangeset.description', "Show uncommitted changes in this session");
 
 /** Localized human-readable label for the per-turn changeset template entry. */
 export const thisTurnChangesetLabel = (): string => localize('thisTurnChangeset.label', "This Turn");
@@ -160,18 +163,20 @@ export function parseTurnChangesetUri(uri: URI): { sessionUri: URI; turnId: stri
 
 /**
  * Builds the default ordered `summary.changesets` catalogue for a
- * session (`Uncommitted Changes`, `Session Changes`, `This Turn`) with
+ * session (`Branch Changes`, `Uncommitted Changes`, `This Turn`) with
  * label + uriTemplate only. Aggregate counts are filled in later by the
- * diff producer as compute passes complete; clients MUST treat
- * `summary.changesets[0]` as the default rather than singling out an id.
+ * diff producer as compute passes complete.
  *
- * Catalogue shape is immutable for the session's lifetime — only the
- * per-entry stats update over time.
+ * The first two entries (`Branch Changes`, `Uncommitted Changes`) are
+ * git-only; `AgentService._attachGitState` strips them asynchronously
+ * for sessions whose working directory is not a git repo (or absent).
+ * The backing per-changeset states are still registered for every
+ * session — only the catalogue advertisements are stripped.
  */
 export function buildDefaultChangesetCatalogue(sessionUri: URI): ChangesetSummary[] {
 	return [
-		{ label: uncommittedChangesetLabel(), uriTemplate: buildUncommittedChangesetUri(sessionUri) },
 		{ label: sessionChangesetLabel(), uriTemplate: buildSessionChangesetUri(sessionUri) },
+		{ label: uncommittedChangesetLabel(), uriTemplate: buildUncommittedChangesetUri(sessionUri), description: uncommittedChangesetDescription() },
 		{ label: thisTurnChangesetLabel(), uriTemplate: buildTurnChangesetUriTemplate(sessionUri) },
 	];
 }

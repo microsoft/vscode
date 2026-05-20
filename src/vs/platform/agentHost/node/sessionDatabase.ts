@@ -81,6 +81,10 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			`CREATE INDEX IF NOT EXISTS idx_turns_event_id ON turns(event_id)`,
 		].join(';\n'),
 	},
+	{
+		version: 5,
+		sql: `ALTER TABLE turns ADD COLUMN checkpoint_ref TEXT`,
+	},
 ];
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
@@ -320,6 +324,39 @@ export class SessionDatabase implements ISessionDatabase {
 		const db = await this._ensureDb();
 		const row = await dbGet(db, 'SELECT event_id FROM turns ORDER BY rowid LIMIT 1', []);
 		return row?.event_id as string | undefined ?? undefined;
+	}
+
+	setTurnCheckpointRef(turnId: string, ref: string): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
+			await dbRun(db, 'UPDATE turns SET checkpoint_ref = ? WHERE id = ?', [ref, turnId]);
+		});
+	}
+
+	async getTurnCheckpointRef(turnId: string): Promise<string | undefined> {
+		const db = await this._ensureDb();
+		const row = await dbGet(db, 'SELECT checkpoint_ref FROM turns WHERE id = ?', [turnId]);
+		return row?.checkpoint_ref as string | undefined ?? undefined;
+	}
+
+	async getPreviousCheckpointRef(turnId: string): Promise<string | undefined> {
+		const db = await this._ensureDb();
+		const row = await dbGet(
+			db,
+			`SELECT checkpoint_ref FROM turns
+				WHERE rowid < (SELECT rowid FROM turns WHERE id = ?)
+					AND checkpoint_ref IS NOT NULL
+				ORDER BY rowid DESC LIMIT 1`,
+			[turnId],
+		);
+		return row?.checkpoint_ref as string | undefined ?? undefined;
+	}
+
+	async getAllCheckpointRefs(): Promise<string[]> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(db, 'SELECT checkpoint_ref FROM turns WHERE checkpoint_ref IS NOT NULL ORDER BY rowid', []);
+		return rows.map(r => r.checkpoint_ref as string);
 	}
 
 	truncateFromTurn(turnId: string): Promise<void> {

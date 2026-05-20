@@ -25,8 +25,8 @@ import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvision
 // ---- Mocks -----------------------------------------------------------------
 
 interface IDispatchedAction {
+	readonly channel: string;
 	readonly type: string;
-	readonly session: string;
 	readonly config: Record<string, unknown>;
 }
 
@@ -53,8 +53,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this.disposed.push(session);
 	}
 
-	override dispatch(action: Parameters<IAgentHostService['dispatch']>[0]): void {
-		this.dispatched.push(action as IDispatchedAction);
+	override dispatch(channel: Parameters<IAgentHostService['dispatch']>[0], action: Parameters<IAgentHostService['dispatch']>[1]): void {
+		this.dispatched.push({ channel, ...action } as IDispatchedAction);
 	}
 
 	override async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -156,7 +156,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.strictEqual(agentHost.dispatched.length, 1, 'dispatched before re-resolve await');
 		assert.strictEqual(agentHost.dispatched[0].type, ActionType.SessionConfigChanged);
 		assert.deepStrictEqual(agentHost.dispatched[0].config, { isolation: 'worktree' });
-		assert.strictEqual(agentHost.dispatched[0].session, expectedBackendUri('b').toString());
+		assert.strictEqual(agentHost.dispatched[0].channel, expectedBackendUri('b').toString());
 
 		// Unblock so the queued re-resolve completes and the outer promise settles.
 		blocked.complete({ schema: makeSchema(false), values: { isolation: 'worktree' } });

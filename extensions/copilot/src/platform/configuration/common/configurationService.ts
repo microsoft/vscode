@@ -22,6 +22,7 @@ import { DuplicateAdditionsMode, EarlyDivergenceCancellationMode, LANGUAGE_CONTE
 import { ResponseProcessor } from '../../inlineEdits/common/responseProcessor';
 import { FetcherId } from '../../networking/common/fetcherService';
 import { AlternativeNotebookFormat } from '../../notebook/common/alternativeContentFormat';
+import type { IModelCapabilityOverride } from '../../endpoint/common/chatModelCapabilities';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { IValidator, vBoolean, vNumber, vString } from './validator';
 
@@ -697,7 +698,6 @@ export namespace ConfigKey {
 		 * Settings for switch between old tools and new skills
 		 */
 		export const InstallExtensionSkillEnabled = defineSetting<boolean>('chat.installExtensionSkill.enabled', ConfigType.ExperimentBased, false);
-		export const ProjectSetupInfoSkillEnabled = defineSetting<boolean>('chat.projectSetupInfoSkill.enabled', ConfigType.ExperimentBased, false);
 
 		/**
 		 * When enabled, large tool results (above the threshold in bytes) are written to disk
@@ -738,6 +738,8 @@ export namespace ConfigKey {
 
 		/** Enable extended (1 hour) prompt cache TTL on the rolling message-level breakpoints (last cacheable user/tool-result blocks) for the Anthropic Messages API. Same model/location/subagent gating as {@link AnthropicExtendedCacheTtl}. */
 		export const AnthropicExtendedCacheTtlMessages = defineSetting<boolean>('chat.anthropic.promptCaching.extendedTtlMessages', ConfigType.ExperimentBased, false);
+		/** Per-model capability overrides. Keys are model ids, values declare an aliased `family`. Lets evals route an unknown preview model id to a known production family (e.g. `"claude-opus-4.7"`) so the Anthropic prompt resolver, multi-replace tools, tool search, context editing, etc. all activate without a code change. */
+		export const ModelCapabilityOverrides = defineSetting<Record<string, IModelCapabilityOverride>>('chat.modelCapabilityOverrides', ConfigType.Simple, {});
 
 		/** Freeze the customizations-index variable (the `<instructions>`/`<skills>`/`<agents>` block) at the first turn of a conversation and reuse it on subsequent turns. Prevents the system prompt cache from being invalidated by per-turn churn — e.g. the active mode swapping which subagent entry appears in `<agents>`, or async experimentation flipping a `when`-gated skill. */
 		export const FreezeCustomizationsIndex = defineSetting<boolean>('chat.freezeCustomizationsIndex', ConfigType.ExperimentBased, true);
@@ -1042,6 +1044,7 @@ export namespace ConfigKey {
 
 	export const BackgroundAgentEnabled = defineSetting<boolean>('chat.backgroundAgent.enabled', ConfigType.Simple, true);
 	export const CloudAgentEnabled = defineSetting<boolean>('chat.cloudAgent.enabled', ConfigType.Simple, true);
+	export const CloudAgentBackendVersion = defineSetting<'v1' | 'v2'>('chat.cloudAgentBackend.version', ConfigType.Simple, 'v1');
 	export const AdditionalReadAccessPaths = defineSetting<string[]>('chat.additionalReadAccessPaths', ConfigType.Simple, []);
 	export const SwitchAgentEnabled = defineSetting<boolean>('chat.switchAgent.enabled', ConfigType.ExperimentBased, false);
 

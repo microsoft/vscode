@@ -110,7 +110,7 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 	) { }
 
 	async provideCompletionItems(params: CompletionsParams, token: CancellationToken): Promise<readonly CompletionItem[]> {
-		const workingDirectoryStr = this._stateManager.getSessionState(params.session)?.summary.workingDirectory;
+		const workingDirectoryStr = this._stateManager.getSessionState(params.channel)?.summary.workingDirectory;
 		if (!workingDirectoryStr) {
 			return [];
 		}

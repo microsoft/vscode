@@ -261,13 +261,6 @@ export interface ISession {
 	readonly mainChat: IChat;
 	/** Capabilities of this session. */
 	readonly capabilities: ISessionCapabilities;
-	/**
-	 * Optional key used to deduplicate sessions across providers. When
-	 * multiple sessions share the same key, only one is kept by
-	 * {@link ISessionsManagementService.getSessions}. Local providers are
-	 * preferred over remote ones.
-	 */
-	readonly deduplicationKey?: string;
 }
 
 /**

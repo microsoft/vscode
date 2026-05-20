@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RemoteAgentJobPayload } from '@vscode/copilot-api';
 import * as pathLib from 'path';
 import * as vscode from 'vscode';
 import { l10n, Uri } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
@@ -15,7 +15,7 @@ import { FileType } from '../../../platform/filesystem/common/fileTypes';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
 import { GithubRepoId, IGitService } from '../../../platform/git/common/gitService';
 import { derivePullRequestState, PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
-import { AuthOptions, CCAEnabledResult, IGithubRepositoryService, IOctoKitService, JobInfo, RemoteAgentJobResponse } from '../../../platform/github/common/githubService';
+import { AuthOptions, CCAEnabledResult, IGithubRepositoryService, IOctoKitService } from '../../../platform/github/common/githubService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { emitCloudSessionInvokeEvent } from '../../../platform/otel/common/genAiEvents';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
@@ -31,9 +31,12 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { SingleSlotTtlCache, TtlCache } from '../common/ttlCache';
 import { isUntitledSessionId } from '../common/utils';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
-import { body_suffix, CONTINUE_TRUNCATION, extractTitle, formatBodyPlaceholder, getAuthorDisplayName, getRepoId, JOBS_API_VERSION, SessionIdForPr, toOpenPullRequestWebviewUri, truncatePrompt } from '../vscode/copilotCodingAgentUtils';
+import { CONTINUE_TRUNCATION, extractTitle, getAuthorDisplayName, getRepoId, SessionIdForPr, toOpenPullRequestWebviewUri, truncatePrompt } from '../vscode/copilotCodingAgentUtils';
+import { CloudAgentBackend } from '../vscode/cloudAgentBackend';
 import { CopilotCloudGitOperationsManager } from './copilotCloudGitOperationsManager';
 import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotCloudSessionContentBuilder';
+import { JobsApiBackend } from './jobsApiBackend';
+import { StubTaskApiClient, TaskApiBackend } from './taskApiBackend';
 import { IPullRequestFileChangesService } from './pullRequestFileChangesService';
 import MarkdownIt = require('markdown-it');
 
@@ -304,6 +307,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	// Workspace storage keys
 	private readonly WORKSPACE_CONTEXT_PREFIX = 'copilot.cloudAgent';
 
+	// Backend abstraction for Jobs API / Task API migration. Selection happens in the constructor.
+	private readonly _backend: CloudAgentBackend;
+
 	constructor(
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
 		@IGitService private readonly _gitService: IGitService,
@@ -320,8 +326,20 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		@IDomainService private readonly _domainService: IDomainService,
 		@IOTelService private readonly _otelService: IOTelService,
 		@IFileSystemService private readonly _fileSystemService: IFileSystemService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+
+		// Select Cloud Agent backend based on the `chat.cloudAgentBackend.version` setting.
+		// Default 'v1' keeps existing Jobs API behavior; 'v2' opts in to the experimental Task API backend.
+		// Note: read once at construction — changes to the setting require an extension host reload to take effect.
+		const backendVersion = configurationService.getConfig(ConfigKey.CloudAgentBackendVersion);
+		if (backendVersion === 'v2') {
+			this._backend = new TaskApiBackend(new StubTaskApiClient(this.logService), this.logService);
+		} else {
+			this._backend = new JobsApiBackend(this._octoKitService, this.logService, this.telemetry, this._otelService);
+		}
+
 		this.registerCommands();
 
 		// Refresh when CAPI URL changes (e.g., when GHE Copilot token arrives and updates the base URL)
@@ -348,8 +366,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				let intervalMs: number;
 				let hasHistoricalSessions: boolean;
 				try {
-					const sessions = await Promise.all(repoIds.map(repoId => this._octoKitService.getAllSessions(`${repoId.org}/${repoId.repo}`, false, {})));
-					hasHistoricalSessions = sessions.some(s => s.length > 0);
+					const sessionList = await this._backend.fetchSessionList(repoIds, false, false);
+					hasHistoricalSessions = sessionList.length > 0;
 					intervalMs = this.getRefreshIntervalTime(hasHistoricalSessions);
 				} catch (e) {
 					this.logService.error(`Error during background refresh setup: ${e instanceof Error ? e.message : String(e)}`);
@@ -360,11 +378,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				telemetryObj.intervalMs = intervalMs;
 				telemetryObj.hasHistoricalSessions = hasHistoricalSessions;
 				const schedulerCallback = async () => {
-					let sessions = [];
 					try {
-						sessions = await Promise.all(repoIds.map(repoId => this._octoKitService.getAllSessions(`${repoId.org}/${repoId.repo}`, true, {})));
-						sessions = sessions.flat();
-						if (this.cachedSessionsSize !== sessions.length) {
+						const sessionList = await this._backend.fetchSessionList(repoIds, false, true);
+						if (this.cachedSessionsSize !== sessionList.length) {
 							this.refresh();
 						}
 					} catch (e) {
@@ -705,7 +721,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			// Fetch only the active sessions using allSettled to handle individual failures
 			const sessionResults = await Promise.allSettled(
 				Array.from(this.activeSessionIds).map(sessionId =>
-					this._octoKitService.getSessionInfo(sessionId, CLOUD_SESSIONS_AUTH_OPTIONS)
+					this._backend.getSessionInfo(sessionId)
 				)
 			);
 
@@ -1107,29 +1123,16 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				this.logService.debug('copilotCloudSessionsProvider#provideChatSessionItems: not a GitHub repo, returning empty');
 				return [];
 			}
-			let sessions = [];
-			if (vscode.workspace.isAgentSessionsWorkspace || !repoIds || repoIds.length === 0) {
-				sessions = await this._octoKitService.getAllSessions(undefined, true, {});
-			} else {
-				sessions = (await Promise.all(repoIds.map(repo => this._octoKitService.getAllSessions(`${repo.org}/${repo.repo}`, true, {})))).flat();
-			}
-			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: fetched ${sessions.length} sessions`);
-			this.cachedSessionsSize = sessions.length;
-
-			// Group sessions by resource_id and keep only the latest per resource_id
-			const latestSessionsMap = new Map<number, SessionInfo>();
-			for (const session of sessions) {
-				const existing = latestSessionsMap.get(session.resource_id);
-				if (!existing || this.shouldPushSession(session, existing)) {
-					latestSessionsMap.set(session.resource_id, session);
-				}
-			}
+			const sessionList = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentSessionsWorkspace, true);
+			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: fetched ${sessionList.length} grouped sessions`);
+			this.cachedSessionsSize = sessionList.length;
 
 			// Track active sessions for background polling
 			const newActiveSessionIds = new Set<string>();
-			for (const session of latestSessionsMap.values()) {
-				if (session.state === 'in_progress' || session.state === 'queued') {
-					newActiveSessionIds.add(session.id);
+			for (const entry of sessionList) {
+				const s = entry.latestSession;
+				if (s.state === 'in_progress' || s.state === 'queued') {
+					newActiveSessionIds.add(s.id);
 				}
 			}
 
@@ -1140,21 +1143,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			} else {
 				this.stopActiveSessionPolling();
 			}
-
-			// Fetch PRs for all unique resource_global_ids in parallel
-			const uniqueGlobalIds = new Set(Array.from(latestSessionsMap.values()).map(s => s.resource_global_id));
-			const prFetches = Array.from(uniqueGlobalIds).map(async globalId => {
-				try {
-					const pr = await this._octoKitService.getPullRequestFromGlobalId(globalId, {});
-					return { globalId, pr };
-				} catch (e) {
-					this.logService.warn(`Failed to fetch PR for global ID ${globalId}: ${e instanceof Error ? e.message : String(e)}`);
-					return { globalId, pr: null };
-				}
-			});
-			const prResults = await Promise.all(prFetches);
-			const prMap = new Map(prResults.filter(r => r.pr).map(r => [r.globalId, r.pr!]));
-			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: resolved ${prMap.size}/${uniqueGlobalIds.size} PRs from global IDs`);
 
 			const validateISOTimestamp = (date: string | undefined): number | undefined => {
 				try {
@@ -1168,12 +1156,13 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				} catch { }
 			};
 
-			// Create session items from latest sessions
-			const sessionItems = await Promise.all(Array.from(latestSessionsMap.values()).map(async sessionItem => {
-				const pr = prMap.get(sessionItem.resource_global_id);
+			// Create session items from grouped entries
+			const sessionItems = await Promise.all(sessionList.map(async entry => {
+				const pr = entry.pullRequest;
 				if (!pr) {
 					return undefined;
 				}
+				const sessionItem = entry.latestSession;
 
 				const multiDiffPart = await this._prFileChangesService.getFileChangesMultiDiffPart(pr);
 				const changes = multiDiffPart?.value?.map(change => new vscode.ChatSessionChangedFile(
@@ -1249,20 +1238,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		return hasGitHubRepo;
 	}
 
-	private shouldPushSession(sessionItem: SessionInfo, existing: SessionInfo | undefined): boolean {
-		if (!existing) {
-			return true;
-		}
-		const existingDate = new Date(existing.last_updated_at);
-		const newDate = new Date(sessionItem.last_updated_at);
-		return newDate > existingDate;
-	}
-
 	async provideChatSessionContent(resource: Uri, token: vscode.CancellationToken): Promise<vscode.ChatSession> {
-		const indexedSessionId = SessionIdForPr.parse(resource);
+		const identity = this._backend.parseSessionId(resource);
 		let pullRequestNumber: number | undefined;
-		if (indexedSessionId) {
-			pullRequestNumber = indexedSessionId.prNumber;
+		if (identity?.type === 'pr') {
+			pullRequestNumber = identity.prNumber;
 		}
 		if (typeof pullRequestNumber === 'undefined') {
 			pullRequestNumber = SessionIdForPr.parsePullRequestNumber(resource);
@@ -1283,8 +1263,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				summaryReference.complete(undefined);
 				return undefined;
 			}
-			const jobInfo = await this._octoKitService.getJobBySessionId(repoOwner, repoName, sessions[0].id, 'vscode-copilot-chat', CLOUD_SESSIONS_AUTH_OPTIONS);
-			let prompt = jobInfo?.problem_statement || 'Initial Implementation';
+			const content = await this._backend.fetchSessionContent(repoOwner, repoName, sessions);
+			let prompt = content.initialPrompt || 'Initial Implementation';
 			// When delegating, we append the summary to the prompt, & that can be very large and doesn't look great.
 			// Turn the summary into a reference instead.
 			const info = this._chatDelegationSummaryService.extractPrompt(sessions[0].id, prompt);
@@ -1339,7 +1319,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		});
 
 		const sessionContentBuilder = new ChatSessionContentBuilder(CopilotCloudSessionsProvider.TYPE, this._gitService);
-		const history = await sessionContentBuilder.buildSessionHistory(getProblemStatement(pr.repository.owner.login, pr.repository.name, sortedSessions), sortedSessions, pr, (sessionId: string) => this._octoKitService.getSessionLogs(sessionId, CLOUD_SESSIONS_AUTH_OPTIONS), storedReferences);
+		const history = await sessionContentBuilder.buildSessionHistory(getProblemStatement(pr.repository.owner.login, pr.repository.name, sortedSessions), sortedSessions, pr, (sessionId: string) => this._backend.getSessionLogs(sessionId), storedReferences);
 
 		// const selectedCustomAgent = undefined; /* TODO: Needs API to support this. */
 		// const selectedModel = undefined; /* TODO: Needs API to support this. */
@@ -1401,7 +1381,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 	private createActiveResponseCallback(pr: PullRequestSearchItem, sessionId: string): (stream: vscode.ChatResponseStream, token: vscode.CancellationToken) => Thenable<void> {
 		return async (stream: vscode.ChatResponseStream, token: vscode.CancellationToken) => {
-			await this.waitForQueuedToInProgress(sessionId, token);
+			const ready = await this._backend.waitForSessionReady(sessionId, token);
+			if (ready) {
+				this.refresh();
+			}
 			return this.streamSessionLogs(stream, pr, sessionId, token);
 		};
 	}
@@ -2201,14 +2184,14 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					}
 
 					// Get the specific session info
-					const sessionInfo = await this._octoKitService.getSessionInfo(sessionId, CLOUD_SESSIONS_AUTH_OPTIONS);
+					const sessionInfo = await this._backend.getSessionInfo(sessionId);
 					if (!sessionInfo || token.isCancellationRequested) {
 						complete();
 						return;
 					}
 
 					// Get session logs
-					const logs = await this._octoKitService.getSessionLogs(sessionId, CLOUD_SESSIONS_AUTH_OPTIONS);
+					const logs = await this._backend.getSessionLogs(sessionId);
 
 					// Check if session is still in progress
 					if (sessionInfo.state !== 'in_progress') {
@@ -2369,58 +2352,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}
 	}
 
-	private async waitForQueuedToInProgress(
-		sessionId: string,
-		token?: vscode.CancellationToken
-	): Promise<SessionInfo | undefined> {
-		let sessionInfo: SessionInfo | undefined;
-
-		const waitForQueuedMaxRetries = 3;
-		const waitForQueuedDelay = 5_000; // 5 seconds
-
-		// Allow for a short delay before the session is marked as 'queued'
-		let waitForQueuedCount = 0;
-		do {
-			sessionInfo = await this._octoKitService.getSessionInfo(sessionId, CLOUD_SESSIONS_AUTH_OPTIONS);
-			if (sessionInfo && sessionInfo.state === 'queued') {
-				this.logService.trace('Queued session found');
-				break;
-			}
-			if (waitForQueuedCount < waitForQueuedMaxRetries) {
-				this.logService.trace('Session not yet queued, waiting...');
-				await new Promise(resolve => setTimeout(resolve, waitForQueuedDelay));
-			}
-			++waitForQueuedCount;
-		} while (waitForQueuedCount <= waitForQueuedMaxRetries && (!token || !token.isCancellationRequested));
-
-		if (!sessionInfo || sessionInfo.state !== 'queued') {
-			if (sessionInfo?.state === 'in_progress') {
-				this.logService.trace('Session already in progress');
-				this.refresh();
-				return sessionInfo;
-			}
-			// Failure
-			this.logService.trace('Failed to find queued session');
-			return;
-		}
-
-		const maxWaitTime = 2 * 60 * 1_000; // 2 minutes
-		const pollInterval = 3_000; // 3 seconds
-		const startTime = Date.now();
-
-		this.logService.trace(`Session ${sessionInfo.id} is queued, waiting for transition to in_progress...`);
-		while (Date.now() - startTime < maxWaitTime && (!token || !token.isCancellationRequested)) {
-			const sessionInfo = await this._octoKitService.getSessionInfo(sessionId, CLOUD_SESSIONS_AUTH_OPTIONS);
-			if (sessionInfo?.state === 'in_progress') {
-				this.logService.trace(`Session ${sessionInfo.id} now in progress.`);
-				this.refresh();
-				return sessionInfo;
-			}
-			await new Promise(resolve => setTimeout(resolve, pollInterval));
-		}
-		this.logService.error(`Timed out waiting for session ${sessionId} to transition from queued to in_progress.`);
-	}
-
 	private async waitForNewSession(
 		pullRequest: PullRequestSearchItem,
 		stream: vscode.ChatResponseStream,
@@ -2446,11 +2377,12 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				if (!waitForTransitionToInProgress) {
 					return newSession;
 				}
-				const inProgressSession = await this.waitForQueuedToInProgress(newSession.id, token);
+				const inProgressSession = await this._backend.waitForSessionReady(newSession.id, token);
 				if (!inProgressSession) {
 					stream.markdown(vscode.l10n.t('Timed out waiting for cloud agent to begin work. Please try again shortly.'));
 					return;
 				}
+				this.refresh();
 				return inProgressSession;
 			}
 
@@ -2479,58 +2411,21 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				this.logService.error(`Could not find pull request #${pullRequestNumber}`);
 				return;
 			}
-			const commentBody = `@${targetAgent} ${userPrompt} ${summary ? '\n\n' + summary : ''}`;
 
-			const commentResult = await this._octoKitService.addPullRequestComment(pr.id, commentBody, CLOUD_SESSIONS_AUTH_OPTIONS);
+			const commentResult = await this._backend.sendFollowUp(pr.id, userPrompt + (summary ? '\n\n' + summary : ''), targetAgent);
 			if (!commentResult) {
 				this.logService.error(`Failed to add comment to PR #${pullRequestNumber}`);
 				return;
 			}
-			// allow-any-unicode-next-line
-			return vscode.l10n.t('🚀 Follow-up comment added to [#{0}]({1})', pullRequestNumber, commentResult.url);
+			return commentResult.url
+				// allow-any-unicode-next-line
+				? vscode.l10n.t('🚀 Follow-up comment added to [#{0}]({1})', pullRequestNumber, commentResult.url)
+				// allow-any-unicode-next-line
+				: vscode.l10n.t('🚀 Follow-up comment added to #{0}', pullRequestNumber);
 		} catch (err) {
 			this.logService.error(`Failed to add follow-up comment to PR #${pullRequestNumber}: ${err}`);
 			return;
 		}
-	}
-
-	// https://github.com/github/sweagentd/blob/main/docs/adr/0001-create-job-api.md
-	private validateRemoteAgentJobResponse(response: unknown): response is RemoteAgentJobResponse {
-		return typeof response === 'object' && response !== null && 'job_id' in response && 'session_id' in response;
-	}
-
-	private async waitForJobWithPullRequest(
-		owner: string,
-		repo: string,
-		jobId: string,
-		token?: vscode.CancellationToken
-	): Promise<JobInfo | undefined> {
-		const maxWaitTime = 30 * 1000; // 30 seconds
-		const pollInterval = 2000; // 2 seconds
-		const startTime = Date.now();
-
-		this.logService.trace(`Waiting for job ${jobId} to have pull request information...`);
-
-		while (Date.now() - startTime < maxWaitTime && (!token || !token.isCancellationRequested)) {
-			const jobInfo = await this._octoKitService.getJobByJobId(owner, repo, jobId, 'vscode-copilot-chat', CLOUD_SESSIONS_AUTH_OPTIONS);
-			if (jobInfo && jobInfo.pull_request && jobInfo.pull_request.number) {
-				/* __GDPR__
-					"copilotcloud.chat.remoteAgentJobPullRequestReady" : {
-						"owner": "joshspicer",
-						"comment": "Event sent when a remote agent job first returns pull request information."
-					}
-				*/
-				this.telemetry.sendMSFTTelemetryEvent('copilotcloud.chat.remoteAgentJobPullRequestReady');
-				GenAiMetrics.incrementCloudPrReadyCount(this._otelService);
-				this.logService.trace(`Job ${jobId} now has pull request #${jobInfo.pull_request.number}`);
-				this.refresh();
-				return jobInfo;
-			}
-			await new Promise(resolve => setTimeout(resolve, pollInterval));
-		}
-
-		this.logService.warn(`Timed out waiting for job ${jobId} to have pull request information`);
-		return undefined;
 	}
 
 	private async invokeRemoteAgent(prompt: string, problemContext: string, token: vscode.CancellationToken, stream: vscode.ChatResponseStream, base_ref: string, head_ref?: string, customAgentName?: string, modelName?: string, partnerAgentName?: string, selectedRepository?: string): Promise<{ number: number; sessionId: string }> {
@@ -2583,85 +2478,37 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			}
 		}
 
-		const resolvePartnerAgentName = (partnerAgentName?: string): { agent_id?: number } => {
-			this.logService.trace(`Resolving partner agent from: ${partnerAgentName}`);
-			if (!partnerAgentName || partnerAgentName === DEFAULT_PARTNER_AGENT_ID) {
-				return {};
-			}
-			// try convert to number
+		let partnerAgentId: number | undefined;
+		if (partnerAgentName && partnerAgentName !== DEFAULT_PARTNER_AGENT_ID) {
 			const partnerAgentIdNum = Number(partnerAgentName);
 			if (isNaN(partnerAgentIdNum)) {
 				this.logService.warn(`Invalid partner agent name/id provided: ${partnerAgentName}`);
-				return {};
-			}
-			return { agent_id: partnerAgentIdNum };
-		};
-
-		const payload: RemoteAgentJobPayload = {
-			problem_statement: problemStatement,
-			event_content: prompt,
-			event_type: 'visual_studio_code_remote_agent_tool_invoked',
-			...(customAgentName && customAgentName !== DEFAULT_CUSTOM_AGENT_ID && { custom_agent: customAgentName }),
-			...(modelName && modelName !== DEFAULT_MODEL_ID && { model: modelName }),
-			...(resolvePartnerAgentName(partnerAgentName)),
-			pull_request: {
-				title,
-				body_placeholder: formatBodyPlaceholder(title),
-				base_ref,
-				body_suffix,
-				...(head_ref && { head_ref }),
-			}
-		};
-
-		/* __GDPR__
-			"copilotcloud.chat.remoteAgentJobInvoke" : {
-				"owner": "joshspicer",
-				"comment": "Event sent when a remote agent job invocation starts.",
-				"hasHeadRef": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether a head ref was provided for delegation." }
-			}
-		*/
-		this.telemetry.sendMSFTTelemetryEvent('copilotcloud.chat.remoteAgentJobInvoke', {
-			hasHeadRef: String(!!head_ref)
-		});
-
-		stream?.progress(vscode.l10n.t('Delegating to cloud agent'));
-		this.logService.debug(`[postCopilotAgentJob] Invoking cloud agent job with payload: ${JSON.stringify(payload)}`);
-		const response = await this._octoKitService.postCopilotAgentJob(repoOwner, repoName, JOBS_API_VERSION, payload, CLOUD_SESSIONS_AUTH_OPTIONS);
-		this.logService.debug(`[postCopilotAgentJob] Received response from cloud agent job invocation: ${JSON.stringify(response)}`);
-		if (!this.validateRemoteAgentJobResponse(response)) {
-			const statusCode = response?.status;
-			switch (statusCode) {
-				case 401:
-					throw new Error(vscode.l10n.t('Cloud agent is not authorized to run on this repository. This may be because the Copilot coding agent is disabled for your organization, or your active GitHub account does not have push access to the target repository.'));
-				case 403:
-					throw new Error(vscode.l10n.t('Cloud agent is not enabled for this repository. You may need to enable it in [GitHub settings]({0}) or contact your organization administrator.', `https://${repoHost}/settings/copilot/coding_agent`));
-				case 404:
-					throw new Error(vscode.l10n.t('The repository `{0}/{1}` was not found or you do not have access to it.', repoOwner, repoName));
-				case 422:
-					// NOTE: Although earlier checks should prevent this, ensure that if we end up
-					//       with a 422 from the API, we give a useful error message
-					throw new Error(vscode.l10n.t('Cloud agent was unable to create a pull request with the specified base branch `{0}`. Please push the branch to the remote and verify repository rules allow this operation. For empty repos, push an initial commit and try again.', base_ref));
-				case 500:
-					throw new Error(vscode.l10n.t('Cloud agent service encountered an internal error. Please try again later.'));
-				default:
-					throw new Error(vscode.l10n.t('Received invalid response {0} from cloud agent.', statusCode ? statusCode : ''));
+			} else {
+				partnerAgentId = partnerAgentIdNum;
 			}
 		}
 
-		stream.progress(vscode.l10n.t('Creating pull request'));
-		const jobInfo = await this.waitForJobWithPullRequest(repoOwner, repoName, response.job_id, token);
+		const result = await this._backend.createSession({
+			owner: repoOwner,
+			repo: repoName,
+			host: repoHost,
+			title,
+			prompt,
+			problemStatement,
+			baseRef: base_ref,
+			headRef: head_ref,
+			customAgent: customAgentName && customAgentName !== DEFAULT_CUSTOM_AGENT_ID ? customAgentName : undefined,
+			model: modelName && modelName !== DEFAULT_MODEL_ID ? modelName : undefined,
+			partnerAgentId,
+		}, stream, token);
 
-		if (!jobInfo || !jobInfo.pull_request) {
-			throw new Error(vscode.l10n.t('Failed to retrieve pull request information from job'));
+		if (result.kind !== 'pullRequest') {
+			// Task-shaped result: backend returned a task, but the current UI flow is PR-shaped.
+			// Task UI rendering lands in a follow-up PR alongside the real Task API client.
+			throw new Error(vscode.l10n.t('Task-shaped cloud sessions are not yet supported in this UI flow.'));
 		}
 
-		const { number } = jobInfo.pull_request;
-		if (!number || isNaN(number)) {
-			throw new Error(vscode.l10n.t('Invalid pull request number received from cloud agent'));
-		}
-		return {
-			number,
-			sessionId: response.session_id
-		};
+		this.refresh();
+		return { number: result.prNumber, sessionId: result.sessionId };
 	}
 }
