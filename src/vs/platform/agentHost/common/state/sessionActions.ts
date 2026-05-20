@@ -61,12 +61,26 @@ export {
 } from './protocol/actions.js';
 
 export {
-	NotificationType,
 	AuthRequiredReason,
-	type SessionAddedNotification,
-	type SessionRemovedNotification,
-	type AuthRequiredNotification,
+	type SessionAddedParams,
+	type SessionRemovedParams,
+	type SessionSummaryChangedParams,
+	type AuthRequiredParams,
 } from './protocol/notifications.js';
+
+/**
+ * String discriminants for the protocol notification methods that previously
+ * lived inside a `notification` wrapper. These values are the JSON-RPC method
+ * names sent over the wire by a channels-era server; they are also the `type`
+ * discriminant on {@link ProtocolNotification} variants.
+ */
+export const NotificationType = {
+	SessionAdded: 'root/sessionAdded',
+	SessionRemoved: 'root/sessionRemoved',
+	SessionSummaryChanged: 'root/sessionSummaryChanged',
+	AuthRequired: 'auth/required',
+} as const;
+export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
 
 // ---- Local aliases for short names ------------------------------------------
 // Consumers use these shorter names; they're type-only aliases.
@@ -100,8 +114,20 @@ import type {
 	RootConfigChangedAction,
 } from './protocol/actions.js';
 
-import type { ProtocolNotification } from './protocol/notifications.js';
+import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams, AuthRequiredParams } from './protocol/notifications.js';
 import type { RootAction as IRootAction_, SessionAction as ISessionAction_, ClientSessionAction as IClientSessionAction_, ServerSessionAction as IServerSessionAction_, TerminalAction as ITerminalAction_, ClientTerminalAction as IClientTerminalAction_, ChangesetAction as IChangesetAction_ } from './protocol/action-origin.generated.js';
+
+/**
+ * Discriminated union of all server→client protocol notifications other than
+ * the action envelope. Each variant carries its protocol `method` so callers
+ * can switch on `type` the same way they did against the old `NotificationType`
+ * enum.
+ */
+export type ProtocolNotification =
+	| ({ type: 'root/sessionAdded' } & SessionAddedParams)
+	| ({ type: 'root/sessionRemoved' } & SessionRemovedParams)
+	| ({ type: 'root/sessionSummaryChanged' } & SessionSummaryChangedParams)
+	| ({ type: 'auth/required' } & AuthRequiredParams);
 
 export type RootAction = IRootAction_;
 export type SessionAction = ISessionAction_;

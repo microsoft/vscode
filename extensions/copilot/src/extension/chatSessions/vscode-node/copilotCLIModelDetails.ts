@@ -6,9 +6,9 @@
 import type * as vscode from 'vscode';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
-import { ICopilotCLIModels, formatModelDetails, matchesCopilotCLIModel } from '../copilotcli/node/copilotCli';
+import { ICopilotCLIModels, matchesCopilotCLIModel } from '../copilotcli/node/copilotCli';
 import { ICopilotCLISession } from '../copilotcli/node/copilotcliSession';
-import { formatModelDetailsWithCredits } from '../../../platform/chat/common/chatModelDetails';
+import { formatModelDetails } from '../../../platform/chat/common/chatModelDetails';
 
 export interface CopilotCLIModelDetails {
 	readonly result: vscode.ChatResult;
@@ -37,10 +37,8 @@ export async function getCopilotCLIModelDetails(session: ICopilotCLISession, req
 		.find(modelInfo => !!modelInfo);
 
 	let details: string | undefined;
-	if (modelInfo && creditsUsed !== undefined) {
-		details = formatModelDetailsWithCredits(modelInfo.name, creditsUsed);
-	} else if (modelInfo) {
-		details = formatModelDetails(modelInfo);
+	if (modelInfo) {
+		details = formatModelDetails(modelInfo.name, modelInfo.multiplier, creditsUsed);
 	}
 
 	return {

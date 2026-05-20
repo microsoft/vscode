@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
+import { defineConfig } from 'eslint/config';
 import fs from 'fs';
 import { builtinModules } from 'module';
 import path from 'path';
@@ -22,7 +23,7 @@ const ignores = fs.readFileSync(path.join(import.meta.dirname, '.eslint-ignore')
 	.split(/\r\n|\n/)
 	.filter(line => line && !line.startsWith('#'));
 
-export default tseslint.config(
+export default defineConfig(
 	// Global ignores
 	{
 		ignores: [
@@ -338,7 +339,7 @@ export default tseslint.config(
 			'src/vs/workbench/services/remote/common/tunnelModel.ts',
 			'src/vs/workbench/services/search/common/textSearchManager.ts',
 			'src/vs/workbench/test/browser/workbenchTestServices.ts',
-			'src/vs/platform/agentHost/common/state/protocol/reducers.ts',
+			'src/vs/platform/agentHost/common/state/protocol/**',
 			'test/automation/src/playwrightDriver.ts',
 			'.eslint-plugin-local/**/*',
 		],

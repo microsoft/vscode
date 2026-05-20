@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { derived, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -20,8 +20,9 @@ import { AICustomizationManagementSection, BUILTIN_STORAGE, IAICustomizationWork
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSyncProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
+import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
-import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { getChatSessionType } from '../../../common/model/chatUri.js';
 
 suite('AICustomizationItemsModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,8 +31,8 @@ suite('AICustomizationItemsModel', () => {
 
 		let disposables: DisposableStore;
 		let instaService: TestInstantiationService;
-
-		let activeHarness: ISettableObservable<string>;
+		let activeSessionResource: ISettableObservable<URI>;
+		let activeHarness: IObservable<string>;
 		let availableHarnesses: ISettableObservable<readonly IHarnessDescriptor[]>;
 		let descriptorA: IHarnessDescriptor;
 		let descriptorB: IHarnessDescriptor;
@@ -39,9 +40,10 @@ suite('AICustomizationItemsModel', () => {
 		let providerA_callCount: number;
 		let providerA_items: ICustomizationItem[];
 		let plugins: ISettableObservable<readonly IAgentPlugin[]>;
-		let listPromptFilesResult: { uri: URI; storage: PromptsStorage.user; type: PromptsType }[];
+		let listPromptFilesResult: Awaited<ReturnType<IPromptsService['listPromptFiles']>>;
+		let disabledPromptFilesResult: ResourceSet;
 
-		function createDescriptor(id: string, provider: ICustomizationItemProvider, syncProvider?: ICustomizationSyncProvider): IHarnessDescriptor {
+		function createDescriptor(id: string, provider: ICustomizationItemProvider | undefined, syncProvider?: ICustomizationSyncProvider): IHarnessDescriptor {
 			return {
 				id,
 				label: id,
@@ -58,22 +60,24 @@ suite('AICustomizationItemsModel', () => {
 			providerA_callCount = 0;
 			providerA_items = [];
 			listPromptFilesResult = [];
+			disabledPromptFilesResult = new ResourceSet();
 
 			const providerA: ICustomizationItemProvider = {
 				onDidChange: providerA_didChange.event,
-				provideChatSessionCustomizations: (_token: CancellationToken) => {
+				provideChatSessionCustomizations: (sessionResource: URI, token: CancellationToken) => {
 					providerA_callCount++;
 					return Promise.resolve(providerA_items.slice());
 				},
 			};
 			const providerB: ICustomizationItemProvider = {
 				onDidChange: Event.None,
-				provideChatSessionCustomizations: (_token: CancellationToken) => Promise.resolve([]),
+				provideChatSessionCustomizations: (sessionResource: URI, token: CancellationToken) => Promise.resolve([]),
 			};
 			descriptorA = createDescriptor('A', providerA);
 			descriptorB = createDescriptor('B', providerB);
 
-			activeHarness = observableValue('activeHarness', 'A');
+			activeSessionResource = observableValue('activeSessionResource', URI.parse(`A:///session`));
+			activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 			availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', [descriptorA, descriptorB]);
 			plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
 
@@ -90,7 +94,7 @@ suite('AICustomizationItemsModel', () => {
 				findAgentSkills: async () => [],
 				getHooks: async () => undefined,
 				getInstructionFiles: async () => [],
-				getDisabledPromptFiles: () => new ResourceSet(),
+				getDisabledPromptFiles: () => disabledPromptFilesResult,
 			});
 
 			instaService.stub(IAICustomizationWorkspaceService, {
@@ -110,9 +114,12 @@ suite('AICustomizationItemsModel', () => {
 			});
 
 			instaService.stub(ICustomizationHarnessService, {
+				activeSessionResource,
 				activeHarness,
 				availableHarnesses,
-				setActiveHarness: (id: string) => activeHarness.set(id, undefined),
+				setActiveSession: (sessionResource: URI) => {
+					activeSessionResource.set(sessionResource, undefined);
+				},
 				getStorageSourceFilter: () => ({ sources: [] }),
 				getActiveDescriptor: () => availableHarnesses.get().find(d => d.id === activeHarness.get())!,
 				findHarnessById: (id: string) => availableHarnesses.get().find(d => d.id === id),
@@ -166,9 +173,15 @@ suite('AICustomizationItemsModel', () => {
 			model.getItems(AICustomizationManagementSection.Agents);
 			await timeout(0);
 			assert.strictEqual(providerA_callCount, 1);
-			// Reading a different section triggers a separate fetch for that section only.
+			// Reading a different section does not trigger, as the items are cached
 			model.getItems(AICustomizationManagementSection.Skills);
 			await timeout(0);
+			assert.strictEqual(providerA_callCount, 1);
+
+			providerA_didChange.fire();
+			await timeout(0);
+			assert.strictEqual(providerA_callCount, 2);
+			model.getItems(AICustomizationManagementSection.Agents);
 			assert.strictEqual(providerA_callCount, 2);
 		});
 
@@ -188,29 +201,10 @@ suite('AICustomizationItemsModel', () => {
 			model.getItems(AICustomizationManagementSection.Agents);
 			await timeout(0);
 			const sourceA = model.getActiveItemSource();
-			activeHarness.set('B', undefined);
+			activeSessionResource.set(URI.parse('B://session'), undefined);
 			await timeout(0);
 			const sourceB = model.getActiveItemSource();
 			assert.notStrictEqual(sourceA, sourceB);
-		});
-
-		test('source cache is keyed by descriptor identity (not id) — re-registration produces a fresh source', async () => {
-			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
-			model.getItems(AICustomizationManagementSection.Agents);
-			await timeout(0);
-			const sourceA1 = model.getActiveItemSource();
-
-			// Replace descriptor A with a fresh descriptor that re-uses the same id.
-			const replacementProvider: ICustomizationItemProvider = {
-				onDidChange: Event.None,
-				provideChatSessionCustomizations: async () => [],
-			};
-			const replacementA = createDescriptor('A', replacementProvider);
-			availableHarnesses.set([replacementA, descriptorB], undefined);
-			await timeout(0);
-
-			const sourceA2 = model.getActiveItemSource();
-			assert.notStrictEqual(sourceA1, sourceA2);
 		});
 
 		test('preserves provider-supplied plugin storage when pluginUri is omitted', async () => {
@@ -294,6 +288,109 @@ suite('AICustomizationItemsModel', () => {
 				name: 'Coder',
 				groupKey: BUILTIN_STORAGE,
 				isBuiltin: true,
+			}]);
+		});
+
+		test('prompt service items preserve storage grouping, metadata, and disabled state without sync provider', async () => {
+			availableHarnesses.set([createDescriptor('A', undefined), descriptorB], undefined);
+			listPromptFilesResult = [{
+				uri: URI.parse('file:///workspace/agents/team-agent.agent.md'),
+				storage: PromptsStorage.local,
+				type: PromptsType.agent,
+				name: 'Team Agent',
+				description: 'Workspace agent description',
+			}];
+			disabledPromptFilesResult = new ResourceSet([listPromptFilesResult[0].uri]);
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const items = model.getItems(AICustomizationManagementSection.Agents);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Agents);
+
+			assert.deepStrictEqual(items.get().map(item => ({
+				id: item.id,
+				uri: item.uri.toString(),
+				name: item.name,
+				description: item.description,
+				storage: item.storage,
+				disabled: item.disabled,
+				groupKey: item.groupKey,
+				syncable: item.syncable,
+				synced: item.synced,
+			})), [{
+				id: 'file:///workspace/agents/team-agent.agent.md',
+				uri: 'file:///workspace/agents/team-agent.agent.md',
+				name: 'Team Agent',
+				description: 'Workspace agent description',
+				storage: PromptsStorage.local,
+				disabled: true,
+				groupKey: undefined,
+				syncable: undefined,
+				synced: undefined,
+			}]);
+		});
+
+		test('prompt service items only get sync decoration when a sync provider exists', async () => {
+			const syncProvider: ICustomizationSyncProvider = {
+				onDidChange: Event.None,
+				isDisabled: uri => uri.toString() === 'file:///user/agents/user-agent.agent.md',
+				setDisabled: () => { },
+			};
+			availableHarnesses.set([createDescriptor('A', undefined, syncProvider), descriptorB], undefined);
+			listPromptFilesResult = [{
+				uri: URI.parse('file:///workspace/agents/workspace-agent.agent.md'),
+				storage: PromptsStorage.local,
+				type: PromptsType.agent,
+				name: 'Workspace Agent',
+			}, {
+				uri: URI.parse('file:///user/agents/user-agent.agent.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.agent,
+				name: 'User Agent',
+			}, {
+				uri: URI.parse('file:///plugins/helper/agents/plugin-agent.agent.md'),
+				storage: PromptsStorage.plugin,
+				type: PromptsType.agent,
+				name: 'Plugin Agent',
+				pluginUri: URI.parse('file:///plugins/helper'),
+				source: PromptFileSource.Plugin,
+			}];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const items = model.getItems(AICustomizationManagementSection.Agents);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Agents);
+
+			assert.deepStrictEqual(items.get().map(item => ({
+				id: item.id,
+				name: item.name,
+				storage: item.storage,
+				syncable: item.syncable,
+				synced: item.synced,
+				groupKey: item.groupKey,
+				disabled: item.disabled,
+			})), [{
+				id: 'sync-file:///user/agents/user-agent.agent.md',
+				name: 'User Agent',
+				storage: PromptsStorage.user,
+				syncable: true,
+				synced: false,
+				groupKey: undefined,
+				disabled: false,
+			}, {
+				id: 'sync-file:///workspace/agents/workspace-agent.agent.md',
+				name: 'Workspace Agent',
+				storage: PromptsStorage.local,
+				syncable: true,
+				synced: true,
+				groupKey: undefined,
+				disabled: false,
+			}, {
+				id: 'file:///plugins/helper/agents/plugin-agent.agent.md',
+				name: 'Plugin Agent',
+				storage: PromptsStorage.plugin,
+				syncable: undefined,
+				synced: undefined,
+				groupKey: undefined,
+				disabled: false,
 			}]);
 		});
 
@@ -407,7 +504,7 @@ suite('AICustomizationItemsModel', () => {
 			};
 			const providerWithSync: ICustomizationItemProvider = {
 				onDidChange: providerA_didChange.event,
-				provideChatSessionCustomizations: (_token: CancellationToken) => {
+				provideChatSessionCustomizations: (sessionResource: URI, token: CancellationToken) => {
 					providerA_callCount++;
 					return Promise.resolve(providerA_items.slice());
 				},
@@ -447,7 +544,7 @@ suite('AICustomizationItemsModel', () => {
 			};
 			const providerWithSync: ICustomizationItemProvider = {
 				onDidChange: providerA_didChange.event,
-				provideChatSessionCustomizations: (_token: CancellationToken) => {
+				provideChatSessionCustomizations: (sessionResource: URI, token: CancellationToken) => {
 					providerA_callCount++;
 					return Promise.resolve(providerA_items.slice());
 				},
@@ -483,7 +580,7 @@ suite('AICustomizationItemsModel', () => {
 
 			const provider: ICustomizationItemProvider = {
 				onDidChange: providerDidChange.event,
-				provideChatSessionCustomizations: (_token: CancellationToken) => Promise.resolve(providerItems.slice()),
+				provideChatSessionCustomizations: (sessionResource: URI, token: CancellationToken) => Promise.resolve(providerItems.slice()),
 			};
 			const descriptor: IHarnessDescriptor = {
 				id: 'A',
@@ -492,7 +589,7 @@ suite('AICustomizationItemsModel', () => {
 				getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [PromptsStorage.local, PromptsStorage.user] }),
 				itemProvider: provider,
 			};
-			const activeHarness = observableValue('activeHarness', 'A');
+			const sessionResource = URI.parse('A:///active-session');
 			const availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', [descriptor]);
 
 			instaService = workbenchInstantiationService({}, disposables);
@@ -524,10 +621,15 @@ suite('AICustomizationItemsModel', () => {
 				setOverrideProjectRoot: () => { },
 				clearOverrideProjectRoot: () => { },
 			});
+			const activeSessionResource = observableValue('activeSessionResource', sessionResource);
+			const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 			instaService.stub(ICustomizationHarnessService, {
+				activeSessionResource,
 				activeHarness,
 				availableHarnesses,
-				setActiveHarness: (id: string) => activeHarness.set(id, undefined),
+				setActiveSession: (sessionResource: URI) => {
+					activeSessionResource.set(sessionResource, undefined);
+				},
 				getStorageSourceFilter: () => ({ sources: [] }),
 				getActiveDescriptor: () => availableHarnesses.get().find(d => d.id === activeHarness.get())!,
 				findHarnessById: (id: string) => availableHarnesses.get().find(d => d.id === id),

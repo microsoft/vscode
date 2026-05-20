@@ -55,7 +55,7 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 		this._register(this.copilotCLIAgents.onDidChangeAgents(() => this._onDidChange.fire()));
 	}
 
-	async provideChatSessionCustomizations(token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
+	async provideChatSessionCustomizations(_sessionResource: vscode.Uri, token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
 		const [agents, instructions, skills, hooks, plugins] = await Promise.all([
 			this.getAgentItems(token),
 			this.getInstructionItems(token),
