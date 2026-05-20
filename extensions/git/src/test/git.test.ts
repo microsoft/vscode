@@ -645,7 +645,7 @@ suite('git', () => {
 	});
 
 	suite('isDescendant', () => {
-		test('regular paths', function () {
+		test('regular paths (posix)', function () {
 			if (process.platform !== 'win32') {
 				assert.strictEqual(isDescendant('/foo', '/foo/bar'), true);
 				assert.strictEqual(isDescendant('/foo/', '/foo/bar'), true);
@@ -661,10 +661,27 @@ suite('git', () => {
 				assert.strictEqual(isDescendant('/', '/'), true);
 			}
 		});
+
+		test('regular paths (win32)', function () {
+			if (process.platform === 'win32') {
+				assert.strictEqual(isDescendant('C:\\foo', 'C:\\foo\\bar'), true);
+				assert.strictEqual(isDescendant('C:\\foo\\', 'C:\\foo\\bar'), true);
+				assert.strictEqual(isDescendant('C:\\foo', 'C:\\bar\\baz'), false);
+				assert.strictEqual(isDescendant('C:\\foo', 'C:\\foo'), true);
+			}
+		});
+
+		test('drive root "C:\\" (win32)', function () {
+			if (process.platform === 'win32') {
+				assert.strictEqual(isDescendant('C:\\', 'C:\\foo'), true);
+				assert.strictEqual(isDescendant('C:\\', 'C:\\foo\\bar'), true);
+				assert.strictEqual(isDescendant('C:\\', 'C:\\'), true);
+			}
+		});
 	});
 
 	suite('pathEquals', () => {
-		test('regular paths', function () {
+		test('regular paths (posix)', function () {
 			if (process.platform !== 'win32') {
 				assert.strictEqual(pathEquals('/foo', '/foo'), true);
 				assert.strictEqual(pathEquals('/foo/', '/foo'), true);
@@ -678,6 +695,21 @@ suite('git', () => {
 				assert.strictEqual(pathEquals('/', '/foo'), false);
 			}
 		});
+
+		test('regular paths (win32)', function () {
+			if (process.platform === 'win32') {
+				assert.strictEqual(pathEquals('C:\\foo', 'C:\\foo'), true);
+				assert.strictEqual(pathEquals('C:\\foo\\', 'C:\\foo'), true);
+				assert.strictEqual(pathEquals('C:\\foo', 'C:\\bar'), false);
+			}
+		});
+
+		test('drive root "C:\\" (win32)', function () {
+			if (process.platform === 'win32') {
+				assert.strictEqual(pathEquals('C:\\', 'C:\\'), true);
+				assert.strictEqual(pathEquals('C:\\', 'C:\\foo'), false);
+			}
+		});
 	});
 
 	suite('relativePath', () => {
@@ -685,6 +717,13 @@ suite('git', () => {
 			if (process.platform !== 'win32') {
 				assert.strictEqual(relativePath('/', '/foo'), 'foo');
 				assert.strictEqual(relativePath('/', '/foo/bar'), 'foo/bar');
+			}
+		});
+
+		test('drive root "C:\\" as base (win32)', function () {
+			if (process.platform === 'win32') {
+				assert.strictEqual(relativePath('C:\\', 'C:\\foo'), 'foo');
+				assert.strictEqual(relativePath('C:\\', 'C:\\foo\\bar'), 'foo\\bar');
 			}
 		});
 	});
