@@ -596,7 +596,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private _isSensitivePrompt(prompt: string): boolean {
-		if (isNonInteractiveSudoSensitivePrompt(this._command, prompt)) {
+		if (isCanonicalSudoSPrompt(this._command, prompt)) {
 			return false;
 		}
 
@@ -604,7 +604,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 }
 
-function isNonInteractiveSudoSensitivePrompt(command: string, prompt: string): boolean {
+function isCanonicalSudoSPrompt(command: string, prompt: string): boolean {
 	return /(?:^|\s)sudo\s+-S(?:\s|$)/.test(command) && /^\[sudo\]\s+password for .+:\s*$/i.test(prompt);
 }
 
