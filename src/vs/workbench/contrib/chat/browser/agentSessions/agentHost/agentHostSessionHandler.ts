@@ -1790,13 +1790,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		const questions: IChatQuestion[] = (inputReq.questions ?? []).map((q): IChatQuestion => {
+			let title = q.title;
+			let message = q.message;
+			if (!title) {
+				const EOL = q.message.indexOf('\n');
+				title = EOL === -1 ? q.message : q.message.substring(0, EOL).trim();
+				message = EOL === -1 ? '' : q.message.substring(EOL + 1).trim();
+			}
+			const detailedMessage = new MarkdownString(message, { isTrusted: false });
+
 			switch (q.kind) {
 				case SessionInputQuestionKind.SingleSelect:
 					return {
 						id: q.id,
 						type: 'singleSelect',
-						title: q.title ?? q.message,
-						description: q.title !== undefined ? q.message : undefined,
+						title,
+						detailedMessage,
 						required: q.required,
 						allowFreeformInput: q.allowFreeformInput ?? true,
 						options: q.options.map(o => ({ id: o.id, label: o.label, value: o.id })),
@@ -1805,8 +1814,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return {
 						id: q.id,
 						type: 'multiSelect',
-						title: q.title ?? q.message,
-						description: q.title !== undefined ? q.message : undefined,
+						title,
+						detailedMessage,
 						required: q.required,
 						allowFreeformInput: q.allowFreeformInput ?? true,
 						options: q.options.map(o => ({ id: o.id, label: o.label, value: o.id })),
@@ -1815,8 +1824,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return {
 						id: q.id,
 						type: 'text',
-						title: q.title ?? q.message,
-						description: q.title !== undefined ? q.message : undefined,
+						title,
+						detailedMessage,
 						required: q.required,
 						defaultValue: q.defaultValue,
 					};
@@ -1824,8 +1833,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return {
 						id: q.id,
 						type: 'text',
-						title: q.title ?? q.message,
-						description: q.title !== undefined ? q.message : undefined,
+						title,
+						detailedMessage,
 						required: q.required,
 					};
 			}
@@ -1931,6 +1940,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._chatWidgetService.getWidgetBySessionResource(opts.sessionResource)?.input.clearQuestionCarousel(undefined, inputReq.id);
 		}));
 	}
+
 
 	/**
 	 * Handle a URL-style {@link SessionInputRequest} by rendering a
