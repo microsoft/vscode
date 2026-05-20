@@ -42,7 +42,7 @@ export class Agents {
 	 * secondary binding, which maps to plain Ctrl+L).
 	 */
 	async startNewSession(): Promise<void> {
-		await this.code.dispatchKeybinding('ctrl+l', () => Promise.resolve());
+		await this.code.dispatchKeybinding('ctrl+l', async () => this.waitForNewSessionView());
 	}
 
 	/**
