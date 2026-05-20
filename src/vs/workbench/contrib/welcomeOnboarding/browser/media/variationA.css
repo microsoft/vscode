@@ -454,7 +454,7 @@
 	font-size: 13px;
 	line-height: 40px;
 	background: var(--vscode-input-background);
-	box-shadow: inset 0 0 0 1px var(--vscode-input-border, var(--vscode-widget-border, rgba(255, 255, 255, 0.1)));
+	box-shadow: inset 0 0 0 1px var(--vscode-input-border, var(--vscode-widget-border));
 }
 
 .onboarding-a-signin-ghe-input .monaco-inputbox > .ibwrapper > .input {
@@ -483,7 +483,7 @@
 }
 
 .onboarding-a-signin-ghe-input .monaco-inputbox .action-item .action-label:hover {
-	background: var(--vscode-toolbar-hoverBackground, rgba(255, 255, 255, 0.08));
+	background: var(--vscode-toolbar-hoverBackground);
 }
 
 .onboarding-a-signin-ghe-input .monaco-inputbox .action-item .action-label:focus-visible {
@@ -510,10 +510,6 @@
 	overflow-wrap: anywhere;
 	word-break: break-word;
 	min-height: 16px;
-}
-
-.onboarding-a-signin-ghe-message.info {
-	color: var(--vscode-descriptionForeground);
 }
 
 .onboarding-a-signin-ghe-message.error {

@@ -115,7 +115,7 @@ export const ONBOARDING_STORAGE_KEY = 'welcomeOnboarding.state';
 /**
  * Regex matching a single-word GHE instance slug (e.g. "octocat").
  */
-export const GHE_DOMAIN_REGEX = /^[a-zA-Z\-_]+$/;
+export const GHE_DOMAIN_REGEX = /^[a-zA-Z0-9\-_]+$/;
 
 /**
  * Regex matching a full GHE instance URI (e.g. "https://octocat.ghe.com").

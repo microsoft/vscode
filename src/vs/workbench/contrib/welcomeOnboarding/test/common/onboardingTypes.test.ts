@@ -49,4 +49,8 @@ suite('parseGheInstanceInput', () => {
 	test('input with numbers in domain is valid', () => {
 		assert.deepStrictEqual(parseGheInstanceInput('https://org123.ghe.com'), { kind: GheParseResultKind.FullUri, resolvedUri: 'https://org123.ghe.com' });
 	});
+
+	test('single word with numbers returns SingleWord', () => {
+		assert.deepStrictEqual(parseGheInstanceInput('org123'), { kind: GheParseResultKind.SingleWord, resolvedUri: 'https://org123.ghe.com' });
+	});
 });

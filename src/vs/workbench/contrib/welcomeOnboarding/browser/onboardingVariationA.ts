@@ -230,6 +230,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		this.disposables.add(addDisposableListener(this.backButton, EventType.CLICK, () => {
 			if (this.currentStepIndex === 0 && this.enterpriseSignInUiState === 'instance') {
 				this._logAction('cancelEnterpriseInstancePrompt');
+				this.enterpriseSignInWatch = undefined;
 				this._setEnterpriseSignInUiState('options');
 				return;
 			}
@@ -622,7 +623,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			}
 		};
 
-		this.stepDisposables.add(addDisposableListener(input, 'input', () => {
+		this.stepDisposables.add(inputBox.onDidChange(() => {
 			validate();
 		}));
 
@@ -638,6 +639,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				e.preventDefault();
 				e.stopPropagation();
 				this._logAction('cancelEnterpriseInstancePrompt');
+				this.enterpriseSignInWatch = undefined;
 				this._setEnterpriseSignInUiState('options');
 			}
 		}));
@@ -746,10 +748,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		} catch {
 			this.enterpriseSignInWatch = undefined;
 			this._setEnterpriseSignInUiState('instance');
-			this.notificationService.notify({
-				severity: Severity.Error,
-				message: localize('onboarding.signIn.enterprise.error', "GitHub Enterprise sign-in failed. Check your instance URL and try again."),
-			});
+			this._notifyEnterpriseSignInError();
 		}
 	}
 
@@ -779,13 +778,17 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			}
 
 			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
-			this.notificationService.notify({
-				severity: Severity.Error,
-				message: localize('onboarding.signIn.enterprise.error', "GitHub Enterprise sign-in failed. Check your instance URL and try again."),
-			});
+			this._notifyEnterpriseSignInError();
 		} finally {
 			this.enterpriseSignInWatch = undefined;
 		}
+	}
+
+	private _notifyEnterpriseSignInError(): void {
+		this.notificationService.notify({
+			severity: Severity.Error,
+			message: localize('onboarding.signIn.enterprise.error', "GitHub Enterprise sign-in failed. Check your instance URL and try again."),
+		});
 	}
 
 	// =====================================================================
