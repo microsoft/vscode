@@ -119,6 +119,82 @@ interface IGeckoMouseWheelEvent {
 	detail: number;
 }
 
+const MOUSE_WHEEL_FOCUS_GRACE_TIME = 50;
+
+interface IWindowMouseWheelEventFilterState {
+	readonly targetWindow: Window;
+	readonly onFocus: (event: Event) => void;
+	references: number;
+	lastFocusTime: number;
+}
+
+const windowMouseWheelEventFilterStates = new WeakMap<Window, IWindowMouseWheelEventFilterState>();
+
+export class WindowMouseWheelEventFilter {
+
+	private readonly _state: IWindowMouseWheelEventFilterState;
+
+	constructor(private readonly _targetWindow: Window) {
+		this._state = getWindowMouseWheelEventFilterState(this._targetWindow);
+		this._state.references++;
+	}
+
+	public shouldIgnore(e: IMouseWheelEvent): boolean {
+		if (!this._state.lastFocusTime) {
+			return false;
+		}
+
+		const eventTime = getEventTime(e, e.view?.window ?? this._targetWindow);
+		return eventTime > 0 && eventTime < this._state.lastFocusTime - MOUSE_WHEEL_FOCUS_GRACE_TIME;
+	}
+
+	public dispose(): void {
+		this._state.references--;
+		if (this._state.references === 0) {
+			this._state.targetWindow.removeEventListener('focus', this._state.onFocus, true);
+			windowMouseWheelEventFilterStates.delete(this._state.targetWindow);
+		}
+	}
+}
+
+function getWindowMouseWheelEventFilterState(targetWindow: Window): IWindowMouseWheelEventFilterState {
+	let state = windowMouseWheelEventFilterStates.get(targetWindow);
+	if (!state) {
+		state = {
+			targetWindow,
+			references: 0,
+			lastFocusTime: targetWindow.document.hasFocus() ? getWindowTime(targetWindow) : 0,
+			onFocus: (event: Event) => {
+				state!.lastFocusTime = getEventTime(event, targetWindow);
+			}
+		};
+		targetWindow.addEventListener('focus', state.onFocus, true);
+		windowMouseWheelEventFilterStates.set(targetWindow, state);
+	}
+	return state;
+}
+
+function getWindowTime(targetWindow: Window): number {
+	return typeof targetWindow.performance?.now === 'function' ? targetWindow.performance.now() : Date.now();
+}
+
+function getEventTime(e: Event, targetWindow: Window): number {
+	const timeStamp = e.timeStamp;
+	if (!Number.isFinite(timeStamp) || timeStamp <= 0) {
+		return 0;
+	}
+
+	if (timeStamp > 1_000_000_000_000) {
+		const timeOrigin = typeof targetWindow.performance?.timeOrigin === 'number'
+			? targetWindow.performance.timeOrigin
+			: Date.now() - getWindowTime(targetWindow);
+
+		return timeStamp - timeOrigin;
+	}
+
+	return timeStamp;
+}
+
 export class StandardWheelEvent {
 
 	public readonly browserEvent: IMouseWheelEvent | null;
