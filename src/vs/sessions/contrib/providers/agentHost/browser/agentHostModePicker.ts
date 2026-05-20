@@ -175,7 +175,6 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
 		this._triggerElement.ariaLabel = this._getTriggerAriaLabel(label);
 	}

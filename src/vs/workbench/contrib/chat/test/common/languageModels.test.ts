@@ -17,8 +17,8 @@ import { TestStorageService } from '../../../../test/common/workbenchTestService
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ILanguageModelsConfigurationService } from '../../common/languageModelsConfiguration.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ConfigureLanguageModelsOptions, ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
+import { IInputBox, IQuickInputHideEvent, IQuickInputService, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
@@ -255,6 +255,138 @@ suite('LanguageModels', function () {
 
 		const result = await languageModels.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
 		assert.deepStrictEqual(result, ['copilot/copilot-utility-small']);
+	});
+
+	test('model visibility — defaults to visible', async function () {
+		await languageModels.selectLanguageModels({}); // resolve models so groups populate
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), false);
+		assert.strictEqual(languageModels.isModelHidden('test-id-12'), false);
+		assert.strictEqual(languageModels.isGroupHidden('test-vendor', 'Test Vendor'), false);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), []);
+	});
+
+	test('model visibility — hide and show a single model', async function () {
+		await languageModels.selectLanguageModels({});
+
+		let fired = 0;
+		store.add(languageModels.onDidChangeModelVisibility(() => fired++));
+
+		languageModels.setModelHidden('test-id-1', true);
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), true);
+		assert.strictEqual(languageModels.isModelHidden('test-id-12'), false);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), ['test-id-1']);
+		assert.strictEqual(fired, 1);
+
+		languageModels.setModelHidden('test-id-1', false);
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), false);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), []);
+		assert.strictEqual(fired, 2);
+	});
+
+	test('model visibility — hiding every model in a group hides the group', async function () {
+		await languageModels.selectLanguageModels({});
+
+		languageModels.setModelHidden('test-id-1', true);
+		languageModels.setModelHidden('test-id-12', true);
+
+		assert.deepStrictEqual({
+			groupHidden: languageModels.isGroupHidden('test-vendor', 'Test Vendor'),
+			firstModelHidden: languageModels.isModelHidden('test-id-1'),
+			secondModelHidden: languageModels.isModelHidden('test-id-12'),
+			hiddenModels: languageModels.getHiddenModelIds(),
+		}, {
+			groupHidden: true,
+			firstModelHidden: true,
+			secondModelHidden: true,
+			hiddenModels: ['test-id-1', 'test-id-12'],
+		});
+	});
+
+	test('model visibility — hide and show an entire group', async function () {
+		await languageModels.selectLanguageModels({});
+
+		languageModels.setGroupHidden('test-vendor', 'Test Vendor', true);
+		assert.strictEqual(languageModels.isGroupHidden('test-vendor', 'Test Vendor'), true);
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), true);
+		assert.strictEqual(languageModels.isModelHidden('test-id-12'), true);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), ['test-id-1', 'test-id-12']);
+
+		languageModels.setGroupHidden('test-vendor', 'Test Vendor', false);
+		assert.strictEqual(languageModels.isGroupHidden('test-vendor', 'Test Vendor'), false);
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), false);
+		assert.strictEqual(languageModels.isModelHidden('test-id-12'), false);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), []);
+	});
+
+	test('model visibility — showing a model in a hidden group reveals the model and the group, but keeps siblings hidden', async function () {
+		await languageModels.selectLanguageModels({});
+
+		languageModels.setGroupHidden('test-vendor', 'Test Vendor', true);
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), true);
+		assert.strictEqual(languageModels.isModelHidden('test-id-12'), true);
+
+		languageModels.setModelHidden('test-id-1', false);
+
+		// The group is no longer hidden — the user explicitly chose to surface a model.
+		assert.strictEqual(languageModels.isGroupHidden('test-vendor', 'Test Vendor'), false);
+		// The selected model is visible…
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), false);
+		// …but the sibling stays hidden.
+		assert.strictEqual(languageModels.isModelHidden('test-id-12'), true);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), ['test-id-12']);
+	});
+
+	test('model visibility — hiding a model whose group is already hidden is a no-op', async function () {
+		await languageModels.selectLanguageModels({});
+
+		languageModels.setGroupHidden('test-vendor', 'Test Vendor', true);
+		const before = languageModels.getHiddenModelIds();
+		languageModels.setModelHidden('test-id-1', true);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), before);
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), true);
+	});
+
+	test('model visibility — hiding a group hides every current member model', async function () {
+		await languageModels.selectLanguageModels({});
+
+		languageModels.setModelHidden('test-id-1', true);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), ['test-id-1']);
+
+		languageModels.setGroupHidden('test-vendor', 'Test Vendor', true);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), ['test-id-1', 'test-id-12']);
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), true);
+		assert.strictEqual(languageModels.isModelHidden('test-id-12'), true);
+	});
+
+	test('model visibility — unhiding a group shows every current member model', async function () {
+		await languageModels.selectLanguageModels({});
+
+		languageModels.setGroupHidden('test-vendor', 'Test Vendor', true);
+		languageModels.setModelHidden('test-id-1', false);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), ['test-id-12']);
+
+		languageModels.setGroupHidden('test-vendor', 'Test Vendor', false);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), []);
+		assert.strictEqual(languageModels.isModelHidden('test-id-1'), false);
+		assert.strictEqual(languageModels.isModelHidden('test-id-12'), false);
+	});
+
+	test('model visibility — onDidChangeModelVisibility does not fire when state is unchanged', async function () {
+		await languageModels.selectLanguageModels({});
+
+		let fired = 0;
+		store.add(languageModels.onDidChangeModelVisibility(() => fired++));
+
+		// Already visible — no-op
+		languageModels.setModelHidden('test-id-1', false);
+		assert.strictEqual(fired, 0);
+
+		languageModels.setModelHidden('test-id-1', true);
+		assert.strictEqual(fired, 1);
+
+		// Already hidden — no-op
+		languageModels.setModelHidden('test-id-1', true);
+		assert.strictEqual(fired, 1);
 	});
 });
 
@@ -940,6 +1072,224 @@ suite('LanguageModels - Per-Model Configuration', function () {
 		await request.result;
 
 		assert.deepStrictEqual(receivedOptions, { configuration: { temperature: 0.2 } });
+	});
+});
+
+suite('LanguageModels - Provider Group Management', function () {
+
+	class TestInputBox extends mock<IInputBox>() {
+		private readonly onDidChangeValueEmitter = new Emitter<string>();
+		private readonly onDidAcceptEmitter = new Emitter<void>();
+		private readonly onDidHideEmitter = new Emitter<IQuickInputHideEvent>();
+
+		override readonly onDidChangeValue = this.onDidChangeValueEmitter.event;
+		override readonly onDidAccept = this.onDidAcceptEmitter.event;
+		override readonly onDidHide = this.onDidHideEmitter.event;
+
+		override value = '';
+
+		constructor(private readonly valueToAccept: string) {
+			super();
+		}
+
+		override show(): void {
+			this.value = this.valueToAccept;
+			this.onDidChangeValueEmitter.fire(this.value);
+			this.onDidAcceptEmitter.fire();
+		}
+
+		override hide(): void {
+			this.onDidHideEmitter.fire({ reason: QuickInputHideReason.Other });
+		}
+
+		override dispose(): void {
+			this.onDidChangeValueEmitter.dispose();
+			this.onDidAcceptEmitter.dispose();
+			this.onDidHideEmitter.dispose();
+		}
+	}
+
+	let languageModelsService: LanguageModelsService;
+	let providerGroups: ILanguageModelsProviderGroup[];
+	let updateCalls: { from: ILanguageModelsProviderGroup; to: ILanguageModelsProviderGroup }[];
+	let configureCalls: (ConfigureLanguageModelsOptions | undefined)[];
+	let acceptedInputValues: string[];
+	let secretStorageService: TestSecretStorageService;
+
+	setup(function () {
+		providerGroups = [{
+			vendor: 'custom-vendor',
+			name: 'Custom Group',
+			apiKey: '${input:existing-secret}',
+			settings: { model: { temperature: 0.7 } }
+		}];
+		updateCalls = [];
+		configureCalls = [];
+		acceptedInputValues = [];
+		secretStorageService = new TestSecretStorageService();
+
+		languageModelsService = new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() {
+					return Promise.resolve();
+				}
+			},
+			new NullLogService(),
+			new TestStorageService(),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() {
+					return providerGroups;
+				}
+				override async updateLanguageModelsProviderGroup(from: ILanguageModelsProviderGroup, to: ILanguageModelsProviderGroup): Promise<ILanguageModelsProviderGroup> {
+					updateCalls.push({ from, to });
+					providerGroups = providerGroups.map(group => group === from ? to : group);
+					return to;
+				}
+				override async configureLanguageModels(options?: ConfigureLanguageModelsOptions): Promise<void> {
+					configureCalls.push(options);
+				}
+			},
+			new class extends mock<IQuickInputService>() {
+				override createInputBox(): IInputBox {
+					const value = acceptedInputValues.shift();
+					if (value === undefined) {
+						throw new Error('Missing scripted quick input value.');
+					}
+					return new TestInputBox(value);
+				}
+			},
+			secretStorageService,
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+		);
+
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{
+				vendor: 'custom-vendor',
+				displayName: 'Custom Vendor',
+				// Cast needed: TypeFromJsonSchema resolves the `anyOf`+`$ref` configuration
+				// field to `undefined`, but this provider-management test needs the
+				// runtime schema so the vendor is treated as configurable.
+				configuration: {
+					type: 'object',
+					required: ['apiKey'],
+					properties: {
+						apiKey: { type: 'string', secret: true },
+						models: {
+							type: 'array',
+							defaultSnippets: [{ body: [{ id: '$1' }] }]
+						}
+					}
+				} as unknown as undefined,
+				managementCommand: undefined,
+				when: undefined
+			}
+		], []);
+	});
+
+	teardown(function () {
+		languageModelsService.dispose();
+		secretStorageService.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('renameLanguageModelsProviderGroup updates only the selected group name', async function () {
+		acceptedInputValues.push('Renamed Group');
+
+		await languageModelsService.renameLanguageModelsProviderGroup('custom-vendor', 'Custom Group');
+
+		assert.deepStrictEqual(updateCalls, [{
+			from: {
+				vendor: 'custom-vendor',
+				name: 'Custom Group',
+				apiKey: '${input:existing-secret}',
+				settings: { model: { temperature: 0.7 } }
+			},
+			to: {
+				vendor: 'custom-vendor',
+				name: 'Renamed Group',
+				apiKey: '${input:existing-secret}',
+				settings: { model: { temperature: 0.7 } }
+			}
+		}]);
+	});
+
+	test('updateLanguageModelsProviderGroupApiKey stores the new secret and preserves model settings', async function () {
+		acceptedInputValues.push('new-api-key');
+		await secretStorageService.set('existing-secret', 'old-api-key');
+
+		await languageModelsService.updateLanguageModelsProviderGroupApiKey('custom-vendor', 'Custom Group');
+
+		const updatedGroup = updateCalls[0]?.to;
+		const encodedApiKey = typeof updatedGroup?.apiKey === 'string' ? updatedGroup.apiKey : '';
+		const secretKey = encodedApiKey.substring('${input:'.length, encodedApiKey.length - 1);
+		assert.deepStrictEqual({
+			encodedApiKeyUsesSecretStorage: encodedApiKey.startsWith('${input:chat.lm.secret.'),
+			newSecretValue: await secretStorageService.get(secretKey),
+			oldSecretValue: await secretStorageService.get('existing-secret'),
+			settings: updatedGroup?.settings,
+			identity: { name: updatedGroup?.name, vendor: updatedGroup?.vendor }
+		}, {
+			encodedApiKeyUsesSecretStorage: true,
+			newSecretValue: 'new-api-key',
+			oldSecretValue: undefined,
+			settings: { model: { temperature: 0.7 } },
+			identity: { name: 'Custom Group', vendor: 'custom-vendor' }
+		});
+	});
+
+	test('updateLanguageModelsProviderGroupApiKey leaves the existing secret unchanged when the value is unchanged', async function () {
+		acceptedInputValues.push('old-api-key');
+		await secretStorageService.set('existing-secret', 'old-api-key');
+
+		await languageModelsService.updateLanguageModelsProviderGroupApiKey('custom-vendor', 'Custom Group');
+
+		assert.deepStrictEqual({
+			updateCalls,
+			secretKeys: await secretStorageService.keys(),
+			secretValue: await secretStorageService.get('existing-secret')
+		}, {
+			updateCalls: [],
+			secretKeys: ['existing-secret'],
+			secretValue: 'old-api-key'
+		});
+	});
+
+	test('addLanguageModelsProviderGroupModel inserts a models property when the group does not have one', async function () {
+		await languageModelsService.addLanguageModelsProviderGroupModel('custom-vendor', 'Custom Group');
+
+		assert.deepStrictEqual(configureCalls, [{
+			group: providerGroups[0],
+			snippet: `"models": [
+	{
+		"id": "$1"
+	}
+]`,
+			snippetTarget: 'group'
+		}]);
+	});
+
+	test('addLanguageModelsProviderGroupModel inserts a model item when the group already has models', async function () {
+		providerGroups = [{ ...providerGroups[0], models: [{ id: 'existing' }] }];
+
+		await languageModelsService.addLanguageModelsProviderGroupModel('custom-vendor', 'Custom Group');
+
+		assert.deepStrictEqual(configureCalls, [{
+			group: providerGroups[0],
+			snippet: `{
+	"id": "$1"
+}`,
+			snippetTarget: 'models'
+		}]);
+	});
+
+	test('openLanguageModelsProviderGroupSettings opens the selected provider group', async function () {
+		await languageModelsService.openLanguageModelsProviderGroupSettings('custom-vendor', 'Custom Group');
+
+		assert.deepStrictEqual(configureCalls, [{ group: providerGroups[0] }]);
 	});
 });
 

@@ -30,12 +30,14 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type ConfigSchema, type ModelSelection, type SessionCustomization, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { CustomizationRef, CustomizationStatus, ResponsePartKind, SessionInputResponseKind, parseSubagentSessionUri, type MessageAttachment, type PendingMessage, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../agentHostGitService.js';
+import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { CopilotAgentSession, SessionWrapperFactory, type CopilotSdkMode, type IActiveClientSnapshot } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
@@ -276,6 +278,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
+		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
@@ -308,14 +311,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async getSessionCustomizations(session: URI): Promise<readonly SessionCustomization[]> {
+		return this._plugins.getSessionCustomizations(await this._getSessionCustomizationDirectory(session));
+	}
+
+	private async _getSessionCustomizationDirectory(session: URI): Promise<URI | undefined> {
 		const sessionId = AgentSession.id(session);
 		const provisional = this._provisionalSessions.get(sessionId);
 		if (provisional) {
-			return this._plugins.getSessionCustomizations(provisional.workingDirectory);
+			return provisional.workingDirectory;
 		}
 		const entry = this._sessions.get(sessionId);
 		const metadata = entry ? undefined : await this._readSessionMetadata(session);
-		return this._plugins.getSessionCustomizations(entry?.customizationDirectory ?? metadata?.customizationDirectory ?? metadata?.workingDirectory);
+		return entry?.customizationDirectory ?? metadata?.customizationDirectory ?? metadata?.workingDirectory;
 	}
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
@@ -758,7 +765,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const ac = this._getOrCreateActiveClient(sessionUri);
 			ac.updateTools(config.activeClient.clientId, config.activeClient.tools);
 			if (config.activeClient.customizations !== undefined) {
-				await this._plugins.sync(config.activeClient.clientId, config.activeClient.customizations);
+				await this._plugins.sync(config.activeClient.clientId, config.activeClient.customizations, config.workingDirectory);
 			}
 		}
 
@@ -851,6 +858,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._provisionalSessions.delete(sessionId);
 		await this._storeSessionMetadata(sessionUri, provisional.model, workingDirectory, customizationDirectory, project, true);
 
+		// Capture the per-session baseline (turn/0) git checkpoint so
+		// per-turn diffs computed on `SessionTurnComplete` can reflect the
+		// full working-tree delta — including terminal-tool edits that are
+		// invisible to the FileEditTracker pipeline. Best-effort: a
+		// non-git folder or capture failure leaves the session running
+		// with the legacy `file_edits`-based per-turn diff path.
+		this._checkpointService.captureBaseline(sessionUri, workingDirectory).catch(err => {
+			this._logService.warn(`[Copilot:${sessionId}] Baseline checkpoint capture failed: ${err instanceof Error ? err.message : String(err)}`);
+		});
+
 		this._logService.info(`[Copilot] Session materialized: ${sessionUri.toString()}`);
 		this._onDidMaterializeSession.fire({ session: sessionUri, workingDirectory, project });
 		return agentSession;
@@ -928,8 +945,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return { items: branches.map(branch => ({ value: branch, label: branch })) };
 	}
 
-	async setClientCustomizations(clientId: string, customizations: CustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
-		return this._plugins.sync(clientId, customizations, progress);
+	async setClientCustomizations(session: URI, clientId: string, customizations: CustomizationRef[]): Promise<ISyncedCustomization[]> {
+		const directory = await this._getSessionCustomizationDirectory(session);
+		return this._plugins.sync(clientId, customizations, directory, action => {
+			this._onDidSessionProgress.fire({ kind: 'action', session, action });
+		});
 	}
 
 	setClientTools(session: URI, clientId: string, tools: ToolDefinition[]): void {
@@ -1919,7 +1939,7 @@ class PluginController extends Disposable {
 		});
 	}
 
-	public sync(clientId: string, customizations: CustomizationRef[], progress?: (results: ISyncedCustomization[]) => void) {
+	public sync(clientId: string, customizations: CustomizationRef[], directory: URI | undefined, publish?: (action: SessionAction) => void) {
 		const revision = ++this._clientRevision;
 		this._clientCustomizations = customizations.map(customization => ({
 			customization: {
@@ -1929,7 +1949,29 @@ class PluginController extends Disposable {
 				status: CustomizationStatus.Loading,
 			},
 		}));
-		progress?.(this._clientCustomizations.map(item => ({ customization: this._applyEnablement(item.customization) })));
+		publish?.({
+			type: ActionType.SessionCustomizationsChanged,
+			customizations: [...this.getSessionCustomizations(directory)],
+		});
+		const published = new Map<string, SessionCustomization>();
+		for (const customization of this._clientCustomizations) {
+			const enabled = this._applyEnablement(customization.customization);
+			published.set(enabled.customization.uri, this._applyEnablement(customization.customization));
+		}
+		const publishUpdate = (item: IResolvedCustomization) => {
+			const customization = this._applyEnablement(item.customization);
+			if (equals(published.get(customization.customization.uri), customization)) {
+				return;
+			}
+			published.set(customization.customization.uri, { ...customization });
+			publish?.({
+				type: ActionType.SessionCustomizationUpdated,
+				customization: customization.customization,
+				enabled: customization.enabled,
+				status: customization.status,
+				statusMessage: customization.statusMessage,
+			});
+		};
 
 		const prev = this._clientSync;
 		const promise = this._clientSync = prev.catch(err => {
@@ -1940,18 +1982,15 @@ class PluginController extends Disposable {
 					return;
 				}
 
-				this._clientCustomizations = status.map(customization => ({
-					customization: {
-						...customization,
-						clientId,
-					},
-				}));
-				progress?.(this._clientCustomizations.map(item => ({ customization: this._applyEnablement(item.customization) })));
+				publishUpdate({ customization: { ...status, clientId } });
 			});
 
 			const resolved = await Promise.all(result.map(item => this._resolveSyncedCustomization(item, clientId)));
 			if (revision === this._clientRevision) {
 				this._clientCustomizations = resolved;
+				for (const item of resolved) {
+					publishUpdate(item);
+				}
 			}
 			return resolved;
 		});

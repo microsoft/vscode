@@ -644,13 +644,13 @@ export interface IAgent {
 	onArchivedChanged?(session: URI, isArchived: boolean): Promise<void>;
 
 	/**
-	 * Receives client-provided customization refs and syncs them (e.g. copies
-	 * plugin files to local storage). Returns per-customization status with
-	 * local plugin directories.
+	 * Receives client-provided customization refs for a session and syncs them
+	 * (e.g. copies plugin files to local storage). The agent publishes
+	 * customization state actions as the sync progresses.
 	 *
 	 * The agent MAY defer a client restart until all active sessions are idle.
 	 */
-	setClientCustomizations(clientId: string, customizations: CustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]>;
+	setClientCustomizations(session: URI, clientId: string, customizations: CustomizationRef[]): Promise<ISyncedCustomization[]>;
 
 	/**
 	 * Receives client-provided tool definitions to make available in a
@@ -802,8 +802,14 @@ export interface IAgentService {
 	 * Dispatch a client-originated action to the server. The server applies
 	 * it to state, triggers side effects, and echoes it back via
 	 * {@link onDidAction} with the client's origin for reconciliation.
+	 *
+	 * `channel` is the protocol URI string identifying the channel the action
+	 * targets (a session URI for session actions, terminal URI for terminal
+	 * actions, or {@link ROOT_STATE_URI} for root actions). Strings are used
+	 * rather than {@link URI} objects so that authority-less scheme URIs
+	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -856,7 +862,15 @@ export interface IAgentConnection {
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined;
 
 	// ---- Action dispatch ----------------------------------------------------
-	dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void;
+	/**
+	 * Dispatch a client-originated action. `channel` is the protocol URI
+	 * string identifying the channel the action targets (a session URI for
+	 * session actions, terminal URI for terminal actions, or
+	 * `ROOT_STATE_URI` for root-config actions). Strings are used rather
+	 * than {@link URI} objects so authority-less scheme URIs like
+	 * `ahp-root://` survive the wire format without normalization.
+	 */
+	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;

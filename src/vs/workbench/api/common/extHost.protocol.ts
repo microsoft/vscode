@@ -1712,7 +1712,7 @@ export interface ExtHostChatAgentsShape2 {
 	$releaseSession(sessionResource: UriComponents): void;
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
 	$providePromptFiles(handle: number, type: PromptsType, context: IPromptFileContext, token: CancellationToken): Promise<Dto<IPromptFileResource>[] | undefined>;
-	$provideChatSessionCustomizations(handle: number, token: CancellationToken): Promise<IChatSessionCustomizationItemDto[] | undefined>;
+	$provideChatSessionCustomizations(handle: number, sessionResource: UriComponents, token: CancellationToken): Promise<IChatSessionCustomizationItemDto[] | undefined>;
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 	$setYieldRequested(requestId: string, value: boolean): void;
 	$acceptActiveChatSession(sessionResource: UriComponents | undefined): void;
@@ -1724,7 +1724,7 @@ export interface ExtHostChatAgentsShape2 {
 	$onDidChangePlugins(): void;
 }
 
-export type IChatResourceSourceDto = 'local' | 'user' | 'extension' | 'plugin';
+export type IChatResourceSourceDto = 'local' | 'user' | 'extension' | 'plugin' | 'builtin';
 
 export interface IChatResourceDto {
 	readonly uri: UriComponents;
@@ -1781,6 +1781,7 @@ export interface IChatSessionCustomizationItemDto {
 	readonly uri: UriComponents;
 	readonly type: string;
 	readonly name: string;
+	readonly source: IChatResourceSourceDto;
 	readonly description?: string;
 	readonly groupKey?: string;
 	readonly badge?: string;

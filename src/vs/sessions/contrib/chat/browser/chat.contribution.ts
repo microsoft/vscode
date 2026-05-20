@@ -23,7 +23,6 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';
 import { ISessionTaskRunnerRegistry, SessionTaskRunnerRegistry } from './sessionTaskRunner.js';
 import { RegisterDefaultSessionTaskRunnersContribution } from './registerDefaultSessionTaskRunners.js';
-import { WorktreeCreatedTaskDispatcher } from './worktreeCreatedTaskDispatcher.js';
 import { AgenticPromptsService } from './promptsService.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -41,6 +40,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
+import { WorktreeCreatedTaskDispatcher } from './worktreeCreatedTaskDispatcher.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 
 
