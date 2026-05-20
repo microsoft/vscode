@@ -88,6 +88,9 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	/** Sessions currently initializing (prevent concurrent init). */
 	private readonly _initializingSessions = new Set<string>();
 
+	/** CHAT spans received before session was initialized, keyed by session ID. */
+	private readonly _pendingChatSpans = new Map<string, ICompletedSpanData[]>();
+
 	// ── Shared state ─────────────────────────────────────────────────────────────
 
 	/** Buffered events tagged with their chat session ID for correct routing. */
@@ -310,6 +313,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		this._translationStates.clear();
 		this._disabledSessions.clear();
 		this._initializingSessions.clear();
+		this._pendingChatSpans.clear();
 
 		super.dispose();
 	}
@@ -710,6 +714,17 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			// init trigger would seed sessionSource/firstCloudWriteSessionSource and
 			// telemetry from the sub-agent's AGENT_NAME instead of the parent's.
 			if (!this._cloudSessions.has(sessionId) && !this._initializingSessions.has(sessionId)) {
+				if (operationName === GenAiOperationName.CHAT) {
+					// CHAT spans (LLM calls) complete before their parent invoke_agent.
+					// Buffer them so usage events aren't lost for the first turn.
+					let pending = this._pendingChatSpans.get(sessionId);
+					if (!pending) {
+						pending = [];
+						this._pendingChatSpans.set(sessionId, pending);
+					}
+					pending.push(span);
+					return;
+				}
 				if (operationName !== GenAiOperationName.INVOKE_AGENT || subagentId) {
 					return;
 				}
@@ -725,6 +740,20 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			if (events.length > 0) {
 				this._bufferEvents(sessionId, events);
 				this._ensureFlushTimer();
+			}
+
+			// Replay any CHAT spans that arrived before session initialization
+			if (operationName === GenAiOperationName.INVOKE_AGENT && !subagentId) {
+				const pendingChats = this._pendingChatSpans.get(sessionId);
+				if (pendingChats) {
+					this._pendingChatSpans.delete(sessionId);
+					for (const chatSpan of pendingChats) {
+						const chatEvents = translateSpan(chatSpan, state, context);
+						if (chatEvents.length > 0) {
+							this._bufferEvents(sessionId, chatEvents);
+						}
+					}
+				}
 			}
 		} catch {
 			// Non-fatal — individual span processing failure
@@ -978,6 +1007,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		this._translationStates.delete(sessionId);
 		this._disabledSessions.delete(sessionId);
 		this._initializingSessions.delete(sessionId);
+		this._pendingChatSpans.delete(sessionId);
 		// Keep _cloudSessions entry — the cloud session ID mapping is needed
 		// for future delete operations (e.g. sidebar delete fires after dispose).
 	}
