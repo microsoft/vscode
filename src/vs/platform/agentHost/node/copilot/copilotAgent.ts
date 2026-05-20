@@ -1731,8 +1731,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Persists (or clears) the selected custom agent for a session. Writing
-	 * `undefined` removes the metadata key so a later cold read reports "no
-	 * custom agent" rather than returning the previously-selected one.
+	 * `undefined` clears the stored selection by writing an empty string,
+	 * which later cold reads treat as "no custom agent" because
+	 * `_parseAgentSelection` short-circuits on falsy metadata values.
 	 */
 	private async _storeSessionAgentMetadata(session: URI, agent: AgentSelection | undefined): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
