@@ -644,13 +644,13 @@ export interface IAgent {
 	onArchivedChanged?(session: URI, isArchived: boolean): Promise<void>;
 
 	/**
-	 * Receives client-provided customization refs and syncs them (e.g. copies
-	 * plugin files to local storage). Returns per-customization status with
-	 * local plugin directories.
+	 * Receives client-provided customization refs for a session and syncs them
+	 * (e.g. copies plugin files to local storage). The agent publishes
+	 * customization state actions as the sync progresses.
 	 *
 	 * The agent MAY defer a client restart until all active sessions are idle.
 	 */
-	setClientCustomizations(clientId: string, customizations: CustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]>;
+	setClientCustomizations(session: URI, clientId: string, customizations: CustomizationRef[]): Promise<ISyncedCustomization[]>;
 
 	/**
 	 * Receives client-provided tool definitions to make available in a

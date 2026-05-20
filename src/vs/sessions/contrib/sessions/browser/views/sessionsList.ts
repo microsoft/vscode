@@ -761,7 +761,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly expandedWorkspaceGroups = new Set<string>();
 	private expandedMoreFolders = false;
 	private openWindowSourceFolder: URI | undefined;
-	private findOpen = false;
+	private hasFindPattern = false;
 	private suspendCollapseStatePersistence = false;
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
@@ -938,10 +938,29 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
+		let isFindOpen = false;
+		let findPattern = '';
+		const updateFindPatternState = () => {
+			const hasFindPattern = isFindOpen && findPattern.length > 0;
+			if (hasFindPattern !== this.hasFindPattern) {
+				this.hasFindPattern = hasFindPattern;
+				this.update();
+			}
+		};
+
 		this._register(this.tree.onDidChangeFindOpenState(open => {
-			this.findOpen = open;
+			isFindOpen = open;
 			this._onDidChangeFindOpenState.fire(open);
-			this.update();
+			updateFindPatternState();
+		}));
+
+		// Only treat the find as "active" for layout purposes (bypassing workspace
+		// capping and per-group limits) once the user has actually typed a pattern
+		// and the find widget is open. Opening the empty find widget should not
+		// reorder the list, and closing find should restore the capped layout.
+		this._register(this.tree.onDidChangeFindPattern(pattern => {
+			findPattern = pattern;
+			updateFindPatternState();
 		}));
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(() => {
@@ -1020,10 +1039,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);
 
 		// Partition workspace sections into "primary" (meets criteria) and "more"
-		// when grouping by workspace. Find widget bypasses partitioning. When the
-		// user has chosen "Show All Sessions" (uncapped), show every workspace
-		// group inline instead of hiding some behind a "more workspaces" entry.
-		const partitionFolders = grouping === SessionsGrouping.Workspace && !this.findOpen && this.workspaceGroupCapped;
+		// when grouping by workspace. An active find pattern bypasses partitioning
+		// so all matching sessions are visible. When the user has chosen
+		// "Show All Sessions" (uncapped), show every workspace group inline instead
+		// of hiding some behind a "more workspaces" entry.
+		const partitionFolders = grouping === SessionsGrouping.Workspace && !this.hasFindPattern && this.workspaceGroupCapped;
 		const moreFolderSectionIds = new Set<string>();
 		if (partitionFolders) {
 			const workspaceSections = sections.filter(s => s.id.startsWith('workspace:'));
@@ -1072,7 +1092,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const isWorkspaceGroup = grouping === SessionsGrouping.Workspace
 				&& section.id.startsWith('workspace:');
 			const exceedsLimit = isWorkspaceGroup
-				&& !this.findOpen
+				&& !this.hasFindPattern
 				&& section.sessions.length > SessionsList.WORKSPACE_GROUP_LIMIT;
 			const isExpanded = exceedsLimit && (this.expandedWorkspaceGroups.has(section.label) || !this.workspaceGroupCapped);
 			const isCapped = exceedsLimit && !isExpanded;

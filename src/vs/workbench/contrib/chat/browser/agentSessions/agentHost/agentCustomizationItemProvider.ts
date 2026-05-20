@@ -10,7 +10,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { extname } from '../../../../../../base/common/path.js';
 import { joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { CustomizationStatus, type SessionCustomization, type AgentInfo, type CustomizationRef, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationStatus, StateComponents, type SessionCustomization, type AgentInfo, type CustomizationRef, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
@@ -34,7 +34,6 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private _agentCustomizations: readonly CustomizationRef[];
-	private readonly _sessionCustomizationsCache = new Map<string, readonly SessionCustomization[]>();
 
 	/** Cache: pluginUri → last expansion (keyed by nonce so we re-fetch on content change). */
 	private readonly _expansionCache = new ResourceMap<{ nonce: string | undefined; children: readonly ICustomizationItem[] }>();
@@ -60,8 +59,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		}));
 
 		this._register(this._connection.onDidAction(envelope => {
-			if (envelope.action.type === ActionType.SessionCustomizationsChanged) {
-				this._sessionCustomizationsCache.set(envelope.channel, envelope.action.customizations);
+			if (envelope.action.type === ActionType.SessionCustomizationsChanged || envelope.action.type === ActionType.SessionCustomizationUpdated) {
 				this._onDidChange.fire();
 			}
 		}));
@@ -149,7 +147,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			plugins.push({ item, nonce: customization.nonce, status: undefined, statusMessage: undefined, enabled: undefined, childGroupKey: REMOTE_HOST_GROUP, isBundleItem: false });
 		}
 		const sessionUri = this._resolveSessionUri(sessionResource);
-		const sessionCustomizations = this._sessionCustomizationsCache.get(sessionUri.toString()) ?? [];
+		const sessionState = this._connection.getSubscriptionUnmanaged(StateComponents.Session, sessionUri)?.value;
+		const sessionCustomizations = sessionState && !(sessionState instanceof Error) ? sessionState.customizations ?? [] : [];
 		for (const sessionCustomization of sessionCustomizations) {
 			const isBundleItem = isSyntheticBundle(sessionCustomization.customization);
 			const isClientSynced = sessionCustomization.clientId !== undefined;
