@@ -317,6 +317,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			if (leavingStep === OnboardingStepId.SignIn) {
 				this.enterpriseSignInUiState = 'options';
 				this.enterpriseInstanceValue = '';
+				this.enterpriseSignInWatch = undefined;
 			}
 			if (leavingStep === OnboardingStepId.Personalize) {
 				this._applyKeymap(this.selectedKeymapId);
