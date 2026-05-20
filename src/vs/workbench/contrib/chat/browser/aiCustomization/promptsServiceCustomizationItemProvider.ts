@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { OS } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -43,7 +44,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		);
 	}
 
-	async provideChatSessionCustomizations(token: CancellationToken): Promise<ICustomizationItem[]> {
+	async provideChatSessionCustomizations(_sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[]> {
 		const itemSets = await Promise.all([
 			this.provideCustomizations(PromptsType.agent, token),
 			this.provideCustomizations(PromptsType.skill, token),
@@ -168,7 +169,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		const hookFiles = await this.promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
 
 		// Non-plugin hooks: return raw file items — expansion into individual
-		// hook entries is handled by ProviderCustomizationItemSource.fetchItemsFromProvider().
+		// hook entries is handled by ItemProviderItemSource.fetchItems().
 		// Plugin hooks: add directly as-is since they're pre-expanded by
 		// plugin manifests and must NOT be re-parsed by expandHookFileItems.
 		for (const f of hookFiles) {

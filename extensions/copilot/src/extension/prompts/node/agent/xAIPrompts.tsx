@@ -10,7 +10,7 @@ import { InstructionMessage } from '../base/instructionMessage';
 import { ResponseTranslationRules } from '../base/responseTranslationRules';
 import { Tag } from '../base/tag';
 import { EXISTING_CODE_MARKER } from '../panel/codeBlockFormattingRules';
-import { MathIntegrationRules } from '../panel/editorIntegrationRules';
+import { ResponseRenderingRules } from '../panel/editorIntegrationRules';
 import { CodesearchModeInstructions, DefaultAgentPromptProps, detectToolCapabilities, GenericEditingTips, McpToolInstructions, NotebookInstructions } from './defaultAgentInstructions';
 import { FileLinkificationInstructions } from './fileLinkificationInstructions';
 import { IAgentPrompt, PromptRegistry, SystemPrompt } from './promptRegistry';
@@ -106,7 +106,7 @@ class DefaultGrokCodeFastAgentPrompt extends PromptElement<DefaultAgentPromptPro
 			<Tag name='outputFormatting'>
 				Use proper Markdown formatting. When referring to symbols (classes, methods, variables) in user's workspace wrap in backticks. For file paths and line number rules, see fileLinkification section below<br />
 				<FileLinkificationInstructions />
-				<MathIntegrationRules />
+				<ResponseRenderingRules />
 			</Tag>
 			<ResponseTranslationRules />
 		</InstructionMessage>;

@@ -67,7 +67,7 @@ export class VscodePrompt extends PromptElement<VscodePromptProps, VscodePromptS
 		progress?.report(new ChatResponseProgressPart(l10n.t('Refining question to improve search accuracy.')));
 		let userQuery: string = this.props.promptContext.query;
 
-		const endpoint = await this.endPointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endPointProvider.getChatEndpoint('copilot-utility-small');
 		const renderer = PromptRenderer.create(this.instantiationService, endpoint, VscodeMetaPrompt, this.props.promptContext);
 		const { messages } = await renderer.render();
 		if (token.isCancellationRequested) {

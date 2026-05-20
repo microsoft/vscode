@@ -4,12 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress } from '../../common/sshRemoteAgentHost.js';
+import { createRemoteAgentHostState } from '../../common/remoteAgentHostMetadata.js';
+import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
+import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
+
+const dataFolderName = '.vscode-insiders';
+const quality = 'insider';
+
+function stateJson(pid: number, port: number, connectionToken: string | undefined | null): string {
+	return JSON.stringify(createRemoteAgentHostState({
+		pid,
+		port,
+		connectionToken: connectionToken ?? undefined,
+		quality,
+	}));
+}
 
 /** Minimal mock SSHChannel for testing. */
 class MockSSHChannel {
@@ -128,6 +144,49 @@ class MockSSHClient {
 	}
 }
 
+class KeyboardInteractiveMockSSHClient {
+	ended = false;
+	finishResponses: readonly string[] | undefined;
+
+	private readonly _errorListeners: Array<(err: Error) => void> = [];
+
+	on(event: 'ready', listener: () => void): this;
+	on(event: 'error', listener: (err: Error) => void): this;
+	on(event: 'close', listener: () => void): this;
+	on(event: string, listener: ((err: Error) => void) | (() => void)): this {
+		if (event === 'error') {
+			this._errorListeners.push(listener as (err: Error) => void);
+		}
+		return this;
+	}
+
+	removeListener(_event: string, _listener: (...args: never[]) => void): this {
+		return this;
+	}
+
+	connect(config: ConnectConfig): void {
+		const authHandler = config.authHandler as ((methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void) | undefined;
+		authHandler?.(null, false, method => {
+			if (method && method.type === 'keyboard-interactive') {
+				method.prompt('Keyboard', '', 'en-US', [{ prompt: 'Password: ', echo: false }], responses => {
+					this.finishResponses = responses;
+					this.fireError(new Error('All configured authentication methods failed'));
+				});
+			}
+		});
+	}
+
+	end(): void {
+		this.ended = true;
+	}
+
+	private fireError(err: Error): void {
+		for (const listener of this._errorListeners) {
+			listener(err);
+		}
+	}
+}
+
 function makeConfig(overrides?: Partial<ISSHAgentHostConfig>): ISSHAgentHostConfig {
 	return {
 		host: '10.0.0.1',
@@ -174,7 +233,7 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	hangRelayCreationOnCall: number | undefined;
 
 	/** Public override so tests can shorten the relay creation timeout. */
-	override relayCreationTimeoutMs: number = 30_000;
+	protected override relayCreationTimeoutMs: number = 30_000;
 
 	/** Stored onMessage callbacks from relays, most recent last. */
 	private readonly _relayMessageCallbacks: Array<(data: string) => void> = [];
@@ -279,6 +338,35 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 			this._relayCloseCallbacks[this._relayCloseCallbacks.length - 1]();
 		}
 	}
+
+	/** Sets the relay creation timeout; exposed for tests only. */
+	setRelayCreationTimeoutForTest(ms: number): void {
+		this.relayCreationTimeoutMs = ms;
+	}
+
+	startKeyboardInteractiveForTest(
+		prompts: readonly ISSHKeyboardInteractivePrompt[],
+		finish: (responses: readonly string[]) => void,
+		cancelConnect: () => void,
+	): string {
+		return this._handleKeyboardInteractive('ssh:test-host', 'test-host', 'testuser', '', '', prompts, finish, cancelConnect);
+	}
+}
+
+class KeyboardInteractiveConnectTestService extends SSHRemoteAgentHostMainService {
+	readonly client = new KeyboardInteractiveMockSSHClient();
+
+	protected override async _createSSHClient() {
+		return this.client as never;
+	}
+
+	protected override async _buildAuthAttempts(config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
+		return [{ type: 'keyboard-interactive', username: config.username }];
+	}
+
+	connectSSHForTest(config: ISSHAgentHostConfig) {
+		return this._connectSSH(config, 'ssh:test-host');
+	}
 }
 
 suite('SSHRemoteAgentHostMainService - connect flow', () => {
@@ -288,9 +376,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	setup(() => {
 		const logService = new NullLogService();
-		const productService: Pick<IProductService, '_serviceBrand' | 'quality'> = {
+		const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'dataFolderName'> = {
 			_serviceBrand: undefined,
-			quality: 'insider',
+			quality,
+			dataFolderName,
 		};
 		service = new TestableSSHRemoteAgentHostMainService(
 			logService,
@@ -433,7 +522,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	});
 
 	test('reuses existing agent host when state file has valid PID', async () => {
-		const existingState = JSON.stringify({ pid: 1234, port: 7777, connectionToken: 'existing-tok' });
+		const existingState = stateJson(1234, 7777, 'existing-tok');
 		service.execResponses = [
 			{ stdout: 'Linux\n', code: 0 },       // uname -s
 			{ stdout: 'x86_64\n', code: 0 },      // uname -m
@@ -453,7 +542,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	});
 
 	test('starts fresh when state file PID is dead', async () => {
-		const staleState = JSON.stringify({ pid: 9999, port: 7777, connectionToken: 'old-tok' });
+		const staleState = stateJson(9999, 7777, 'old-tok');
 		service.execResponses = [
 			{ stdout: 'Linux\n', code: 0 },       // uname -s
 			{ stdout: 'x86_64\n', code: 0 },      // uname -m
@@ -473,7 +562,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	});
 
 	test('falls back to fresh start when relay to reused agent fails', async () => {
-		const existingState = JSON.stringify({ pid: 1234, port: 7777, connectionToken: 'existing-tok' });
+		const existingState = stateJson(1234, 7777, 'existing-tok');
 		service.execResponses = [
 			{ stdout: 'Linux\n', code: 0 },       // uname -s
 			{ stdout: 'x86_64\n', code: 0 },      // uname -m
@@ -503,6 +592,24 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		// Should have started a fresh agent host after relay failure
 		assert.strictEqual(service.startCalled, 1);
 		assert.strictEqual(relayCallCount, 2);
+		assert.strictEqual(result.connectionToken, 'tok-abc');
+	});
+
+	test('treats malformed legacy state as missing and starts fresh', async () => {
+		const legacyState = JSON.stringify({ pid: 1234, port: 7777, connectionToken: 'existing-tok' });
+		service.execResponses = [
+			{ stdout: 'Linux\n', code: 0 },
+			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: '1.0.0\n', code: 0 },
+			{ stdout: legacyState, code: 0 }, // cat lockfile (no schemaVersion)
+			{ stdout: '', code: 0 },           // rm -f corrupt lockfile
+			{ stdout: '', code: 0 },           // write new lockfile
+		];
+
+		const result = await service.connect(makeConfig());
+
+		assert.strictEqual(service.startCalled, 1);
+		assert.strictEqual(service.relayCalled, 1);
 		assert.strictEqual(result.connectionToken, 'tok-abc');
 	});
 
@@ -824,6 +931,48 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.ok(progress.every(p => p.message.length > 0), 'all progress messages should be non-empty');
 	});
 
+	test('cancelling keyboard-interactive prompt rejects connect with cancellation', async () => {
+		const kbiService = disposables.add(new KeyboardInteractiveConnectTestService(
+			new NullLogService(),
+			{
+				_serviceBrand: undefined,
+				quality,
+				dataFolderName,
+			} as IProductService,
+		));
+		const request = new DeferredPromise<ISSHKeyboardInteractiveRequest>();
+		disposables.add(kbiService.onDidRequestKeyboardInteractive(kbiRequest => request.complete(kbiRequest)));
+
+		const connectPromise = kbiService.connectSSHForTest(makeConfig({ sshConfigHost: 'test-host' }));
+		const kbiRequest = await request.p;
+		await kbiService.respondKeyboardInteractive(kbiRequest.requestId, undefined);
+
+		await assert.rejects(connectPromise, error => isCancellationError(error));
+		assert.deepStrictEqual({
+			ended: kbiService.client.ended,
+			finishResponses: kbiService.client.finishResponses,
+		}, {
+			ended: true,
+			finishResponses: [],
+		});
+	});
+
+	test('responding to keyboard-interactive prompt does not cancel connection attempt', async () => {
+		let finished: readonly string[] | undefined;
+		let cancelled = false;
+
+		const requestId = service.startKeyboardInteractiveForTest([
+			{ prompt: 'Password: ', echo: false },
+		], responses => { finished = responses; }, () => { cancelled = true; });
+
+		await service.respondKeyboardInteractive(requestId, ['secret']);
+
+		assert.deepStrictEqual({ finished, cancelled }, {
+			finished: ['secret'],
+			cancelled: false,
+		});
+	});
+
 	// --- SSH client close triggers connection disposal ---
 
 	test('SSH client close event disposes the connection', async () => {
@@ -1017,7 +1166,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.strictEqual(originalClient.ended, false);
 
 		// Use a short timeout so the test completes quickly.
-		service.relayCreationTimeoutMs = 50;
+		service.setRelayCreationTimeoutForTest(50);
 		// Make the *reconnect* call's relay creation hang (the second relay).
 		service.hangRelayCreationOnCall = 2;
 
@@ -1097,9 +1246,10 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 
 	setup(() => {
 		const logService = new NullLogService();
-		const productService: Pick<IProductService, '_serviceBrand' | 'quality'> = {
+		const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'dataFolderName'> = {
 			_serviceBrand: undefined,
-			quality: 'insider',
+			quality,
+			dataFolderName,
 		};
 		service = new AuthAttemptsTestService(
 			logService,

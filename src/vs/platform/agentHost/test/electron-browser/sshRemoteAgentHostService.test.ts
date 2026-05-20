@@ -16,7 +16,7 @@ import { IConfigurationService } from '../../../configuration/common/configurati
 
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
 import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
-import { IRemoteAgentHostService } from '../../common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../common/remoteAgentHostService.js';
 import type { IAgentConnection } from '../../common/agentService.js';
 import type {
 	ISSHAgentHostConfig,
@@ -63,11 +63,14 @@ class MockSSHMainService {
 	}
 
 	readonly disconnectCalls: string[] = [];
+	readonly connectCalls: ISSHAgentHostConfig[] = [];
+	readonly reconnectCalls: Array<{ sshConfigHost: string; name: string }> = [];
 	private _nextConnectionId = 1;
 
 	connectResult: Partial<ISSHConnectResult> | undefined;
 
 	async connect(config: ISSHAgentHostConfig): Promise<ISSHConnectResult> {
+		this.connectCalls.push(config);
 		const connectionId = this.connectResult?.connectionId ?? `conn-${this._nextConnectionId++}`;
 		return {
 			connectionId,
@@ -80,6 +83,7 @@ class MockSSHMainService {
 	}
 
 	async reconnect(sshConfigHost: string, name: string): Promise<ISSHConnectResult> {
+		this.reconnectCalls.push({ sshConfigHost, name });
 		return {
 			connectionId: `conn-${this._nextConnectionId++}`,
 			address: `ssh:${sshConfigHost}`,
@@ -181,7 +185,9 @@ class MockProtocolClient extends Disposable {
 
 class TestConfigurationService {
 	readonly onDidChangeConfiguration = Event.None;
-	getValue(): unknown { return undefined; }
+	constructor(private _remoteAgentHostsEnabled = true) { }
+	getValue(key?: string): unknown { return key === RemoteAgentHostsEnabledSettingId ? this._remoteAgentHostsEnabled : undefined; }
+	setRemoteAgentHostsEnabled(enabled: boolean): void { this._remoteAgentHostsEnabled = enabled; }
 }
 
 suite('SSHRemoteAgentHostService (renderer)', () => {
@@ -189,6 +195,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 	const disposables = new DisposableStore();
 	let mainService: MockSSHMainService;
 	let remoteAgentHostService: MockRemoteAgentHostService;
+	let configurationService: TestConfigurationService;
 	let createdClients: MockProtocolClient[];
 	let waitForClient: (index: number) => Promise<MockProtocolClient>;
 	let service: SSHRemoteAgentHostService;
@@ -205,7 +212,8 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
+		configurationService = new TestConfigurationService();
+		instantiationService.stub(IConfigurationService, configurationService as Partial<IConfigurationService>);
 		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService as Partial<IRemoteAgentHostService>);
@@ -259,6 +267,19 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		assert.ok(remoteAgentHostService.added[0].transport, 'a transport disposable is passed so removal can tear down the SSH tunnel');
 		assert.strictEqual(service.connections.length, 1);
 		assert.strictEqual(handle.localAddress, 'ssh:remote.example');
+	});
+
+	test('disabled setting prevents SSH tunnel connects and reconnects', async () => {
+		configurationService.setRemoteAgentHostsEnabled(false);
+
+		await assert.rejects(() => service.connect(sampleConfig), /not enabled/);
+		await assert.rejects(() => service.reconnect('remote.example', 'My Remote'), /not enabled/);
+
+		assert.deepStrictEqual({ connectCalls: mainService.connectCalls, reconnectCalls: mainService.reconnectCalls, added: remoteAgentHostService.added }, {
+			connectCalls: [],
+			reconnectCalls: [],
+			added: [],
+		});
 	});
 
 	test('removing the entry tears down the SSH tunnel and the renderer-side handle', async () => {
