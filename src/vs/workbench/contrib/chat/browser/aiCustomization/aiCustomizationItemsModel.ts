@@ -21,7 +21,7 @@ import { ICustomizationHarnessService, ICustomizationItemProvider, isPluginCusto
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { AICustomizationItemNormalizer, IAICustomizationItemSource, IAICustomizationListItem, ItemProviderItemSource, PromptServiceItemSource } from './aiCustomizationItemSource.js';
+import { AICustomizationItemNormalizer, IAICustomizationItemSource, IAICustomizationListItem, ItemProviderItemSource } from './aiCustomizationItemSource.js';
 import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -161,13 +161,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	) {
 		super();
 
-		this.itemNormalizer = new AICustomizationItemNormalizer(
-			workspaceContextService,
-			workspaceService,
-			labelService,
-			this.agentPluginService,
-			productService,
-		);
+		this.itemNormalizer = new AICustomizationItemNormalizer(labelService, productService);
 		this.promptsServiceItemProvider = new PromptsServiceCustomizationItemProvider(
 			() => this.harnessService.getActiveDescriptor(),
 			this.promptsService,
@@ -253,22 +247,17 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 			return this.sourceCache.value;
 		}
 		const descriptor = this.harnessService.findHarnessById(getChatSessionType(sessionResource));
-		const source = descriptor?.itemProvider
-			? new ItemProviderItemSource(
-				sessionResource,
-				descriptor.itemProvider,
-				this.promptsService,
-				this.workspaceService,
-				this.fileService,
-				this.pathService,
-				this.itemNormalizer,
-			)
-			: new PromptServiceItemSource(
-				sessionResource,
-				descriptor?.syncProvider,
-				this.promptsService,
-				this.itemNormalizer,
-			);
+		const itemProvider = descriptor?.itemProvider ?? this.promptsServiceItemProvider;
+
+		const source = new ItemProviderItemSource(
+			sessionResource,
+			itemProvider,
+			this.promptsService,
+			this.workspaceService,
+			this.fileService,
+			this.pathService,
+			this.itemNormalizer,
+		);
 		this.sourceCache.value = source;
 		return source;
 	}

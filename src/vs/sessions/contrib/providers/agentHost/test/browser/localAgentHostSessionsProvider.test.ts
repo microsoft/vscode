@@ -400,13 +400,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Workspace resolution -------
 
-	test('resolveWorkspace builds workspace from URI with [Local] tag', () => {
+	test('resolveWorkspace builds workspace from URI', () => {
 		const provider = createProvider(disposables, agentHost);
 		const uri = URI.parse('file:///home/user/project');
 		const ws = provider.resolveWorkspace(uri);
 
 		assert.ok(ws, 'resolveWorkspace should resolve file:// URIs');
-		assert.strictEqual(ws.label, 'project [Local]');
+		assert.strictEqual(ws.label, 'project');
 		assert.strictEqual(ws.folders.length, 1);
 		assert.strictEqual(ws.folders[0].root.toString(), uri.toString());
 		assert.strictEqual(ws.requiresWorkspaceTrust, true);
@@ -564,13 +564,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 			repository: workspace?.folders[0]?.root.toString(),
 			workingDirectory: workspace?.folders[0]?.workingDirectory?.toString(),
 		}, {
-			label: 'vscode [Local]',
+			label: 'vscode',
 			repository: projectUri.toString(),
 			workingDirectory: workingDirectory.toString(),
 		});
 	}));
 
-	test('listed session with only workingDirectory (no project) shows folder name with [Local] tag', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('listed session with only workingDirectory (no project) shows folder name', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const workingDirectory = URI.file('/home/user/standalone-folder');
 		agentHost.addSession(createSession('wd-only-1', {
 			summary: 'WD-only Session',
@@ -582,7 +582,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		const workspace = provider.getSessions()[0].workspace.get();
-		assert.strictEqual(workspace?.label, 'standalone-folder [Local]');
+		assert.strictEqual(workspace?.label, 'standalone-folder');
 	}));
 
 	test('uses model metadata as selected model for listed sessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -645,7 +645,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session.providerId, provider.id);
 		assert.strictEqual(session.status.get(), SessionStatus.Untitled);
 		assert.ok(session.workspace.get());
-		assert.strictEqual(session.workspace.get()?.label, 'my-project [Local]');
+		assert.strictEqual(session.workspace.get()?.label, 'my-project');
 		assert.strictEqual(session.sessionType, provider.sessionTypes[0].id);
 		assert.deepStrictEqual(provider.getSessionConfig(session.sessionId), { schema: { type: 'object', properties: {} }, values: {} });
 	});
@@ -728,7 +728,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			listedSessions: 0,
 			resolvedResource: session.resource.toString(),
-			resolvedWorkspaceLabel: 'my-project [Local]',
+			resolvedWorkspaceLabel: 'my-project',
 		});
 	});
 
@@ -1020,7 +1020,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		const workspace = wsSession!.workspace.get();
 		assert.ok(workspace);
-		assert.strictEqual(workspace!.label, 'myrepo [Local]');
+		assert.strictEqual(workspace!.label, 'myrepo');
 	}));
 
 	test('session adapter without working directory has no workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
