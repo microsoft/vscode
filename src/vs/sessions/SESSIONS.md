@@ -101,6 +101,8 @@ Each session operates on an **`ISessionWorkspace`** containing one or more **`IS
 
 Workspaces carry a `group` label (e.g., `"Local"`, `"Remote"`) used by the workspace picker to organize entries into tabs via the `SESSION_WORKSPACE_GROUP_LOCAL` / `SESSION_WORKSPACE_GROUP_REMOTE` constants.
 
+Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side only for newly created sessions, after the session reports a concrete `gitRepository.workTreeUri`. Restored sessions, untitled placeholders, and runtimes that declare `capabilities.runsWorktreeCreatedTasks` are skipped so setup tasks are not re-run on window open or double-run with server-side provisioning.
+
 ### Session Types
 
 An **`ISessionType`** identifies an agent backend (e.g., `'copilot-cli'`, `'copilot-cloud'`). Each provider declares which session types it supports and can dynamically update the list via `onDidChangeSessionTypes`. The management service exposes `getAllSessionTypes()` for UI pickers.
@@ -168,4 +170,3 @@ Providers may fire `onDidReplaceSession` when a temporary (untitled) session is 
 5. Use `toSessionId(providerId, resource)` for session IDs
 6. Fire `onDidChangeSessions` on every session change and `onDidReplaceSession` on untitled→committed transitions
 7. Set `supportsLocalWorkspaces: true` if the provider can resolve local file-system workspaces
-

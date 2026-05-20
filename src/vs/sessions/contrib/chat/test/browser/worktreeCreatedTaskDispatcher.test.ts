@@ -20,10 +20,33 @@ import { WorktreeCreatedTaskDispatcher } from '../../browser/worktreeCreatedTask
 interface ITestSession {
 	readonly session: ISession;
 	readonly loading: ReturnType<typeof observableValue<boolean>>;
+	readonly status: ReturnType<typeof observableValue<SessionStatus>>;
+	readonly workspace: ReturnType<typeof observableValue<ISessionWorkspace | undefined>>;
 }
 
-function makeSession(opts: { id?: string; runsWorktreeCreatedTasks?: boolean; loading?: boolean } = {}): ITestSession {
+function makeWorkspace(hasWorktree: boolean): ISessionWorkspace {
+	const root = URI.parse('file:///repo');
+	const workTreeUri = hasWorktree ? URI.parse('file:///repo-worktree') : undefined;
+	return {
+		uri: root,
+		label: 'repo',
+		icon: Codicon.folder,
+		folders: [{
+			root,
+			workingDirectory: workTreeUri ?? root,
+			name: 'repo',
+			description: undefined,
+			gitRepository: { uri: root, workTreeUri, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
+		}],
+		requiresWorkspaceTrust: true,
+		isVirtualWorkspace: false,
+	};
+}
+
+function makeSession(opts: { id?: string; runsWorktreeCreatedTasks?: boolean; loading?: boolean; status?: SessionStatus; hasWorktree?: boolean; createdAt?: Date } = {}): ITestSession {
 	const loading = observableValue('loading', opts.loading ?? false);
+	const status = observableValue('status', opts.status ?? SessionStatus.InProgress);
+	const workspace = observableValue<ISessionWorkspace | undefined>('workspace', makeWorkspace(opts.hasWorktree ?? true));
 	const chat = { resource: URI.parse('file:///session') } as IChat;
 	const session: ISession = {
 		sessionId: opts.id ?? 'test:session',
@@ -31,11 +54,11 @@ function makeSession(opts: { id?: string; runsWorktreeCreatedTasks?: boolean; lo
 		providerId: 'test',
 		sessionType: 'background',
 		icon: Codicon.copilot,
-		createdAt: new Date(),
-		workspace: constObservable(undefined as ISessionWorkspace | undefined),
+		createdAt: opts.createdAt ?? new Date(),
+		workspace,
 		title: observableValue('title', 'session'),
 		updatedAt: observableValue('updatedAt', new Date()),
-		status: observableValue('status', SessionStatus.Untitled),
+		status,
 		changesets: constObservable([]),
 		changes: constObservable([]),
 		modelId: observableValue('modelId', undefined),
@@ -49,7 +72,7 @@ function makeSession(opts: { id?: string; runsWorktreeCreatedTasks?: boolean; lo
 		mainChat: chat,
 		capabilities: { supportsMultipleChats: false, runsWorktreeCreatedTasks: opts.runsWorktreeCreatedTasks },
 	};
-	return { session, loading };
+	return { session, loading, status, workspace };
 }
 
 function entry(label: string, runOn?: 'worktreeCreated' | 'folderOpen' | 'default'): ISessionTaskWithTarget {
@@ -227,7 +250,7 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 		assert.deepStrictEqual(tasks.ranTasks, []);
 	});
 
-	test('handles sessions present at startup', async () => {
+	test('does not run for sessions present at startup', async () => {
 		const { session } = makeSession({ id: 'a' });
 		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
 		mgmt.sessions = [session];
@@ -235,6 +258,62 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 		createDispatcher();
 		await settle();
 
+		assert.deepStrictEqual(tasks.ranTasks, []);
+	});
+
+	test('tracks pending untitled sessions present at startup', async () => {
+		const { session, status, workspace } = makeSession({
+			id: 'a',
+			status: SessionStatus.Untitled,
+			hasWorktree: false,
+			createdAt: new Date(Date.now() - 1_000)
+		});
+		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
+		mgmt.sessions = [session];
+
+		createDispatcher();
+		await settle();
+		assert.deepStrictEqual(tasks.ranTasks, []);
+
+		status.set(SessionStatus.InProgress, undefined);
+		workspace.set(makeWorkspace(true), undefined);
+		await settle();
+		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
+	});
+
+	test('does not run for restored sessions reported as added after startup', async () => {
+		createDispatcher();
+		const { session } = makeSession({ id: 'a', createdAt: new Date(Date.now() - 1_000) });
+		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
+		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+		await settle();
+
+		assert.deepStrictEqual(tasks.ranTasks, []);
+	});
+
+	test('waits for a worktree before running', async () => {
+		createDispatcher();
+		const { session, workspace } = makeSession({ id: 'a', hasWorktree: false });
+		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
+		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+		await settle();
+		assert.deepStrictEqual(tasks.ranTasks, []);
+
+		workspace.set(makeWorkspace(true), undefined);
+		await settle();
+		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
+	});
+
+	test('waits for untitled sessions to start before running', async () => {
+		createDispatcher();
+		const { session, status } = makeSession({ id: 'a', status: SessionStatus.Untitled });
+		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
+		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+		await settle();
+		assert.deepStrictEqual(tasks.ranTasks, []);
+
+		status.set(SessionStatus.InProgress, undefined);
+		await settle();
 		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
 	});
 
