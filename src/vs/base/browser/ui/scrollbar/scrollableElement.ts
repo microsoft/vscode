@@ -204,6 +204,15 @@ export abstract class AbstractScrollableElement extends Widget {
 	private readonly _onWillScroll = this._register(new Emitter<ScrollEvent>());
 	public get onWillScroll(): Event<ScrollEvent> { return this._onWillScroll.event; }
 
+	/**
+	 * Guards against wheel events replayed by Chromium after
+	 * the window regains focus. Tracks the timestamp of the last
+	 * processed wheel event and the last window focus event to detect
+	 * stale accumulated events.
+	 */
+	private _lastWheelEventTime: number = 0;
+	private _windowFocusTime: number = 0;
+
 	public get options(): Readonly<ScrollableElementResolvedOptions> {
 		return this._options;
 	}
@@ -270,6 +279,13 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._shouldRender = true;
 
 		this._revealOnScroll = true;
+
+		// Listen for window focus to discard stale wheel events that Chromium
+		// accumulates while the window is unfocused and replays on focus.
+		// See https://github.com/microsoft/vscode/issues/28795
+		this._register(dom.addDisposableListener(this._domNode.ownerDocument?.defaultView ?? window, 'focus', () => {
+			this._windowFocusTime = Date.now();
+		}));
 	}
 
 	public override dispose(): void {
@@ -427,6 +443,22 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	private _onMouseWheel(e: StandardWheelEvent): void {
 		if (e.browserEvent?.defaultPrevented) {
+			return;
+		}
+
+		// Detect and discard wheel events that Chromium accumulated while
+		// the window was unfocused and is now replaying on focus.
+		// When focusing back to VS Code, Chromium may replay stale wheel
+		// events from other applications, causing random scroll jumps.
+		// See https://github.com/microsoft/vscode/issues/28795
+		const now = Date.now();
+		const timeSinceLastWheel = now - this._lastWheelEventTime;
+		const refocusedSinceLastWheel = this._windowFocusTime > this._lastWheelEventTime;
+		this._lastWheelEventTime = now;
+		if (refocusedSinceLastWheel && timeSinceLastWheel > 400) {
+			// The window was just refocused after a gap of >400ms without
+			// any wheel activity. These events were queued while unfocused
+			// and should be discarded to prevent scroll jumps.
 			return;
 		}
 
