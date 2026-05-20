@@ -218,9 +218,12 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			} else {
 				let tokenCountPromise: Promise<number> | undefined;
 				const countTokens = () => tokenCountPromise ??= chatEndpoint.acquireTokenizer().countMessagesTokens(messages);
-				const copilotToken = chatEndpoint.modelProvider === 'copilot' && !chatEndpoint.isExtensionContributed
-					? await this._authenticationService.getCopilotToken()
-					: undefined;
+				let copilotToken: CopilotToken | undefined;
+				try {
+					copilotToken = await this._authenticationService.getCopilotToken();
+				} catch {
+					// BYOK / air-gapped: no Copilot token available. Continue without one.
+				}
 				usernameToScrub = copilotToken?.username ?? this._authenticationService.copilotToken?.username;
 
 				const fetchResult = await this._fetchAndStreamChat(
