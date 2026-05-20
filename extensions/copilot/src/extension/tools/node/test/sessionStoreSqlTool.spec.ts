@@ -450,7 +450,7 @@ describe('SessionStoreSqlTool', () => {
 			const desc = entry!.modelDescription!;
 
 			const required = [
-				'SQLite', 'Read-only', 'SELECT', 'WITH',
+				'SQLite', 'queries are read-only', 'SELECT', 'WITH',
 				`datetime('now'`, 'NOT `now() - INTERVAL',
 				'MATCH', 'chronicle',
 				'sessions', 'turns', 'session_files', 'session_refs', 'checkpoints', 'search_index',
@@ -470,7 +470,7 @@ describe('SessionStoreSqlTool', () => {
 			const desc: string = tool.alternativeDefinition(makeToolInfo()).description;
 
 			const required = [
-				'DuckDB', 'Read-only', 'SELECT', 'WITH',
+				'DuckDB', 'queries are read-only', 'SELECT', 'WITH',
 				'now() - INTERVAL', `NOT \`datetime('now'`,
 				'ILIKE', 'chronicle',
 				'sessions', 'turns', 'session_files', 'session_refs', 'checkpoints', 'events', 'tool_requests',

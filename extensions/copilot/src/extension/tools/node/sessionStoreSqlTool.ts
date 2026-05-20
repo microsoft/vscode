@@ -69,7 +69,7 @@ const SESSIONS_QUERY_CLOUD = `SELECT *
 	LIMIT 100`;
 
 /** Model description when cloud sync is enabled — uses DuckDB SQL syntax. */
-const CLOUD_MODEL_DESCRIPTION = `Query the cloud session store containing ALL past coding sessions across devices and agents. Uses DuckDB syntax (NOT SQLite). Read-only — only SELECT and WITH are allowed. Use \`now() - INTERVAL '1 day'\` for date math (NOT \`datetime('now', '-1 day')\` — that's SQLite-only), \`ILIKE\` for text search (no FTS5/MATCH).
+const CLOUD_MODEL_DESCRIPTION = `Query the cloud session store containing ALL past coding sessions across devices and agents. Uses DuckDB syntax (NOT SQLite). SQL queries are read-only — only SELECT and WITH are allowed. Use \`now() - INTERVAL '1 day'\` for date math (NOT \`datetime('now', '-1 day')\` — that's SQLite-only), \`ILIKE\` for text search (no FTS5/MATCH).
 
 Tables: \`sessions\`, \`turns\`, \`session_files\`, \`session_refs\`, \`checkpoints\`, \`events\`, \`tool_requests\`. For column details and query patterns, use the **chronicle** skill.
 
