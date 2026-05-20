@@ -139,11 +139,16 @@ interface ITerminalCommandDecorationOptions {
 	 * Used to access command metadata for the decoration.
 	 */
 	getResolvedCommand(): ITerminalCommand | undefined;
+
+	/**
+	 * Returns whether the tool invocation is currently running.
+	 */
+	getIsRunning(): boolean;
 }
 
 class TerminalCommandDecoration extends Disposable {
 	private readonly _element: HTMLElement;
-	private _interactionElement: HTMLElement | undefined;
+	private _hoverRegistered = false;
 
 	constructor(
 		private readonly _options: ITerminalCommandDecorationOptions,
@@ -152,6 +157,10 @@ class TerminalCommandDecoration extends Disposable {
 		super();
 		const decorationElements = h('span.chat-terminal-command-decoration@decoration', { role: 'img', tabIndex: 0 });
 		this._element = decorationElements.decoration;
+		for (let dotIndex = 0; dotIndex < 6; dotIndex++) {
+			const dot = h('span.chat-terminal-running-spinner-dot').root;
+			this._element.appendChild(dot);
+		}
 		this._attachElementToContainer();
 	}
 
@@ -171,10 +180,12 @@ class TerminalCommandDecoration extends Disposable {
 			}
 		}
 
-		this._register(this._hoverService.setupDelayedHover(decoration, () => ({
-			content: this._getHoverText()
-		})));
-		this._attachInteractionHandlers(decoration);
+		if (!this._hoverRegistered) {
+			this._hoverRegistered = true;
+			this._register(this._hoverService.setupDelayedHover(decoration, () => ({
+				content: this._getHoverText()
+			})));
+		}
 	}
 
 	private _getHoverText(): string {
@@ -212,12 +223,15 @@ class TerminalCommandDecoration extends Disposable {
 		const decorationState = getTerminalCommandDecorationState(command, storedState);
 		const tooltip = getTerminalCommandDecorationTooltip(command, storedState);
 
+		const isRunning = this._options.getIsRunning();
+
 		decoration.className = `chat-terminal-command-decoration ${DecorationSelector.CommandDecoration}`;
-		decoration.classList.add(DecorationSelector.Codicon);
-		for (const className of decorationState.classNames) {
-			decoration.classList.add(className);
+		if (isRunning) {
+			const nonIconClasses = decorationState.classNames.filter(c => c !== DecorationSelector.Codicon && !c.startsWith('codicon-'));
+			decoration.classList.add('chat-terminal-running-spinner', ...nonIconClasses);
+		} else {
+			decoration.classList.add(DecorationSelector.Codicon, ...decorationState.classNames, ...ThemeIcon.asClassNameArray(decorationState.icon));
 		}
-		decoration.classList.add(...ThemeIcon.asClassNameArray(decorationState.icon));
 		const isInteractive = !decoration.classList.contains(DecorationSelector.Default);
 		decoration.tabIndex = isInteractive ? 0 : -1;
 		if (isInteractive) {
@@ -233,12 +247,6 @@ class TerminalCommandDecoration extends Disposable {
 		}
 	}
 
-	private _attachInteractionHandlers(decoration: HTMLElement): void {
-		if (this._interactionElement === decoration) {
-			return;
-		}
-		this._interactionElement = decoration;
-	}
 }
 
 /**
@@ -350,7 +358,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			terminalData: this._terminalData,
 			getCommandBlock: () => elements.commandBlock,
 			getIconElement: () => undefined,
-			getResolvedCommand: () => this._getResolvedCommand()
+			getResolvedCommand: () => this._getResolvedCommand(),
+			getIsRunning: () => this._isInvocationRunning()
 		}));
 
 		// Use presentationOverrides for display if available (e.g., extracted Python code with syntax highlighting)
@@ -452,7 +461,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		elements.message.append(this.markdownPart.domNode);
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
+		progressPart.domNode.classList.add('chat-terminal-progress-row');
 		this._decoration.update();
+		if (toolInvocation.kind === 'toolInvocation') {
+			this._register(autorun(reader => {
+				toolInvocation.state.read(reader);
+				this._decoration.update();
+			}));
+		}
 
 		// Keep thinking-container semantics separate from wrapper semantics.
 		const terminalToolsInThinking = this._configurationService.getValue<boolean>(ChatConfiguration.TerminalToolsInThinking);
@@ -743,6 +759,21 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return undefined;
 		}
 		return this._resolveCommand(target);
+	}
+
+	private _isInvocationRunning(): boolean {
+		const commandExitCode = this._getResolvedCommand()?.exitCode;
+		if (commandExitCode !== undefined) {
+			return false;
+		}
+		const storedExitCode = this._terminalData.terminalCommandState?.exitCode;
+		if (storedExitCode !== undefined) {
+			return false;
+		}
+		if (!IChatToolInvocation.isComplete(this.toolInvocation)) {
+			return true;
+		}
+		return this._terminalData.isBackground === true || this._terminalData.didContinueInBackground === true;
 	}
 
 	private _clearCommandAssociation(options?: { clearPersistentData?: boolean }): void {

@@ -17,6 +17,9 @@ import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../telemetry/common/gdprTypings.js';
+import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -105,6 +108,32 @@ class CapturingLogService extends NullLogService {
 	}
 }
 
+class RecordingTelemetryService implements ITelemetryService {
+	declare readonly _serviceBrand: undefined;
+	readonly telemetryLevel = TelemetryLevel.NONE;
+	readonly sessionId = 'someValue.sessionId';
+	readonly machineId = 'someValue.machineId';
+	readonly sqmId = 'someValue.sqmId';
+	readonly devDeviceId = 'someValue.devDeviceId';
+	readonly firstSessionDate = 'someValue.firstSessionDate';
+	readonly sendErrorTelemetry = false;
+	readonly events: Array<{ eventName: string; data: unknown }> = [];
+
+	publicLog(): void { }
+
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
+		this.events.push({ eventName, data });
+	}
+
+	publicLogError(): void { }
+
+	publicLogError2(): void { }
+
+	setExperimentProperty(): void { }
+
+	setCommonProperty(): void { }
+}
+
 // ---- Helpers ----------------------------------------------------------------
 
 /**
@@ -151,6 +180,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	clientSnapshot?: IActiveClientSnapshot;
 	environmentServiceRegistration?: 'native' | 'none';
 	logService?: ILogService;
+	telemetryService?: ITelemetryService;
 	captureWrapperCallbacks?: { current?: Parameters<SessionWrapperFactory>[0] };
 	workingDirectory?: URI;
 	/** Per-key effective config values returned by the fake configuration service. */
@@ -201,6 +231,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	const services = new ServiceCollection();
 	services.set(ILogService, options?.logService ?? new NullLogService());
+	services.set(ITelemetryService, options?.telemetryService ?? new NullTelemetryServiceShape());
 	services.set(IFileService, {
 		_serviceBrand: undefined,
 		readFile: async (resource: URI) => {
@@ -954,6 +985,120 @@ suite('CopilotAgentSession', () => {
 				assert.ok(!pastStr.includes('cd /repo/project'), `past-tense message should not contain stripped prefix, got: ${pastStr}`);
 				assert.ok(pastStr.includes('npm test'), `past-tense message should contain the rewritten command, got: ${pastStr}`);
 			}
+		});
+
+		test('live tool_complete emits languageModelToolInvoked telemetry', async () => {
+			const telemetryService = new RecordingTelemetryService();
+			const { mockSession } = await createAgentSession(disposables, { telemetryService });
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-bash-telemetry',
+				toolName: 'bash',
+				arguments: { command: 'npm test' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-bash-telemetry',
+				success: true,
+				result: { content: 'passed' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-mcp-telemetry',
+				toolName: 'mcp_tool',
+				arguments: {},
+				mcpServerName: 'test-server',
+				mcpToolName: 'lookup',
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-mcp-telemetry',
+				success: false,
+				error: { code: 'denied', message: 'denied' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			const normalizedEvents = telemetryService.events.map(event => {
+				const data = event.data as {
+					result: string;
+					chatSessionId: string | undefined;
+					toolId: string;
+					toolExtensionId: string | undefined;
+					toolSourceKind: string;
+					invocationTimeMs?: number;
+				};
+				return {
+					eventName: event.eventName,
+					data: {
+						...data,
+						invocationTimeMs: typeof data.invocationTimeMs === 'number' && data.invocationTimeMs >= 0,
+					},
+				};
+			});
+
+			assert.deepStrictEqual(normalizedEvents, [
+				{
+					eventName: 'languageModelToolInvoked',
+					data: {
+						result: 'success',
+						chatSessionId: AgentSession.uri('copilot', 'test-session-1').toString(),
+						toolId: 'bash',
+						toolExtensionId: undefined,
+						toolSourceKind: 'agentHost',
+						invocationTimeMs: true,
+					},
+				},
+				{
+					eventName: 'languageModelToolInvoked',
+					data: {
+						result: 'userCancelled',
+						chatSessionId: AgentSession.uri('copilot', 'test-session-1').toString(),
+						toolId: 'mcp_tool',
+						toolExtensionId: undefined,
+						toolSourceKind: 'mcp',
+						invocationTimeMs: true,
+					},
+				},
+			]);
+		});
+
+		test('client tool telemetry does not use clientId as toolExtensionId', async () => {
+			const telemetryService = new RecordingTelemetryService();
+			const { mockSession } = await createAgentSession(disposables, {
+				telemetryService,
+				clientSnapshot: {
+					clientId: 'test-client',
+					tools: [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }],
+					plugins: [],
+				},
+			});
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-client-telemetry',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-client-telemetry',
+				success: true,
+				result: { content: 'done' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			const [event] = telemetryService.events;
+			assert.deepStrictEqual({
+				eventName: event.eventName,
+				data: {
+					...(event.data as object),
+					invocationTimeMs: typeof (event.data as { invocationTimeMs?: number }).invocationTimeMs === 'number',
+				},
+			}, {
+				eventName: 'languageModelToolInvoked',
+				data: {
+					result: 'success',
+					chatSessionId: AgentSession.uri('copilot', 'test-session-1').toString(),
+					toolId: 'my_tool',
+					toolExtensionId: undefined,
+					toolSourceKind: 'client',
+					invocationTimeMs: true,
+				},
+			});
 		});
 
 		test('live tool_start does not rewrite when cd target differs from workingDirectory', async () => {

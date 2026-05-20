@@ -9,7 +9,6 @@ import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabe
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../base/common/actions.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
@@ -201,8 +200,6 @@ export class MobileChatInputCombinedPickerActionItem extends BaseActionViewItem 
 			?? localize('chatPhoneInput.autoLabel', "Auto");
 		const labelSpan = dom.append(trigger, dom.$('span.chat-input-picker-label'));
 		labelSpan.textContent = labelText;
-
-		dom.append(trigger, renderIcon(Codicon.chevronDown));
 
 		const ariaParts: string[] = [];
 		const modeLabel = currentMode.label.get();

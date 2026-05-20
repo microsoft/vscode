@@ -261,13 +261,6 @@ export interface ISession {
 	readonly mainChat: IChat;
 	/** Capabilities of this session. */
 	readonly capabilities: ISessionCapabilities;
-	/**
-	 * Optional key used to deduplicate sessions across providers. When
-	 * multiple sessions share the same key, only one is kept by
-	 * {@link ISessionsManagementService.getSessions}. Local providers are
-	 * preferred over remote ones.
-	 */
-	readonly deduplicationKey?: string;
 }
 
 /**
@@ -292,6 +285,16 @@ export function toSessionId(providerId: string, resource: URI): string {
 export interface ISessionCapabilities {
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
+	/**
+	 * Whether the session's underlying runtime (e.g. a cloud agent host)
+	 * already runs `runOptions.runOn === 'worktreeCreated'` tasks during
+	 * environment provisioning. When `true`, the agents-window
+	 * client-side dispatcher must NOT run those tasks itself to avoid
+	 * double-execution. Defaults to `false` for sessions backed by local
+	 * or remote agent hosts, where the client is the only thing that
+	 * could trigger them.
+	 */
+	readonly runsWorktreeCreatedTasks?: boolean;
 }
 
 /**

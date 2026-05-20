@@ -1059,5 +1059,55 @@
 			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
 			"SOFTWARE."
 		]
+	},
+	{
+		// Reason: No repositoryUrl in npm package. Icons are from gilbarbara/logos under CC0-1.0.
+		"name": "@iconify-json/logos",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/gilbarbara/logos/42037415f0df19cd82b3853c18a967a81783f921/LICENSE.txt"
+	},
+	{
+		// Reason: No repositoryUrl in npm package. Icons are from Templarian/MaterialDesign under Apache-2.0.
+		// License file does not include a copyright statement; including a best-effort copyright statement
+		"name": "@iconify-json/mdi",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/Templarian/MaterialDesign/2424e748e0cc63ab7b9c095a099b9fe239b737c0/LICENSE",
+		"prependLicenseText": [
+			"Copyright (c) Pictogrammers (https://pictogrammers.com/)"
+		]
+	},
+	{
+		// Reason: npm repositoryUrl points to a subdirectory; license is at the root of adobe/react-spectrum.
+		"name": "@internationalized/date",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/adobe/react-spectrum/9508b15bf8c0e968c56220548207cc57c7e4f57c/LICENSE"
+	},
+	{
+		// Reason: npm repositoryUrl points to a subdirectory; license is at the root of nodelib/nodelib.
+		"name": "@nodelib/fs.stat",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/nodelib/nodelib/ba122bd81aadd0a4fa7340ef2cfaabf62984bf1d/LICENSE"
+	},
+	{
+		// Reason: npm repositoryUrl points to a subdirectory; license is at the root of nodelib/nodelib.
+		"name": "@nodelib/fs.walk",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/nodelib/nodelib/ba122bd81aadd0a4fa7340ef2cfaabf62984bf1d/LICENSE"
+	},
+	{
+		// Reason: npm repositoryUrl points to a subdirectory; license is at the root of nodelib/nodelib.
+		"name": "@nodelib/fs.scandir",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/nodelib/nodelib/ba122bd81aadd0a4fa7340ef2cfaabf62984bf1d/LICENSE"
+	},
+	{
+		// Reason: License in README links to oss.ninja/mit/developit which has no copyright statement.
+		// Author is Jason Miller (https://github.com/developit).
+		"name": "dlv",
+		"licenseDetail": [
+			"MIT License",
+			"",
+			"Copyright (c) Jason Miller (https://jasonformat.com/)",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
+		]
 	}
 ]

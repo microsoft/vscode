@@ -408,6 +408,7 @@ class RecordingSessionDataService implements ISessionDataService {
 		return this._delegate.tryOpenDatabase(session);
 	}
 	deleteSessionData(session: URI) { return this._delegate.deleteSessionData(session); }
+	get onWillDeleteSessionData() { return this._delegate.onWillDeleteSessionData; }
 	cleanupOrphanedData(knownSessionIds: Set<string>) { return this._delegate.cleanupOrphanedData(knownSessionIds); }
 	whenIdle() { return this._delegate.whenIdle(); }
 }
@@ -511,13 +512,17 @@ class CapturingLogService extends NullLogService {
 
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
 	api.models = async () => [...ALL_MODELS];
 	const sdk = new FakeClaudeAgentSdkService();
-	const sessionData = new RecordingSessionDataService(createSessionDataService());
+	const sessionData = new RecordingSessionDataService(
+		overrides?.database
+			? createSessionDataService(overrides.database)
+			: createSessionDataService()
+	);
 	const logService = overrides?.logService ?? new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
@@ -1334,7 +1339,7 @@ suite('ClaudeAgent', () => {
 			partIdsMatch: part.part.id === firstDelta.partId && part.part.id === secondDelta.partId,
 			turnId: part.turnId,
 			deltaTexts: [firstDelta.content, secondDelta.content],
-			session: part.session.toString(),
+			session: partActions[0].s.kind === 'action' ? partActions[0].s.session.toString() : undefined,
 		}, {
 			partKindIsMarkdown: true,
 			partPrecedesDelta: true,
@@ -1856,6 +1861,146 @@ suite('ClaudeAgent', () => {
 			warmQueriesLength: 0,
 			sendThrewUnknown: true,
 			materializedAbsent: true,
+		});
+	});
+
+	test('sendMessage on a disk-only session (created in another window) resumes from disk', async () => {
+		// Regression for: "Open a session that was not started in the
+		// active window, send it a message → Error: Cannot send to
+		// unknown session: <id>". Before the fix, sendMessage's else
+		// branch (no `_sessions` entry AND no `_provisionalSessions`
+		// entry) threw outright. After the fix it routes through
+		// `_resumeSession`, which mirrors CopilotAgent._resumeSession:
+		// read `cwd` from `sdkService.getSessionInfo`, model + permission
+		// mode from the metadata overlay, build an on-the-fly provisional
+		// record, and materialize with `startMode: 'resume'` so the SDK
+		// loads the existing transcript via `Options.resume` instead of
+		// minting a fresh sessionId via `Options.sessionId`.
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		// Stage a session that exists on disk (in the SDK's transcript
+		// store) but was never createSession'd on this agent instance.
+		const sessionId = 'cross-window-session-id';
+		const sessionUri = AgentSession.uri('claude', sessionId);
+		sdk.sessionList = [{
+			sessionId,
+			summary: 'From another window',
+			lastModified: 5000,
+			createdAt: 4900,
+			cwd: URI.file('/work').fsPath,
+		}];
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId),
+			makeResultSuccess(sessionId),
+		];
+
+		const events: IAgentMaterializeSessionEvent[] = [];
+		disposables.add(agent.onDidMaterializeSession(e => events.push(e)));
+
+		await agent.sendMessage(sessionUri, 'hi', undefined, 'turn-1');
+
+		assert.deepStrictEqual({
+			startupCallCount: sdk.startupCallCount,
+			materializeEventCount: events.length,
+			eventSession: events[0]?.session.toString(),
+			eventCwd: events[0]?.workingDirectory?.fsPath,
+			startupOptionsCwd: sdk.capturedStartupOptions[0]?.cwd,
+			// In resume mode the SDK gets `Options.resume = <id>` and
+			// MUST NOT get `Options.sessionId`.
+			startupOptionsResume: sdk.capturedStartupOptions[0]?.resume,
+			startupOptionsSessionId: sdk.capturedStartupOptions[0]?.sessionId,
+			sessionInMap: agent.getSessionForTesting(sessionUri) !== undefined,
+		}, {
+			startupCallCount: 1,
+			materializeEventCount: 1,
+			eventSession: sessionUri.toString(),
+			eventCwd: URI.file('/work').fsPath,
+			startupOptionsCwd: URI.file('/work').fsPath,
+			startupOptionsResume: sessionId,
+			startupOptionsSessionId: undefined,
+			sessionInMap: true,
+		});
+	});
+
+	test('sendMessage on a disk-only session whose SDK record is missing throws "unknown session"', async () => {
+		// Defense-in-depth pair to the resume-from-disk test above. If
+		// the SDK has no record of the session id at all (e.g. the
+		// transcript file was deleted out from under us), `_resumeSession`
+		// must surface a clear error rather than silently fabricating a
+		// fresh session bound to the wrong cwd. Also pins: no SDK startup
+		// is performed in this failure path (no subprocess spawn for a
+		// session we can't actually resume).
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const sessionUri = AgentSession.uri('claude', 'ghost-session-id');
+		// sdk.sessionList stays empty — getSessionInfo resolves undefined.
+
+		const sendErr = await agent.sendMessage(sessionUri, 'hi', undefined, 'turn-1')
+			.then(() => undefined, err => err);
+
+		assert.deepStrictEqual({
+			startupCallCount: sdk.startupCallCount,
+			sendThrewUnknown: sendErr instanceof Error && /unknown session/i.test(sendErr.message),
+			sessionAbsent: agent.getSessionForTesting(sessionUri) === undefined,
+		}, {
+			startupCallCount: 0,
+			sendThrewUnknown: true,
+			sessionAbsent: true,
+		});
+	});
+
+	test('resumed session keeps overlay-derived permissionMode on turn 2 (no silent flip to default)', async () => {
+		// Regression for Copilot review feedback on the cross-window
+		// resume PR. Before the fix, the materialized-session branch in
+		// `sendMessage` unconditionally called
+		// `session.setPermissionMode(_readSessionPermissionMode(uri) ?? 'default')`
+		// on turn 2. For a cross-window-resumed session, AgentService
+		// never registered the per-session schema (that happens via
+		// `sessionAdded` for createSession-spawned sessions), so
+		// `_readSessionPermissionMode` returned `undefined`, the
+		// fallback `'default'` won, and a plan-mode session silently
+		// downgraded to default mode mid-conversation.
+		//
+		// The fix: only forward `setPermissionMode` when the live config
+		// actually carries a value, leaving the session's seeded
+		// bijective state (set via `seedBijectiveState` at resume time)
+		// authoritative otherwise.
+		//
+		// Setup: stage the per-session DB with `claude.permissionMode='plan'`,
+		// then run two turns. Turn 1 picks up the mode via
+		// `Options.permissionMode` at materialize. Turn 2 must NOT
+		// record an extra `setPermissionMode` call.
+		const sessionId = 'cross-window-mode-session';
+		const sessionUri = AgentSession.uri('claude', sessionId);
+
+		const db = new TestSessionDatabase();
+		await db.setMetadata('claude.permissionMode', 'plan');
+
+		const { agent, sdk } = createTestContext(disposables, { database: db });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		sdk.sessionList = [{
+			sessionId,
+			summary: 'From another window (plan mode)',
+			lastModified: 5000,
+			createdAt: 4900,
+			cwd: URI.file('/work').fsPath,
+		}];
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(sessionUri, 'turn-1', undefined, 't1');
+
+		sdk.nextQueryMessages = [makeResultSuccess(sessionId)];
+		await agent.sendMessage(sessionUri, 'turn-2', undefined, 't2');
+
+		const fakeQuery = sdk.warmQueries.at(-1)?.produced;
+		assert.deepStrictEqual({
+			optionsPermissionMode: sdk.capturedStartupOptions[0]?.permissionMode,
+			recordedModes: fakeQuery?.recordedPermissionModes ?? [],
+		}, {
+			optionsPermissionMode: 'plan',
+			recordedModes: ['plan'],
 		});
 	});
 
@@ -2810,6 +2955,19 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('onClientToolCallComplete is a benign no-op (Phase 10 not yet implemented)', () => {
+		// `AgentSideEffects` fires `onClientToolCallComplete` for every
+		// server-dispatched `SessionToolCallComplete` envelope, including
+		// the ones the Claude mapper emits for normal SDK tool completions.
+		// Until Phase 10 wires client (MCP) tools through, the body must
+		// be a benign no-op — throwing here corrupts every tool flow.
+		const { agent } = createTestContext(disposables);
+		const session = URI.parse('claude:/sess-1');
+		assert.doesNotThrow(() => {
+			agent.onClientToolCallComplete(session, 'toolu_unknown', { success: true, pastTenseMessage: 'ran' });
+		});
+	});
+
 	// #endregion
 });
 
@@ -2979,8 +3137,8 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 				toolCallId: 'tu_shape',
 				toolName: 'Read',
 				displayName: 'Read file',
-				invocationMessage: 'Read file',
-				toolInput: '{"file_path":"/tmp/foo.txt"}',
+				invocationMessage: { markdown: 'Reading [foo.txt](file:///tmp/foo.txt)' },
+				toolInput: '{\n  "file_path": "/tmp/foo.txt"\n}',
 				confirmationTitle: 'Read file?',
 			},
 			permissionKind: 'read',

@@ -24,7 +24,7 @@ import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/
 import { AgentHostPermissionMode, IAgentHostPermissionService } from '../common/agentHostPermissionService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, type CustomizationRef, type RootState } from '../common/state/sessionState.js';
+import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type CustomizationRef, type RootState } from '../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
@@ -348,6 +348,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}
 
 		const result = await this._sendRequest('initialize', {
+			channel: ROOT_STATE_URI,
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId: this._clientId,
 			initialSubscriptions: [ROOT_STATE_URI],
@@ -356,7 +357,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 		// Hydrate root state from the initial snapshot
 		for (const snapshot of result.snapshots ?? []) {
-			if (snapshot.resource === ROOT_STATE_URI) {
+			if (isAhpRootChannel(snapshot.resource)) {
 				this._subscriptionManager.handleRootSnapshot(snapshot.state as RootState, snapshot.fromSeq);
 			}
 		}
@@ -524,9 +525,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				// the action instead of applying it to confirmed state.
 				if (envelope.origin?.clientId === this._clientId
 					&& envelope.origin.clientSeq !== undefined
-					&& !envelope.rejectionReason
-					&& hasKey(envelope.action, { session: true })) {
-					this._subscriptionManager.dropPendingSessionAction(envelope.action.session, envelope.origin.clientSeq);
+					&& !envelope.rejectionReason) {
+					this._subscriptionManager.dropPendingSessionAction(envelope.channel, envelope.origin.clientSeq);
 				}
 				if (envelope.serverSeq > maxSeq) {
 					maxSeq = envelope.serverSeq;
@@ -541,7 +541,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		} else {
 			let maxSeq = this._serverSeq;
 			for (const snapshot of result.snapshots) {
-				this._subscriptionManager.applyReconnectSnapshot(URI.parse(snapshot.resource), snapshot.state, snapshot.fromSeq);
+				this._subscriptionManager.applyReconnectSnapshot(snapshot.resource, snapshot.state, snapshot.fromSeq);
 				if (snapshot.fromSeq > maxSeq) {
 					maxSeq = snapshot.fromSeq;
 				}
@@ -584,7 +584,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			replays.push({
 				jsonrpc: '2.0',
 				method: 'dispatchAction',
-				params: { clientSeq: entry.clientSeq, action: entry.action },
+				params: { channel: entry.sessionUri, clientSeq: entry.clientSeq, action: entry.action },
 			});
 		}
 
@@ -617,16 +617,19 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
 	}
 
-	dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
-		const seq = this._subscriptionManager.dispatchOptimistic(action);
-		this.dispatchAction(action, this._clientId, seq);
+	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
+		this.dispatchAction(channel, action, this._clientId, seq);
 	}
 
 	/**
 	 * Subscribe to state at a URI. Returns the current state snapshot.
 	 */
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
-		const result = await this._sendRequest('subscribe', { resource: resource.toString() });
+		const result = await this._sendRequest('subscribe', { channel: resource.toString() });
+		if (!result.snapshot) {
+			throw new Error(`subscribe to ${resource.toString()} returned no snapshot`);
+		}
 		return result.snapshot;
 	}
 
@@ -634,15 +637,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Unsubscribe from state at a URI.
 	 */
 	unsubscribe(resource: URI): void {
-		this._sendNotification('unsubscribe', { resource: resource.toString() });
+		this._sendNotification('unsubscribe', { channel: resource.toString() });
 	}
 
 	/**
 	 * Dispatch a client action to the server. Returns the clientSeq used.
 	 */
-	private dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
+	private dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
 		this._grantImplicitReadsForOutgoingAction(action);
-		this._sendNotification('dispatchAction', { clientSeq, action });
+		this._sendNotification('dispatchAction', { channel, clientSeq, action });
 	}
 
 	/**
@@ -658,7 +661,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			this._grantImplicitReadsForCustomizations(config.activeClient.customizations);
 		}
 		await this._sendRequest('createSession', {
-			session: session.toString(),
+			channel: session.toString(),
 			provider,
 			model: config?.model,
 			workingDirectory: config?.workingDirectory ? fromAgentHostUri(config.workingDirectory).toString() : undefined,
@@ -670,6 +673,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		return this._sendRequest('resolveSessionConfig', {
+			channel: ROOT_STATE_URI,
 			provider: params.provider,
 			workingDirectory: params.workingDirectory ? fromAgentHostUri(params.workingDirectory).toString() : undefined,
 			config: params.config,
@@ -678,6 +682,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		return this._sendRequest('sessionConfigCompletions', {
+			channel: ROOT_STATE_URI,
 			provider: params.provider,
 			workingDirectory: params.workingDirectory ? fromAgentHostUri(params.workingDirectory).toString() : undefined,
 			config: params.config,
@@ -699,7 +704,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * connection closes before a response arrives.
 	 */
 	async ping(): Promise<void> {
-		await this._sendRequest('ping', {});
+		await this._sendRequest('ping', { channel: ROOT_STATE_URI });
 	}
 
 	/**
@@ -714,7 +719,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Authenticate with the remote agent host using a specific scheme.
 	 */
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		await this._sendRequest('authenticate', params);
+		await this._sendRequest('authenticate', { channel: ROOT_STATE_URI, ...params });
 		return { authenticated: true };
 	}
 
@@ -729,7 +734,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Dispose a session on the remote agent host.
 	 */
 	async disposeSession(session: URI): Promise<void> {
-		await this._sendRequest('disposeSession', { session: session.toString() });
+		await this._sendRequest('disposeSession', { channel: session.toString() });
 	}
 
 	/**
@@ -743,14 +748,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Dispose a terminal on the remote agent host.
 	 */
 	async disposeTerminal(terminal: URI): Promise<void> {
-		await this._sendRequest('disposeTerminal', { terminal: terminal.toString() });
+		await this._sendRequest('disposeTerminal', { channel: terminal.toString() });
 	}
 
 	/**
 	 * List all sessions from the remote agent host.
 	 */
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		const result = await this._sendRequest('listSessions', {});
+		const result = await this._sendRequest('listSessions', { channel: ROOT_STATE_URI });
 		return result.items.map((s: SessionSummary) => ({
 			session: URI.parse(s.resource),
 			startTime: s.createdAt,
@@ -767,7 +772,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			workingDirectory: typeof s.workingDirectory === 'string' ? toAgentHostUri(URI.parse(s.workingDirectory), this._connectionAuthority) : undefined,
 			isRead: !!(s.status & SessionStatus.IsRead),
 			isArchived: !!(s.status & SessionStatus.IsArchived),
-			diffs: s.diffs,
+			changesets: s.changesets,
 		}));
 	}
 
@@ -816,14 +821,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * List the contents of a directory on the remote host's filesystem.
 	 */
 	async resourceList(uri: URI): Promise<CommandMap['resourceList']['result']> {
-		return await this._sendRequest('resourceList', { uri: uri.toString() });
+		return await this._sendRequest('resourceList', { channel: ROOT_STATE_URI, uri: uri.toString() });
 	}
 
 	/**
 	 * Read the content of a resource on the remote host.
 	 */
 	async resourceRead(uri: URI): Promise<CommandMap['resourceRead']['result']> {
-		return this._sendRequest('resourceRead', { uri: uri.toString() });
+		return this._sendRequest('resourceRead', { channel: ROOT_STATE_URI, uri: uri.toString() });
 	}
 
 	async resourceWrite(params: CommandMap['resourceWrite']['params']): Promise<CommandMap['resourceWrite']['result']> {
@@ -898,10 +903,16 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 					this._onDidAction.fire(envelope);
 					break;
 				}
-				case 'notification': {
-					const notification = msg.params.notification;
-					this._logService.trace(`[RemoteAgentHostProtocol] Notification: ${notification.type}`);
-					this._onDidNotification.fire(notification);
+				case 'root/sessionAdded':
+				case 'root/sessionRemoved':
+				case 'root/sessionSummaryChanged':
+				case 'auth/required': {
+					this._logService.trace(`[RemoteAgentHostProtocol] Notification: ${msg.method}`);
+					// The case narrows `msg.method` to a single literal; the matching params
+					// shape is paired with that literal by the {@link ServerNotificationMap}
+					// definition, so spreading is safe.
+					// eslint-disable-next-line local/code-no-dangerous-type-assertions
+					this._onDidNotification.fire({ type: msg.method, ...msg.params } as INotification);
 					break;
 				}
 				default:
@@ -1027,7 +1038,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			case 'resourceList': {
 				if (!p.uri) { sendError(new Error('Missing uri')); return; }
 				const uri = URI.parse(p.uri as string);
-				return void gateAndHandle(uri, AgentHostPermissionMode.Read, { uri: uri.toString(), read: true }, async () => {
+				return void gateAndHandle(uri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: uri.toString(), read: true }, async () => {
 					const stat = await this._fileService.resolve(uri);
 					return { entries: (stat.children ?? []).map(c => ({ name: c.name, type: c.isDirectory ? 'directory' as const : 'file' as const })) };
 				});
@@ -1035,7 +1046,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			case 'resourceRead': {
 				if (!p.uri) { sendError(new Error('Missing uri')); return; }
 				const uri = URI.parse(p.uri as string);
-				return void gateAndHandle(uri, AgentHostPermissionMode.Read, { uri: uri.toString(), read: true }, async () => {
+				return void gateAndHandle(uri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: uri.toString(), read: true }, async () => {
 					const content = await this._fileService.readFile(uri);
 					return { data: encodeBase64(content.value), encoding: ContentEncoding.Base64 };
 				});
@@ -1043,7 +1054,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			case 'resourceWrite': {
 				if (!p.uri || !p.data) { sendError(new Error('Missing uri or data')); return; }
 				const writeUri = URI.parse(p.uri as string);
-				return void gateAndHandle(writeUri, AgentHostPermissionMode.Write, { uri: writeUri.toString(), write: true }, async () => {
+				return void gateAndHandle(writeUri, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: writeUri.toString(), write: true }, async () => {
 					const buf = p.encoding === ContentEncoding.Base64
 						? decodeBase64(p.data as string)
 						: VSBuffer.fromString(p.data as string);
@@ -1058,7 +1069,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			case 'resourceDelete': {
 				if (!p.uri) { sendError(new Error('Missing uri')); return; }
 				const deleteUri = URI.parse(p.uri as string);
-				return void gateAndHandle(deleteUri, AgentHostPermissionMode.Write, { uri: deleteUri.toString(), write: true }, () =>
+				return void gateAndHandle(deleteUri, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: deleteUri.toString(), write: true }, () =>
 					this._fileService.del(deleteUri, { recursive: !!p.recursive }).then(() => ({})));
 			}
 			case 'resourceMove': {
@@ -1072,11 +1083,11 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 							this._permissionService.check(this._address, destUri, AgentHostPermissionMode.Write),
 						]);
 						if (!sourceOk) {
-							sendPermissionDenied({ uri: sourceUri.toString(), write: true });
+							sendPermissionDenied({ channel: ROOT_STATE_URI, uri: sourceUri.toString(), write: true });
 							return;
 						}
 						if (!destOk) {
-							sendPermissionDenied({ uri: destUri.toString(), write: true });
+							sendPermissionDenied({ channel: ROOT_STATE_URI, uri: destUri.toString(), write: true });
 							return;
 						}
 						await this._fileService.move(sourceUri, destUri, !p.failIfExists);
@@ -1135,7 +1146,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	private _updateTelemetryLevel(): void {
-		this.dispatchAction({
+		this.dispatchAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(getTelemetryLevel(this._configurationService)) },
 		}, this._clientId, 0);

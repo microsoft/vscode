@@ -17,12 +17,11 @@ import { IProgressService } from '../../../../platform/progress/common/progress.
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, ActiveSessionWorkspaceIsVirtualContext, IsNewChatInSessionContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
-import { ActiveSessionSupportsMultiChatContext, IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
+import { ActiveSessionSupportsMultiChatContext, IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
-import { IChat, ISession, SessionStatus, ISessionType } from '../common/session.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
@@ -165,18 +164,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 
-		// When new sessions appear, check if any are currently displayed in a
-		// chat widget. This handles cases where a session is opened in the
-		// widget without going through sessionsManagementService (e.g., fork).
-		if (e.added.length) {
-			for (const added of e.added) {
-				if (added.sessionId !== currentActive?.sessionId && this.chatWidgetService.getWidgetBySessionResource(added.resource)) {
-					this.setActiveSession(added);
-					return;
-				}
-			}
-		}
-
 		if (!currentActive) {
 			return;
 		}
@@ -194,7 +181,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		for (const provider of this.sessionsProvidersService.getProviders()) {
 			sessions.push(...provider.getSessions());
 		}
-		return deduplicateSessions(sessions);
+		return sessions;
 	}
 
 	getSession(resource: URI): ISession | undefined {
@@ -205,6 +192,29 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	getAllSessionTypes(): ISessionType[] {
 		return [...this._sessionTypes];
+	}
+
+	getSessionTypesForFolder(folderUri: URI): IProviderSessionType[] {
+		const result: IProviderSessionType[] = [];
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			if (!provider.resolveWorkspace(folderUri)) {
+				continue;
+			}
+			for (const sessionType of provider.getSessionTypes(folderUri)) {
+				result.push({ providerId: provider.id, sessionType });
+			}
+		}
+		return result;
+	}
+
+	resolveWorkspace(folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined {
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			const workspace = provider.resolveWorkspace(folderUri);
+			if (workspace) {
+				return { providerId: provider.id, workspace };
+			}
+		}
+		return undefined;
 	}
 
 	private _collectSessionTypes(): ISessionType[] {
@@ -222,13 +232,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private _updateSessionTypes(): void {
-		const newTypes = this._collectSessionTypes();
-		const changed = this._sessionTypes.length !== newTypes.length
-			|| this._sessionTypes.some((t, i) => t.id !== newTypes[i].id || t.label !== newTypes[i].label);
-		if (changed) {
-			this._sessionTypes = newTypes;
-			this._onDidChangeSessionTypes.fire();
-		}
+		// Always fire — the deduplicated flat list (used by surfaces that
+		// only need a set of type ids) may be unchanged, but the per-folder
+		// result of {@link getSessionTypesForFolder} can change whenever any
+		// provider's types or the set of providers changes, because each
+		// entry is keyed by (providerId × sessionType) rather than by type
+		// id alone.
+		this._sessionTypes = this._collectSessionTypes();
+		this._onDidChangeSessionTypes.fire();
 	}
 
 	/**
@@ -325,24 +336,51 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.setActiveSession(undefined);
 	}
 
-	createNewSession(providerId: string, repositoryUri: URI, sessionTypeId?: string): ISession {
+	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
 		this._startOpenSession();
 		if (!this.isNewChatSessionContext.get()) {
 			this.isNewChatSessionContext.set(true);
 		}
 
-		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === providerId);
-		if (!provider) {
-			throw new Error(`Sessions provider '${providerId}' not found`);
-		}
+		const providers = this.sessionsProvidersService.getProviders();
+		let provider: ISessionsProvider | undefined;
 
-		if (!sessionTypeId) {
-			sessionTypeId = provider.getSessionTypes(repositoryUri)[0]?.id;
-			if (!sessionTypeId) {
-				throw new Error(`No session types available for provider '${providerId}'`);
+		if (options?.providerId) {
+			provider = providers.find(p => p.id === options.providerId);
+			if (!provider) {
+				throw new Error(`Sessions provider '${options.providerId}' not found`);
+			}
+			if (!provider.resolveWorkspace(folderUri)) {
+				throw new Error(`Sessions provider '${options.providerId}' cannot resolve folder '${folderUri.toString()}'`);
+			}
+		} else {
+			// Iterate providers and pick the first one that can resolve the folder.
+			// When a specific session type was requested, also require the provider to
+			// advertise that type for the folder.
+			for (const candidate of providers) {
+				if (!candidate.resolveWorkspace(folderUri)) {
+					continue;
+				}
+				if (options?.sessionTypeId && !candidate.getSessionTypes(folderUri).some(t => t.id === options.sessionTypeId)) {
+					continue;
+				}
+				provider = candidate;
+				break;
+			}
+			if (!provider) {
+				throw new Error(`No sessions provider can resolve folder '${folderUri.toString()}'`);
 			}
 		}
-		const session = provider.createNewSession(repositoryUri, sessionTypeId);
+
+		let sessionTypeId = options?.sessionTypeId;
+		if (!sessionTypeId) {
+			sessionTypeId = provider.getSessionTypes(folderUri)[0]?.id;
+			if (!sessionTypeId) {
+				throw new Error(`No session types available for provider '${provider.id}'`);
+			}
+		}
+
+		const session = provider.createNewSession(folderUri, sessionTypeId);
 		this._pendingNewSession = session;
 		this.setActiveSession(session);
 		return session;
@@ -686,7 +724,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					}
 				};
 
-				disposables.add(this.onDidChangeSessions(() => tryRestore()));
 				disposables.add(this.sessionsProvidersService.onDidChangeProviders(() => tryRestore()));
 
 				// Call immediately in case the session became available between the
@@ -794,36 +831,6 @@ class ActiveSession implements IActiveSession {
 	get chats() { return this._session.chats; }
 	get mainChat() { return this._session.mainChat; }
 	get capabilities() { return this._session.capabilities; }
-	get deduplicationKey() { return this._session.deduplicationKey; }
 }
 
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);
-
-/**
- * Removes duplicate sessions across providers. When multiple sessions share
- * the same {@link ISession.deduplicationKey}, the session from the local
- * agent host provider is preferred; otherwise the first occurrence wins.
- */
-export function deduplicateSessions(sessions: ISession[]): ISession[] {
-	const seen = new Map<string, ISession>();
-	for (const session of sessions) {
-		const key = session.deduplicationKey;
-		if (!key) {
-			continue;
-		}
-		const existing = seen.get(key);
-		if (!existing) {
-			seen.set(key, session);
-		} else if (existing.providerId !== LOCAL_AGENT_HOST_PROVIDER_ID && session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
-			seen.set(key, session);
-		}
-	}
-
-	return sessions.filter(s => {
-		const key = s.deduplicationKey;
-		if (!key) {
-			return true;
-		}
-		return seen.get(key) === s;
-	});
-}

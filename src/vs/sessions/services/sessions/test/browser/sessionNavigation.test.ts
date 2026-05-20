@@ -11,8 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IActiveSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { IChat, ISession, ISessionType, SessionStatus } from '../../common/session.js';
+import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace, SessionStatus } from '../../common/session.js';
 import { SessionsNavigation } from '../../browser/sessionNavigation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ISendRequestOptions } from '../../common/sessionsProvider.js';
@@ -127,6 +127,8 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 
 	getAllSessionTypes(): ISessionType[] { return []; }
+	getSessionTypesForFolder(_folderUri: URI): IProviderSessionType[] { return []; }
+	resolveWorkspace(_folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined { return undefined; }
 
 	async openSession(sessionResource: URI): Promise<void> {
 		this._openedResource = sessionResource;
@@ -155,7 +157,7 @@ class MockSessionStore implements ISessionsManagementService {
 		}
 	}
 	restoreLastActiveSession(): Promise<void> { throw new Error('not implemented'); }
-	createNewSession(_providerId: string, _workspaceUri: URI, _sessionTypeId?: string): ISession { throw new Error('not implemented'); }
+	createNewSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	unsetNewSession(): void { throw new Error('not implemented'); }
 	sendAndCreateChat(_session: ISession, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
 	sendRequest(_session: ISession, _chat: IChat, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
