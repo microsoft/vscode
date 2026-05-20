@@ -205,6 +205,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	private _mouseDown = false;
 	private _suppressSelectionChangeOnce = false;
 	private _sessionResource: URI | undefined;
+	private _targetSelection: Selection | undefined;
 	private readonly _widgetListeners = this._store.add(new DisposableStore());
 
 	constructor(
@@ -228,6 +229,9 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				return;
 			}
 			this._mouseDown = true;
+			if (this._hasInputText()) {
+				return;
+			}
 			this._hide();
 		}));
 		this._store.add(this._editor.onMouseUp((e) => {
@@ -241,9 +245,15 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			if (!this._visible) {
 				return;
 			}
+			if (this._hasInputText()) {
+				return;
+			}
 			// Defer so focus has settled to the new target
 			getWindow(this._editor.getDomNode()!).setTimeout(() => {
 				if (!this._visible) {
+					return;
+				}
+				if (this._hasInputText()) {
 					return;
 				}
 				if (this._isWidgetTarget(getWindow(this._editor.getDomNode()!).document.activeElement)) {
@@ -257,6 +267,10 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _isWidgetTarget(target: EventTarget | Element | null): boolean {
 		return !!this._widget && !!target && this._widget.getDomNode().contains(target as Node);
+	}
+
+	private _hasInputText(): boolean {
+		return !!this._widget && this._widget.inputElement.value.trim().length > 0;
 	}
 
 	private _ensureWidget(): AgentFeedbackInputWidget {
@@ -285,6 +299,12 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
+		// Preserve the current widget state when the user is in the middle of providing
+		// feedback. Only an explicit dismissal (Escape, submit) should close it.
+		if (this._visible && this._hasInputText()) {
+			return;
+		}
+
 		const selection = this._editor.getSelection();
 		if (!selection || (selection.isEmpty() && !this._getDiffHunkForSelection(selection))) {
 			this._hide();
@@ -310,6 +330,12 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	private _show(): void {
 		const widget = this._ensureWidget();
 
+		const selection = this._editor.getSelection();
+		if (!selection) {
+			return;
+		}
+		this._targetSelection = selection;
+
 		if (!this._visible) {
 			this._visible = true;
 			this._registerWidgetListeners(widget);
@@ -326,6 +352,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		this._visible = false;
+		this._targetSelection = undefined;
 		this._widgetListeners.clear();
 
 		if (this._widget) {
@@ -437,11 +464,18 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			this._updatePosition();
 		}));
 
-		// Hide when input loses focus to something outside both editor and widget
+		// Hide when input loses focus to something outside both editor and widget,
+		// unless the user has typed feedback that should be preserved.
 		this._widgetListeners.add(addStandardDisposableListener(widget.inputElement, 'blur', () => {
+			if (this._hasInputText()) {
+				return;
+			}
 			const win = getWindow(widget.inputElement);
 			win.setTimeout(() => {
 				if (!this._visible) {
+					return;
+				}
+				if (this._hasInputText()) {
 					return;
 				}
 				if (this._editor.hasWidgetFocus()) {
@@ -474,7 +508,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return false;
 		}
 
-		const selection = this._editor.getSelection();
+		const selection = this._targetSelection;
 		const model = this._editor.getModel();
 		if (!selection || !model || !this._sessionResource) {
 			return false;
@@ -495,7 +529,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
-		const selection = this._editor.getSelection();
+		const selection = this._targetSelection;
 		const model = this._editor.getModel();
 		if (!selection || !model || !this._sessionResource) {
 			return;
@@ -556,7 +590,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
-		const selection = this._editor.getSelection();
+		const selection = this._targetSelection;
 		if (!selection) {
 			this._hide();
 			return;
