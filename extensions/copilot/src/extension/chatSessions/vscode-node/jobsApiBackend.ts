@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RemoteAgentJobPayload } from '@vscode/copilot-api';
+import { AgentTaskSessionEvent, RemoteAgentJobPayload } from '@vscode/copilot-api';
 import * as vscode from 'vscode';
 import { l10n } from 'vscode';
 import { GithubRepoId } from '../../../platform/git/common/gitService';
@@ -21,6 +21,7 @@ import {
 	CloudSessionIdentity,
 	CreateCloudSessionParams,
 	FollowUpResult,
+	TaskContent,
 } from '../vscode/cloudAgentBackend';
 import { body_suffix, formatBodyPlaceholder, JOBS_API_VERSION, SessionIdForPr } from '../vscode/copilotCodingAgentUtils';
 
@@ -52,7 +53,7 @@ export class JobsApiBackend implements CloudAgentBackend {
 		return this._octoKitService.getSessionInfo(sessionId, CLOUD_SESSIONS_AUTH_OPTIONS);
 	}
 
-	getSessionLogs(sessionId: string): Promise<string> {
+	getSessionLogsSSE(sessionId: string): Promise<string> {
 		return this._octoKitService.getSessionLogs(sessionId, CLOUD_SESSIONS_AUTH_OPTIONS);
 	}
 
@@ -88,7 +89,7 @@ export class JobsApiBackend implements CloudAgentBackend {
 		}));
 	}
 
-	async fetchSessionContent(repoOwner: string, repoName: string, sessions: SessionInfo[]): Promise<CloudSessionContent> {
+	async fetchPullRequestContent(repoOwner: string, repoName: string, sessions: SessionInfo[]): Promise<CloudSessionContent> {
 		if (sessions.length === 0 || !repoOwner || !repoName) {
 			return {};
 		}
@@ -96,15 +97,37 @@ export class JobsApiBackend implements CloudAgentBackend {
 		return { initialPrompt: jobInfo?.problem_statement || undefined };
 	}
 
-	async sendFollowUp(pullRequestOrTaskId: string, prompt: string, targetAgent?: string): Promise<FollowUpResult | undefined> {
+	fetchSessionsForPullRequest(pr: PullRequestSearchItem): Promise<SessionInfo[]> {
+		return this._octoKitService.getCopilotSessionsForPR(pr.fullDatabaseId.toString(), CLOUD_SESSIONS_AUTH_OPTIONS);
+	}
+
+	async sendFollowUpToPullRequest(prGlobalId: string, prompt: string, targetAgent?: string): Promise<FollowUpResult | undefined> {
 		const agent = targetAgent && targetAgent.length > 0 ? targetAgent : 'copilot';
 		// Trailing space preserved for byte-identical bodies vs the pre-seam inline implementation.
 		const body = `@${agent} ${prompt} `;
-		const commentResult = await this._octoKitService.addPullRequestComment(pullRequestOrTaskId, body, CLOUD_SESSIONS_AUTH_OPTIONS);
+		const commentResult = await this._octoKitService.addPullRequestComment(prGlobalId, body, CLOUD_SESSIONS_AUTH_OPTIONS);
 		if (!commentResult) {
 			return undefined;
 		}
 		return { url: commentResult.url };
+	}
+
+	// ── Task-keyed methods are not implemented by the Jobs backend ──────────
+
+	fetchTaskContent(_taskId: string): Promise<TaskContent | undefined> {
+		throw new Error('JobsApiBackend does not support task-keyed reads');
+	}
+
+	fetchTaskEvents(_taskId: string): Promise<readonly AgentTaskSessionEvent[]> {
+		throw new Error('JobsApiBackend does not support task-keyed reads');
+	}
+
+	waitForTaskTurn(_taskId: string, _sinceTurnCount: number, _token?: vscode.CancellationToken): Promise<TaskContent | undefined> {
+		throw new Error('JobsApiBackend does not support task-keyed reads');
+	}
+
+	sendFollowUpToTask(_taskId: string, _prompt: string): Promise<FollowUpResult | undefined> {
+		throw new Error('JobsApiBackend does not support task-keyed reads');
 	}
 
 	async createSession(params: CreateCloudSessionParams, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<CloudDelegationResult> {
