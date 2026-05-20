@@ -11,7 +11,7 @@ import { IChatEndpoint } from '../../../../../platform/networking/common/network
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
-import { DEFAULT_COMPACTION_AGENTIC_PROXY_MODEL, resolveCompactionEndpoint } from '../compactionEndpoint';
+import { DEFAULT_COMPACTION_AGENTIC_PROXY_MODEL, buildCompactionToolOpts, formatCompactionFailureError, resolveCompactionEndpoint } from '../compactionEndpoint';
 
 type ConfigValues = {
 	[ConfigKey.Advanced.ConversationCompactionModel.id]?: string;
@@ -190,5 +190,86 @@ suite('ProxyAgenticEndpoint (compaction integration)', () => {
 		expect((cloned as ProxyAgenticEndpoint).urlOrRequestMetadata).toEqual({
 			type: RequestType.ProxyChatCompletions,
 		});
+	});
+});
+
+suite('buildCompactionToolOpts', () => {
+	// Minimal stand-in for vscode.LanguageModelToolInformation. Only the
+	// shape that the helper actually reads is required at runtime.
+	function makeTool(name: string, parameters?: Record<string, unknown>) {
+		return {
+			name,
+			description: `${name} description`,
+			inputSchema: parameters ?? {},
+			tags: [],
+			source: undefined,
+		} as never;
+	}
+
+	test('returns undefined when there are no tools', () => {
+		expect(buildCompactionToolOpts(undefined, 'trajectory-compaction-v1', () => { })).toBeUndefined();
+		expect(buildCompactionToolOpts([], 'trajectory-compaction-v1', () => { })).toBeUndefined();
+	});
+
+	test('pairs tools with tool_choice:"none" so summarisation models never invoke a tool', () => {
+		// Regression: the background auto-compaction path used to send
+		// `tools` with no `tool_choice`, defaulting to `auto`. Text-only
+		// proxy models (e.g. trajectory-compaction-v1) then returned empty
+		// completions and the caller threw "Response contained no choices".
+		const result = buildCompactionToolOpts(
+			[makeTool('read_file', { type: 'object', properties: { path: { type: 'string' } } })],
+			'trajectory-compaction-v1',
+			() => { },
+		);
+
+		expect(result).toBeDefined();
+		expect(result!.tool_choice).toBe('none');
+		expect(result!.tools).toHaveLength(1);
+		expect(result!.tools[0].function.name).toBe('read_file');
+		// `tool_choice` must never be set without `tools` (the API rejects
+		// that combination with HTTP 400).
+		expect(Object.keys(result!).sort()).toEqual(['tool_choice', 'tools']);
+	});
+
+	test('omits parameters when the tool has no inputSchema keys (mirrors the inline behaviour)', () => {
+		const result = buildCompactionToolOpts(
+			[makeTool('no_args' /* inputSchema = {} */)],
+			'trajectory-compaction-v1',
+			() => { },
+		);
+
+		expect(result).toBeDefined();
+		expect(result!.tools[0].function.parameters).toBeUndefined();
+	});
+});
+
+suite('formatCompactionFailureError', () => {
+	// Mirrors the real `ChatFetchResponseType.Unknown` shape that
+	// chatMLFetcher returns when the proxy streams only empty content deltas
+	// (observed live against trajectory-compaction-v1: 375 SSE events,
+	// `delta.content: ""` each, finish_reason `stop`, then the chat fetcher
+	// treats the empty completion as repetitive and falls through to the
+	// "no choices" branch — see RESPONSE_CONTAINED_NO_CHOICES in
+	// platform/chat/common/commonTypes.ts).
+
+	test('includes reason and requestId when the response carries them', () => {
+		const err = formatCompactionFailureError({
+			type: 'unknown',
+			reason: 'Response contained no choices.',
+			requestId: 'req-123',
+			serverRequestId: 'srv-456',
+		});
+
+		expect(err.message).toBe('Background summarization request failed: type=unknown, reason=Response contained no choices., requestId=req-123');
+	});
+
+	test('falls back to type-only when reason and requestId are absent', () => {
+		const err = formatCompactionFailureError({ type: 'networkError' });
+		expect(err.message).toBe('Background summarization request failed: type=networkError');
+	});
+
+	test('omits reason when it is not a string (defensive against type drift)', () => {
+		const err = formatCompactionFailureError({ type: 'failed', reason: 42 as unknown });
+		expect(err.message).toBe('Background summarization request failed: type=failed');
 	});
 });

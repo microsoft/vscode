@@ -50,16 +50,15 @@ import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/nod
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
 import { BackgroundSummarizationState, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
 import { BackgroundTodoDecision, BackgroundTodoProcessor } from '../../prompts/node/agent/backgroundTodoProcessor';
-import { resolveCompactionEndpoint } from '../../prompts/node/agent/compactionEndpoint';
+import { buildCompactionToolOpts, formatCompactionFailureError, resolveCompactionEndpoint } from '../../prompts/node/agent/compactionEndpoint';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
-import { extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
+import { extractSummary, renderCompactionMessages, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
 import { PromptRenderer, renderPromptElement } from '../../prompts/node/base/promptRenderer';
 import { ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperService';
 import { EditCodePrompt2 } from '../../prompts/node/panel/editCodePrompt2';
 import { NotebookInlinePrompt } from '../../prompts/node/panel/notebookInlinePrompt';
 import { ToolResultMetadata } from '../../prompts/node/panel/toolCalling';
 import { IEditToolLearningService } from '../../tools/common/editToolLearningService';
-import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { ContributedToolName, ToolName } from '../../tools/common/toolNames';
 import { IToolsService } from '../../tools/common/toolsService';
 import { applyPatch5Description } from '../../tools/node/applyPatchTool';
@@ -926,26 +925,19 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			}
 		}
 
-		// Build tool schemas matching the main agent loop so the prompt
-		// prefix (system + tools + messages) is identical for cache hits.
+		// Same-endpoint tool definitions sent for cache-prefix parity with the
+		// main agent loop (pinned with `tool_choice: 'none'` because the
+		// summarisation model must not actually call a tool). Only used in the
+		// same-endpoint branch below — the cross-endpoint re-render produces a
+		// self-contained summarisation prompt that doesn't need them.
 		const availableTools = promptContext.tools?.availableTools;
-		const buildToolOpts = (targetFamily: string) => {
-			const normalizedTools = availableTools?.length ? normalizeToolSchema(
-				targetFamily,
-				availableTools.map(tool => ({
-					function: {
-						name: tool.name,
-						description: tool.description,
-						parameters: tool.inputSchema && Object.keys(tool.inputSchema).length ? tool.inputSchema : undefined
-					},
-					type: 'function' as const,
-				})),
-				(tool, rule) => {
-					this.logService.warn(`[ConversationHistorySummarizer] Tool ${tool} failed validation: ${rule}`);
-				},
-			) : undefined;
-			return normalizedTools?.length ? { tools: normalizedTools } : undefined;
-		};
+		const buildToolOpts = (targetFamily: string) => buildCompactionToolOpts(
+			availableTools,
+			targetFamily,
+			(tool, rule) => {
+				this.logService.warn(`[ConversationHistorySummarizer] Tool ${tool} failed validation: ${rule}`);
+			},
+		);
 
 		const associatedRequestId = promptContext.conversation?.getLatestTurn()?.id;
 		const conversationId = promptContext.conversation?.sessionId;
@@ -954,11 +946,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			try {
 				// Resolve the trajectory-compaction endpoint. When neither
 				// compaction config is set this returns `this.endpoint`
-				// unchanged — preserving cache-prefix parity with the main
-				// agent loop. Otherwise tool schemas are normalised against
-				// the target endpoint's family and main-agent model
-				// capabilities (thinking / reasoning effort / tool search /
-				// context editing) are dropped because they may not apply.
+				// unchanged. When a custom model/proxy is configured the result
+				// is a different endpoint instance and we MUST re-render the
+				// prompt against it (see `isCrossEndpoint` branch below).
 				const compactionEndpoint = await resolveCompactionEndpoint(
 					this.endpoint,
 					this.instantiationService,
@@ -967,25 +957,59 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					this.endpointProvider,
 					this.logService,
 				);
-				const toolOpts = buildToolOpts(compactionEndpoint.family);
-				const modelCapabilities = compactionEndpoint === this.endpoint ? this._lastModelCapabilities : undefined;
+				const isCrossEndpoint = compactionEndpoint !== this.endpoint;
+				const modelCapabilities = isCrossEndpoint ? undefined : this._lastModelCapabilities;
 
-				// Fork the exact messages from the main render and append a
-				// summary user message. The prompt prefix is byte-identical
-				// to the main agent loop for cache hits.
-				const strippedMainMessages = ToolCallingLoop.stripInternalToolCallIds(mainRenderMessages);
-				const summaryMsgResult = await renderPromptElement(
-					this.instantiationService,
-					this.endpoint,
-					SummarizationUserMessage,
-					{ endpoint: this.endpoint },
-					undefined,
-					bgToken,
-				);
-				const messages = [
-					...strippedMainMessages,
-					...summaryMsgResult.messages,
-				];
+				let messages: Raw.ChatMessage[];
+				let toolOpts: ReturnType<typeof buildCompactionToolOpts> | undefined;
+				if (isCrossEndpoint) {
+					// Cross-endpoint (e.g. trajectory-compaction proxy): re-render
+					// the compaction prompt against the compaction endpoint so the
+					// request body is in its native format. Sacrifices main-agent
+					// cache-prefix parity (impossible across endpoints anyway) for
+					// correctness — the alternative is sending Anthropic/Gemini-shaped
+					// content to a model that doesn't understand it and returns empty
+					// completions (RESPONSE_CONTAINED_NO_CHOICES).
+					// Tools are intentionally omitted: the cross-endpoint render's
+					// summarization prompt is self-contained and `tool_choice: 'none'`
+					// would make the tool schemas dead weight in the request body.
+					const rendered = await renderCompactionMessages(
+						compactionEndpoint,
+						promptContext,
+						availableTools,
+						this.instantiationService,
+						this.logService,
+						bgToken,
+					);
+					if (!rendered) {
+						return;
+					}
+					messages = rendered.messages;
+					// Trust the foreground-style propsBuilder over the bg's upfront
+					// round-id heuristic — the helper just rendered the prompt that
+					// summarizes up through `rendered.summarizedToolCallRoundId`, so
+					// the resulting summary must be attached to that same round.
+					toolCallRoundId = rendered.summarizedToolCallRoundId;
+				} else {
+					// Same-endpoint cache-parity path: fork the exact messages from
+					// the main render and append a summary instruction. The prompt
+					// prefix is byte-identical to the main agent loop so the
+					// summarization call hits the prompt cache.
+					toolOpts = buildToolOpts(compactionEndpoint.family);
+					const strippedMainMessages = ToolCallingLoop.stripInternalToolCallIds(mainRenderMessages);
+					const summaryMsgResult = await renderPromptElement(
+						this.instantiationService,
+						this.endpoint,
+						SummarizationUserMessage,
+						{ endpoint: this.endpoint },
+						undefined,
+						bgToken,
+					);
+					messages = [
+						...strippedMainMessages,
+						...summaryMsgResult.messages,
+					];
+				}
 
 				const response = await compactionEndpoint.makeChatRequest2({
 					debugName: 'summarizeConversationHistory',
@@ -1003,7 +1027,15 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					interactionTypeOverride: 'conversation-compaction',
 				}, bgToken);
 				if (response.type !== ChatFetchResponseType.Success) {
-					throw new Error(`Background summarization request failed: ${response.type}`);
+					// `RESPONSE_CONTAINED_NO_CHOICES` lives on `reason`, not `type`
+					// (which would be `unknown` for that case) — surface both so the
+					// failure is diagnosable without the chat debug log. NOTE: when
+					// `compactionEndpoint !== this.endpoint` (proxy in use) the
+					// `messages` are the main agent's render — formatted for the
+					// main endpoint, not the proxy. If failures persist after this
+					// fix, the next step is to re-render against compactionEndpoint
+					// the way the foreground (`/compact`) path does.
+					throw formatCompactionFailureError(response as never);
 				}
 				const rawSummaryText = extractSummary(response.value);
 				if (rawSummaryText === undefined) {
