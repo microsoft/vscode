@@ -54,6 +54,9 @@ const MAX_BUFFER_SIZE = 1_000;
 /** Soft cap — switch to faster drain. */
 const SOFT_BUFFER_CAP = 500;
 
+/** Time to suppress further cloud session creates for an owner after a policy-blocked response. */
+const POLICY_BLOCKED_TTL_MS = 60 * 60 * 1000;
+
 /**
  * Exports VS Code chat session events to the cloud in real-time.
  *
@@ -87,6 +90,12 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 	/** Sessions currently initializing (prevent concurrent init). */
 	private readonly _initializingSessions = new Set<string>();
+
+	/** Per-owner expiry (epoch ms) suppressing further createCloudSession attempts after a policy_blocked response. */
+	private readonly _policyBlockedUntilByOwner = new Map<number, number>();
+
+	/** Whether the policy-blocked notification has been shown this window. */
+	private _policyNotificationShown = false;
 
 	// ── Shared state ─────────────────────────────────────────────────────────────
 
@@ -800,14 +809,15 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 						"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Truncated error message if failed." },
 						"indexingLevel": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The indexing level for the session." },
 						"droppedEvents": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of events in a failed batch." },
-						"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reason session was disabled (no_consent, no_repo, init_error, create_error)." },
+						"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reason session was disabled (no_consent, no_repo, init_error, create_error, policy_blocked_cached)." },
 						"transition": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Circuit breaker state transition (open, closed)." },
 						"eventsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of actually submitted events (sum of eventsBySession sizes)." },
 						"orphanedCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of orphaned events not submitted (re-queued or dropped)." },
 						"batchDurationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time to submit batch in ms." },
 						"bufferSize": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Buffer size at time of event." },
 						"failureCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Consecutive failure count." },
-						"droppedCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Events dropped due to buffer overflow." }
+						"droppedCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Events dropped due to buffer overflow." },
+						"sessionCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of cloud sessions affected by a policy-blocked or rate-limited response in a flush batch." }
 					}
 				*/
 				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
@@ -827,6 +837,15 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 					operation: 'sessionDisabled',
 					sessionSource,
 					reason: 'no_consent',
+				});
+				return;
+			}
+			if (this._isOwnerPolicyBlocked(repo.repoIds.ownerId)) {
+				this._disabledSessions.add(sessionId);
+				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
+					operation: 'sessionDisabled',
+					sessionSource,
+					reason: 'policy_blocked_cached',
 				});
 				return;
 			}
@@ -870,6 +889,10 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 		for (const sessionId of this._translationStates.keys()) {
 			if (!this._cloudSessions.has(sessionId) && !this._disabledSessions.has(sessionId)) {
+				if (this._isOwnerPolicyBlocked(repo.repoIds.ownerId)) {
+					this._disabledSessions.add(sessionId);
+					continue;
+				}
 				await this._createCloudSession(sessionId, repo, level);
 			}
 		}
@@ -894,7 +917,14 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 				success: 'false',
 				error: result.reason?.substring(0, 100) ?? 'unknown',
 			}, {});
-			this._disabledSessions.add(sessionId);
+			if (result.reason === 'policy_blocked') {
+				this._disabledSessions.add(sessionId);
+				this._markOwnerPolicyBlocked(repo.repoIds.ownerId);
+			} else if (result.reason !== 'rate_limited') {
+				// Rate limits are transient and self-recover via the client's backoff;
+				// leave the session uninitialized so a later flush can retry.
+				this._disabledSessions.add(sessionId);
+			}
 			return;
 		}
 
@@ -921,6 +951,35 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			success: 'true',
 			indexingLevel,
 		});
+	}
+
+	/** Returns true if the owner is currently within the policy-blocked TTL window. */
+	private _isOwnerPolicyBlocked(ownerId: number): boolean {
+		const expiry = this._policyBlockedUntilByOwner.get(ownerId);
+		if (expiry === undefined) {
+			return false;
+		}
+		if (Date.now() >= expiry) {
+			this._policyBlockedUntilByOwner.delete(ownerId);
+			return false;
+		}
+		return true;
+	}
+
+	/** Record a policy-blocked response for an owner and show the user a one-time notification. */
+	private _markOwnerPolicyBlocked(ownerId: number): void {
+		this._policyBlockedUntilByOwner.set(ownerId, Date.now() + POLICY_BLOCKED_TTL_MS);
+		this._showPolicyBlockedNotification();
+	}
+
+	private _showPolicyBlockedNotification(): void {
+		if (this._policyNotificationShown) {
+			return;
+		}
+		this._policyNotificationShown = true;
+		void vscode.window.showInformationMessage(
+			vscode.l10n.t('Cloud sync for chat session insights is disabled for this workspace by your organization\'s policy.')
+		);
 	}
 
 	/**
@@ -1062,15 +1121,22 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 		try {
 			// Group events by chat session ID for correct cloud session routing
-			const eventsBySession = new Map<string, SessionEvent[]>();
+			const eventsBySession = new Map<string, { events: SessionEvent[]; chatSessionIds: Set<string> }>();
 			const orphanedEntries: typeof batch = [];
 
 			for (const entry of batch) {
 				const cloudIds = this._cloudSessions.get(entry.chatSessionId);
 				if (cloudIds) {
-					const arr = eventsBySession.get(cloudIds.cloudSessionId) ?? [];
-					arr.push(entry.event);
-					eventsBySession.set(cloudIds.cloudSessionId, arr);
+					const slot = eventsBySession.get(cloudIds.cloudSessionId);
+					if (slot) {
+						slot.events.push(entry.event);
+						slot.chatSessionIds.add(entry.chatSessionId);
+					} else {
+						eventsBySession.set(cloudIds.cloudSessionId, {
+							events: [entry.event],
+							chatSessionIds: new Set([entry.chatSessionId]),
+						});
+					}
 				} else {
 					orphanedEntries.push(entry);
 				}
@@ -1089,16 +1155,35 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			}
 
 			// Submit each session's events to the correct cloud session
-			let allSuccess = true;
+			let hadTransientError = false;
+			let policyBlockedSessions = 0;
+			let rateLimitedSessions = 0;
 			let submittedCount = 0;
-			for (const [cloudSessionId, events] of eventsBySession) {
-				submittedCount += events.length;
-				const filteredEvents = events.map(e => filterSecretsFromObj(e));
-				const success = await this._cloudClient.submitSessionEvents(cloudSessionId, filteredEvents);
-				if (!success) {
-					allSuccess = false;
+			for (const [cloudSessionId, slot] of eventsBySession) {
+				submittedCount += slot.events.length;
+				const filteredEvents = slot.events.map(e => filterSecretsFromObj(e));
+				const result = await this._cloudClient.submitSessionEvents(cloudSessionId, filteredEvents);
+				if (result.ok) {
+					continue;
+				}
+				if (result.reason === 'policy_blocked') {
+					policyBlockedSessions++;
+					// Disable the affected chat session(s) so further events are dropped.
+					for (const chatSessionId of slot.chatSessionIds) {
+						this._disabledSessions.add(chatSessionId);
+					}
+					if (this._repository) {
+						this._markOwnerPolicyBlocked(this._repository.repoIds.ownerId);
+					}
+				} else if (result.reason === 'rate_limited') {
+					// Client is already self-backing-off; don't trip the circuit breaker.
+					rateLimitedSessions++;
+				} else {
+					hadTransientError = true;
 				}
 			}
+
+			const allSuccess = !hadTransientError && policyBlockedSessions === 0 && rateLimitedSessions === 0;
 
 			if (allSuccess && eventsBySession.size > 0) {
 				this._circuitBreaker.recordSuccess();
@@ -1120,7 +1205,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 						sessionSource: this._firstCloudWriteSessionSource ?? 'unknown',
 					}, {});
 				}
-			} else if (!allSuccess) {
+			} else if (hadTransientError) {
 				this._circuitBreaker.recordFailure();
 				this._setSyncState({ kind: 'error' });
 
@@ -1135,7 +1220,24 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 				});
 			}
 
-			if (allSuccess) {
+			if (policyBlockedSessions > 0) {
+				// Policy responses are expected — do not count as circuit breaker failures.
+				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
+					operation: 'policyBlocked',
+				}, {
+					sessionCount: policyBlockedSessions,
+				});
+			}
+
+			if (rateLimitedSessions > 0) {
+				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
+					operation: 'rateLimited',
+				}, {
+					sessionCount: rateLimitedSessions,
+				});
+			}
+
+			if (!hadTransientError) {
 				this._setSyncState({ kind: 'up-to-date', syncedCount: this._getLocalSyncedCount() });
 			}
 		} catch (err) {

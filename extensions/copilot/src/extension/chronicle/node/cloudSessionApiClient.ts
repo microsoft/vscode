@@ -7,7 +7,7 @@ import { IAuthenticationService } from '../../../platform/authentication/common/
 import { ICopilotTokenManager } from '../../../platform/authentication/common/copilotTokenManager';
 import { INTEGRATION_ID } from '../../../platform/endpoint/common/licenseAgreement';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
-import type { CreateSessionFailureReason, CreateSessionResult, CloudSession, SessionEvent } from '../common/cloudSessionTypes';
+import type { CreateSessionFailureReason, CreateSessionResult, CloudSession, SessionEvent, SubmitSessionEventsResult } from '../common/cloudSessionTypes';
 
 /** Timeout for individual cloud API requests (ms). */
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -88,7 +88,7 @@ export class CloudSessionApiClient {
 		indexingLevel: 'user' | 'repo_and_user' = 'user',
 	): Promise<CreateSessionResult> {
 		if (this._isRateLimited()) {
-			return { ok: false, reason: 'error' };
+			return { ok: false, reason: 'rate_limited' };
 		}
 		try {
 			const { url, headers } = await this._buildRequest(SESSIONS_PATH);
@@ -113,7 +113,7 @@ export class CloudSessionApiClient {
 
 			if (res.status === 429) {
 				this._handleRateLimit(res, 'createSession');
-				return { ok: false, reason: 'error' };
+				return { ok: false, reason: 'rate_limited' };
 			}
 
 			if (!res.ok) {
@@ -130,19 +130,20 @@ export class CloudSessionApiClient {
 
 	/**
 	 * Submit a batch of events to a session.
-	 * @returns true if the submission succeeded.
+	 * @returns ok on success, or a failure reason distinguishing policy-blocked
+	 *          responses from generic/transient errors.
 	 */
 	async submitSessionEvents(
 		sessionId: string,
 		events: SessionEvent[],
-	): Promise<boolean> {
+	): Promise<SubmitSessionEventsResult> {
 		if (this._isRateLimited()) {
-			return false;
+			return { ok: false, reason: 'rate_limited' };
 		}
 		try {
 			const { url, headers } = await this._buildRequest(`${SESSIONS_PATH}/${sessionId}/events`);
 			if (!url) {
-				return false;
+				return { ok: false, reason: 'error' };
 			}
 
 			const res = await this._fetcherService.fetch(url, {
@@ -155,16 +156,17 @@ export class CloudSessionApiClient {
 
 			if (res.status === 429) {
 				this._handleRateLimit(res, 'submitEvents');
-				return false;
+				return { ok: false, reason: 'rate_limited' };
 			}
 
 			if (!res.ok) {
-				return false;
+				const reason: 'policy_blocked' | 'error' = res.status === 403 ? 'policy_blocked' : 'error';
+				return { ok: false, reason };
 			}
 
-			return true;
+			return { ok: true };
 		} catch (err) {
-			return false;
+			return { ok: false, reason: 'error' };
 		}
 	}
 
