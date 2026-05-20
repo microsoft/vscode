@@ -147,7 +147,7 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 					showFeatured: () => true,
 				};
 				const pickerOptions: IChatInputPickerOptions = {
-					hideChevrons: observableValue('hideChevrons', false),
+					compact: observableValue('compact', false),
 				};
 				const action = { id: 'sessions.agentHost.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 				const modelPicker = scopedInstantiationService.createInstance(ModelPickerActionItem, action, delegate, pickerOptions);
