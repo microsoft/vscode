@@ -141,11 +141,12 @@ export class ContextKeysContribution extends Disposable {
 			const reason = e.message || e;
 			const data = TelemetryData.createAndMarkAsIssued({ reason });
 			this._telemetryService.sendGHTelemetryErrorEvent('activationFailed', data.properties, data.measurements);
-			const message =
-				reason === 'GitHubLoginFailed'
-					? SESSION_LOGIN_MESSAGE
-					: `GitHub Copilot could not connect to server. Extension activation failed: "${reason}"`;
-			this._logService.error(message);
+			if (reason === 'GitHubLoginFailed') {
+				// Expected in BYOK / air-gapped flows where the user is not signed in to GitHub.
+				this._logService.debug(SESSION_LOGIN_MESSAGE);
+			} else {
+				this._logService.error(`GitHub Copilot could not connect to server. Extension activation failed: "${reason}"`);
+			}
 		}
 
 		if (error instanceof NotSignedUpError) {

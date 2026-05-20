@@ -129,7 +129,15 @@ export class ConversationFeature implements IExtensionContribution {
 		void refreshHasByokModels();
 		this._disposables.add(vscode.lm.onDidChangeChatModels(() => void refreshHasByokModels()));
 
-		this._disposables.add(authenticationService.onDidAuthenticationChange(() => reevaluate()));
+		// Always unblock activation when auth settles; chat enablement is driven by `reevaluate` independently.
+		// Without this, BYOK-only sessions can deadlock (the BYOK query needs this extension fully activated,
+		// while activation waits for the BYOK query to set `hasByokModels`).
+		this._disposables.add(authenticationService.onDidAuthenticationChange(() => {
+			reevaluate();
+			if (!activationBlockerDeferred.isSettled) {
+				activationBlockerDeferred.complete();
+			}
+		}));
 
 		reevaluate();
 	}
