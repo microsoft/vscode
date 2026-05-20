@@ -1037,7 +1037,6 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					}
 				};
 			}
-			secretKey ??= '';
 
 			// WebSocket path: use persistent WebSocket connection for Responses API endpoints
 			if (useWebSocket && turnId && conversationId) {
@@ -1105,7 +1104,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		request: IEndpointBody,
 		baseTelemetryData: TelemetryData,
 		finishedCb: FinishedCallback,
-		secretKey: string,
+		secretKey: string | undefined,
 		location: ChatLocation,
 		ourRequestId: string,
 		turnId: string,
@@ -1121,7 +1120,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		const intent = locationToIntent(location);
 		const agentInteractionType = interactionTypeOverride ?? intent;
 		const additionalHeaders: Record<string, string> = {
-			'Authorization': `Bearer ${secretKey}`,
+			...(secretKey ? { 'Authorization': `Bearer ${secretKey}` } : {}),
 			'X-Request-Id': ourRequestId,
 			'OpenAI-Intent': intent,
 			'X-GitHub-Api-Version': '2025-05-01',
@@ -1291,7 +1290,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		request: IEndpointBody,
 		baseTelemetryData: TelemetryData,
 		finishedCb: FinishedCallback,
-		secretKey: string,
+		secretKey: string | undefined,
 		location: ChatLocation,
 		ourRequestId: string,
 		nChoices: number | undefined,
@@ -1408,7 +1407,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		chatEndpoint: IChatEndpoint,
 		ourRequestId: string,
 		request: IEndpointBody,
-		secretKey: string,
+		secretKey: string | undefined,
 		location: ChatLocation,
 		cancellationToken: CancellationToken,
 		userInitiatedRequest?: boolean,
