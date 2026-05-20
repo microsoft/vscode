@@ -2069,6 +2069,7 @@ class PluginController extends Disposable {
 				enabled: customization.enabled,
 				status: customization.status,
 				statusMessage: customization.statusMessage,
+				agents: customization.agents,
 			});
 		};
 
