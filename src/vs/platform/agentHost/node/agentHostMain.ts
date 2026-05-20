@@ -129,7 +129,7 @@ async function startAgentHost(): Promise<void> {
 		// construct it AFTER both are registered. Consumed by CopilotAgent
 		// (baseline capture) and AgentService's inner DI (changeset
 		// pipeline / end-of-turn capture).
-		const checkpointService = instantiationService.createInstance(AgentHostCheckpointService);
+		const checkpointService = disposables.add(instantiationService.createInstance(AgentHostCheckpointService));
 		diServices.set(IAgentHostCheckpointService, checkpointService);
 		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
 		diServices.set(ICopilotApiService, copilotApiService);
