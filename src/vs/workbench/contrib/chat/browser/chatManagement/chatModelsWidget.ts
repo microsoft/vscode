@@ -759,6 +759,17 @@ function createProviderGroupActions(
 
 	const actions: IAction[] = [];
 	const configurationProperties = configuration.properties;
+	actions.push(toAction({
+		id: 'goToSettingsAction',
+		label: localize('models.goToSettings', "Open in Language Models (JSON)"),
+		run: () => languageModelsService.openLanguageModelsProviderGroupSettings(vendor.vendor, groupName)
+	}));
+	actions.push(new Separator());
+	actions.push(toAction({
+		id: 'renameGroupAction',
+		label: localize('models.renameGroup', 'Rename Group'),
+		run: () => languageModelsService.renameLanguageModelsProviderGroup(vendor.vendor, groupName)
+	}));
 	if (configurationProperties?.apiKey) {
 		actions.push(toAction({
 			id: 'updateApiKeyAction',
@@ -773,16 +784,7 @@ function createProviderGroupActions(
 			run: () => languageModelsService.addLanguageModelsProviderGroupModel(vendor.vendor, groupName)
 		}));
 	}
-	actions.push(toAction({
-		id: 'goToSettingsAction',
-		label: localize('models.goToSettings', "Go to Settings"),
-		run: () => languageModelsService.openLanguageModelsProviderGroupSettings(vendor.vendor, groupName)
-	}));
-	actions.push(toAction({
-		id: 'renameGroupAction',
-		label: localize('models.renameGroup', 'Rename...'),
-		run: () => languageModelsService.renameLanguageModelsProviderGroup(vendor.vendor, groupName)
-	}));
+	actions.push(new Separator());
 	actions.push(toAction({
 		id: 'deleteAction',
 		label: localize('models.deleteAction', 'Delete'),
