@@ -310,6 +310,7 @@
 	flex-direction: column;
 	justify-content: center;
 	gap: 10px;
+	min-width: 0;
 }
 
 .onboarding-a-signin-title {
@@ -334,6 +335,7 @@
 	gap: 8px;
 	margin-top: 4px;
 	flex-wrap: nowrap;
+	min-width: 0;
 }
 
 .onboarding-a-signin-footer {
@@ -443,6 +445,7 @@
 	margin-top: 4px;
 	min-width: 0;
 	width: 100%;
+	max-width: 320px;
 }
 
 .onboarding-a-signin-ghe-input .monaco-inputbox {
@@ -500,6 +503,12 @@
 	font-size: 12px;
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
+	width: 100%;
+	max-width: 100%;
+	box-sizing: border-box;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	word-break: break-word;
 	min-height: 16px;
 }
 
