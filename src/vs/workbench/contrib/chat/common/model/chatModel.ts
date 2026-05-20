@@ -25,7 +25,7 @@ import { ISelection } from '../../../../../editor/common/core/selection.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../nls.js';
-import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
+import { canLog, ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
@@ -3100,7 +3100,7 @@ export namespace ChatResponseResource {
 }
 
 function _logChangesToStateModel(newState: Partial<IChatModelInputState> | undefined, oldState: Partial<IChatModelInputState> | undefined, logger: ILogService) {
-	if (logger.getLevel() >= LogLevel.Info || newState?.selectedModel?.identifier === oldState?.selectedModel?.identifier) {
+	if (canLog(logger.getLevel(), LogLevel.Info) || newState?.selectedModel?.identifier === oldState?.selectedModel?.identifier) {
 		return;
 	}
 	const stack = new Error().stack;
@@ -3109,7 +3109,7 @@ function _logChangesToStateModel(newState: Partial<IChatModelInputState> | undef
 }
 
 export function logChangesToStateModel(model: IInputModel | undefined, message: string, newState: Partial<IChatModelInputState> | undefined, oldState: Partial<IChatModelInputState> | undefined, logger: ILogService) {
-	if (logger.getLevel() >= LogLevel.Info || newState?.selectedModel?.identifier === oldState?.selectedModel?.identifier) {
+	if (canLog(logger.getLevel(), LogLevel.Info) || newState?.selectedModel?.identifier === oldState?.selectedModel?.identifier) {
 		return;
 	}
 	message = [message,
