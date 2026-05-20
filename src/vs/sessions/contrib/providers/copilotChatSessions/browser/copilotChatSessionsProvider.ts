@@ -851,12 +851,20 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 					: undefined;
 				const uncommittedChanges = state.workingTreeChanges.length + state.untrackedChanges.length + state.indexChanges.length;
 
+				const folder = this.sessionWorkspace.folders[0];
+				const baseGitRepo: ISessionGitRepository = folder.gitRepository ?? {
+					uri: folder.root,
+					workTreeUri: undefined,
+					baseBranchName: undefined,
+					gitHubInfo: constObservable(undefined),
+				};
+
 				this._workspaceData.set({
 					...this.sessionWorkspace,
 					folders: [{
-						...this.sessionWorkspace.folders[0],
+						...folder,
 						gitRepository: {
-							...this.sessionWorkspace.folders[0].gitRepository!,
+							...baseGitRepo,
 							branchName,
 							upstreamBranchName,
 							uncommittedChanges,
