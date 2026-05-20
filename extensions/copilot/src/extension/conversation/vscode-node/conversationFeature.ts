@@ -90,27 +90,52 @@ export class ConversationFeature implements IExtensionContribution {
 
 		const activationBlockerDeferred = new DeferredPromise<void>();
 		this.activationBlocker = activationBlockerDeferred.p;
+
+		// Activation can be unblocked by either a Copilot token OR the presence of a BYOK model.
+		let hasByokModels = false;
+		const reevaluate = () => {
+			const hasToken = !!authenticationService.copilotToken;
+			const shouldActivate = hasToken || hasByokModels;
+			this.activated = shouldActivate;
+			if (shouldActivate && !activationBlockerDeferred.isSettled) {
+				if (hasToken) {
+					markChatExtGlobal(ChatExtGlobalPerfMark.DidWaitForCopilotToken);
+				}
+				activationBlockerDeferred.complete();
+			}
+		};
+
 		if (authenticationService.copilotToken) {
 			this.logService.info(`ConversationFeature: Copilot token already available`);
-			this.activated = true;
-			activationBlockerDeferred.complete();
 		} else {
 			markChatExtGlobal(ChatExtGlobalPerfMark.WillWaitForCopilotToken);
-			this.logService.info(`ConversationFeature: Waiting for copilot token to activate conversation feature`);
+			this.logService.info(`ConversationFeature: Waiting for copilot token or BYOK model to activate conversation feature`);
 		}
 
-		this._disposables.add(authenticationService.onDidAuthenticationChange(async () => {
-			const hasSession = !!authenticationService.copilotToken;
-			this.logService.info(`ConversationFeature: onDidAuthenticationChange has token: ${hasSession}`);
-			if (hasSession) {
-				markChatExtGlobal(ChatExtGlobalPerfMark.DidWaitForCopilotToken);
-				this.activated = true;
-			} else {
-				this.activated = false;
+		const refreshHasByokModels = async () => {
+			try {
+				const models = await vscode.lm.selectChatModels({});
+				const value = models.some(m => m.vendor !== 'copilot');
+				if (value !== hasByokModels) {
+					hasByokModels = value;
+					this.logService.info(`ConversationFeature: BYOK models ${value ? 'available' : 'unavailable'}`);
+					reevaluate();
+				}
+			} catch (e) {
+				this.logService.warn(`ConversationFeature: failed to query language models: ${e}`);
 			}
+		};
+		void refreshHasByokModels();
+		this._disposables.add(vscode.lm.onDidChangeChatModels(() => void refreshHasByokModels()));
 
-			activationBlockerDeferred.complete();
+		this._disposables.add(authenticationService.onDidAuthenticationChange(async () => {
+			reevaluate();
+			if (!activationBlockerDeferred.isSettled) {
+				activationBlockerDeferred.complete();
+			}
 		}));
+
+		reevaluate();
 	}
 
 	get enabled() {
@@ -170,8 +195,8 @@ export class ConversationFeature implements IExtensionContribution {
 		} else {
 			this._searchProviderRegistered = true;
 
-			// Don't register for no auth user
-			if (this.authenticationService.copilotToken?.isNoAuthUser) {
+			// Don't register for no auth user or BYOK-only users
+			if (!this.authenticationService.anyGithubSession || this.authenticationService.copilotToken?.isNoAuthUser) {
 				this.logService.debug('ConversationFeature: Skipping search provider registration - no GitHub session available');
 				return;
 			}
@@ -190,6 +215,13 @@ export class ConversationFeature implements IExtensionContribution {
 		}
 
 		this._settingsSearchProviderRegistered = true;
+
+		// Don't register for no auth user or or BYOK-only users
+		if (!this.authenticationService.anyGithubSession || this.authenticationService.copilotToken?.isNoAuthUser) {
+			this.logService.debug('ConversationFeature: Skipping settings search provider registration - no GitHub session available');
+			return;
+		}
+
 		return vscode.ai.registerSettingsSearchProvider(this.settingsEditorSearchService);
 	}
 
