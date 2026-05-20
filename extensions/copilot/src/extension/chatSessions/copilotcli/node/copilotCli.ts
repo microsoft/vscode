@@ -162,6 +162,9 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 			} satisfies CopilotCLIModelInfo));
 		} catch (ex) {
 			this.logService.error(`[CopilotCLISession] Failed to fetch models`, ex);
+			// Clear cached promise so subsequent calls retry instead of
+			// permanently returning an empty list after a transient failure.
+			this._availableModels = undefined;
 			return [];
 		}
 	}
@@ -567,7 +570,12 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 				host: 'https://github.com',
 				copilotUser: {
 					endpoints: {
-						api: overrideProxyUrl
+						api: overrideProxyUrl,
+						// `proxy` must also point at the mock server so that SDK
+						// calls to /copilot_internal/v2/token and /models/session
+						// are routed to the mock instead of the real GitHub API
+						// (which would reject the fake HMAC with a 401).
+						proxy: overrideProxyUrl,
 					}
 				}
 			};
