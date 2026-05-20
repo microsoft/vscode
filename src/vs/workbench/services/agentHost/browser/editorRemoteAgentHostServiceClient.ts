@@ -82,7 +82,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		const channel = connection.getChannel(AgentHostIpcChannels.RemoteProxy);
 		const transport = new AgentHostIpcChannelTransport(channel);
 		const address = `vscode-remote://${connection.remoteAuthority}`;
-		this._protocolClient = this._register(instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport));
+		this._protocolClient = this._register(instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined));
 		this._register(this._protocolClient.onDidClose(() => {
 			this._logService.info(`${LOG_PREFIX} Protocol client closed`);
 			this._onAgentHostExit.fire(0);
@@ -164,8 +164,8 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.getSubscriptionUnmanaged<ComponentToState[T]>(kind, resource);
 	}
 
-	dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
-		this._protocolClient?.dispatch(action);
+	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+		this._protocolClient?.dispatch(channel, action);
 	}
 
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {

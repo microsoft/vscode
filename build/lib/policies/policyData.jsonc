@@ -117,7 +117,7 @@
             "key": "chat.sessionSync.enabled",
             "name": "CopilotSessionSync",
             "category": "InteractiveSession",
-            "minimumVersion": "1.119",
+            "minimumVersion": "1.121",
             "localization": {
                 "description": {
                     "key": "chat.sessionSync.enabled.policy",

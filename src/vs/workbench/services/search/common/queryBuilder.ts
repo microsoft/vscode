@@ -93,6 +93,7 @@ interface ICommonQueryBuilderOptions<U extends UriComponents = URI> {
 	ignoreSymlinks?: boolean;
 	ignoreGlobCase?: boolean;
 	onlyOpenEditors?: boolean;
+	changedFileUris?: URI[];
 	onlyFileScheme?: boolean;
 }
 
@@ -283,6 +284,13 @@ export class QueryBuilder {
 			const openEditorsQueryProps = this.commonQueryFromFileList(openEditorsInQuery);
 			this.logService.trace('QueryBuilder#commonQuery - openEditor Query', JSON.stringify(openEditorsQueryProps));
 			return { ...queryProps, ...openEditorsQueryProps };
+		}
+
+		if (options.changedFileUris !== undefined) {
+			const changedFilesInQuery = options.changedFileUris.filter(uri => pathIncludedInQuery(queryProps, uri.fsPath));
+			const changedFilesQueryProps = this.commonQueryFromFileList(changedFilesInQuery);
+			this.logService.trace('QueryBuilder#commonQuery - changedFile Query', JSON.stringify(changedFilesQueryProps));
+			return { ...queryProps, ...changedFilesQueryProps };
 		}
 
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
