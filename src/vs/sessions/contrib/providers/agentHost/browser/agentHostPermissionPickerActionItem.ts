@@ -74,9 +74,7 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 		// visibility reactively rather than at construction time.
 		this._register(autorun(reader => {
 			const visible = this._delegate.isApplicable.read(reader);
-			if (this.element) {
-				this.element.style.display = visible ? '' : 'none';
-			}
+			container.style.display = visible ? '' : 'none';
 		}));
 	}
 }

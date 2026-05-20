@@ -13,9 +13,8 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { NotificationType } from '../../../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -35,6 +34,8 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { IObservable, constObservable } from '../../../../../../base/common/observable.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -53,7 +54,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	override readonly clientId = 'test-client-1';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public disposedSessions: URI[] = [];
-	public dispatchedActions: { action: SessionAction | TerminalAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
+	public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 
@@ -100,12 +101,12 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		return this.resolveSessionConfigResult;
 	}
 
-	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
-		this.dispatchedActions.push({ action, clientId, clientSeq });
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+		this.dispatchedActions.push({ channel, action, clientId, clientSeq });
 	}
 
-	override dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
-		this.dispatchedActions.push({ action, clientId: this.clientId, clientSeq: this._nextSeq++ });
+	override dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 	}
 
 	// Test helpers
@@ -216,6 +217,9 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
+	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+		override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable<IActiveSession | undefined>(undefined);
+	}());
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
 		address: overrides?.address ?? 'localhost:4321',
@@ -253,6 +257,7 @@ function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?:
 	const provider = opts?.provider ?? 'copilotcli';
 	const sessionUri = AgentSession.uri(provider, rawId);
 	connection.fireNotification({
+		channel: 'ahp-root://',
 		type: NotificationType.SessionAdded,
 		summary: {
 			resource: sessionUri.toString(),
@@ -271,6 +276,7 @@ function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?:
 function fireSessionRemoved(connection: MockAgentConnection, rawId: string, provider = 'copilotcli'): void {
 	const sessionUri = AgentSession.uri(provider, rawId);
 	connection.fireNotification({
+		channel: 'ahp-root://',
 		type: NotificationType.SessionRemoved,
 		session: sessionUri.toString(),
 	});
@@ -548,7 +554,6 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(session!.modelId.get(), 'remote-localhost__4321-copilotcli:new-model');
 		assert.deepStrictEqual(connection.dispatchedActions.at(-1)?.action, {
 			type: ActionType.SessionModelChanged,
-			session: AgentSession.uri('copilotcli', 'set-model').toString(),
 			model: { id: 'new-model' },
 		});
 	});
@@ -564,7 +569,6 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		assert.deepStrictEqual(connection.dispatchedActions.at(-1)?.action, {
 			type: ActionType.SessionModelChanged,
-			session: AgentSession.uri('copilotcli', 'set-model-config').toString(),
 			model: { id: 'configured-model', config: { thinkingLevel: 'high' } },
 		});
 	});
@@ -657,7 +661,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(dispatched.action.type, ActionType.SessionTitleChanged);
 		assert.strictEqual((dispatched.action as { title: string }).title, 'New Title');
 		// The session URI in the action must be the backend agent session URI
-		const actionSession = (dispatched.action as { session: string }).session;
+		const actionSession = dispatched.channel.toString();
 		assert.strictEqual(AgentSession.provider(actionSession), 'copilotcli');
 		assert.strictEqual(AgentSession.id(actionSession), 'rename-sess');
 		assert.strictEqual(dispatched.clientId, 'test-client-1');
@@ -714,9 +718,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		// Simulate the server echoing a title change (from auto-generation or another client)
 		connection.fireAction({
+			channel: AgentSession.uri('copilotcli', 'echo-sess').toString(),
 			action: {
 				type: ActionType.SessionTitleChanged,
-				session: AgentSession.uri('copilotcli', 'echo-sess').toString(),
 				title: 'Server Title',
 			},
 			serverSeq: 1,
@@ -739,9 +743,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		connection.fireAction({
+			channel: AgentSession.uri('copilotcli', 'model-change').toString(),
 			action: {
 				type: ActionType.SessionModelChanged,
-				session: AgentSession.uri('copilotcli', 'model-change').toString(),
 				model: { id: 'new-model' } satisfies ModelSelection,
 			},
 			serverSeq: 1,
@@ -771,9 +775,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		// Trigger refresh via turnComplete action (simulates what happens on reload)
 		connection.fireAction({
+			channel: AgentSession.uri('copilotcli', 'persist-sess').toString(),
 			action: {
 				type: 'session/turnComplete',
-				session: AgentSession.uri('copilotcli', 'persist-sess').toString(),
 			},
 			serverSeq: 1,
 			origin: undefined,
@@ -961,9 +965,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		connection.fireAction({
+			channel: AgentSession.uri('copilotcli', 'turn-sess').toString(),
 			action: {
 				type: 'session/turnComplete',
-				session: AgentSession.uri('copilotcli', 'turn-sess').toString(),
 			},
 			serverSeq: 1,
 			origin: undefined,

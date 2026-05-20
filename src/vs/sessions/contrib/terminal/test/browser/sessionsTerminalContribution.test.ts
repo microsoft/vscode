@@ -45,13 +45,18 @@ type TestTerminalInstance = ITerminalInstance & {
 	_testSetShellLaunchConfig(shellLaunchConfig: ITerminalInstance['shellLaunchConfig']): void;
 };
 
+type TestActiveSession = IActiveSession & {
+	loading: ReturnType<typeof observableValue<boolean>>;
+};
+
 function makeAgentSession(opts: {
 	repository?: URI;
 	worktree?: URI;
 	providerType?: string;
 	isArchived?: boolean;
+	loading?: boolean;
 	sessionId?: string;
-}): IActiveSession {
+}): TestActiveSession {
 	const folder = opts.repository || opts.worktree ? {
 		root: opts.repository ?? opts.worktree!,
 		workingDirectory: opts.worktree ?? opts.repository!,
@@ -65,7 +70,6 @@ function makeAgentSession(opts: {
 		title: observableValue('test.title', 'Test Session'),
 		updatedAt: observableValue('test.updatedAt', new Date()),
 		status: observableValue('test.status', 0),
-		changesets: observableValue('test.changesets', []),
 		changes: observableValue('test.changes', []),
 		modelId: observableValue('test.modelId', undefined),
 		mode: observableValue('test.mode', undefined),
@@ -95,11 +99,11 @@ function makeAgentSession(opts: {
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
-		changesets: chat.changesets,
+		changesets: constObservable([]),
 		changes: chat.changes,
 		modelId: chat.modelId,
 		mode: chat.mode,
-		loading: observableValue('test.loading', false),
+		loading: observableValue('test.loading', opts.loading ?? false),
 		isArchived: chat.isArchived,
 		isRead: chat.isRead,
 		lastTurnEnd: chat.lastTurnEnd,
@@ -108,7 +112,7 @@ function makeAgentSession(opts: {
 		activeChat: observableValue('test.activeChat', chat),
 		mainChat: chat,
 		capabilities: { supportsMultipleChats: false },
-	} satisfies IActiveSession;
+	} satisfies TestActiveSession;
 	return session;
 }
 
@@ -126,7 +130,6 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		title: observableValue('test.title', 'Test Session'),
 		updatedAt: observableValue('test.updatedAt', new Date()),
 		status: observableValue('test.status', 0),
-		changesets: observableValue('test.changesets', []),
 		changes: observableValue('test.changes', []),
 		modelId: observableValue('test.modelId', undefined),
 		mode: observableValue('test.mode', undefined),
@@ -154,7 +157,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
-		changesets: chat.changesets,
+		changesets: constObservable([]),
 		changes: chat.changes,
 		modelId: chat.modelId,
 		mode: chat.mode,
@@ -220,6 +223,7 @@ suite('SessionsTerminalContribution', () => {
 	let moveToBackgroundCalls: number[];
 	let showBackgroundCalls: number[];
 	let disposeOnCreatePaths: Set<string>;
+	let defaultCwdCalls: (URI | undefined)[];
 	let logService: TestLogService;
 	let allSessions: ISession[];
 
@@ -234,6 +238,7 @@ suite('SessionsTerminalContribution', () => {
 		moveToBackgroundCalls = [];
 		showBackgroundCalls = [];
 		disposeOnCreatePaths = new Set();
+		defaultCwdCalls = [];
 		logService = new TestLogService();
 		allSessions = [];
 
@@ -302,7 +307,7 @@ suite('SessionsTerminalContribution', () => {
 		instantiationService.stub(IAgentHostTerminalService, new class extends mock<IAgentHostTerminalService>() {
 			override readonly profiles = constObservable<never[]>([]);
 			override getProfileForConnection() { return undefined; }
-			override setDefaultCwd(): void { /* noop */ }
+			override setDefaultCwd(cwd: URI | undefined): void { defaultCwdCalls.push(cwd); }
 			override async createTerminalForEntry() { return undefined; }
 		});
 
@@ -421,6 +426,24 @@ suite('SessionsTerminalContribution', () => {
 		await tick();
 
 		assert.strictEqual(createdTerminals.length, 0);
+	});
+
+	test('waits for a loading session before creating a terminal', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const session = makeAgentSession({ worktree: worktreeUri, providerType: AgentSessionProviders.Background, loading: true });
+
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		assert.strictEqual(createdTerminals.length, 0, 'should not create a terminal while session is loading');
+		assert.strictEqual(defaultCwdCalls.at(-1), undefined, 'should not set the default cwd while session is loading');
+
+		session.loading.set(false, undefined);
+		await tick();
+
+		assert.strictEqual(createdTerminals.length, 1);
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, worktreeUri.fsPath);
+		assert.strictEqual(defaultCwdCalls.at(-1)?.fsPath, worktreeUri.fsPath);
 	});
 
 	test('does not recreate terminal for the same path', async () => {

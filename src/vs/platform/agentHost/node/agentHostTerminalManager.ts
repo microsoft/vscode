@@ -21,8 +21,10 @@ import { ActionType } from '../common/state/protocol/actions.js';
 import type { CreateTerminalParams } from '../common/state/protocol/commands.js';
 import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind } from '../common/state/protocol/state.js';
 import { isTerminalAction } from '../common/state/sessionActions.js';
+import { ROOT_STATE_URI } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostHeadlessTerminal } from './agentHostHeadlessTerminal.js';
+import { isZsh } from './agentHostShellUtils.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from './osc633Parser.js';
 
@@ -194,21 +196,22 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			if (!isTerminalAction(action)) {
 				return;
 			}
+			const channel = envelope.channel;
 			switch (action.type) {
 				case ActionType.TerminalInput:
-					this._writeInput(action.terminal, action.data);
+					this._writeInput(channel, action.data);
 					break;
 				case ActionType.TerminalResized:
-					this._resize(action.terminal, action.cols, action.rows);
+					this._resize(channel, action.cols, action.rows);
 					break;
 				case ActionType.TerminalClaimed:
-					this._setClaim(action.terminal, action.claim);
+					this._setClaim(channel, action.claim);
 					break;
 				case ActionType.TerminalTitleChanged:
-					this._setTitle(action.terminal, action.title);
+					this._setTitle(channel, action.title);
 					break;
 				case ActionType.TerminalCleared:
-					this._clearContent(action.terminal);
+					this._clearContent(channel);
 					break;
 			}
 		}));
@@ -247,7 +250,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	 * Spawns the user's default shell.
 	 */
 	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
-		const uri = params.terminal;
+		const uri = params.channel;
 		if (this._terminals.has(uri)) {
 			throw new Error(`Terminal already exists: ${uri}`);
 		}
@@ -270,6 +273,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			// Combined with the leading-space prefix applied at command-write time, this
 			// prevents agent-executed commands from polluting the user's shell history.
 			env['VSCODE_PREVENT_SHELL_HISTORY'] = '1';
+		}
+		// Zsh-specific fixups for agent tool terminals: disable bang history
+		// expansion and enable inline # comments.
+		if (params.claim?.kind === TerminalClaimKind.Session && isZsh(shell)) {
+			env['VSCODE_AGENT_ZSH_FIXUPS'] = '1';
 		}
 		if (options?.nonInteractive) {
 			// Suppress paging and interactive prompts so that tool-spawned
@@ -408,9 +416,8 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			managed.exitCode = e.exitCode;
 			managed.onExitEmitter.fire(e.exitCode);
 			onFirstData.complete();
-			this._stateManager.dispatchServerAction({
+			this._stateManager.dispatchServerAction(uri, {
 				type: ActionType.TerminalExited,
-				terminal: uri,
 				exitCode: e.exitCode,
 			});
 			this._broadcastTerminalList();
@@ -423,9 +430,8 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 				const newTitle = ptyProcess.process;
 				if (newTitle && newTitle !== managed.title) {
 					managed.title = newTitle;
-					this._stateManager.dispatchServerAction({
+					this._stateManager.dispatchServerAction(uri, {
 						type: ActionType.TerminalTitleChanged,
-						terminal: uri,
 						title: newTitle,
 					});
 					this._broadcastTerminalList();
@@ -614,9 +620,8 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		// Fire data event and dispatch to protocol (cleaned, without OSC 633)
 		if (cleanedData.length > 0) {
 			managed.onDataEmitter.fire(cleanedData);
-			this._stateManager.dispatchServerAction({
+			this._stateManager.dispatchServerAction(managed.uri, {
 				type: ActionType.TerminalData,
-				terminal: managed.uri,
 				data: cleanedData,
 			});
 		}
@@ -627,9 +632,8 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		// Emit TerminalCommandDetectionAvailable on first sequence
 		if (!tracker.detectionAvailableEmitted) {
 			tracker.detectionAvailableEmitted = true;
-			this._stateManager.dispatchServerAction({
+			this._stateManager.dispatchServerAction(managed.uri, {
 				type: ActionType.TerminalCommandDetectionAvailable,
-				terminal: managed.uri,
 			});
 		}
 
@@ -660,9 +664,8 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 					isComplete: false,
 				});
 
-				this._stateManager.dispatchServerAction({
+				this._stateManager.dispatchServerAction(managed.uri, {
 					type: ActionType.TerminalCommandExecuted,
-					terminal: managed.uri,
 					commandId,
 					commandLine,
 					timestamp,
@@ -703,9 +706,8 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 					output: commandOutput,
 				});
 
-				this._stateManager.dispatchServerAction({
+				this._stateManager.dispatchServerAction(managed.uri, {
 					type: ActionType.TerminalCommandFinished,
-					terminal: managed.uri,
 					commandId: finishedCommandId,
 					exitCode: event.exitCode,
 					durationMs,
@@ -716,9 +718,8 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			case Osc633EventType.Property: {
 				if (event.key === 'Cwd') {
 					managed.cwd = event.value;
-					this._stateManager.dispatchServerAction({
+					this._stateManager.dispatchServerAction(managed.uri, {
 						type: ActionType.TerminalCwdChanged,
-						terminal: managed.uri,
 						cwd: event.value,
 					});
 				}
@@ -833,7 +834,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 	/** Dispatch root/terminalsChanged with the current terminal list. */
 	private _broadcastTerminalList(): void {
-		this._stateManager.dispatchServerAction({
+		this._stateManager.dispatchServerAction(ROOT_STATE_URI, {
 			type: ActionType.RootTerminalsChanged,
 			terminals: this.getTerminalInfos(),
 		});

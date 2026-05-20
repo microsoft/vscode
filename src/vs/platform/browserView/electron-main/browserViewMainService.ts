@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewOpenOptions, IBrowserViewCreateOptions } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewOpenOptions, IBrowserViewCreateOptions, IBrowserViewTheme, IBrowserViewConfiguration } from '../common/browserView.js';
 import { clipboard, Menu, MenuItem } from 'electron';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -20,6 +20,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { localize } from '../../../nls.js';
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import { htmlAttributeEncodeValue } from '../../../base/common/strings.js';
+import { BrowserViewInspectElementId } from './browserViewElementInspector.js';
 
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
@@ -45,6 +46,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	private readonly browserViews = this._register(new DisposableMap<string, BrowserView>());
 	private _keybindings: { [commandId: string]: string } = Object.create(null);
+	private _theme: IBrowserViewTheme | undefined;
+	private _configuration: IBrowserViewConfiguration = {};
 
 	private readonly _onDidCreateBrowserView = this._register(new Emitter<IBrowserViewCreatedEvent>());
 	readonly onDidCreateBrowserView: Event<IBrowserViewCreatedEvent> = this._onDidCreateBrowserView.event;
@@ -291,8 +294,19 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).inspector.toggleElementSelection(enabled);
 	}
 
+	async updateTheme(theme: IBrowserViewTheme): Promise<void> {
+		this._theme = theme;
+		for (const [, view] of this.browserViews) {
+			view.inspector.setTheme(theme);
+		}
+	}
+
 	async updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void> {
 		this._keybindings = keybindings;
+	}
+
+	async updateConfiguration(config: IBrowserViewConfiguration): Promise<void> {
+		this._configuration = config;
 	}
 
 	/**
@@ -330,6 +344,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			options
 		);
 		this.browserViews.set(id, view);
+		if (this._theme) {
+			view.inspector.setTheme(this._theme);
+		}
 
 		Event.once(view.onDidClose)(() => {
 			this.browserViews.deleteAndDispose(id);
@@ -371,7 +388,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return view;
 	}
 
-	private showContextMenu(view: BrowserView, params: Electron.ContextMenuParams): void {
+	private async showContextMenu(view: BrowserView, params: Electron.ContextMenuParams): Promise<void> {
 		const win = view.getElectronWindow();
 		if (!win) {
 			return;
@@ -380,6 +397,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		if (webContents.isDestroyed()) {
 			return;
 		}
+
+		const inspectTarget = this._configuration.aiFeaturesDisabled
+			? undefined
+			: await view.inspector.getElementHandle(BrowserViewInspectElementId.ContextMenuTarget);
 		const menu = new Menu();
 
 		if (params.linkURL) {
@@ -469,6 +490,14 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 
 		menu.append(new MenuItem({ type: 'separator' }));
+		if (inspectTarget) {
+			menu.append(new MenuItem({
+				label: localize('browser.contextMenu.addElementToChat', 'Add Element to Chat'),
+				click: () => inspectTarget.addToChat()
+			}));
+			void inspectTarget.highlight().catch(() => { });
+			menu.on('menu-will-close', () => inspectTarget.dispose());
+		}
 		menu.append(new MenuItem({
 			label: localize('browser.contextMenu.inspect', 'Inspect'),
 			click: () => webContents.inspectElement(params.x, params.y)

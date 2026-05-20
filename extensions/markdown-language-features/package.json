@@ -165,7 +165,7 @@
         "command": "markdown.showSource",
         "title": "%markdown.showSource.title%",
         "category": "Markdown",
-        "icon": "$(file-text)"
+        "icon": "$(file-code)"
       },
       {
         "command": "markdown.showPreviewSecuritySelector",
@@ -849,7 +849,10 @@
       "./media/highlight.css"
     ],
     "markdown.previewScripts": [
-      "./media/index.js"
+      {
+        "path": "./media/index.js",
+        "type": "module"
+      }
     ],
     "customEditors": [
       {

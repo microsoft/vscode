@@ -119,6 +119,25 @@ export namespace SessionIdForPr {
 	}
 }
 
+export namespace SessionIdForTask {
+
+	export function getId(taskId: string): string {
+		return `task/${taskId}`;
+	}
+
+	export function parse(resource: vscode.Uri): { taskId: string } | undefined {
+		const match = resource.path.match(/^\/task\/(.+)$/);
+		if (match) {
+			return { taskId: match[1] };
+		}
+		return undefined;
+	}
+
+	export function parseTaskId(resource: vscode.Uri): string | undefined {
+		return parse(resource)?.taskId;
+	}
+}
+
 export async function toOpenPullRequestWebviewUri(params: {
 	owner: string;
 	repo: string;

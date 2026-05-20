@@ -277,7 +277,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 
 	private async switchToBaseModel(request: vscode.ChatRequest, stream: vscode.ChatResponseStream): Promise<ChatRequest> {
 		const endpoint = await this.endpointProvider.getChatEndpoint(request);
-		const baseEndpoint = await this.endpointProvider.getChatEndpoint('copilot-base');
+		const baseEndpoint = await this.endpointProvider.getChatEndpoint('copilot-utility');
 		// If it has a 0x multipler, it's free so don't switch them. If it's BYOK, it's free so don't switch them.
 		if (endpoint.multiplier === 0 || request.model.vendor !== 'copilot' || endpoint.multiplier === undefined) {
 			return request;
@@ -295,7 +295,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		let messageString: vscode.MarkdownString;
 		if (this.authenticationService.copilotToken?.isIndividual) {
 			messageString = new vscode.MarkdownString(vscode.l10n.t({
-				message: 'You have reached your additional budget limit for this month. We have automatically switched you to {0} which is included with your plan. [Configure budget]({1}) to keep going.',
+				message: 'You have reached your additional budget limit for this month. We have automatically switched you to {0} which is included with your plan. [Manage budget]({1}) to keep going.',
 				args: [baseEndpoint.name, 'command:chat.enableAdditionalUsage'],
 				// To make sure the translators don't break the link
 				comment: [`{Locked=']({'}`]

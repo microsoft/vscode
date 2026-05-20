@@ -597,6 +597,10 @@ export class ActionListWidget<T> extends Disposable {
 		this._submenuContainer = document.createElement('div');
 		this._submenuContainer.className = 'action-list-submenu-panel action-widget';
 		this._submenuContainer.style.display = 'none';
+		// Make focusable so clicking the hover panel keeps focus inside the
+		// tracked element instead of moving it to document.body (which would
+		// trigger the blur handler and dismiss the widget).
+		this._submenuContainer.tabIndex = -1;
 		this.domNode.append(this._submenuContainer);
 
 		this._register(dom.addDisposableListener(this._submenuContainer, 'mouseenter', () => {

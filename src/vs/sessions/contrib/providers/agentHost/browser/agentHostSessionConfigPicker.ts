@@ -14,7 +14,7 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable } from '../../../../../base/common/observable.js';
 import Severity from '../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -47,6 +47,7 @@ import { MobileAgentHostModePicker } from './mobile/mobileAgentHostModePicker.js
 import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPickerActionItem.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { AgentHostClaudePermissionModePicker } from './agentHostClaudePermissionModePicker.js';
 
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
@@ -403,9 +404,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		trigger.setAttribute('aria-label', isReadOnly
 			? localize('agentHostSessionConfig.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, label)
 			: localize('agentHostSessionConfig.triggerAria', "{0}: {1}", schema.title, label));
-		if (!isReadOnly) {
-			dom.append(trigger, renderIcon(Codicon.chevronDown));
-		}
 		applyAutoApproveTriggerStyles(trigger, property, value);
 	}
 
@@ -775,6 +773,11 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			RUNNING_SESSION_CONFIG_PICKER_ID,
 			this._createRunningSessionPermissionPickerFactory(),
 		));
+		this._register(actionViewItemService.register(
+			MenuId.ChatInputSecondary,
+			RUNNING_SESSION_PERMISSION_MODE_PICKER_ID,
+			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostClaudePermissionModePicker)),
+		));
 	}
 
 	/**
@@ -800,7 +803,7 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 				return undefined;
 			}
 			const pickerOptions: IChatInputPickerOptions = {
-				hideChevrons: observableValue('hideChevrons', false),
+				compact: constObservable(true),
 			};
 			return instantiationService.createInstance(
 				AgentHostPermissionPickerActionItem,
@@ -832,7 +835,6 @@ registerAction2(class extends Action2 {
 
 	override async run(): Promise<void> { }
 });
-
 
 // ---- New session mode picker (NewSessionConfig) ----
 
@@ -877,6 +879,26 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 10,
+				when: ChatContextKeyExprs.isAgentHostSession,
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { }
+});
+
+const RUNNING_SESSION_PERMISSION_MODE_PICKER_ID = 'sessions.agentHost.runningSessionPermissionModePicker';
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RUNNING_SESSION_PERMISSION_MODE_PICKER_ID,
+			title: localize2('agentHostRunningSessionPermissionModePicker', "Approvals"),
+			f1: false,
+			menu: [{
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: 11,
 				when: ChatContextKeyExprs.isAgentHostSession,
 			}],
 		});

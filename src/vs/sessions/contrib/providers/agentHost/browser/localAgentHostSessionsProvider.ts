@@ -14,6 +14,7 @@ import { localize } from '../../../../../nls.js';
 import { IAgentConnection, IAgentHostService, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -23,6 +24,7 @@ import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/co
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -58,8 +60,10 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
 		@IGitHubService gitHubService: IGitHubService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsManagementService);
 
 		this.label = localize('localAgentHostLabel', "Local Agent Host");
 

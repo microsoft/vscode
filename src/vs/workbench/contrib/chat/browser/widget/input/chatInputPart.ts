@@ -27,7 +27,7 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { mixin } from '../../../../../../base/common/objects.js';
-import { autorun, derived, derivedOpts, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
@@ -83,7 +83,7 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModes, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatPlanReview, IChatQuestionCarousel, IChatToolInvocation } from '../../../common/chatService/chatService.js';
-import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
@@ -107,8 +107,10 @@ import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../cha
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
 import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from '../../agentSessions/agentHost/agentHostChatInputPicker.js';
-import { OpenAgentHostBranchPickerAction, OpenAgentHostIsolationPickerAction, OpenAgentHostModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostBranchPickerAction, OpenAgentHostIsolationPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { IChatPhoneInputPresenter, MobileChatInputCombinedPickerActionItem } from './chatPhoneInputPresenter.js';
 import { IChatContextService } from '../../contextContrib/chatContextService.js';
 import { IDisposableReference } from '../chatContentParts/chatCollections.js';
@@ -397,6 +399,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
 	private permissionWidget: PermissionPickerActionItem | undefined;
+	private readonly permissionWidgetDisposeListener = this._register(new MutableDisposable<IDisposable>());
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
 	private delegationWidget: DelegationSessionPickerActionItem | undefined;
 	private readonly chatSessionPickerWidgets = this._register(new DisposableMap<string, ChatSessionPickerActionItem>());
@@ -690,11 +693,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.initSelectedModel();
 
-		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
+		const resetCurrentLanguageModelIfUnavailable = () => {
 			if (shouldResetOnModelListChange(this._currentLanguageModel.get()?.identifier, this.getModels())) {
 				this.setCurrentLanguageModelToDefault();
 			}
-		}));
+		};
+		this._register(this.languageModelsService.onDidChangeLanguageModels(resetCurrentLanguageModelIfUnavailable));
+		this._register(this.languageModelsService.onDidChangeModelVisibility(resetCurrentLanguageModelIfUnavailable));
 
 		this._register(this.onDidChangeCurrentChatMode(() => {
 			this.accessibilityService.alert(this._currentModeObservable.get().label.get());
@@ -826,6 +831,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const nextIndex = (currentIndex + 1) % models.length;
 			this.setCurrentLanguageModel(models[nextIndex]);
 		}
+	}
+
+	public switchToNextPinnedModel(): void {
+		const models = this.getModels();
+		if (models.length === 0) {
+			return;
+		}
+
+		const modelMap = new Map(models.map(model => [model.identifier, model]));
+		const pinnedModels = this.languageModelsService
+			.getPinnedModelIds()
+			.map(modelId => modelMap.get(modelId))
+			.filter(isDefined);
+
+		if (pinnedModels.length === 0) {
+			return;
+		}
+
+		const currentIndex = pinnedModels.findIndex(model => model.identifier === this._currentLanguageModel.get()?.identifier);
+		const nextIndex = (currentIndex + 1) % pinnedModels.length;
+		this.setCurrentLanguageModel(pinnedModels[nextIndex]);
 	}
 
 	public openModelPicker(): void {
@@ -1102,7 +1128,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Sync selected model - validate it belongs to the current session's model pool
 			if (state?.selectedModel) {
 				const allModels = this.getAllMergedModels();
-				const sessionType = this.getCurrentSessionType() ?? getChatSessionType(forSessionResource);
+				const sessionType = getChatSessionType(forSessionResource);
 				const syncResult = resolveModelFromSyncState(state.selectedModel, this._currentLanguageModel.get(), allModels, sessionType, {
 					location: this.location,
 					currentModeKind: this.currentModeKind,
@@ -1268,7 +1294,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const models = this.getAllMergedModels();
 		models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 
-		return filterModelsForSession(models, this.getCurrentSessionType(), this.currentModeKind, this.location);
+		const sessionFiltered = filterModelsForSession(models, this.getCurrentSessionType(), this.currentModeKind, this.location);
+		return sessionFiltered.filter(m => !this.languageModelsService.isModelHidden(m.identifier));
 	}
 
 	/**
@@ -1357,7 +1384,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!sessionResource) {
 			return;
 		}
-		if (!requests || requests.length === 0) {
+		if (!requests || requests.length === 0 || getChatSessionType(sessionResource) !== SessionType.CopilotCLI) {
 			return;
 		}
 
@@ -2402,11 +2429,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const pickerOptions: IChatInputPickerOptions = {
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
 			actionContext: { widget },
-			hideChevrons: derived(reader => this._stableInputPartWidth.read(reader) < CHAT_INPUT_PICKER_COLLAPSE_WIDTH),
+			compact: derived(reader => this._stableInputPartWidth.read(reader) < CHAT_INPUT_PICKER_COLLAPSE_WIDTH),
+		};
+		const primarySessionPickerOptions: IChatInputPickerOptions = {
+			...pickerOptions,
+			compact: constObservable(true),
 		};
 		const secondaryPickerOptions: IChatInputPickerOptions = {
 			...pickerOptions,
 			getOverflowAnchor: () => this.secondaryToolbar.getElement(),
+			compact: constObservable(true),
 		};
 
 		this._register(dom.addStandardDisposableListener(toolbarsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
@@ -2486,7 +2518,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					return this.sessionTargetWidget = this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, pickerOptions);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					// Cloud sessions render their option-group pickers (e.g. branch) on the primary toolbar
-					const widgets = this.createChatSessionPickerWidgets(action, pickerOptions);
+					const widgets = this.createChatSessionPickerWidgets(action, primarySessionPickerOptions);
 					if (widgets.length === 0) {
 						return new HiddenActionViewItem(action);
 					}
@@ -2509,14 +2541,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this._toolbarRelayoutScheduler.schedule();
 			}
 		}));
-		// When hideChevrons changes, picker items change their rendered size
+		// When compact changes, picker items change their rendered size
 		// but the toolbar's ResizeObserver won't fire (the toolbar element size
 		// didn't change, only its children did). Force a relayout so the
 		// responsive overflow logic re-evaluates with the correct item widths.
 		// The relayout is deferred by a microtask so the picker action view
 		// items' own autoruns have a chance to re-render their labels first.
 		this._register(autorun(reader => {
-			pickerOptions.hideChevrons.read(reader);
+			pickerOptions.compact.read(reader);
 			queueMicrotask(() => this.inputActionsToolbar.relayout());
 		}));
 
@@ -2563,9 +2595,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Secondary toolbar (permissions) — below the input box
 		const agentHostShortPickerIds = new Set<string>([
 			OpenAgentHostModePickerAction.ID,
+			OpenAgentHostAutoApprovePickerAction.ID,
+			OpenAgentHostPermissionModePickerAction.ID,
 			OpenAgentHostBranchPickerAction.ID,
 			OpenAgentHostIsolationPickerAction.ID,
+			'sessions.tunnelHost.toggleSharing'
 		]);
+		// Direct-rendered chip lane for agent-host config properties that
+		// are advertised by the agent's schema but not handled by a
+		// dedicated `MenuId.ChatInputSecondary` action. Sits as a sibling
+		// of the secondary toolbar so the toolbar can take the available
+		// space (`flex: 1 1 0`) while the chips pin to the right next to
+		// the context-usage widget.
+		const genericChipsContainer = dom.$('.chat-secondary-generic-chips');
+		const genericChipsLane = this._register(this.instantiationService.createInstance(
+			AgentHostGenericConfigChips,
+			widget,
+		));
+		genericChipsLane.render(genericChipsContainer);
 		this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryToolbarContainer, MenuId.ChatInputSecondary, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
@@ -2576,11 +2623,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				kind: 'all',
 				minItems: 1,
 				actionMinWidth: 48,
-				// Agent-host pickers collapse to icon+chevron when narrow
-				// (see `pickerOptions.hideChevrons` driving compact mode in
-				// `AgentHostChatInputPicker._renderTrigger`). Report a
-				// smaller min-width for them so the responsive layout keeps
-				// them visible instead of overflowing into the menu.
+				// Agent-host pickers collapse to an icon-only label via a CSS
+				// container query in `AgentHostChatInputPicker` when narrow.
+				// Report a smaller min-width for them so the responsive layout
+				// keeps them visible instead of overflowing into the menu.
 				getActionMinWidth: action => agentHostShortPickerIds.has(action.id) ? 22 : undefined,
 			},
 			actionViewItemProvider: (action, options) => {
@@ -2652,24 +2698,34 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					};
 					const widget = this.instantiationService.createInstance(PermissionPickerActionItem, action, delegate, secondaryPickerOptions);
 					this.permissionWidget = widget;
-					this._register(widget.onDidDispose(() => {
+					this.permissionWidgetDisposeListener.value = widget.onDidDispose(() => {
 						if (this.permissionWidget === widget) {
 							this.permissionWidget = undefined;
 						}
-					}));
+						this.permissionWidgetDisposeListener.clear();
+					});
 					return widget;
 				} else if (
 					(action.id === OpenAgentHostModePickerAction.ID
+						|| action.id === OpenAgentHostAutoApprovePickerAction.ID
+						|| action.id === OpenAgentHostPermissionModePickerAction.ID
 						|| action.id === OpenAgentHostBranchPickerAction.ID
 						|| action.id === OpenAgentHostIsolationPickerAction.ID)
 					&& action instanceof MenuItemAction
 				) {
+					if (this.options.isSessionsWindow) {
+						return new HiddenActionViewItem(action);
+					}
 					const property = action.id === OpenAgentHostBranchPickerAction.ID
 						? SessionConfigKey.Branch
 						: action.id === OpenAgentHostIsolationPickerAction.ID
 							? SessionConfigKey.Isolation
-							: SessionConfigKey.Mode;
-					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, property, secondaryPickerOptions);
+							: action.id === OpenAgentHostAutoApprovePickerAction.ID
+								? SessionConfigKey.AutoApprove
+								: action.id === OpenAgentHostPermissionModePickerAction.ID
+									? ClaudeSessionConfigKey.PermissionMode
+									: SessionConfigKey.Mode;
+					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, property);
 					return new AgentHostChatInputPickerActionViewItem(action, picker);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					// Create all pickers and return a container action view item
@@ -2685,6 +2741,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this.secondaryToolbar.getElement().classList.add('chat-secondary-input-toolbar');
 		this.secondaryToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		dom.append(this.secondaryToolbarContainer, genericChipsContainer);
 		this._register(this.secondaryToolbar.onDidChangeMenuItems(() => {
 			// Update container reference for the pickers when the secondary toolbar hosts one.
 			// Only assign when found so we don't overwrite a valid primary container reference
@@ -2749,8 +2806,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.renderAttachedContext();
 
+		// Defer only the carousel max-height update to the next animation
+		// frame. That write changes a descendant whose height flexes back
+		// up into `this.container` (the observed element), which is what
+		// trips the browser's "ResizeObserver loop completed with
+		// undelivered notifications" warning under bursty input (see
+		// #316509). Publishing `this.height` stays synchronous because its
+		// autorun consumers re-layout siblings/ancestors of the input
+		// container, not the container itself, so they do not feed back
+		// into the same observation phase.
+		const updateCarouselMaxHeightScheduler = this._register(new dom.AnimationFrameScheduler(this.container, () => this.updateToolConfirmationCarouselMaxHeight()));
 		const inputResizeObserver = this._register(new dom.DisposableResizeObserver('ChatInputPart.containerHeight', () => {
-			this.updateToolConfirmationCarouselMaxHeight();
+			updateCarouselMaxHeightScheduler.schedule();
 			const newHeight = this.container.offsetHeight;
 			this.height.set(newHeight, undefined);
 		}));

@@ -23,6 +23,7 @@ import { ChatMarkdownContentPart } from '../../../../browser/widget/chatContentP
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { CodeBlockPart, ICodeBlockData } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
 import { IChatOutputRendererService, type RenderedOutputPart } from '../../../../browser/chatOutputItemRenderer.js';
+import { IChatOutputPartStateCache, IOutputPartState } from '../../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatContentInlineReference } from '../../../../common/chatService/chatService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
@@ -41,6 +42,7 @@ suite('ChatMarkdownContentPart', () => {
 	/** Data captured from each CodeBlockPart.render() call */
 	const renderedCodeBlocks: ICodeBlockData[] = [];
 	const renderedCodeBlockOutputs: { identifier: string; text: string }[] = [];
+	let outputStateCache: Map<string, IOutputPartState>;
 
 	function createMockEditorPool(): EditorPool {
 		return {
@@ -98,14 +100,14 @@ suite('ChatMarkdownContentPart', () => {
 		};
 	}
 
-	function createMarkdownPart(markdownText: string, context?: IChatContentPartRenderContext): ChatMarkdownContentPart {
+	function createMarkdownPart(markdownText: string, context?: IChatContentPartRenderContext, fillInIncompleteTokens = false): ChatMarkdownContentPart {
 		const ctx = context ?? createRenderContext();
 		return store.add(instantiationService.createInstance(
 			ChatMarkdownContentPart,
 			{ kind: 'markdownContent', content: new MarkdownString(markdownText) },
 			ctx,
 			editorPool,
-			false, // fillInIncompleteTokens
+			fillInIncompleteTokens,
 			ctx.codeBlockStartIndex,
 			renderer,
 			undefined, // markdownRenderOptions
@@ -135,6 +137,7 @@ suite('ChatMarkdownContentPart', () => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		renderedCodeBlocks.length = 0;
 		renderedCodeBlockOutputs.length = 0;
+		outputStateCache = new Map<string, IOutputPartState>();
 
 		// Seed configuration values needed by ChatEditorOptions
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
@@ -185,12 +188,19 @@ suite('ChatMarkdownContentPart', () => {
 					webview: {
 						focus: () => { },
 						onDidWheel: Event.None,
+						onDidUpdateState: Event.None,
 					} as RenderedOutputPart['webview'],
 					onDidChangeHeight: Event.None,
 					reinitialize: () => { },
 					dispose: () => { },
 				};
 			},
+		});
+
+		instantiationService.stub(IChatOutputPartStateCache, {
+			_serviceBrand: undefined,
+			get: key => outputStateCache.get(key),
+			set: (key, state) => outputStateCache.set(key, state),
 		});
 
 		// Stub view descriptor service
@@ -249,6 +259,28 @@ suite('ChatMarkdownContentPart', () => {
 		assert.strictEqual(renderedCodeBlocks.length, 0);
 		assert.deepStrictEqual(renderedCodeBlockOutputs, [{ identifier: 'Mermaid', text: 'graph TD' }]);
 		assert.ok(part.domNode.querySelector('.chat-output-code-block'));
+	});
+
+	test('reuses rendered code block webview across incremental rerenders when content is unchanged', async () => {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		configService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+
+		const ctx = createRenderContext(false);
+		const markdown = '```mermaid\ngraph TD\n```';
+		const part = createMarkdownPart(markdown, ctx, true);
+
+		assert.strictEqual(renderedCodeBlockOutputs.length, 1);
+		assert.strictEqual(part.tryIncrementalUpdate({ kind: 'markdownContent', content: new MarkdownString(`${markdown}\n\nNext paragraph`) }), true);
+
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+		assert.deepStrictEqual({
+			renderedOutputs: renderedCodeBlockOutputs,
+			outputBlockCount: part.domNode.querySelectorAll('.chat-output-code-block').length,
+		}, {
+			renderedOutputs: [{ identifier: 'mermaid', text: 'graph TD' }],
+			outputBlockCount: 1,
+		});
 	});
 
 	test('does not render initial incomplete code fence', () => {
