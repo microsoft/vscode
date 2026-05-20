@@ -9,9 +9,10 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ActionType, type ActionEnvelope, type INotification, type StateAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, isSessionAction, type ActionEnvelope, type INotification, type StateAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { CustomizationStatus, type AgentInfo, type CustomizationRef, type RootState, type SessionCustomization, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { StateComponents, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -40,7 +41,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	private _rootStateValue: RootState = { agents: [] };
 	override readonly rootState;
 
-	private readonly _sessionStates = new Map<string, Partial<SessionState>>();
+	private readonly _sessionStates = new Map<string, SessionState>();
 
 	readonly dispatchedActions: { channel: string; action: StateAction }[] = [];
 
@@ -64,55 +65,31 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		this.dispatchedActions.push({ channel, action });
 	}
 
-	override getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<unknown> | undefined {
+	override getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
 		if (kind !== StateComponents.Session) {
 			return undefined;
 		}
-		const state = this._sessionStates.get(resource.toString());
-		if (!state) {
+		const self = this;
+		const channel = resource.toString();
+		if (!self._sessionStates.has(channel)) {
 			return undefined;
 		}
-		return {
-			get value() { return state as SessionState; },
-			get verifiedValue() { return state as SessionState; },
+		const subscription: IAgentSubscription<SessionState> = {
+			get value() { return self._sessionStates.get(channel); },
+			get verifiedValue() { return self._sessionStates.get(channel); },
 			onDidChange: Event.None,
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
 		};
+		return subscription as IAgentSubscription<ComponentToState[T]>;
 	}
 
 	fireAction(envelope: ActionEnvelope): void {
-		this._applyToSessionState(envelope);
+		if (isSessionAction(envelope.action)) {
+			const current = this._sessionStates.get(envelope.channel) ?? {} as SessionState;
+			this._sessionStates.set(envelope.channel, sessionReducer(current, envelope.action));
+		}
 		this._onDidAction.fire(envelope);
-	}
-
-	private _applyToSessionState(envelope: ActionEnvelope): void {
-		const action = envelope.action;
-		if (action.type !== ActionType.SessionCustomizationsChanged && action.type !== ActionType.SessionCustomizationUpdated) {
-			return;
-		}
-		const state = this._sessionStates.get(envelope.channel) ?? {};
-		if (action.type === ActionType.SessionCustomizationsChanged) {
-			state.customizations = [...action.customizations];
-		} else {
-			const current = [...(state.customizations ?? [])];
-			const { customization, enabled, status, statusMessage } = action;
-			const index = current.findIndex(c => c.customization.uri === customization.uri);
-			if (index === -1) {
-				current.push({ customization, enabled: enabled ?? false, status, statusMessage });
-			} else {
-				const existing = current[index];
-				current[index] = {
-					...existing,
-					customization,
-					enabled: enabled ?? existing.enabled,
-					status: status ?? existing.status,
-					statusMessage: statusMessage ?? existing.statusMessage,
-				};
-			}
-			state.customizations = current;
-		}
-		this._sessionStates.set(envelope.channel, state);
 	}
 
 	dispose(): void {
