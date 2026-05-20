@@ -273,6 +273,8 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 				type: ChatFetchResponseType.Success,
 				requestId: 'request-id',
 				serverRequestId: 'server-request-id',
+				usage: undefined,
+				resolvedModel: modelMetadata.id,
 				value: ''
 			};
 			const parentRequestSpy = vi.spyOn(ChatEndpoint.prototype, 'makeChatRequest2').mockResolvedValue(parentResponse);
@@ -300,6 +302,8 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 				type: ChatFetchResponseType.Success,
 				requestId: 'request-id',
 				serverRequestId: 'server-request-id',
+				usage: undefined,
+				resolvedModel: modelMetadata.id,
 				value: ''
 			};
 			const parentRequestSpy = vi.spyOn(ChatEndpoint.prototype, 'makeChatRequest2').mockResolvedValue(parentResponse);
