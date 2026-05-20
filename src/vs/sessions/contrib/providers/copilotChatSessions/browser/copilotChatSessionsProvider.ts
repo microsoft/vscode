@@ -855,12 +855,9 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 					...this.sessionWorkspace,
 					folders: [{
 						...this.sessionWorkspace.folders[0],
-						gitRepository: {
-							...this.sessionWorkspace.folders[0].gitRepository!,
-							branchName,
-							upstreamBranchName,
-							uncommittedChanges,
-						},
+						gitRepository: this.sessionWorkspace.folders[0].gitRepository
+							? { ...this.sessionWorkspace.folders[0].gitRepository, branchName, upstreamBranchName, uncommittedChanges }
+							: undefined,
 					}],
 				}, undefined);
 
