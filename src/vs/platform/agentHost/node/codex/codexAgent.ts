@@ -22,7 +22,7 @@ import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESO
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { type ModelSelection, type ToolDefinition, PolicyState } from '../../common/state/protocol/state.js';
+import { type ConfigSchema, type ModelSelection, type ToolDefinition, PolicyState } from '../../common/state/protocol/state.js';
 import { CustomizationRef, SessionInputResponseKind, type MessageAttachment, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { ICodexProxyHandle, ICodexProxyService } from './codexProxyService.js';
@@ -39,7 +39,42 @@ function isCodexModel(m: CCAModel): boolean {
 	return m.vendor === 'OpenAI' && !!m.model_picker_enabled && !!m.capabilities?.supports?.tool_calls;
 }
 
+/**
+ * Augments the published `@vscode/copilot-api` `CCAModelSupports` with
+ * the per-model `reasoning_effort` field the runtime CAPI `/models`
+ * payload already carries but the SDK type doesn't yet declare.
+ */
+interface ICodexModelSupports {
+	readonly reasoning_effort?: readonly string[];
+}
+
+function isCodexEffort(v: string): v is ModelReasoningEffort {
+	return CODEX_EFFORT_LEVELS.includes(v as ModelReasoningEffort);
+}
+
+function createCodexEffortSchema(supportedEfforts: readonly ModelReasoningEffort[]): ConfigSchema | undefined {
+	if (supportedEfforts.length === 0) {
+		return undefined;
+	}
+	const defaultEffort = supportedEfforts.includes('medium') ? 'medium' : undefined;
+	return {
+		type: 'object',
+		properties: {
+			reasoningEffort: {
+				type: 'string',
+				title: localize('codex.modelEffort.title', "Reasoning Effort"),
+				description: localize('codex.modelEffort.description', "Controls how much reasoning effort the model uses."),
+				enum: [...supportedEfforts],
+				...(defaultEffort !== undefined ? { default: defaultEffort } : {}),
+			},
+		},
+	};
+}
+
 function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo {
+	const supports = m.capabilities?.supports;
+	const supportedEfforts = ((supports as ICodexModelSupports | undefined)?.reasoning_effort ?? []).filter(isCodexEffort);
+	const configSchema = createCodexEffortSchema(supportedEfforts);
 	const policyState = m.policy?.state as PolicyState | undefined;
 	const multiplier = m.billing?.multiplier;
 	return {
@@ -47,7 +82,8 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
 		id: m.id,
 		name: m.name,
 		maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
-		supportsVision: !!m.capabilities?.supports?.vision,
+		supportsVision: !!supports?.vision,
+		...(configSchema ? { configSchema } : {}),
 		...(policyState ? { policyState } : {}),
 		...(typeof multiplier === 'number' ? { _meta: { multiplierNumeric: multiplier } } : {}),
 	};
@@ -55,9 +91,24 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
 
 const CODEX_EFFORT_LEVELS: readonly ModelReasoningEffort[] = ['minimal', 'low', 'medium', 'high', 'xhigh'];
 
-function resolveCodexEffort(model: ModelSelection | undefined): ModelReasoningEffort | undefined {
+function resolveCodexEffort(model: ModelSelection | undefined, supportedEfforts?: readonly IAgentModelInfo[]): ModelReasoningEffort | undefined {
 	const raw = model?.config?.['reasoningEffort'] ?? model?.config?.['effort'];
-	return CODEX_EFFORT_LEVELS.includes(raw as ModelReasoningEffort) ? raw as ModelReasoningEffort : undefined;
+	if (!CODEX_EFFORT_LEVELS.includes(raw as ModelReasoningEffort)) {
+		return undefined;
+	}
+	const effort = raw as ModelReasoningEffort;
+	// Validate against the target model's supported effort levels when
+	// the model list is available. This prevents sending an effort level
+	// that was valid for the previous model but not the current one
+	// (e.g. 'low' is supported by gpt-5.3-codex but not gpt-5.2-codex).
+	if (supportedEfforts && model?.id) {
+		const modelInfo = supportedEfforts.find(m => m.id === model.id);
+		const allowed = modelInfo?.configSchema?.properties?.['reasoningEffort']?.enum as string[] | undefined;
+		if (allowed && !allowed.includes(effort)) {
+			return undefined;
+		}
+	}
+	return effort;
 }
 
 interface ICodexSession {
@@ -86,8 +137,9 @@ function makeThreadOptionsKey(
 	model: ModelSelection | undefined,
 	approvalPolicy: ApprovalMode | undefined,
 	sandboxMode: SandboxMode | undefined,
+	models?: readonly IAgentModelInfo[],
 ): string {
-	return `${model?.id ?? ''}|${resolveCodexEffort(model) ?? ''}|${approvalPolicy ?? ''}|${sandboxMode ?? ''}`;
+	return `${model?.id ?? ''}|${resolveCodexEffort(model, models) ?? ''}|${approvalPolicy ?? ''}|${sandboxMode ?? ''}`;
 }
 
 /**
@@ -373,8 +425,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		entry.state.sandboxMode = liveSandbox;
 
 		// --- Rebuild the Thread when options drift ---
-		const desiredKey = makeThreadOptionsKey(entry.state.model, liveApproval, liveSandbox);
-		const effort = resolveCodexEffort(entry.state.model);
+		const currentModels = this._models.get();
+		const desiredKey = makeThreadOptionsKey(entry.state.model, liveApproval, liveSandbox, currentModels);
+		const effort = resolveCodexEffort(entry.state.model, currentModels);
 		const threadOptions = {
 			...(entry.state.workingDirectory ? { workingDirectory: entry.state.workingDirectory.fsPath } : {}),
 			...(entry.state.model?.id ? { model: entry.state.model.id } : {}),
