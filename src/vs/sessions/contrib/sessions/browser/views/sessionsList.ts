@@ -13,6 +13,7 @@ import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -288,19 +289,40 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const isArchived = element.isArchived.read(reader);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			this._motionReducedSignal.read(reader);
-			const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, gitHubInfo?.pullRequest?.icon);
-			const iconSelector = ThemeIcon.asCSSSelector(icon);
-			const iconColor = icon.color ? asCssVariable(icon.color.id) : '';
 
-			if (iconSelector !== template.currentIconSelector) {
-				template.currentIconSelector = iconSelector;
-				DOM.clearNode(template.iconContainer);
-				const iconSpan = DOM.append(template.iconContainer, $(`span${iconSelector}`));
-				iconSpan.style.color = iconColor;
+			// In-progress sessions get the shared pixel-art spinner (when motion is allowed)
+			// instead of the codicon `loading~spin`. Use a sentinel selector key so subsequent
+			// renders with the same state skip rebuilding the DOM and don't restart the animation.
+			const isPixelSpinner = sessionStatus === SessionStatus.InProgress && !this.accessibilityService.isMotionReduced();
+			if (isPixelSpinner) {
+				const pixelSpinnerKey = '__pixel_spinner__';
+				const iconColor = asCssVariable('textLink.foreground');
+				if (template.currentIconSelector !== pixelSpinnerKey) {
+					template.currentIconSelector = pixelSpinnerKey;
+					DOM.clearNode(template.iconContainer);
+					const spinner = createPixelSpinner(template.iconContainer);
+					spinner.style.color = iconColor;
+				} else {
+					const spinner = template.iconContainer.firstElementChild as HTMLElement | null;
+					if (spinner) {
+						spinner.style.color = iconColor;
+					}
+				}
 			} else {
-				const iconSpan = template.iconContainer.firstElementChild as HTMLElement | null;
-				if (iconSpan) {
+				const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, gitHubInfo?.pullRequest?.icon);
+				const iconSelector = ThemeIcon.asCSSSelector(icon);
+				const iconColor = icon.color ? asCssVariable(icon.color.id) : '';
+
+				if (iconSelector !== template.currentIconSelector) {
+					template.currentIconSelector = iconSelector;
+					DOM.clearNode(template.iconContainer);
+					const iconSpan = DOM.append(template.iconContainer, $(`span${iconSelector}`));
 					iconSpan.style.color = iconColor;
+				} else {
+					const iconSpan = template.iconContainer.firstElementChild as HTMLElement | null;
+					if (iconSpan) {
+						iconSpan.style.color = iconColor;
+					}
 				}
 			}
 			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
@@ -512,10 +534,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon {
 		switch (status) {
 			case SessionStatus.InProgress:
-				if (this.accessibilityService.isMotionReduced()) {
-					return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
-				}
-				return { ...ThemeIcon.modify(Codicon.loading, 'spin'), color: themeColorFromId('textLink.foreground') };
+				// When motion is allowed, the pixel spinner is rendered directly in renderSession
+				// and this method is not consulted; here we only provide the reduced-motion fallback.
+				return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
 			case SessionStatus.NeedsInput: return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
 			case SessionStatus.Error: return { ...Codicon.error, color: themeColorFromId('errorForeground') };
 			default:
