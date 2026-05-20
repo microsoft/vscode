@@ -2867,7 +2867,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		const removedData: ICopilotChatSession[] = [];
 		for (const [key, adapter] of this._sessionCache) {
-			if (!currentKeys.has(key) && adapter !== this._currentNewSession) {
+			if (!currentKeys.has(key) && adapter instanceof AgentSessionAdapter) {
 				removedData.push(adapter);
 				cacheChanged = true;
 			}
