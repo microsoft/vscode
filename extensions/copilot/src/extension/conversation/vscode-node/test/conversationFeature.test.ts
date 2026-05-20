@@ -144,9 +144,10 @@ suite('Conversation feature test suite', function () {
 
 		const conversationFeature = instaService.createInstance(ConversationFeature);
 		try {
-			// No Copilot token is set; activation should be driven by BYOK availability.
+			// No Copilot token is set; activation and enablement should be driven by BYOK availability.
 			await conversationFeature.activationBlocker;
 			assert.deepStrictEqual(conversationFeature.activated, true);
+			assert.deepStrictEqual(conversationFeature.enabled, true);
 		} finally {
 			conversationFeature.dispose();
 		}

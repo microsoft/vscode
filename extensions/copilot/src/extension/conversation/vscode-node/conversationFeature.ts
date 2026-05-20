@@ -85,17 +85,18 @@ export class ConversationFeature implements IExtensionContribution {
 		this._enabled = false;
 		this._activated = false;
 
-		// Register Copilot token listener
-		this.registerCopilotTokenListener();
-
 		const activationBlockerDeferred = new DeferredPromise<void>();
 		this.activationBlocker = activationBlockerDeferred.p;
 
-		// Activation can be unblocked by either a Copilot token OR the presence of a BYOK model.
+		// Activation and chat enablement can be driven by either a Copilot token OR the presence of a BYOK model.
 		let hasByokModels = false;
 		const reevaluate = () => {
 			const hasToken = !!authenticationService.copilotToken;
 			const shouldActivate = hasToken || hasByokModels;
+			if (hasToken) {
+				this.logService.info(`copilot token sku: ${authenticationService.copilotToken?.sku ?? ''}`);
+			}
+			this.enabled = shouldActivate;
 			this.activated = shouldActivate;
 			if (shouldActivate && !activationBlockerDeferred.isSettled) {
 				if (hasToken) {
@@ -128,12 +129,7 @@ export class ConversationFeature implements IExtensionContribution {
 		void refreshHasByokModels();
 		this._disposables.add(vscode.lm.onDidChangeChatModels(() => void refreshHasByokModels()));
 
-		this._disposables.add(authenticationService.onDidAuthenticationChange(async () => {
-			reevaluate();
-			if (!activationBlockerDeferred.isSettled) {
-				activationBlockerDeferred.complete();
-			}
-		}));
+		this._disposables.add(authenticationService.onDidAuthenticationChange(() => reevaluate()));
 
 		reevaluate();
 	}
@@ -374,14 +370,6 @@ export class ConversationFeature implements IExtensionContribution {
 			)
 		].forEach(d => disposables.add(d));
 		return disposables;
-	}
-
-	private registerCopilotTokenListener() {
-		this._disposables.add(this.authenticationService.onDidAuthenticationChange(() => {
-			const chatEnabled = this.authenticationService.copilotToken !== undefined;
-			this.logService.info(`copilot token sku: ${this.authenticationService.copilotToken?.sku ?? ''}`);
-			this.enabled = chatEnabled ?? false;
-		}));
 	}
 
 	private registerTerminalQuickFixProviders() {
