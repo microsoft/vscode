@@ -8,6 +8,7 @@ import { packageJson } from '../../../../platform/env/common/packagejson';
 import { ILanguageDiagnosticsService } from '../../../../platform/languages/common/languageDiagnosticsService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
+import { IToolDeferralService } from '../../../../platform/networking/common/toolDeferralService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { CancellationError } from '../../../../util/vs/base/common/errors';
 import { Iterable } from '../../../../util/vs/base/common/iterator';
@@ -16,6 +17,7 @@ import { isDisposable } from '../../../../util/vs/base/common/lifecycle';
 import { autorunIterableDelta } from '../../../../util/vs/base/common/observable';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { LanguageModelToolInformation, LanguageModelToolResult2 } from '../../../../vscodeTypes';
+import { createRequestToolManifest } from '../../common/requestToolManifest';
 import { getContributedToolName, getToolName, mapContributedToolNamesInSchema, mapContributedToolNamesInString, ToolName } from '../../common/toolNames';
 import { ICopilotTool, ICopilotToolCtor, ToolRegistry } from '../../common/toolsRegistry';
 import { BaseToolsService, IToolsService } from '../../common/toolsService';
@@ -50,6 +52,7 @@ export class TestToolsService extends BaseToolsService implements IToolsService 
 		disabledTools: Set<string>,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
+		@IToolDeferralService private readonly _toolDeferralService: IToolDeferralService,
 	) {
 		super(logService);
 
@@ -181,7 +184,7 @@ export class TestToolsService extends BaseToolsService implements IToolsService 
 		const requestToolsByName = new Map(Iterable.map(request.tools, ([t, enabled]) => [t.name, enabled]));
 
 		const packageJsonTools = getPackagejsonToolsForTest();
-		return this.tools
+		const enabledTools = this.tools
 			.map(tool => {
 				// Apply model-specific alternative if available via alternativeDefinition
 				const owned = this._copilotTools.get(getToolName(tool.name) as ToolName);
@@ -217,6 +220,13 @@ export class TestToolsService extends BaseToolsService implements IToolsService 
 				return packageJsonTools.has(tool.name);
 			});
 
+		const requestToolManifest = createRequestToolManifest(enabledTools, this._toolDeferralService);
+		if (requestToolManifest.hasDeferredTools) {
+			return enabledTools;
+		}
+
+		return enabledTools.filter(tool => tool.name !== ToolName.ToolSearch);
+
 	}
 
 	addTestToolOverride(info: LanguageModelToolInformation, tool: vscode.LanguageModelTool<unknown>): void {
@@ -229,8 +239,9 @@ export class NoopTestToolsService extends TestToolsService {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
+		@IToolDeferralService toolDeferralService: IToolDeferralService,
 	) {
-		super(new Set(), instantiationService, logService);
+		super(new Set(), instantiationService, logService, toolDeferralService);
 	}
 
 	override invokeTool(name: string, options: vscode.LanguageModelToolInvocationOptions<unknown>, token: CancellationToken): Promise<LanguageModelToolResult2> {

@@ -8,6 +8,7 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { isGpt55 } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
+import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { CopilotChatAttr, emitToolCallEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiToolType, StdAttr, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
@@ -18,6 +19,7 @@ import { Lazy } from '../../../util/vs/base/common/lazy';
 import { isDisposable } from '../../../util/vs/base/common/lifecycle';
 import { autorunIterableDelta } from '../../../util/vs/base/common/observableInternal';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
+import { createRequestToolManifest } from '../common/requestToolManifest';
 import { getContributedToolName, getToolName, mapContributedToolNamesInSchema, mapContributedToolNamesInString, ToolName } from '../common/toolNames';
 import { ICopilotTool, ICopilotToolExtension, modelSpecificToolApplies, ToolRegistry } from '../common/toolsRegistry';
 import { BaseToolsService } from '../common/toolsService';
@@ -91,6 +93,7 @@ export class ToolsService extends BaseToolsService {
 		@IOTelService private readonly _otelService: IOTelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
+		@IToolDeferralService private readonly _toolDeferralService: IToolDeferralService,
 	) {
 		super(logService);
 		this._copilotTools = new Lazy(() => new Map(ToolRegistry.getTools().map(t => [t.toolName, _instantiationService.createInstance(t)] as const)));
@@ -275,7 +278,7 @@ export class ToolsService extends BaseToolsService {
 		const modelSpecificOverrides = new Map(this.getToolOverridesForEndpoint(endpoint, tools));
 		const modelSpecificTools = this.getModelSpecificTools();
 
-		return tools
+		const enabledTools = tools
 			.filter(tool => {
 				// 0. If the tool was a model specific tool with an override, it'll be mixed in in the 'map' later.
 				if (modelSpecificTools.get(tool.name)?.tool.overridesTool) {
@@ -354,6 +357,13 @@ export class ToolsService extends BaseToolsService {
 
 				return resultTool;
 			});
+
+		const requestToolManifest = createRequestToolManifest(enabledTools, this._toolDeferralService);
+		if (requestToolManifest.hasDeferredTools) {
+			return enabledTools;
+		}
+
+		return enabledTools.filter(tool => tool.name !== ToolName.ToolSearch);
 	}
 
 	private *getToolOverridesForEndpoint(endpoint: IChatEndpoint, tools = this.tools) {

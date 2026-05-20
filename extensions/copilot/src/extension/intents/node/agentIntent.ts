@@ -159,6 +159,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools[ToolName.GetScmChanges] = getSCMChangesEnabled;
 
 	allowTools[ToolName.SessionStoreSql] = true;
+	allowTools[ToolName.CoreAskQuestions] = true;
 
 	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 

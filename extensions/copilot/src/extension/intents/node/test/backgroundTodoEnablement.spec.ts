@@ -19,6 +19,8 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { TestChatRequest } from '../../../test/node/testHelpers';
 import { ToolName } from '../../../tools/common/toolNames';
+import { IToolsService } from '../../../tools/common/toolsService';
+import { TestToolsService } from '../../../tools/node/test/testToolsService';
 import { AgentIntentInvocation, getAgentTools, isBackgroundTodoAgentEnabled, isTodoToolExplicitlyEnabled } from '../agentIntent';
 
 // ─── isTodoToolExplicitlyEnabled unit tests ──────────────────────
@@ -86,6 +88,13 @@ describe('getAgentTools background todo enablement', () => {
 		instantiationService = accessor.get(IInstantiationService);
 		configService = accessor.get(IConfigurationService);
 		experimentationService = accessor.get(IExperimentationService);
+		(accessor.get(IToolsService) as TestToolsService).addTestToolOverride({
+			name: ToolName.CoreAskQuestions,
+			description: 'ask questions',
+			inputSchema: { type: 'object', properties: {} },
+			tags: [],
+			source: undefined,
+		}, {} as any);
 		mockEndpoint = instantiationService.createInstance(MockEndpoint, undefined);
 	});
 
@@ -146,6 +155,13 @@ describe('getAgentTools background todo enablement', () => {
 		const request = new TestChatRequest('fix the bug');
 		const tools = await instantiationService.invokeFunction(getAgentTools, request, mockEndpoint);
 		expect(hasTool(tools, ToolName.CoreAskQuestions)).toBe(true);
+	});
+
+	test('does not publish vscode_askQuestions when the tool picker explicitly disables it', async () => {
+		const request = new TestChatRequest('fix the bug');
+		request.tools = new Map([[{ name: ToolName.CoreAskQuestions } as any, false]]);
+		const tools = await instantiationService.invokeFunction(getAgentTools, request, mockEndpoint);
+		expect(hasTool(tools, ToolName.CoreAskQuestions)).toBe(false);
 	});
 });
 
