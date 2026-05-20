@@ -273,6 +273,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				.filter(isCodexModel)
 				.sort((a, b) => Number(b.is_chat_default) - Number(a.is_chat_default))
 				.map(m => toAgentModelInfo(m, this.id));
+			this._logService.info(`[Codex] Found ${filtered.length} models (from ${all.length} total): ${filtered.map(m => m.id).join(', ')}`);
 			this._models.set(filtered, undefined);
 		} catch (err) {
 			this._logService.error(err, '[Codex] Failed to refresh models');
