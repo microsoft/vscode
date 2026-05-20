@@ -21,7 +21,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationSyncProvider, ICustomizationItem, ICustomizationItemProvider } from '../../common/customizationHarnessService.js';
+import { ICustomizationItem, ICustomizationItemProvider } from '../../common/customizationHarnessService.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
@@ -410,76 +410,6 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		return items.map(item => item.description ? item : { ...item, description: descriptionsByUri.get(item.uri.toString()) });
 	}
 }
-/**
- * Item source backed directly by promptsService enumeration and optional sync state.
- */
-export class PromptServiceItemSource implements IAICustomizationItemSource {
 
-	readonly onDidChange: Event<void>;
-
-	constructor(
-		readonly sessionResource: URI,
-		readonly syncProvider: ICustomizationSyncProvider | undefined,
-		private readonly promptsService: IPromptsService,
-		private readonly itemNormalizer: AICustomizationItemNormalizer,
-	) {
-		this.onDidChange = Event.any(
-			this.syncProvider?.onDidChange ?? Event.None,
-			this.promptsService.onDidChangeCustomAgents,
-			this.promptsService.onDidChangeSlashCommands,
-			this.promptsService.onDidChangeSkills,
-			this.promptsService.onDidChangeHooks,
-			this.promptsService.onDidChangeInstructions,
-		);
-	}
-
-	dispose(): void {
-	}
-
-	async fetchItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		const files = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
-		if (!files.length) {
-			return [];
-		}
-
-		const disabledPromptFiles = this.promptsService.getDisabledPromptFiles(promptType);
-
-		const toProviderItem = (file: typeof files[number]): ICustomizationItem => ({
-			uri: file.uri,
-			type: promptType,
-			name: file.name ?? getFriendlyName(basename(file.uri)),
-			description: file.description,
-			source: file.storage,
-			enabled: !disabledPromptFiles.has(file.uri),
-			extensionId: file.extension?.id,
-			pluginUri: file.pluginUri,
-			userInvocable: undefined
-		});
-
-		// Local/user files are sync-eligible (the user picks individual items
-		// to push to the remote agent host). Locally-installed plugin files
-		// always show up but are not individually syncable — the plugin is
-		// the unit of sync.
-		const syncEligibleFiles = files.filter(file => file.storage === PromptsStorage.local || file.storage === PromptsStorage.user);
-		const pluginFiles = files.filter(file => file.storage === PromptsStorage.plugin);
-
-		const syncEligibleItems = this.itemNormalizer.normalizeItems(syncEligibleFiles.map(toProviderItem), promptType)
-			.map(item => {
-				if (!this.syncProvider) {
-					return item;
-				}
-
-				return {
-					...item,
-					id: `sync-${item.id}`,
-					syncable: true,
-					synced: !this.syncProvider.isDisabled(item.uri),
-				};
-			});
-		const pluginItems = this.itemNormalizer.normalizeItems(pluginFiles.map(toProviderItem), promptType);
-
-		return [...syncEligibleItems, ...pluginItems];
-	}
-}
 
 // #endregion
