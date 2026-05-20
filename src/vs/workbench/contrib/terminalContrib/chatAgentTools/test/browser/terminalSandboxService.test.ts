@@ -27,7 +27,7 @@ import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/commo
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { ISandboxDependencyStatus, ISandboxHelperService } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
+import { ISandboxDependencyStatus, ISandboxHelperService, IWindowsMxcFilesystemPolicy } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../../../../../platform/sandbox/common/terminalSandboxRuntimeConfigurationPerOperation.js';
 
 suite('TerminalSandboxService - network domains', () => {
@@ -52,6 +52,10 @@ suite('TerminalSandboxService - network domains', () => {
 			createFileCount++;
 			const contentString = content.toString();
 			createdFiles.set(uri.path, contentString);
+			createdFiles.set(uri.fsPath, contentString);
+			if (/^\/[a-zA-Z]:/.test(uri.path)) {
+				createdFiles.set(uri.path.slice(1).replace(/\//g, '\\'), contentString);
+			}
 			return {};
 		}
 
@@ -96,8 +100,8 @@ suite('TerminalSandboxService - network domains', () => {
 		}
 
 		async getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
-			// Return a Linux environment to ensure tests pass on Windows
-			// (sandbox is not supported on Windows)
+			// Return a Linux environment so the default test expectations are
+			// independent of the local OS.
 			return this.remoteEnvironment;
 		}
 	}
@@ -157,10 +161,23 @@ suite('TerminalSandboxService - network domains', () => {
 			bubblewrapInstalled: true,
 			socatInstalled: true,
 		};
+		filesystemPolicy: IWindowsMxcFilesystemPolicy = {
+			readonlyPaths: ['c:\\tools\\node'],
+			readwritePaths: [],
+		};
+		environment = ['PATH=c:\\tools\\node;c:\\windows\\system32', 'PATHEXT=.COM;.EXE;.BAT;.CMD'];
 
 		checkSandboxDependencies(): Promise<ISandboxDependencyStatus> {
 			this.callCount++;
 			return Promise.resolve(this.status);
+		}
+
+		getWindowsMxcFilesystemPolicy(): Promise<IWindowsMxcFilesystemPolicy> {
+			return Promise.resolve(this.filesystemPolicy);
+		}
+
+		getWindowsMxcEnvironment(): Promise<string[]> {
+			return Promise.resolve(this.environment);
 		}
 	}
 
@@ -1164,7 +1181,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 	test('should prefix wrapped command with ELECTRON_RUN_AS_NODE=1 when no remote env is available', async function () {
 		if (isWindows) {
-			// Sandbox is disabled on Windows when no remote env is available.
+			// Local Windows uses MXC, which launches wxc-exec.exe directly instead of SRT through Electron-as-Node.
 			this.skip();
 		}
 		remoteAgentService.remoteEnvironment = null;
@@ -1185,9 +1202,49 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!wrapped.command.startsWith('ELECTRON_RUN_AS_NODE='), `Remote workbench should not add the env prefix. Actual: ${wrapped.command}`);
 	});
 
+	test('should route remote Windows sandbox commands through MXC', async () => {
+		remoteAgentService.remoteEnvironment = {
+			...remoteAgentService.remoteEnvironment!,
+			os: OperatingSystem.Windows,
+			appRoot: URI.file('/c:/app'),
+			execPath: 'c:\\app\\Code.exe',
+			tmpDir: URI.file('/c:/tmp'),
+			userHome: URI.file('/c:/Users/test'),
+			workspaceStorageHome: URI.file('/c:/Users/test/AppData/Roaming/Code/User/workspaceStorage'),
+			arch: 'arm64'
+		};
+		workspaceContextService.setWorkspaceFolders([URI.file('/c:/workspace-one')]);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+
+		const configPath = await sandboxService.getSandboxConfigPath();
+		const wrapped = await sandboxService.wrapCommand('echo test', false, 'pwsh.exe', URI.file('/c:/workspace-one'));
+
+		ok(configPath, 'Config path should be defined for remote Windows');
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created for remote Windows');
+		const config = JSON.parse(configContent);
+
+		strictEqual(wrapped.isSandboxWrapped, true);
+		ok(wrapped.command.includes('node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe'), `Wrapped command should use the MXC Windows executable. Actual: ${wrapped.command}`);
+		ok(wrapped.command.includes(' --debug '), `Wrapped command should pass --debug to MXC. Actual: ${wrapped.command}`);
+		ok(wrapped.command.includes(' --log-file debug.json '), `Wrapped command should pass --log-file debug.json to MXC. Actual: ${wrapped.command}`);
+		ok(wrapped.command.includes(configPath), `Wrapped command should pass the MXC config path. Actual: ${wrapped.command}`);
+		strictEqual(config.version, '0.4.0-alpha');
+		strictEqual(config.containment, 'process');
+		ok(config.process.commandLine.startsWith('pwsh.exe -NonInteractive -Command '), `Expected MXC process to launch through PowerShell. Actual: ${config.process.commandLine}`);
+		strictEqual(config.process.cwd, 'c:\\workspace-one');
+		ok(config.process.env.includes('PATH=c:\\tools\\node;c:\\windows\\system32'), 'PATH should be injected into the MXC process env');
+		ok(config.process.env.includes('PATHEXT=.COM;.EXE;.BAT;.CMD'), 'PATHEXT should be injected into the MXC process env');
+		ok(config.filesystem.readwritePaths.includes('c:\\workspace-one'), 'Workspace folder should be writable in the MXC config');
+		ok(config.filesystem.readwritePaths.some((path: string) => path.includes('tmp_vscode_7')), 'Sandbox temp dir should be writable in the MXC config');
+		ok(config.filesystem.readonlyPaths.includes('c:\\app'), 'VS Code app root should be readable in the MXC config');
+		ok(config.filesystem.readonlyPaths.includes('c:\\tools\\node'), 'MXC available tools policy should add tool paths to readonly paths');
+		ok(config.filesystem.deniedPaths.includes('c:\\Users\\test'), 'User home should be denied by default in the MXC config');
+	});
+
 	test('should place sandbox temp dir under the local data folder when no remote env is available', async function () {
 		if (isWindows) {
-			// Sandbox is disabled on Windows when no remote env is available.
+			// Local Windows uses MXC, which does not use the POSIX local temp-dir path shape asserted below.
 			this.skip();
 		}
 		remoteAgentService.remoteEnvironment = null;
