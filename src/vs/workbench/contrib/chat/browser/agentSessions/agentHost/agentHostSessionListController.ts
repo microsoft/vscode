@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -107,6 +108,10 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			if (n.type === 'root/sessionAdded' && n.summary.provider === this._provider) {
 				const rawId = AgentSession.id(n.summary.resource);
 				this._pendingNewSessions.delete(rawId);
+				const workingDir = typeof n.summary.workingDirectory === 'string' ? URI.parse(n.summary.workingDirectory) : n.summary.workingDirectory;
+				if (!this._isWorkingDirectoryInWorkspace(workingDir)) {
+					return;
+				}
 				this._cachedSummaries.set(rawId, n.summary);
 				const item = this._makeItemFromSummary(rawId, n.summary);
 				const existingIndex = this._items.findIndex(item => item.resource.path === `/${rawId}`);
@@ -143,6 +148,15 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				}
 				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [item] });
 			}
+		}));
+
+		// Re-fetch the session list whenever the set of VS Code workspace
+		// folders changes, since filtering depends on it. The agent host
+		// itself doesn't know which workspace this VS Code window has open,
+		// so we have to drive the refresh from this side.
+		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
+			this._cacheValid = false;
+			void this.refresh(CancellationToken.None);
 		}));
 	}
 
@@ -197,9 +211,13 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this._items });
 			return;
 		}
+		const previousResources = this._items.map(item => item.resource);
 		try {
 			const sessions = await this._connection.listSessions();
-			const filtered = sessions.filter(s => AgentSession.provider(s.session) === this._provider);
+			const filtered = sessions.filter(s =>
+				AgentSession.provider(s.session) === this._provider
+				&& this._isWorkingDirectoryInWorkspace(s.workingDirectory)
+			);
 			this._cachedSummaries.clear();
 			this._items = filtered.map(s => {
 				const rawId = AgentSession.id(s.session);
@@ -237,7 +255,32 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			this._cachedSummaries.clear();
 			this._items = [];
 		}
-		this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this._items });
+		const currentResources = new Set(this._items.map(item => item.resource.toString()));
+		const removed = previousResources.filter(r => !currentResources.has(r.toString()));
+		this._onDidChangeChatSessionItems.fire({
+			...(this._items.length > 0 ? { addedOrUpdated: this._items } : undefined),
+			...(removed.length > 0 ? { removed } : undefined),
+		});
+	}
+
+	/**
+	 * Returns `true` if a session with the given working directory belongs
+	 * to the current VS Code workspace. When the window has no workspace
+	 * folders open (e.g. the Agents window, or an empty VS Code window),
+	 * filtering is disabled and every session is considered in-scope.
+	 *
+	 * Sessions without a working directory are excluded when a workspace
+	 * is open since they cannot be attributed to any folder.
+	 */
+	private _isWorkingDirectoryInWorkspace(workingDirectory: URI | undefined): boolean {
+		const folders = this._workspaceContextService.getWorkspace().folders;
+		if (folders.length === 0) {
+			return true;
+		}
+		if (!workingDirectory) {
+			return false;
+		}
+		return folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, folder.uri));
 	}
 
 	private _makeItemFromSummary(rawId: string, summary: SessionSummary): IChatSessionItem {
