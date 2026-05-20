@@ -18,11 +18,18 @@ suite('parseGheInstanceInput', () => {
 	test('single word returns SingleWord with resolved URI', () => {
 		assert.deepStrictEqual(parseGheInstanceInput('octocat'), { kind: GheParseResultKind.SingleWord, resolvedUri: 'https://octocat.ghe.com' });
 		assert.deepStrictEqual(parseGheInstanceInput('my-org'), { kind: GheParseResultKind.SingleWord, resolvedUri: 'https://my-org.ghe.com' });
-		assert.deepStrictEqual(parseGheInstanceInput('my_org'), { kind: GheParseResultKind.SingleWord, resolvedUri: 'https://my_org.ghe.com' });
 	});
 
 	test('single word with surrounding whitespace is trimmed', () => {
 		assert.deepStrictEqual(parseGheInstanceInput('  octocat  '), { kind: GheParseResultKind.SingleWord, resolvedUri: 'https://octocat.ghe.com' });
+	});
+
+	test('single word with numbers returns SingleWord', () => {
+		assert.deepStrictEqual(parseGheInstanceInput('org123'), { kind: GheParseResultKind.SingleWord, resolvedUri: 'https://org123.ghe.com' });
+	});
+
+	test('single word with underscores is invalid (not valid DNS)', () => {
+		assert.deepStrictEqual(parseGheInstanceInput('my_org'), { kind: GheParseResultKind.Invalid });
 	});
 
 	test('full URI with https prefix returns FullUri', () => {
@@ -44,13 +51,22 @@ suite('parseGheInstanceInput', () => {
 		assert.deepStrictEqual(parseGheInstanceInput('https://github.com'), { kind: GheParseResultKind.Invalid });
 		assert.deepStrictEqual(parseGheInstanceInput('https://octocat.example.com'), { kind: GheParseResultKind.Invalid });
 		assert.deepStrictEqual(parseGheInstanceInput('http://octocat.ghe.com'), { kind: GheParseResultKind.Invalid });
+		assert.deepStrictEqual(parseGheInstanceInput('ftp://octocat.ghe.com'), { kind: GheParseResultKind.Invalid });
 	});
 
 	test('input with numbers in domain is valid', () => {
 		assert.deepStrictEqual(parseGheInstanceInput('https://org123.ghe.com'), { kind: GheParseResultKind.FullUri, resolvedUri: 'https://org123.ghe.com' });
 	});
 
-	test('single word with numbers returns SingleWord', () => {
-		assert.deepStrictEqual(parseGheInstanceInput('org123'), { kind: GheParseResultKind.SingleWord, resolvedUri: 'https://org123.ghe.com' });
+	test('single word with only hyphens returns SingleWord', () => {
+		assert.deepStrictEqual(parseGheInstanceInput('my-long-org-name'), { kind: GheParseResultKind.SingleWord, resolvedUri: 'https://my-long-org-name.ghe.com' });
+	});
+
+	test('URI with trailing slash is valid', () => {
+		assert.deepStrictEqual(parseGheInstanceInput('https://octocat.ghe.com/'), { kind: GheParseResultKind.FullUri, resolvedUri: 'https://octocat.ghe.com/' });
+	});
+
+	test('URI with path segments is invalid', () => {
+		assert.deepStrictEqual(parseGheInstanceInput('https://octocat.ghe.com/api/v3'), { kind: GheParseResultKind.Invalid });
 	});
 });

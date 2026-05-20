@@ -490,8 +490,9 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			const signedIn = append(actions, $('.onboarding-a-signin-confirmation'));
 			const icon = append(signedIn, $('span'));
 			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
+			icon.setAttribute('aria-hidden', 'true');
 			const text = append(signedIn, $('span'));
-			text.textContent = localize('onboarding.signIn.signedIn', "You're signed in.");
+			text.textContent = localize('onboarding.signIn.signedIn', "You're signed in. You can continue to the next step.");
 		} else {
 			switch (this.enterpriseSignInUiState) {
 				case 'instance':
@@ -563,24 +564,18 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		}));
 	}
 
+	private static readonly GHE_INPUT_ACTION_PADDING = 28;
+
 	private _renderEnterpriseInstanceForm(actions: HTMLElement): void {
 		const enterprisePromptLabel = this._getEnterpriseInstancePromptLabel();
 
 		const container = append(actions, $('.onboarding-a-signin-ghe-input'));
+
 		const submitAction = this.stepDisposables.add(new Action(
 			'onboarding.signIn.enterprise.submit',
 			localize('onboarding.signIn.enterprise.continue', "Continue"),
 			ThemeIcon.asClassName(Codicon.arrowRight),
 			false,
-			async () => {
-				const result = parseGheInstanceInput(inputBox.value);
-				if (result.kind === GheParseResultKind.Empty || result.kind === GheParseResultKind.Invalid) {
-					validate();
-					return;
-				}
-
-				await this._submitEnterpriseInstance(result.resolvedUri);
-			}
 		));
 
 		const inputBox = this.stepDisposables.add(new InputBox(container, undefined, {
@@ -590,8 +585,18 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
 		inputBox.value = this.enterpriseInstanceValue;
-		inputBox.paddingRight = 28;
+		inputBox.paddingRight = OnboardingVariationA.GHE_INPUT_ACTION_PADDING;
 		const input = this._registerStepFocusable(inputBox.inputElement);
+
+		const submit = async () => {
+			const result = parseGheInstanceInput(inputBox.value);
+			if (result.kind === GheParseResultKind.Empty || result.kind === GheParseResultKind.Invalid) {
+				validate();
+				return;
+			}
+			await this._submitEnterpriseInstance(result.resolvedUri);
+		};
+		submitAction.run = submit;
 
 		const message = append(container, $('.onboarding-a-signin-ghe-message'));
 
@@ -650,8 +655,10 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 	private _renderEnterpriseSignInProgress(actions: HTMLElement): void {
 		const container = append(actions, $('.onboarding-a-signin-ghe-progress'));
+		container.setAttribute('aria-live', 'polite');
 		const spinner = append(container, $('span'));
 		spinner.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+		spinner.setAttribute('aria-hidden', 'true');
 		const message = append(container, $('.onboarding-a-signin-ghe-progress-message'));
 		message.textContent = localize('onboarding.signIn.enterprise.progress', "Waiting for {0} sign-in to complete...", defaultChat.provider.enterprise.name);
 	}
@@ -772,12 +779,13 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				this._setEnterpriseSignInUiState('options');
 			}
 		} catch (error) {
-			this._setEnterpriseSignInUiState('options');
 			if (isCancellationError(error)) {
+				this._setEnterpriseSignInUiState('options');
 				this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'cancelled', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
 				return;
 			}
 
+			this._setEnterpriseSignInUiState('instance');
 			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
 			this._notifyEnterpriseSignInError();
 		} finally {

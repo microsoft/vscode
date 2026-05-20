@@ -453,46 +453,6 @@
 	border-radius: 8px;
 	font-size: 13px;
 	line-height: 40px;
-	background: var(--vscode-input-background);
-	box-shadow: inset 0 0 0 1px var(--vscode-input-border, var(--vscode-widget-border, rgba(255, 255, 255, 0.1)));
-}
-
-.onboarding-a-signin-ghe-input .monaco-inputbox > .ibwrapper > .input {
-	padding: 0 12px;
-}
-
-.onboarding-a-signin-ghe-input .monaco-inputbox .monaco-action-bar {
-	right: 6px;
-	top: 50%;
-	transform: translateY(-50%);
-}
-
-.onboarding-a-signin-ghe-input .monaco-inputbox .action-item {
-	margin-left: 0;
-}
-
-.onboarding-a-signin-ghe-input .monaco-inputbox .action-item .action-label {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 24px;
-	height: 24px;
-	border-radius: 6px;
-	color: var(--vscode-icon-foreground);
-	transition: background 0.12s ease, color 0.12s ease;
-}
-
-.onboarding-a-signin-ghe-input .monaco-inputbox .action-item .action-label:hover {
-	background: var(--vscode-toolbar-hoverBackground, rgba(255, 255, 255, 0.08));
-}
-
-.onboarding-a-signin-ghe-input .monaco-inputbox .action-item .action-label:focus-visible {
-	outline: 2px solid var(--vscode-focusBorder);
-	outline-offset: 1px;
-}
-
-.onboarding-a-signin-ghe-input .monaco-inputbox .action-item.disabled .action-label {
-	opacity: 0.45;
 }
 
 .onboarding-a-signin-ghe-input .monaco-inputbox.error {
