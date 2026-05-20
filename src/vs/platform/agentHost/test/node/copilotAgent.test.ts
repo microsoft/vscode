@@ -668,6 +668,63 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('setClientCustomizations publishes parsed agents in SessionCustomizationUpdated', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+
+			const pluginDir = URI.from({ scheme: Schemas.inMemory, path: '/plugin-a' });
+			await fileService.createFolder(URI.joinPath(pluginDir, 'agents'));
+			await fileService.writeFile(
+				URI.joinPath(pluginDir, 'agents', 'helper.md'),
+				VSBuffer.fromString('---\nname: helper-agent\ndescription: helps out\n---\nbody'),
+			);
+
+			class PluginDirSpyManager extends TestAgentPluginManager {
+				override async syncCustomizations(_clientId: string, customizations: CustomizationRef[]): Promise<ISyncedCustomization[]> {
+					return customizations.map(c => ({
+						customization: { customization: c, enabled: true, status: CustomizationStatus.Loaded },
+						pluginDir,
+					}));
+				}
+			}
+
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const pluginManager = new PluginDirSpyManager();
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, pluginManager, fileService });
+
+			const actions: SessionAction[] = [];
+			disposables.add(agent.onDidSessionProgress(s => {
+				if (s.kind === 'action') {
+					actions.push(s.action);
+				}
+			}));
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const session = AgentSession.uri('copilotcli', 'sync-customizations-test');
+				await agent.setClientCustomizations(session, 'client-1', [{ uri: pluginDir.toString(), displayName: 'Plugin A' }]);
+
+				// Wait for the deferred resolution chain in PluginController.sync.
+				await new Promise(r => setTimeout(r, 50));
+
+				const updatesWithAgents = actions
+					.filter(a => a.type === ActionType.SessionCustomizationUpdated)
+					.filter((a): a is Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }> => true)
+					.filter(a => a.agents !== undefined);
+
+				assert.strictEqual(updatesWithAgents.length > 0, true, 'expected SessionCustomizationUpdated to carry parsed agents');
+				assert.deepStrictEqual(updatesWithAgents.at(-1)!.agents, [{
+					uri: URI.joinPath(pluginDir, 'agents', 'helper.md').toString(),
+					name: 'helper-agent',
+					description: 'helps out',
+				}]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	suite('provisional sessions', () => {
