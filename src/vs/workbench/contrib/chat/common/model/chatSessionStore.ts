@@ -695,15 +695,19 @@ export class ChatSessionStore extends Disposable {
 				let flatData: VSBuffer | undefined;
 				try {
 					flatData = (await this.fileService.readFile(flatStorageLocation)).value;
-				} catch {
-					// flat file may not exist; fall through to report the original error
+				} catch (flatErr) {
+					if (toFileOperationResult(flatErr) !== FileOperationResult.FILE_NOT_FOUND) {
+						this.reportError('sessionReadFile', `Error reading flat fallback file ${sessionId}`, flatErr);
+					}
+					// FILE_NOT_FOUND is expected; fall through to report the original parse error
 				}
 
 				if (flatData) {
 					try {
 						return parseSession(flatData, false);
-					} catch {
-						// flat file also unreadable; fall through to report the original error
+					} catch (flatParseErr) {
+						this.reportError('malformedSession', `Flat fallback file also malformed for ${sessionId}`, flatParseErr);
+						// fall through to report the original log parse error
 					}
 				}
 			}
