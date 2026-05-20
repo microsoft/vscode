@@ -175,6 +175,56 @@ function getDefaultScenarioChunks() {
 const MODEL = 'gpt-4o-2024-08-06';
 
 /**
+ * Additional model definitions the mock advertises beyond `MODEL` and
+ * `gpt-4o-mini`. `gpt-5.3-codex` is the Copilot CLI SDK's hard-coded default
+ * model; smoke tests/automation that exercise the CLI need it in the mock's
+ * /models list, otherwise the SDK fails with "No model available".
+ */
+const EXTRA_MODELS = [
+	{
+		id: 'gpt-5.3-codex',
+		name: 'GPT-5.3 Codex (Mock)',
+		version: '2025-01-01',
+		vendor: 'copilot',
+		model_picker_enabled: false,
+		is_chat_default: false,
+		is_chat_fallback: false,
+		billing: { is_premium: false, multiplier: 0 },
+		capabilities: {
+			type: 'chat',
+			family: 'gpt-4o',
+			tokenizer: 'o200k_base',
+			limits: { max_prompt_tokens: 10000000, max_output_tokens: 131072, max_context_window_tokens: 10000000 },
+			supports: { streaming: true, tool_calls: true, parallel_tool_calls: true, vision: false },
+		},
+		supported_endpoints: ['/chat/completions'],
+	},
+	// Anthropic Claude model — required by the Claude Code session type, which
+	// filters endpoints for `modelProvider: 'Anthropic'`, `apiType: 'messages'`,
+	// `supportsToolCalls: true`, and `showInModelPicker: true`
+	// (see `ClaudeCodeModels._fetchAvailableEndpoints`). Routes to the
+	// `/v1/messages` mock handler which emits Anthropic-format SSE.
+	{
+		id: 'claude-sonnet-4.5',
+		name: 'Claude Sonnet 4.5 (Mock)',
+		version: '2025-01-01',
+		vendor: 'Anthropic',
+		model_picker_enabled: true,
+		is_chat_default: false,
+		is_chat_fallback: false,
+		billing: { is_premium: false, multiplier: 0 },
+		capabilities: {
+			type: 'chat',
+			family: 'claude-sonnet-4.5',
+			tokenizer: 'o200k_base',
+			limits: { max_prompt_tokens: 200000, max_output_tokens: 8192, max_context_window_tokens: 200000 },
+			supports: { streaming: true, tool_calls: true, parallel_tool_calls: true, vision: true },
+		},
+		supported_endpoints: ['/v1/messages'],
+	},
+];
+
+/**
  * @param {string} content
  * @param {number} index
  * @param {boolean} finish
@@ -417,7 +467,7 @@ function handleRequest(req, res) {
 	if (path === '/models/session' && req.method === 'POST') {
 		readBody().then(() => {
 			json(200, {
-				available_models: [MODEL, 'gpt-4o-mini'],
+				available_models: [MODEL, 'gpt-4o-mini', ...EXTRA_MODELS.map(m => m.id)],
 				session_token: 'perf-session-token-' + Date.now(),
 				expires_at: Math.floor(Date.now() / 1000) + 3600,
 				discounted_costs: {},
@@ -487,6 +537,7 @@ function handleRequest(req, res) {
 					},
 					supported_endpoints: ['/chat/completions'],
 				},
+				...EXTRA_MODELS,
 			],
 		});
 		return;
@@ -557,8 +608,11 @@ function handleRequest(req, res) {
 	}
 
 	// -- Messages API (DomainService.capiMessagesURL = /v1/messages) --
+	// The Anthropic Messages API (used by the Claude Code session type) speaks
+	// a different SSE dialect than OpenAI Chat Completions, so dispatch to a
+	// dedicated handler that emits `message_start` / `content_block_*` events.
 	if (path === '/v1/messages' && req.method === 'POST') {
-		readBody().then((/** @type {string} */ body) => handleChatCompletions(body, res));
+		readBody().then((/** @type {string} */ body) => handleMessagesApi(body, res));
 		return;
 	}
 
@@ -799,6 +853,155 @@ async function streamContent(res, chunks, isScenarioRequest) {
 	if (isScenarioRequest) {
 		serverEvents.emit('scenarioCompletion');
 	}
+}
+
+// ----- Anthropic Messages API -------------------------------------------------
+
+/**
+ * Anthropic SSE writer that emits a complete message response per the
+ * `processResponseFromMessagesEndpoint` parser in `messagesApi.ts`. The
+ * sequence is:
+ *   `event: message_start` → opening message envelope with model + usage
+ *   `event: content_block_start` → opens a `text` content block at index 0
+ *   `event: content_block_delta` → one or more `text_delta` chunks
+ *   `event: content_block_stop`
+ *   `event: message_delta` → stop_reason + final usage
+ *   `event: message_stop`
+ *
+ * Each event must be written as both an `event:` line and a `data:` line per
+ * the SSE spec; the Anthropic SDK's stream parser keys off the `event:` line.
+ *
+ * @param {http.ServerResponse} res
+ * @param {string} eventType
+ * @param {Record<string, any>} payload
+ */
+function writeAnthropicEvent(res, eventType, payload) {
+	res.write(`event: ${eventType}\n`);
+	res.write(`data: ${JSON.stringify({ type: eventType, ...payload })}\n\n`);
+}
+
+/**
+ * Stream a content scenario as an Anthropic Messages API SSE response.
+ * @param {http.ServerResponse} res
+ * @param {StreamChunk[]} chunks
+ * @param {boolean} isScenarioRequest
+ */
+async function streamAnthropicContent(res, chunks, isScenarioRequest) {
+	const messageId = `msg_mock_${Date.now()}`;
+	const model = 'claude-sonnet-4.5';
+
+	writeAnthropicEvent(res, 'message_start', {
+		message: {
+			id: messageId,
+			type: 'message',
+			role: 'assistant',
+			model,
+			content: [],
+			stop_reason: null,
+			stop_sequence: null,
+			usage: {
+				input_tokens: 1,
+				output_tokens: 0,
+				cache_creation_input_tokens: 0,
+				cache_read_input_tokens: 0,
+			},
+		},
+	});
+
+	writeAnthropicEvent(res, 'content_block_start', {
+		index: 0,
+		content_block: { type: 'text', text: '' },
+	});
+
+	let totalOutputTokens = 0;
+	for (const chunk of chunks) {
+		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
+		writeAnthropicEvent(res, 'content_block_delta', {
+			index: 0,
+			delta: { type: 'text_delta', text: chunk.content },
+		});
+		// Rough token estimate — only used by usage accounting in the receiver.
+		totalOutputTokens += Math.max(1, Math.ceil(chunk.content.length / 4));
+	}
+
+	writeAnthropicEvent(res, 'content_block_stop', { index: 0 });
+
+	writeAnthropicEvent(res, 'message_delta', {
+		delta: { stop_reason: 'end_turn', stop_sequence: null },
+		usage: { output_tokens: totalOutputTokens },
+	});
+
+	writeAnthropicEvent(res, 'message_stop', {});
+
+	res.end();
+
+	if (isScenarioRequest) {
+		serverEvents.emit('scenarioCompletion');
+	}
+}
+
+/**
+ * Anthropic-format request handler. Resolves the scenario from the request's
+ * `[scenario:...]` tag the same way as `handleChatCompletions` (searching the
+ * `messages[].content` array for either a string or an array of `{ type:
+ * 'text', text }` blocks), then streams the matching content turn as
+ * Anthropic SSE events. Multi-turn / thinking / tool-call scenarios fall
+ * back to their first content turn for now — Claude Code smoke tests only
+ * need a single text response.
+ *
+ * @param {string} body
+ * @param {http.ServerResponse} res
+ */
+async function handleMessagesApi(body, res) {
+	let scenarioId = DEFAULT_SCENARIO;
+	let isScenarioRequest = false;
+	/** @type {any[]} */
+	let messages = [];
+	try {
+		const parsed = JSON.parse(body);
+		messages = parsed.messages || [];
+		const userMsgs = messages.filter((/** @type {any} */ m) => m.role === 'user');
+		if (userMsgs.length > 0) {
+			const last = userMsgs[userMsgs.length - 1];
+			const lastContent = typeof last.content === 'string'
+				? last.content.substring(0, 100)
+				: Array.isArray(last.content)
+					? last.content.map((/** @type {any} */ c) => c.text || '').join('').substring(0, 100)
+					: '(structured)';
+			const ts = new Date().toISOString().slice(11, -1);
+			console.log(`[mock-llm]   ${ts} → messages-api: ${messages.length} msgs, last user: "${lastContent}"`);
+		}
+
+		for (let mi = messages.length - 1; mi >= 0; mi--) {
+			const msg = messages[mi];
+			if (msg.role !== 'user') { continue; }
+			const content = typeof msg.content === 'string'
+				? msg.content
+				: Array.isArray(msg.content)
+					? msg.content.map((/** @type {any} */ c) => c.text || '').join('')
+					: '';
+			const match = content.match(/\[scenario:([^\]]+)\]/);
+			if (match && SCENARIOS[match[1]]) {
+				scenarioId = match[1];
+				isScenarioRequest = true;
+				break;
+			}
+		}
+	} catch { }
+
+	const scenario = SCENARIOS[scenarioId] || SCENARIOS[DEFAULT_SCENARIO];
+	const chunks = isMultiTurnScenario(scenario)
+		? getFirstContentTurn(scenario)
+		: /** @type {StreamChunk[]} */ (scenario);
+
+	res.writeHead(200, {
+		'Content-Type': 'text/event-stream',
+		'Cache-Control': 'no-cache',
+		'Connection': 'keep-alive',
+		'X-Request-Id': 'perf-benchmark-' + Date.now(),
+	});
+
+	await streamAnthropicContent(res, chunks, isScenarioRequest);
 }
 
 /**
