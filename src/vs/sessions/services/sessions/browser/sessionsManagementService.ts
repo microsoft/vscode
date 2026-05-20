@@ -17,10 +17,10 @@ import { IProgressService } from '../../../../platform/progress/common/progress.
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, ActiveSessionWorkspaceIsVirtualContext, IsNewChatInSessionContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
-import { ActiveSessionSupportsMultiChatContext, IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
+import { ActiveSessionSupportsMultiChatContext, IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
-import { IChat, ISession, SessionStatus, ISessionType } from '../common/session.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 
@@ -194,6 +194,29 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return [...this._sessionTypes];
 	}
 
+	getSessionTypesForFolder(folderUri: URI): IProviderSessionType[] {
+		const result: IProviderSessionType[] = [];
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			if (!provider.resolveWorkspace(folderUri)) {
+				continue;
+			}
+			for (const sessionType of provider.getSessionTypes(folderUri)) {
+				result.push({ providerId: provider.id, sessionType });
+			}
+		}
+		return result;
+	}
+
+	resolveWorkspace(folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined {
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			const workspace = provider.resolveWorkspace(folderUri);
+			if (workspace) {
+				return { providerId: provider.id, workspace };
+			}
+		}
+		return undefined;
+	}
+
 	private _collectSessionTypes(): ISessionType[] {
 		const types: ISessionType[] = [];
 		const seen = new Set<string>();
@@ -209,13 +232,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private _updateSessionTypes(): void {
-		const newTypes = this._collectSessionTypes();
-		const changed = this._sessionTypes.length !== newTypes.length
-			|| this._sessionTypes.some((t, i) => t.id !== newTypes[i].id || t.label !== newTypes[i].label);
-		if (changed) {
-			this._sessionTypes = newTypes;
-			this._onDidChangeSessionTypes.fire();
-		}
+		// Always fire — the deduplicated flat list (used by surfaces that
+		// only need a set of type ids) may be unchanged, but the per-folder
+		// result of {@link getSessionTypesForFolder} can change whenever any
+		// provider's types or the set of providers changes, because each
+		// entry is keyed by (providerId × sessionType) rather than by type
+		// id alone.
+		this._sessionTypes = this._collectSessionTypes();
+		this._onDidChangeSessionTypes.fire();
 	}
 
 	/**
@@ -312,24 +336,51 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.setActiveSession(undefined);
 	}
 
-	createNewSession(providerId: string, repositoryUri: URI, sessionTypeId?: string): ISession {
+	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
 		this._startOpenSession();
 		if (!this.isNewChatSessionContext.get()) {
 			this.isNewChatSessionContext.set(true);
 		}
 
-		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === providerId);
-		if (!provider) {
-			throw new Error(`Sessions provider '${providerId}' not found`);
-		}
+		const providers = this.sessionsProvidersService.getProviders();
+		let provider: ISessionsProvider | undefined;
 
-		if (!sessionTypeId) {
-			sessionTypeId = provider.getSessionTypes(repositoryUri)[0]?.id;
-			if (!sessionTypeId) {
-				throw new Error(`No session types available for provider '${providerId}'`);
+		if (options?.providerId) {
+			provider = providers.find(p => p.id === options.providerId);
+			if (!provider) {
+				throw new Error(`Sessions provider '${options.providerId}' not found`);
+			}
+			if (!provider.resolveWorkspace(folderUri)) {
+				throw new Error(`Sessions provider '${options.providerId}' cannot resolve folder '${folderUri.toString()}'`);
+			}
+		} else {
+			// Iterate providers and pick the first one that can resolve the folder.
+			// When a specific session type was requested, also require the provider to
+			// advertise that type for the folder.
+			for (const candidate of providers) {
+				if (!candidate.resolveWorkspace(folderUri)) {
+					continue;
+				}
+				if (options?.sessionTypeId && !candidate.getSessionTypes(folderUri).some(t => t.id === options.sessionTypeId)) {
+					continue;
+				}
+				provider = candidate;
+				break;
+			}
+			if (!provider) {
+				throw new Error(`No sessions provider can resolve folder '${folderUri.toString()}'`);
 			}
 		}
-		const session = provider.createNewSession(repositoryUri, sessionTypeId);
+
+		let sessionTypeId = options?.sessionTypeId;
+		if (!sessionTypeId) {
+			sessionTypeId = provider.getSessionTypes(folderUri)[0]?.id;
+			if (!sessionTypeId) {
+				throw new Error(`No session types available for provider '${provider.id}'`);
+			}
+		}
+
+		const session = provider.createNewSession(folderUri, sessionTypeId);
 		this._pendingNewSession = session;
 		this.setActiveSession(session);
 		return session;

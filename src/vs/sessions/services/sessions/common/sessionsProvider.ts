@@ -93,23 +93,23 @@ export interface ISessionsProvider {
 	 * Resolve a workspace for the given repository URI.
 	 * Returns `undefined` when the provider cannot handle the given URI
 	 * (e.g. wrong scheme or authority).
-	 * @param repositoryUri The URI of the repository to resolve the workspace for.
+	 * @param workspaceUri The URI of the repository to resolve the workspace for.
 	 */
-	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined;
+	resolveWorkspace(workspaceUri: URI): ISessionWorkspace | undefined;
 
 	/**
-	 * Create a new session for the given repository URI.
+	 * Create a new session for the given workspace URI.
 	 * The provider should not add this session to its session list until the first request is sent.
-	 * @param repositoryUri The URI of the repository to create the session for.
+	 * @param workspaceUri The URI of the repository to create the session for.
 	 * @param sessionTypeId The ID of the session type to create.
 	 */
-	createNewSession(repositoryUri: URI, sessionTypeId: string): ISession;
+	createNewSession(workspaceUri: URI, sessionTypeId: string): ISession;
 
 	/**
-	 * Get the session types supported for a given repository URI.
-	 * @param repositoryUri The URI of the repository to get session types for.
+	 * Get the session types supported for a given workspace URI.
+	 * @param workspaceUri The URI of the workspace to get session types for.
 	 */
-	getSessionTypes(repositoryUri: URI): ISessionType[];
+	getSessionTypes(workspaceUri: URI): ISessionType[];
 
 	/**
 	 * Rename a chat within a session.
