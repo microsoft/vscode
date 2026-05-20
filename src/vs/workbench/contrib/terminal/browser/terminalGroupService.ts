@@ -353,11 +353,11 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this._onDidChangeActiveGroup.fire(this.activeGroup);
 	}
 
-	moveActiveGroupForward(): void {
+	moveActiveGroupDown(): void {
 		this._moveActiveGroupBy(1);
 	}
 
-	moveActiveGroupBackward(): void {
+	moveActiveGroupUp(): void {
 		this._moveActiveGroupBy(-1);
 	}
 
