@@ -65,7 +65,7 @@ declare module 'vscode' {
 		readonly supportedTypes?: readonly ChatSessionCustomizationType[];
 	}
 
-	export type ChatResourceSource = 'local' | 'user' | 'extension' | 'plugin' | 'builtin';
+	export type ChatSessionCustomizationSource = 'local' | 'user' | 'extension' | 'plugin' | 'builtin';
 
 	/**
 	 * Represents a single customization item reported by a provider.
@@ -94,7 +94,7 @@ declare module 'vscode' {
 		/**
 		 * The source/origin of this customization, which drives UI grouping and filtering
 		 */
-		readonly source: ChatResourceSource;
+		readonly source: ChatSessionCustomizationSource;
 
 		/**
 		 * The extension identifier that contributed this customization. Should be set if the source is 'extension'.
