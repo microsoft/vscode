@@ -37,20 +37,30 @@ export function setup(logger: Logger, opts: { web?: boolean; remote?: boolean })
 				await app.workbench.chat.sendMessage('Reply with one short sentence. Do not run tools or edit files.', 'editor');
 				await app.workbench.chat.waitForResponse(1500, 'editor');
 			} catch (error) {
-				throw new Error(`Copilot CLI smoke test failed before a complete response was visible.\n${formatError(error)}\n\n${await getCopilotCliDiagnostics(app)}`);
+				const diagnostics = await getCopilotCliDiagnostics(app);
+				throw new Error(`Copilot CLI smoke test failed: ${diagnostics.summary}\n\nOriginal UI wait failure:\n${formatError(error)}\n\n${diagnostics.details}`);
 			}
 
 			const responseText = (await app.workbench.chat.getLatestResponseText('editor')).trim();
-			assert.ok(responseText.length > 0, `Expected Copilot CLI to produce a non-empty response.\n\n${await getCopilotCliDiagnostics(app)}`);
+			const diagnostics = responseText.length > 0 ? undefined : await getCopilotCliDiagnostics(app);
+			assert.ok(responseText.length > 0, `Expected Copilot CLI to produce a non-empty response.${diagnostics ? `\nLikely cause: ${diagnostics.summary}\n\n${diagnostics.details}` : ''}`);
 
 			const normalizedResponse = responseText.toLowerCase();
 			const matchedFailureMarker = failureMarkers.find(marker => normalizedResponse.includes(marker.toLowerCase()));
-			assert.ok(!matchedFailureMarker, `Copilot CLI response contained failure marker "${matchedFailureMarker}": ${responseText}\n\n${await getCopilotCliDiagnostics(app)}`);
+			if (matchedFailureMarker) {
+				const diagnostics = await getCopilotCliDiagnostics(app);
+				assert.fail(`Copilot CLI response contained failure marker "${matchedFailureMarker}". Likely cause: ${diagnostics.summary}\n\nResponse:\n${responseText}\n\n${diagnostics.details}`);
+			}
 		});
 	});
 }
 
-async function getCopilotCliDiagnostics(app: Application): Promise<string> {
+interface CopilotCliDiagnostics {
+	readonly summary: string;
+	readonly details: string;
+}
+
+async function getCopilotCliDiagnostics(app: Application): Promise<CopilotCliDiagnostics> {
 	const logs = await app.code.driver.getLogs();
 	const copilotChatLog = findNewestLog(logs, 'GitHub Copilot Chat.log');
 	const extensionHostLog = findNewestLog(logs, 'exthost.log');
@@ -61,19 +71,23 @@ async function getCopilotCliDiagnostics(app: Application): Promise<string> {
 		.slice(-50)
 		.join('\n');
 	const sessionEventsTail = readSessionEventsTail(extractLatestSessionId(copilotChatTail));
+	const combinedDiagnostics = [copilotChatTail, extensionHostRelevantTail, sessionEventsTail].join('\n');
 
-	return [
-		'Copilot CLI diagnostics:',
-		`authEnv=GITHUB_PAT:${!!process.env.GITHUB_PAT} GITHUB_OAUTH_TOKEN:${!!process.env.GITHUB_OAUTH_TOKEN} VSCODE_COPILOT_CHAT_TOKEN:${!!process.env.VSCODE_COPILOT_CHAT_TOKEN}`,
-		`copilotApiUrl=${process.env.COPILOT_API_URL ?? '(unset)'}`,
-		`isScenarioAutomation=${process.env.IS_SCENARIO_AUTOMATION ?? '(unset)'}`,
-		`copilotCliUiSmoke=${process.env.COPILOT_CLI_UI_SMOKE ?? '(unset)'}`,
-		`copilotChatLog=${copilotChatLog?.relativePath ?? '(not found)'}`,
-		`copilotChatLogTail:\n${copilotChatTail || '(empty)'}`,
-		`extensionHostLog=${extensionHostLog?.relativePath ?? '(not found)'}`,
-		`extensionHostRelevantTail:\n${extensionHostRelevantTail || '(empty)'}`,
-		`copilotCliSessionEventsTail:\n${sessionEventsTail || '(empty)'}`,
-	].join('\n\n');
+	return {
+		summary: summarizeCopilotCliFailure(combinedDiagnostics),
+		details: [
+			'Copilot CLI diagnostics:',
+			`authEnv=GITHUB_PAT:${!!process.env.GITHUB_PAT} GITHUB_OAUTH_TOKEN:${!!process.env.GITHUB_OAUTH_TOKEN} VSCODE_COPILOT_CHAT_TOKEN:${!!process.env.VSCODE_COPILOT_CHAT_TOKEN}`,
+			`copilotApiUrl=${process.env.COPILOT_API_URL ?? '(unset)'}`,
+			`isScenarioAutomation=${process.env.IS_SCENARIO_AUTOMATION ?? '(unset)'}`,
+			`copilotCliUiSmoke=${process.env.COPILOT_CLI_UI_SMOKE ?? '(unset)'}`,
+			`copilotChatLog=${copilotChatLog?.relativePath ?? '(not found)'}`,
+			`copilotChatLogTail:\n${copilotChatTail || '(empty)'}`,
+			`extensionHostLog=${extensionHostLog?.relativePath ?? '(not found)'}`,
+			`extensionHostRelevantTail:\n${extensionHostRelevantTail || '(empty)'}`,
+			`copilotCliSessionEventsTail:\n${sessionEventsTail || '(empty)'}`,
+		].join('\n\n')
+	};
 }
 
 function formatError(error: unknown): string {
@@ -81,6 +95,44 @@ function formatError(error: unknown): string {
 		return error.stack ?? error.message;
 	}
 	return String(error);
+}
+
+function summarizeCopilotCliFailure(diagnostics: string): string {
+	const nativeAddon = diagnostics.match(/Native addon "([^"]+)" not found for ([^\s.]+)/);
+	if (nativeAddon) {
+		return `native SDK module missing: Native addon "${nativeAddon[1]}" not found for ${nativeAddon[2]}`;
+	}
+
+	const queryFailure = firstMatchingLine(diagnostics, isQueryFailure);
+	if (queryFailure) {
+		return `native module / SDK boot failure: ${queryFailure}`;
+	}
+
+	const authFailure = firstMatchingLine(diagnostics, isAuthFailure);
+	if (authFailure) {
+		return `authentication failure: ${authFailure}`;
+	}
+
+	if (/Using Copilot CLI session: /.test(diagnostics)) {
+		return 'Copilot CLI session started, but no completed response appeared in the UI';
+	}
+
+	return 'Copilot CLI session did not produce a completed UI response';
+}
+
+function firstMatchingLine(contents: string, predicate: (line: string) => boolean): string | undefined {
+	return contents
+		.split(/\r?\n/)
+		.map(line => line.trim())
+		.find(line => line && predicate(line));
+}
+
+function isQueryFailure(message: string): boolean {
+	return /\[CopilotCLISession\]CopilotCLI error: \(query\)|\(query\) Execution failed|Native addon ".*" not found|Failed to load @github\/copilot\/sdk|Unable to find node-pty binaries|Failed to create (?:node-pty|ripgrep) shim|Cannot find module|MODULE_NOT_FOUND|runtime\.node|pty\.node/.test(message);
+}
+
+function isAuthFailure(message: string): boolean {
+	return /Authorization failed|Unauthorized|\b401\b|No model available|policy enablement|sign in to GitHub|getGitHubSession.*undefined|Authentication (?:failed|required)|Timed out waiting for authentication provider|authentication provider ['"]github['"]/i.test(message);
 }
 
 function findNewestLog(logs: readonly { relativePath: string; contents: string }[], fileName: string): { relativePath: string; contents: string } | undefined {
