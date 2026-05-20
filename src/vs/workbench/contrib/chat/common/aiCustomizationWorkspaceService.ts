@@ -25,6 +25,7 @@ export namespace AICustomizationSources {
 	export const extension: AICustomizationSource = 'extension';
 	export const plugin: AICustomizationSource = 'plugin';
 	export const builtin: AICustomizationSource = 'builtin';
+	export const all: AICustomizationSource[] = [local, user, extension, plugin, builtin];
 }
 
 /**
@@ -56,7 +57,7 @@ export interface IStorageSourceFilter {
 	/**
 	 * Which storage groups to display (e.g. workspace, user, extension, builtin).
 	 */
-	readonly sources: readonly string[];
+	readonly sources: readonly AICustomizationSource[];
 
 	/**
 	 * If set, only user files under these roots are shown (allowlist).

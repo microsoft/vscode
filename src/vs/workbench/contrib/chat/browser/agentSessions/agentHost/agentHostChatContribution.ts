@@ -205,7 +205,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			icon: ThemeIcon.fromId(Codicon.server.id),
 			hiddenSections: [],
 			hideGenerateButton: true,
-			getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local, AICustomizationSources.user, AICustomizationSources.plugin] }),
+			getStorageSourceFilter: () => ({ sources: AICustomizationSources.all }),
 			syncProvider,
 			itemProvider,
 		}));

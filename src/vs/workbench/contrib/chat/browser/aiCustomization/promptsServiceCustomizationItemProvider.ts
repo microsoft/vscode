@@ -55,7 +55,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		return itemSets.flat();
 	}
 
-	private async provideCustomizations(promptType: PromptsType, token: CancellationToken = CancellationToken.None): Promise<ICustomizationItem[]> {
+	private async provideCustomizations(promptType: PromptsType, token: CancellationToken = CancellationToken.None): Promise<readonly ICustomizationItem[]> {
 		const items: ICustomizationItem[] = [];
 		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
 		const extensionInfoByUri = new ResourceMap<{ id: ExtensionIdentifier; displayName?: string }>();
@@ -311,11 +311,9 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		});
 	}
 
-	private applyLocalFilters(groupedItems: ICustomizationItem[], promptType: PromptsType): ICustomizationItem[] {
+	private applyLocalFilters(groupedItems: ICustomizationItem[], promptType: PromptsType): readonly ICustomizationItem[] {
 		const filter = this.workspaceService.getStorageSourceFilter(promptType);
-		const withSource = groupedItems.filter(item => item.source !== undefined);
-		const withoutSource = groupedItems.filter(item => item.source === undefined);
-		let items = [...applySourceFilter(withSource, filter), ...withoutSource];
+		let items = applySourceFilter(groupedItems, filter);
 
 		const descriptor = this.getActiveDescriptor();
 		const subpaths = descriptor.workspaceSubpaths;

@@ -810,7 +810,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			getStorageSourceFilter: () => ({
 				// Extension-provided harnesses manage their own items via the provider,
 				// so we show all sources for storage-filter-based flows.
-				sources: [AICustomizationSources.local, AICustomizationSources.user, AICustomizationSources.plugin, AICustomizationSources.extension, AICustomizationSources.builtin],
+				sources: AICustomizationSources.all
 			}),
 			itemProvider,
 		};
