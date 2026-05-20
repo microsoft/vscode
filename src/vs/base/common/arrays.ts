@@ -207,6 +207,8 @@ export function concatArrays<T extends ReadonlyArray<unknown>>(...arrays: T[]): 
 
 	for (const arr of arrays) {
 		const offset = result.length;
+		result.length = offset + arr.length;
+
 		for (let i = 0; i < arr.length; i++) {
 			if (i in arr) {
 				result[offset + i] = arr[i];
