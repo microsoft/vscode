@@ -131,13 +131,9 @@ export function toOutputMessages(choices: ReadonlyArray<{
 }
 
 /**
- * Convert one or more system messages to OTel system instruction format.
- *
- * Accepts either a single string or an array of strings (so callers that
- * collect multiple system-role entries from the provider request — e.g. the
- * OpenAI Chat Completions personality + instructions split — can preserve
- * them as distinct content blocks). Returns `undefined` when no non-empty
- * text is available so the caller can skip setting the attribute.
+ * Convert system message text to OTel system instruction format.
+ * Accepts a single string or an array (one block per entry). Returns
+ * `undefined` when no non-empty text is available.
  */
 export function toSystemInstructions(systemMessage: string | ReadonlyArray<string> | undefined): OTelSystemInstruction | undefined {
 	if (systemMessage === undefined) {
@@ -151,11 +147,8 @@ export function toSystemInstructions(systemMessage: string | ReadonlyArray<strin
 }
 
 /**
- * Extract plain text from a message-content value, which may be a string,
- * an array of content blocks (Anthropic `system`, Responses API `instructions`,
- * Chat Completions multimodal parts), or some other shape. Returns an empty
- * string when no text can be extracted. Used to feed `toSystemInstructions`
- * from provider-specific request bodies.
+ * Extract plain text from a message-content value (string or array of
+ * content blocks). Returns an empty string when no text can be extracted.
  */
 export function extractTextFromContent(content: unknown): string {
 	if (typeof content === 'string') {
@@ -176,6 +169,34 @@ export function extractTextFromContent(content: unknown): string {
 			.join('\n');
 	}
 	return '';
+}
+
+/**
+ * Collect system-instruction text from a provider request body. Uses
+ * messages-level `system` entries when present, otherwise falls back to
+ * top-level `system` or `instructions`.
+ */
+export function collectSystemTextsFromRequestBody(requestBody: {
+	readonly messages?: ReadonlyArray<{ role?: unknown; content?: unknown }>;
+	readonly input?: ReadonlyArray<{ role?: unknown; content?: unknown }>;
+	readonly system?: unknown;
+	readonly instructions?: unknown;
+}): string[] {
+	const systemTexts: string[] = [];
+	const capiMessages = requestBody.messages ?? requestBody.input;
+	if (capiMessages) {
+		for (const m of capiMessages) {
+			if (m.role === 'system') {
+				const t = extractTextFromContent(m.content);
+				if (t) { systemTexts.push(t); }
+			}
+		}
+	}
+	if (systemTexts.length === 0) {
+		const topLevelSystem = extractTextFromContent(requestBody.system ?? requestBody.instructions);
+		if (topLevelSystem) { systemTexts.push(topLevelSystem); }
+	}
+	return systemTexts;
 }
 
 /**
