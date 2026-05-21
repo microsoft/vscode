@@ -164,7 +164,7 @@ describe('translateSpan', () => {
 		expect(events[0].data.cacheReadTokens).toBe(5000);
 		expect(events[0].data.timeToFirstTokenMs).toBe(230);
 		expect(events[0].data.duration).toBe(500);
-		expect(events[0].ephemeral).toBeUndefined();
+		expect(events[0].ephemeral).toBe(true);
 	});
 
 	it('emits assistant.usage with request model as fallback', () => {
