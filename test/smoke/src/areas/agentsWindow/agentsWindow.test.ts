@@ -46,7 +46,7 @@ function buildCopilotChatToken(mockUrl: string): string {
 
 export function setup(logger: Logger) {
 
-	describe('Agents Window — mock LLM server', () => {
+	describe('Agents Window', () => {
 
 		let mockServer: any;
 
@@ -71,7 +71,7 @@ export function setup(logger: Logger) {
 			registerScenario(LOCAL_SCENARIO_ID, new ScenarioBuilder().emit(LOCAL_REPLY).build());
 			registerScenario(CLAUDE_SCENARIO_ID, new ScenarioBuilder().emit(CLAUDE_REPLY).build());
 
-			mockServer = await startServer(0);
+			mockServer = await startServer(0, { logger: (msg: string) => logger.log(msg) });
 			logger.log(`Mock LLM server started at ${mockServer.url}`);
 		});
 
@@ -132,7 +132,7 @@ export function setup(logger: Logger) {
 			}
 		});
 
-		it('sends hello world via Copilot session type and receives a mocked response', async function () {
+		it('Test Copilot CLI session', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.agentsWindow.waitForNewSessionView();
@@ -150,7 +150,7 @@ export function setup(logger: Logger) {
 			);
 		});
 
-		it.skip('sends hello world via Claude session type and receives a mocked response', async function () {
+		it('Test Claude session', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.agentsWindow.startNewSession();
@@ -169,7 +169,7 @@ export function setup(logger: Logger) {
 			);
 		});
 
-		it.skip('sends hello world via Local session type and receives a mocked response', async function () {
+		it('Test Local session', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.agentsWindow.startNewSession();

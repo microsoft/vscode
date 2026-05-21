@@ -11,6 +11,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { FileAccess } from '../../../../../base/common/network.js';
 import { dirname } from '../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
+import { arch } from '../../../../../base/common/process.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -21,7 +22,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannelClient } from '../../../../../platform/sandbox/common/sandboxHelperIpc.js';
-import { ISandboxDependencyStatus, ISandboxHelperService } from '../../../../../platform/sandbox/common/sandboxHelperService.js';
+import { ISandboxDependencyStatus, ISandboxHelperService, IWindowsMxcFilesystemPolicy } from '../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../../../platform/sandbox/common/terminalSandboxEngine.js';
 import { ITerminalSandboxService, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -81,6 +82,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			getWriteRoots: () => this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
 			onDidChangeRoots: this._onDidChangeRoots.event,
 			checkSandboxDependencies: () => this._resolveSandboxDependencyStatus(),
+			getWindowsMxcFilesystemPolicy: () => this._resolveWindowsMxcFilesystemPolicy(),
+			getWindowsMxcEnvironment: () => this._resolveWindowsMxcEnvironment(),
 		};
 		this._engine = this._register(instantiationService.createInstance(TerminalSandboxEngine, host));
 
@@ -158,13 +161,26 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const remoteEnv = await this._resolveRemoteEnv();
 		if (remoteEnv) {
 			// Remote workbench: server resolves a real `node` binary, no env prefix needed.
-			return { appRoot: remoteEnv.appRoot.path, execPath: remoteEnv.execPath, runAsNode: false };
+			return { appRoot: remoteEnv.os === OperatingSystem.Windows ? this._toWindowsPath(remoteEnv.appRoot) : remoteEnv.appRoot.path, execPath: remoteEnv.execPath, runAsNode: false, arch: remoteEnv.arch };
 		}
 		// Local workbench: app root is local and exec path points at the Electron binary,
 		// so the engine must prefix `ELECTRON_RUN_AS_NODE=1` when invoking it.
-		const localAppRoot = dirname(FileAccess.asFileUri('').path);
+		const localAppRootUri = FileAccess.asFileUri('');
+		const localAppRoot = OS === OperatingSystem.Windows ? dirname(localAppRootUri.fsPath) : dirname(localAppRootUri.path);
 		const nativeEnv = this._environmentService as IEnvironmentService & { execPath?: string };
-		return { appRoot: localAppRoot, execPath: nativeEnv.execPath, runAsNode: true };
+		return { appRoot: localAppRoot, execPath: nativeEnv.execPath, runAsNode: true, arch };
+	}
+
+	private _toWindowsPath(uri: URI): string {
+		let value: string;
+		if (uri.authority && uri.path.length > 1 && uri.scheme === 'file') {
+			value = `\\\\${uri.authority}${uri.path}`;
+		} else if (/^\/[a-zA-Z]:/.test(uri.path)) {
+			value = uri.path.slice(1);
+		} else {
+			value = uri.fsPath;
+		}
+		return value.replace(/\//g, '\\');
 	}
 
 	private async _resolveUserHome(): Promise<URI | undefined> {
@@ -214,6 +230,28 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			});
 		}
 		return this._sandboxHelperService.checkSandboxDependencies();
+	}
+
+	private async _resolveWindowsMxcFilesystemPolicy(): Promise<IWindowsMxcFilesystemPolicy | undefined> {
+		const connection = this._remoteAgentService.getConnection();
+		if (connection) {
+			return connection.withChannel(SANDBOX_HELPER_CHANNEL_NAME, channel => {
+				const sandboxHelper = new SandboxHelperChannelClient(channel);
+				return sandboxHelper.getWindowsMxcFilesystemPolicy();
+			});
+		}
+		return this._sandboxHelperService.getWindowsMxcFilesystemPolicy();
+	}
+
+	private async _resolveWindowsMxcEnvironment(): Promise<string[] | undefined> {
+		const connection = this._remoteAgentService.getConnection();
+		if (connection) {
+			return connection.withChannel(SANDBOX_HELPER_CHANNEL_NAME, channel => {
+				const sandboxHelper = new SandboxHelperChannelClient(channel);
+				return sandboxHelper.getWindowsMxcEnvironment();
+			});
+		}
+		return this._sandboxHelperService.getWindowsMxcEnvironment();
 	}
 
 	// ---- workbench-only flows -----------------------------------------------
