@@ -75,6 +75,19 @@
 				shellBackground = '#FFFFFF';
 				shellForeground = '#000000';
 			}
+		} else {
+			// Use stored theme data from main process
+			const storedTheme = configuration.storedThemeData;
+			if (storedTheme) {
+				baseTheme = storedTheme.baseTheme;
+				shellBackground = storedTheme.background;
+				shellForeground = storedTheme.foreground;
+			} else {
+				// Ultimate fallback: dark theme
+				baseTheme = 'vs-dark';
+				shellBackground = '#1F1F1F';
+				shellForeground = '#CCCCCC';
+			}
 		}
 
 		const style = document.createElement('style');

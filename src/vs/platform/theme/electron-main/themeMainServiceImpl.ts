@@ -219,6 +219,38 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		}
 	}
 
+	getStoredThemeData(): { baseTheme: string; background: string; foreground: string } {
+		const baseTheme = this.getStoredBaseTheme();
+		let background = '#1F1F1F';  // default Dark
+		let foreground = '#CCCCCC';
+
+		switch (baseTheme) {
+			case ThemeTypeSelector.VS:
+				background = '#FFFFFF';
+				foreground = '#000000';
+				break;
+			case ThemeTypeSelector.HC_BLACK:
+				background = '#000000';
+				foreground = '#FFFFFF';
+				break;
+			case ThemeTypeSelector.HC_LIGHT:
+				background = '#FFFFFF';
+				foreground = '#000000';
+				break;
+			case ThemeTypeSelector.VS_DARK:
+			default:
+				background = '#1F1F1F';
+				foreground = '#CCCCCC';
+				break;
+		}
+
+		return {
+			baseTheme: baseTheme === ThemeTypeSelector.VS ? 'vs' : baseTheme,
+			background,
+			foreground
+		};
+	}
+
 	saveWindowSplash(windowId: number | undefined, workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined, splash: IPartsSplash): void {
 
 		// Update override as needed
