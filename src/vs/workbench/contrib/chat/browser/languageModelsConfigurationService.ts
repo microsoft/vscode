@@ -157,7 +157,7 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 		// Mirror the surface that the chat models editor is currently shown in: if
 		// it lives inside the modal editor part, open the JSON in the modal too;
 		// otherwise fall back to the default group resolution (regular editor area).
-		const preferredGroup = this.editorGroupsService.activeModalEditorPart ? MODAL_GROUP : undefined;
+		const preferredGroup = this.editorGroupsService.getPart(this.editorGroupsService.activeGroup) === this.editorGroupsService.activeModalEditorPart ? MODAL_GROUP : undefined;
 		const editor = await this.editorService.openEditor({
 			resource: this.modelsConfigurationFile,
 			options: { override: DEFAULT_EDITOR_ASSOCIATION.id }
