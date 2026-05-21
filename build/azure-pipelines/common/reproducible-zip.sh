@@ -49,6 +49,26 @@ TOUCH_DATE=$(date -r "$SOURCE_DATE_EPOCH" "+%Y%m%d%H%M.%S")
 
 (
 	cd "$CWD"
-	find "$@" -exec touch -h -t "$TOUCH_DATE" {} +
-	find "$@" -print | LC_ALL=C sort | zip -X -y "$ARCHIVE_PATH" -@
+	# Re-expand globs now that we are in <cwd>. Callers pass patterns quoted
+	# (e.g. '*') so they survive the outer shell unscathed; here we eval them
+	# into an array so e.g. 'Visual Studio Code.app' is one element, not three.
+	patterns=()
+	for arg in "$@"; do
+		eval "matches=( $arg )"
+		patterns+=( "${matches[@]}" )
+	done
+	if [ "${#patterns[@]}" -eq 0 ]; then
+		echo "Error: no entries matched in $CWD" >&2
+		exit 1
+	fi
+	# Verify each top-level entry actually exists (catches unmatched literal
+	# globs that fell through to the literal pattern, e.g. '*' with no match).
+	for entry in "${patterns[@]}"; do
+		if [ ! -e "$entry" ] && [ ! -L "$entry" ]; then
+			echo "Error: '$entry' does not exist in $CWD" >&2
+			exit 1
+		fi
+	done
+	find "${patterns[@]}" -exec touch -h -t "$TOUCH_DATE" {} +
+	find "${patterns[@]}" -print | LC_ALL=C sort | zip -X -y "$ARCHIVE_PATH" -@
 )
