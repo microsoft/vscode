@@ -237,6 +237,9 @@ export class BrowserViewFrameInspector extends Disposable {
 			});
 			this._activeInspection.value = {
 				dispose: async () => {
+					if (this.frame.isDestroyed()) {
+						return;
+					}
 					try {
 						await this.connection.sendCommand('Overlay.setInspectMode', {
 							mode: 'none',
@@ -252,6 +255,9 @@ export class BrowserViewFrameInspector extends Disposable {
 			this.frame.postMessage('vscode:browserView:startElementPicker', {});
 			this._activeInspection.value = {
 				dispose: () => {
+					if (this.frame.isDestroyed()) {
+						return;
+					}
 					this.frame.postMessage('vscode:browserView:stopElementPicker', {});
 				}
 			};
