@@ -123,7 +123,7 @@ for (let i = 0, n = str.length; i < 10; i++) {
 function f(x: number, y: string): void { }
 ```
 
-- Whenever possible, in top-level scopes, use `export function x(…) {…}` instead of `export const x = (…) => {…}`. One advantage of using the `function` keyword is that the stack-trace shows a good name when debugging.
+- Whenever possible, in top-level scopes, use `export function x(…) {…}` instead of `export const x = (…) => {…}`. One advantage of using the `function` keyword is that the stack trace shows a good name when debugging.
 
 ### Code Quality
 
