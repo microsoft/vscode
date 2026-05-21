@@ -12,7 +12,7 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/w
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
+import { AUX_WINDOW_GROUP, IEditorService, PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -28,6 +28,10 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { focusBorder } from '../../../../platform/theme/common/colors/baseColors.js';
 import { buttonForeground, buttonBackground } from '../../../../platform/theme/common/colors/inputColors.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
+import { findGroup } from '../../../services/editor/common/editorGroupFinder.js';
+import { ChatEditorInput } from '../../chat/browser/widgetHosts/editor/chatEditorInput.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { URI } from '../../../../base/common/uri.js';
 
 /**
  * When enabled, integrated browser tools are exposed as client-provided tools
@@ -89,6 +93,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		const channel = mainProcessService.getChannel(ipcBrowserViewChannelName);
@@ -138,7 +143,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 			const editor = this._known.get(e.info.id);
 			if (editor && e.openOptions) {
-				this._openEditorForCreatedView(editor, e.openOptions);
+				this._openEditorForCreatedView(editor, e.info.owner, e.openOptions);
 			}
 		}));
 	}
@@ -236,17 +241,27 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	/**
 	 * Open an editor tab for a newly created browser view.
 	 */
-	private _openEditorForCreatedView(view: BrowserEditorInput, openOptions: IBrowserViewOpenOptions): void {
-		const opts = openOptions;
+	private async _openEditorForCreatedView(view: BrowserEditorInput, owner: IBrowserViewOwner, openOptions: IBrowserViewOpenOptions): Promise<void> {
+		let opts = openOptions;
 
 		// Resolve target group: auxiliary window, parent's group, or default
-		let targetGroup: number | typeof AUX_WINDOW_GROUP | undefined;
+		let targetGroup: PreferredGroup | undefined;
 		if (opts.auxiliaryWindow) {
 			targetGroup = AUX_WINDOW_GROUP;
 		} else if (opts.parentViewId) {
 			targetGroup = this._findEditorGroupForView(opts.parentViewId);
 			if (targetGroup === undefined) {
 				return; // If the parent isn't open, don't open the child either
+			}
+		}
+
+		// If the browser is opened by a chat session,
+		// only open in the foreground if the session is visible and in a different group.
+		const [group] = await this.instantiationService.invokeFunction(findGroup, view, targetGroup);
+		if (owner.sessionId) {
+			const widget = this.chatWidgetService.getWidgetBySessionResource(URI.parse(owner.sessionId));
+			if (!widget || group.activeEditor instanceof ChatEditorInput) {
+				opts = { ...opts, background: true };
 			}
 		}
 
@@ -257,7 +272,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			auxiliary: opts.auxiliaryWindow
 				? { bounds: opts.auxiliaryWindow, compact: true }
 				: undefined,
-		}, targetGroup);
+		}, group);
 	}
 
 	/**
