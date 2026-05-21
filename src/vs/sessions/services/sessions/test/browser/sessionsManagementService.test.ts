@@ -65,7 +65,7 @@ function stubSession(overrides: Partial<ISession> & Pick<ISession, 'sessionId' |
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable([]),
-		mainChat: stubChat,
+		mainChat: constObservable(stubChat),
 		capabilities: { supportsMultipleChats: false },
 		...overrides,
 	};
@@ -170,9 +170,8 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async unarchiveSession(): Promise<void> { }
 	override async deleteSession(): Promise<void> { }
 	override async deleteChat(): Promise<void> { }
-	override async sendAndCreateChat(): Promise<ISession> { return this._session; }
-	override addChat(): IChat { return this._session.mainChat; }
 	override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return this._session; }
+	override async createNewChat(): Promise<IChat> { return this._session.mainChat.get(); }
 }
 
 function createSessionsManagementService(session: ISession, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): { service: ISessionsManagementService; chatWidgetService: TestChatWidgetService; agentSessionsService: TestAgentSessionsService } {

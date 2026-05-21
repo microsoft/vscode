@@ -27,7 +27,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -119,7 +119,7 @@ export class AgentHostSessionAdapter implements ISession {
 	readonly lastTurnEnd: ISettableObservable<Date | undefined>;
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 
-	readonly mainChat: IChat;
+	readonly mainChat: IObservable<IChat>;
 	readonly chats: IObservable<readonly IChat[]>;
 	readonly capabilities = { supportsMultipleChats: false };
 
@@ -252,7 +252,7 @@ export class AgentHostSessionAdapter implements ISession {
 
 		const checkpoints = observableValue(this, undefined);
 
-		this.mainChat = {
+		const mainChat: IChat = {
 			resource: this.resource,
 			createdAt: this.createdAt,
 			title: this.title,
@@ -267,7 +267,8 @@ export class AgentHostSessionAdapter implements ISession {
 			description: this.description,
 			lastTurnEnd: this.lastTurnEnd,
 		};
-		this.chats = constObservable([this.mainChat]);
+		this.mainChat = observableValue<IChat>(this, mainChat);
+		this.chats = this.mainChat.map(c => [c]);
 		this.changesets = createChangesets(this.sessionType, this.workspace, this.chats, _options.instantiationService);
 	}
 
@@ -493,7 +494,7 @@ interface INewSessionConstructionContext {
  *
  * Encapsulates:
  *  - the `ISession` skeleton + its observables (status, modelId, loading)
- *  - the user's selected model (read by `sendAndCreateChat`)
+ *  - the user's selected model (read by `sendRequest`)
  *  - the resolved session config + a stale-request guard
  *  - the eagerly created backend session (URI + subscription) that lets the
  *    chat handler skip its legacy `createSession`-on-first-message round-trip
@@ -503,7 +504,7 @@ interface INewSessionConstructionContext {
  *    subscription. Wire ordering matters — see the comment in the body.
  *  - {@link graduate} releases the subscription without firing
  *    `disposeSession`; called when the session successfully transitions into
- *    a real running session via `sendAndCreateChat`.
+ *    a real running session via `sendRequest`.
  *  - {@link Disposable.dispose}/`dispose` releases the subscription **and**
  *    fires `connection.disposeSession`; called when the user abandons the
  *    new session (workspace switch, send failure, etc.).
@@ -519,6 +520,7 @@ class NewSession extends Disposable {
 	private readonly _modelId: ISettableObservable<string | undefined>;
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	private readonly _loading: ISettableObservable<boolean>;
+	private readonly _mainChat: ISettableObservable<IChat>;
 	private _selectedModelId: string | undefined;
 	private _selectedAgent: ISessionAgentRef | undefined;
 
@@ -603,9 +605,10 @@ class NewSession extends Disposable {
 			modelId: this._modelId,
 			mode, isArchived, isRead, description, lastTurnEnd,
 		};
+		this._mainChat = observableValue<IChat>(this, mainChat);
 		const authPending = ctx.authenticationPending;
 		const loading = this._loading;
-		const chats = constObservable<readonly IChat[]>([mainChat]);
+		const chats = this._mainChat.map(c => [c]);
 		const changesets = createChangesets(ctx.sessionType.id, workspaceObs, chats, ctx.instantiationService);
 		this.session = {
 			sessionId: `${ctx.providerId}:${resource.toString()}`,
@@ -627,7 +630,7 @@ class NewSession extends Disposable {
 			isRead,
 			description,
 			lastTurnEnd,
-			mainChat,
+			mainChat: this._mainChat,
 			chats,
 			capabilities: { supportsMultipleChats: false },
 		};
@@ -830,7 +833,7 @@ class NewSession extends Disposable {
 
 	/**
 	 * Release the backend subscription without firing `disposeSession`.
-	 * Used on the success path in `sendAndCreateChat` when the session has
+	 * Used on the success path in `sendRequest` when the session has
 	 * graduated into a real running session.
 	 */
 	graduate(): void {
@@ -890,7 +893,7 @@ class NewSession extends Disposable {
  * the session cache, the new-session/running-session config picker state,
  * the lazy session-state subscriptions, the AHP notification/action
  * handlers, and every connection-routed method (set/get/archive/delete/
- * rename/setModel/sendAndCreateChat).
+ * rename/setModel/sendRequest).
  *
  * Subclasses supply the genuine variation points: the connection
  * accessor, the authentication-pending observable, an adapter factory,
@@ -1533,7 +1536,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (this._newSession?.sessionId === sessionId) {
 			this._newSession.setSelectedAgent(agent);
 			// The selection is forwarded to the host at first-message time
-			// via `sendOptions.agentHostSessionAgent` (see `sendAndCreateChat`),
+			// via `sendOptions.agentHostSessionAgent` (see `sendRequest`),
 			// mirroring how `userSelectedModelId` flows.
 			return;
 		}
@@ -1616,15 +1619,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Agent host sessions don't support deleting individual chats
 	}
 
-	addChat(_sessionId: string): IChat {
-		throw new Error('Multiple chats per session is not supported for agent host sessions');
-	}
-
-	async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> {
-		throw new Error('Multiple chats per session is not supported for agent host sessions');
-	}
-
-	async sendAndCreateChat(chatId: string, options: ISendRequestOptions): Promise<ISession> {
+	async createNewChat(chatId: string): Promise<IChat> {
 		const connection = this.connection;
 		if (!connection) {
 			throw new Error(this._notConnectedSendErrorMessage());
@@ -1634,13 +1629,29 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!newSession || newSession.sessionId !== chatId) {
 			throw new Error(`Session '${chatId}' not found or not a new session`);
 		}
-		const sessionResource = newSession.session.resource;
+
+		// Create the chat session model so the management service can open the widget
+		await this._chatSessionsService.getOrCreateChatSession(newSession.session.resource, CancellationToken.None);
+		return newSession.session.mainChat.get();
+	}
+
+	async sendRequest(chatId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
+		const newSession = this._newSession;
+		if (!newSession || newSession.sessionId !== chatId) {
+			throw new Error(`Session '${chatId}' not found or not a new session`);
+		}
+
+		const connection = this.connection;
+		if (!connection) {
+			throw new Error(this._notConnectedSendErrorMessage());
+		}
+
 		const selectedModelId = newSession.getSelectedModelId();
 		const selectedAgent = newSession.getSelectedAgent();
 
 		const { query, attachedContext } = options;
 
-		const sessionType = sessionResource.scheme;
+		const sessionType = chatResource.scheme;
 		const contribution = this._chatSessionsService.getChatSessionContribution(sessionType);
 
 		const sendOptions: IChatSendRequestOptions = {
@@ -1671,16 +1682,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			agentHostSessionConfig: this.getCreateSessionConfig(chatId),
 		};
 
-		// Open chat widget — getOrCreateChatSession will wait for the session
-		// handler to become available via canResolveChatSession internally.
-		await this._chatSessionsService.getOrCreateChatSession(sessionResource, CancellationToken.None);
-		const chatWidget = await this._chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
-		if (!chatWidget) {
-			throw new Error(`[${this.id}] Failed to open chat widget`);
-		}
-
-		// Load session model and apply selected model
-		const modelRef = await this._chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		// Chat session model was already created by createNewChat and
+		// the widget was opened by the management service. Load session
+		// model and apply selected model.
+		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
 		if (modelRef) {
 			if (selectedModelId) {
 				const languageModel = this._languageModelsService.lookupLanguageModel(selectedModelId);
@@ -1705,7 +1710,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._ensureSessionCache();
 		const existingKeys = new Set(this._sessionCache.keys());
 
-		const result = await this._chatService.sendRequest(sessionResource, query, sendOptions);
+		const result = await this._chatService.sendRequest(chatResource, query, sendOptions);
 		if (result.kind === 'rejected') {
 			throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
 		}
@@ -1755,7 +1760,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return skeleton;
 	}
 
-	/** Localized error message when sendAndCreateChat is invoked without a connection. Subclasses can override. */
+	/** Localized error message when sendRequest is invoked without a connection. Subclasses can override. */
 	protected _notConnectedSendErrorMessage(): string {
 		return localize('notConnectedSend', "Cannot send request: not connected to agent host.");
 	}

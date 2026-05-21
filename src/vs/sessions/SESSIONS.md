@@ -81,14 +81,14 @@ A **session** groups one or more **chats** (conversations) that share the same w
 
 ```
 ISession
-├── mainChat: IChat              ← primary (first) chat
-├── chats: IObservable<IChat[]>  ← all chats in creation order
+├── mainChat: IObservable<IChat>   ← primary (first) chat (settable by provider when committing a new session)
+├── chats: IObservable<IChat[]>    ← all chats in creation order
 ├── capabilities.supportsMultipleChats
-└── session-level observables    ← derived from chats
+└── session-level observables      ← derived from chats
 ```
 
 Session-level properties are derived from chats:
-- Most properties (`title`, `changes`, `changesets`, `modelId`, etc.) come from `mainChat`
+- Most properties (`title`, `changes`, `changesets`, `modelId`, etc.) come from the main chat
 - `updatedAt` and `lastTurnEnd` are the latest across all chats
 - `status` is aggregated (`NeedsInput` > `InProgress` > other)
 - `isRead` is `true` only when all chats are read
@@ -135,8 +135,11 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
      is also offered by another provider
 
 3. User types a message and sends
-   → SessionsManagementService.sendAndCreateChat(session, {query, attachedContext})
-   → Delegates to provider.sendAndCreateChat(sessionId, options)
+   → SessionsManagementService.sendNewChatRequest(session, {query, attachedContext})
+   → Calls provider.createNewChat(sessionId)
+   → Provider creates the backend chat model and returns an IChat
+   → Management service opens the chat widget with that chat's resource
+   → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
    → isNewChatSession context → false
 ```
@@ -180,3 +183,22 @@ Providers may fire `onDidReplaceSession` when a temporary (untitled) session is 
 5. Use `toSessionId(providerId, resource)` for session IDs
 6. Fire `onDidChangeSessions` on every session change and `onDidReplaceSession` on untitled→committed transitions
 7. Set `supportsLocalWorkspaces: true` if the provider can resolve local file-system workspaces
+
+---
+
+## Interface Design Guidelines
+
+### `ISessionsProvider` must have no optional methods
+
+Every method on `ISessionsProvider` is part of the mandatory contract. Do **not** declare any method as optional (i.e., using `?`). Every provider must implement the full interface. If a method is not meaningful for a particular provider, implement it as a no-op or return a safe default.
+
+**Rationale:** Optional methods weaken the contract and force call sites to add guard code (`if (provider.method)`). Mandatory methods keep the management service clean and ensure the interface documents the complete capability set of every provider.
+
+### Any addition to `ISession` or `ISessionsProvider` must be consumed in the agents window core workbench
+
+The **agents window core workbench** is defined as all sessions code *outside* `src/vs/sessions/contrib/providers/` — that is, code in `src/vs/sessions/services/`, `src/vs/sessions/browser/`, `src/vs/sessions/common/`, and non-provider `src/vs/sessions/contrib/*` folders (views, UI contributions, toolbars, etc.).
+
+When you add a property or method to `ISession` or `ISessionsProvider`, it **must** be referenced by at least one file in the core workbench, not only within provider implementations.
+
+**Rationale:** If an interface member is only used inside providers, it belongs on the provider's concrete class, not on the shared interface. Interfaces should capture what the orchestration layer (management service, UI) needs from providers — not internal implementation details that leak outward.
+
