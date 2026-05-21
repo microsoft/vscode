@@ -59,8 +59,15 @@
 			}
 
 			// export all properties and the module itself as default
+			// (skip names that are reserved words in ES module syntax, e.g.
+			// zod exports keys like `enum`, `function`, `default` that would
+			// produce `export const enum = ...` and fail to parse)
+			const RESERVED = new Set(['break', 'case', 'catch', 'class', 'const', 'continue', 'debugger', 'default', 'delete', 'do', 'else', 'enum', 'export', 'extends', 'false', 'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof', 'new', 'null', 'return', 'super', 'switch', 'this', 'throw', 'true', 'try', 'typeof', 'var', 'void', 'while', 'with', 'yield', 'let', 'static', 'implements', 'interface', 'package', 'private', 'protected', 'public', 'await']);
 			let jsSrc = `const _mod = require('${name}')\n`;
 			for (const name of Object.keys(_mod)) {
+				if (RESERVED.has(name) || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name)) {
+					continue;
+				}
 				jsSrc += `export const ${name} = _mod['${name}'];\n`;
 			}
 			jsSrc += `export default _mod;\n`;

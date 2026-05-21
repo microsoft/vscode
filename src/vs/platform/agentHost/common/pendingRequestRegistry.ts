@@ -27,6 +27,19 @@ export class PendingRequestRegistry<T> {
 		return deferred.p;
 	}
 
+	/**
+	 * Park a deferred under `key` and return its promise. Use when there
+	 * is no synchronous responder to guard against — the request that
+	 * eventually feeds {@link respond} originates from a different code
+	 * path (e.g. an MCP handler invoked by the SDK whose completion
+	 * arrives via a workbench round-trip).
+	 */
+	register(key: string): Promise<T> {
+		const deferred = new DeferredPromise<T>();
+		this._entries.set(key, deferred);
+		return deferred.p;
+	}
+
 	respond(key: string, value: T): boolean {
 		const deferred = this._entries.get(key);
 		if (!deferred) {
@@ -37,10 +50,37 @@ export class PendingRequestRegistry<T> {
 		return true;
 	}
 
+	/**
+	 * Resolve every parked deferred with `denyValue` and clear the registry.
+	 *
+	 * Designed for the permission-deny path: a "deny" answer is itself a
+	 * successful round-trip result, so awaiting consumers receive `denyValue`
+	 * rather than an error. Use {@link rejectAll} when callers must observe
+	 * a thrown error instead (cancellation, dispose).
+	 */
 	denyAll(denyValue: T): void {
 		for (const [, deferred] of this._entries) {
 			if (!deferred.isSettled) {
 				deferred.complete(denyValue);
+			}
+		}
+		this._entries.clear();
+	}
+
+	/**
+	 * Reject every parked deferred with `error` and clear the registry.
+	 *
+	 * Use this when in-flight requests must be cancelled rather than
+	 * answered (e.g. session dispose, `Query` rebind on tool-set change).
+	 * Compare with {@link denyAll}, which *resolves* every deferred with a
+	 * supplied value — that is right for the permission-deny path where a
+	 * "deny" is itself a successful answer, but wrong for cancellation
+	 * where the awaited consumer must observe an error to unwind.
+	 */
+	rejectAll(error: Error): void {
+		for (const [, deferred] of this._entries) {
+			if (!deferred.isSettled) {
+				deferred.error(error);
 			}
 		}
 		this._entries.clear();
