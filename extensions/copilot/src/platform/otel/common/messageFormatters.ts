@@ -131,13 +131,51 @@ export function toOutputMessages(choices: ReadonlyArray<{
 }
 
 /**
- * Convert system message to OTel system instruction format.
+ * Convert one or more system messages to OTel system instruction format.
+ *
+ * Accepts either a single string or an array of strings (so callers that
+ * collect multiple system-role entries from the provider request — e.g. the
+ * OpenAI Chat Completions personality + instructions split — can preserve
+ * them as distinct content blocks). Returns `undefined` when no non-empty
+ * text is available so the caller can skip setting the attribute.
  */
-export function toSystemInstructions(systemMessage: string | undefined): OTelSystemInstruction | undefined {
-	if (!systemMessage) {
+export function toSystemInstructions(systemMessage: string | ReadonlyArray<string> | undefined): OTelSystemInstruction | undefined {
+	if (systemMessage === undefined) {
 		return undefined;
 	}
-	return [{ type: 'text', content: systemMessage }];
+	const inputs = Array.isArray(systemMessage) ? systemMessage : [systemMessage as string];
+	const blocks = inputs
+		.filter(s => typeof s === 'string' && s.length > 0)
+		.map(content => ({ type: 'text' as const, content }));
+	return blocks.length > 0 ? blocks : undefined;
+}
+
+/**
+ * Extract plain text from a message-content value, which may be a string,
+ * an array of content blocks (Anthropic `system`, Responses API `instructions`,
+ * Chat Completions multimodal parts), or some other shape. Returns an empty
+ * string when no text can be extracted. Used to feed `toSystemInstructions`
+ * from provider-specific request bodies.
+ */
+export function extractTextFromContent(content: unknown): string {
+	if (typeof content === 'string') {
+		return content;
+	}
+	if (Array.isArray(content)) {
+		return content
+			.map(block => {
+				if (typeof block === 'string') { return block; }
+				if (block && typeof block === 'object') {
+					const b = block as { text?: unknown; content?: unknown };
+					if (typeof b.text === 'string') { return b.text; }
+					if (typeof b.content === 'string') { return b.content; }
+				}
+				return '';
+			})
+			.filter(s => s.length > 0)
+			.join('\n');
+	}
+	return '';
 }
 
 /**
