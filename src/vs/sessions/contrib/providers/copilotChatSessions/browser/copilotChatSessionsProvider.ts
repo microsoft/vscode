@@ -2070,12 +2070,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				if (!newItem) {
 					throw new Error('[CopilotChatSessionsProvider] Failed to create Claude session item');
 				}
-				await this._createChatSession(newItem.resource, session);
+				(await this._createChatSession(newItem.resource, session)).dispose();
 				newChat = this._toChat(session, newItem.resource);
 			} else if (session instanceof LocalNewSession) {
 				newChat = this._toChat(session);
 			} else {
-				await this._createChatSession(session.resource, session);
+				(await this._createChatSession(session.resource, session)).dispose();
 				newChat = this._toChat(session);
 			}
 			session.mainChat.set(newChat, undefined);
@@ -2126,7 +2126,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		session.setTitle(localize('new chat', "New Chat"));
 		this._currentNewSession.value = session;
 
-		await this._createChatSession(session.resource, session);
+		(await this._createChatSession(session.resource, session)).dispose();
 
 		this._sessionCache.set(session.resource.toString(), session);
 		this._invalidateGroupingCaches();
@@ -2222,9 +2222,15 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		try {
 			const result = await this.chatService.sendRequest(chatResource, query, sendOptions);
 			if (result.kind === 'rejected') {
+				// Clean up the temp session that was added to the cache and
+				// dispatched as `added` above, so the UI doesn't keep showing
+				// a stuck InProgress session that will never make progress.
 				this._sessionCache.delete(session.resource.toString());
 				this._invalidateGroupingCaches();
+				this._sessionGroupCache.delete(session.sessionId);
+				this._clearCurrentNewSessionIfMatch(session, /* leak */ true);
 				this._onDidChangeSessions.fire({ added: [], removed: [newSession], changed: [] });
+				session.dispose();
 				throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
 			}
 			// Extract promises to detect cancellation vs normal completion
@@ -2342,68 +2348,71 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			agentHostSessionConfig: newChatSession.getAgentHostSessionConfig(),
 		};
 
-		await this._updateChatSessionState(newChatSession.resource, newChatSession);
-
-		// Send request
-		const result = await this.chatService.sendRequest(newChatSession.resource, query, sendOptions);
-		if (result.kind === 'rejected') {
-			this._sessionCache.delete(key);
-			this._invalidateGroupingCaches();
-			throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
-		}
-
-		// Extract promises to detect cancellation vs normal completion
-		const responseCompletePromise = result.kind === 'sent'
-			? result.data.responseCompletePromise
-			: undefined;
-		const responseCreatedPromise = result.kind === 'sent'
-			? result.data.responseCreatedPromise
-			: undefined;
-
+		const ref = await this._updateChatSessionState(newChatSession.resource, newChatSession);
 		try {
-			// Wait for the session to be committed
-			const committedResource = await this._waitForCommittedSession(newChatSession.resource, responseCompletePromise, responseCreatedPromise);
+			// Send request
+			const result = await this.chatService.sendRequest(newChatSession.resource, query, sendOptions);
+			if (result.kind === 'rejected') {
+				this._sessionCache.delete(key);
+				this._invalidateGroupingCaches();
+				throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
+			}
 
-			const committedChat = await this._waitForSessionInCache(committedResource);
+			// Extract promises to detect cancellation vs normal completion
+			const responseCompletePromise = result.kind === 'sent'
+				? result.data.responseCompletePromise
+				: undefined;
+			const responseCreatedPromise = result.kind === 'sent'
+				? result.data.responseCreatedPromise
+				: undefined;
 
-			// Clean up temp
-			this._sessionCache.delete(key);
-			this._invalidateGroupingCaches();
-			this._clearCurrentNewSessionIfMatch(newChatSession);
+			try {
+				// Wait for the session to be committed
+				const committedResource = await this._waitForCommittedSession(newChatSession.resource, responseCompletePromise, responseCreatedPromise);
 
-			// Invalidate the session group cache so it rebuilds with the committed chat
-			this._sessionGroupCache.delete(sessionId);
-			this._onDidGroupMembershipChange.fire({ sessionId });
-			const updatedSession = this._chatToSession(committedChat);
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [updatedSession] });
+				const committedChat = await this._waitForSessionInCache(committedResource);
 
-			return updatedSession;
-		} catch (error) {
-			this._clearCurrentNewSessionIfMatch(newChatSession, /* leak */ true);
+				// Clean up temp
+				this._sessionCache.delete(key);
+				this._invalidateGroupingCaches();
+				this._clearCurrentNewSessionIfMatch(newChatSession);
 
-			if (error instanceof CancellationError) {
-				// Cancelled before commit — keep the chat in the group so the
-				// user can review the content the agent produced.
-				newChatSession.setStatus(SessionStatus.Completed);
+				// Invalidate the session group cache so it rebuilds with the committed chat
 				this._sessionGroupCache.delete(sessionId);
-				const updatedSession = this._chatToSession(newChatSession);
+				this._onDidGroupMembershipChange.fire({ sessionId });
+				const updatedSession = this._chatToSession(committedChat);
 				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [updatedSession] });
-				return updatedSession;
-			}
 
-			// Unexpected error — clean up on error, fire changed on the parent session group
-			this._sessionCache.delete(key);
-			this._invalidateGroupingCaches();
-			this._sessionGroupCache.delete(sessionId);
-			newChatSession.dispose();
-			// Find the parent session's primary chat to fire a valid changed event
-			const parentChatIds = this._getChatIdsInGroup(sessionId);
-			const parentChatId = parentChatIds[0];
-			const parentChat = parentChatId ? this._sessionCache.get(this._localIdFromchatId(parentChatId)) : undefined;
-			if (parentChat) {
-				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(parentChat)] });
+				return updatedSession;
+			} catch (error) {
+				this._clearCurrentNewSessionIfMatch(newChatSession, /* leak */ true);
+
+				if (error instanceof CancellationError) {
+					// Cancelled before commit — keep the chat in the group so the
+					// user can review the content the agent produced.
+					newChatSession.setStatus(SessionStatus.Completed);
+					this._sessionGroupCache.delete(sessionId);
+					const updatedSession = this._chatToSession(newChatSession);
+					this._onDidChangeSessions.fire({ added: [], removed: [], changed: [updatedSession] });
+					return updatedSession;
+				}
+
+				// Unexpected error — clean up on error, fire changed on the parent session group
+				this._sessionCache.delete(key);
+				this._invalidateGroupingCaches();
+				this._sessionGroupCache.delete(sessionId);
+				newChatSession.dispose();
+				// Find the parent session's primary chat to fire a valid changed event
+				const parentChatIds = this._getChatIdsInGroup(sessionId);
+				const parentChatId = parentChatIds[0];
+				const parentChat = parentChatId ? this._sessionCache.get(this._localIdFromchatId(parentChatId)) : undefined;
+				if (parentChat) {
+					this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(parentChat)] });
+				}
+				throw error;
 			}
-			throw error;
+		} finally {
+			ref.dispose();
 		}
 	}
 

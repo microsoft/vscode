@@ -416,7 +416,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 			// Ask the provider to create the new chat; open its widget before sending
 			const chat = await provider.createNewChat(session.sessionId, options.query);
-			await this.chatWidgetService.openSession(chat.resource);
+			await this.chatWidgetService.openSession(chat.resource, ChatViewPaneTarget);
 
 			const updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
 			if (updatedSession.sessionId !== session.sessionId && this._activeSession.get()?.sessionId === session.sessionId) {
