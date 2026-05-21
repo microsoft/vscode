@@ -35,7 +35,7 @@ const INSTRUCTION_FILE_SUFFIX = '.instructions.md';
 const PROMPT_FILE_SUFFIX = '.prompt.md';
 const SKILL_FILENAME = 'SKILL.md';
 const SKILL_FILENAME_LOWER = 'skill.md';
-const README_FILENAME_LOWER = 'readme.md';
+const README_FILENAME = 'README.md';
 const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME_LOWER = 'copilot-instructions.md';
 
 interface ISearchRoot {
@@ -204,7 +204,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 					if (!name.endsWith(AGENT_FILE_FALLBACK_SUFFIX) || seen.has(child.resource)) {
 						continue;
 					}
-					if (name === README_FILENAME_LOWER
+					if (child.name === README_FILENAME
 						|| name === SKILL_FILENAME_LOWER
 						|| name === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME_LOWER
 						|| name.endsWith(PROMPT_FILE_SUFFIX)
