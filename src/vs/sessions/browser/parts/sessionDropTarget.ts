@@ -143,7 +143,7 @@ class SessionDropOverlay extends Themable {
 			return;
 		}
 
-		this._sessionsManagementService.insertStickyAt(session, this.targetSessionId, side);
+		this._sessionsManagementService.insertAt(session, this.targetSessionId, side);
 	}
 
 	private _positionOverlay(mousePosX: number): void {

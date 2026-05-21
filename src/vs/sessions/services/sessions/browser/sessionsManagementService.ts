@@ -184,14 +184,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		// Clean removed sessions out of the visibility model (drops their grid slot
-		// and disposes their wrapper). Skipped for the active session — that case is
-		// handled below by routing to the new-session view.
+		// and disposes their wrapper). If the active session is among the removed,
+		// removeMany also clears the active observable; the new-session view is
+		// then surfaced below.
 		if (e.removed.length) {
-			this._visibility.removeMany(
-				e.removed
-					.filter(r => r.sessionId !== currentActive?.sessionId)
-					.map(r => r.sessionId)
-			);
+			this._visibility.removeMany(e.removed.map(r => r.sessionId));
 		}
 
 		// When new sessions appear, check if any are currently displayed in a
@@ -578,8 +575,36 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._visibility.toggleStickiness(session);
 	}
 
-	insertStickyAt(session: ISession, targetSessionId: string, side: 'left' | 'right'): void {
-		this._visibility.insertStickyAt(session, targetSessionId, side);
+	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right'): void {
+		this._visibility.insertAt(session, targetSessionId, side);
+	}
+
+	closeSession(session: ISession): void {
+		const visible = this._visibility.visibleSessions.get();
+		const idx = visible.findIndex(s => s.sessionId === session.sessionId);
+		if (idx < 0) {
+			return;
+		}
+
+		const wasActive = this._visibility.activeSession.get()?.sessionId === session.sessionId;
+		if (this._pendingNewSession?.sessionId === session.sessionId) {
+			this._pendingNewSession = undefined;
+		}
+
+		this._visibility.removeMany([session.sessionId]);
+
+		if (!wasActive) {
+			return;
+		}
+
+		const remaining = this._visibility.visibleSessions.get();
+		if (remaining.length === 0) {
+			this.openNewSessionView();
+			return;
+		}
+
+		const fallback = remaining[Math.max(0, Math.min(idx - 1, remaining.length - 1))];
+		this.openSession(fallback.resource);
 	}
 
 	private _restoreInitialChat(session: ISession): IChat {

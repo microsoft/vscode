@@ -32,6 +32,7 @@ import { ISessionsPartService } from './sessionsPartService.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
+import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -398,7 +399,34 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 	}
 });
 
-registerAction2(class CloseStickySessionAction extends Action2 {
+registerAction2(class TogglePinSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.togglePin',
+			title: localize2('chatCompositeBar.pin', "Pin Session"),
+			icon: Codicon.pin,
+			toggled: {
+				condition: SessionIsStickyContext,
+				icon: Codicon.pinned,
+				title: localize('chatCompositeBar.unpin', "Unpin Session"),
+			},
+			menu: {
+				id: Menus.SessionBarToolbar,
+				group: 'navigation',
+				order: 10,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
+		if (!session) {
+			return;
+		}
+		accessor.get(ISessionsManagementService).toggleSessionStickiness(session);
+	}
+});
+
+registerAction2(class CloseSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.chatCompositeBar.close',
@@ -406,7 +434,7 @@ registerAction2(class CloseStickySessionAction extends Action2 {
 			icon: Codicon.close,
 			menu: {
 				id: Menus.SessionBarToolbar,
-				when: SessionIsStickyContext,
+				when: ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
 				group: 'navigation',
 				order: 30,
 			},
@@ -417,7 +445,7 @@ registerAction2(class CloseStickySessionAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		accessor.get(ISessionsManagementService).toggleSessionStickiness(session);
+		accessor.get(ISessionsManagementService).closeSession(session);
 	}
 });
 

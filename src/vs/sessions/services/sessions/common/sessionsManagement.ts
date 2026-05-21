@@ -80,31 +80,37 @@ export interface ISessionsManagementService {
 
 	/**
 	 * Observable list of sessions currently displayed in the sessions part's
-	 * grid, in their grid order (left-to-right). Always contains the active
-	 * session (if any) plus any sessions marked sticky via
-	 * {@link toggleSessionStickiness}, plus a single transient session — the
-	 * last active session that was not marked sticky.
+	 * grid, in their grid order (left-to-right). Contains the active session
+	 * (if any) plus any other sessions previously opened or pinned. Sessions
+	 * pinned via {@link toggleSessionStickiness} are sticky; the remaining
+	 * non-sticky sessions get replaced when new sessions are opened.
 	 */
 	readonly visibleSessions: IObservable<readonly IActiveSession[]>;
 
 	/**
-	 * Toggle a session's stickiness in the grid.
-	 * - If the session is currently sticky: removes it. If it was the active
-	 *   session, it becomes the transient session instead so it stays in the
-	 *   grid until something else takes its place.
-	 * - If the session is not sticky: marks it sticky. If it was the transient
-	 *   session, the transient slot is cleared. Otherwise the new sticky
-	 *   session is inserted into the grid next to the active one.
+	 * Toggle a session's stickiness in the grid. The session keeps its grid
+	 * slot when toggled. If the session is not currently visible, it is
+	 * appended to the grid as sticky.
 	 */
 	toggleSessionStickiness(session: ISession): void;
 
 	/**
-	 * Insert (or move) a session into the grid as sticky, positioned next to
-	 * a target session that is already visible. If the session is not yet
-	 * visible, a new sticky entry is created. If it is already visible, it
-	 * is moved to the new position and promoted to sticky.
+	 * Insert (or move) a session into the grid positioned next to a target
+	 * session that is already visible.
+	 * - If the session is not yet visible, a new non-sticky entry is created
+	 *   at the computed position.
+	 * - If the session is already visible, it is moved to the computed
+	 *   position; its sticky / non-sticky state is preserved.
 	 */
-	insertStickyAt(session: ISession, targetSessionId: string, side: 'left' | 'right'): void;
+	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right'): void;
+
+	/**
+	 * Close a session: remove it from the visibility model so it is no longer
+	 * shown in the grid. If the session was the active one, the previous
+	 * visible session becomes active; if no session remains visible, the
+	 * new-session view is opened.
+	 */
+	closeSession(session: ISession): void;
 
 	setActive(session: IActiveSession): void;
 

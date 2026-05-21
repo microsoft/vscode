@@ -101,197 +101,292 @@ suite('VisibleSessions', () => {
 		};
 	}
 
-	test('opening B after A replaces transient (visible:[B], sticky:[])', () => {
-		const model = createModel();
-		const A = stubSession('A');
-		const B = stubSession('B');
+	suite('setActive', () => {
 
-		model.setActive(A);
-		model.setActive(B);
-
-		assert.deepStrictEqual(snapshot(model), {
-			visible: ['B'],
-			active: 'B',
-			sticky: [],
-		});
-	});
-
-	test('making the non-active A sticky after open A,B places A at far right (visible:[B, A], sticky:[A])', () => {
-		const model = createModel();
-		const A = stubSession('A');
-		const B = stubSession('B');
-
-		model.setActive(A);
-		model.setActive(B);
-		model.toggleStickiness(A);
-
-		assert.deepStrictEqual(snapshot(model), {
-			visible: ['B', 'A'],
-			active: 'B',
-			sticky: ['A'],
-		});
-	});
-
-	test('making the active transient B sticky keeps its position (visible:[B, A], sticky:[B, A])', () => {
-		const model = createModel();
-		const A = stubSession('A');
-		const B = stubSession('B');
-
-		model.setActive(A);
-		model.setActive(B);
-		model.toggleStickiness(A);
-		model.toggleStickiness(B);
-
-		assert.deepStrictEqual(snapshot(model), {
-			visible: ['B', 'A'],
-			active: 'B',
-			sticky: ['B', 'A'],
-		});
-	});
-
-	test('opening C when all visible are sticky inserts to far left (visible:[C, B, A])', () => {
-		const model = createModel();
-		const A = stubSession('A');
-		const B = stubSession('B');
-		const C = stubSession('C');
-
-		model.setActive(A);
-		model.setActive(B);
-		model.toggleStickiness(A);
-		model.toggleStickiness(B);
-		model.setActive(C);
-
-		assert.deepStrictEqual(snapshot(model), {
-			visible: ['C', 'B', 'A'],
-			active: 'C',
-			sticky: ['B', 'A'],
-		});
-	});
-
-	test('making the active transient C sticky keeps its far-left position (visible:[C, B, A], sticky:[C, B, A])', () => {
-		const model = createModel();
-		const A = stubSession('A');
-		const B = stubSession('B');
-		const C = stubSession('C');
-
-		model.setActive(A);
-		model.setActive(B);
-		model.toggleStickiness(A);
-		model.toggleStickiness(B);
-		model.setActive(C);
-		model.toggleStickiness(C);
-
-		assert.deepStrictEqual(snapshot(model), {
-			visible: ['C', 'B', 'A'],
-			active: 'C',
-			sticky: ['C', 'B', 'A'],
-		});
-	});
-
-	test('making a not-yet-visible D sticky appends to far right (visible:[C, B, A, D], sticky:[C, B, A, D])', () => {
-		const model = createModel();
-		const A = stubSession('A');
-		const B = stubSession('B');
-		const C = stubSession('C');
-		const D = stubSession('D');
-
-		model.setActive(A);
-		model.setActive(B);
-		model.toggleStickiness(A);
-		model.toggleStickiness(B);
-		model.setActive(C);
-		model.toggleStickiness(C);
-		model.toggleStickiness(D);
-
-		assert.deepStrictEqual(snapshot(model), {
-			visible: ['C', 'B', 'A', 'D'],
-			active: 'C',
-			sticky: ['C', 'B', 'A', 'D'],
-		});
-	});
-
-	suite('insertStickyAt', () => {
-
-		test('inserts a not-yet-visible session to the left of a target as sticky', () => {
+		test('opening B after non-sticky A replaces A in place', () => {
 			const model = createModel();
 			const A = stubSession('A');
 			const B = stubSession('B');
-			const C = stubSession('C');
 
 			model.setActive(A);
 			model.setActive(B);
-			model.toggleStickiness(A);
-			model.toggleStickiness(B);
-			// visible: [B, A], sticky: [B, A]
-			model.insertStickyAt(C, 'A', 'left');
 
 			assert.deepStrictEqual(snapshot(model), {
-				visible: ['B', 'C', 'A'],
+				visible: ['B'],
 				active: 'B',
-				sticky: ['B', 'C', 'A'],
+				sticky: [],
 			});
 		});
 
-		test('inserts a not-yet-visible session to the right of a target as sticky', () => {
+		test('opening B when active A is sticky appends B (no other non-sticky)', () => {
 			const model = createModel();
 			const A = stubSession('A');
 			const B = stubSession('B');
-			const C = stubSession('C');
 
 			model.setActive(A);
-			model.setActive(B);
 			model.toggleStickiness(A);
-			model.toggleStickiness(B);
-			// visible: [B, A]
-			model.insertStickyAt(C, 'A', 'right');
+			model.setActive(B);
 
 			assert.deepStrictEqual(snapshot(model), {
-				visible: ['B', 'A', 'C'],
+				visible: ['A', 'B'],
 				active: 'B',
-				sticky: ['B', 'A', 'C'],
+				sticky: ['A'],
 			});
 		});
 
-		test('moves an already-visible session to the left of a target', () => {
+		test('opening C when active is sticky and a non-sticky exists replaces the non-sticky', () => {
 			const model = createModel();
 			const A = stubSession('A');
 			const B = stubSession('B');
 			const C = stubSession('C');
 
 			model.setActive(A);
-			model.setActive(B);
 			model.toggleStickiness(A);
+			model.setActive(B);            // visible: [A, B], active: B (non-sticky)
+			model.setActive(A);            // active flips to A (sticky); B remains non-sticky
+			model.setActive(C);            // active A is sticky → replace most-recent non-sticky B
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'C'],
+				active: 'C',
+				sticky: ['A'],
+			});
+		});
+
+		test('opening D when all visible are sticky appends D at the end', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+			const D = stubSession('D');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
 			model.toggleStickiness(B);
+			model.setActive(C);
 			model.toggleStickiness(C);
-			// visible: [B, A, C], sticky: [B, A, C]
-			model.insertStickyAt(C, 'B', 'left');
+			model.setActive(D);
 
 			assert.deepStrictEqual(snapshot(model), {
-				visible: ['C', 'B', 'A'],
-				active: 'B',
-				sticky: ['C', 'B', 'A'],
+				visible: ['A', 'B', 'C', 'D'],
+				active: 'D',
+				sticky: ['A', 'B', 'C'],
 			});
 		});
 
-		test('moves an already-visible session to the right of a target with index adjustment', () => {
+		test('opens with multiple non-sticky sessions side by side', () => {
 			const model = createModel();
 			const A = stubSession('A');
 			const B = stubSession('B');
 			const C = stubSession('C');
 
 			model.setActive(A);
-			model.setActive(B);
+			model.toggleStickiness(A);     // [A] sticky:[A]
+			model.setActive(B);            // [A, B] active:B
+			model.setActive(A);            // [A, B] active:A (sticky)
+			model.setActive(C);            // active sticky → replace non-sticky B → [A, C]
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'C'],
+				active: 'C',
+				sticky: ['A'],
+			});
+		});
+
+		test('opening an already-visible session keeps its slot, only changes active', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);
+			model.toggleStickiness(A);     // [A] sticky:[A]
+			model.setActive(B);            // [A, B] active:B
+			model.setActive(A);            // [A, B] active:A — A keeps its slot
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'B'],
+				active: 'A',
+				sticky: ['A'],
+			});
+		});
+
+		test('setActive(undefined) only clears active; non-sticky sessions stay visible', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);
 			model.toggleStickiness(A);
-			model.toggleStickiness(B);
-			model.toggleStickiness(C);
-			// visible: [B, A, C]; move B to the right of A — destination index
-			// shifts left by one because B was removed from before A.
-			model.insertStickyAt(B, 'A', 'right');
+			model.setActive(B);            // [A, B] active:B, sticky:[A]
+			model.setActive(undefined);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'B'],
+				active: undefined,
+				sticky: ['A'],
+			});
+		});
+	});
+
+	suite('toggleStickiness', () => {
+
+		test('toggling a visible non-sticky session sticky keeps its slot', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);            // [A, B] active:B
+			model.toggleStickiness(B);     // B stays in its slot, becomes sticky
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'B'],
+				active: 'B',
+				sticky: ['A', 'B'],
+			});
+		});
+
+		test('toggling a visible sticky session non-sticky keeps its slot', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);
+			model.toggleStickiness(A);     // [A] sticky:[A]
+			model.setActive(B);            // [A, B] active:B
+			model.toggleStickiness(A);     // A stays in its slot, becomes non-sticky
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'B'],
+				active: 'B',
+				sticky: [],
+			});
+		});
+
+		test('toggling a not-visible session sticky appends it at the end', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);            // [A]
+			model.toggleStickiness(B);     // B not visible → append as sticky
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'B'],
+				active: 'A',
+				sticky: ['B'],
+			});
+		});
+
+		test('after toggling a sticky session non-sticky, opening a new session replaces that newly-non-sticky', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+			const D = stubSession('D');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);     // [A, B] sticky:[A, B] active:B
+			model.toggleStickiness(B);     // B becomes the (only) non-sticky → most-recent
+			model.setActive(C);            // active B is non-sticky → replaces B in place
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'C'],
+				active: 'C',
+				sticky: ['A'],
+			});
+
+			// Open D while active C is non-sticky → replaces C
+			model.setActive(D);
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'D'],
+				active: 'D',
+				sticky: ['A'],
+			});
+		});
+	});
+
+	suite('insertAt', () => {
+
+		test('inserts a not-yet-visible session to the left of a target as non-sticky', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);     // visible: [A, B] sticky:[A, B]
+			model.insertAt(C, 'B', 'left');
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'C', 'B'],
+				active: 'B',
+				sticky: ['A', 'B'],
+			});
+		});
+
+		test('inserts a not-yet-visible session to the right of a target as non-sticky', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);     // visible: [A, B]
+			model.insertAt(C, 'A', 'right');
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'C', 'B'],
+				active: 'B',
+				sticky: ['A', 'B'],
+			});
+		});
+
+		test('moves an already-visible non-sticky session and preserves non-sticky state', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);            // [A, B] non-sticky:[B]
+			model.insertAt(C, 'A', 'left'); // [C, A, B] non-sticky:[C, B]
+			model.insertAt(C, 'B', 'right'); // move C to end
 
 			assert.deepStrictEqual(snapshot(model), {
 				visible: ['A', 'B', 'C'],
 				active: 'B',
-				sticky: ['A', 'B', 'C'],
+				sticky: ['A'],
+			});
+		});
+
+		test('moves an already-visible sticky session and preserves sticky state', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);
+			model.setActive(C);
+			model.toggleStickiness(C);     // [A, B, C] sticky:[A, B, C]
+			model.insertAt(A, 'C', 'right'); // move A to end, stays sticky
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['B', 'C', 'A'],
+				active: 'C',
+				sticky: ['B', 'C', 'A'],
 			});
 		});
 
@@ -301,17 +396,15 @@ suite('VisibleSessions', () => {
 			const B = stubSession('B');
 
 			model.setActive(A);
-			model.setActive(B);
 			model.toggleStickiness(A);
-			model.toggleStickiness(B);
-			// visible: [B, A]; dropping A to the right of B is equivalent to
-			// its current position.
-			model.insertStickyAt(A, 'B', 'right');
+			model.setActive(B);
+			model.toggleStickiness(B);     // [A, B]
+			model.insertAt(B, 'A', 'right');
 
 			assert.deepStrictEqual(snapshot(model), {
-				visible: ['B', 'A'],
+				visible: ['A', 'B'],
 				active: 'B',
-				sticky: ['B', 'A'],
+				sticky: ['A', 'B'],
 			});
 		});
 
@@ -321,37 +414,15 @@ suite('VisibleSessions', () => {
 			const B = stubSession('B');
 
 			model.setActive(A);
-			model.setActive(B);
 			model.toggleStickiness(A);
-			model.toggleStickiness(B);
-			// visible: [B, A]; dropping B to the left of A is equivalent to
-			// its current position.
-			model.insertStickyAt(B, 'A', 'left');
+			model.setActive(B);
+			model.toggleStickiness(B);     // [A, B]
+			model.insertAt(A, 'B', 'left');
 
 			assert.deepStrictEqual(snapshot(model), {
-				visible: ['B', 'A'],
+				visible: ['A', 'B'],
 				active: 'B',
-				sticky: ['B', 'A'],
-			});
-		});
-
-		test('promotes the active transient session to sticky when inserted at a target', () => {
-			const model = createModel();
-			const A = stubSession('A');
-			const B = stubSession('B');
-			const C = stubSession('C');
-
-			model.setActive(A);
-			model.toggleStickiness(A);
-			model.setActive(B);
-			model.setActive(C);
-			// visible: [C, A]; C is transient and active.
-			model.insertStickyAt(C, 'A', 'right');
-
-			assert.deepStrictEqual(snapshot(model), {
-				visible: ['A', 'C'],
-				active: 'C',
-				sticky: ['A', 'C'],
+				sticky: ['A', 'B'],
 			});
 		});
 
@@ -362,14 +433,35 @@ suite('VisibleSessions', () => {
 			const C = stubSession('C');
 
 			model.setActive(A);
-			model.toggleStickiness(A);
-			// visible: [A]; C is not visible and 'unknown' is not a known id.
-			model.insertStickyAt(C, B.sessionId, 'left');
+			model.toggleStickiness(A);     // [A]
+			model.insertAt(C, B.sessionId, 'left');
 
 			assert.deepStrictEqual(snapshot(model), {
 				visible: ['A'],
 				active: 'A',
 				sticky: ['A'],
+			});
+		});
+
+		test('inserting a new session makes it the most-recent non-sticky for subsequent setActive', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+			const D = stubSession('D');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);     // [A, B] sticky:[A, B]
+			model.insertAt(C, 'A', 'right'); // [A, C, B] non-sticky:[C]
+			model.setActive(A);            // active sticky → no grid change
+			model.setActive(D);            // active sticky → replace most-recent non-sticky C
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'D', 'B'],
+				active: 'D',
+				sticky: ['A', 'B'],
 			});
 		});
 	});

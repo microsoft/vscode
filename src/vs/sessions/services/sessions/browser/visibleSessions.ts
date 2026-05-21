@@ -84,14 +84,14 @@ export class ActiveSession extends Disposable implements IActiveSession {
 }
 
 /**
- * Encapsulates the active / sticky / transient session model used by the
+ * Encapsulates the visibility model used by the
  * {@link SessionsManagementService}.
  *
  * The model tracks:
  * - The currently active session.
  * - An ordered list of sessions to display in the sessions part's grid.
- * - A "sticky" set: sessions the user has explicitly pinned to the grid.
- * - At most one "transient" slot: the last active session that wasn't pinned.
+ * - A "sticky" set: sessions the user has explicitly pinned. Non-sticky
+ *   sessions also live in the grid but get replaced when new sessions open.
  *
  * Each tracked session has a single {@link ActiveSession} wrapper owned by
  * this class. Wrappers are disposed automatically when their session leaves
@@ -110,8 +110,12 @@ export class VisibleSessions extends Disposable {
 	private _visibleList: string[] = [];
 	/** Subset of {@link _visibleList} the user has marked sticky. */
 	private readonly _stickyIds = new Set<string>();
-	/** The transient slot — the last active session that wasn't sticky. */
-	private _transientId: string | undefined;
+	/**
+	 * Id of the most recently opened (or toggled-to-non-sticky) session in the
+	 * grid. Used to choose which non-sticky slot to replace when opening a new
+	 * session while the active one is sticky.
+	 */
+	private _mostRecentNonStickyId: string | undefined;
 
 	constructor(
 		private readonly _resolveInitialChat: (session: ISession) => IChat,
@@ -123,66 +127,73 @@ export class VisibleSessions extends Disposable {
 
 	/**
 	 * Set the active session, updating the visibility model accordingly.
-	 * Returns the wrapper for the active session, or undefined if cleared.
+	 *
+	 * - Passing `undefined` only clears the active observable; the grid is
+	 *   left intact so non-sticky sessions remain visible.
+	 * - If the session is already in the grid, its slot is preserved and only
+	 *   the active observable is updated.
+	 * - Otherwise the session is placed as non-sticky:
+	 *   - If the active session is non-sticky, the new one replaces it in
+	 *     place.
+	 *   - Else if a non-sticky session exists, the most-recently opened
+	 *     non-sticky is replaced.
+	 *   - Else the session is appended at the end of the grid.
+	 *
+	 * Returns the wrapper for the active session, or `undefined` if cleared.
 	 */
 	setActive(session: ISession | undefined): ActiveSession | undefined {
-		if (session) {
-			const id = session.sessionId;
-			// Ensure session occupies a grid slot. If not yet visible, replace
-			// the previous transient slot in-place to keep grid order stable;
-			// otherwise insert at the far-left (every other slot is sticky and
-			// must keep its position). If already visible (sticky or already
-			// transient) the transient slot does not change.
-			if (!this._visibleList.includes(id)) {
-				if (this._transientId) {
-					const tIdx = this._visibleList.indexOf(this._transientId);
-					if (tIdx >= 0) {
-						this._visibleList.splice(tIdx, 1, id);
-						this._wrappers.deleteAndDispose(this._transientId);
-					} else {
-						this._visibleList.unshift(id);
-					}
-				} else {
-					this._visibleList.unshift(id);
-				}
-				this._transientId = id;
-			}
-
-			const wrapper = this._getOrCreateWrapper(session);
-			this._activeSession.set(wrapper, undefined);
-			this._refresh();
-			return wrapper;
+		if (!session) {
+			this._activeSession.set(undefined, undefined);
+			return undefined;
 		}
 
-		// No active session: drop the transient slot. Sticky sessions remain.
-		if (this._transientId) {
-			const tIdx = this._visibleList.indexOf(this._transientId);
-			if (tIdx >= 0) {
-				this._visibleList.splice(tIdx, 1);
+		const id = session.sessionId;
+		if (!this._visibleList.includes(id)) {
+			const activeId = this._activeSession.get()?.sessionId;
+			const activeIsNonSticky = activeId !== undefined
+				&& this._visibleList.includes(activeId)
+				&& !this._stickyIds.has(activeId);
+
+			let replaceId: string | undefined;
+			if (activeIsNonSticky) {
+				replaceId = activeId;
+			} else if (this._mostRecentNonStickyId !== undefined
+				&& this._visibleList.includes(this._mostRecentNonStickyId)
+				&& !this._stickyIds.has(this._mostRecentNonStickyId)) {
+				replaceId = this._mostRecentNonStickyId;
+			} else {
+				replaceId = this._findLastNonSticky();
 			}
-			this._wrappers.deleteAndDispose(this._transientId);
-			this._transientId = undefined;
+
+			if (replaceId !== undefined) {
+				const idx = this._visibleList.indexOf(replaceId);
+				this._visibleList.splice(idx, 1, id);
+				this._wrappers.deleteAndDispose(replaceId);
+			} else {
+				this._visibleList.push(id);
+			}
+			this._mostRecentNonStickyId = id;
 		}
-		this._activeSession.set(undefined, undefined);
+
+		const wrapper = this._getOrCreateWrapper(session);
+		this._activeSession.set(wrapper, undefined);
 		this._refresh();
-		return undefined;
+		return wrapper;
 	}
 
 	/**
-	 * Insert (or move) a session into the grid as sticky, positioned next to
-	 * a target session that is already visible. Used by drag-and-drop to drop
-	 * a session at a specific location in the grid.
+	 * Insert (or move) a session into the grid positioned next to a target
+	 * session that is already visible. Used by drag-and-drop and by
+	 * "open at position" entry points.
 	 *
-	 * - If the session is not yet visible, a new sticky entry is created at
-	 *   the computed position.
-	 * - If the session is already visible (sticky or transient), it is moved
-	 *   to the computed position and promoted to sticky.
-	 * - If the dragged session is the active transient session and ends up
-	 *   sticky, the transient slot is cleared.
+	 * - If the session is not yet visible, a new non-sticky entry is created
+	 *   at the computed position.
+	 * - If the session is already visible, it is moved to the computed
+	 *   position; its sticky / non-sticky state is preserved.
 	 *
 	 * No-op if `targetSessionId` is not currently visible.
 	 */
-	insertStickyAt(session: ISession, targetSessionId: string, side: 'left' | 'right'): void {
+	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right'): void {
 		const id = session.sessionId;
 		const targetIdx = this._visibleList.indexOf(targetSessionId);
 		if (targetIdx < 0) {
@@ -203,64 +214,61 @@ export class VisibleSessions extends Disposable {
 				}
 				this._visibleList.splice(destIdx, 0, id);
 			}
+			if (!this._stickyIds.has(id)) {
+				this._mostRecentNonStickyId = id;
+			}
 		} else {
 			this._getOrCreateWrapper(session);
 			this._visibleList.splice(destIdx, 0, id);
+			this._mostRecentNonStickyId = id;
 		}
 
-		if (this._transientId === id) {
-			this._transientId = undefined;
-		}
-		this._stickyIds.add(id);
 		this._refresh();
 	}
 
 	/**
-	 * Toggle a session's stickiness in the grid.
-	 * - If sticky: remove. If it's also the active session, it becomes the
-	 *   transient slot so it stays in the grid.
-	 * - If not sticky: mark sticky. If it was the transient session, the
-	 *   transient slot is cleared and its position is kept. Otherwise the
-	 *   session is appended to the far right of the grid.
+	 * Toggle a session's stickiness in the grid. The session keeps its grid
+	 * slot when toggled.
+	 * - If the session is not currently visible, it is appended at the end as
+	 *   sticky.
 	 */
 	toggleStickiness(session: ISession): void {
 		const id = session.sessionId;
-		if (this._stickyIds.has(id)) {
-			this._stickyIds.delete(id);
-			const isActive = this._activeSession.get()?.sessionId === id;
-			if (isActive) {
-				if (this._transientId && this._transientId !== id) {
-					const idx = this._visibleList.indexOf(this._transientId);
-					if (idx >= 0) {
-						this._visibleList.splice(idx, 1);
-					}
-					this._wrappers.deleteAndDispose(this._transientId);
-				}
-				this._transientId = id;
-			} else {
-				this._removeFromModel(id);
-			}
-		} else if (this._transientId === id) {
-			this._stickyIds.add(id);
-			this._transientId = undefined;
-		} else {
+		if (!this._visibleList.includes(id)) {
 			this._stickyIds.add(id);
 			this._getOrCreateWrapper(session);
 			this._visibleList.push(id);
+		} else if (this._stickyIds.has(id)) {
+			this._stickyIds.delete(id);
+			this._mostRecentNonStickyId = id;
+		} else {
+			this._stickyIds.add(id);
+			if (this._mostRecentNonStickyId === id) {
+				this._mostRecentNonStickyId = this._findLastNonSticky();
+			}
 		}
 		this._refresh();
 	}
 
 	/**
 	 * Remove the given session ids from the visibility model and dispose their
-	 * wrappers. Observables are refreshed once if anything changed.
+	 * wrappers. Clears the active observable if the active session is among
+	 * the removed ids. Observables are refreshed once if anything changed.
 	 */
 	removeMany(sessionIds: Iterable<string>): void {
 		let changed = false;
+		const activeId = this._activeSession.get()?.sessionId;
+		let activeRemoved = false;
 		for (const id of sessionIds) {
 			if (this._removeFromModel(id)) {
 				changed = true;
+				if (id === activeId) {
+					activeRemoved = true;
+				}
 			}
+		}
+		if (activeRemoved) {
+			this._activeSession.set(undefined, undefined);
 		}
 		if (changed) {
 			this._refresh();
@@ -284,8 +292,8 @@ export class VisibleSessions extends Disposable {
 		if (this._stickyIds.delete(fromId)) {
 			this._stickyIds.add(toId);
 		}
-		if (this._transientId === fromId) {
-			this._transientId = toId;
+		if (this._mostRecentNonStickyId === fromId) {
+			this._mostRecentNonStickyId = toId;
 		}
 		if (this._wrappers.has(fromId)) {
 			this._wrappers.deleteAndDispose(fromId);
@@ -295,6 +303,16 @@ export class VisibleSessions extends Disposable {
 	/** Re-publish the visible sessions and sticky ids observables. */
 	refresh(): void {
 		this._refresh();
+	}
+
+	private _findLastNonSticky(): string | undefined {
+		for (let i = this._visibleList.length - 1; i >= 0; i--) {
+			const sid = this._visibleList[i];
+			if (!this._stickyIds.has(sid)) {
+				return sid;
+			}
+		}
+		return undefined;
 	}
 
 	private _removeFromModel(sessionId: string): boolean {
@@ -307,8 +325,8 @@ export class VisibleSessions extends Disposable {
 		if (this._stickyIds.delete(sessionId)) {
 			changed = true;
 		}
-		if (this._transientId === sessionId) {
-			this._transientId = undefined;
+		if (this._mostRecentNonStickyId === sessionId) {
+			this._mostRecentNonStickyId = this._findLastNonSticky();
 			changed = true;
 		}
 		if (this._wrappers.has(sessionId)) {
