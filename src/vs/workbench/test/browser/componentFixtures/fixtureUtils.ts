@@ -586,6 +586,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		onDidChangeCopilotTokenInfo: new Emitter<null>().event,
 		getDefaultAccount: async () => null,
 		getDefaultAccountAuthenticationProvider: () => ({ id: 'test', name: 'Test', scopes: [], enterprise: false }),
+		resolveGitHubUrl: (path: string) => `https://github.com/${path}`,
 		setDefaultAccountProvider: () => { },
 		refresh: async () => null,
 		signIn: async () => null,
@@ -893,7 +894,14 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			// during dispose to drain async cleanup work (e.g. `Promise.race`
 			// guards behind `timeout(1000)` that hold references until they
 			// settle) before the leak tracker checks for undisposed objects.
-			const clock = new VirtualClock(Date.now());
+			//
+			// Seed the clock with a fixed wall-clock time so any code under
+			// test that reads `Date.now()` / `new Date()` produces the same
+			// values run after run. Real time would otherwise leak in
+			// through this seed and make screenshots that include
+			// time-derived labels (e.g. "1 hour ago", "Today") drift
+			// across days, hour boundaries, and DST changes.
+			const clock = new VirtualClock(new Date('2026-05-14T12:00:00Z').getTime());
 			const p = new VirtualTimeProcessor(
 				clock,
 				drainMicrotasksEmbedding(realTimeApi),

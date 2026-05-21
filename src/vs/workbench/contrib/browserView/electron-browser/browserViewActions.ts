@@ -226,7 +226,7 @@ class OpenBrowserSettingsAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenBrowserSettingsAction.ID,
-			title: localize2('browser.openSettingsAction', 'Open Browser Settings'),
+			title: localize2('browser.openSettingsAction', 'Browser Settings'),
 			category: BrowserActionCategory,
 			icon: Codicon.settingsGear,
 			f1: false,

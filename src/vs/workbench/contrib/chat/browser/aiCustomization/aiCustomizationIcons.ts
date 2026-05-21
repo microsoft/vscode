@@ -7,8 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
-import { type AICustomizationPromptsStorage, BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
-import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { type AICustomizationSource, AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
 
 /**
  * Icon for the AI Customization view container (sidebar).
@@ -83,13 +82,13 @@ export const mcpServerIcon = registerIcon('ai-customization-mcp-server', Codicon
 /**
  * Returns the icon for a given storage type.
  */
-export function storageToIcon(storage: AICustomizationPromptsStorage): ThemeIcon {
-	switch (storage) {
-		case PromptsStorage.local: return workspaceIcon;
-		case PromptsStorage.user: return userIcon;
-		case PromptsStorage.extension: return extensionIcon;
-		case PromptsStorage.plugin: return pluginIcon;
-		case BUILTIN_STORAGE: return builtinIcon;
+export function sourceToIcon(source: AICustomizationSource): ThemeIcon {
+	switch (source) {
+		case AICustomizationSources.local: return workspaceIcon;
+		case AICustomizationSources.user: return userIcon;
+		case AICustomizationSources.extension: return extensionIcon;
+		case AICustomizationSources.plugin: return pluginIcon;
+		case AICustomizationSources.builtin: return builtinIcon;
 		default: return instructionsIcon;
 	}
 }

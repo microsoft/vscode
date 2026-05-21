@@ -1,11 +1,11 @@
 ---
 name: chronicle
-description: Analyze Copilot session history for standup reports, usage tips, and session reindexing. Use when the user asks for a standup, daily summary, usage tips, workflow recommendations, wants to reindex their session store, or asks about deleting session data.
+description: Analyze Copilot session history for standup reports, usage tips, session search, and session reindexing. Use when the user asks for a standup, daily summary, usage tips, workflow recommendations, wants to search or find past sessions by keyword/file/PR, wants to reindex their session store, or asks about deleting session data.
 ---
 
 # Chronicle
 
-Analyze the user's Copilot session history using the `copilot_sessionStoreSql` tool. This skill handles standup reports, usage analysis, and session store maintenance.
+Analyze the user's Copilot session history using the `copilot_sessionStoreSql` tool. This skill handles standup reports, usage analysis, session search, and session store maintenance.
 
 Sessions may be stored locally (SQLite) and optionally synced to the cloud for cross-device access. Cloud sync is controlled by the `chat.sessionSync.enabled` setting.
 
@@ -29,8 +29,9 @@ When the user asks for a standup, daily summary, or "what did I do":
 
 1. Call `copilot_sessionStoreSql` with `action: "standup"` and `description: "Generate standup"`.
 2. The tool returns pre-fetched session data (sessions, turns, files, refs from the last 24 hours).
-3. For any PR references in the data, check their current status (open, merged, draft) if possible.
-4. Format the returned data as a standup report grouped by work stream (branch/feature):
+3. If the result is empty, tell the user no sessions were found in the last 24h, suggest `/chronicle:reindex`, and stop — do not fabricate a standup.
+4. For any PR references in the data, check their current status (open, merged, draft) if possible.
+5. Format the returned data as a standup report grouped by work stream (branch/feature):
 
 ```
 Standup for <date>:
@@ -95,6 +96,73 @@ Analysis dimensions to explore:
 
 If the session store has little data, acknowledge that and suggest features to try based on what configuration you found in the workspace.
 
+### Search
+
+When the user asks to search, find, or look up past sessions by keyword (e.g. `/chronicle:search <query>`):
+
+**Search strategy**
+
+1. Search across session summaries, conversation turns (user messages AND assistant responses), and any other indexed content (checkpoints, file paths, refs like PR/issue/commit). The user's query may match a topic, a file path, or a PR/issue number — cover all three.
+2. For each matching session, gather enough metadata to label it: `s.id`, `s.repository`, `s.branch`, `s.summary`, `s.updated_at`, plus a short snippet that shows *why* it matched (e.g. `substr(user_message, 1, 160)` on cloud, or the matched `file_path` / `ref_value`).
+3. Present results grouped by repository, ordered by most recently updated.
+
+**Writing the query**
+
+Call `copilot_sessionStoreSql` with `action: "query"` and `description: "Search sessions for <query>"`. Follow the SQL dialect shown in the tool description (SQLite vs DuckDB).
+
+Schema essentials (full schema is in the **Database Schema** section below — re-read it before writing the query):
+
+- The `sessions` table primary key is `id` (NOT `session_id`). Every other table uses `session_id` as the FK back to `sessions.id`. Always project `s.id` from `sessions`.
+- Don't invent names: there is no `started_at` (use `created_at`/`updated_at`), no `workspace` (use `cwd` locally; cloud has none), no `title` (use `summary`), no `content`/`messages` (use `turns.user_message`/`turns.assistant_response`, or on cloud `events.user_content`/`events.assistant_content`).
+- **Local SQLite**: prefer the FTS5 `search_index` table (`WHERE search_index MATCH '<query>'`) for body content — `search_index` already has a `session_id` column, so select it directly (`SELECT session_id, content FROM search_index WHERE search_index MATCH ...`). Do **not** join `search_index.rowid` to `turns.rowid`; they are unrelated and you will pull in unrelated sessions. File paths and refs aren't in the FTS index — combine with `LIKE` on `session_files.file_path` and `session_refs.ref_value`.
+- **Cloud DuckDB**: no FTS5 — use `ILIKE '%<query>%'` across the text columns of `sessions`, `turns`, `checkpoints`, `session_files`, `session_refs`.
+
+Escape single quotes in the user's query by doubling them (`it's` → `it''s`). For multi-word FTS5 queries, quote the whole phrase: `MATCH '"apply patch"'`.
+
+**Performance — avoid cloud timeouts**
+
+`ILIKE '%X%'` on `turns` is a full table scan. Cloud queries that run too long return `context deadline exceeded`. To stay under the budget:
+
+- Collect matching session IDs into a single CTE (`WITH hits AS (...)`) and then **`JOIN`** back to `sessions` once. Don't use correlated subqueries in the SELECT list — they re-scan the CTE per row.
+- Aggregate match info per session with `GROUP BY session_id` and `any_value()` / `MIN()` / `array_agg()` rather than scalar subqueries.
+- On cloud, default to a **90-day window** on the heavy tables (`WHERE timestamp >= now() - INTERVAL '90 days'` on `turns`, same on `checkpoints` via `created_at`). Mention the window in your summary line so the user knows it's bounded; widen it if the user asks for "all time" or no results come back.
+- Keep `LIMIT 50` on the final SELECT.
+- If a query times out, retry with a tighter window (30 days) or drop the heaviest table (usually `turns`) and tell the user what you trimmed.
+
+**Output format**
+
+For each session, build a one-line label from `summary` if present, else from the returned `snippet` (truncate to ~80 chars). Never emit `(no summary)`, `(no metadata)`, or bare session-id lists.
+
+If you applied a time window (e.g. the cloud 90-day default), include it in the header so the user knows the scope; otherwise omit the scope phrase or say "all time". Example:
+
+```
+**Search results for "<query>"** (<n> sessions, <scope: e.g. "last 90 days" / "all time">)
+
+_owner/repo_
+- `session-id` — **<summary or snippet>**
+  `branch` · updated <relative time> · matched in <match_kind>
+- `session-id` — **<summary or snippet>**
+  `branch` · updated <relative time> · matched in <match_kind>
+
+_other-owner/other-repo_
+- ...
+```
+
+Rules:
+- Always render one session per line — never join multiple session ids with commas.
+- The label is `summary` if non-null; otherwise the snippet; otherwise a usable fallback like the matched file path. If even those are empty, skip the session rather than show "no summary".
+- Include `· matched in <match_kind>` (turn / file / ref / checkpoint / meta) when you can — helps the user see why each session matched.
+- Group by repository. Sessions whose `repository` is NULL go under an _Other_ heading, formatted the same way (one per line, with a usable label).
+- Cap visible results per repository at ~10; if there are more, append `…and N more (refine your query)`.
+
+**No results**
+
+If no rows are returned, tell the user and suggest:
+- Trying different keywords or a broader search term (single word, or a substring instead of a phrase)
+- Widening the time window ("search all time", "include older sessions")
+- Running `/chronicle:reindex` if they haven't indexed their sessions yet
+- Running `/chronicle:standup` to see recent activity
+
 ### Reindex
 
 When the user asks to reindex, rebuild, or refresh their session store:
@@ -117,6 +185,7 @@ When the user asks to delete session data or clear their history:
 
 When using `action: "query"`:
 - Only one query per call — do not combine multiple statements with semicolons
+- Only `SELECT` and `WITH` (CTE) are allowed. `DESCRIBE`, `SHOW`, `PRAGMA`, and any mutating statements are blocked — re-read the **Database Schema** section below instead of trying to introspect
 - Always use LIMIT (max 100) and prefer aggregations (COUNT, GROUP BY) over raw row dumps
 - Query the **turns** table for conversation content — it gives the richest insight into what happened
 - Query **session_files** for file paths and tool usage patterns
@@ -142,7 +211,7 @@ The tool's description dynamically changes based on the active backend. **Always
 - **checkpoints**: session_id, checkpoint_number, title, overview, history, work_done, technical_details, important_files, next_steps, created_at — compaction checkpoints storing summarized state. Note: cloud has fewer columns (no history/work_done/technical_details).
 - **session_files**: session_id, file_path, tool_name, turn_index, first_seen_at
 - **session_refs**: session_id, ref_type (commit/pr/issue), ref_value, turn_index, created_at
-- **search_index**: FTS5 table (local only). Use `WHERE search_index MATCH 'query'` for full-text search
+- **search_index**: FTS5 virtual table (local only). Columns: `content`, `session_id`, `source_type` (`turn`/`assistant`/`checkpoint`/etc.), `source_id`. Use `WHERE search_index MATCH 'query'` for full-text search and project `session_id` directly — **do NOT** join `search_index.rowid` to `turns.rowid` (the rowids are independent and the join will match the wrong rows). Use `snippet(search_index, 0, '[', ']', '…', 12)` or `substr(content, 1, 160)` for a snippet.
 
 ### Cloud-only tables
 

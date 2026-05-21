@@ -120,6 +120,7 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 				gitRepository: { uri: project.uri, workTreeUri, gitHubInfo, ...gitFields },
 			}],
 			requiresWorkspaceTrust: options.requiresWorkspaceTrust,
+			isVirtualWorkspace: false,
 		};
 	}
 
@@ -143,5 +144,6 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 			gitRepository: { uri: workingDirectory, workTreeUri: undefined, gitHubInfo, ...gitFields },
 		}],
 		requiresWorkspaceTrust: options.requiresWorkspaceTrust,
+		isVirtualWorkspace: false,
 	};
 }

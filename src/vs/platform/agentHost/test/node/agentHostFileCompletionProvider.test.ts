@@ -26,7 +26,8 @@ class FakeWorkspaceFiles extends AgentHostWorkspaceFiles {
 	}
 }
 
-function assertResourceUri(attachment: MessageAttachment, expected: string): void {
+function assertResourceUri(attachment: MessageAttachment | undefined, expected: string): void {
+	assert.ok(attachment, 'expected attachment to be defined');
 	assert.strictEqual(attachment.type, MessageAttachmentKind.Resource);
 	assert.strictEqual(attachment.type === MessageAttachmentKind.Resource && attachment.uri, expected);
 }
@@ -113,7 +114,7 @@ suite('AgentHostFileCompletionProvider', () => {
 		test('returns [] when session has no working directory', async () => {
 			const { sessionUri, provider } = setup({});
 			const result = await provider.provideCompletionItems(
-				{ kind: CompletionItemKind.UserMessage, session: sessionUri, text: '@', offset: 1 },
+				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@', offset: 1 },
 				CancellationToken.None,
 			);
 			assert.deepStrictEqual(result, []);
@@ -122,7 +123,7 @@ suite('AgentHostFileCompletionProvider', () => {
 		test('returns [] for non-file working directory', async () => {
 			const { sessionUri, provider } = setup({ workingDirectory: URI.parse('vscode-vfs://github/foo/bar') });
 			const result = await provider.provideCompletionItems(
-				{ kind: CompletionItemKind.UserMessage, session: sessionUri, text: '@', offset: 1 },
+				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@', offset: 1 },
 				CancellationToken.None,
 			);
 			assert.deepStrictEqual(result, []);
@@ -133,7 +134,7 @@ suite('AgentHostFileCompletionProvider', () => {
 			const files = [URI.joinPath(wd, 'foo.ts')];
 			const { sessionUri, provider } = setup({ workingDirectory: wd, files });
 			const result = await provider.provideCompletionItems(
-				{ kind: CompletionItemKind.UserMessage, session: sessionUri, text: 'hello world', offset: 5 },
+				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: 'hello world', offset: 5 },
 				CancellationToken.None,
 			);
 			assert.deepStrictEqual(result, []);
@@ -148,7 +149,7 @@ suite('AgentHostFileCompletionProvider', () => {
 			];
 			const { sessionUri, provider } = setup({ workingDirectory: wd, files });
 			const result = await provider.provideCompletionItems(
-				{ kind: CompletionItemKind.UserMessage, session: sessionUri, text: 'see @util', offset: 9 },
+				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: 'see @util', offset: 9 },
 				CancellationToken.None,
 			);
 			assert.strictEqual(result.length, 1);
@@ -170,7 +171,7 @@ suite('AgentHostFileCompletionProvider', () => {
 			const files = Array.from({ length: 100 }, (_, i) => URI.joinPath(wd, `file${i}.ts`));
 			const { sessionUri, provider } = setup({ workingDirectory: wd, files });
 			const result = await provider.provideCompletionItems(
-				{ kind: CompletionItemKind.UserMessage, session: sessionUri, text: '@', offset: 1 },
+				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@', offset: 1 },
 				CancellationToken.None,
 			);
 			assert.strictEqual(result.length, 50);

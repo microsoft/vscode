@@ -11,6 +11,7 @@ export interface IQuotaSnapshotData {
 	readonly quota_reset_at?: number;
 	readonly token_based_billing?: boolean;
 	readonly entitlement?: string;
+	readonly quota_remaining?: number;
 	readonly has_quota?: boolean;
 }
 
@@ -37,6 +38,7 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	readonly quota_reset_date?: string; 		// for all other Copilot SKUs
 	readonly quota_reset_date_utc?: string; 	// for all other Copilot SKUs (includes time)
 	readonly token_based_billing?: boolean;
+	readonly can_upgrade_plan?: boolean;
 	readonly quota_snapshots?: {
 		chat?: IQuotaSnapshotData;
 		completions?: IQuotaSnapshotData;
@@ -44,19 +46,11 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	};
 }
 
-export const enum CopilotSessionSearchPolicy {
-	Unknown = 0,
-	Enabled = 1,
-	Disabled = 2,
-	Unconfigured = 3,
-	NoPolicy = 4,
-}
-
 export interface IPolicyData {
 	readonly mcp?: boolean;
 	readonly chat_preview_features_enabled?: boolean;
 	readonly chat_agent_enabled?: boolean;
-	readonly session_search?: CopilotSessionSearchPolicy;
+	readonly cloud_session_storage_enabled?: boolean;
 	readonly mcpRegistryUrl?: string;
 	readonly mcpAccess?: 'allow_all' | 'registry_only';
 }

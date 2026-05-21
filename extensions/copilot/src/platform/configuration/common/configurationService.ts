@@ -22,6 +22,7 @@ import { DuplicateAdditionsMode, EarlyDivergenceCancellationMode, LANGUAGE_CONTE
 import { ResponseProcessor } from '../../inlineEdits/common/responseProcessor';
 import { FetcherId } from '../../networking/common/fetcherService';
 import { AlternativeNotebookFormat } from '../../notebook/common/alternativeContentFormat';
+import type { IModelCapabilityOverride } from '../../endpoint/common/chatModelCapabilities';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { IValidator, vBoolean, vNumber, vString } from './validator';
 
@@ -122,7 +123,7 @@ export interface IConfigurationService {
 	/**
 	 * Sets user configuration for a key in vscode.
 	 */
-	setConfig<T>(key: BaseConfig<T>, value: T): Thenable<void>;
+	setConfig<T>(key: BaseConfig<T>, value: T, target?: ConfigTarget): Thenable<void>;
 
 	/**
 	 * Gets user configuration for a key from vscode (which if not defined, pulls default value from package.json).
@@ -262,7 +263,7 @@ export abstract class AbstractConfigurationService extends Disposable implements
 	abstract getConfig<T>(key: Config<T>, scope?: ConfigurationScope): T;
 	abstract inspectConfig<T>(key: BaseConfig<T>, scope?: ConfigurationScope): InspectConfigResult<T> | undefined;
 	abstract getNonExtensionConfig<T>(configKey: string): T | undefined;
-	abstract setConfig<T>(key: BaseConfig<T>, value: T): Thenable<void>;
+	abstract setConfig<T>(key: BaseConfig<T>, value: T, target?: ConfigTarget): Thenable<void>;
 	abstract getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T;
 	abstract dumpConfig(): { [key: string]: string };
 	public updateExperimentBasedConfiguration(treatments: string[]): void {
@@ -375,6 +376,12 @@ export const enum ConfigType {
 export interface ConfigOptions {
 	readonly oldKey?: string;
 	readonly valueIgnoredForExternals?: boolean;
+}
+
+export const enum ConfigTarget {
+	Global = 'global',
+	Workspace = 'workspace',
+	WorkspaceFolder = 'workspaceFolder',
 }
 
 export interface Config<T> extends BaseConfig<T> {
@@ -519,7 +526,7 @@ export const enum CHAT_MODEL {
 	XTAB_4O_MINI_FINETUNED = 'xtab-4o-mini-finetuned',
 	GPT4OPROXY = 'gpt-4o-instant-apply-full-ft-v66',
 	SHORT_INSTANT_APPLY = 'gpt-4o-instant-apply-full-ft-v66-short',
-	CLAUDE_SONNET = 'claude-3.5-sonnet',
+	CLAUDE_SONNET = 'claude-sonnet-4.5',
 	CLAUDE_37_SONNET = 'claude-3.7-sonnet',
 	DEEPSEEK_CHAT = 'deepseek-chat',
 	GEMINI_25_PRO = 'gemini-2.5-pro',
@@ -578,6 +585,7 @@ export namespace ConfigKey {
 		export const DebugUseNodeFetchFetcher = defineSetting('advanced.debug.useNodeFetchFetcher', ConfigType.Simple, true);
 		export const DebugUseNodeFetcher = defineSetting('advanced.debug.useNodeFetcher', ConfigType.Simple, false);
 		export const DebugUseElectronFetcher = defineSetting('advanced.debug.useElectronFetcher', ConfigType.Simple, true);
+		export const DebugNodeFetchCache = defineSetting<'off' | 'memory' | 'persistent'>('advanced.debug.nodeFetchCache', ConfigType.Simple, 'memory');
 		export const AuthProvider = defineSetting<AuthProviderId>('advanced.authProvider', ConfigType.Simple, AuthProviderId.GitHub);
 		export const AuthPermissions = defineSetting<AuthPermissionMode>('advanced.authPermissions', ConfigType.Simple, AuthPermissionMode.Default);
 	}
@@ -637,7 +645,7 @@ export namespace ConfigKey {
 		export const ProjectLabelsInline = defineAndMigrateExpSetting<boolean>('chat.advanced.projectLabels.inline', 'chat.projectLabels.inline', false);
 		export const WorkspaceMaxLocalIndexSize = defineAndMigrateExpSetting<number>('chat.advanced.workspace.maxLocalIndexSize', 'chat.workspace.maxLocalIndexSize', 100_000);
 		export const WorkspaceEnableCodeSearch = defineAndMigrateExpSetting<boolean>('chat.advanced.workspace.enableCodeSearch', 'chat.workspace.enableCodeSearch', true);
-		export const WorkspaceEnableCodeSearchExternalIngest = defineSetting<boolean>('chat.workspace.codeSearchExternalIngest.enabled', ConfigType.ExperimentBased, false, undefined, undefined, { experimentName: 'copilotchat.config.chat.advanced.workspace.codeSearchExternalIngest.enabled' });
+		export const WorkspaceEnableCodeSearchExternalIngest = defineSetting<boolean>('chat.workspace.codeSearchExternalIngest.enabled', ConfigType.ExperimentBased, true, undefined, undefined, { experimentName: 'copilotchat.config.chat.advanced.workspace.codeSearchExternalIngest.enabled' });
 		export const WorkspacePreferredEmbeddingsModel = defineAndMigrateExpSetting<string>('chat.advanced.workspace.preferredEmbeddingsModel', 'chat.workspace.preferredEmbeddingsModel', '');
 		export const NotebookAlternativeDocumentFormat = defineAndMigrateExpSetting<AlternativeNotebookFormat>('chat.advanced.notebook.alternativeFormat', 'chat.notebook.alternativeFormat', AlternativeNotebookFormat.xml);
 		export const UseAlternativeNESNotebookFormat = defineAndMigrateExpSetting<boolean>('chat.advanced.notebook.alternativeNESFormat.enabled', 'chat.notebook.alternativeNESFormat.enabled', false);
@@ -672,7 +680,7 @@ export namespace ConfigKey {
 		/** Maximum number of tool calls the execution subagent can make */
 		export const ExecutionSubagentToolCallLimit = defineSetting<number>('chat.executionSubagent.toolCallLimit', ConfigType.ExperimentBased, 10);
 
-		/** When enabled, the main agent's manage_todo_list tool is disabled and a background copilot-fast model maintains the todo list instead. */
+		/** When enabled, the main agent's manage_todo_list tool is disabled and a background copilot-utility-small model maintains the todo list instead. */
 		export const BackgroundTodoAgentEnabled = defineSetting<boolean>('chat.agent.backgroundTodoAgent.enabled', ConfigType.ExperimentBased, false);
 
 		export const InlineEditsTriggerOnEditorChangeAfterSeconds = defineAndMigrateExpSetting<number | undefined>('chat.advanced.inlineEdits.triggerOnEditorChangeAfterSeconds', 'chat.inlineEdits.triggerOnEditorChangeAfterSeconds', 10);
@@ -691,7 +699,6 @@ export namespace ConfigKey {
 		 * Settings for switch between old tools and new skills
 		 */
 		export const InstallExtensionSkillEnabled = defineSetting<boolean>('chat.installExtensionSkill.enabled', ConfigType.ExperimentBased, false);
-		export const ProjectSetupInfoSkillEnabled = defineSetting<boolean>('chat.projectSetupInfoSkill.enabled', ConfigType.ExperimentBased, false);
 
 		/**
 		 * When enabled, large tool results (above the threshold in bytes) are written to disk
@@ -726,6 +733,17 @@ export namespace ConfigKey {
 
 		/** Internal: override reasoning/thinking effort sent to model APIs (e.g. Responses API, Messages API). Used by evals. */
 		export const ReasoningEffortOverride = defineSetting<string | null>('chat.reasoningEffortOverride', ConfigType.Simple, null);
+
+		/** Enable extended (1 hour) prompt cache TTL on tools and system blocks for the Anthropic Messages API. Applied to Claude Opus 4.5/4.6/4.7 and Sonnet 4.5/4.6 variants. */
+		export const AnthropicExtendedCacheTtl = defineSetting<boolean>('chat.anthropic.promptCaching.extendedTtl', ConfigType.ExperimentBased, false);
+
+		/** Enable extended (1 hour) prompt cache TTL on the rolling message-level breakpoints (last cacheable user/tool-result blocks) for the Anthropic Messages API. Same model/location/subagent gating as {@link AnthropicExtendedCacheTtl}. */
+		export const AnthropicExtendedCacheTtlMessages = defineSetting<boolean>('chat.anthropic.promptCaching.extendedTtlMessages', ConfigType.ExperimentBased, false);
+		/** Per-model capability overrides. Keys are model ids, values declare an aliased `family`. Lets evals route an unknown preview model id to a known production family (e.g. `"claude-opus-4.7"`) so the Anthropic prompt resolver, multi-replace tools, tool search, context editing, etc. all activate without a code change. */
+		export const ModelCapabilityOverrides = defineSetting<Record<string, IModelCapabilityOverride>>('chat.modelCapabilityOverrides', ConfigType.Simple, {});
+
+		/** Freeze the customizations-index variable (the `<instructions>`/`<skills>`/`<agents>` block) at the first turn of a conversation and reuse it on subsequent turns. Prevents the system prompt cache from being invalidated by per-turn churn — e.g. the active mode swapping which subagent entry appears in `<agents>`, or async experimentation flipping a `when`-gated skill. */
+		export const FreezeCustomizationsIndex = defineSetting<boolean>('chat.freezeCustomizationsIndex', ConfigType.ExperimentBased, true);
 
 		export const InlineEditsXtabProviderModelConfiguration = (() => {
 			const oldKey = 'chat.advanced.inlineEdits.xtabProvider.modelConfiguration';
@@ -937,10 +955,6 @@ export namespace ConfigKey {
 	export const Updated53CodexPromptEnabled = defineSetting<boolean>('chat.updated53CodexPrompt.enabled', ConfigType.ExperimentBased, true);
 	/** Enable updated prompt for Claude Opus 4.7 model */
 	export const Claude47OpusPromptEnabled = defineSetting<boolean>('chat.claude47OpusPrompt.enabled', ConfigType.ExperimentBased, false);
-	/** Enable concise prompt experiment for GPT-5.4 model */
-	export const EnableGpt54ConcisePromptExp = defineSetting<boolean>('chat.gpt54ConcisePrompt.enabled', ConfigType.ExperimentBased, false);
-	/** Enable large prompt experiment for GPT-5.4 model */
-	export const EnableGpt54LargePromptExp = defineSetting<boolean>('chat.gpt54LargePrompt.enabled', ConfigType.ExperimentBased, false);
 	/** Enable get_changed_files tool for GPT-5.5 models */
 	export const EnableGpt55GetChangedFilesTool = defineSetting<boolean>('chat.gpt55GetChangedFilesTool.enabled', ConfigType.ExperimentBased, true);
 	/** Enable read_file tool for GPT-5.5 models */
@@ -996,6 +1010,7 @@ export namespace ConfigKey {
 	export const CodeSearchAgentEnabled = defineSetting<boolean>('chat.codesearch.enabled', ConfigType.Simple, false);
 	export const ClaudeAgentEnabled = defineSetting<boolean>('chat.claudeAgent.enabled', ConfigType.Simple, true);
 	export const ClaudeAgentAllowDangerouslySkipPermissions = defineSetting<boolean>('chat.claudeAgent.allowDangerouslySkipPermissions', ConfigType.Simple, false);
+	export const ClaudeAgentAllowAutoPermissions = defineSetting<boolean>('chat.claudeAgent.allowAutoPermissions', ConfigType.ExperimentBased, false);
 	export const InlineEditsEnabled = defineSetting<boolean>('nextEditSuggestions.enabled', ConfigType.ExperimentBased, true);
 	export const InlineEditsEnableDiagnosticsProvider = defineSetting<boolean>('nextEditSuggestions.fixes', ConfigType.ExperimentBased, true);
 	export const InlineEditsAllowWhitespaceOnlyChanges = defineSetting<boolean>('nextEditSuggestions.allowWhitespaceOnlyChanges', ConfigType.ExperimentBased, true);
@@ -1030,6 +1045,7 @@ export namespace ConfigKey {
 
 	export const BackgroundAgentEnabled = defineSetting<boolean>('chat.backgroundAgent.enabled', ConfigType.Simple, true);
 	export const CloudAgentEnabled = defineSetting<boolean>('chat.cloudAgent.enabled', ConfigType.Simple, true);
+	export const CloudAgentBackendVersion = defineSetting<'v1' | 'v2'>('chat.cloudAgentBackend.version', ConfigType.Simple, 'v1');
 	export const AdditionalReadAccessPaths = defineSetting<string[]>('chat.additionalReadAccessPaths', ConfigType.Simple, []);
 	export const SwitchAgentEnabled = defineSetting<boolean>('chat.switchAgent.enabled', ConfigType.ExperimentBased, false);
 

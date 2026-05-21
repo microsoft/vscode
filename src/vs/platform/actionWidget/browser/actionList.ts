@@ -597,6 +597,10 @@ export class ActionListWidget<T> extends Disposable {
 		this._submenuContainer = document.createElement('div');
 		this._submenuContainer.className = 'action-list-submenu-panel action-widget';
 		this._submenuContainer.style.display = 'none';
+		// Make focusable so clicking the hover panel keeps focus inside the
+		// tracked element instead of moving it to document.body (which would
+		// trigger the blur handler and dismiss the widget).
+		this._submenuContainer.tabIndex = -1;
 		this.domNode.append(this._submenuContainer);
 
 		this._register(dom.addDisposableListener(this._submenuContainer, 'mouseenter', () => {
@@ -1851,6 +1855,17 @@ export class ActionList<T> extends Disposable {
 		return this._widget.hasDynamicHeight;
 	}
 
+	private computeActionWidgetVerticalChromeHeight(): number {
+		const widgetContainer = this.domNode.parentElement?.closest('.action-widget');
+		if (!widgetContainer) {
+			return 0;
+		}
+
+		const style = dom.getWindow(widgetContainer).getComputedStyle(widgetContainer);
+		const toPixels = (value: string): number => Number.parseFloat(value) || 0;
+		return toPixels(style.paddingTop) + toPixels(style.paddingBottom) + toPixels(style.borderTopWidth) + toPixels(style.borderBottomWidth);
+	}
+
 	private computeHeight(): number {
 		const listHeight = this._widget.computeListHeight();
 
@@ -1875,7 +1890,7 @@ export class ActionList<T> extends Disposable {
 				const fullHeight = chromeHeight + this._widget.computeFullHeight();
 				this._showAbove = fullHeight > spaceBelow && spaceAbove > spaceBelow;
 			}
-			availableHeight = this._showAbove ? spaceAbove : spaceBelow;
+			availableHeight = Math.max(0, (this._showAbove ? spaceAbove : spaceBelow) - this.computeActionWidgetVerticalChromeHeight());
 		} else {
 			const padding = 10;
 			const windowHeight = this._layoutService.getContainer(targetWindow).clientHeight;

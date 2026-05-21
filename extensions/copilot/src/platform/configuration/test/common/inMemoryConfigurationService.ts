@@ -5,7 +5,7 @@
 
 import type { ConfigurationScope } from 'vscode';
 import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
-import { AbstractConfigurationService, BaseConfig, Config, ExperimentBasedConfig, ExperimentBasedConfigType, IConfigurationService, InspectConfigResult } from '../../common/configurationService';
+import { AbstractConfigurationService, BaseConfig, Config, ConfigTarget, ExperimentBasedConfig, ExperimentBasedConfigType, IConfigurationService, InspectConfigResult } from '../../common/configurationService';
 
 /**
  * A IConfigurationService that allows overriding of config values.
@@ -44,7 +44,7 @@ export class InMemoryConfigurationService extends AbstractConfigurationService {
 		return this.nonExtensionOverrides.get(configKey) ?? this.baseConfigurationService.getNonExtensionConfig(configKey);
 	}
 
-	override setConfig<T>(key: BaseConfig<T>, value: T): Promise<void> {
+	override setConfig<T>(key: BaseConfig<T>, value: T, _target?: ConfigTarget): Promise<void> {
 		this.overrides.set(key, value);
 		this._onDidChangeConfiguration.fire({
 			affectsConfiguration: (section: string) => section === key.fullyQualifiedId || key.fullyQualifiedId.startsWith(section + '.')

@@ -35,7 +35,7 @@ import { IMenuService, MenuItemAction } from '../../../../../platform/actions/co
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { createActionViewItem, getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -325,7 +325,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			} else if (element.extensionId) {
 				content = `${element.name}\n${localize('fromExtension', "Extension: {0}", element.extensionId)}`;
 			} else {
-				const isWorkspaceItem = element.storage === PromptsStorage.local;
+				const isWorkspaceItem = element.source === AICustomizationSources.local;
 				const uriLabel = this.labelService.getUriLabel(element.uri, { relative: isWorkspaceItem });
 				content = `${element.name}\n${uriLabel}`;
 			}
@@ -435,7 +435,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			uri: element.uri.toString(),
 			name: element.name,
 			promptType: element.promptType,
-			storage: element.storage,
+			source: element.source,
 			pluginUri: element.pluginUri?.toString(),
 			itemId: element.id,
 		};
@@ -446,8 +446,8 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			[AI_CUSTOMIZATION_ITEM_URI_KEY, element.uri.toString()],
 			[AI_CUSTOMIZATION_ITEM_DISABLED_KEY, element.disabled],
 		];
-		if (element.storage) {
-			overlayPairs.push([AI_CUSTOMIZATION_ITEM_STORAGE_KEY, element.storage]);
+		if (element.source) {
+			overlayPairs.push([AI_CUSTOMIZATION_ITEM_STORAGE_KEY, element.source]);
 		}
 		if (element.pluginUri) {
 			overlayPairs.push([AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, element.pluginUri.toString()]);
@@ -854,7 +854,7 @@ export class AICustomizationListWidget extends Disposable {
 			uri: item.uri.toString(),
 			name: item.name,
 			promptType: item.promptType,
-			storage: item.storage,
+			source: item.source,
 			pluginUri: item.pluginUri?.toString(),
 			itemId: item.id,
 		};
@@ -865,8 +865,8 @@ export class AICustomizationListWidget extends Disposable {
 			[AI_CUSTOMIZATION_ITEM_URI_KEY, item.uri.toString()],
 			[AI_CUSTOMIZATION_ITEM_DISABLED_KEY, item.disabled],
 		];
-		if (item.storage) {
-			overlayPairs.push([AI_CUSTOMIZATION_ITEM_STORAGE_KEY, item.storage]);
+		if (item.source) {
+			overlayPairs.push([AI_CUSTOMIZATION_ITEM_STORAGE_KEY, item.source]);
 		}
 		if (item.pluginUri) {
 			overlayPairs.push([AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, item.pluginUri.toString()]);
@@ -1380,7 +1380,7 @@ export class AICustomizationListWidget extends Disposable {
 				];
 
 		for (const item of matchedItems) {
-			const key = item.groupKey ?? item.storage ?? PromptsStorage.local;
+			const key = item.groupKey ?? item.source ?? AICustomizationSources.local;
 			let group = groups.find(g => g.groupKey === key);
 			if (!group) {
 				// Dynamically create a group for unknown groupKeys from providers
@@ -1596,13 +1596,11 @@ export class AICustomizationListWidget extends Disposable {
 		if (this._store.isDisposed) {
 			return '';
 		}
-		const activeDescriptor = this.harnessService.getActiveDescriptor();
 		return generateCustomizationDebugReport(
 			this.currentSection,
 			this.promptsService,
 			this.workspaceService,
-			{ allItems: this.allItems as IAICustomizationListItem[], displayEntries: this.displayEntries },
-			activeDescriptor,
+			{ allItems: this.allItems, displayEntries: this.displayEntries },
 			this.itemsModel.getPromptsServiceItemProvider(),
 			this.harnessService,
 			this.agentPluginService,

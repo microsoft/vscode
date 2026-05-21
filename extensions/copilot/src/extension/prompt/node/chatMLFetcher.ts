@@ -18,6 +18,7 @@ import { ConfigKey, HARD_TOOL_LIMIT, IConfigurationService } from '../../../plat
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, responseApiInputToRawMessagesForLogging, sendCompletionOutputTelemetry } from '../../../platform/endpoint/node/responsesApi';
+import { getImageTelemetryMeasurementsFromMessages, type ImageTelemetryMeasurements } from '../../../platform/image/common/imageTelemetry';
 import { collectSingleLineErrorMessage, ILogService } from '../../../platform/log/common/logService';
 import { FinishedCallback, getRequestId, IResponseDelta, OptionalChatRequestParams, RequestId } from '../../../platform/networking/common/fetch';
 import { FetcherId, IFetcherService, Response } from '../../../platform/networking/common/fetcherService';
@@ -27,7 +28,7 @@ import { sendEngineMessagesTelemetry } from '../../../platform/networking/node/c
 import { CAPIWebSocketErrorEvent, IChatWebSocketManager, isCAPIWebSocketError } from '../../../platform/networking/node/chatWebSocketManager';
 import { sendCommunicationErrorTelemetry } from '../../../platform/networking/node/stream';
 import { ChatFailKind, ChatRequestCanceled, ChatRequestFailed, ChatResults, FetchResponseKind } from '../../../platform/openai/node/fetch';
-import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, normalizeProviderMessages, StdAttr, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
+import { collectSystemTextsFromRequestBody, CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, normalizeProviderMessages, StdAttr, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
@@ -173,7 +174,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			requestId: ourRequestId,
 			postOptions
 		});
-
+		const imageTelemetryMeasurements = getImageTelemetryMeasurementsFromMessages(messages);
 
 		const baseTelemetry = TelemetryData.createAndMarkAsIssued({
 			...telemetryProperties,
@@ -218,8 +219,13 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			} else {
 				let tokenCountPromise: Promise<number> | undefined;
 				const countTokens = () => tokenCountPromise ??= chatEndpoint.acquireTokenizer().countMessagesTokens(messages);
-				const copilotToken = await this._authenticationService.getCopilotToken();
-				usernameToScrub = copilotToken.username;
+				let copilotToken: CopilotToken | undefined;
+				try {
+					copilotToken = await this._authenticationService.getCopilotToken();
+				} catch {
+					// BYOK / air-gapped: no Copilot token available. Continue without one.
+				}
+				usernameToScrub = copilotToken?.username ?? this._authenticationService.copilotToken?.username;
 
 				const fetchResult = await this._fetchAndStreamChat(
 					chatEndpoint,
@@ -268,29 +274,12 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							: JSON.stringify(lastUserMsg.content);
 						otelInferenceSpan.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userContent, this._otelService.config.maxAttributeSizeChars));
 					}
-					// System instructions — check messages array, top-level system (Anthropic), or instructions (Responses API)
-					const systemMsg = capiMessages?.find(m => m.role === 'system');
-					const systemContent = systemMsg?.content
-						?? (requestBody as Record<string, unknown>).system
-						?? (requestBody as Record<string, unknown>).instructions;
-					if (systemContent) {
-						let systemText: string;
-						if (typeof systemContent === 'string') {
-							systemText = systemContent;
-						} else if (Array.isArray(systemContent)) {
-							// Anthropic format: array of content blocks — extract text only,
-							// dropping metadata like cache_control so the value is stable across turns.
-							systemText = (systemContent as Array<{ text?: string }>)
-								.map(b => b.text ?? '')
-								.join('\n');
-						} else {
-							systemText = JSON.stringify(systemContent);
-						}
-						// Format as OTel GenAI system instruction JSON schema
-						const systemInstructions = toSystemInstructions(systemText);
-						if (systemInstructions) {
-							otelInferenceSpan.setAttribute(GenAiAttr.SYSTEM_INSTRUCTIONS, JSON.stringify(systemInstructions));
-						}
+					// System instructions go on a dedicated attribute; stripped from
+					// input messages below to avoid rendering the prompt twice.
+					const systemTexts = collectSystemTextsFromRequestBody(requestBody);
+					const systemInstructions = toSystemInstructions(systemTexts);
+					if (systemInstructions) {
+						otelInferenceSpan.setAttribute(GenAiAttr.SYSTEM_INSTRUCTIONS, truncateForOTel(JSON.stringify(systemInstructions), this._otelService.config.maxAttributeSizeChars));
 					}
 				}
 
@@ -298,8 +287,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				if (otelInferenceSpan) {
 					const capiMessages = (requestBody.messages ?? requestBody.input) as ReadonlyArray<Record<string, unknown>> | undefined;
 					if (capiMessages) {
-						// Normalize provider-specific content (Anthropic tool_use/tool_result, OpenAI tool messages) to OTel schema
-						otelInferenceSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(normalizeProviderMessages(capiMessages)), this._otelService.config.maxAttributeSizeChars));
+						// Normalize provider-specific content to OTel schema; exclude
+						// system entries since they are emitted via `system_instructions`.
+						const nonSystemMessages = capiMessages.filter(m => (m as { role?: unknown }).role !== 'system');
+						otelInferenceSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(normalizeProviderMessages(nonSystemMessages)), this._otelService.config.maxAttributeSizeChars));
 					}
 					// Tool definitions: emit on every chat span so trace viewers can render the
 					// tool catalog per LLM call (issue #299934). Includes `parameters` per
@@ -335,7 +326,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			pendingLoggedChatRequest?.markTimeToFirstToken(timeToFirstToken);
 			switch (response.type) {
 				case FetchResponseKind.Success: {
-					const result = await this.processSuccessfulResponse(response, messages, requestBody, ourRequestId, maxResponseTokens, tokenCount, timeToFirstToken, streamRecorder, baseTelemetry, chatEndpoint, userInitiatedRequest, interactionType, transport, actualFetcher, actualBytesReceived, suspendEventSeen, resumeEventSeen, actualModelCallId);
+					const result = await this.processSuccessfulResponse(response, messages, imageTelemetryMeasurements, requestBody, ourRequestId, maxResponseTokens, tokenCount, timeToFirstToken, streamRecorder, baseTelemetry, chatEndpoint, userInitiatedRequest, interactionType, transport, actualFetcher, actualBytesReceived, suspendEventSeen, resumeEventSeen, actualModelCallId);
 
 					// Handle FilteredRetry case with augmented messages
 					if (result.type === ChatFetchResponseType.FilteredRetry) {
@@ -532,6 +523,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							isAuto: isAutoModel(chatEndpoint),
 							bytesReceived: actualBytesReceived,
 							issuedTime: baseTelemetry.issuedTime,
+							imageTelemetryMeasurements,
 						});
 					pendingLoggedChatRequest?.resolveWithCancelation();
 					// Set canceled status on OTel span
@@ -565,6 +557,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							bytesReceived: actualBytesReceived,
 							baseTelemetry,
 							streamRecorder,
+							imageTelemetryMeasurements,
 							retryReason: 'server_error',
 							debugNamePrefix: 'retry-server-error-',
 							pendingLoggedChatRequest,
@@ -587,6 +580,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						maxResponseTokens,
 						timeToFirstToken,
 						isVisionRequest: this.filterImageMessages(messages),
+						imageTelemetryMeasurements,
 						transport,
 						interactionType,
 						fetcher: actualFetcher,
@@ -636,6 +630,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					bytesReceived: err.bytesReceived,
 					baseTelemetry,
 					streamRecorder,
+					imageTelemetryMeasurements,
 					retryReason: 'network_error',
 					debugNamePrefix: 'retry-error-',
 					pendingLoggedChatRequest,
@@ -683,6 +678,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						isAuto: isAutoModel(chatEndpoint),
 						bytesReceived: err.bytesReceived,
 						issuedTime: baseTelemetry.issuedTime,
+						imageTelemetryMeasurements,
 					}
 				);
 			} else {
@@ -695,6 +691,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					maxResponseTokens,
 					timeToFirstToken: timeToError,
 					isVisionRequest: this.filterImageMessages(messages),
+					imageTelemetryMeasurements,
 					transport,
 					interactionType,
 					fetcher: actualFetcher,
@@ -776,6 +773,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		bytesReceived: number | undefined;
 		baseTelemetry: TelemetryData;
 		streamRecorder: FetchStreamRecorder;
+		imageTelemetryMeasurements: ImageTelemetryMeasurements;
 		retryReason: 'network_error' | 'server_error';
 		debugNamePrefix: string;
 		pendingLoggedChatRequest: ReturnType<IRequestLogger['logChatRequest']>;
@@ -798,6 +796,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			bytesReceived,
 			baseTelemetry,
 			streamRecorder,
+			imageTelemetryMeasurements,
 			retryReason,
 			debugNamePrefix,
 			pendingLoggedChatRequest,
@@ -838,6 +837,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				maxResponseTokens,
 				timeToFirstToken: timeToError,
 				isVisionRequest: this.filterImageMessages(opts.messages),
+				imageTelemetryMeasurements,
 				transport,
 				interactionType,
 				fetcher: actualFetcher,
@@ -886,7 +886,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		baseTelemetryData: TelemetryData,
 		finishedCb: FinishedCallback,
 		secretKey: string | undefined,
-		copilotToken: CopilotToken,
+		copilotToken: CopilotToken | undefined,
 		location: ChatLocation,
 		ourRequestId: string,
 		nChoices: number | undefined,
@@ -965,7 +965,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		baseTelemetryData: TelemetryData,
 		finishedCb: FinishedCallback,
 		secretKey: string | undefined,
-		copilotToken: CopilotToken,
+		copilotToken: CopilotToken | undefined,
 		location: ChatLocation,
 		ourRequestId: string,
 		nChoices: number | undefined,
@@ -1020,9 +1020,9 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			this._logService.debug(`modelMaxResponseTokens ${request.max_tokens ?? 2048}`);
 			this._logService.debug(`chat model ${chatEndpointInfo.model}`);
 
-			secretKey ??= copilotToken.token;
-			if (!secretKey) {
-				// If no key is set we error
+			secretKey ??= copilotToken?.token;
+			// BYOK endpoints may not need a secret key (e.g., Ollama local), they use getExtraHeaders instead.
+			if (!secretKey && !chatEndpointInfo.getExtraHeaders) {
 				const urlOrRequestMetadata = stringifyUrlOrRequestMetadata(chatEndpointInfo.urlOrRequestMetadata);
 				this._logService.error(`Failed to send request to ${urlOrRequestMetadata} due to missing key`);
 				sendCommunicationErrorTelemetry(this._telemetryService, `Failed to send request to ${urlOrRequestMetadata} due to missing key`);
@@ -1102,7 +1102,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		request: IEndpointBody,
 		baseTelemetryData: TelemetryData,
 		finishedCb: FinishedCallback,
-		secretKey: string,
+		secretKey: string | undefined,
 		location: ChatLocation,
 		ourRequestId: string,
 		turnId: string,
@@ -1118,12 +1118,12 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		const intent = locationToIntent(location);
 		const agentInteractionType = interactionTypeOverride ?? intent;
 		const additionalHeaders: Record<string, string> = {
-			'Authorization': `Bearer ${secretKey}`,
+			...(secretKey ? { 'Authorization': `Bearer ${secretKey}` } : {}),
 			'X-Request-Id': ourRequestId,
 			'OpenAI-Intent': intent,
 			'X-GitHub-Api-Version': '2025-05-01',
 			'X-Interaction-Id': this._interactionService.interactionId,
-			...(chatEndpointInfo.getExtraHeaders ? chatEndpointInfo.getExtraHeaders(location) : {}),
+			...(chatEndpointInfo.getExtraHeaders ? chatEndpointInfo.getExtraHeaders(location, interactionTypeOverride) : {}),
 		};
 		additionalHeaders['X-Interaction-Type'] = agentInteractionType;
 		additionalHeaders['X-Agent-Task-Id'] = ourRequestId;
@@ -1288,7 +1288,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		request: IEndpointBody,
 		baseTelemetryData: TelemetryData,
 		finishedCb: FinishedCallback,
-		secretKey: string,
+		secretKey: string | undefined,
 		location: ChatLocation,
 		ourRequestId: string,
 		nChoices: number | undefined,
@@ -1405,7 +1405,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		chatEndpoint: IChatEndpoint,
 		ourRequestId: string,
 		request: IEndpointBody,
-		secretKey: string,
+		secretKey: string | undefined,
 		location: ChatLocation,
 		cancellationToken: CancellationToken,
 		userInitiatedRequest?: boolean,
@@ -1782,6 +1782,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 	private async processSuccessfulResponse(
 		response: ChatResults,
 		messages: Raw.ChatMessage[],
+		imageTelemetryMeasurements: ImageTelemetryMeasurements,
 		requestBody: IEndpointBody,
 		requestId: string,
 		maxResponseTokens: number,
@@ -1817,6 +1818,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					timeToFirstToken,
 					timeToFirstTokenEmitted: (baseTelemetry && streamRecorder.firstTokenEmittedTime) ? streamRecorder.firstTokenEmittedTime - baseTelemetry.issuedTime : -1,
 					hasImageMessages: this.filterImageMessages(messages),
+					imageTelemetryMeasurements,
 					transport,
 					fetcher,
 					bytesReceived,

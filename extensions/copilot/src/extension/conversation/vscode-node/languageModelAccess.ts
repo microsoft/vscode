@@ -12,13 +12,13 @@ import { IBlockedExtensionService } from '../../../platform/chat/common/blockedE
 import { ChatFetchResponseType, ChatLocation, getErrorDetailsFromChatFetchError } from '../../../platform/chat/common/commonTypes';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { EmbeddingType, getWellKnownEmbeddingTypeInfo, IEmbeddingsComputer } from '../../../platform/embeddings/common/embeddingsComputer';
-import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
-import { ModelAliasRegistry } from '../../../platform/endpoint/common/modelAliasRegistry';
 import { encodeStatefulMarker } from '../../../platform/endpoint/common/statefulMarkerContainer';
 import { isAnthropicFamily, isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
+import { CopilotChatEndpoint, CopilotUtilitySmallChatEndpoint } from '../../../platform/endpoint/node/copilotChatEndpoint';
 import { IEnvService, isScenarioAutomation } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
@@ -43,7 +43,7 @@ import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
-import { formatPricingLabel, getModelCapabilitiesDescription } from '../common/languageModelAccess';
+import { formatPricingLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty } from '../common/languageModelAccess';
 
 /**
  * Markers in the autoModelHint experiment variable that indicate the auto model
@@ -97,44 +97,12 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchem
 		return {};
 	}
 
-	const properties: Record<string, {
-		type: string;
-		title: string;
-		enum: readonly (string | number)[];
-		enumItemLabels: string[];
-		enumDescriptions: string[];
-		default?: string | number;
-		group: string;
-	}> = {};
+	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
 
 	// Reasoning effort config
 	const effortLevels = endpoint.supportsReasoningEffort;
 	if (effortLevels && effortLevels.length > 1) {
-		let defaultEffort: string | undefined;
-		if (family.startsWith('claude')) {
-			defaultEffort = effortLevels.includes('high') ? 'high' : undefined;
-		} else if (family.startsWith('gpt-')) {
-			defaultEffort = effortLevels.includes('medium') ? 'medium' : undefined;
-		}
-
-		properties.reasoningEffort = {
-			type: 'string',
-			title: vscode.l10n.t('Thinking Effort'),
-			enum: effortLevels,
-			enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
-			enumDescriptions: effortLevels.map(level => {
-				switch (level) {
-					case 'none': return vscode.l10n.t('No reasoning applied');
-					case 'low': return vscode.l10n.t('Faster responses with less reasoning');
-					case 'medium': return vscode.l10n.t('Balanced reasoning and speed');
-					case 'high': return vscode.l10n.t('Greater reasoning depth but slower');
-					case 'xhigh': return vscode.l10n.t('Highest reasoning depth but slowest');
-					default: return level;
-				}
-			}),
-			default: defaultEffort,
-			group: 'navigation',
-		};
+		properties.reasoningEffort = buildReasoningEffortSchemaProperty(effortLevels, family);
 	}
 
 	// Context size config
@@ -159,6 +127,78 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchem
 	return { configurationSchema: { properties } };
 }
 
+const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility'];
+
+/**
+ * Checks whether `endpoint` is the built-in Copilot endpoint for a utility alias.
+ */
+function isDefaultEndpointForUtilityFamily(family: ChatEndpointFamily, endpoint: IChatEndpoint): boolean {
+	if (!(endpoint instanceof CopilotChatEndpoint)) {
+		return false;
+	}
+	switch (family) {
+		case 'copilot-utility-small':
+			return endpoint.family === CopilotUtilitySmallChatEndpoint.capiFamily;
+		case 'copilot-utility':
+			return endpoint.isFallback;
+		default:
+			return false;
+	}
+}
+
+/**
+ * Builds the {@link vscode.LanguageModelChatInformation} entry that publishes a
+ * utility-family alias (e.g. `copilot-utility-small`) under the copilot vendor.
+ *
+ * If the endpoint is a Copilot endpoint and a matching entry exists in
+ * {@link models} for its model id, that entry is cloned so the alias inherits
+ * provider-specific metadata (including `requiresAuthorization`). Otherwise a
+ * minimal entry is synthesized from the endpoint with `maxInputTokens` reduced
+ * by both `baseCount` and {@link BaseTokensPerCompletion} to match what the
+ * regular model entries report, and {@link requiresAuthorization} is applied so
+ * the synthesized alias enforces the same model-access authorization as a
+ * normal copilot model entry.
+ */
+export function buildUtilityAliasModelInfo(
+	family: ChatEndpointFamily,
+	endpoint: IChatEndpoint,
+	models: readonly vscode.LanguageModelChatInformation[],
+	baseCount: number,
+	requiresAuthorization: vscode.LanguageModelChatInformation['requiresAuthorization'],
+): { info: vscode.LanguageModelChatInformation; synthesized: boolean } {
+	const base = endpoint instanceof CopilotChatEndpoint ? models.find(m => m.id === endpoint.model) : undefined;
+	if (base) {
+		return {
+			synthesized: false,
+			info: {
+				...base,
+				id: family,
+				family,
+				isUserSelectable: false,
+				isDefault: false,
+			},
+		};
+	}
+	return {
+		synthesized: true,
+		info: {
+			id: family,
+			name: endpoint.name,
+			family,
+			version: endpoint.version,
+			maxInputTokens: endpoint.modelMaxPromptTokens - baseCount - BaseTokensPerCompletion,
+			maxOutputTokens: endpoint.maxOutputTokens,
+			requiresAuthorization,
+			isUserSelectable: false,
+			isDefault: false,
+			capabilities: {
+				toolCalling: endpoint.supportsToolCalls,
+				imageInput: endpoint.supportsVision,
+			},
+		},
+	};
+}
+
 export class LanguageModelAccess extends Disposable implements IExtensionContribution {
 
 	readonly id = 'languageModelAccess';
@@ -168,6 +208,15 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	private _currentModels: vscode.LanguageModelChatInformation[] = []; // Store current models for reference
 	private _chatEndpoints: IChatEndpoint[] = [];
+	/**
+	 * Maps utility family aliases (e.g. `copilot-utility-small`,
+	 * `copilot-utility`) to the resolved endpoint they were last published
+	 * under. Lets {@link _getEndpointForModel} route alias lookups to the
+	 * underlying endpoint without re-resolving the user setting.
+	 */
+	private _utilityAliasEndpoints: Map<string, IChatEndpoint> = new Map();
+	// Overrides resolved outside model-info publication, reused on the next alias publish.
+	private readonly _resolvedUtilityEndpoints = new Map<ChatEndpointFamily, { endpoint: IChatEndpoint; baseCount: number }>();
 	private _lmWrapper: CopilotLanguageModelWrapper;
 	private _promptBaseCountCache: LanguageModelAccessPromptBaseCountCache;
 
@@ -222,7 +271,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			this._onDidChange.fire();
 		}));
 		this._register(this._endpointProvider.onDidModelsRefresh(() => {
-			// Models have been refreshed from CAPI so we should requery them
+			// Drop stale overrides; model publication uses defaults until refresh completes.
+			this._resolvedUtilityEndpoints.clear();
+			void this._refreshUtilityOverrides();
 			this._onDidChange.fire();
 		}));
 	}
@@ -265,7 +316,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			if (endpoint.degradationReason) {
 				modelTooltip = endpoint.degradationReason;
 			} else if (endpoint instanceof AutoChatEndpoint) {
-				modelTooltip = vscode.l10n.t('Auto selects the best model for your request based on capacity and performance.');
+				modelTooltip = vscode.l10n.t('Auto selects the best model based on your request complexity and model performance. Model use through Auto is billed at a 10% discount.');
 				const isOrgManaged = !!this._authenticationService.copilotToken?.isManagedPlan;
 				const autoModeHint = this._expService.getTreatmentVariable<string>('copilotchat.autoModelHint');
 				const showExperimentalHint = !isOrgManaged && !!autoModeHint && experimentalAutoModelHintMarkers.some(marker => autoModeHint.includes(marker));
@@ -274,17 +325,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				}
 			} else {
 				modelTooltip = getModelCapabilitiesDescription(endpoint);
-			}
-
-			let modelCategory: { label: string; order: number } | undefined;
-			if (endpoint instanceof AutoChatEndpoint) {
-				modelCategory = { label: '', order: Number.MIN_SAFE_INTEGER };
-			} else if (endpoint.isPremium === undefined || this._authenticationService.copilotToken?.isFreeUser) {
-				modelCategory = { label: vscode.l10n.t("Copilot Models"), order: 0 };
-			} else if (endpoint.isPremium) {
-				modelCategory = { label: vscode.l10n.t("Premium Models"), order: 1 };
-			} else {
-				modelCategory = { label: vscode.l10n.t("Standard Models"), order: 0 };
 			}
 
 			// Counting tokens requires instantiating the tokenizers, which makes this process use a lot of memory.
@@ -304,7 +344,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				const customModel = endpoint.customModel;
 				modelDetail = customModel.owner_name;
 				modelTooltip = vscode.l10n.t('{0} is contributed by {1} using {2}.', sanitizedModelName, customModel.owner_name, customModel.key_name);
-				modelCategory = { label: vscode.l10n.t("Custom Models"), order: 2 };
 			}
 
 			const session = this._authenticationService.anyGitHubSession;
@@ -322,7 +361,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				multiplierNumeric: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.multiplier,
 				priceCategory: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.priceCategory,
 				detail: modelDetail,
-				category: modelCategory,
 				statusIcon: endpoint.degradationReason ? new vscode.ThemeIcon('warning') : undefined,
 				version: endpoint.version,
 				maxInputTokens: endpoint.modelMaxPromptTokens - baseCount - BaseTokensPerCompletion,
@@ -343,22 +381,81 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			};
 
 			models.push(model);
-
-			// Register aliases for this model
-			const aliases = ModelAliasRegistry.getAliases(model.id);
-			for (const alias of aliases) {
-				models.push({
-					...model,
-					id: alias,
-					family: alias,
-					isUserSelectable: false,
-				});
-			}
 		}
 
 		this._currentModels = models;
 		this._chatEndpoints = chatEndpoints;
+
+		this._registerUtilityAliasModels(models, allEndpoints);
 		return models;
+	}
+
+	/** Publishes utility aliases without waiting for override resolution. */
+	private _registerUtilityAliasModels(
+		models: vscode.LanguageModelChatInformation[],
+		allEndpoints: readonly IChatEndpoint[],
+	): void {
+		this._utilityAliasEndpoints.clear();
+		const session = this._authenticationService.anyGitHubSession;
+		const requiresAuthorization = session ? { label: session.account.label } : undefined;
+
+		for (const family of utilityAliasFamilies) {
+			const cached = this._resolvedUtilityEndpoints.get(family);
+			const endpoint = cached?.endpoint ?? allEndpoints.find(e => isDefaultEndpointForUtilityFamily(family, e));
+			if (!endpoint) {
+				continue;
+			}
+			this._utilityAliasEndpoints.set(family, endpoint);
+
+			try {
+				// Copilot defaults clone an existing entry; synthesized override aliases need baseCount.
+				const aliasInfo = buildUtilityAliasModelInfo(family, endpoint, models, cached?.baseCount ?? 0, requiresAuthorization);
+				this._logService.trace(`[LanguageModelAccess] Publishing alias '${family}' -> ${endpoint.model} (${aliasInfo.synthesized ? 'synthesized' : 'cloned'}, ${endpoint instanceof CopilotChatEndpoint ? 'copilot' : 'override'}).`);
+				models.push(aliasInfo.info);
+			} catch (err) {
+				this._logService.warn(`[LanguageModelAccess] Failed to publish utility alias '${family}' -> ${endpoint.model}; skipping. Error: ${err}`);
+			}
+		}
+
+		// Override resolution may hang, so keep it off the model-info request path.
+		void this._refreshUtilityOverrides().catch(err => {
+			this._logService.warn(`[LanguageModelAccess] Failed to refresh utility overrides: ${err}`);
+		});
+	}
+
+	/** Resolves configured utility model overrides for the next alias publish. */
+	private async _refreshUtilityOverrides(): Promise<void> {
+		let didChange = false;
+		for (const family of utilityAliasFamilies) {
+			let resolved: IChatEndpoint | undefined;
+			try {
+				resolved = await this._endpointProvider.getChatEndpoint(family);
+			} catch (err) {
+				this._logService.warn(`[LanguageModelAccess] Failed to resolve utility alias '${family}' in background: ${err}`);
+				continue;
+			}
+			if (!resolved) {
+				continue;
+			}
+			// Skip when the override resolved to the same endpoint that's
+			// already published; no alias change needed.
+			const published = this._utilityAliasEndpoints.get(family);
+			if (published && published.model === resolved.model && published.modelProvider === resolved.modelProvider) {
+				continue;
+			}
+			let baseCount: number;
+			try {
+				baseCount = await this._promptBaseCountCache.getBaseCount(resolved);
+			} catch (err) {
+				this._logService.warn(`[LanguageModelAccess] Failed to compute baseCount for utility alias '${family}' -> ${resolved.model}; keeping previously-published alias. Error: ${err}`);
+				continue;
+			}
+			this._resolvedUtilityEndpoints.set(family, { endpoint: resolved, baseCount });
+			didChange = true;
+		}
+		if (didChange) {
+			this._onDidChange.fire();
+		}
 	}
 
 	private async _getEndpointForModel(model: vscode.LanguageModelChatInformation) {
@@ -366,7 +463,11 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
 			return await this._automodeService.resolveAutoModeEndpoint(undefined, allEndpoints);
 		}
-		return this._chatEndpoints.find(e => e.model === ModelAliasRegistry.resolveAlias(model.id));
+		const aliasEndpoint = this._utilityAliasEndpoints.get(model.id);
+		if (aliasEndpoint) {
+			return aliasEndpoint;
+		}
+		return this._chatEndpoints.find(e => e.model === model.id);
 	}
 
 	private async _provideLanguageModelChatResponse(
@@ -439,6 +540,11 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	}
 
 	private async _getToken(): Promise<CopilotToken | undefined> {
+		if (!this._authenticationService.anyGitHubSession) {
+			this._logService.warn('[LanguageModelAccess] LanguageModel/Embeddings are not available without auth session');
+			return undefined;
+		}
+
 		try {
 			const copilotToken = await this._authenticationService.getCopilotToken();
 			return copilotToken;
@@ -654,7 +760,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 				throw vscode.LanguageModelError.Blocked(blockedExtensionMessage);
 			} else if (result.type === ChatFetchResponseType.QuotaExceeded) {
 				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const details = getErrorDetailsFromChatFetchError(result, this._authenticationService.copilotToken?.copilotPlan, outageStatus);
+				const details = getErrorDetailsFromChatFetchError(result, this._authenticationService.copilotToken?.copilotPlan, outageStatus, this._authenticationService.copilotToken?.tokenBasedBilling, this._authenticationService.copilotToken?.quotaInfo.quota_reset_date);
 				const err = new vscode.LanguageModelError(details.message);
 				err.name = 'ChatQuotaExceeded';
 				throw err;

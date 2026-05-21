@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { enumerateLocalCustomizationsForHarness } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
-import { BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSources, BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { type IPromptPath, type IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -52,24 +52,24 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		assert.deepStrictEqual(result, [{
 			uri: builtin,
 			type: PromptsType.skill,
-			storage: BUILTIN_STORAGE,
+			source: AICustomizationSources.builtin,
 			disabled: false,
 		}]);
 	});
 
-	test('combines core storage entries with built-in skills', async () => {
+	test('combines extension storage entries with built-in skills', async () => {
 		const userAgent = URI.file('/user/agents/foo.agent.md');
 		const builtinSkill = URI.file('/builtin/merge/SKILL.md');
 		const promptsService = makePromptsService(new Map([
-			[`${PromptsType.agent}/${PromptsStorage.user}`, [makePromptPath(userAgent, PromptsType.agent, PromptsStorage.user)]],
+			[`${PromptsType.agent}/${PromptsStorage.extension}`, [makePromptPath(userAgent, PromptsType.agent, PromptsStorage.extension)]],
 			[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [makePromptPath(builtinSkill, PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage)]],
 		]));
 
 		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None);
 
-		assert.deepStrictEqual(result.map((e: { uri: URI; type: PromptsType; storage: unknown; disabled: boolean }) => ({ uri: e.uri.toString(), type: e.type, storage: e.storage, disabled: e.disabled })), [
-			{ uri: userAgent.toString(), type: PromptsType.agent, storage: PromptsStorage.user, disabled: false },
-			{ uri: builtinSkill.toString(), type: PromptsType.skill, storage: BUILTIN_STORAGE, disabled: false },
+		assert.deepStrictEqual(result.map((e: { uri: URI; type: PromptsType; source: unknown; disabled: boolean }) => ({ uri: e.uri.toString(), type: e.type, source: e.source, disabled: e.disabled })), [
+			{ uri: userAgent.toString(), type: PromptsType.agent, source: AICustomizationSources.extension, disabled: false },
+			{ uri: builtinSkill.toString(), type: PromptsType.skill, source: AICustomizationSources.builtin, disabled: false },
 		]);
 	});
 

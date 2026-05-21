@@ -61,35 +61,31 @@ export class AgentPluginManager implements IAgentPluginManager {
 		this._maxPlugins = maxPlugins;
 	}
 
+	get basePath(): URI {
+		return this._basePath;
+	}
+
 	async syncCustomizations(
 		clientId: string,
 		customizations: CustomizationRef[],
-		progress?: (status: SessionCustomization[]) => void,
+		progress?: (status: SessionCustomization) => void,
 	): Promise<ISyncedCustomization[]> {
 		await this._ensureCacheLoaded();
 
-		// Build initial loading status and fire it immediately via progress
-		const statuses: SessionCustomization[] = customizations.map(c => ({
-			customization: c,
-			enabled: true,
-			status: CustomizationStatus.Loading,
-		}));
-		progress?.([...statuses]);
-
 		// Sync each customization in parallel, serialized per URI
-		const results = await Promise.all(customizations.map((ref, i) =>
+		const results = await Promise.all(customizations.map(ref =>
 			this._sequencer.queue(ref.uri, async (): Promise<ISyncedCustomization> => {
 				try {
 					const pluginDir = await this._syncPlugin(clientId, ref);
-					statuses[i] = { customization: ref, enabled: true, status: CustomizationStatus.Loaded };
-					progress?.([...statuses]);
-					return { customization: statuses[i], pluginDir };
+					const customization = { customization: ref, enabled: true, status: CustomizationStatus.Loaded };
+					progress?.(customization);
+					return { customization, pluginDir };
 				} catch (err) {
 					const message = err instanceof Error ? err.message : String(err);
 					this._logService.error(`[AgentPluginManager] Failed to sync plugin ${ref.uri}: ${message}`);
-					statuses[i] = { customization: ref, enabled: true, status: CustomizationStatus.Error, statusMessage: message };
-					progress?.([...statuses]);
-					return { customization: statuses[i] };
+					const customization = { customization: ref, enabled: true, status: CustomizationStatus.Error, statusMessage: message };
+					progress?.(customization);
+					return { customization };
 				}
 			})
 		));
