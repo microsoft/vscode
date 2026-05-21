@@ -188,6 +188,12 @@ export interface INESProviderOptions {
 	readonly waitForTreatmentVariables?: boolean;
 	readonly undesiredModelsManager?: IUndesiredModelsManager;
 	readonly configOverrides?: Map<ConfigKeyType, unknown>;
+	/**
+	 * Diagnostics provider used to enrich the NES prompt with the active file's
+	 * lint/error context. When omitted, falls back to an in-memory
+	 * {@link TestLanguageDiagnosticsService} that returns empty diagnostics
+	 */
+	readonly languageDiagnosticsService?: ILanguageDiagnosticsService;
 }
 
 export interface INESResult {
@@ -371,7 +377,7 @@ function setupServices(options: INESProviderOptions) {
 	builder.define(ILogService, new SyncDescriptor(LogServiceImpl, [[logTarget || new ConsoleLog(undefined, InternalLogLevel.Trace)]]));
 	builder.define(IGitExtensionService, new SyncDescriptor(NullGitExtensionService));
 	builder.define(ILanguageContextProviderService, new SyncDescriptor(NullLanguageContextProviderService));
-	builder.define(ILanguageDiagnosticsService, new SyncDescriptor(TestLanguageDiagnosticsService));
+	builder.define(ILanguageDiagnosticsService, options.languageDiagnosticsService || new SyncDescriptor(TestLanguageDiagnosticsService));
 	builder.define(IIgnoreService, new SyncDescriptor(NullIgnoreService));
 	builder.define(ISnippyService, new SyncDescriptor(NullSnippyService));
 	builder.define(IDomainService, new SyncDescriptor(DomainService));
@@ -743,6 +749,7 @@ export interface IInlineCompletionsProviderOptions {
 	readonly capiClientService?: ICAPIClientService;
 	readonly citationHandler?: IInlineCompletionsCitationHandler;
 	readonly configOverrides?: Map<ConfigKeyType, unknown>;
+	readonly languageDiagnosticsService?: ILanguageDiagnosticsService;
 }
 
 export type IGetInlineCompletionsOptions = Exclude<Partial<GetGhostTextOptions>, 'promptOnly'> & {
@@ -997,7 +1004,7 @@ function setupCompletionServices(options: IInlineCompletionsProviderOptions): II
 		}
 	});
 	builder.define(ILanguageContextProviderService, options.languageContextProvider ?? new NullLanguageContextProviderService());
-	builder.define(ILanguageDiagnosticsService, new SyncDescriptor(TestLanguageDiagnosticsService));
+	builder.define(ILanguageDiagnosticsService, options.languageDiagnosticsService || new SyncDescriptor(TestLanguageDiagnosticsService));
 	builder.define(IRequestLogger, new SyncDescriptor(NullRequestLogger));
 
 	return builder.seal();
