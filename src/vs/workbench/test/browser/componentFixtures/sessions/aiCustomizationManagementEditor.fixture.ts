@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
@@ -34,10 +34,11 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSources } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService, SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ParsedPromptFile, PromptFileParser } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
 import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
@@ -241,22 +242,26 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 	}();
 }
 
-function createMockHarnessService(activeHarnessId: string, descriptors: readonly IHarnessDescriptor[]): ICustomizationHarnessService {
-	const active = observableValue<string>('activeHarness', activeHarnessId);
+function createMockHarnessService(sessionResource: URI, descriptors: readonly IHarnessDescriptor[]): ICustomizationHarnessService {
+	const activeSessionResource = observableValue<URI>('activeSessionResource', sessionResource);
+	const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 	return new class extends mock<ICustomizationHarnessService>() {
-		override readonly activeHarness = active;
+		override readonly activeSessionResource = activeSessionResource;
+		override readonly activeHarness = activeHarness;
 		override readonly availableHarnesses = constObservable(descriptors);
 		override findHarnessById(id: string) {
 			return descriptors.find(h => h.id === id);
 		}
 		override getStorageSourceFilter(type: PromptsType) {
-			const d = descriptors.find(h => h.id === active.get()) ?? descriptors[0];
+			const d = descriptors.find(h => h.id === activeHarness.get()) ?? descriptors[0];
 			return d.getStorageSourceFilter(type);
 		}
 		override getActiveDescriptor() {
-			return descriptors.find(h => h.id === active.get()) ?? descriptors[0];
+			return descriptors.find(h => h.id === activeHarness.get()) ?? descriptors[0];
 		}
-		override setActiveHarness(id: string) { active.set(id, undefined); }
+		override setActiveSession(sessionResource: URI) {
+			activeSessionResource.set(sessionResource, undefined);
+		}
 		override registerExternalHarness() { return { dispose() { } }; }
 	}();
 }
@@ -419,7 +424,7 @@ const mcpRuntimeServers = [
 ];
 
 interface IRenderEditorOptions {
-	readonly harnessId: string;
+	readonly sessionResource: URI;
 	readonly isSessionsWindow?: boolean;
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
@@ -524,7 +529,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
-			const harnessService = createMockHarnessService(options.harnessId, availableHarnesses);
+			const harnessService = createMockHarnessService(options.sessionResource, availableHarnesses);
 			const agentFeedbackService = createMockAgentFeedbackService();
 			const codeReviewService = createMockCodeReviewService();
 			registerWorkbenchServices(reg);
@@ -824,11 +829,12 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
 				override getStorageSourceFilter() {
-					return { sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin] };
+					return { sources: AICustomizationSources.all };
 				}
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
+				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
+				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -936,7 +942,8 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
+				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
+				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -1040,11 +1047,12 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
 				override getStorageSourceFilter() {
-					return { sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin] };
+					return { sources: AICustomizationSources.all };
 				}
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
+				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
+				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -1069,7 +1077,8 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 			reg.define(IListService, ListService);
 			reg.defineInstance(IConfigurationService, createDisabledConfigService(ChatConfiguration.PluginsEnabled, false, byPolicy));
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
+				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
+				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -1185,26 +1194,31 @@ function makeMarketplacePluginItem(name: string, description: string): IAgentPlu
 // Fixtures
 // ============================================================================
 
+const localSessionResource = LocalChatSessionUri.getNewSessionUri();
+const cliSessionResource = URI.parse(`${SessionType.CopilotCLI}:///session1`);
+
 export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
+
+
 
 	// Welcome page — default state with no section selected
 	WelcomePage: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, { harnessId: SessionType.Local }),
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource }),
 	}),
 
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
 	// Generate buttons, AGENTS.md shortcut, all storage groups
 	LocalHarness: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, { harnessId: SessionType.Local, selectedSection: AICustomizationManagementSection.Agents }),
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, selectedSection: AICustomizationManagementSection.Agents }),
 	}),
 
 	// Full editor with Copilot CLI harness — no prompts section, CLI-specific
 	// root files and instruction filtering under .github/.copilot paths.
 	CliHarness: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, { harnessId: SessionType.CopilotCLI, selectedSection: AICustomizationManagementSection.Agents }),
+		render: ctx => renderEditor(ctx, { sessionResource: cliSessionResource, selectedSection: AICustomizationManagementSection.Agents }),
 	}),
 
 	// Sessions-window variant of the full editor with workspace override UX
@@ -1212,7 +1226,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	Sessions: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.CopilotCLI,
+			sessionResource: cliSessionResource,
 			isSessionsWindow: true,
 			selectedSection: AICustomizationManagementSection.Agents,
 			availableHarnesses: [
@@ -1234,7 +1248,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	SessionsSkillsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.CopilotCLI,
+			sessionResource: cliSessionResource,
 			isSessionsWindow: true,
 			selectedSection: AICustomizationManagementSection.Skills,
 			availableHarnesses: [
@@ -1260,7 +1274,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 		}),
 	}),
@@ -1269,7 +1283,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	AgentsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
 		}),
 	}),
@@ -1278,7 +1292,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	SkillsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Skills,
 		}),
 	}),
@@ -1287,7 +1301,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	InstructionsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Instructions,
 		}),
 	}),
@@ -1296,7 +1310,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	HooksTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Hooks,
 		}),
 	}),
@@ -1305,7 +1319,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PromptsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Prompts,
 		}),
 	}),
@@ -1314,7 +1328,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 		}),
 	}),
@@ -1360,7 +1374,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PromptsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Prompts,
 			scrollToBottom: true,
 		}),
@@ -1369,7 +1383,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			scrollToBottom: true,
 		}),
@@ -1378,7 +1392,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			scrollToBottom: true,
 		}),
@@ -1388,7 +1402,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			width: 550,
 			height: 400,
@@ -1398,7 +1412,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	AgentsTabNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
 			width: 550,
 			height: 400,
@@ -1410,7 +1424,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	AgentsItemPreview: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
 			openFirstItem: true,
 		}),
@@ -1420,7 +1434,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	AgentsItemRaw: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
 			openFirstItem: true,
 			editorDisplayMode: 'raw',
@@ -1432,7 +1446,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	BuiltinSkillItemPreview: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Skills,
 			openFirstItem: true,
 			openItemLabel: 'act-on-feedback',
@@ -1443,7 +1457,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	BuiltinSkillItemRaw: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Skills,
 			openFirstItem: true,
 			openItemLabel: 'act-on-feedback',
@@ -1455,7 +1469,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServerDetail: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			openFirstItem: true,
 		}),
@@ -1466,7 +1480,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServerDetailNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			openFirstItem: true,
 			width: 550,
@@ -1478,7 +1492,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginDetail: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			openFirstItem: true,
 		}),
@@ -1487,7 +1501,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginDetailNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			openFirstItem: true,
 			width: 550,

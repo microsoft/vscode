@@ -29,6 +29,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent, LanguageModelToolTelemetryClassification, LanguageModelToolTelemetryData } from '../../../../../platform/telemetry/common/languageModelToolTelemetry.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import * as JSONContributionRegistry from '../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -48,6 +49,7 @@ import { IChatModel, IChatRequestModel } from '../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { chatSessionResourceToId, getChatSessionType } from '../../common/model/chatUri.js';
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
+import { CopilotChatSettingId, CopilotToolId } from '../../common/tools/copilotToolIds.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, IExternalPreToolUseHookResult, ILanguageModelToolsService, IPreparedToolInvocation, isToolSet, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolResultInputOutputDetails, IToolSet, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolInvocationPresentation, toolMatchesModel, ToolSet, ToolSetForModel, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
 import { IToolResultCompressor } from '../../common/tools/toolResultCompressor.js';
@@ -151,7 +153,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled) || e.affectsConfiguration(ChatConfiguration.AgentEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled) || e.affectsConfiguration(ChatConfiguration.AgentEnabled) || e.affectsConfiguration(CopilotChatSettingId.Gpt55ReadFileToolEnabled)) {
 				this._onDidChangeToolsScheduler.schedule();
 			}
 		}));
@@ -210,6 +212,18 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				description: localize('copilot.toolSet.agent.description', 'Delegate tasks to other agents'),
 			}
 		));
+	}
+
+	private isToolEnabledForModel(toolData: IToolData, model: ILanguageModelChatMetadata | undefined): boolean {
+		if (!toolMatchesModel(toolData, model)) {
+			return false;
+		}
+
+		if (toolData.id === CopilotToolId.ReadFile && model?.family.startsWith('gpt-5.5') && this._configurationService.getValue<boolean>(CopilotChatSettingId.Gpt55ReadFileToolEnabled) === false) {
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
@@ -340,7 +354,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const satisfiesWhenClause = !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
 				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
 				const satisfiesPermittedCheck = this.isPermitted(toolData);
-				const satisfiesModelFilter = toolMatchesModel(toolData, model);
+				const satisfiesModelFilter = this.isToolEnabledForModel(toolData, model);
 				return satisfiesWhenClause && satisfiesExternalToolCheck && satisfiesPermittedCheck && satisfiesModelFilter;
 			});
 	}
@@ -1436,7 +1450,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					}
 				}
 			} else {
-				if (model && !toolMatchesModel(tool, model)) {
+				if (!this.isToolEnabledForModel(tool, model)) {
 					continue;
 				}
 
@@ -1516,7 +1530,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return this.toolSets.read(reader);
 		}
 
-		return Iterable.map(this.toolSets.read(reader), ts => new ToolSetForModel(ts, model));
+		return Iterable.map(this.toolSets.read(reader), ts => new ToolSetForModel(ts, model, toolData => this.isToolEnabledForModel(toolData, model)));
 	}
 
 	getToolSet(id: string): ToolSet | undefined {
@@ -1708,29 +1722,7 @@ function getToolSetFullReferenceName(toolSet: IToolSet) {
 }
 
 
-type LanguageModelToolInvokedEvent = {
-	result: 'success' | 'error' | 'userCancelled';
-	chatSessionId: string | undefined;
-	toolId: string;
-	toolExtensionId: string | undefined;
-	toolSourceKind: string;
-	prepareTimeMs?: number;
-	invocationTimeMs?: number;
-};
-
-type LanguageModelToolInvokedClassification = {
-	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether invoking the LanguageModelTool resulted in an error.' };
-	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat session that the tool was used within, if applicable.' };
-	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the tool used.' };
-	toolExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the tool.' };
-	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source (mcp/extension/internal) of the tool.' };
-	prepareTimeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time spent in prepareToolInvocation method in milliseconds.' };
-	invocationTimeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time spent in tool invoke method in milliseconds.' };
-	owner: 'roblourens';
-	comment: 'Provides insight into the usage of language model tools.';
-};
-
-type ToolApprovalEvent = {
+type ToolApprovalEvent = LanguageModelToolTelemetryData & {
 	confirmKind: string;
 	settingId: string | undefined;
 	lmServiceScope: string | undefined;
@@ -1738,13 +1730,9 @@ type ToolApprovalEvent = {
 	confirmationNotNeededReason: string | undefined;
 	sandboxWrapped: boolean | undefined;
 	requestUnsandboxedExecution: boolean | undefined;
-	chatSessionId: string | undefined;
-	toolId: string;
-	toolExtensionId: string | undefined;
-	toolSourceKind: string;
 };
 
-type ToolApprovalClassification = {
+type ToolApprovalClassification = LanguageModelToolTelemetryClassification & {
 	confirmKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the confirmation was resolved (userAction, setting, lmServicePerTool, confirmationNotNeeded, denied, skipped). Anything other than userAction implies auto-approval. "denied" and "skipped" mean the tool did not run; otherwise it ran (note: a custom Deny button click resolves as userAction since the tool still runs and the chosen label is passed to it; see customButtonKind to distinguish).' };
 	settingId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is setting, the configuration id that auto-approved the tool.' };
 	lmServiceScope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is lmServicePerTool, the scope (session/workspace/profile).' };
@@ -1752,10 +1740,6 @@ type ToolApprovalClassification = {
 	confirmationNotNeededReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is confirmationNotNeeded, a stable identifier for why the tool did not require confirmation. Limited to a known allowlist (e.g. auto-approve-all, inlineChat); set to "other" for any other reason; undefined when no reason was supplied.' };
 	sandboxWrapped: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For terminal tool calls, whether this specific invocation runs inside the agent terminal sandbox. Undefined for non-terminal tools.' };
 	requestUnsandboxedExecution: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For terminal tool calls, whether the model requested to bypass the sandbox for this invocation. Undefined for non-terminal tools.' };
-	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat session that the tool was used within, if applicable.' };
-	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the tool used.' };
-	toolExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the tool.' };
-	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source (mcp/extension/internal) of the tool.' };
 	owner: 'chrmarti';
 	comment: 'Provides insight into how tool confirmations are resolved (user action vs. auto-approval).';
 };

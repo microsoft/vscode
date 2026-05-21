@@ -131,6 +131,18 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	async configureLanguageModelsProviderGroup(vendorId: string, name?: string): Promise<void> {
 	}
 
+	async renameLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
+	async updateLanguageModelsProviderGroupApiKey(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
+	async addLanguageModelsProviderGroupModel(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
+	async openLanguageModelsProviderGroupSettings(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
 	async configureModel(_modelId: string): Promise<void> {
 	}
 
@@ -153,6 +165,17 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	getRecentlyUsedModelIds(): string[] { return []; }
 	addToRecentlyUsedList(): void { }
 	clearRecentlyUsedList(): void { }
+	getPinnedModelIds(): string[] { return []; }
+	pinModel(_modelIdentifier: string): void { }
+	unpinModel(_modelIdentifier: string): void { }
+	isModelPinned(_modelIdentifier: string): boolean { return false; }
+	onDidChangePinnedModels = Event.None;
+	isModelHidden(_modelIdentifier: string): boolean { return false; }
+	isGroupHidden(_vendor: string, _groupName: string): boolean { return false; }
+	setModelHidden(_modelIdentifier: string, _hidden: boolean): void { }
+	setGroupHidden(_vendor: string, _groupName: string, _hidden: boolean): void { }
+	getHiddenModelIds(): string[] { return []; }
+	onDidChangeModelVisibility = Event.None;
 	getModelsControlManifest(): IModelsControlManifest { return { free: {}, paid: {} }; }
 	restrictedChatParticipants = observableValue('restrictedChatParticipants', Object.create(null));
 }
@@ -191,7 +214,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'copilot',
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Copilot', order: 1 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
@@ -212,7 +234,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'copilot',
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Copilot', order: 1 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
@@ -233,7 +254,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'openai',
 			maxInputTokens: 4096,
 			maxOutputTokens: 2048,
-			modelPickerCategory: { label: 'OpenAI', order: 2 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
@@ -254,7 +274,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'openai',
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'OpenAI', order: 2 },
 			isUserSelectable: false,
 			capabilities: {
 				toolCalling: false,
@@ -547,7 +566,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'copilot',
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Copilot', order: 1 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
@@ -569,7 +587,6 @@ suite('ChatModelsViewModel', () => {
 				vendor: 'copilot',
 				maxInputTokens: 8192,
 				maxOutputTokens: 4096,
-				modelPickerCategory: { label: 'Copilot', order: 1 },
 				isUserSelectable: true,
 				capabilities: {
 					toolCalling: true,
@@ -653,7 +670,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'anthropic',
 			maxInputTokens: 100000,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Anthropic', order: 3 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
@@ -682,7 +698,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'azure',
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Azure', order: 4 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,

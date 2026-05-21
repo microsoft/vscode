@@ -9,12 +9,10 @@ import { describe, expect, it } from 'vitest';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
-import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
-import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { ILogService } from '../../../log/common/logService';
 import { isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
-import { openAIContextManagementCompactionType, OpenAIContextManagementResponse } from '../../../networking/common/openai';
+import { ChatCompletion, openAIContextManagementCompactionType, OpenAIContextManagementResponse, FilterReason, FinishedCompletionReason } from '../../../networking/common/openai';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { IChatWebSocketManager, NullChatWebSocketManager } from '../../../networking/node/chatWebSocketManager';
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
@@ -773,9 +771,7 @@ describe('createResponsesRequestBody', () => {
 		services.define(IToolDeferralService, { _serviceBrand: undefined, isNonDeferredTool: (name: string) => name === 'read_file' || name === 'tool_search' });
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
-		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
-		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
-		const endpoint = { ...testEndpoint, model: 'gpt-5.4', family: 'gpt-5.4' };
+		const endpoint = { ...testEndpoint, model: 'gpt-5.4', family: 'gpt-5.4', supportsToolSearch: true };
 		const tools = [
 			{ type: 'function' as const, function: { name: 'tool_search', description: 'Search tools', parameters: {} } },
 			{ type: 'function' as const, function: { name: 'some_mcp_tool', description: 'MCP tool', parameters: {} } },
@@ -1492,5 +1488,109 @@ describe('phase commentary followed by phase final_answer', () => {
 
 		accessor.dispose();
 		services.dispose();
+	});
+});
+
+describe('processResponseFromChatEndpoint terminal events', () => {
+	async function runStream(sseBody: string) {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const logService = accessor.get(ILogService);
+		const telemetryService = new SpyingTelemetryService();
+		const telemetryData = TelemetryData.createAndMarkAsIssued({ modelCallId: 'model-call-terminal' }, {});
+		const response = createFakeStreamResponse(sseBody);
+		const stream = await processResponseFromChatEndpoint(
+			instantiationService,
+			telemetryService,
+			logService,
+			response,
+			1,
+			async () => undefined,
+			telemetryData
+		);
+		const completions: ChatCompletion[] = [];
+		for await (const completion of stream) {
+			completions.push(completion);
+		}
+		accessor.dispose();
+		services.dispose();
+		return completions;
+	}
+
+	it('maps response.incomplete with reason=content_filter to ContentFilter + Copyright', async () => {
+		const incompleteEvent = {
+			type: 'response.incomplete',
+			response: {
+				id: 'resp_blocked',
+				model: 'gpt-5-mini',
+				created_at: 123,
+				incomplete_details: { reason: 'content_filter' },
+				content_filters: [
+					{ source_type: 'prompt', blocked: false },
+					{
+						source_type: 'completion',
+						blocked: true,
+						content_filter_raw: [
+							{ action: 'ANNOTATE', label: 'MultiSeverity_Sexual', result: { '0': 1 } },
+							{ action: 'BLOCK', label: 'TextCopyright', result: true },
+						],
+					},
+				],
+				output: [
+					{ type: 'message', content: [{ type: 'output_text', text: 'Got it — I\'ll do that now.' }] },
+				],
+			},
+		};
+
+		const [completion] = await runStream(`data: ${JSON.stringify(incompleteEvent)}\n\n`);
+
+		expect(completion).toBeDefined();
+		expect(completion.finishReason).toBe(FinishedCompletionReason.ContentFilter);
+		expect(completion.filterReason).toBe(FilterReason.Copyright);
+	});
+
+	it('maps response.incomplete with reason=max_output_tokens to Length', async () => {
+		const incompleteEvent = {
+			type: 'response.incomplete',
+			response: {
+				id: 'resp_length',
+				model: 'gpt-5-mini',
+				created_at: 123,
+				incomplete_details: { reason: 'max_output_tokens' },
+				output: [
+					{ type: 'message', content: [{ type: 'output_text', text: 'partial output' }] },
+				],
+			},
+		};
+
+		const [completion] = await runStream(`data: ${JSON.stringify(incompleteEvent)}\n\n`);
+
+		expect(completion).toBeDefined();
+		expect(completion.finishReason).toBe(FinishedCompletionReason.Length);
+		expect(completion.filterReason).toBeUndefined();
+	});
+
+	it('maps response.failed to ServerError', async () => {
+		const failedEvent = {
+			type: 'response.failed',
+			response: {
+				id: 'resp_failed',
+				model: 'gpt-5-mini',
+				created_at: 123,
+				error: { code: 'internal_error', message: 'something broke' },
+				output: [],
+			},
+		};
+
+		const [completion] = await runStream(`data: ${JSON.stringify(failedEvent)}\n\n`);
+
+		expect(completion).toBeDefined();
+		expect(completion.finishReason).toBe(FinishedCompletionReason.ServerError);
+		expect(completion.error).toEqual({
+			code: 0,
+			message: 'something broke',
+			metadata: { code: 'internal_error' },
+		});
 	});
 });

@@ -7,24 +7,21 @@ import es from 'event-stream';
 import fs from 'fs';
 import cp from 'child_process';
 import glob from 'glob';
-import gulp from 'gulp';
+import { gulp, filter, rename, buffer, vinylZip, jsonEditor } from './gulp/facade.ts';
 import path from 'path';
 import crypto from 'crypto';
 import { Stream } from 'stream';
 import File from 'vinyl';
 import { createStatsStream } from './stats.ts';
 import * as util2 from './util.ts';
-import filter from 'gulp-filter';
-import rename from 'gulp-rename';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
-import buffer from 'gulp-buffer';
 import * as jsoncParser from 'jsonc-parser';
 import { getProductionDependencies } from './dependencies.ts';
 import { type IExtensionDefinition, getExtensionStream } from './builtInExtensions.ts';
 import { fetchUrls, fetchGithub } from './fetch.ts';
 import { createTsgoStream, spawnTsgo } from './tsgo.ts';
-import vzip from 'gulp-vinyl-zip';
+import watcher from './watch/index.ts';
 
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
@@ -232,8 +229,6 @@ const baseHeaders = {
 };
 
 export function fromMarketplace(serviceUrl: string, { name: extensionName, version, sha256, metadata }: IExtensionDefinition): Stream {
-	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
-
 	const [publisher, name] = extensionName.split('.');
 	const url = `${serviceUrl}/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
 
@@ -248,18 +243,16 @@ export function fromMarketplace(serviceUrl: string, { name: extensionName, versi
 		},
 		checksumSha256: sha256
 	})
-		.pipe(vzip.src())
+		.pipe(vinylZip.src())
 		.pipe(filter('extension/**'))
 		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
 		.pipe(packageJsonFilter)
 		.pipe(buffer())
-		.pipe(json({ __metadata: metadata }))
+		.pipe(jsonEditor({ __metadata: metadata }))
 		.pipe(packageJsonFilter.restore);
 }
 
 export function fromVsix(vsixPath: string, { name: extensionName, version, sha256, metadata }: IExtensionDefinition): Stream {
-	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
-
 	fancyLog('Using local VSIX for extension:', ansiColors.yellow(`${extensionName}@${version}`), '...');
 
 	const packageJsonFilter = filter('package.json', { restore: true });
@@ -275,19 +268,17 @@ export function fromVsix(vsixPath: string, { name: extensionName, version, sha25
 			}
 			return f;
 		}))
-		.pipe(vzip.src())
+		.pipe(vinylZip.src())
 		.pipe(filter('extension/**'))
 		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
 		.pipe(packageJsonFilter)
 		.pipe(buffer())
-		.pipe(json({ __metadata: metadata }))
+		.pipe(jsonEditor({ __metadata: metadata }))
 		.pipe(packageJsonFilter.restore);
 }
 
 
 export function fromGithub({ name, version, repo, sha256, metadata }: IExtensionDefinition): Stream {
-	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
-
 	fancyLog('Downloading extension from GH:', ansiColors.yellow(`${name}@${version}`), '...');
 
 	const packageJsonFilter = filter('package.json', { restore: true });
@@ -298,12 +289,12 @@ export function fromGithub({ name, version, repo, sha256, metadata }: IExtension
 		checksumSha256: sha256
 	})
 		.pipe(buffer())
-		.pipe(vzip.src())
+		.pipe(vinylZip.src())
 		.pipe(filter('extension/**'))
 		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
 		.pipe(packageJsonFilter)
 		.pipe(buffer())
-		.pipe(json({ __metadata: metadata }))
+		.pipe(jsonEditor({ __metadata: metadata }))
 		.pipe(packageJsonFilter.restore);
 }
 
@@ -627,21 +618,59 @@ export async function esbuildExtensions(taskName: string, isWatch: boolean, scri
 
 
 // Additional projects to run esbuild on. These typically build code for webviews
-const esbuildMediaScripts = [
-	'ipynb/esbuild.notebook.mts',
-	'markdown-language-features/esbuild.notebook.mts',
-	'markdown-language-features/esbuild.webview.mts',
-	'markdown-math/esbuild.notebook.mts',
-	'mermaid-chat-features/esbuild.webview.mts',
-	'notebook-renderers/esbuild.notebook.mts',
-	'simple-browser/esbuild.webview.mts',
+const esbuildMediaScripts: { script: string; tsconfig: string }[] = [
+	{ script: 'ipynb/esbuild.notebook.mts', tsconfig: 'ipynb/notebook-src/tsconfig.json' },
+	{ script: 'markdown-language-features/esbuild.notebook.mts', tsconfig: 'markdown-language-features/notebook/tsconfig.json' },
+	{ script: 'markdown-language-features/esbuild.webview.mts', tsconfig: 'markdown-language-features/preview-src/tsconfig.json' },
+	{ script: 'markdown-math/esbuild.notebook.mts', tsconfig: 'markdown-math/notebook/tsconfig.json' },
+	{ script: 'mermaid-markdown-features/esbuild.webview.mts', tsconfig: 'mermaid-markdown-features/preview-src/tsconfig.json' },
+	{ script: 'notebook-renderers/esbuild.notebook.mts', tsconfig: 'notebook-renderers/tsconfig.json' },
+	{ script: 'simple-browser/esbuild.webview.mts', tsconfig: 'simple-browser/preview-src/tsconfig.json' },
 ];
 
 export function buildExtensionMedia(isWatch: boolean, outputRoot?: string): Promise<void> {
-	return esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
-		script: path.join(extensionsPath, p),
-		outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
+	const esbuildTask = esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(({ script }) => ({
+		script: path.join(extensionsPath, script),
+		outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(script)) : undefined
 	})));
+
+	const typeCheckTasks = esbuildMediaScripts.map(({ tsconfig }) => {
+		const tsconfigPath = path.join(extensionsPath, tsconfig);
+		const config = { taskName: 'typechecking extension media (tsgo)', noEmit: true };
+		if (!isWatch) {
+			return spawnTsgo(tsconfigPath, config);
+		} else {
+			return watchTypeCheckExtensionMedia(tsconfigPath, config);
+		}
+	});
+
+	return Promise.all([esbuildTask, ...typeCheckTasks]).then(() => undefined);
+}
+
+function watchTypeCheckExtensionMedia(tsconfigPath: string, config: { taskName: string; noEmit?: boolean }): Promise<void> {
+	const srcDir = path.dirname(tsconfigPath);
+	const watchInput = watcher([
+		path.join(srcDir, '**', '*.{ts,tsx,d.ts}'),
+		tsconfigPath,
+		'!' + path.join(srcDir, '**', 'node_modules', '**'),
+		'!' + path.join(srcDir, '**', 'out', '**'),
+		'!' + path.join(srcDir, '**', 'dist', '**'),
+	], { cwd: root, base: srcDir, dot: true, readDelay: 200 });
+	const stream = watchInput
+		.pipe(util2.debounce(() => {
+			const tsgoStream = createTsgoStream(tsconfigPath, config);
+			// Always emit 'end' (even on tsgo error) so the debounce resets to idle
+			// and can process future file changes. Errors are already logged by
+			// spawnTsgo's runReporter, so swallowing the stream error is safe.
+			const result = es.through();
+			tsgoStream.on('end', () => result.emit('end'));
+			tsgoStream.on('error', () => result.emit('end'));
+			return result;
+		}, 200));
+
+	return new Promise<void>((_resolve, reject) => {
+		stream.on('error', reject);
+	});
 }
 
 export function getBuildRootsForExtension(extensionPath: string): string[] {

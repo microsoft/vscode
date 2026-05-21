@@ -321,7 +321,7 @@
 				"--disable-extension=vscode.vscode-api-tests",
 				"--agents"
 			],
-			"userDataDir": "${userHome}/.vscode-oss-agents-dev",
+			"userDataDir": "${userHome}/.vscode-oss-dev",
 			"webRoot": "${workspaceFolder}",
 			"cascadeTerminateToConfigurations": [
 				"Attach to Extension Host"
@@ -744,6 +744,7 @@
 				"Attach to Main Process",
 				"Attach to Extension Host",
 				"Attach to Shared Process",
+				"Attach to Agent Host Process"
 			],
 			"preLaunchTask": "Ensure Prelaunch Dependencies",
 			"presentation": {

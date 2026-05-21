@@ -41,7 +41,7 @@ export class GitBranchNameGenerator {
 		const sessionResource = context.sessionResource;
 		const parentChatSessionId = sessionResource ? sessionResourceToId(URI.from(sessionResource)) : undefined;
 
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 		const normalizedCommand = firstRequest.command?.trim().replace(/^\/+/, '') ?? '';
 		const command = normalizedCommand ? `/${normalizedCommand} ` : '';
 		const userRequest = `${command}${firstRequest.prompt}`;
@@ -86,7 +86,8 @@ export class GitBranchNameGenerator {
 
 			branchName = normalizeBranchName(branchName);
 			if (branchName.length < 8) {
-				throw new Error('Branch name is too short. Please keep it at least 8 characters.');
+				this.logService.warn('Generated branch name is too short after normalization, discarding.');
+				return undefined;
 			}
 
 			return branchName;
