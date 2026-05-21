@@ -87,6 +87,22 @@ describe('buildOTelInputFromChatMessages', () => {
 		]);
 	});
 
+	it('falls back to a placeholder when tool_result has no text content', () => {
+		const messages: LanguageModelChatMessage[] = [
+			{
+				role: LanguageModelChatMessageRole.User,
+				content: [new LanguageModelToolResultPart('call_1', [])],
+				name: undefined,
+			},
+		];
+
+		const { inputMsgs } = buildOTelInputFromChatMessages(messages);
+
+		expect(inputMsgs).toEqual([
+			{ role: 'user', parts: [{ type: 'tool_call_response', id: 'call_1', response: '[non-text content]' }] },
+		]);
+	});
+
 	it('returns empty results for an empty messages array', () => {
 		expect(buildOTelInputFromChatMessages([])).toEqual({ systemTexts: [], inputMsgs: [] });
 	});

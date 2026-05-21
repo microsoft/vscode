@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelTextPart, LanguageModelToolCallPart, LanguageModelToolResultPart } from 'vscode';
+import { LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelChatMessageRole, LanguageModelTextPart, LanguageModelToolCallPart, LanguageModelToolResultPart } from 'vscode';
 
 /** A single content part inside an OTel `gen_ai.input.messages` entry. */
 export interface OTelInputMessagePart {
@@ -21,7 +21,14 @@ export interface OTelInputMessage {
 	parts: OTelInputMessagePart[];
 }
 
-const ROLE_NAMES: Record<number, string> = { 1: 'user', 2: 'assistant', 3: 'system' };
+function roleName(role: LanguageModelChatMessageRole | number): string {
+	switch (role) {
+		case LanguageModelChatMessageRole.User: return 'user';
+		case LanguageModelChatMessageRole.Assistant: return 'assistant';
+		case LanguageModelChatMessageRole.System: return 'system';
+		default: return String(role);
+	}
+}
 
 /**
  * Convert provider chat messages into OTel `gen_ai.system_instructions` text
@@ -35,7 +42,7 @@ export function buildOTelInputFromChatMessages(
 	const systemTexts: string[] = [];
 	const inputMsgs: OTelInputMessage[] = [];
 	for (const msg of messages) {
-		if (msg.role === 3 /* LanguageModelChatMessageRole.System */) {
+		if (msg.role === LanguageModelChatMessageRole.System) {
 			if (Array.isArray(msg.content)) {
 				for (const p of msg.content) {
 					if (p instanceof LanguageModelTextPart) {
@@ -45,7 +52,7 @@ export function buildOTelInputFromChatMessages(
 			}
 			continue;
 		}
-		const role = ROLE_NAMES[msg.role] ?? String(msg.role);
+		const role = roleName(msg.role);
 		const parts: OTelInputMessagePart[] = [];
 		if (Array.isArray(msg.content)) {
 			for (const p of msg.content) {
@@ -55,7 +62,7 @@ export function buildOTelInputFromChatMessages(
 					parts.push({ type: 'tool_call', id: p.callId, name: p.name, arguments: p.input });
 				} else if (p instanceof LanguageModelToolResultPart) {
 					const resultText = p.content.map((c: unknown) => c instanceof LanguageModelTextPart ? c.value : '').join('');
-					parts.push({ type: 'tool_call_response', id: p.callId, response: resultText });
+					parts.push({ type: 'tool_call_response', id: p.callId, response: resultText || '[non-text content]' });
 				}
 			}
 		}
