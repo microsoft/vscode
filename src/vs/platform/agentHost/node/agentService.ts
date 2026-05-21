@@ -415,7 +415,26 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sessionToProvider.set(session.toString(), provider.id);
 		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
 
-		const sessionConfig = await this._resolveCreatedSessionConfig(provider, config);
+		// Resolve config and seed the initial customization set in parallel so
+		// both are available before we register the session in the state
+		// manager. Seeding `state.customizations` directly (instead of
+		// dispatching `SessionCustomizationsChanged` after the fact) means
+		// the very first snapshot a subscriber sees already contains
+		// host/global customizations and the custom agents they contribute,
+		// so the agent picker doesn't have to wait for a follow-up republish
+		// (`RootConfigChanged`, plugin reload, or the first message's
+		// `setClientCustomizations`). Subsequent updates flow through the
+		// existing `SessionCustomizationsChanged` / `SessionCustomizationUpdated`
+		// actions published by `PluginController`.
+		const [sessionConfig, initialCustomizations] = await Promise.all([
+			this._resolveCreatedSessionConfig(provider, config),
+			provider.getSessionCustomizations
+				? provider.getSessionCustomizations(session).catch(err => {
+					this._logService.error('[AgentService] createSession: failed to resolve initial customizations', err);
+					return undefined;
+				})
+				: Promise.resolve(undefined),
+		]);
 
 		// When forking, populate the new session's protocol state with
 		// the source session's turns so the client sees the forked history.
@@ -432,6 +451,9 @@ export class AgentService extends Disposable implements IAgentService {
 			state.config = sessionConfig;
 			state.turns = sourceTurns;
 			state.activeClient = config.activeClient;
+			if (initialCustomizations && initialCustomizations.length > 0) {
+				state.customizations = [...initialCustomizations];
+			}
 		} else {
 			// Provisional sessions defer the `sessionAdded` notification and
 			// the `SessionReady` lifecycle transition until the agent fires
@@ -443,6 +465,9 @@ export class AgentService extends Disposable implements IAgentService {
 			const state = this._stateManager.createSession(summary, { emitNotification: !created.provisional });
 			state.config = sessionConfig;
 			state.activeClient = config?.activeClient;
+			if (initialCustomizations && initialCustomizations.length > 0) {
+				state.customizations = [...initialCustomizations];
+			}
 		}
 		// Persist initial config values so a subsequent `restoreSession` can
 		// re-hydrate them. We persist the full resolved values (not just the
@@ -480,33 +505,6 @@ export class AgentService extends Disposable implements IAgentService {
 			// Lazily compute git state for sessions with a working directory;
 			// attaches under `state._meta.git` once ready.
 			this._attachGitState(session, created.workingDirectory ?? config?.workingDirectory);
-		}
-
-		// Publish the current customization set for the new session now that
-		// the state manager knows about it. Without this, host/global
-		// customizations — and the custom agents they contribute — are
-		// invisible to subscribers (e.g. the agent picker) until something
-		// else triggers a republish (`RootConfigChanged`, plugin reload, or
-		// the first message's `setClientCustomizations`). The provider's
-		// `createSession` cannot do this itself because it runs *before*
-		// `_stateManager.createSession` above, so any action it dispatches
-		// is dropped as "Action for unknown session".
-		if (provider.getSessionCustomizations) {
-			void provider.getSessionCustomizations(session).then(customizations => {
-				if (customizations.length === 0) {
-					return;
-				}
-				const sessionKey = session.toString();
-				if (!this._stateManager.getSessionState(sessionKey)) {
-					return;
-				}
-				this._stateManager.dispatchServerAction(sessionKey, {
-					type: ActionType.SessionCustomizationsChanged,
-					customizations: [...customizations],
-				});
-			}).catch(err => {
-				this._logService.error('[AgentService] createSession: failed to publish initial customizations', err);
-			});
 		}
 
 		return session;
