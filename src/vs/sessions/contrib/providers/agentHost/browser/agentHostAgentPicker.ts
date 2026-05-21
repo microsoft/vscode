@@ -39,7 +39,8 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { type ISession, type ISessionAgentRef, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
-import { MenuIdAgentHostAgentPicker } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomAgentPicker.js';
+
+const MenuIdAgentHostAgentPicker = new MenuId('sessions.agentHost.agentPicker');
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
