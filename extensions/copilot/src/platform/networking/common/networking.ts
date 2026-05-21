@@ -132,7 +132,7 @@ export interface IEndpointFetchOptions {
 
 export interface IEndpoint {
 	readonly urlOrRequestMetadata: string | RequestMetadata;
-	getExtraHeaders?(location?: ChatLocation): Record<string, string>;
+	getExtraHeaders?(location?: ChatLocation, interactionTypeOverride?: InteractionTypeOverride): Record<string, string>;
 	getEndpointFetchOptions?(): IEndpointFetchOptions;
 	interceptBody?(body: IEndpointBody | undefined): void;
 	acquireTokenizer(): ITokenizer;
@@ -274,7 +274,7 @@ export interface IChatEndpointTokenPricing {
 
 export interface IChatEndpoint extends IEndpoint {
 	readonly maxOutputTokens: number;
-	/** The model ID- this may change and will be `copilot-base` for the base model. Use `family` to switch behavior based on model type. */
+	/** The model ID- this may change and will be `copilot-utility` for the utility (fallback) model. Use `family` to switch behavior based on model type. */
 	readonly model: string;
 	readonly modelProvider: string;
 	readonly apiType?: string;
@@ -383,7 +383,7 @@ export function createCapiRequestBody(options: ICreateEndpointBodyOptions, model
 export interface INetworkRequestOptions {
 	readonly requestType: 'GET' | 'POST';
 	readonly endpointOrUrl: IEndpoint | string | RequestMetadata;
-	readonly secretKey: string;
+	readonly secretKey: string | undefined;
 	readonly intent: string;
 	readonly requestId: string;
 	readonly body?: IEndpointBody;
@@ -435,12 +435,12 @@ function networkRequest(
 	const agentInteractionType = options.interactionTypeOverride ?? intent;
 
 	const headers: ReqHeaders = {
-		Authorization: `Bearer ${secretKey}`,
+		...(secretKey ? { Authorization: `Bearer ${secretKey}` } : {}),
 		'X-Request-Id': requestId,
 		'OpenAI-Intent': intent, // Tells CAPI who flighted this request. Helps find buggy features
 		'X-GitHub-Api-Version': '2026-01-09',
 		...additionalHeaders,
-		...(endpoint.getExtraHeaders ? endpoint.getExtraHeaders(location) : {}),
+		...(endpoint.getExtraHeaders ? endpoint.getExtraHeaders(location, options.interactionTypeOverride) : {}),
 	};
 	headers['X-Interaction-Type'] = agentInteractionType;
 	headers['X-Agent-Task-Id'] = requestId;

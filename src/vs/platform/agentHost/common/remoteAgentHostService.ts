@@ -10,6 +10,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentConnection } from './agentService.js';
 import type { UnsupportedProtocolVersionErrorData } from './state/protocol/errors.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from './state/sessionProtocol.js';
+import type { UnsupportedProtocolVersionErrorMeta, IVscodeUpgradeResult } from './state/protocolUpgrade.js';
 import { TUNNEL_ADDRESS_PREFIX } from './tunnelAgentHost.js';
 
 /**
@@ -31,6 +32,13 @@ export type RemoteAgentHostConnectionStatus =
 		readonly supportedByClient: readonly string[];
 		/** Protocol versions the server reported it can speak, if available. */
 		readonly offeredByServer?: readonly string[];
+		/**
+		 * JSON-RPC method the server has advertised via `_meta` that the
+		 * client may invoke to ask the hosting CLI to upgrade the server.
+		 * Set only when the server was spawned by a VS Code CLI willing
+		 * to receive upgrade signals.
+		 */
+		readonly vscodeUpgradeMethod?: string;
 	};
 
 export namespace RemoteAgentHostConnectionStatus {
@@ -41,8 +49,8 @@ export namespace RemoteAgentHostConnectionStatus {
 	/** Singleton "disconnected" status. */
 	export const disconnected: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'disconnected' });
 	/** Build an "incompatible" status from a host-supplied message and the versions involved. */
-	export function incompatible(message: string, supportedByClient: readonly string[], offeredByServer?: readonly string[]): RemoteAgentHostConnectionStatus {
-		return Object.freeze({ kind: 'incompatible', message, supportedByClient, offeredByServer });
+	export function incompatible(message: string, supportedByClient: readonly string[], offeredByServer?: readonly string[], vscodeUpgradeMethod?: string): RemoteAgentHostConnectionStatus {
+		return Object.freeze({ kind: 'incompatible', message, supportedByClient, offeredByServer, vscodeUpgradeMethod });
 	}
 	/** Whether the connection is fully established and ready for traffic. */
 	export function isConnected(status: RemoteAgentHostConnectionStatus | undefined): boolean {
@@ -72,15 +80,16 @@ export namespace RemoteAgentHostConnectionStatus {
 	 */
 	export function fromConnectError(err: unknown, supportedByClient: readonly string[]): RemoteAgentHostConnectionStatus | undefined {
 		if (err instanceof ProtocolError && err.code === AHP_UNSUPPORTED_PROTOCOL_VERSION) {
-			const data = err.data as Partial<UnsupportedProtocolVersionErrorData> | undefined;
+			const data = err.data as (Partial<UnsupportedProtocolVersionErrorData> & { _meta?: UnsupportedProtocolVersionErrorMeta }) | undefined;
 			const offeredByServer = Array.isArray(data?.supportedVersions) ? data.supportedVersions : undefined;
-			return incompatible(err.message, supportedByClient, offeredByServer);
+			const vscodeUpgradeMethod = typeof data?._meta?.vscodeUpgradeMethod === 'string' ? data._meta.vscodeUpgradeMethod : undefined;
+			return incompatible(err.message, supportedByClient, offeredByServer, vscodeUpgradeMethod);
 		}
 		return undefined;
 	}
 }
 
-/** Configuration key for the list of remote agent host addresses. */
+/** Configuration key for the list of WebSocket remote agent host addresses. */
 export const RemoteAgentHostsSettingId = 'chat.remoteAgentHosts';
 
 /** Configuration key to enable remote agent host connections. */
@@ -150,7 +159,7 @@ export interface IRemoteAgentHostTunnelConnection {
 
 export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostTunnelConnection;
 
-/** An entry in the {@link RemoteAgentHostsSettingId} setting. */
+/** A configured remote agent host entry. WebSocket entries are persisted in {@link RemoteAgentHostsSettingId}; SSH entries are persisted in storage. */
 export interface IRemoteAgentHostEntry {
 	readonly name: string;
 	readonly connectionToken?: string;
@@ -199,7 +208,7 @@ export interface IRemoteAgentHostService {
 	/** Currently connected remote addresses with metadata. */
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[];
 
-	/** All configured remote agent host entries from settings, regardless of connection status. */
+	/** All configured remote agent host entries, regardless of connection status. */
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[];
 
 	/**
@@ -252,6 +261,22 @@ export interface IRemoteAgentHostService {
 	 * registered entries (e.g. tunnel connections).
 	 */
 	getEntryByAddress(address: string): IRemoteAgentHostEntry | undefined;
+
+	/**
+	 * Ask the remote agent host to upgrade itself via its hosting CLI.
+	 *
+	 * Sends the host-advertised JSON-RPC method (typically
+	 * `_vscodeUpgrade`) on the existing transport — even when the handshake
+	 * has not completed (e.g. the host was just rejected for protocol
+	 * incompatibility). The hosting CLI receives the signal, checks for a
+	 * newer build, and kills+respawns the server on success. The caller
+	 * SHOULD then reconnect to re-attempt the handshake.
+	 *
+	 * Resolves with the host's status payload describing what happened
+	 * (whether an upgrade was needed, whether it was started); rejects on
+	 * transport failure, timeout, or a JSON-RPC error response.
+	 */
+	triggerServerUpgrade(address: string, method: string): Promise<IVscodeUpgradeResult>;
 }
 
 /** Metadata about a single remote connection. */
@@ -278,6 +303,9 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}
 	getEntryByAddress(): IRemoteAgentHostEntry | undefined { return undefined; }
+	async triggerServerUpgrade(): Promise<IVscodeUpgradeResult> {
+		throw new Error('Remote agent host connections are not supported in this environment.');
+	}
 }
 
 export function parseRemoteAgentHostInput(input: string): RemoteAgentHostInputParseResult {
@@ -351,7 +379,7 @@ function formatRemoteAgentHostAddress(url: URL, protocol: 'ws:' | 'wss:' | undef
 	return `${base}${path}${query}`;
 }
 
-/** Raw shape of entries persisted in the {@link RemoteAgentHostsSettingId} setting. */
+/** Raw shape of persisted remote agent host entries. */
 export interface IRawRemoteAgentHostEntry {
 	readonly address: string;
 	readonly name: string;

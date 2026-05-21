@@ -22,13 +22,13 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../
 import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
 import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ISandboxDependencyStatus, ISandboxHelperService } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
-import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../common/terminalSandboxRuntimeConfigurationPerOperation.js';
+import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../../../../../platform/sandbox/common/terminalSandboxRuntimeConfigurationPerOperation.js';
 
 suite('TerminalSandboxService - network domains', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -185,17 +185,19 @@ suite('TerminalSandboxService - network domains', () => {
 
 		// Setup default configuration
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
 
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IEnvironmentService, <IEnvironmentService & { tmpDir?: URI; execPath?: string; window?: { id: number }; userHome?: URI; userDataPath?: string }>{
+		instantiationService.stub(IEnvironmentService, <IEnvironmentService & { tmpDir?: URI; execPath?: string; window?: { id: number }; userHome?: URI; userDataPath?: string; workspaceStorageHome?: URI }>{
 			_serviceBrand: undefined,
 			tmpDir: URI.file('/tmp'),
 			execPath: '/usr/bin/node',
 			userHome: URI.file('/home/local-user'),
 			userDataPath: '/custom/local-user-data',
+			workspaceStorageHome: URI.file('/local-workspace-storage'),
 			window: { id: windowId }
 		});
 		instantiationService.stub(ILogService, new NullLogService());
@@ -815,6 +817,18 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual((await sandboxService.wrapCommand('echo test', true, 'bash')).command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo test'`);
 	});
 
+	test('should keep commands sandboxed when unsandboxed execution is requested but disabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('echo test', true, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Explicit unsandbox requests should be ignored when unsandboxed commands are disabled');
+		strictEqual(wrapResult.requiresUnsandboxConfirmation, undefined, 'Sandboxed command should not require unsandbox confirmation');
+		ok(wrapResult.command.includes('--settings'), 'Command should be wrapped with the sandbox runtime');
+	});
+
 	test('should preserve TMPDIR for piped unsandboxed commands', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
@@ -846,6 +860,18 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapResult.requiresUnsandboxConfirmation, true, 'Blocked domains should require unsandbox confirmation');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.com']);
 		strictEqual(wrapResult.command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'curl https://example.com'`);
+	});
+
+	test('should keep blocked-domain commands sandboxed when unsandboxed commands are disabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://example.com', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Blocked domains should stay sandboxed when unsandboxed commands are disabled');
+		strictEqual(wrapResult.requiresUnsandboxConfirmation, undefined, 'Blocked domains should not trigger unsandbox confirmation when unsandboxed commands are disabled');
+		strictEqual(wrapResult.blockedDomains, undefined, 'Blocked domains should not be reported as an unsandbox fallback when unsandboxed commands are disabled');
 	});
 
 	test('should allow exact allowlisted domains', async () => {
@@ -1134,5 +1160,41 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const wrappedCommand = (await sandboxService.wrapCommand(`echo 'hello'`)).command;
 		strictEqual((wrappedCommand.match(/\\''/g) ?? []).length, 2, 'Single quote escapes should be inserted for each embedded single quote');
+	});
+
+	test('should prefix wrapped command with ELECTRON_RUN_AS_NODE=1 when no remote env is available', async function () {
+		if (isWindows) {
+			// Sandbox is disabled on Windows when no remote env is available.
+			this.skip();
+		}
+		remoteAgentService.remoteEnvironment = null;
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapped = await sandboxService.wrapCommand('echo test');
+		strictEqual(wrapped.isSandboxWrapped, true);
+		ok(wrapped.command.startsWith('ELECTRON_RUN_AS_NODE=1 '), `Local workbench should run Electron as Node. Actual: ${wrapped.command}`);
+	});
+
+	test('should omit ELECTRON_RUN_AS_NODE=1 prefix when a remote env is available', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapped = await sandboxService.wrapCommand('echo test');
+		strictEqual(wrapped.isSandboxWrapped, true);
+		ok(!wrapped.command.startsWith('ELECTRON_RUN_AS_NODE='), `Remote workbench should not add the env prefix. Actual: ${wrapped.command}`);
+	});
+
+	test('should place sandbox temp dir under the local data folder when no remote env is available', async function () {
+		if (isWindows) {
+			// Sandbox is disabled on Windows when no remote env is available.
+			this.skip();
+		}
+		remoteAgentService.remoteEnvironment = null;
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const expectedTempDir = URI.joinPath(URI.file('/home/local-user'), productService.dataFolderName, 'tmp', `tmp_vscode_${windowId}`);
+		strictEqual(sandboxService.getTempDir()?.path, expectedTempDir.path, 'Local workbench should fall back to the native user home + dataFolderName for the temp dir');
 	});
 });

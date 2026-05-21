@@ -9,11 +9,18 @@ import { beforeEach, describe, expect, suite, test } from 'vitest';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
-import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME } from '../../../networking/common/anthropic';
+import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME, isExtendedCacheTtlEnabled, isExtendedCacheTtlMessagesEnabled, modelSupportsExtendedCacheTtl, modelSupportsMemory } from '../../../networking/common/anthropic';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { createPlatformServices } from '../../../test/node/services';
-import { addMessagesApiCacheControl, addToolsAndSystemCacheControl, buildToolInputSchema, clearAllCacheControl, createMessagesRequestBody, rawMessagesToMessagesAPI } from '../../node/messagesApi';
+import { addMessagesApiCacheControl, addToolsAndSystemCacheControl, buildToolInputSchema, clearAllCacheControl, createMessagesRequestBody, processNonStreamingResponseFromMessagesEndpoint, processResponseFromMessagesEndpoint, rawMessagesToMessagesAPI } from '../../node/messagesApi';
+import { HeadersImpl, Response } from '../../../networking/common/fetcherService';
+import { TelemetryData } from '../../../telemetry/common/telemetryData';
+import { TestLogService } from '../../../testing/common/testLogService';
+import { NullTelemetryService } from '../../../telemetry/common/nullTelemetryService';
+import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
+import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
+import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 
 function assertContentArray(content: MessageParam['content']): ContentBlockParam[] {
 	expect(Array.isArray(content)).toBe(true);
@@ -492,6 +499,225 @@ suite('addToolsAndSystemCacheControl', function () {
 
 		expect(system[0].cache_control).toEqual({ type: 'ephemeral' });
 	});
+
+	test('applies extended 1h ttl to tools and system when cacheTtl is "1h"', function () {
+		const tools = [makeTool('read_file'), makeTool('edit_file'), makeTool('deferred_a', true)];
+		const system: TextBlockParam[] = [makeSystemBlock('System A'), makeSystemBlock('System B')];
+		const messagesResult = { messages: makeMessages(), system };
+
+		addToolsAndSystemCacheControl(tools, messagesResult, '1h');
+
+		expect(tools[0].cache_control).toBeUndefined();
+		expect(tools[1].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+		expect(tools[2].cache_control).toBeUndefined();
+		expect(system[0].cache_control).toBeUndefined();
+		expect(system[1].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+	});
+
+	test('omits ttl when cacheTtl is undefined (default 5m)', function () {
+		const tools = [makeTool('read_file')];
+		const system: TextBlockParam[] = [makeSystemBlock('System')];
+		const messagesResult = { messages: makeMessages(), system };
+
+		addToolsAndSystemCacheControl(tools, messagesResult, undefined);
+
+		expect(tools[0].cache_control).toEqual({ type: 'ephemeral' });
+		expect(system[0].cache_control).toEqual({ type: 'ephemeral' });
+	});
+});
+
+suite('modelSupportsExtendedCacheTtl', function () {
+
+	test('matches Opus 4.5/4.6/4.7, Sonnet 4.5/4.6, and Haiku 4.5 variants and rejects everything else', function () {
+		expect({
+			'claude-opus-4.6-1m': modelSupportsExtendedCacheTtl('claude-opus-4.6-1m'),
+			'claude-opus-4-6-1m': modelSupportsExtendedCacheTtl('claude-opus-4-6-1m'),
+			'claude-opus-4.7-1m-internal': modelSupportsExtendedCacheTtl('claude-opus-4.7-1m-internal'),
+			'claude-opus-4-7-1m-internal': modelSupportsExtendedCacheTtl('claude-opus-4-7-1m-internal'),
+			'CLAUDE-OPUS-4.6-1M': modelSupportsExtendedCacheTtl('CLAUDE-OPUS-4.6-1M'),
+			'claude-opus-4.6': modelSupportsExtendedCacheTtl('claude-opus-4.6'),
+			'claude-opus-4.7': modelSupportsExtendedCacheTtl('claude-opus-4.7'),
+			'claude-opus-4.5': modelSupportsExtendedCacheTtl('claude-opus-4.5'),
+			'claude-sonnet-4.6': modelSupportsExtendedCacheTtl('claude-sonnet-4.6'),
+			'claude-sonnet-4.5': modelSupportsExtendedCacheTtl('claude-sonnet-4.5'),
+			'claude-opus-4-1': modelSupportsExtendedCacheTtl('claude-opus-4-1'),
+			'claude-sonnet-4': modelSupportsExtendedCacheTtl('claude-sonnet-4'),
+			'claude-haiku-4-5': modelSupportsExtendedCacheTtl('claude-haiku-4-5'),
+			'gpt-5': modelSupportsExtendedCacheTtl('gpt-5'),
+		}).toEqual({
+			'claude-opus-4.6-1m': true,
+			'claude-opus-4-6-1m': true,
+			'claude-opus-4.7-1m-internal': true,
+			'claude-opus-4-7-1m-internal': true,
+			'CLAUDE-OPUS-4.6-1M': true,
+			'claude-opus-4.6': true,
+			'claude-opus-4.7': true,
+			'claude-opus-4.5': true,
+			'claude-sonnet-4.6': true,
+			'claude-sonnet-4.5': true,
+			'claude-opus-4-1': false,
+			'claude-sonnet-4': false,
+			'claude-haiku-4-5': true,
+			'gpt-5': false,
+		});
+	});
+
+	test('matches via endpoint.family when the model id is unknown', function () {
+		const fake = (family: string, model: string): IChatEndpoint => ({ family, model } as unknown as IChatEndpoint);
+		expect({
+			'preview-id + family=claude-opus-4.7': modelSupportsExtendedCacheTtl(fake('claude-opus-4.7', 'preview-opus-internal')),
+			'preview-id + family=claude-sonnet-4.5': modelSupportsExtendedCacheTtl(fake('claude-sonnet-4.5', 'preview-sonnet-internal')),
+			'preview-id + family=claude-opus-4 (unsupported)': modelSupportsExtendedCacheTtl(fake('claude-opus-4', 'preview-opus-old')),
+			'preview-id + family=mystery': modelSupportsExtendedCacheTtl(fake('mystery-family', 'preview-anything')),
+		}).toEqual({
+			'preview-id + family=claude-opus-4.7': true,
+			'preview-id + family=claude-sonnet-4.5': true,
+			'preview-id + family=claude-opus-4 (unsupported)': false,
+			'preview-id + family=mystery': false,
+		});
+	});
+});
+
+suite('modelSupportsMemory', function () {
+	test('matches via endpoint.family when the model id is unknown', function () {
+		const fake = (family: string, model: string): IChatEndpoint => ({ family, model } as unknown as IChatEndpoint);
+		expect({
+			'preview-id + family=claude-opus-4.6': modelSupportsMemory(fake('claude-opus-4.6', 'preview-opus-internal')),
+			'preview-id + family=claude-haiku-4-5': modelSupportsMemory(fake('claude-haiku-4-5', 'preview-haiku-internal')),
+			'preview-id + family=mystery': modelSupportsMemory(fake('mystery-family', 'preview-anything')),
+		}).toEqual({
+			'preview-id + family=claude-opus-4.6': true,
+			'preview-id + family=claude-haiku-4-5': true,
+			'preview-id + family=mystery': false,
+		});
+	});
+});
+
+suite('isExtendedCacheTtlEnabled', function () {
+
+	const ELIGIBLE_MODEL = 'claude-opus-4-7-1m';
+
+	let disposables: DisposableStore;
+	let configurationService: InMemoryConfigurationService;
+	let experimentationService: IExperimentationService;
+
+	beforeEach(() => {
+		disposables = new DisposableStore();
+		const services = disposables.add(createPlatformServices(disposables));
+		const accessor = services.createTestingAccessor();
+		// All callers of `isExtendedCacheTtlEnabled` resolve `IConfigurationService` through DI to
+		// an `InMemoryConfigurationService` instance (see `createPlatformServices`). Re-narrowing it
+		// here lets the tests use `setConfig` to flip the experiment-based gate without going
+		// through experimentation infrastructure.
+		configurationService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
+		experimentationService = accessor.get(IExperimentationService);
+	});
+
+	function enableConfig(): void {
+		configurationService.setConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtl, true);
+	}
+
+	test('returns false when the config is disabled, even for eligible models', function () {
+		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, false)).toBe(false);
+	});
+
+	test('composes all four gates: returns true only when model + config + Agent location + non-subagent all align', function () {
+		// Positive composition + negative on each axis. If a future refactor short-circuits
+		// before reading any single gate (e.g. drops the config check), one of these flips.
+		enableConfig();
+		const probe = (model: string, location: ChatLocation | undefined, sub: boolean) =>
+			isExtendedCacheTtlEnabled(model, configurationService, experimentationService, location, sub);
+
+		expect({
+			allPass: probe(ELIGIBLE_MODEL, ChatLocation.Agent, false),
+			badModel: probe('gpt-5', ChatLocation.Agent, false),
+			badLocation: probe(ELIGIBLE_MODEL, ChatLocation.Panel, false),
+			subagent: probe(ELIGIBLE_MODEL, ChatLocation.Agent, true),
+		}).toEqual({
+			allPass: true,
+			badModel: false,
+			badLocation: false,
+			subagent: false,
+		});
+	});
+
+	test('returns false when location is undefined', function () {
+		// The gate requires an explicit `ChatLocation.Agent`. Callers that route through
+		// subclass overrides which drop the `location` argument (e.g. `super.getExtraHeaders()`
+		// without arguments — see `OpenRouterEndpoint`, `AzureOpenAIEndpoint`, etc.) are
+		// correctly excluded so the beta header is never sent for non-Agent paths.
+		enableConfig();
+		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, undefined, false)).toBe(false);
+	});
+
+	test('returns false when isSubagent is true', function () {
+		enableConfig();
+		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, true)).toBe(false);
+	});
+
+	test('delegates model gate to modelSupportsExtendedCacheTtl', function () {
+		// Full model boundaries are covered by the `modelSupportsExtendedCacheTtl` suite.
+		// Here we only verify the delegation is wired up.
+		enableConfig();
+		expect(isExtendedCacheTtlEnabled('gpt-5', configurationService, experimentationService, ChatLocation.Agent, false)).toBe(false);
+	});
+
+	test('returns false for non-Agent chat locations', function () {
+		// Inline chat, terminal chat, notebook chat, and the Claude CLI proxy passthrough are all
+		// out of scope for extended cache TTL — only the main agent conversation qualifies.
+		enableConfig();
+		expect({
+			Panel: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Panel, false),
+			Editor: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Editor, false),
+			Terminal: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Terminal, false),
+			Notebook: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Notebook, false),
+			EditingSession: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.EditingSession, false),
+			Other: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Other, false),
+			MessagesProxy: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.MessagesProxy, false),
+			ResponsesProxy: isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.ResponsesProxy, false),
+		}).toEqual({
+			Panel: false,
+			Editor: false,
+			Terminal: false,
+			Notebook: false,
+			EditingSession: false,
+			Other: false,
+			MessagesProxy: false,
+			ResponsesProxy: false,
+		});
+	});
+});
+
+suite('isExtendedCacheTtlMessagesEnabled', function () {
+
+	let disposables: DisposableStore;
+	let configurationService: InMemoryConfigurationService;
+	let experimentationService: IExperimentationService;
+
+	beforeEach(() => {
+		disposables = new DisposableStore();
+		const services = disposables.add(createPlatformServices(disposables));
+		const accessor = services.createTestingAccessor();
+		configurationService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
+		experimentationService = accessor.get(IExperimentationService);
+	});
+
+	test('parent on/off x sub on/off matrix', function () {
+		// [parentEnabled, sub, expected]
+		const cases: ReadonlyArray<readonly [boolean, boolean, boolean]> = [
+			[false, false, false],
+			[true, false, false],
+			[false, true, false],
+			[true, true, true],
+		];
+		const actual = cases.map(([parent, sub]) => {
+			configurationService.setConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtlMessages, sub);
+			return [parent, sub, isExtendedCacheTtlMessagesEnabled(parent, configurationService, experimentationService)] as const;
+		});
+		// Only "both on" produces true — sub is a strict sub-toggle of parent.
+		// Model/location/subagent gates are inherited via the parent and covered in its suite.
+		expect(actual).toEqual(cases);
+	});
 });
 
 suite('buildToolInputSchema', function () {
@@ -652,6 +878,34 @@ suite('addMessagesApiCacheControl', function () {
 		];
 		addMessagesApiCacheControl({ messages: iterB });
 		expect(ccPositions({ messages: iterB })).toEqual(['messages[3].block[0]', 'messages[4].block[0]']);
+	});
+
+	test('propagates cacheTtl to the emitted cache_control blocks', function () {
+		const makeMessages = (): MessageParam[] => [
+			{ role: 'user', content: [{ type: 'text', text: 'hello' }] },
+			{ role: 'assistant', content: [{ type: 'text', text: 'response' }] },
+		];
+
+		const collect = (messages: MessageParam[]): unknown[] => {
+			const out: unknown[] = [];
+			messages.forEach(m => Array.isArray(m.content) && m.content.forEach(b => {
+				if (typeof b === 'object' && 'cache_control' in b && b.cache_control) {
+					out.push(b.cache_control);
+				}
+			}));
+			return out;
+		};
+
+		const withTtl = makeMessages();
+		addMessagesApiCacheControl({ messages: withTtl }, '1h');
+
+		const withoutTtl = makeMessages();
+		addMessagesApiCacheControl({ messages: withoutTtl });
+
+		expect({ withTtl: collect(withTtl), withoutTtl: collect(withoutTtl) }).toEqual({
+			withTtl: [{ type: 'ephemeral', ttl: '1h' }, { type: 'ephemeral', ttl: '1h' }],
+			withoutTtl: [{ type: 'ephemeral' }, { type: 'ephemeral' }],
+		});
 	});
 });
 
@@ -982,5 +1236,322 @@ describe('createMessagesRequestBody tool search deferral', () => {
 
 		const tools = body.tools as AnthropicMessagesTool[];
 		expect(tools.every(t => !t.defer_loading)).toBe(true);
+	});
+});
+
+function createNonStreamingHeaders(contentType = 'application/json'): HeadersImpl {
+	return HeadersImpl.fromMap(new Map([
+		['content-type', contentType],
+		['x-request-id', 'test-req-id'],
+		['x-github-request-id', 'gh-req-id'],
+	]));
+}
+
+function createNonStreamingResponse(body: object, contentType = 'application/json'): Response {
+	return Response.fromText(200, 'OK', createNonStreamingHeaders(contentType), JSON.stringify(body), 'node-fetch');
+}
+
+suite('processNonStreamingResponseFromMessagesEndpoint', () => {
+	test('parses text content from non-streaming response', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_123',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'Hello world' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: { input_tokens: 100, output_tokens: 20 },
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results).toHaveLength(1);
+		expect(results[0].model).toBe('claude-sonnet-4-20250514');
+		expect(results[0].message.content).toHaveLength(1);
+		expect(results[0].message.content[0]).toEqual({ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello world' });
+		expect(results[0].usage?.prompt_tokens).toBe(100);
+		expect(results[0].usage?.completion_tokens).toBe(20);
+	});
+
+	test('parses tool_use content from non-streaming response', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_456',
+			type: 'message',
+			role: 'assistant',
+			content: [
+				{ type: 'text', text: 'Let me read that file.' },
+				{ type: 'tool_use', id: 'tc_1', name: 'read_file', input: { path: 'foo.ts' } },
+			],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'tool_use',
+			usage: { input_tokens: 50, output_tokens: 30 },
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results).toHaveLength(1);
+		const msg = results[0].message as Raw.AssistantChatMessage;
+		expect(msg.toolCalls).toHaveLength(1);
+		expect(msg.toolCalls![0].function.name).toBe('read_file');
+		expect(msg.toolCalls![0].function.arguments).toBe('{"path":"foo.ts"}');
+		expect(msg.toolCalls![0].id).toBe('tc_1');
+	});
+
+	test('handles error responses gracefully', async () => {
+		const response = createNonStreamingResponse({
+			type: 'error',
+			error: { type: 'invalid_request_error', message: 'Bad request' },
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		await expect(async () => {
+			for await (const _c of completions) { /* consume */ }
+		}).rejects.toThrow('Anthropic API error: Bad request');
+	});
+
+	test('maps stop_reason to correct finish reason', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_789',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'truncated' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'max_tokens',
+			usage: { input_tokens: 100, output_tokens: 4096 },
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results[0].finishReason).toBe('length');
+	});
+
+	test('includes cache token details in usage', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_cache',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'cached' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: {
+				input_tokens: 50,
+				output_tokens: 10,
+				cache_creation_input_tokens: 20,
+				cache_read_input_tokens: 30,
+			},
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		// prompt_tokens = input_tokens + cache_creation + cache_read = 50 + 20 + 30 = 100
+		expect(results[0].usage?.prompt_tokens).toBe(100);
+		expect(results[0].usage?.prompt_tokens_details?.cached_tokens).toBe(30);
+	});
+
+	test('rejects on malformed JSON', async () => {
+		const response = Response.fromText(200, 'OK', createNonStreamingHeaders(), 'not json at all', 'node-fetch');
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+		await expect(async () => {
+			for await (const _c of completions) { /* consume */ }
+		}).rejects.toThrow('Failed to parse non-streaming Anthropic response');
+	});
+
+	test('handles empty content array', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_empty',
+			type: 'message',
+			role: 'assistant',
+			content: [],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: { input_tokens: 10, output_tokens: 0 },
+		});
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+		expect(results).toHaveLength(1);
+		expect(results[0].message.content).toHaveLength(0);
+	});
+
+	test('maps refusal stop_reason to ClientDone', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_refusal',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'refused' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'refusal',
+			usage: { input_tokens: 10, output_tokens: 5 },
+		});
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+		expect(results[0].finishReason).toBe('DONE');
+	});
+
+	test('reports tool calls through finishCallback delta', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_tc',
+			type: 'message',
+			role: 'assistant',
+			content: [
+				{ type: 'text', text: '' },
+				{ type: 'tool_use', id: 'tc_1', name: 'read_file', input: { path: 'a.ts' } },
+			],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'tool_use',
+			usage: { input_tokens: 10, output_tokens: 20 },
+		});
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const deltas: { copilotToolCalls?: unknown[] }[] = [];
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async (_text, _idx, delta) => { deltas.push(delta); return undefined; },
+			telemetryData,
+		);
+		for await (const _c of completions) { /* consume */ }
+		expect(deltas).toHaveLength(1);
+		expect(deltas[0].copilotToolCalls).toHaveLength(1);
+	});
+
+	test('handles response with missing usage object', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_nousage',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'no usage' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+		});
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+		expect(results).toHaveLength(1);
+		// All token counts should default to 0
+		expect(results[0].usage?.prompt_tokens).toBe(0);
+		expect(results[0].usage?.completion_tokens).toBe(0);
+	});
+});
+
+suite('processResponseFromMessagesEndpoint routing', () => {
+	test('routes non-streaming content-type to non-streaming handler', async () => {
+		const body = {
+			id: 'msg_route',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'routed' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: { input_tokens: 10, output_tokens: 5 },
+		};
+		const response = Response.fromText(200, 'OK', createNonStreamingHeaders('application/json'), JSON.stringify(body), 'node-fetch');
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const services = createPlatformServices().createTestingAccessor();
+		const completions = await processResponseFromMessagesEndpoint(
+			services.get(IInstantiationService),
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+		expect(results).toHaveLength(1);
+		expect(results[0].message.content).toHaveLength(1);
 	});
 });

@@ -14,6 +14,7 @@ import { type IAgentConnection } from './agentService.js';
 import { ContentEncoding, type DirectoryEntry, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
 import { AhpErrorCodes } from './state/protocol/errors.js';
 import { ProtocolError } from './state/sessionProtocol.js';
+import { ROOT_STATE_URI } from './state/sessionState.js';
 
 /**
  * Interface for performing resource operations on a remote endpoint.
@@ -149,6 +150,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		try {
 			const originalUri = this._decodeUri(resource);
 			await connection.resourceWrite({
+				channel: ROOT_STATE_URI,
 				uri: originalUri.toString(),
 				data: VSBuffer.wrap(content).toString(),
 				encoding: ContentEncoding.Utf8,
@@ -166,7 +168,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		const connection = this._getConnection(resource.authority);
 		try {
 			const originalUri = this._decodeUri(resource);
-			await connection.resourceDelete({ uri: originalUri.toString(), recursive: opts.recursive });
+			await connection.resourceDelete({ channel: ROOT_STATE_URI, uri: originalUri.toString(), recursive: opts.recursive });
 		} catch (err) {
 			throw this._mapError(err, FileSystemProviderErrorCode.NoPermissions);
 		}
@@ -177,7 +179,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		try {
 			const originalFrom = this._decodeUri(from);
 			const originalTo = this._decodeUri(to);
-			await connection.resourceMove({ source: originalFrom.toString(), destination: originalTo.toString(), failIfExists: !opts.overwrite });
+			await connection.resourceMove({ channel: ROOT_STATE_URI, source: originalFrom.toString(), destination: originalTo.toString(), failIfExists: !opts.overwrite });
 		} catch (err) {
 			throw this._mapError(err, FileSystemProviderErrorCode.NoPermissions);
 		}
@@ -202,6 +204,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		const originalUri = this._decodeUri(resource);
 		try {
 			await connection.resourceRequest({
+				channel: ROOT_STATE_URI,
 				uri: originalUri.toString(),
 				read: opts.read,
 				write: opts.write,
