@@ -14,13 +14,13 @@ import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import {
-	CloudAgentBackend,
 	CloudDelegationResult,
 	CloudSessionContent,
 	CloudSessionData,
 	CloudSessionIdentity,
 	CreateCloudSessionParams,
 	FollowUpResult,
+	PrCloudAgentBackend,
 } from '../vscode/cloudAgentBackend';
 import { body_suffix, formatBodyPlaceholder, JOBS_API_VERSION, SessionIdForPr } from '../vscode/copilotCodingAgentUtils';
 
@@ -31,7 +31,9 @@ const CLOUD_SESSIONS_AUTH_OPTIONS: AuthOptions = { createIfNone: { detail: l10n.
  * behaviorally identical to the inline code that previously lived in
  * `CopilotCloudSessionsProvider`.
  */
-export class JobsApiBackend implements CloudAgentBackend {
+export class JobsApiBackend implements PrCloudAgentBackend {
+
+	readonly kind = 'pr' as const;
 
 	constructor(
 		private readonly _octoKitService: IOctoKitService,
@@ -52,7 +54,7 @@ export class JobsApiBackend implements CloudAgentBackend {
 		return this._octoKitService.getSessionInfo(sessionId, CLOUD_SESSIONS_AUTH_OPTIONS);
 	}
 
-	getSessionLogs(sessionId: string): Promise<string> {
+	getSessionLogsSSE(sessionId: string): Promise<string> {
 		return this._octoKitService.getSessionLogs(sessionId, CLOUD_SESSIONS_AUTH_OPTIONS);
 	}
 
@@ -88,7 +90,7 @@ export class JobsApiBackend implements CloudAgentBackend {
 		}));
 	}
 
-	async fetchSessionContent(repoOwner: string, repoName: string, sessions: SessionInfo[]): Promise<CloudSessionContent> {
+	async fetchPullRequestContent(repoOwner: string, repoName: string, sessions: SessionInfo[]): Promise<CloudSessionContent> {
 		if (sessions.length === 0 || !repoOwner || !repoName) {
 			return {};
 		}
@@ -96,11 +98,15 @@ export class JobsApiBackend implements CloudAgentBackend {
 		return { initialPrompt: jobInfo?.problem_statement || undefined };
 	}
 
-	async sendFollowUp(pullRequestOrTaskId: string, prompt: string, targetAgent?: string): Promise<FollowUpResult | undefined> {
+	fetchSessionsForPullRequest(pr: PullRequestSearchItem): Promise<SessionInfo[]> {
+		return this._octoKitService.getCopilotSessionsForPR(pr.fullDatabaseId.toString(), CLOUD_SESSIONS_AUTH_OPTIONS);
+	}
+
+	async sendFollowUpToPullRequest(prGlobalId: string, prompt: string, targetAgent?: string): Promise<FollowUpResult | undefined> {
 		const agent = targetAgent && targetAgent.length > 0 ? targetAgent : 'copilot';
 		// Trailing space preserved for byte-identical bodies vs the pre-seam inline implementation.
 		const body = `@${agent} ${prompt} `;
-		const commentResult = await this._octoKitService.addPullRequestComment(pullRequestOrTaskId, body, CLOUD_SESSIONS_AUTH_OPTIONS);
+		const commentResult = await this._octoKitService.addPullRequestComment(prGlobalId, body, CLOUD_SESSIONS_AUTH_OPTIONS);
 		if (!commentResult) {
 			return undefined;
 		}
