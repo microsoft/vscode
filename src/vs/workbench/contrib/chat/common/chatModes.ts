@@ -144,7 +144,7 @@ class ChatModes extends Disposable implements IChatModes {
 	}
 
 	findModeByName(name: string): IChatMode | undefined {
-		return this.getBuiltinModes().find(mode => mode.name.get() === name) ?? this.getCustomModes().find(mode => mode.name.get() === name);
+		return this.getBuiltinModes().find(mode => mode.name.get() === name) ?? this.getCustomModes().find(mode => mode.name.get() === name || mode.id === name);
 	}
 
 	waitForRefresh(): Promise<void> {

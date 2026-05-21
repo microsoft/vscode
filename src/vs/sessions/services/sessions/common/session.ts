@@ -256,9 +256,6 @@ export interface ISession {
 	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
-	/** Currently selected custom agent, or `undefined` for the provider default. Optional so providers without custom-agent support can omit it. */
-	readonly agent?: IObservable<ISessionAgentRef | undefined>;
-	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
