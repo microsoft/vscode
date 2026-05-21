@@ -21,7 +21,7 @@ import { ServiceCollection } from '../../instantiation/common/serviceCollection.
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
-import { buildCompareTurnsChangesetUriTemplate, buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../common/changesetUri.js';
+import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -591,18 +591,13 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Drops the `Branch Changes`, `Uncommitted Changes`, and `Compare Turns`
-	 * entries from the session's catalogue. Called only when the git probe
-	 * has definitively determined the working directory is not a git repo.
+	 * Drops the `Branch Changes` and `Uncommitted Changes` entries from
+	 * the session's catalogue. Called only when the git probe has
+	 * definitively determined the working directory is not a git repo.
 	 * An absent / unresolved working directory is treated as transient
 	 * and does NOT trigger a strip — see {@link _attachGitState}.
 	 * Backing per-changeset states (registered unconditionally) are left
 	 * in place — only the catalogue advertisements are stripped.
-	 *
-	 * `Compare Turns` is git-only because it requires per-turn git
-	 * checkpoints; no SDK edit-tracker fallback exists for diffing
-	 * between two turn endpoints. `This Turn` is intentionally kept —
-	 * single-turn diffs do have an SDK aggregator fallback.
 	 */
 	private _stripGitOnlyChangesetEntries(sessionKey: string): void {
 		const state = this._stateManager.getSessionState(sessionKey);
@@ -612,12 +607,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const branchUri = buildSessionChangesetUri(sessionKey);
 		const uncommittedUri = buildUncommittedChangesetUri(sessionKey);
-		const compareTemplate = buildCompareTurnsChangesetUriTemplate(sessionKey);
-		const filtered = current.filter(c =>
-			c.uriTemplate !== branchUri
-			&& c.uriTemplate !== uncommittedUri
-			&& c.uriTemplate !== compareTemplate,
-		);
+		const filtered = current.filter(c => c.uriTemplate !== branchUri && c.uriTemplate !== uncommittedUri);
 		if (filtered.length === current.length) {
 			return;
 		}

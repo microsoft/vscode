@@ -11,12 +11,10 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import {
 	buildCompareTurnsChangesetUri,
-	buildCompareTurnsChangesetUriTemplate,
 	buildSessionChangesetUri,
 	buildTurnChangesetUri,
 	buildTurnChangesetUriTemplate,
 	buildUncommittedChangesetUri,
-	compareTurnsChangesetLabel,
 	sessionChangesetLabel,
 	thisTurnChangesetLabel,
 	uncommittedChangesetLabel,
@@ -97,14 +95,13 @@ function defaultCatalogueWithCounts(
 		buildStaticCatalogueEntry(sessionChangesetLabel(), buildSessionChangesetUri(sessionUri), sessionDiffs),
 		buildStaticCatalogueEntry(uncommittedChangesetLabel(), buildUncommittedChangesetUri(sessionUri), uncommittedDiffs, uncommittedChangesetDescription()),
 		{ label: thisTurnChangesetLabel(), uriTemplate: buildTurnChangesetUriTemplate(sessionUri) },
-		{ label: compareTurnsChangesetLabel(), uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri) },
 	];
 }
 
 /**
  * Build the default ordered changeset catalogue (`Branch Changes`,
- * `Uncommitted Changes`, `This Turn`, `Compare Turns`) seeded from the
- * live {@link ChangesetState} for an unopened session that has no live
+ * `Uncommitted Changes`, `This Turn`) seeded from the live
+ * {@link ChangesetState} for an unopened session that has no live
  * `SessionState` but already has ready changeset states (e.g. from a
  * prior `restoreStaticChangeset` call).
  *
@@ -113,12 +110,15 @@ function defaultCatalogueWithCounts(
  * have no usable counts yet — preserving the long-standing contract that
  * unopened sessions without persisted or live data advertise no catalogue.
  *
- * The two static entries (`Branch Changes`, `Uncommitted Changes`) and
- * the `Compare Turns` template are git-only — `AgentService._attachGitState`
- * strips them from the live `summary.changesets` for non-git working
- * directories. The synthesised catalogue here mirrors the live-state
- * shape so list overlays stay consistent with the per-session catalogue
- * clients subscribe to.
+ * The two static entries (`Branch Changes`, `Uncommitted Changes`) are
+ * git-only — `AgentService._attachGitState` strips them from the live
+ * `summary.changesets` for non-git working directories. The synthesised
+ * catalogue here mirrors the live-state shape so list overlays stay
+ * consistent with the per-session catalogue clients subscribe to.
+ *
+ * The compare-turns changeset is intentionally NOT advertised in the
+ * catalogue — it is subscribe-only (see
+ * {@link buildDefaultChangesetCatalogue}).
  */
 export function buildCatalogueFromLiveState(
 	sessionUri: string,

@@ -228,24 +228,26 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
 
 /**
  * Builds the default ordered `summary.changesets` catalogue for a
- * session (`Branch Changes`, `Uncommitted Changes`, `This Turn`,
- * `Compare Turns`) with label + uriTemplate only. Aggregate counts are
- * filled in later by the diff producer as compute passes complete.
+ * session (`Branch Changes`, `Uncommitted Changes`, `This Turn`) with
+ * label + uriTemplate only. Aggregate counts are filled in later by the
+ * diff producer as compute passes complete.
  *
- * The first two entries (`Branch Changes`, `Uncommitted Changes`) and
- * the `Compare Turns` template are git-only; `AgentService._attachGitState`
- * strips them asynchronously for sessions whose working directory is not
- * a git repo. (`Compare Turns` requires per-turn git checkpoints and has
- * no SDK aggregator fallback; `This Turn` is kept because single-turn
- * diffs do fall back to the SDK edit tracker.) The backing per-changeset
- * states are still registered for every session — only the catalogue
- * advertisements are stripped.
+ * The first two entries (`Branch Changes`, `Uncommitted Changes`) are
+ * git-only; `AgentService._attachGitState` strips them asynchronously
+ * for sessions whose working directory is not a git repo. The backing
+ * per-changeset states are still registered for every session — only
+ * the catalogue advertisements are stripped.
+ *
+ * The compare-turns changeset (built by
+ * {@link buildCompareTurnsChangesetUri}) is intentionally NOT included
+ * in the default catalogue: it is subscribe-only. Clients that want
+ * compare-turns diffs construct the URI themselves from two known
+ * turn ids and subscribe directly.
  */
 export function buildDefaultChangesetCatalogue(sessionUri: URI): ChangesetSummary[] {
 	return [
 		{ label: sessionChangesetLabel(), uriTemplate: buildSessionChangesetUri(sessionUri) },
 		{ label: uncommittedChangesetLabel(), uriTemplate: buildUncommittedChangesetUri(sessionUri), description: uncommittedChangesetDescription() },
 		{ label: thisTurnChangesetLabel(), uriTemplate: buildTurnChangesetUriTemplate(sessionUri) },
-		{ label: compareTurnsChangesetLabel(), uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri) },
 	];
 }
