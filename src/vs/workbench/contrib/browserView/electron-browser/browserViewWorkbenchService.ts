@@ -32,6 +32,7 @@ import { findGroup } from '../../../services/editor/common/editorGroupFinder.js'
 import { ChatEditorInput } from '../../chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
 
 /**
  * When enabled, integrated browser tools are exposed as client-provided tools
@@ -244,7 +245,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	 * Open an editor tab for a newly created browser view.
 	 */
 	private async _openEditorForCreatedView(view: BrowserEditorInput, owner: IBrowserViewOwner, openOptions: IBrowserViewOpenOptions): Promise<void> {
-		let opts = openOptions;
+		const opts = openOptions;
 
 		// Resolve target group: auxiliary window, parent's group, or default
 		let targetGroup: PreferredGroup | undefined;
@@ -257,24 +258,31 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 		}
 
-		// If the browser is opened by a chat session,
-		// only open in the foreground if the session is visible and in a different group.
-		const [group] = await this.instantiationService.invokeFunction(findGroup, view, targetGroup);
-		if (owner.sessionId) {
-			const widget = this.chatWidgetService.getWidgetBySessionResource(URI.parse(owner.sessionId));
-			if (!widget || group.activeEditor instanceof ChatEditorInput) {
-				opts = { ...opts, background: true };
-			}
-		}
-
-		void this.editorService.openEditor(view, {
+		const editorOptions = {
 			inactive: opts.background,
 			preserveFocus: opts.preserveFocus,
 			pinned: opts.pinned,
 			auxiliary: opts.auxiliaryWindow
 				? { bounds: opts.auxiliaryWindow, compact: true }
 				: undefined,
-		}, group);
+		};
+
+		// If the browser is opened by a chat session,
+		// only open in the foreground if the session's widget is currently visible
+		// and not the active editor in the target group.
+		const [group] = await this.instantiationService.invokeFunction(findGroup, { editor: view, options: editorOptions }, targetGroup);
+		if (owner.sessionId) {
+			const sessionResource = URI.parse(owner.sessionId);
+			const widget = this.chatWidgetService.getWidgetBySessionResource(sessionResource);
+			const isWidgetVisible = !!widget && widget.domNode.offsetParent !== null;
+			const activeIsSameSession = group.activeEditor instanceof ChatEditorInput
+				&& isEqual(group.activeEditor.sessionResource, sessionResource);
+			if (!isWidgetVisible || activeIsSameSession) {
+				editorOptions.inactive = true;
+			}
+		}
+
+		void this.editorService.openEditor(view, editorOptions, group);
 	}
 
 	/**
