@@ -806,16 +806,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const ac = this._getOrCreateActiveClient(sessionUri);
 			ac.updateTools(config.activeClient.clientId, config.activeClient.tools);
 			if (config.activeClient.customizations !== undefined) {
-				// Forward a publish callback so the initial
-				// `SessionCustomizationsChanged` (and any per-customization
-				// `SessionCustomizationUpdated` follow-ups carrying parsed
-				// `agents`) actually land in the new session's state. Without
-				// this, host- and client-contributed customizations would
-				// only become visible to subscribers (e.g. the agent picker)
-				// after the first message triggered `setClientCustomizations`.
-				await this._plugins.sync(config.activeClient.clientId, config.activeClient.customizations, config.workingDirectory, action => {
-					this._onDidSessionProgress.fire({ kind: 'action', session: sessionUri, action });
-				});
+				await this._plugins.sync(config.activeClient.clientId, config.activeClient.customizations, config.workingDirectory);
 			}
 		}
 
