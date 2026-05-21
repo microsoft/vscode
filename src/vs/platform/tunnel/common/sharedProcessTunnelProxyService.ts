@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IAddress } from '../../remote/common/remoteAgentConnection.js';
 
@@ -12,29 +11,37 @@ export const ISharedProcessTunnelProxyService = createDecorator<ISharedProcessTu
 export const ipcSharedProcessTunnelProxyChannelName = 'sharedProcessTunnelProxy';
 
 /**
- * Info returned after starting the tunnel proxy.
- * Consumers use `proxyRules` with `session.setProxy()` to route traffic
- * through the proxy, and update the proxy's allowlist as forwarded ports
- * change.
+ * Credentials and metadata for the tunnel proxy.
+ * This is the single type consumers need to configure an Electron session
+ * (proxy URL, credentials for Basic auth, certificate fingerprint for
+ * pinning the self-signed TLS certificate).
  */
 export interface ITunnelProxyInfo {
-	/** Proxy rules string for `session.setProxy()` (e.g. `socks5://127.0.0.1:PORT`). */
-	proxyRules: string;
-	/** The local port the proxy is listening on. */
+	/** Proxy URL for `session.setProxy()` (e.g. `https://127.0.0.1:PORT`). */
+	url: string;
+	host: string;
 	port: number;
+	/** Basic auth credentials for `Proxy-Authorization`. */
+	credentials: { username: string; password: string };
+	/** SHA-256 fingerprint of the self-signed certificate (`sha256/<base64>`). */
+	certFingerprint: string;
 }
 
 /**
- * A service running in the shared process that manages a tunnel proxy
+ * A service running in the shared process that manages an HTTPS proxy
  * server.  The proxy routes TCP connections through the remote agent
- * tunnel, but only for destinations in the allowlist (forwarded ports).
+ * tunnel, making the remote network transparently accessible to consumers
+ * that support HTTPS proxies (e.g. Electron sessions via `session.setProxy()`).
+ *
+ * The proxy uses a self-signed TLS certificate and Basic proxy
+ * authentication with randomly generated credentials.
  */
 export interface ISharedProcessTunnelProxyService {
 	readonly _serviceBrand: undefined;
 
 	/**
 	 * Start the tunnel proxy for the given remote authority.
-	 * Returns the proxy rules string and port.
+	 * Returns the proxy URL, credentials, and certificate fingerprint.
 	 */
 	start(authority: string): Promise<ITunnelProxyInfo>;
 
@@ -43,31 +50,6 @@ export interface ISharedProcessTunnelProxyService {
 	 * Should be called whenever the resolver resolves.
 	 */
 	setAddress(authority: string, address: IAddress): Promise<void>;
-
-	/**
-	 * Update the set of allowed destinations for the proxy.
-	 * Only connections to these host:port pairs will be tunneled.
-	 */
-	updateAllowlist(authority: string, destinations: ReadonlyArray<{ host: string; port: number }>): Promise<void>;
-
-	/**
-	 * Get the current set of `host:port` with active tunneled connections
-	 * (routed through the remote agent).
-	 */
-	getActiveTunneledHosts(authority: string): Promise<string[]>;
-
-	/**
-	 * Get the current set of `host:port` with active direct connections
-	 * (routed locally).
-	 */
-	getActiveDirectHosts(authority: string): Promise<string[]>;
-
-	/**
-	 * Fires whenever the set of active connections changes (connection
-	 * opened or closed). Call {@link getActiveTunneledHosts} and
-	 * {@link getActiveDirectHosts} for the current state.
-	 */
-	onDidChangeActiveConnections: Event<string>;
 
 	/**
 	 * Release one reference to the proxy for the given authority.

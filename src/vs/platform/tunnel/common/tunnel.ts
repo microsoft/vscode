@@ -187,44 +187,6 @@ export function isAllInterfaces(host: string): boolean {
 	return ALL_INTERFACES_ADDRESSES.indexOf(host) >= 0;
 }
 
-/**
- * Check whether `host:port` matches any entry in a set of `"host:port"`
- * strings, treating all localhost variants (`localhost`, `127.0.0.1`,
- * `::1`) and all-interfaces variants (`0.0.0.0`, `::`) as equivalent.
- *
- * This is the single source of truth for address matching used by both
- * the SOCKS tunnel proxy (allowlist check) and the remote indicator
- * (routing state classification).
- */
-export function addressMatchesSet(host: string, port: number, set: ReadonlySet<string>): boolean {
-	if (set.has(`${host}:${port}`)) {
-		return true;
-	}
-
-	// Try all localhost/all-interfaces variants
-	const variants: readonly string[] | undefined =
-		isLocalhost(host) ? LOCALHOST_ADDRESSES :
-			isAllInterfaces(host) ? ALL_INTERFACES_ADDRESSES :
-				undefined;
-
-	if (variants) {
-		for (const alt of variants) {
-			if (set.has(`${alt}:${port}`)) {
-				return true;
-			}
-		}
-		// Also try the cross-group: localhost ↔ all-interfaces
-		const crossVariants = variants === LOCALHOST_ADDRESSES ? ALL_INTERFACES_ADDRESSES : LOCALHOST_ADDRESSES;
-		for (const alt of crossVariants) {
-			if (set.has(`${alt}:${port}`)) {
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
 export function isPortPrivileged(port: number, host: string, os: OperatingSystem, osRelease: string): boolean {
 	if (os === OperatingSystem.Windows) {
 		return false;

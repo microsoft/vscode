@@ -6,6 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { localize } from '../../../nls.js';
+import { ITunnelProxyInfo } from '../../tunnel/common/sharedProcessTunnelProxyService.js';
 
 const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
@@ -145,8 +146,6 @@ export interface IBrowserViewState {
 	browserZoomIndex: number;
 	isElementSelectionActive: boolean;
 	isRemoteSession: boolean;
-	/** Set of `host:port` strings requested by the current page. */
-	requestedHosts: string[];
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -234,8 +233,8 @@ export enum BrowserViewStorageScope {
 export interface IBrowserSessionOptions {
 	/** Storage / data-isolation scope for the session. */
 	scope: BrowserViewStorageScope;
-	/** Proxy rules for `session.setProxy()` (e.g. `socks5://127.0.0.1:PORT`). */
-	proxyRules?: string;
+	/** Tunnel proxy info (URL, credentials, certificate fingerprint). */
+	proxy?: ITunnelProxyInfo;
 }
 
 export const ipcBrowserViewChannelName = 'browserView';
@@ -277,7 +276,6 @@ export interface IBrowserViewService {
 	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
 	onDynamicDidFindInPage(id: string): Event<IBrowserViewFindInPageResult>;
 	onDynamicDidClose(id: string): Event<void>;
-	onDynamicDidChangeRequestedHosts(id: string): Event<{ requestedHosts: string[] }>;
 	onDynamicDidSelectElement(id: string): Event<IElementData>;
 	onDynamicDidChangeElementSelectionActive(id: string): Event<boolean>;
 

@@ -80,12 +80,6 @@ export class BrowserView extends Disposable {
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 
-	private readonly _onDidChangeRequestedHosts = this._register(new Emitter<{ requestedHosts: string[] }>());
-	readonly onDidChangeRequestedHosts: Event<{ requestedHosts: string[] }> = this._onDidChangeRequestedHosts.event;
-
-	/** Tracks `host:port` strings of all sub-resource requests for the current page. */
-	private _requestedHosts = new Set<string>();
-
 	constructor(
 		public readonly id: string,
 		public readonly owner: IBrowserViewOwner,
@@ -311,6 +305,22 @@ export class BrowserView extends Disposable {
 
 		this.session.trust.installCertErrorHandler(webContents);
 
+		// Automatically supply proxy auth credentials for the tunnel proxy.
+		// This intercepts Chromium's 407 → login flow so the credentials are
+		// provided programmatically instead of falling through to the global
+		// ProxyAuthService (which would show a dialog to the user).
+		if (this.session.proxy) {
+			const { username, password } = this.session.proxy.credentials;
+			const proxyPort = this.session.proxy.port;
+			webContents.on('login', (event, _details, authInfo, callback) => {
+				if (authInfo.isProxy && authInfo.host === '127.0.0.1' && authInfo.port === proxyPort) {
+					event.preventDefault();
+					callback(username, password);
+				}
+				// else: don't preventDefault — let app-level handler take over
+			});
+		}
+
 		webContents.on('render-process-gone', (_event, details) => {
 			this._lastError = {
 				url: webContents.getURL(),
@@ -326,10 +336,6 @@ export class BrowserView extends Disposable {
 		webContents.on('did-navigate-in-page', fireNavigationEvent);
 
 		webContents.on('did-navigate', () => {
-			// Reset requested hosts for the new page
-			this._requestedHosts.clear();
-			this._onDidChangeRequestedHosts.fire({ requestedHosts: [] });
-
 			// Chromium resets the zoom factor to its per-origin default (100%) when
 			// navigating to a new document. Re-apply our stored zoom to override it.
 			this._consoleLogs.length = 0; // Clear console logs on navigation since they are per-page
@@ -430,18 +436,6 @@ export class BrowserView extends Disposable {
 				this._consoleLogs.splice(0, this._consoleLogs.length - BrowserView.MAX_CONSOLE_LOG_ENTRIES);
 			}
 		});
-
-		// Track which hosts are requested by this view's page.
-		// The session fires for all webContents; we filter to ours.
-		this._register(this.session.onDidRequestHost(({ webContentsId, hostPort }) => {
-			if (webContentsId !== webContents.id) {
-				return;
-			}
-			if (!this._requestedHosts.has(hostPort)) {
-				this._requestedHosts.add(hostPort);
-				this._onDidChangeRequestedHosts.fire({ requestedHosts: [...this._requestedHosts] });
-			}
-		}));
 	}
 
 	private consumePopupPermission(location: NewPageLocation): boolean {
@@ -487,8 +481,7 @@ export class BrowserView extends Disposable {
 			storageScope: this.session.storageScope,
 			browserZoomIndex: this._browserZoomIndex,
 			isElementSelectionActive: this.inspector.isElementSelectionActive,
-			isRemoteSession: !!this.session.proxyRules,
-			requestedHosts: [...this._requestedHosts]
+			isRemoteSession: !!this.session.proxy
 		};
 	}
 

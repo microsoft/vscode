@@ -89,11 +89,6 @@
 			color: var(--vscode-statusBarItem-remoteForeground);
 		}
 
-		&.partial {
-			background-color: var(--vscode-statusBarItem-warningBackground);
-			color: var(--vscode-statusBarItem-warningForeground);
-		}
-
 		.codicon {
 			color: inherit;
 		}

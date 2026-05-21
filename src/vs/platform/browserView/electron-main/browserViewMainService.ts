@@ -176,10 +176,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).onDidClose;
 	}
 
-	onDynamicDidChangeRequestedHosts(id: string) {
-		return this._getBrowserView(id).onDidChangeRequestedHosts;
-	}
-
 	onDynamicDidSelectElement(id: string) {
 		return this._getBrowserView(id).inspector.onDidSelectElement;
 	}
