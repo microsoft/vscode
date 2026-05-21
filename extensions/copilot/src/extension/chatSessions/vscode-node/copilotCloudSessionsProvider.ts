@@ -1510,7 +1510,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		// PR-keyed URI on v2: reverse-resolve to the underlying task and open its html_url.
 		// Falls through to the PR-flavored path if no task mapping exists.
 		if (this._backend.kind === 'task') {
-			const prNum = SessionIdForPr.parsePullRequestNumber(chatSessionItem.resource);
+			// Accept both URI shapes: `/<n>` and the legacy `/pull-session-by-index-<n>-<idx>`.
+			const prNum = SessionIdForPr.parse(chatSessionItem.resource)?.prNumber ?? SessionIdForPr.parsePullRequestNumber(chatSessionItem.resource);
 			if (!isNaN(prNum)) {
 				const taskId = await this.resolveTaskIdForPrNumber(prNum);
 				if (taskId) {
@@ -1620,7 +1621,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	 * Hits the in-memory `_taskIdByPrNumber` cache populated at list time, falling back to
 	 * a `listTasksForRepo` query keyed by PR artifact id. Returns undefined when not on the
 	 * task backend or no association can be found.
-	 * TODO: This is a temporary compatibility shim for PR-shaped URIs on the Task API. The long-term
+	 *
+	 * Temporary compatibility shim for PR-shaped URIs on the Task API; removed in the
+	 * controller-API migration once URIs flip to `/task/<id>` natively (see migration plan).
 	 */
 	private async resolveTaskIdForPrNumber(prNumber: number): Promise<string | undefined> {
 		const cached = this._taskIdByPrNumber.get(prNumber);
@@ -2334,7 +2337,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 		// PR-keyed URI on v2: reverse-resolve to the underlying task and steer it.
 		if (this._backend.kind === 'task') {
-			const prNum = SessionIdForPr.parsePullRequestNumber(resource);
+			// Accept both URI shapes: `/<n>` and the legacy `/pull-session-by-index-<n>-<idx>`.
+			const prNum = SessionIdForPr.parse(resource)?.prNumber ?? SessionIdForPr.parsePullRequestNumber(resource);
 			if (!isNaN(prNum)) {
 				const taskId = await this.resolveTaskIdForPrNumber(prNum);
 				if (taskId) {

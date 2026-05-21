@@ -314,6 +314,8 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			const response = await this._taskApiClient.listTasksForRepo(owner, repo, {
 				artifact_type: 'pull',
 				artifact_id: prNumber,
+				sort: 'created_at',
+				direction: 'desc',
 				per_page: 1,
 			});
 			return response.tasks[0]?.id;
