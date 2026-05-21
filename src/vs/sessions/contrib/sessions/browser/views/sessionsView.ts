@@ -200,7 +200,6 @@ export class SessionsView extends ViewPane {
 					if (session) {
 						this.sessionsManagementService.toggleSessionStickiness(session);
 					}
-					return;
 				}
 				this.sessionsManagementService.openSession(resource, { preserveFocus }).then(() => {
 					if (isWeb && isMobile) {

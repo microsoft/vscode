@@ -7,6 +7,8 @@ import './media/chatCompositeBar.css';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { $, addDisposableListener, DisposableResizeObserver, EventType, getWindow, reset } from '../../../base/browser/dom.js';
+import { ScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { autorun } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from '../../../workbench/common/theme.js';
@@ -48,7 +50,9 @@ export class ChatCompositeBar extends Disposable {
 
 	private readonly _container: HTMLElement;
 	private readonly _tabsContainer: HTMLElement;
+	private readonly _tabsScrollbar: ScrollableElement;
 	private readonly _toolbar: MenuWorkbenchToolBar;
+	private readonly _inlineToolbar: MenuWorkbenchToolBar;
 	private readonly _tabs: IChatTab[] = [];
 	private readonly _tabDisposables = this._register(new DisposableStore());
 
@@ -81,7 +85,34 @@ export class ChatCompositeBar extends Disposable {
 
 		this._container = $('.chat-composite-bar');
 		this._tabsContainer = $('.chat-composite-bar-tabs');
-		this._container.appendChild(this._tabsContainer);
+
+		this._tabsScrollbar = this._register(new ScrollableElement(this._tabsContainer, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Hidden,
+			scrollYToX: true,
+			useShadows: false,
+		}));
+		this._container.appendChild(this._tabsScrollbar.getDomNode());
+
+		// Keep the visual scrollbar in sync with native scrolling inside the tabs container
+		this._register(addDisposableListener(this._tabsContainer, EventType.SCROLL, () => {
+			this._tabsScrollbar.setScrollPosition({ scrollLeft: this._tabsContainer.scrollLeft });
+		}));
+
+		// Forward scrollbar changes (e.g. from mouse wheel) back to the native scroll position
+		this._register(this._tabsScrollbar.onScroll(e => {
+			if (e.scrollLeftChanged) {
+				this._tabsContainer.scrollLeft = e.scrollLeft;
+			}
+		}));
+
+		const inlineToolbarContainer = $('.chat-composite-bar-inline-toolbar');
+		this._container.appendChild(inlineToolbarContainer);
+		this._inlineToolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, inlineToolbarContainer, Menus.SessionBarInlineToolbar, {
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			menuOptions: { shouldForwardArgs: true },
+			highlightToggledItems: true,
+		}));
 
 		const toolbarContainer = $('.chat-composite-bar-toolbar');
 		this._container.appendChild(toolbarContainer);
@@ -91,8 +122,11 @@ export class ChatCompositeBar extends Disposable {
 			highlightToggledItems: true,
 		}));
 
-		// Scroll active tab into view on resize
-		const resizeObserver = this._register(new DisposableResizeObserver('ChatCompositeBar.activeTabReveal', () => this._revealActiveTab()));
+		// Scroll active tab into view + update scroll dimensions on resize
+		const resizeObserver = this._register(new DisposableResizeObserver('ChatCompositeBar.activeTabReveal', () => {
+			this._updateScrollDimensions();
+			this._revealActiveTab();
+		}));
 		this._register(resizeObserver.observe(this._tabsContainer));
 
 		this._setVisible(false);
@@ -139,6 +173,7 @@ export class ChatCompositeBar extends Disposable {
 		}
 		this._session = session;
 		this._toolbar.context = session;
+		this._inlineToolbar.context = session;
 
 		const store = new DisposableStore();
 		this._sessionDisposables.value = store;
@@ -171,6 +206,14 @@ export class ChatCompositeBar extends Disposable {
 		}
 
 		this._updateActiveTab(activeChatId);
+		this._updateScrollDimensions();
+	}
+
+	private _updateScrollDimensions(): void {
+		this._tabsScrollbar.setScrollDimensions({
+			width: this._tabsContainer.clientWidth,
+			scrollWidth: this._tabsContainer.scrollWidth,
+		});
 	}
 
 	private _createTab(chat: IChat, isMainChat: boolean): void {
@@ -223,7 +266,9 @@ export class ChatCompositeBar extends Disposable {
 			}
 		}));
 
-		// Remove action bar — only for non-main chats, visible on hover
+		tab.appendChild(indicator);
+
+		// Close action — only for non-main chats, always visible
 		if (!isMainChat) {
 			const closeAction = this._tabDisposables.add(new Action(
 				'chatCompositeBar.closeChat',
@@ -240,8 +285,6 @@ export class ChatCompositeBar extends Disposable {
 			actionBar.push(closeAction, { icon: true, label: false });
 			actionBar.getContainer().classList.add('chat-composite-bar-tab-actions');
 		}
-
-		tab.appendChild(indicator);
 
 		this._tabsContainer.appendChild(tab);
 
@@ -339,7 +382,7 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 			title: localize2('chatCompositeBar.addChat', "New Chat"),
 			icon: Codicon.add,
 			menu: {
-				id: Menus.SessionBarToolbar,
+				id: Menus.SessionBarInlineToolbar,
 				when: SessionIsCreatedContext,
 				group: 'navigation',
 				order: 10,
