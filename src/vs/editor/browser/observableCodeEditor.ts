@@ -498,6 +498,53 @@ export class ObservableCodeEditor extends Disposable {
 	private readonly _onDidLineHeightChanged;
 
 	/**
+	 * Tracks whether getWidthOfLine returned 0, indicating the editor may be hidden.
+	 * When resize happens and this flag is set, we reset cached line widths.
+	 */
+	private _sawZeroLineWidth = false;
+
+	/**
+	 * Fires when the editor container resizes.
+	 * This is lazily created only when someone subscribes to it.
+	 * Useful for detecting when a parent element's display changes from 'none' to 'block'.
+	 */
+	private readonly _onDidContainerResize = observableFromEventOpts(
+		{ owner: this, getTransaction: () => this._currentTransaction },
+		e => {
+			const container = this.editor.getContainerDomNode();
+			const resizeObserver = new ResizeObserver(() => {
+				// If we previously saw a 0 width, the editor was likely hidden.
+				// Now that it resized (became visible), flush the cached widths.
+				if (this._sawZeroLineWidth) {
+					this._sawZeroLineWidth = false;
+					this.editor.resetLineWidthCaches();
+				}
+				e(undefined);
+			});
+			resizeObserver.observe(container);
+			return { dispose: () => resizeObserver.disconnect() };
+		},
+		() => ({}) // Return new object each time to ensure change detection
+	);
+
+	/**
+	 * Get the width of a line in pixels.
+	 * Reading the returned value depends on layoutInfo, value, scrollTop, and container resize events.
+	 * The container resize dependency ensures correct values when the editor becomes visible after being hidden.
+	 */
+	getWidthOfLine(lineNumber: number, reader: IReader | undefined): number {
+		this.layoutInfo.read(reader);
+		this.value.read(reader);
+		this.scrollTop.read(reader);
+		const width = this.editor.getWidthOfLine(lineNumber);
+		this._onDidContainerResize.read(reader);
+		if (width === 0) {
+			this._sawZeroLineWidth = true;
+		}
+		return width;
+	}
+
+	/**
 	 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
 	 */
 	observeTopForLineNumber(lineNumber: number): IObservable<number> {

@@ -6,19 +6,31 @@
 import { revive } from '../../../../../base/common/marshalling.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IOffsetRange, OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
-import { IRange } from '../../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from '../participants/chatAgents.js';
 import { IChatSlashData } from '../participants/chatSlashCommands.js';
 import { IChatRequestProblemsVariable, IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ChatAgentLocation } from '../constants.js';
 import { IToolData } from '../tools/languageModelToolsService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../attachments/chatVariableEntries.js';
+import { arrayEquals } from '../../../../../base/common/equals.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
 
 export interface IParsedChatRequest {
 	readonly parts: ReadonlyArray<IParsedChatRequestPart>;
 	readonly text: string;
+}
+
+export namespace IParsedChatRequest {
+	export function equals(a: IParsedChatRequest, b: IParsedChatRequest): boolean {
+		return a.text === b.text && arrayEquals(a.parts, b.parts, (p1, p2) =>
+			p1.kind === p2.kind &&
+			OffsetRange.equals(p1.range, p2.range) &&
+			Range.equalsRange(p1.editorRange, p2.editorRange) &&
+			p1.text === p2.text
+		);
+	}
 }
 
 export interface IParsedChatRequestPart {
@@ -188,7 +200,7 @@ export class ChatRequestSlashPromptPart implements IParsedChatRequestPart {
 export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
 	readonly kind = ChatRequestDynamicVariablePart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly id: string, readonly modelDescription: string | undefined, readonly data: IChatRequestVariableValue, readonly fullName?: string, readonly icon?: ThemeIcon, readonly isFile?: boolean, readonly isDirectory?: boolean) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly id: string, readonly modelDescription: string | undefined, readonly data: IChatRequestVariableValue, readonly fullName?: string, readonly icon?: ThemeIcon, readonly isFile?: boolean, readonly isDirectory?: boolean, readonly _meta?: Record<string, unknown>) { }
 
 	get referenceText(): string {
 		return this.text.replace(chatVariableLeader, '');
@@ -203,7 +215,7 @@ export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 			return IDiagnosticVariableEntryFilterData.toEntry((this.data as IChatRequestProblemsVariable).filter);
 		}
 
-		return { kind: this.isDirectory ? 'directory' : this.isFile ? 'file' : 'generic', id: this.id, name: this.referenceText, range: this.range, value: this.data, fullName: this.fullName, icon: this.icon };
+		return { kind: this.isDirectory ? 'directory' : this.isFile ? 'file' : 'generic', id: this.id, name: this.referenceText, range: this.range, value: this.data, fullName: this.fullName, icon: this.icon, _meta: this._meta };
 	}
 }
 
@@ -281,7 +293,8 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					(part as ChatRequestDynamicVariablePart).fullName,
 					(part as ChatRequestDynamicVariablePart).icon,
 					(part as ChatRequestDynamicVariablePart).isFile,
-					(part as ChatRequestDynamicVariablePart).isDirectory
+					(part as ChatRequestDynamicVariablePart).isDirectory,
+					(part as ChatRequestDynamicVariablePart)._meta
 				);
 			} else {
 				throw new Error(`Unknown chat request part: ${part.kind}`);

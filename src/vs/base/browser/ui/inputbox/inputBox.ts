@@ -40,6 +40,7 @@ export interface IInputOptions {
 	readonly actionViewItemProvider?: IActionViewItemProvider;
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly history?: IHistory<string>;
+	readonly hideHoverOnValueChange?: boolean;
 }
 
 export interface IInputBoxStyles {
@@ -568,6 +569,10 @@ export class InputBox extends Widget {
 
 		if (this.state === 'open' && this.contextViewProvider) {
 			this.contextViewProvider.layout();
+		}
+
+		if (this.options.hideHoverOnValueChange) {
+			getBaseLayerHoverDelegate().hideHover();
 		}
 	}
 

@@ -52,6 +52,7 @@ export function connectProxyResolver(
 		getProxySupport: () => getExtHostConfigValue<ProxySupportSetting>(configProvider, isRemote, 'http.proxySupport') || 'off',
 		getNoProxyConfig: () => getExtHostConfigValue<string[]>(configProvider, isRemote, 'http.noProxy') || [],
 		isAdditionalFetchSupportEnabled: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.fetchAdditionalSupport', true),
+		isWebSocketPatchEnabled: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.webSocketAdditionalSupport', true),
 		addCertificatesV1: () => certSettingV1(configProvider, isRemote),
 		addCertificatesV2: () => certSettingV2(configProvider, isRemote),
 		loadSystemCertificatesFromNode: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', systemCertificatesNodeDefault),
@@ -100,12 +101,14 @@ export function connectProxyResolver(
 					promises.push(certs);
 				}
 			}
-			// Using https.globalAgent because it is shared with proxy.test.ts and mutable.
-			if (initData.environment.extensionTestsLocationURI && https.globalAgent.testCertificates?.length) {
-				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading test certificates');
-				promises.push(Promise.resolve(https.globalAgent.testCertificates as string[]));
-			}
-			return (await Promise.all(promises)).flat();
+			const result = (await Promise.all(promises)).flat();
+			mainThreadTelemetry.$publicLog2<AdditionalCertificatesEvent, AdditionalCertificatesClassification>('additionalCertificates', {
+				count: result.length,
+				isRemote,
+				loadLocalCertificates,
+				useNodeSystemCerts,
+			});
+			return result;
 		},
 		env: process.env,
 	};
@@ -115,6 +118,7 @@ export function connectProxyResolver(
 	target.resolveProxyURL = resolveProxyURL;
 
 	patchGlobalFetch(params, configProvider, mainThreadTelemetry, initData, resolveProxyURL, disposables);
+	patchGlobalWebSocket(params, resolveProxyURL);
 
 	const lookup = createPatchedModules(params, resolveProxyWithRequest);
 	return configureModuleLoading(extensionService, lookup);
@@ -197,6 +201,16 @@ function patchGlobalFetch(params: ProxyAgentParams, configProvider: ExtHostConfi
 	}
 }
 
+function patchGlobalWebSocket(params: ProxyAgentParams, resolveProxyURL: (url: string) => Promise<string | undefined>) {
+	// eslint-disable-next-line local/code-no-any-casts
+	if (!(globalThis as any).__vscodeOriginalWebSocket) {
+		const originalWebSocket = globalThis.WebSocket;
+		// eslint-disable-next-line local/code-no-any-casts
+		(globalThis as any).__vscodeOriginalWebSocket = originalWebSocket;
+		globalThis.WebSocket = proxyAgent.createWebSocketPatch(params, originalWebSocket, resolveProxyURL);
+	}
+}
+
 function monitorResponseProperties(mainThreadTelemetry: MainThreadTelemetryShape, response: Response, urlString: string) {
 	const originalUrl = response.url;
 	Object.defineProperty(response, 'url', {
@@ -256,6 +270,22 @@ function recordFetchFeatureUse(mainThreadTelemetry: MainThreadTelemetryShape, fe
 		(timer as unknown as NodeJS.Timeout).unref?.();
 	}
 }
+
+type AdditionalCertificatesClassification = {
+	owner: 'chrmarti';
+	comment: 'Tracks the number of additional certificates loaded for TLS connections';
+	count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of additional certificates loaded' };
+	isRemote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this is a remote extension host' };
+	loadLocalCertificates: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether local certificates are loaded' };
+	useNodeSystemCerts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether Node.js system certificates are used' };
+};
+
+type AdditionalCertificatesEvent = {
+	count: number;
+	isRemote: boolean;
+	loadLocalCertificates: boolean;
+	useNodeSystemCerts: boolean;
+};
 
 type ProxyResolveStatsClassification = {
 	owner: 'chrmarti';
@@ -401,6 +431,7 @@ async function lookupProxyAuthorization(
 	proxyAuthenticate: string | string[] | undefined,
 	state: { kerberosRequested?: boolean; basicAuthCacheUsed?: boolean; basicAuthAttempt?: number }
 ): Promise<string | undefined> {
+	proxyURL = proxyURL.replace(/\/+$/, '');
 	const cached = proxyAuthenticateCache[proxyURL];
 	if (proxyAuthenticate) {
 		proxyAuthenticateCache[proxyURL] = proxyAuthenticate;

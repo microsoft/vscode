@@ -7,7 +7,6 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -41,9 +40,6 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 
 	readonly domNode: HTMLElement;
 
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	readonly onDidChangeHeight = this._onDidChangeHeight.event;
-
 	constructor(
 		element: IChatResponseViewModel,
 		private readonly content: IChatErrorDetailsPart,
@@ -68,9 +64,11 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 
 		let primaryButtonLabel: string | undefined;
 		switch (chatEntitlementService.entitlement) {
+			case ChatEntitlement.EDU:
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.ProPlus:
-				primaryButtonLabel = localize('enableAdditionalUsage', "Manage Paid Premium Requests");
+			case ChatEntitlement.Max:
+				primaryButtonLabel = localize('manageBudget', "Manage Budget");
 				break;
 			case ChatEntitlement.Free:
 				primaryButtonLabel = localize('upgradeToCopilotPro', "Upgrade to GitHub Copilot Pro");
@@ -101,8 +99,6 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 			retryButton.element.classList.add('chat-quota-error-secondary-button');
 			retryButton.label = localize('clickToContinue', "Click to Retry");
 
-			this._onDidChangeHeight.fire();
-
 			this._register(retryButton.onDidClick(() => {
 				const widget = chatWidgetService.getWidgetBySessionResource(element.sessionResource);
 				if (!widget) {
@@ -122,7 +118,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 			primaryButton.element.classList.add('chat-quota-error-button');
 
 			this._register(primaryButton.onDidClick(async () => {
-				const commandId = chatEntitlementService.entitlement === ChatEntitlement.Free ? 'workbench.action.chat.upgradePlan' : 'workbench.action.chat.manageOverages';
+				const commandId = chatEntitlementService.entitlement === ChatEntitlement.Free ? 'workbench.action.chat.upgradePlan' : 'workbench.action.chat.manageAdditionalSpend';
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-response' });
 				await commandService.executeCommand(commandId);
 

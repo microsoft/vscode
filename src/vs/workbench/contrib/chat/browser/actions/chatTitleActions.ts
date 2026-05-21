@@ -21,12 +21,13 @@ import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/co
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, isChatEditingActionContext } from '../../common/editing/chatEditingService.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService/chatService.js';
+import { ChatAgentVoteDirection, IChatService } from '../../common/chatService/chatService.js';
 import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
-import { IChatWidgetService } from '../chat.js';
+import { IChatAccessibilityService, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
+export const MarkHelpfulActionId = 'workbench.action.chat.markHelpful';
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
 const enableFeedbackConfig = 'config.telemetry.feedback.enabled';
 
@@ -44,12 +45,12 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
+					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig), ChatContextKeys.lockedToCodingAgent.negate())
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
+					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig), ChatContextKeys.lockedToCodingAgent.negate())
 				}]
 			});
 		}
@@ -70,11 +71,9 @@ export function registerChatTitleActions() {
 				action: {
 					kind: 'vote',
 					direction: ChatAgentVoteDirection.Up,
-					reason: undefined
 				}
 			});
 			item.setVote(ChatAgentVoteDirection.Up);
-			item.setVoteDownReason(undefined);
 		}
 	});
 
@@ -91,12 +90,12 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 3,
-					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ContextKeyExpr.has(enableFeedbackConfig))
+					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ContextKeyExpr.has(enableFeedbackConfig), ChatContextKeys.lockedToCodingAgent.negate())
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
+					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig), ChatContextKeys.lockedToCodingAgent.negate())
 				}]
 			});
 		}
@@ -107,13 +106,7 @@ export function registerChatTitleActions() {
 				return;
 			}
 
-			const reason = args[1];
-			if (typeof reason !== 'string') {
-				return;
-			}
-
 			item.setVote(ChatAgentVoteDirection.Down);
-			item.setVoteDownReason(reason as ChatAgentVoteDownReason);
 
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
@@ -125,7 +118,6 @@ export function registerChatTitleActions() {
 				action: {
 					kind: 'vote',
 					direction: ChatAgentVoteDirection.Down,
-					reason: item.voteDownReason
 				}
 			});
 		}
@@ -187,12 +179,13 @@ export function registerChatTitleActions() {
 						group: 'navigation',
 						when: ContextKeyExpr.and(
 							ChatContextKeys.isResponse,
-							ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key))
+							ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key),
+							ChatContextKeys.lockedToCodingAgent.negate())
 					},
 					{
 						id: MenuId.ChatEditingWidgetToolbar,
 						group: 'navigation',
-						when: applyingChatEditsFailedContextKey,
+						when: ContextKeyExpr.and(applyingChatEditsFailedContextKey, ChatContextKeys.lockedToCodingAgent.negate()),
 						order: 0
 					}
 				]
@@ -201,6 +194,10 @@ export function registerChatTitleActions() {
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
+			const chatAccessibilityService = accessor.get(IChatAccessibilityService);
+			const chatService = accessor.get(IChatService);
+			const configurationService = accessor.get(IConfigurationService);
+			const dialogService = accessor.get(IDialogService);
 
 			let item = args[0];
 			if (isChatEditingActionContext(item)) {
@@ -211,7 +208,6 @@ export function registerChatTitleActions() {
 				return;
 			}
 
-			const chatService = accessor.get(IChatService);
 			const chatModel = chatService.getSession(item.sessionResource);
 			const chatRequests = chatModel?.getRequests();
 			if (!chatRequests) {
@@ -221,8 +217,6 @@ export function registerChatTitleActions() {
 			const widget = chatWidgetService.getWidgetBySessionResource(item.sessionResource);
 			const mode = widget?.input.currentModeKind;
 			if (chatModel && (mode === ChatModeKind.Edit || mode === ChatModeKind.Agent)) {
-				const configurationService = accessor.get(IConfigurationService);
-				const dialogService = accessor.get(IDialogService);
 				const currentEditingSession = widget?.viewModel?.model.editingSession;
 				if (!currentEditingSession) {
 					return;
@@ -260,6 +254,7 @@ export function registerChatTitleActions() {
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
 			const languageModelId = widget?.input.currentLanguageModel;
 
+			chatAccessibilityService.acceptRequest(item.sessionResource);
 			chatService.resendRequest(request!, {
 				userSelectedModelId: languageModelId,
 				attempt: (request?.attempt ?? -1) + 1,
@@ -280,7 +275,7 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					isHiddenByDefault: true,
-					when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, ChatContextKeys.isResponse, ChatContextKeys.responseIsFiltered.negate())
+					when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, ChatContextKeys.isResponse, ChatContextKeys.responseIsFiltered.negate(), ChatContextKeys.lockedToCodingAgent.negate())
 				}
 			});
 		}

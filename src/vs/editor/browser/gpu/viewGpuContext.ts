@@ -16,6 +16,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { TextureAtlas } from './atlas/textureAtlas.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { INotificationService, IPromptChoice, Severity } from '../../../platform/notification/common/notification.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GPULifecycle } from './gpuDisposable.js';
 import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
 import { RectangleRenderer } from './rectangleRenderer.js';
@@ -82,6 +83,7 @@ export class ViewGpuContext extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 
@@ -123,6 +125,12 @@ export class ViewGpuContext extends Disposable {
 		}));
 		this.devicePixelRatio = dprObs;
 		this._register(runOnChange(this.devicePixelRatio, () => ViewGpuContext.atlas?.clear()));
+
+		// Clear decoration CSS caches when theme changes as CSS variables may have different values
+		this._register(this._themeService.onDidColorThemeChange(() => {
+			ViewGpuContext.decorationCssRuleExtractor.clear();
+			ViewGpuContext.atlas?.clear();
+		}));
 
 		const canvasDevicePixelDimensions = observableValue(this, { width: this.canvas.domNode.width, height: this.canvas.domNode.height });
 		this._register(observeDevicePixelDimensions(

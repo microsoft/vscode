@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct, coalesce } from '../../../../../base/common/arrays.js';
+import { distinct } from '../../../../../base/common/arrays.js';
 import { IMatch, IFilter, or, matchesCamelCase, matchesWords, matchesBaseContiguousSubString } from '../../../../../base/common/filters.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { ILanguageModelsService, ILanguageModelChatMetadata, IUserFriendlyLanguageModel } from '../../../chat/common/languageModels.js';
-import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { localize } from '../../../../../nls.js';
+import { ILanguageModelsService, ILanguageModelProviderDescriptor, ILanguageModelChatMetadataAndIdentifier } from '../../../chat/common/languageModels.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
+import Severity from '../../../../../base/common/severity.js';
 
 export const MODEL_ENTRY_TEMPLATE_ID = 'model.entry.template';
 export const VENDOR_ENTRY_TEMPLATE_ID = 'vendor.entry.template';
@@ -17,76 +17,85 @@ export const GROUP_ENTRY_TEMPLATE_ID = 'group.entry.template';
 
 const wordFilter = or(matchesBaseContiguousSubString, matchesWords);
 const CAPABILITY_REGEX = /@capability:\s*([^\s]+)/gi;
-const VISIBLE_REGEX = /@visible:\s*(true|false)/i;
 const PROVIDER_REGEX = /@provider:\s*((".+?")|([^\s]+))/gi;
 
 export const SEARCH_SUGGESTIONS = {
 	FILTER_TYPES: [
 		'@provider:',
 		'@capability:',
-		'@visible:'
 	],
 	CAPABILITIES: [
 		'@capability:tools',
 		'@capability:vision',
 		'@capability:agent'
 	],
-	VISIBILITY: [
-		'@visible:true',
-		'@visible:false'
-	]
 };
 
-export interface IVendorEntry {
-	vendor: string;
-	vendorDisplayName: string;
-	managementCommand?: string;
+export interface ILanguageModelProvider {
+	vendor: ILanguageModelProviderDescriptor;
+	group: ILanguageModelsProviderGroup;
 }
 
-export interface IModelEntry {
-	vendor: string;
-	vendorDisplayName: string;
-	identifier: string;
-	metadata: ILanguageModelChatMetadata;
+export interface ILanguageModel extends ILanguageModelChatMetadataAndIdentifier {
+	provider: ILanguageModelProvider;
+	hidden: boolean;
 }
 
-export interface IModelItemEntry {
+export interface ILanguageModelEntry {
 	type: 'model';
 	id: string;
-	modelEntry: IModelEntry;
 	templateId: string;
+	model: ILanguageModel;
 	providerMatches?: IMatch[];
 	modelNameMatches?: IMatch[];
 	modelIdMatches?: IMatch[];
 	capabilityMatches?: string[];
 }
 
-export interface IVendorItemEntry {
-	type: 'vendor';
-	id: string;
-	vendorEntry: IVendorEntry;
-	templateId: string;
-	collapsed: boolean;
-}
-
-export interface IGroupItemEntry {
+export interface ILanguageModelGroupEntry {
 	type: 'group';
 	id: string;
-	group: string;
+	label: string;
+	collapsed: boolean;
+	templateId: string;
+}
+
+export interface ILanguageModelProviderEntry {
+	type: 'vendor';
+	id: string;
 	label: string;
 	templateId: string;
 	collapsed: boolean;
+	hidden: boolean;
+	vendorEntry: ILanguageModelProvider;
 }
 
-export function isVendorEntry(entry: IViewModelEntry): entry is IVendorItemEntry {
+export interface IStatusEntry {
+	type: 'status';
+	id: string;
+	message: string;
+	severity: Severity;
+}
+
+export interface ILanguageModelEntriesGroup {
+	group: ILanguageModelGroupEntry | ILanguageModelProviderEntry;
+	models: ILanguageModel[];
+	status?: IStatusEntry;
+}
+
+export function isLanguageModelProviderEntry(entry: IViewModelEntry): entry is ILanguageModelProviderEntry {
 	return entry.type === 'vendor';
 }
 
-export function isGroupEntry(entry: IViewModelEntry): entry is IGroupItemEntry {
+export function isLanguageModelGroupEntry(entry: IViewModelEntry): entry is ILanguageModelGroupEntry {
 	return entry.type === 'group';
 }
 
-export type IViewModelEntry = IModelItemEntry | IVendorItemEntry | IGroupItemEntry;
+export function isStatusEntry(entry: IViewModelEntry): entry is IStatusEntry {
+	return entry.type === 'status';
+}
+
+export type IViewModelEntry = ILanguageModelEntry | ILanguageModelProviderEntry | ILanguageModelGroupEntry | IStatusEntry;
 
 export interface IViewModelChangeEvent {
 	at: number;
@@ -96,7 +105,6 @@ export interface IViewModelChangeEvent {
 
 export const enum ChatModelGroup {
 	Vendor = 'vendor',
-	Visibility = 'visibility'
 }
 
 export class ChatModelsViewModel extends Disposable {
@@ -107,7 +115,10 @@ export class ChatModelsViewModel extends Disposable {
 	private readonly _onDidChangeGrouping = this._register(new Emitter<ChatModelGroup>());
 	readonly onDidChangeGrouping = this._onDidChangeGrouping.event;
 
-	private modelEntries: IModelEntry[];
+	private languageModels: ILanguageModel[];
+	private languageModelGroupStatuses: Array<{ provider: ILanguageModelProvider; status: { severity: Severity; message: string } }> = [];
+	private languageModelGroups: ILanguageModelEntriesGroup[] = [];
+
 	private readonly collapsedGroups = new Set<string>();
 	private searchValue: string = '';
 	private modelsSorted: boolean = false;
@@ -118,19 +129,19 @@ export class ChatModelsViewModel extends Disposable {
 		if (this._groupBy !== groupBy) {
 			this._groupBy = groupBy;
 			this.collapsedGroups.clear();
-			this.modelEntries = this.sortModels(this.modelEntries);
-			this.filter(this.searchValue);
+			this.languageModelGroups = this.groupModels(this.languageModels);
+			this.doFilter();
 			this._onDidChangeGrouping.fire(groupBy);
 		}
 	}
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
-		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService
 	) {
 		super();
-		this.modelEntries = [];
-		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.refresh()));
+		this.languageModels = [];
+		this._register(this.languageModelsService.onDidChangeLanguageModels(vendor => this.refreshVendor(vendor)));
+		this._register(this.languageModelsService.onDidChangeModelVisibility(() => this.refreshVisibility()));
 	}
 
 	private readonly _viewModelEntries: IViewModelEntry[] = [];
@@ -152,24 +163,49 @@ export class ChatModelsViewModel extends Disposable {
 	}
 
 	filter(searchValue: string): readonly IViewModelEntry[] {
-		this.searchValue = searchValue;
-		if (!this.modelsSorted) {
-			this.modelEntries = this.sortModels(this.modelEntries);
+		if (searchValue !== this.searchValue) {
+			this.searchValue = searchValue;
+			this.collapsedGroups.clear();
+			if (!this.modelsSorted) {
+				this.languageModelGroups = this.groupModels(this.languageModels);
+			}
+			this.doFilter();
 		}
-		const filtered = this.filterModels(this.modelEntries, searchValue);
-		this.splice(0, this._viewModelEntries.length, filtered);
 		return this.viewModelEntries;
 	}
 
-	private filterModels(modelEntries: IModelEntry[], searchValue: string): IViewModelEntry[] {
-		let visible: boolean | undefined;
+	private doFilter(): void {
+		const viewModelEntries: IViewModelEntry[] = [];
+		const shouldShowGroupHeaders = this.languageModelGroups.length > 1;
 
-		const visibleMatches = VISIBLE_REGEX.exec(searchValue);
-		if (visibleMatches && visibleMatches[1]) {
-			visible = visibleMatches[1].toLowerCase() === 'true';
-			searchValue = searchValue.replace(VISIBLE_REGEX, '');
+		for (const group of this.languageModelGroups) {
+			if (this.collapsedGroups.has(group.group.id)) {
+				group.group.collapsed = true;
+				if (shouldShowGroupHeaders) {
+					viewModelEntries.push(group.group);
+				}
+				continue;
+			}
+
+			const groupEntries: IViewModelEntry[] = [];
+			if (group.status) {
+				groupEntries.push(group.status);
+			}
+
+			groupEntries.push(...this.filterModels(group.models, this.searchValue));
+
+			if (groupEntries.length > 0) {
+				group.group.collapsed = false;
+				if (shouldShowGroupHeaders) {
+					viewModelEntries.push(group.group);
+				}
+				viewModelEntries.push(...groupEntries);
+			}
 		}
+		this.splice(0, this._viewModelEntries.length, viewModelEntries);
+	}
 
+	private filterModels(modelEntries: ILanguageModel[], searchValue: string): IViewModelEntry[] {
 		const providerNames: string[] = [];
 		let providerMatch: RegExpExecArray | null;
 		PROVIDER_REGEX.lastIndex = 0;
@@ -202,26 +238,15 @@ export class ChatModelsViewModel extends Disposable {
 		}
 		searchValue = searchValue.trim();
 
-		const isFiltering = searchValue !== '' || capabilities.length > 0 || providerNames.length > 0 || visible !== undefined;
-
 		const result: IViewModelEntry[] = [];
 		const words = searchValue.split(' ');
-		const allVendors = new Set(this.modelEntries.map(m => m.vendor));
-		const showHeaders = allVendors.size > 1;
-		const addedGroups = new Set<string>();
 		const lowerProviders = providerNames.map(p => p.toLowerCase().trim());
 
 		for (const modelEntry of modelEntries) {
-			if (visible !== undefined) {
-				if ((modelEntry.metadata.isUserSelectable ?? false) !== visible) {
-					continue;
-				}
-			}
-
 			if (lowerProviders.length > 0) {
 				const matchesProvider = lowerProviders.some(provider =>
-					modelEntry.vendor.toLowerCase() === provider ||
-					modelEntry.vendorDisplayName.toLowerCase() === provider
+					modelEntry.provider.vendor.vendor.toLowerCase() === provider ||
+					modelEntry.provider.vendor.displayName.toLowerCase() === provider
 				);
 				if (!matchesProvider) {
 					continue;
@@ -258,56 +283,12 @@ export class ChatModelsViewModel extends Disposable {
 				}
 			}
 
-			if (this.groupBy === ChatModelGroup.Vendor) {
-				if (showHeaders) {
-					if (!addedGroups.has(modelEntry.vendor)) {
-						const isCollapsed = !isFiltering && this.collapsedGroups.has(modelEntry.vendor);
-						const vendorInfo = this.languageModelsService.getVendors().find(v => v.vendor === modelEntry.vendor);
-						result.push({
-							type: 'vendor',
-							id: `vendor-${modelEntry.vendor}`,
-							vendorEntry: {
-								vendor: modelEntry.vendor,
-								vendorDisplayName: modelEntry.vendorDisplayName,
-								managementCommand: vendorInfo?.managementCommand
-							},
-							templateId: VENDOR_ENTRY_TEMPLATE_ID,
-							collapsed: isCollapsed
-						});
-						addedGroups.add(modelEntry.vendor);
-					}
-
-					if (!isFiltering && this.collapsedGroups.has(modelEntry.vendor)) {
-						continue;
-					}
-				}
-			} else if (this.groupBy === ChatModelGroup.Visibility) {
-				const isVisible = modelEntry.metadata.isUserSelectable ?? false;
-				const groupKey = isVisible ? 'visible' : 'hidden';
-				if (!addedGroups.has(groupKey)) {
-					const isCollapsed = !isFiltering && this.collapsedGroups.has(groupKey);
-					result.push({
-						type: 'group',
-						id: `group-${groupKey}`,
-						group: groupKey,
-						label: isVisible ? localize('visible', "Visible") : localize('hidden', "Hidden"),
-						templateId: GROUP_ENTRY_TEMPLATE_ID,
-						collapsed: isCollapsed
-					});
-					addedGroups.add(groupKey);
-				}
-
-				if (!isFiltering && this.collapsedGroups.has(groupKey)) {
-					continue;
-				}
-			}
-
-			const modelId = ChatModelsViewModel.getId(modelEntry);
+			const modelId = this.getModelId(modelEntry);
 			result.push({
 				type: 'model',
 				id: modelId,
 				templateId: MODEL_ENTRY_TEMPLATE_ID,
-				modelEntry,
+				model: modelEntry,
 				modelNameMatches: modelMatches?.modelNameMatches || undefined,
 				modelIdMatches: modelMatches?.modelIdMatches || undefined,
 				providerMatches: modelMatches?.providerMatches || undefined,
@@ -317,7 +298,7 @@ export class ChatModelsViewModel extends Disposable {
 		return result;
 	}
 
-	private getMatchingCapabilities(modelEntry: IModelEntry, capability: string): string[] {
+	private getMatchingCapabilities(modelEntry: ILanguageModel, capability: string): string[] {
 		const matchedCapabilities: string[] = [];
 		if (!modelEntry.metadata.capabilities) {
 			return matchedCapabilities;
@@ -355,102 +336,198 @@ export class ChatModelsViewModel extends Disposable {
 		return matchedCapabilities;
 	}
 
-	private sortModels(modelEntries: IModelEntry[]): IModelEntry[] {
-		if (this.groupBy === ChatModelGroup.Visibility) {
-			modelEntries.sort((a, b) => {
-				const aVisible = a.metadata.isUserSelectable ?? false;
-				const bVisible = b.metadata.isUserSelectable ?? false;
-				if (aVisible === bVisible) {
-					if (a.vendor === b.vendor) {
-						return a.metadata.name.localeCompare(b.metadata.name);
-					}
-					if (a.vendor === 'copilot') { return -1; }
-					if (b.vendor === 'copilot') { return 1; }
-					return a.vendorDisplayName.localeCompare(b.vendorDisplayName);
+	private groupModels(languageModels: ILanguageModel[]): ILanguageModelEntriesGroup[] {
+		const result: ILanguageModelEntriesGroup[] = [];
+		if (this.groupBy === ChatModelGroup.Vendor) {
+			for (const model of languageModels) {
+				const groupId = this.getProviderGroupId(model.provider.group);
+				let group = result.find(group => group.group.id === groupId);
+				if (!group) {
+					group = {
+						group: this.createLanguageModelProviderEntry(model.provider),
+						models: [],
+					};
+					result.push(group);
 				}
-				return aVisible ? -1 : 1;
+				group.models.push(model);
+			}
+			for (const statusGroup of this.languageModelGroupStatuses) {
+				const groupId = this.getProviderGroupId(statusGroup.provider.group);
+				let group = result.find(group => group.group.id === groupId);
+				if (!group) {
+					group = {
+						group: this.createLanguageModelProviderEntry(statusGroup.provider),
+						models: [],
+					};
+					result.push(group);
+				}
+				group.status = {
+					id: `status.${group.group.id}`,
+					type: 'status',
+					...statusGroup.status,
+				};
+			}
+			result.sort((a, b) => {
+				if (a.models[0]?.provider.vendor.isDefault) { return -1; }
+				if (b.models[0]?.provider.vendor.isDefault) { return 1; }
+				return a.group.label.localeCompare(b.group.label);
 			});
-		} else if (this.groupBy === ChatModelGroup.Vendor) {
-			modelEntries.sort((a, b) => {
-				if (a.vendor === b.vendor) {
+		}
+		for (const group of result) {
+			group.models.sort((a, b) => {
+				if (a.provider.vendor.isDefault && b.provider.vendor.isDefault) {
 					return a.metadata.name.localeCompare(b.metadata.name);
 				}
-				if (a.vendor === 'copilot') { return -1; }
-				if (b.vendor === 'copilot') { return 1; }
-				return a.vendorDisplayName.localeCompare(b.vendorDisplayName);
+				if (a.provider.vendor.isDefault) { return -1; }
+				if (b.provider.vendor.isDefault) { return 1; }
+				if (a.provider.group.name === b.provider.group.name) {
+					return a.metadata.name.localeCompare(b.metadata.name);
+				}
+				return a.provider.group.name.localeCompare(b.provider.group.name);
 			});
 		}
 		this.modelsSorted = true;
-		return modelEntries;
+		return result;
 	}
 
-	getVendors(): IUserFriendlyLanguageModel[] {
+	private createLanguageModelProviderEntry(provider: ILanguageModelProvider): ILanguageModelProviderEntry {
+		const id = this.getProviderGroupId(provider.group);
+		return {
+			type: 'vendor',
+			id,
+			label: provider.group.name,
+			templateId: VENDOR_ENTRY_TEMPLATE_ID,
+			collapsed: this.collapsedGroups.has(id),
+			hidden: this.languageModelsService.isGroupHidden(provider.group.vendor, provider.group.name),
+			vendorEntry: {
+				group: provider.group,
+				vendor: provider.vendor
+			},
+		};
+	}
+
+	getVendors(): ILanguageModelProviderDescriptor[] {
 		return [...this.languageModelsService.getVendors()].sort((a, b) => {
-			if (a.vendor === 'copilot') { return -1; }
-			if (b.vendor === 'copilot') { return 1; }
+			if (a.isDefault) { return -1; }
+			if (b.isDefault) { return 1; }
 			return a.displayName.localeCompare(b.displayName);
 		});
 	}
 
 	async refresh(): Promise<void> {
-		this.modelEntries = [];
+		await this.languageModelsService.selectLanguageModels({});
+		await this.refreshAllVendors();
+	}
+
+	private async refreshAllVendors(): Promise<void> {
+		this.languageModels = [];
+		this.languageModelGroupStatuses = [];
 		for (const vendor of this.getVendors()) {
-			const modelIdentifiers = await this.languageModelsService.selectLanguageModels({ vendor: vendor.vendor }, vendor.vendor === 'copilot');
-			const models = coalesce(modelIdentifiers.map(identifier => {
+			this.addVendorModels(vendor);
+		}
+		this.languageModelGroups = this.groupModels(this.languageModels);
+		this.doFilter();
+	}
+
+	private refreshVendor(vendorId: string): void {
+		const vendor = this.getVendors().find(v => v.vendor === vendorId);
+		if (!vendor) {
+			return;
+		}
+
+		// Remove existing models for this vendor
+		this.languageModels = this.languageModels.filter(m => m.provider.vendor.vendor !== vendorId);
+		this.languageModelGroupStatuses = this.languageModelGroupStatuses.filter(s => s.provider.vendor.vendor !== vendorId);
+
+		// Add updated models for this vendor
+		this.addVendorModels(vendor);
+		this.languageModelGroups = this.groupModels(this.languageModels);
+		this.doFilter();
+	}
+
+	private addVendorModels(vendor: ILanguageModelProviderDescriptor): void {
+		const models: ILanguageModel[] = [];
+		const languageModelsGroups = this.languageModelsService.getLanguageModelGroups(vendor.vendor);
+		for (const group of languageModelsGroups) {
+			const provider: ILanguageModelProvider = {
+				group: group.group ?? {
+					vendor: vendor.vendor,
+					name: vendor.displayName
+				},
+				vendor
+			};
+			if (group.status) {
+				this.languageModelGroupStatuses.push({
+					provider,
+					status: {
+						message: group.status.message,
+						severity: group.status.severity
+					}
+				});
+			}
+			for (const identifier of group.modelIdentifiers) {
 				const metadata = this.languageModelsService.lookupLanguageModel(identifier);
 				if (!metadata) {
-					return undefined;
+					continue;
 				}
-				if (vendor.vendor === 'copilot' && metadata.id === 'auto') {
-					return undefined;
+				if (vendor.isDefault && metadata.id === 'auto') {
+					continue;
 				}
-				return {
-					vendor: vendor.vendor,
-					vendorDisplayName: vendor.displayName,
+				models.push({
 					identifier,
-					metadata
-				};
-			}));
-
-			this.modelEntries.push(...models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name)));
-			const modelEntries = distinct(this.modelEntries, modelEntry => ChatModelsViewModel.getId(modelEntry));
-
-			if (this._groupBy === ChatModelGroup.Visibility) {
-				this.modelEntries = this.sortModels(modelEntries);
-			} else {
-				this.modelEntries = modelEntries;
-				if (models.every(m => !m.metadata.isUserSelectable)) {
-					this.collapsedGroups.add(vendor.vendor);
-				}
+					metadata,
+					provider,
+					hidden: this.languageModelsService.isModelHidden(identifier),
+				});
 			}
+		}
+		this.languageModels.push(...models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name)));
+	}
 
-			this.modelEntries = this._groupBy === ChatModelGroup.Visibility ? this.sortModels(modelEntries) : modelEntries;
-			this.filter(this.searchValue);
+	getModelsForGroup(group: ILanguageModelProviderEntry | ILanguageModelGroupEntry): ILanguageModel[] {
+		if (isLanguageModelProviderEntry(group)) {
+			return this.languageModels.filter(m =>
+				this.getProviderGroupId(m.provider.group) === group.id
+			);
+		}
+
+		// return all models ungrouped
+		return this.languageModels;
+	}
+
+	toggleModelHidden(entry: ILanguageModelEntry): void {
+		this.languageModelsService.setModelHidden(entry.model.identifier, !entry.model.hidden);
+	}
+
+	toggleGroupHidden(entry: ILanguageModelProviderEntry): void {
+		this.languageModelsService.setGroupHidden(entry.vendorEntry.group.vendor, entry.vendorEntry.group.name, !entry.hidden);
+	}
+
+	setModelsHidden(entries: readonly ILanguageModelEntry[], hidden: boolean): void {
+		for (const entry of entries) {
+			this.languageModelsService.setModelHidden(entry.model.identifier, hidden);
 		}
 	}
 
-	toggleVisibility(model: IModelItemEntry): void {
-		const isVisible = model.modelEntry.metadata.isUserSelectable ?? false;
-		const newVisibility = !isVisible;
-		this.languageModelsService.updateModelPickerPreference(model.modelEntry.identifier, newVisibility);
-		const metadata = this.languageModelsService.lookupLanguageModel(model.modelEntry.identifier);
-		const index = this.viewModelEntries.indexOf(model);
-		if (metadata && index !== -1) {
-			model.id = ChatModelsViewModel.getId(model.modelEntry);
-			model.modelEntry.metadata = metadata;
-			if (this.groupBy === ChatModelGroup.Visibility) {
-				this.modelsSorted = false;
-			}
-			this.splice(index, 1, [model]);
+	private refreshVisibility(): void {
+		for (const model of this.languageModels) {
+			model.hidden = this.languageModelsService.isModelHidden(model.identifier);
 		}
+		// Rebuild groups so provider/group header `hidden` reflects the new state.
+		this.languageModelGroups = this.groupModels(this.languageModels);
+		this.doFilter();
 	}
 
-	private static getId(modelEntry: IModelEntry): string {
-		return `${modelEntry.identifier}.${modelEntry.metadata.version}-visible:${modelEntry.metadata.isUserSelectable}`;
+	private getModelId(modelEntry: ILanguageModel): string {
+		return `${modelEntry.provider.group.name}.${modelEntry.identifier}.${modelEntry.metadata.version}`;
+	}
+
+	private getProviderGroupId(group: ILanguageModelsProviderGroup): string {
+		return `${group.vendor}-${group.name}`;
 	}
 
 	toggleCollapsed(viewModelEntry: IViewModelEntry): void {
-		const id = isGroupEntry(viewModelEntry) ? viewModelEntry.group : isVendorEntry(viewModelEntry) ? viewModelEntry.vendorEntry.vendor : undefined;
+		const id = isLanguageModelGroupEntry(viewModelEntry) ? viewModelEntry.id : isLanguageModelProviderEntry(viewModelEntry) ? viewModelEntry.id : undefined;
 		if (!id) {
 			return;
 		}
@@ -458,36 +535,26 @@ export class ChatModelsViewModel extends Disposable {
 		if (!this.collapsedGroups.delete(id)) {
 			this.collapsedGroups.add(id);
 		}
-		this.filter(this.searchValue);
+		this.doFilter();
 	}
 
 	collapseAll(): void {
-		const allGroupIds = new Set<string>();
+		this.collapsedGroups.clear();
 		for (const entry of this.viewModelEntries) {
-			if (isVendorEntry(entry)) {
-				allGroupIds.add(entry.vendorEntry.vendor);
-			} else if (isGroupEntry(entry)) {
-				allGroupIds.add(entry.group);
+			if (isLanguageModelProviderEntry(entry) || isLanguageModelGroupEntry(entry)) {
+				this.collapsedGroups.add(entry.id);
 			}
 		}
-		for (const id of allGroupIds) {
-			this.collapsedGroups.add(id);
-		}
-		this.filter(this.searchValue);
+		this.doFilter();
 	}
 
-	getConfiguredVendors(): IVendorEntry[] {
-		const result: IVendorEntry[] = [];
+	getConfiguredVendors(): ILanguageModelProvider[] {
+		const result: ILanguageModelProvider[] = [];
 		const seenVendors = new Set<string>();
-		for (const modelEntry of this.modelEntries) {
-			if (!seenVendors.has(modelEntry.vendor)) {
-				seenVendors.add(modelEntry.vendor);
-				const vendorInfo = this.languageModelsService.getVendors().find(v => v.vendor === modelEntry.vendor);
-				result.push({
-					vendor: modelEntry.vendor,
-					vendorDisplayName: modelEntry.vendorDisplayName,
-					managementCommand: vendorInfo?.managementCommand
-				});
+		for (const modelEntry of this.languageModels) {
+			if (!seenVendors.has(modelEntry.provider.group.name)) {
+				seenVendors.add(modelEntry.provider.group.name);
+				result.push(modelEntry.provider);
 			}
 		}
 		return result;
@@ -501,17 +568,17 @@ class ModelItemMatches {
 	readonly providerMatches: IMatch[] | null = null;
 	readonly capabilityMatches: IMatch[] | null = null;
 
-	constructor(modelEntry: IModelEntry, searchValue: string, words: string[], completeMatch: boolean) {
+	constructor(modelEntry: ILanguageModel, searchValue: string, words: string[], completeMatch: boolean) {
 		if (!completeMatch) {
 			// Match against model name
 			this.modelNameMatches = modelEntry.metadata.name ?
 				this.matches(searchValue, modelEntry.metadata.name, (word, wordToMatchAgainst) => matchesWords(word, wordToMatchAgainst, true), words) :
 				null;
 
-			this.modelIdMatches = this.matches(searchValue, modelEntry.identifier, or(matchesWords, matchesCamelCase), words);
+			this.modelIdMatches = this.matches(searchValue, modelEntry.metadata.id, or(matchesWords, matchesCamelCase), words);
 
 			// Match against vendor display name
-			this.providerMatches = this.matches(searchValue, modelEntry.vendorDisplayName, (word, wordToMatchAgainst) => matchesWords(word, wordToMatchAgainst, true), words);
+			this.providerMatches = this.matches(searchValue, modelEntry.provider.group.name, (word, wordToMatchAgainst) => matchesWords(word, wordToMatchAgainst, true), words);
 
 			// Match against capabilities
 			if (modelEntry.metadata.capabilities) {

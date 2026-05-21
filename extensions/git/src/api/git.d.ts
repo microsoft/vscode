@@ -80,6 +80,7 @@ export interface Worktree {
 	readonly name: string;
 	readonly path: string;
 	readonly ref: string;
+	readonly main: boolean;
 	readonly detached: boolean;
 }
 
@@ -125,6 +126,8 @@ export interface DiffChange extends Change {
 	readonly deletions: number;
 }
 
+export type RepositoryKind = 'repository' | 'submodule' | 'worktree';
+
 export interface RepositoryState {
 	readonly HEAD: Branch | undefined;
 	readonly refs: Ref[];
@@ -144,6 +147,11 @@ export interface RepositoryState {
 export interface RepositoryUIState {
 	readonly selected: boolean;
 	readonly onDidChange: Event<void>;
+}
+
+export interface RepositoryAccessDetails {
+	readonly rootUri: Uri;
+	readonly lastAccessTime: number;
 }
 
 /**
@@ -169,6 +177,11 @@ export interface CommitOptions {
 	all?: boolean | 'tracked';
 	amend?: boolean;
 	signoff?: boolean;
+	/**
+	 * true  - sign the commit
+	 * false - do not sign the commit
+	 * undefined - use the repository/global git config
+	 */
 	signCommit?: boolean;
 	empty?: boolean;
 	noVerify?: boolean;
@@ -226,6 +239,8 @@ export interface Repository {
 	readonly inputBox: InputBox;
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
+	readonly kind: RepositoryKind;
+	readonly isUsingVirtualFileSystem: boolean;
 
 	readonly onDidCommit: Event<void>;
 	readonly onDidCheckout: Event<void>;
@@ -245,8 +260,10 @@ export interface Repository {
 	add(paths: string[]): Promise<void>;
 	revert(paths: string[]): Promise<void>;
 	clean(paths: string[]): Promise<void>;
+	restore(paths: string[], options?: { staged?: boolean; ref?: string }): Promise<void>;
 
 	apply(patch: string, reverse?: boolean): Promise<void>;
+	apply(patch: string, options?: { allowEmpty?: boolean; reverse?: boolean; threeWay?: boolean; }): Promise<void>;
 	diff(cached?: boolean): Promise<string>;
 	diffWithHEAD(): Promise<Change[]>;
 	diffWithHEAD(path: string): Promise<string>;
@@ -263,6 +280,7 @@ export interface Repository {
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
 	diffBetweenPatch(ref1: string, ref2: string, path?: string): Promise<string>;
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]>;
+	diffBetweenWithStats2(ref: string, path?: string): Promise<DiffChange[]>;
 
 	hashObject(data: string): Promise<string>;
 
@@ -300,16 +318,21 @@ export interface Repository {
 	commit(message: string, opts?: CommitOptions): Promise<void>;
 	merge(ref: string): Promise<void>;
 	mergeAbort(): Promise<void>;
+	rebase(branch: string): Promise<void>;
 
 	createStash(options?: { message?: string; includeUntracked?: boolean; staged?: boolean }): Promise<void>;
 	applyStash(index?: number): Promise<void>;
 	popStash(index?: number): Promise<void>;
 	dropStash(index?: number): Promise<void>;
 
-	createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string>;
+	createWorktree(options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string>;
 	deleteWorktree(path: string, options?: { force?: boolean }): Promise<void>;
 
 	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void>;
+
+	generateRandomBranchName(): Promise<string | undefined>;
+
+	isBranchProtected(branch?: Branch): boolean;
 }
 
 export interface RemoteSource {
@@ -395,6 +418,7 @@ export interface API {
 	readonly onDidPublish: Event<PublishEvent>;
 	readonly git: Git;
 	readonly repositories: Repository[];
+	readonly recentRepositories: Iterable<RepositoryAccessDetails>;
 	readonly onDidOpenRepository: Event<Repository>;
 	readonly onDidCloseRepository: Event<Repository>;
 

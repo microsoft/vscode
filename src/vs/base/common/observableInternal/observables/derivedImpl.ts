@@ -414,10 +414,15 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 	}
 
 	public debugRecompute(): void {
-		if (!this._isComputing) {
-			this._recompute();
-		} else {
-			this._state = DerivedState.stale;
+		this.beginUpdate(this);
+		try {
+			if (!this._isComputing) {
+				this._recompute();
+			} else {
+				this._state = DerivedState.stale;
+			}
+		} finally {
+			this.endUpdate(this);
 		}
 	}
 

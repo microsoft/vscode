@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
+import { IAhpTerminalCommandSource, IChatTerminalToolProgressPart, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
@@ -28,11 +30,16 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	private readonly _terminalInstancesByToolSessionId = new Map<string, ITerminalInstance>();
 	private readonly _toolSessionIdByTerminalInstance = new Map<ITerminalInstance, string>();
-	private readonly _chatSessionIdByTerminalInstance = new Map<ITerminalInstance, string>();
+	private readonly _chatSessionResourceByTerminalInstance = new Map<ITerminalInstance, URI>();
 	private readonly _terminalInstanceListenersByToolSessionId = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _chatSessionListenersByTerminalInstance = this._register(new DisposableMap<ITerminalInstance, IDisposable>());
-	private readonly _onDidRegisterTerminalInstanceForToolSession = new Emitter<ITerminalInstance>();
+	private readonly _ahpCommandSources = new Map<string, IAhpTerminalCommandSource>();
+
+	private readonly _onDidContinueInBackground = this._register(new Emitter<string>());
+	readonly onDidContinueInBackground: Event<string> = this._onDidContinueInBackground.event;
+	private readonly _onDidRegisterTerminalInstanceForToolSession = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance> = this._onDidRegisterTerminalInstanceForToolSession.event;
+
 	private readonly _activeProgressParts = new Set<IChatTerminalToolProgressPart>();
 	private _focusedProgressPart: IChatTerminalToolProgressPart | undefined;
 	private _mostRecentProgressPart: IChatTerminalToolProgressPart | undefined;
@@ -48,17 +55,16 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private readonly _hasHiddenToolTerminalContext: IContextKey<boolean>;
 
 	/**
-	 * Tracks chat session IDs that have auto approval enabled for all commands. This is a temporary
+	 * Tracks chat session resources that have auto approval enabled for all commands. This is a temporary
 	 * approval that lasts only for the duration of the session.
 	 */
-	private readonly _sessionAutoApprovalEnabled = new Set<string>();
+	private readonly _sessionAutoApprovalEnabled = new ResourceMap<boolean>();
 
 	/**
 	 * Tracks session-scoped auto-approve rules per chat session. These are temporary rules that
 	 * last only for the duration of the chat session (not persisted to disk).
-	 * Map<chatSessionId, Record<ruleKey, ruleValue>>
 	 */
-	private readonly _sessionAutoApproveRules = new Map<string, Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>();
+	private readonly _sessionAutoApproveRules = new ResourceMap<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -76,13 +82,14 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 		// Clear session auto-approve rules when chat sessions end
 		this._register(this._chatService.onDidDisposeSession(e => {
-			for (const resource of e.sessionResource) {
-				const sessionId = LocalChatSessionUri.parseLocalSessionId(resource);
-				if (sessionId) {
-					this._sessionAutoApproveRules.delete(sessionId);
-				}
+			for (const resource of e.sessionResources) {
+				this._sessionAutoApproveRules.delete(resource);
+				this._sessionAutoApprovalEnabled.delete(resource);
 			}
 		}));
+
+		// Update context keys when terminal instances change (registered once, not per-registration)
+		this._register(this._terminalService.onDidChangeInstances(() => this._updateHasToolTerminalContextKeys()));
 	}
 
 	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void {
@@ -90,36 +97,44 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			this._logService.warn('Attempted to register a terminal instance with an undefined tool session ID');
 			return;
 		}
+		// If the instance is already registered with the same tool session id, skip to avoid
+		// accumulating duplicate `onDidDisposeSession`/`onDisposed` listeners (see #309906).
+		const existingToolSessionId = this._toolSessionIdByTerminalInstance.get(instance);
+		if (existingToolSessionId === terminalToolSessionId) {
+			return;
+		}
+		// The instance was previously registered under a different tool session id. Clean up the
+		// stale listener + mapping before installing the new ones so we keep at most one set of
+		// listeners per instance, regardless of how often it is re-registered.
+		if (existingToolSessionId !== undefined) {
+			this._terminalInstanceListenersByToolSessionId.deleteAndDispose(existingToolSessionId);
+			this._terminalInstancesByToolSessionId.delete(existingToolSessionId);
+		}
 		this._terminalInstancesByToolSessionId.set(terminalToolSessionId, instance);
 		this._toolSessionIdByTerminalInstance.set(instance, terminalToolSessionId);
 		this._onDidRegisterTerminalInstanceForToolSession.fire(instance);
-		this._terminalInstanceListenersByToolSessionId.set(terminalToolSessionId, instance.onDisposed(() => {
+		const instanceStore = new DisposableStore();
+		instanceStore.add(instance.onDisposed(() => {
 			this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 			this._toolSessionIdByTerminalInstance.delete(instance);
 			this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
 			this._persistToStorage();
 			this._updateHasToolTerminalContextKeys();
 		}));
-
-		this._register(this._chatService.onDidDisposeSession(e => {
-			for (const resource of e.sessionResource) {
+		instanceStore.add(this._chatService.onDidDisposeSession(e => {
+			for (const resource of e.sessionResources) {
 				if (LocalChatSessionUri.parseLocalSessionId(resource) === terminalToolSessionId) {
 					this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 					this._toolSessionIdByTerminalInstance.delete(instance);
 					this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
 					// Clean up session auto approval state
-					const sessionId = LocalChatSessionUri.parseLocalSessionId(resource);
-					if (sessionId) {
-						this._sessionAutoApprovalEnabled.delete(sessionId);
-					}
+					this._sessionAutoApprovalEnabled.delete(resource);
 					this._persistToStorage();
 					this._updateHasToolTerminalContextKeys();
 				}
 			}
 		}));
-
-		// Update context keys when terminal instances change (including when terminals are created, disposed, revealed, or hidden)
-		this._register(this._terminalService.onDidChangeInstances(() => this._updateHasToolTerminalContextKeys()));
+		this._terminalInstanceListenersByToolSessionId.set(terminalToolSessionId, instanceStore);
 
 		if (isNumber(instance.shellLaunchConfig?.attachPersistentProcess?.id) || isNumber(instance.persistentProcessId)) {
 			this._persistToStorage();
@@ -157,26 +172,27 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		return this._toolSessionIdByTerminalInstance.get(instance);
 	}
 
-	registerTerminalInstanceWithChatSession(chatSessionId: string, instance: ITerminalInstance): void {
-		// If already registered with the same session ID, skip to avoid duplicate listeners
-		if (this._chatSessionIdByTerminalInstance.get(instance) === chatSessionId) {
+	registerTerminalInstanceWithChatSession(chatSessionResource: URI, instance: ITerminalInstance): void {
+		// If already registered with the same session, skip to avoid duplicate listeners
+		const existingResource = this._chatSessionResourceByTerminalInstance.get(instance);
+		if (existingResource && existingResource.toString() === chatSessionResource.toString()) {
 			return;
 		}
 
 		// Clean up previous listener if the instance was registered with a different session
 		this._chatSessionListenersByTerminalInstance.deleteAndDispose(instance);
 
-		this._chatSessionIdByTerminalInstance.set(instance, chatSessionId);
+		this._chatSessionResourceByTerminalInstance.set(instance, chatSessionResource);
 		// Clean up when the instance is disposed
 		const disposable = instance.onDisposed(() => {
-			this._chatSessionIdByTerminalInstance.delete(instance);
+			this._chatSessionResourceByTerminalInstance.delete(instance);
 			this._chatSessionListenersByTerminalInstance.deleteAndDispose(instance);
 		});
 		this._chatSessionListenersByTerminalInstance.set(instance, disposable);
 	}
 
-	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined {
-		return this._chatSessionIdByTerminalInstance.get(instance);
+	getChatSessionResourceForInstance(instance: ITerminalInstance): URI | undefined {
+		return this._chatSessionResourceByTerminalInstance.get(instance);
 	}
 
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean {
@@ -319,28 +335,45 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._hasHiddenToolTerminalContext.set(hiddenTerminalCount > 0);
 	}
 
-	setChatSessionAutoApproval(chatSessionId: string, enabled: boolean): void {
+	setChatSessionAutoApproval(chatSessionResource: URI, enabled: boolean): void {
 		if (enabled) {
-			this._sessionAutoApprovalEnabled.add(chatSessionId);
+			this._sessionAutoApprovalEnabled.set(chatSessionResource, true);
 		} else {
-			this._sessionAutoApprovalEnabled.delete(chatSessionId);
+			this._sessionAutoApprovalEnabled.delete(chatSessionResource);
 		}
 	}
 
-	hasChatSessionAutoApproval(chatSessionId: string): boolean {
-		return this._sessionAutoApprovalEnabled.has(chatSessionId);
+	hasChatSessionAutoApproval(chatSessionResource: URI): boolean {
+		return this._sessionAutoApprovalEnabled.has(chatSessionResource);
 	}
 
-	addSessionAutoApproveRule(chatSessionId: string, key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void {
-		let sessionRules = this._sessionAutoApproveRules.get(chatSessionId);
+	addSessionAutoApproveRule(chatSessionResource: URI, key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void {
+		let sessionRules = this._sessionAutoApproveRules.get(chatSessionResource);
 		if (!sessionRules) {
 			sessionRules = {};
-			this._sessionAutoApproveRules.set(chatSessionId, sessionRules);
+			this._sessionAutoApproveRules.set(chatSessionResource, sessionRules);
 		}
 		sessionRules[key] = value;
 	}
 
-	getSessionAutoApproveRules(chatSessionId: string): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>> {
-		return this._sessionAutoApproveRules.get(chatSessionId) ?? {};
+	getSessionAutoApproveRules(chatSessionResource: URI): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>> {
+		return this._sessionAutoApproveRules.get(chatSessionResource) ?? {};
+	}
+
+	continueInBackground(terminalToolSessionId: string): void {
+		this._onDidContinueInBackground.fire(terminalToolSessionId);
+	}
+
+	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource): IDisposable {
+		this._ahpCommandSources.set(terminalToolSessionId, source);
+		return toDisposable(() => {
+			if (this._ahpCommandSources.get(terminalToolSessionId) === source) {
+				this._ahpCommandSources.delete(terminalToolSessionId);
+			}
+		});
+	}
+
+	getAhpCommandSource(terminalToolSessionId: string): IAhpTerminalCommandSource | undefined {
+		return this._ahpCommandSources.get(terminalToolSessionId);
 	}
 }

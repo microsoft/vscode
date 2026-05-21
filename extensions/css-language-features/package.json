@@ -2,7 +2,7 @@
   "name": "css-language-features",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -12,8 +12,7 @@
   "activationEvents": [
     "onLanguage:css",
     "onLanguage:less",
-    "onLanguage:scss",
-    "onCommand:_css.applyCodeAction"
+    "onLanguage:scss"
   ],
   "main": "./client/out/node/cssClientMain",
   "browser": "./client/dist/browser/cssClientMain",
@@ -26,7 +25,7 @@
   "scripts": {
     "compile": "npx gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
     "watch": "npx gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
-    "test": "node ../../node_modules/mocha/bin/mocha",
+    "test": "npm run test --prefix server",
     "install-client-next": "npm install vscode-languageclient@next"
   },
   "categories": [
@@ -218,7 +217,7 @@
             },
             "scope": "resource",
             "default": [],
-            "description": "%css.lint.validProperties.desc%"
+            "markdownDescription": "%css.lint.validProperties.desc%"
           },
           "css.lint.ieHack": {
             "type": "string",
@@ -534,7 +533,7 @@
             },
             "scope": "resource",
             "default": [],
-            "description": "%scss.lint.validProperties.desc%"
+            "markdownDescription": "%scss.lint.validProperties.desc%"
           },
           "scss.lint.ieHack": {
             "type": "string",
@@ -840,7 +839,7 @@
             },
             "scope": "resource",
             "default": [],
-            "description": "%less.lint.validProperties.desc%"
+            "markdownDescription": "%less.lint.validProperties.desc%"
           },
           "less.lint.ieHack": {
             "type": "string",
@@ -994,7 +993,7 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^10.0.0-next.18",
+    "vscode-languageclient": "^10.0.0-next.20",
     "vscode-uri": "^3.1.0"
   },
   "devDependencies": {

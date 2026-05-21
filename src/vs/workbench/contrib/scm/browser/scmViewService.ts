@@ -593,6 +593,7 @@ export class SCMViewService implements ISCMViewService {
 
 	dispose(): void {
 		this.disposables.dispose();
+		this._onDidFocusRepository.dispose();
 		this._onDidChangeRepositories.dispose();
 		this._onDidSetVisibleRepositories.dispose();
 	}

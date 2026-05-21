@@ -41,7 +41,7 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 			};
 		}
 
-		if (!(v.confirmationMessages?.message && state.type === IChatToolInvocation.StateKind.WaitingForConfirmation)) {
+		if (!(state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.message)) {
 			return;
 		}
 
@@ -54,9 +54,11 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 				input = JSON.stringify(v.toolSpecificData.extensions);
 			} else if (v.toolSpecificData.kind === 'input') {
 				input = JSON.stringify(v.toolSpecificData.rawInput);
+			} else if (v.toolSpecificData.kind === 'modifiedFilesConfirmation') {
+				input = localize('modifiedFilesConfirmationInput', '{0} files', v.toolSpecificData.modifiedFiles.length);
 			}
 		}
-		const titleObj = v.confirmationMessages?.title;
+		const titleObj = state.confirmationMessages?.title;
 		const title = typeof titleObj === 'string' ? titleObj : titleObj?.value || '';
 		return {
 			title: (title + (input ? ': ' + input : '')).trim(),

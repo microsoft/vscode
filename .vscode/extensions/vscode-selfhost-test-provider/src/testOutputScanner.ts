@@ -545,6 +545,9 @@ export class SourceMapStore {
 			}
 		}
 
+		if (/^[a-zA-Z]:/.test(source) || source.startsWith('/')) {
+			return vscode.Uri.file(source);
+		}
 		return vscode.Uri.parse(source);
 	}
 

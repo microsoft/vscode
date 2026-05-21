@@ -10,7 +10,7 @@ import { Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import * as strings from '../../../base/common/strings.js';
-import { ConfigurationChangedEvent, EditorOption, filterValidationDecorations, filterFontDecorations } from '../config/editorOptions.js';
+import { ConfigurationChangedEvent, EditorOption, filterValidationDecorations, filterFontDecorations, FindComputedEditorOptionValueById } from '../config/editorOptions.js';
 import { EDITOR_FONT_DEFAULTS } from '../config/fontInfo.js';
 import { CursorsController } from '../cursor/cursor.js';
 import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from '../cursorCommon.js';
@@ -33,7 +33,7 @@ import { EditorTheme } from '../editorTheme.js';
 import * as viewEvents from '../viewEvents.js';
 import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
-import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
+import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
 import { ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
@@ -41,7 +41,7 @@ import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, M
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
-import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
+import { CustomLineHeightData } from '../viewLayout/lineHeights.js';
 import { TextModelEditSource } from '../textModelEditSource.js';
 import { InlineDecoration } from './inlineDecorations.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
@@ -166,6 +166,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 
 		this._updateConfigurationViewLineCountNow();
+		this.model.registerViewModel(this);
 	}
 
 	public override dispose(): void {
@@ -176,10 +177,15 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._lines.dispose();
 		this._viewportStart.dispose();
 		this._eventDispatcher.dispose();
+		this.model.unregisterViewModel(this);
 	}
 
-	public createLineBreaksComputer(): ILineBreaksComputer {
-		return this._lines.createLineBreaksComputer();
+	public getEditorOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T> {
+		return this._configuration.options.get(id);
+	}
+
+	public createLineBreaksComputer(context?: ILineBreaksComputerContext): ILineBreaksComputer {
+		return this._lines.createLineBreaksComputer(context);
 	}
 
 	public addViewEventHandler(eventHandler: ViewEventHandler): void {
@@ -190,22 +196,23 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._eventDispatcher.removeViewEventHandler(eventHandler);
 	}
 
-	private _getCustomLineHeights(): ICustomLineHeightData[] {
+	private _getCustomLineHeights(): CustomLineHeightData[] {
 		const allowVariableLineHeights = this._configuration.options.get(EditorOption.allowVariableLineHeights);
 		if (!allowVariableLineHeights) {
 			return [];
 		}
 		const decorations = this.model.getCustomLineHeightsDecorations(this._editorId);
-		return decorations.map((d) => {
-			const lineNumber = d.range.startLineNumber;
-			const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
-			return {
-				decorationId: d.id,
-				startLineNumber: viewRange.startLineNumber,
-				endLineNumber: viewRange.endLineNumber,
-				lineHeight: d.options.lineHeight || 0
-			};
-		});
+		return CustomLineHeightData.fromDecorations(decorations, this.coordinatesConverter, this._configuration);
+	}
+
+	private _getCustomLineHeightsForLines(fromLineNumber: number, toLineNumber: number): CustomLineHeightData[] {
+		const allowVariableLineHeights = this._configuration.options.get(EditorOption.allowVariableLineHeights);
+		if (!allowVariableLineHeights) {
+			return [];
+		}
+		const modelRange = new Range(fromLineNumber, 1, toLineNumber, this.model.getLineMaxColumn(toLineNumber));
+		const decorations = this.model.getCustomLineHeightsDecorationsInRange(modelRange, this._editorId);
+		return CustomLineHeightData.fromDecorations(decorations, this.coordinatesConverter, this._configuration);
 	}
 
 	private _updateConfigurationViewLineCountNow(): void {
@@ -306,143 +313,162 @@ export class ViewModel extends Disposable implements IViewModel {
 		}
 	}
 
+	/**
+	 * Gets called directly by the text model.
+	 */
+	onDidChangeContentOrInjectedText(e: textModelEvents.InternalModelContentChangeEvent | textModelEvents.ModelInjectedTextChangedEvent): void {
+
+		try {
+			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
+
+			let hadOtherModelChange = false;
+			let hadModelLineChangeThatChangedLineMapping = false;
+
+			const changes = (e instanceof textModelEvents.InternalModelContentChangeEvent ? e.rawContentChangedEvent.changes : e.changes);
+			const versionId = (e instanceof textModelEvents.InternalModelContentChangeEvent ? e.rawContentChangedEvent.versionId : null);
+
+			// Do a first pass to compute line mappings, and a second pass to actually interpret them
+			const lineBreaksComputer = this._lines.createLineBreaksComputer();
+			for (const change of changes) {
+				switch (change.changeType) {
+					case textModelEvents.RawContentChangedType.LinesInserted: {
+						for (let i = 0; i < change.count; i++) {
+							lineBreaksComputer.addRequest(change.fromLineNumberPostEdit + i, null);
+						}
+						break;
+					}
+					case textModelEvents.RawContentChangedType.LineChanged: {
+						lineBreaksComputer.addRequest(change.lineNumberPostEdit, null);
+						break;
+					}
+				}
+			}
+			const lineBreaks = lineBreaksComputer.finalize();
+			const lineBreakQueue = new ArrayQueue(lineBreaks);
+
+			// Collect model line ranges that need custom line height computation.
+			// We defer this until after the loop because the coordinatesConverter
+			// relies on projections that may not yet reflect all changes in the batch.
+			const customLineHeightRangesToInsert: { fromLineNumber: number; toLineNumber: number }[] = [];
+
+			for (const change of changes) {
+				switch (change.changeType) {
+					case textModelEvents.RawContentChangedType.Flush: {
+						this._lines.onModelFlushed();
+						eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
+						this._decorations.reset();
+						this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
+						hadOtherModelChange = true;
+						break;
+					}
+					case textModelEvents.RawContentChangedType.LinesDeleted: {
+						const linesDeletedEvent = this._lines.onModelLinesDeleted(versionId, change.fromLineNumber, change.toLineNumber);
+						if (linesDeletedEvent !== null) {
+							eventsCollector.emitViewEvent(linesDeletedEvent);
+							this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
+							customLineHeightRangesToInsert.push({ fromLineNumber: change.lastUntouchedLinePostEdit, toLineNumber: change.lastUntouchedLinePostEdit });
+						}
+						hadOtherModelChange = true;
+						break;
+					}
+					case textModelEvents.RawContentChangedType.LinesInserted: {
+						const insertedLineBreaks = lineBreakQueue.takeCount(change.count);
+						const linesInsertedEvent = this._lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLineBreaks);
+						if (linesInsertedEvent !== null) {
+							eventsCollector.emitViewEvent(linesInsertedEvent);
+							this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
+							customLineHeightRangesToInsert.push({ fromLineNumber: change.fromLineNumberPostEdit, toLineNumber: change.toLineNumberPostEdit });
+						}
+						hadOtherModelChange = true;
+						break;
+					}
+					case textModelEvents.RawContentChangedType.LineChanged: {
+						const changedLineBreakData = lineBreakQueue.dequeue()!;
+						const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] =
+							this._lines.onModelLineChanged(versionId, change.lineNumber, changedLineBreakData);
+						hadModelLineChangeThatChangedLineMapping = lineMappingChanged;
+						if (linesChangedEvent) {
+							eventsCollector.emitViewEvent(linesChangedEvent);
+						}
+						if (linesInsertedEvent) {
+							eventsCollector.emitViewEvent(linesInsertedEvent);
+							this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
+							customLineHeightRangesToInsert.push({ fromLineNumber: change.lineNumberPostEdit, toLineNumber: change.lineNumberPostEdit });
+						}
+						if (linesDeletedEvent) {
+							eventsCollector.emitViewEvent(linesDeletedEvent);
+							this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
+							customLineHeightRangesToInsert.push({ fromLineNumber: change.lineNumberPostEdit, toLineNumber: change.lineNumberPostEdit });
+						}
+						break;
+					}
+					case textModelEvents.RawContentChangedType.EOLChanged: {
+						// Nothing to do. The new version will be accepted below
+						break;
+					}
+				}
+			}
+
+			if (versionId !== null) {
+				this._lines.acceptVersionId(versionId);
+			}
+
+			// Apply deferred custom line heights now that projections are stable
+			if (customLineHeightRangesToInsert.length > 0) {
+				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
+					for (const range of customLineHeightRangesToInsert) {
+						const customLineHeights = this._getCustomLineHeightsForLines(range.fromLineNumber, range.toLineNumber);
+						for (const data of customLineHeights) {
+							accessor.insertOrChangeCustomLineHeight(data.decorationId, data.startLineNumber, data.endLineNumber, data.lineHeight);
+						}
+					}
+				});
+			}
+
+			this.viewLayout.onHeightMaybeChanged();
+
+			if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
+				eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
+				eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
+				this._cursor.onLineMappingChanged(eventsCollector);
+				this._decorations.onLineMappingChanged();
+			}
+		} finally {
+			this._eventDispatcher.endEmitViewEvents();
+		}
+
+		// Update the configuration and reset the centered view line
+		const viewportStartWasValid = this._viewportStart.isValid;
+		this._viewportStart.invalidate();
+		this._configuration.setModelLineCount(this.model.getLineCount());
+		this._updateConfigurationViewLineCountNow();
+
+		// Recover viewport
+		if (!this._hasFocus && this.model.getAttachedEditorCount() >= 2 && viewportStartWasValid) {
+			const modelRange = this.model._getTrackedRange(this._viewportStart.modelTrackedRange);
+			if (modelRange) {
+				const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(modelRange.getStartPosition());
+				const viewPositionTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
+				this.viewLayout.setScrollPosition({ scrollTop: viewPositionTop + this._viewportStart.startLineDelta }, ScrollType.Immediate);
+			}
+		}
+
+		this._handleVisibleLinesChanged();
+	}
+
+	/**
+	 * Gets called directly by the text model.
+	 */
+	emitContentChangeEvent(e: textModelEvents.InternalModelContentChangeEvent | textModelEvents.ModelInjectedTextChangedEvent): void {
+		this._emitViewEvent((eventsCollector) => {
+			if (e instanceof textModelEvents.InternalModelContentChangeEvent) {
+				eventsCollector.emitOutgoingEvent(new ModelContentChangedEvent(e.contentChangedEvent));
+			}
+			this._cursor.onModelContentChanged(eventsCollector, e);
+		});
+	}
+
 	private _registerModelEvents(): void {
-
-		this._register(this.model.onDidChangeContentOrInjectedText((e) => {
-			try {
-				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-
-				let hadOtherModelChange = false;
-				let hadModelLineChangeThatChangedLineMapping = false;
-
-				const changes = (e instanceof textModelEvents.InternalModelContentChangeEvent ? e.rawContentChangedEvent.changes : e.changes);
-				const versionId = (e instanceof textModelEvents.InternalModelContentChangeEvent ? e.rawContentChangedEvent.versionId : null);
-
-				// Do a first pass to compute line mappings, and a second pass to actually interpret them
-				const lineBreaksComputer = this._lines.createLineBreaksComputer();
-				for (const change of changes) {
-					switch (change.changeType) {
-						case textModelEvents.RawContentChangedType.LinesInserted: {
-							for (let lineIdx = 0; lineIdx < change.detail.length; lineIdx++) {
-								const line = change.detail[lineIdx];
-								let injectedText = change.injectedTexts[lineIdx];
-								if (injectedText) {
-									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
-								}
-								lineBreaksComputer.addRequest(line, injectedText, null);
-							}
-							break;
-						}
-						case textModelEvents.RawContentChangedType.LineChanged: {
-							let injectedText: textModelEvents.LineInjectedText[] | null = null;
-							if (change.injectedText) {
-								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
-							}
-							lineBreaksComputer.addRequest(change.detail, injectedText, null);
-							break;
-						}
-					}
-				}
-				const lineBreaks = lineBreaksComputer.finalize();
-				const lineBreakQueue = new ArrayQueue(lineBreaks);
-
-				for (const change of changes) {
-					switch (change.changeType) {
-						case textModelEvents.RawContentChangedType.Flush: {
-							this._lines.onModelFlushed();
-							eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
-							this._decorations.reset();
-							this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
-							hadOtherModelChange = true;
-							break;
-						}
-						case textModelEvents.RawContentChangedType.LinesDeleted: {
-							const linesDeletedEvent = this._lines.onModelLinesDeleted(versionId, change.fromLineNumber, change.toLineNumber);
-							if (linesDeletedEvent !== null) {
-								eventsCollector.emitViewEvent(linesDeletedEvent);
-								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
-							}
-							hadOtherModelChange = true;
-							break;
-						}
-						case textModelEvents.RawContentChangedType.LinesInserted: {
-							const insertedLineBreaks = lineBreakQueue.takeCount(change.detail.length);
-							const linesInsertedEvent = this._lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLineBreaks);
-							if (linesInsertedEvent !== null) {
-								eventsCollector.emitViewEvent(linesInsertedEvent);
-								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
-							}
-							hadOtherModelChange = true;
-							break;
-						}
-						case textModelEvents.RawContentChangedType.LineChanged: {
-							const changedLineBreakData = lineBreakQueue.dequeue()!;
-							const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] =
-								this._lines.onModelLineChanged(versionId, change.lineNumber, changedLineBreakData);
-							hadModelLineChangeThatChangedLineMapping = lineMappingChanged;
-							if (linesChangedEvent) {
-								eventsCollector.emitViewEvent(linesChangedEvent);
-							}
-							if (linesInsertedEvent) {
-								eventsCollector.emitViewEvent(linesInsertedEvent);
-								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
-							}
-							if (linesDeletedEvent) {
-								eventsCollector.emitViewEvent(linesDeletedEvent);
-								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
-							}
-							break;
-						}
-						case textModelEvents.RawContentChangedType.EOLChanged: {
-							// Nothing to do. The new version will be accepted below
-							break;
-						}
-					}
-				}
-
-				if (versionId !== null) {
-					this._lines.acceptVersionId(versionId);
-				}
-				this.viewLayout.onHeightMaybeChanged();
-
-				if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
-					eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
-					eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
-					this._cursor.onLineMappingChanged(eventsCollector);
-					this._decorations.onLineMappingChanged();
-				}
-			} finally {
-				this._eventDispatcher.endEmitViewEvents();
-			}
-
-			// Update the configuration and reset the centered view line
-			const viewportStartWasValid = this._viewportStart.isValid;
-			this._viewportStart.invalidate();
-			this._configuration.setModelLineCount(this.model.getLineCount());
-			this._updateConfigurationViewLineCountNow();
-
-			// Recover viewport
-			if (!this._hasFocus && this.model.getAttachedEditorCount() >= 2 && viewportStartWasValid) {
-				const modelRange = this.model._getTrackedRange(this._viewportStart.modelTrackedRange);
-				if (modelRange) {
-					const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(modelRange.getStartPosition());
-					const viewPositionTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
-					this.viewLayout.setScrollPosition({ scrollTop: viewPositionTop + this._viewportStart.startLineDelta }, ScrollType.Immediate);
-				}
-			}
-
-			try {
-				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-				if (e instanceof textModelEvents.InternalModelContentChangeEvent) {
-					eventsCollector.emitOutgoingEvent(new ModelContentChangedEvent(e.contentChangedEvent));
-				}
-				this._cursor.onModelContentChanged(eventsCollector, e);
-			} finally {
-				this._eventDispatcher.endEmitViewEvents();
-			}
-
-			this._handleVisibleLinesChanged();
-		}));
 
 		const allowVariableLineHeights = this._configuration.options.get(EditorOption.allowVariableLineHeights);
 		if (allowVariableLineHeights) {
@@ -451,10 +477,10 @@ export class ViewModel extends Disposable implements IViewModel {
 
 				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
 					for (const change of filteredChanges) {
-						const { decorationId, lineNumber, lineHeight } = change;
+						const { decorationId, lineNumber, lineHeightMultiplier } = change;
 						const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
-						if (lineHeight !== null) {
-							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeight);
+						if (lineHeightMultiplier !== null) {
+							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeightMultiplier * this._configuration.options.get(EditorOption.lineHeight));
 						} else {
 							accessor.removeCustomLineHeight(decorationId);
 						}
@@ -853,13 +879,15 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
 		const viewportDecorationsCollection = this._decorations.getDecorationsViewportData(visibleRange);
-		const inlineDecorations = viewportDecorationsCollection.inlineDecorations[lineNumber - visibleRange.startLineNumber];
-		return this._getViewLineRenderingData(lineNumber, inlineDecorations, viewportDecorationsCollection.hasVariableFonts, viewportDecorationsCollection.decorations);
+		const relativeLineNumber = lineNumber - visibleRange.startLineNumber;
+		const inlineDecorations = viewportDecorationsCollection.inlineDecorations[relativeLineNumber];
+		const hasVariableFonts = viewportDecorationsCollection.hasVariableFonts[relativeLineNumber];
+		return this._getViewLineRenderingData(lineNumber, inlineDecorations, hasVariableFonts, viewportDecorationsCollection.decorations);
 	}
 
 	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
 		const decorationsCollection = this._decorations.getDecorationsOnLine(lineNumber);
-		return this._getViewLineRenderingData(lineNumber, decorationsCollection.inlineDecorations[0], decorationsCollection.hasVariableFonts, decorationsCollection.decorations);
+		return this._getViewLineRenderingData(lineNumber, decorationsCollection.inlineDecorations[0], decorationsCollection.hasVariableFonts[0], decorationsCollection.decorations);
 	}
 
 	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecoration[], hasVariableFonts: boolean, decorations: ViewModelDecoration[]): ViewLineRenderingData {
@@ -871,9 +899,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		if (lineData.inlineDecorations) {
 			inlineDecorations = [
 				...inlineDecorations,
-				...lineData.inlineDecorations.map(d =>
-					d.toInlineDecoration(lineNumber)
-				)
+				...lineData.inlineDecorations
 			];
 		}
 
@@ -969,7 +995,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this.model.getPositionAt(resultOffset);
 	}
 
-	public getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[] {
+	public getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): { sourceRanges: Range[]; sourceText: string | string[] } {
 		const newLineCharacter = forceCRLF ? '\r\n' : this.model.getEOL();
 
 		modelRanges = modelRanges.slice(0);
@@ -987,34 +1013,39 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		if (!hasNonEmptyRange && !emptySelectionClipboard) {
 			// all ranges are empty
-			return '';
+			return { sourceRanges: [], sourceText: '' };
 		}
+
+		const ranges: Range[] = [];
+		const result: string[] = [];
+		const pushRange = (modelRange: Range, append: string = '') => {
+			ranges.push(modelRange);
+			result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined) + append);
+		};
 
 		if (hasEmptyRange && emptySelectionClipboard) {
 			// some (maybe all) empty selections
-			const result: string[] = [];
 			let prevModelLineNumber = 0;
 			for (const modelRange of modelRanges) {
 				const modelLineNumber = modelRange.startLineNumber;
 				if (modelRange.isEmpty()) {
 					if (modelLineNumber !== prevModelLineNumber) {
-						result.push(this.model.getLineContent(modelLineNumber) + newLineCharacter);
+						pushRange(new Range(modelLineNumber, this.model.getLineMinColumn(modelLineNumber), modelLineNumber, this.model.getLineMaxColumn(modelLineNumber)), newLineCharacter);
 					}
 				} else {
-					result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+					pushRange(modelRange);
 				}
 				prevModelLineNumber = modelLineNumber;
 			}
-			return result.length === 1 ? result[0] : result;
-		}
-
-		const result: string[] = [];
-		for (const modelRange of modelRanges) {
-			if (!modelRange.isEmpty()) {
-				result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+		} else {
+			for (const modelRange of modelRanges) {
+				if (!modelRange.isEmpty()) {
+					pushRange(modelRange);
+				}
 			}
 		}
-		return result.length === 1 ? result[0] : result;
+
+		return { sourceRanges: ranges, sourceText: result.length === 1 ? result[0] : result };
 	}
 
 	public getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null {
@@ -1230,13 +1261,17 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	private _withViewEventsCollector<T>(callback: (eventsCollector: ViewModelEventsCollector) => T): T {
 		return this._transactionalTarget.batchChanges(() => {
-			try {
-				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-				return callback(eventsCollector);
-			} finally {
-				this._eventDispatcher.endEmitViewEvents();
-			}
+			return this._emitViewEvent(callback);
 		});
+	}
+
+	private _emitViewEvent<T>(callback: (eventsCollector: ViewModelEventsCollector) => T): T {
+		try {
+			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
+			return callback(eventsCollector);
+		} finally {
+			this._eventDispatcher.endEmitViewEvents();
+		}
 	}
 
 	public batchEvents(callback: () => void): void {

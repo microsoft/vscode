@@ -4,19 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import es from 'event-stream';
-import gulp from 'gulp';
+import { gulp, gunzip } from './lib/gulp/facade.ts';
 import * as path from 'path';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import * as cp from 'child_process';
 import { tmpdir } from 'os';
 import { existsSync, mkdirSync, rmSync } from 'fs';
-import * as task from './lib/task.ts';
+import * as task from './lib/gulp/task.ts';
 import watcher from './lib/watch/index.ts';
-import { debounce } from './lib/util.ts';
+import { debounce, untar } from './lib/util.ts';
 import { createReporter } from './lib/reporter.ts';
-import untar from 'gulp-untar';
-import gunzip from 'gulp-gunzip';
 
 const root = 'cli';
 const rootAbs = path.resolve(import.meta.dirname, '..', root);
@@ -144,5 +142,5 @@ const watchCliTask = task.define('watch-cli', () => {
 		.pipe(debounce(compileCliTask as task.StreamTask));
 });
 
-gulp.task(compileCliTask);
-gulp.task(watchCliTask);
+task.task(compileCliTask);
+task.task(watchCliTask);

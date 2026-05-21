@@ -16,6 +16,7 @@ import { TestEnvironmentService } from '../../../../../test/browser/workbenchTes
 import { ChatEditingSessionStorage, IChatEditingSessionStop, StoredSessionState } from '../../../browser/chatEditing/chatEditingSessionStorage.js';
 import { ChatEditingSnapshotTextModelContentProvider } from '../../../browser/chatEditing/chatEditingTextModelContentProviders.js';
 import { ISnapshotEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 
 suite('ChatEditingSessionStorage', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -75,6 +76,9 @@ suite('ChatEditingSessionStorage', () => {
 		await storage.storeState(original);
 
 		const changer = (x: any) => {
+			if (typeof x === 'object' && x && hasKey(x, { isDeleted: true }) && x.isDeleted === undefined) {
+				delete x.isDeleted;
+			}
 			return URI.isUri(x) ? x.toString() : x instanceof Map ? cloneAndChange([...x.values()], changer) : undefined;
 		};
 

@@ -429,10 +429,10 @@ export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[
 	const fonts = new Set<string>();
 	for (let i = 1, len = fontMap.length; i < len; i++) {
 		const font = fontMap[i];
-		if (!font.fontFamily && !font.fontSize) {
+		if (!font.fontFamily && !font.fontSizeMultiplier) {
 			continue;
 		}
-		const className = classNameForFontTokenDecorations(font.fontFamily ?? '', font.fontSize ?? '');
+		const className = classNameForFontTokenDecorations(font.fontFamily ?? '', font.fontSizeMultiplier ?? 0);
 		if (fonts.has(className)) {
 			continue;
 		}
@@ -441,8 +441,8 @@ export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[
 		if (font.fontFamily) {
 			rule += `font-family: ${font.fontFamily};`;
 		}
-		if (font.fontSize) {
-			rule += `font-size: ${font.fontSize};`;
+		if (font.fontSizeMultiplier) {
+			rule += `font-size: calc(var(--editor-font-size)*${font.fontSizeMultiplier});`;
 		}
 		rule += `}`;
 		rules.push(rule);
@@ -450,6 +450,19 @@ export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[
 	return rules.join('\n');
 }
 
-export function classNameForFontTokenDecorations(fontFamily: string, fontSize: string): string {
-	return `font-decoration-${fontFamily.toLowerCase()}-${fontSize.toLowerCase()}`;
+export function classNameForFontTokenDecorations(fontFamily: string, fontSize: number): string {
+	const safeFontFamily = sanitizeFontFamilyForClassName(fontFamily);
+	return cleanClassName(`font-decoration-${safeFontFamily}-${fontSize}`);
+}
+
+function sanitizeFontFamilyForClassName(fontFamily: string): string {
+	const normalized = fontFamily.toLowerCase().trim();
+	if (!normalized) {
+		return 'default';
+	}
+	return cleanClassName(normalized);
+}
+
+function cleanClassName(className: string): string {
+	return className.replace(/[^a-z0-9_-]/gi, '-');
 }

@@ -206,6 +206,8 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	}
 
 	dispose(): void {
+		this._onError.dispose();
+		this._onExit.dispose();
 		this.queue = [];
 	}
 }

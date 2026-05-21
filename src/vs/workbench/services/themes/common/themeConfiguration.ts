@@ -85,6 +85,7 @@ const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'boolean',
 	markdownDescription: nls.localize({ key: 'detectColorScheme', comment: ['{0} and {1} will become links to other settings.'] }, 'If enabled, will automatically select a color theme based on the system color mode. If the system color mode is dark, {0} is used, else {1}.', formatSettingAsLink(ThemeSettings.PREFERRED_DARK_THEME), formatSettingAsLink(ThemeSettings.PREFERRED_LIGHT_THEME)),
 	default: false,
+	...(isWeb ? { agentsWindow: { default: true } } : {}),
 	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
 };
 
@@ -302,7 +303,30 @@ export class ThemeConfiguration {
 	}
 
 	public get tokenColorCustomizations(): ITokenColorCustomizations {
-		return this.configurationService.getValue<ITokenColorCustomizations>(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS) || {};
+		const tokenColorCustomization = this.configurationService.getValue<ITokenColorCustomizations>(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS) || {};
+		const textMateRules = tokenColorCustomization.textMateRules;
+		if (!textMateRules) {
+			return tokenColorCustomization;
+		}
+		const updatedRules = textMateRules.map(rule => {
+			const fontSize = rule.settings?.fontSize;
+			const lineHeight = rule.settings?.lineHeight;
+			if (fontSize !== undefined && lineHeight === undefined) {
+				return {
+					...rule,
+					settings: {
+						...rule.settings,
+						lineHeight: fontSize
+					}
+				};
+			}
+			return rule;
+		});
+		const updatedTokenColorCustomization = {
+			...tokenColorCustomization,
+			textMateRules: updatedRules
+		};
+		return updatedTokenColorCustomization;
 	}
 
 	public get semanticTokenColorCustomizations(): ISemanticTokenColorCustomizations | undefined {
@@ -313,7 +337,7 @@ export class ThemeConfiguration {
 		if (this.configurationService.getValue(ThemeSettings.DETECT_HC) && this.hostColorService.highContrast) {
 			return this.hostColorService.dark ? ColorScheme.HIGH_CONTRAST_DARK : ColorScheme.HIGH_CONTRAST_LIGHT;
 		}
-		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
+		if (this.isDetectingColorScheme()) {
 			return this.hostColorService.dark ? ColorScheme.DARK : ColorScheme.LIGHT;
 		}
 		return undefined;
@@ -354,7 +378,7 @@ export class ThemeConfiguration {
 			return ConfigurationTarget.WORKSPACE_FOLDER;
 		} else if (!types.isUndefined(settings.workspaceValue)) {
 			return ConfigurationTarget.WORKSPACE;
-		} else if (!types.isUndefined(settings.userRemote)) {
+		} else if (!types.isUndefined(settings.userRemoteValue)) {
 			return ConfigurationTarget.USER_REMOTE;
 		}
 		return ConfigurationTarget.USER;

@@ -32,7 +32,11 @@ export class McpUserResourceManagementService extends CommonMcpUserResourceManag
 
 		try {
 			const manifest = await this.updateMetadataFromGallery(server);
-			const packageType = options?.packageType ?? manifest.packages?.[0]?.registryType ?? RegistryType.REMOTE;
+			const packageType = options?.packageType ?? (
+				manifest.remotes?.length
+					? RegistryType.REMOTE
+					: (manifest.packages?.[0]?.registryType ?? RegistryType.REMOTE)
+			);
 
 			const { mcpServerConfiguration, notices } = this.getMcpServerConfigurationFromManifest(manifest, packageType);
 

@@ -29,6 +29,7 @@ import { Emitter, Event, EventBufferer, Relay } from '../../../common/event.js';
 import { fuzzyScore, FuzzyScore } from '../../../common/filters.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { isMacintosh } from '../../../common/platform.js';
 import { clamp } from '../../../common/numbers.js';
 import { ScrollEvent } from '../../../common/scrollable.js';
 import './media/tree.css';
@@ -162,7 +163,10 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 		identityProvider: options.identityProvider && {
 			getId(el) {
 				return options.identityProvider!.getId(el.element);
-			}
+			},
+			getGroupId: options.identityProvider!.getGroupId ? (el) => {
+				return options.identityProvider!.getGroupId!(el.element);
+			} : undefined
 		},
 		dnd: options.dnd && disposableStore.add(new TreeNodeListDragAndDrop(modelProvider, options.dnd)),
 		multipleSelectionController: options.multipleSelectionController && {
@@ -306,6 +310,7 @@ export enum RenderIndentGuides {
 
 interface ITreeRendererOptions<T> {
 	readonly indent?: number;
+	readonly defaultIndent?: number;
 	readonly renderIndentGuides?: RenderIndentGuides;
 	// TODO@joao replace this with collapsible: boolean | 'ondemand'
 	readonly hideTwistiesOfChildlessElements?: boolean;
@@ -343,6 +348,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
 	private renderedNodes = new Map<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>>();
 	private indent: number = TreeRenderer.DefaultIndent;
+	private defaultIndent: number = TreeRenderer.DefaultIndent;
 	private hideTwistiesOfChildlessElements: boolean = false;
 	private twistieAdditionalCssClass?: (element: T) => string | undefined;
 
@@ -368,14 +374,19 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	}
 
 	updateOptions(options: ITreeRendererOptions<T> = {}): void {
-		if (typeof options.indent !== 'undefined') {
-			const indent = clamp(options.indent, 0, 40);
+		if (typeof options.defaultIndent !== 'undefined') {
+			this.defaultIndent = options.defaultIndent;
+		}
 
-			if (indent !== this.indent) {
+		if (typeof options.indent !== 'undefined' || typeof options.defaultIndent !== 'undefined') {
+			const indent = typeof options.indent !== 'undefined' ? clamp(options.indent, 0, 40) : this.indent;
+			const needsRerender = indent !== this.indent || typeof options.defaultIndent !== 'undefined';
+
+			if (needsRerender) {
 				this.indent = indent;
 
 				for (const [node, templateData] of this.renderedNodes) {
-					templateData.indentSize = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
+					templateData.indentSize = this.defaultIndent + (node.depth - 1) * this.indent;
 					this.renderTreeElement(node, templateData);
 				}
 			}
@@ -423,7 +434,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	}
 
 	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, details?: IListElementRenderDetails): void {
-		templateData.indentSize = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
+		templateData.indentSize = this.defaultIndent + (node.depth - 1) * this.indent;
 
 		this.renderedNodes.set(node, templateData);
 		this.renderedElements.set(node.element, node);
@@ -828,7 +839,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 	private readonly actionbar: ActionBar;
 	private readonly toggles: TreeFindToggle[] = [];
 
-	readonly _onDidDisable = new Emitter<void>();
+	readonly _onDidDisable = this._register(new Emitter<void>());
 	readonly onDidDisable = this._onDidDisable.event;
 	readonly onDidChangeValue: Event<string>;
 	readonly onDidToggleChange: Event<ITreeFindToggleChangeEvent>;
@@ -967,6 +978,7 @@ interface IAbstractFindControllerOptions extends IFindWidgetOptions {
 	placeholder?: string;
 	toggles?: ITreeFindToggleContribution[];
 	showNotFoundMessage?: boolean;
+	findWidgetContainer?: HTMLElement;
 }
 
 export interface IFindControllerOptions extends IAbstractFindControllerOptions {
@@ -1023,9 +1035,12 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 			return;
 		}
 
-		this.tree.updateOptions({ paddingTop: 30 });
+		const widgetContainer = this.options.findWidgetContainer ?? this.tree.getHTMLElement();
+		if (!this.options.findWidgetContainer) {
+			this.tree.updateOptions({ paddingTop: 30 });
+		}
 
-		this.widget = new FindWidget(this.tree.getHTMLElement(), this.tree, this.contextViewProvider, this.placeholder, this.toggles.states(), { ...this.options, history: this._history });
+		this.widget = new FindWidget(widgetContainer, this.tree, this.contextViewProvider, this.placeholder, this.toggles.states(), { ...this.options, history: this._history });
 		this.enabledDisposables.add(this.widget);
 
 		this.widget.onDidChangeValue(this.onDidChangeValue, this, this.enabledDisposables);
@@ -1045,7 +1060,9 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 			return;
 		}
 
-		this.tree.updateOptions({ paddingTop: 0 });
+		if (!this.options.findWidgetContainer) {
+			this.tree.updateOptions({ paddingTop: 0 });
+		}
 
 		this._history = this.widget.getHistory();
 		this.widget = undefined;
@@ -1427,7 +1444,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		const firstVisibleNode = this.getNodeAtHeight(this.paddingTop);
 
 		// Don't render anything if there are no elements
-		if (!firstVisibleNode || this.tree.scrollTop <= this.paddingTop) {
+		if (!firstVisibleNode || this.tree.scrollTop <= this.paddingTop || this.view.renderHeight === 0) {
 			this._widget.setState(undefined);
 			return;
 		}
@@ -1897,10 +1914,10 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 	private elements: HTMLElement[] = [];
 	private state: StickyScrollState<T, TFilterData, TRef> | undefined;
 
-	private _onDidChangeHasFocus = new Emitter<boolean>();
+	private _onDidChangeHasFocus = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasFocus = this._onDidChangeHasFocus.event;
 
-	private _onContextMenu = new Emitter<ITreeContextMenuEvent<T>>();
+	private _onContextMenu = this._register(new Emitter<ITreeContextMenuEvent<T>>());
 	readonly onContextMenu: Event<ITreeContextMenuEvent<T>> = this._onContextMenu.event;
 
 	private _domHasFocus: boolean = false;
@@ -2188,6 +2205,7 @@ function asTreeContextMenuEvent<T, TFilterData = void>(event: IListContextMenuEv
 }
 
 export interface IAbstractTreeOptionsUpdate<T> extends ITreeRendererOptions<T> {
+	readonly defaultIndent?: number; // Only recommended for compact layouts. Leave unchanged otherwise
 	readonly multipleSelectionSupport?: boolean;
 	readonly typeNavigationEnabled?: boolean;
 	readonly typeNavigationMode?: TypeNavigationMode;
@@ -2215,6 +2233,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly paddingBottom?: number;
 	readonly findWidgetEnabled?: boolean;
 	readonly findWidgetStyles?: IFindWidgetStyles;
+	readonly findWidgetContainer?: HTMLElement;
 	readonly defaultFindVisibility?: TreeVisibility | ((e: T) => TreeVisibility);
 	readonly stickyScrollDelegate?: IStickyScrollDelegate<T, TFilterData>;
 	readonly disableExpandOnSpacebar?: boolean; // defaults to false
@@ -2690,6 +2709,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 				defaultFindMode: _options.defaultFindMode,
 				defaultFindMatchType: _options.defaultFindMatchType,
 				showNotFoundMessage: _options.showNotFoundMessage,
+				findWidgetContainer: _options.findWidgetContainer,
 			};
 			this.findController = this.disposables.add(new FindController(this, this.findFilter!, _options.contextViewProvider, findOptions));
 			this.focusNavigationFilter = node => this.findController!.shouldAllowFocus(node);
@@ -2717,7 +2737,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			renderer.updateOptions(optionsUpdate);
 		}
 
-		this.view.updateOptions(this._options);
+		this.view.updateOptions(optionsUpdate);
 		this.findController?.updateOptions(optionsUpdate);
 		this.updateStickyScroll(optionsUpdate);
 
@@ -3239,6 +3259,17 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.onDidChangeCollapseStateRelay.input = model.onDidChangeCollapseState;
 		this.onDidChangeRenderNodeCountRelay.input = model.onDidChangeRenderNodeCount;
 		this.onDidSpliceModelRelay.input = model.onDidSpliceModel;
+
+		// Announce collapse state changes for screen readers (VoiceOver doesn't reliably
+		// announce aria-expanded changes on already-focused elements)
+		if (isMacintosh) {
+			this.modelDisposables.add(model.onDidChangeCollapseState(e => {
+				const { node, deep } = e;
+				if (node.collapsible && !deep && this.isDOMFocused()) {
+					alert(node.collapsed ? localize('treeNodeCollapsed', "collapsed") : localize('treeNodeExpanded', "expanded"));
+				}
+			}));
+		}
 	}
 
 	navigate(start?: TRef): ITreeNavigator<T> {

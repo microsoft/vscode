@@ -176,6 +176,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
+
 		// Update editor tabs control if options changed
 		if (
 			oldOptions.showTabs !== newOptions.showTabs ||

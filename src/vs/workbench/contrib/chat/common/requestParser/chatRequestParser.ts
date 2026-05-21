@@ -7,17 +7,18 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IPosition, Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
-import { IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
-import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatVariablesService, IDynamicVariable } from '../attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
-import { IToolData, ToolSet } from '../tools/languageModelToolsService.js';
-import { IPromptsService } from '../promptSyntax/service/promptsService.js';
+import { getChatSessionType } from '../model/chatUri.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
+import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
+import { IPromptsService, matchesSessionType } from '../promptSyntax/service/promptsService.js';
+import { IToolAndToolSetEnablementMap, IToolData, IToolSet, isToolSet } from '../tools/languageModelToolsService.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 
-const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
-const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
-const slashReg = /^\/([\p{L}\d_\-\.:]+)(?=(\s|$|\b))/iu; // A / command
+export const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
+export const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
+export const slashReg = /^\/([\p{L}\d_\-\.:]+)(?=(\s|$|\b))/iu; // A / command
 
 export interface IChatParserContext {
 	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
@@ -25,6 +26,8 @@ export interface IChatParserContext {
 	mode?: ChatModeKind;
 	/** Parse as this agent, even when it does not appear in the query text */
 	forcedAgent?: IChatAgentData;
+	attachmentCapabilities?: IChatAgentAttachmentCapabilities;
+	sessionType?: string;
 }
 
 export class ChatRequestParser {
@@ -35,14 +38,22 @@ export class ChatRequestParser {
 		@IPromptsService private readonly promptsService: IPromptsService,
 	) { }
 
-	parseChatRequest(sessionResource: URI, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context?: IChatParserContext): IParsedChatRequest {
-		const parts: IParsedChatRequestPart[] = [];
+	parseChatRequest(sessionResource: URI, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context: IChatParserContext = {}): IParsedChatRequest {
 		const references = this.variableService.getDynamicVariables(sessionResource); // must access this list before any async calls
+		const selectedToolAndToolSets = this.variableService.getSelectedToolAndToolSets(sessionResource);
+		if (!context.sessionType) {
+			context = { ...context, sessionType: getChatSessionType(sessionResource) };
+		}
+		return this.parseChatRequestWithReferences(references, selectedToolAndToolSets, message, location, context);
+	}
+
+	parseChatRequestWithReferences(references: ReadonlyArray<IDynamicVariable>, selectedToolAndToolSets: IToolAndToolSetEnablementMap, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context?: IChatParserContext): IParsedChatRequest {
+		const parts: IParsedChatRequestPart[] = [];
 		const toolsByName = new Map<string, IToolData>();
-		const toolSetsByName = new Map<string, ToolSet>();
-		for (const [entry, enabled] of this.variableService.getSelectedToolAndToolSets(sessionResource)) {
+		const toolSetsByName = new Map<string, IToolSet>();
+		for (const [entry, enabled] of selectedToolAndToolSets) {
 			if (enabled) {
-				if (entry instanceof ToolSet) {
+				if (isToolSet(entry)) {
 					toolSetsByName.set(entry.referenceName, entry);
 				} else {
 					toolsByName.set(entry.toolReferenceName ?? entry.displayName, entry);
@@ -160,7 +171,7 @@ export class ChatRequestParser {
 		return new ChatRequestAgentPart(agentRange, agentEditorRange, agent);
 	}
 
-	private tryToParseVariable(message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, toolsByName: ReadonlyMap<string, IToolData>, toolSetsByName: ReadonlyMap<string, ToolSet>): ChatRequestToolPart | ChatRequestToolSetPart | undefined {
+	private tryToParseVariable(message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, toolsByName: ReadonlyMap<string, IToolData>, toolSetsByName: ReadonlyMap<string, IToolSet>): ChatRequestToolPart | ChatRequestToolSetPart | undefined {
 		const nextVariableMatch = message.match(variableReg);
 		if (!nextVariableMatch) {
 			return;
@@ -215,13 +226,20 @@ export class ChatRequestParser {
 				// Valid agent subcommand
 				return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);
 			}
-		} else {
-			const slashCommands = this.slashCommandService.getCommands(location, context?.mode ?? ChatModeKind.Ask);
-			const slashCommand = slashCommands.find(c => c.command === command);
+		}
+
+		const capabilities = context?.attachmentCapabilities ?? usedAgent?.capabilities;
+		const slashCommands = this.slashCommandService.getCommands(location, context?.mode ?? ChatModeKind.Ask);
+		const slashCommand = slashCommands.find(c => c.command === command && matchesSessionType(c.sessionTypes, context?.sessionType));
+		// If there is no agent, we allow any slash command.
+		// If there is an agent, we let
+		// * silent ones go through since they are only UI-facing and don't influence chat history
+		// * slash commands that support prompt attachments, since those are meant to be used in conjunction with an agent and we can assume the agent can handle them.
+		if (!usedAgent || slashCommand?.silent || capabilities?.supportsPromptAttachments) {
 			if (slashCommand) {
 				// Valid standalone slash command
 				return new ChatRequestSlashCommandPart(slashRange, slashEditorRange, slashCommand);
-			} else {
+			} else if (!usedAgent) {
 				// check for with default agent for this location
 				const defaultAgent = this.agentService.getDefaultAgent(location, context?.mode);
 				const subCommand = defaultAgent?.slashCommands.find(c => c.name === command);
@@ -231,7 +249,7 @@ export class ChatRequestParser {
 				}
 			}
 
-			// if there's no agent, asume it is a prompt slash command
+			// if there's no agent or attachments are supported, asume it is a prompt slash command
 			const isPromptCommand = this.promptsService.isValidSlashCommandName(command);
 			if (isPromptCommand) {
 				return new ChatRequestSlashPromptPart(slashRange, slashEditorRange, command);
@@ -248,7 +266,7 @@ export class ChatRequestParser {
 			const length = refAtThisPosition.range.endColumn - refAtThisPosition.range.startColumn;
 			const text = message.substring(0, length);
 			const range = new OffsetRange(offset, offset + length);
-			return new ChatRequestDynamicVariablePart(range, refAtThisPosition.range, text, refAtThisPosition.id, refAtThisPosition.modelDescription, refAtThisPosition.data, refAtThisPosition.fullName, refAtThisPosition.icon, refAtThisPosition.isFile, refAtThisPosition.isDirectory);
+			return new ChatRequestDynamicVariablePart(range, refAtThisPosition.range, text, refAtThisPosition.id, refAtThisPosition.modelDescription, refAtThisPosition.data, refAtThisPosition.fullName, refAtThisPosition.icon, refAtThisPosition.isFile, refAtThisPosition.isDirectory, refAtThisPosition._meta);
 		}
 
 		return;

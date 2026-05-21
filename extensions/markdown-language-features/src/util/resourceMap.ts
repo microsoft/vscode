@@ -11,53 +11,53 @@ const defaultResourceToKey = (resource: vscode.Uri): string => resource.toString
 
 export class ResourceMap<T> {
 
-	private readonly _map = new Map<string, { readonly uri: vscode.Uri; readonly value: T }>();
+	readonly #map = new Map<string, { readonly uri: vscode.Uri; readonly value: T }>();
 
-	private readonly _toKey: ResourceToKey;
+	readonly #toKey: ResourceToKey;
 
 	constructor(toKey: ResourceToKey = defaultResourceToKey) {
-		this._toKey = toKey;
+		this.#toKey = toKey;
 	}
 
 	public set(uri: vscode.Uri, value: T): this {
-		this._map.set(this._toKey(uri), { uri, value });
+		this.#map.set(this.#toKey(uri), { uri, value });
 		return this;
 	}
 
 	public get(resource: vscode.Uri): T | undefined {
-		return this._map.get(this._toKey(resource))?.value;
+		return this.#map.get(this.#toKey(resource))?.value;
 	}
 
 	public has(resource: vscode.Uri): boolean {
-		return this._map.has(this._toKey(resource));
+		return this.#map.has(this.#toKey(resource));
 	}
 
 	public get size(): number {
-		return this._map.size;
+		return this.#map.size;
 	}
 
 	public clear(): void {
-		this._map.clear();
+		this.#map.clear();
 	}
 
 	public delete(resource: vscode.Uri): boolean {
-		return this._map.delete(this._toKey(resource));
+		return this.#map.delete(this.#toKey(resource));
 	}
 
 	public *values(): IterableIterator<T> {
-		for (const entry of this._map.values()) {
+		for (const entry of this.#map.values()) {
 			yield entry.value;
 		}
 	}
 
 	public *keys(): IterableIterator<vscode.Uri> {
-		for (const entry of this._map.values()) {
+		for (const entry of this.#map.values()) {
 			yield entry.uri;
 		}
 	}
 
 	public *entries(): IterableIterator<[vscode.Uri, T]> {
-		for (const entry of this._map.values()) {
+		for (const entry of this.#map.values()) {
 			yield [entry.uri, entry.value];
 		}
 	}

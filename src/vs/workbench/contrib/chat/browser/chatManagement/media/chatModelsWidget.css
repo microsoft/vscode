@@ -43,6 +43,7 @@
 
 .models-widget .models-search-and-button-container .section-title-actions .models-add-model-button {
 	white-space: nowrap;
+	padding: 5px 8px 5px 4px;
 }
 
 /** Table styling **/
@@ -51,6 +52,28 @@
 	width: 100%;
 	border-spacing: 0;
 	border-collapse: separate;
+	overflow: hidden;
+}
+
+.models-widget .models-table-container > .monaco-scrollable-element {
+	width: 100%;
+	height: 100%;
+}
+
+.models-widget .models-table-container .models-table-viewport {
+	width: 100%;
+	height: 100%;
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: none;
+}
+
+.models-widget .models-table-container .models-table-viewport::-webkit-scrollbar {
+	display: none;
+}
+
+.models-widget .models-table-container .models-table-inner {
+	height: 100%;
 }
 
 .models-widget .models-table-container .monaco-table-tr {
@@ -64,7 +87,7 @@
 	padding-left: 10px;
 }
 
-.models-widget .models-table-container .monaco-table-td[data-col-index="1"] {
+.models-widget .models-table-container .monaco-table-td[data-col-index="0"] {
 	padding-left: 8px;
 }
 
@@ -73,30 +96,10 @@
 	background-color: var(--vscode-keybindingTable-headerBackground);
 }
 
-.models-widget .models-table-container .monaco-table-th[data-col-index="1"] {
+.models-widget .models-table-container .monaco-table-th[data-col-index="0"] {
 	padding-left: 8px;
 }
 
-
-/** Gutter column styling **/
-
-.models-widget .models-table-container .monaco-table-tr.models-model-row.model-hidden .models-table-column.models-gutter-column {
-	opacity: 1;
-}
-
-.models-widget .models-table-container .monaco-table-td .models-gutter-column .models-twistie {
-	align-self: stretch;
-}
-
-.models-widget .models-table-container .monaco-list-row .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar {
-	display: none;
-}
-
-.models-widget .models-table-container .monaco-list-row.focused .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar,
-.models-widget .models-table-container .monaco-list-row.selected .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar,
-.models-widget .models-table-container .monaco-list-row:hover .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar {
-	display: inherit;
-}
 
 /** Model Name column styling **/
 
@@ -121,24 +124,47 @@
 	flex: 0 1 auto;
 }
 
+.models-widget .models-table-container .monaco-list-row:not(.selected) .monaco-table-tr.models-status-row .monaco-table-td .model-name-container .model-name .monaco-highlighted-label.error-status {
+	color: var(--vscode-errorForeground);
+}
+
+.models-widget .models-table-container .monaco-list-row:not(.selected) .monaco-table-tr.models-status-row .monaco-table-td .model-name-container .model-name .monaco-highlighted-label.warning-status {
+	color: var(--vscode-editorWarning-foreground);
+}
+
 /** Actions column styling **/
 
-.models-widget .models-table-container .monaco-table-td .actions-column {
-	display: flex;
+.models-widget .models-table-container .monaco-list-row .monaco-table-tr.models-model-row .models-table-column.models-actions-column .actions-container {
+	display: none;
 	align-items: center;
 	justify-content: center;
 	width: 100%;
 }
 
-.models-widget .models-table-container .monaco-table-td .actions-column .monaco-action-bar {
+.models-widget .models-table-container .monaco-list-row.focused .monaco-table-tr .models-table-column.models-actions-column .actions-container,
+.models-widget .models-table-container .monaco-list-row.selected .monaco-table-tr .models-table-column.models-actions-column .actions-container,
+.models-widget .models-table-container .monaco-list-row:hover .monaco-table-tr .models-table-column.models-actions-column .actions-container {
+	display: flex;
+}
+
+.models-widget .models-table-container .monaco-table-td .models-actions-column .actions-container .monaco-action-bar {
 	margin-right: 9px;
 }
 
 /** Cost column styling **/
 
-.models-widget .models-table-container .monaco-table-td .model-multiplier {
+.models-widget .models-table-container .monaco-table-td .model-cost-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	gap: 4px;
+	width: 100%;
+	overflow: hidden;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-cost-grid .model-cost-cell {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 /** Token Limits column styling **/
@@ -201,10 +227,6 @@
 
 /** Model row styling **/
 
-.models-widget .models-table-container .monaco-table-tr.models-model-row.model-hidden .models-table-column {
-	opacity: 0.6;
-}
-
 /** Row alternating colors **/
 .models-widget .models-table-container .monaco-table .monaco-list-row[data-parity=odd]:not(.focused):not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row),
 .models-widget .models-table-container .monaco-table .monaco-list:not(:focus) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row),
@@ -212,10 +234,39 @@
 	background-color: var(--vscode-editor-background);
 }
 
-/** Provider column styling **/
+/** Hidden row styling **/
 
-.models-widget .models-table-container .monaco-table-td .model-provider {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .model-name,
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .model-cost-grid,
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .model-token-limits,
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .model-capabilities,
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .model-status-icon {
+	opacity: 0.55;
+}
+
+.models-widget .models-table-container .models-gutter-column .monaco-action-bar {
+	width: 100%;
+}
+
+.models-widget .models-table-container .monaco-table-tr.models-vendor-row .models-gutter-column .monaco-action-bar .actions-container {
+	justify-content: space-between;
+}
+
+.models-widget .models-table-container .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar .actions-container {
+	justify-content: flex-end;
+}
+
+/** Visibility toggle action in the gutter column.
+ * The action is only visible on row focus/hover, or when the model/group
+ * is currently hidden so the user can spot what to click to bring it
+ * back. **/
+.models-widget .models-table-container .monaco-table-td .models-gutter-column .model-visibility-toggle {
+	visibility: hidden;
+}
+
+.models-widget .models-table-container .monaco-list-row.focused .monaco-table-td .models-gutter-column .model-visibility-toggle,
+.models-widget .models-table-container .monaco-list-row.selected .monaco-table-td .models-gutter-column .model-visibility-toggle,
+.models-widget .models-table-container .monaco-list-row:hover .monaco-table-td .models-gutter-column .model-visibility-toggle,
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .models-gutter-column .model-visibility-toggle {
+	visibility: visible;
 }

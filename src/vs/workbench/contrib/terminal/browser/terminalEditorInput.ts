@@ -60,7 +60,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor | EditorInputCapabilities.ForceDescription;
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.ForceReveal | EditorInputCapabilities.CanDropIntoEditor | EditorInputCapabilities.ForceDescription;
 	}
 
 	setTerminalInstance(instance: ITerminalInstance): void {

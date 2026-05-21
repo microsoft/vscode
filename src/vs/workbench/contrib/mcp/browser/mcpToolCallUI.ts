@@ -217,7 +217,7 @@ export class McpToolCallUI extends Disposable {
 			throw new Error('UI resource has no content');
 		}
 
-		const meta = resourceResult._meta?.ui as McpApps.McpUiResourceMeta | undefined;
+		const meta = content._meta?.ui as McpApps.McpUiResourceMeta | undefined;
 
 		return {
 			...meta,

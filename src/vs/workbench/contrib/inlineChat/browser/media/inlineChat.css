@@ -6,9 +6,9 @@
 
 .monaco-workbench .inline-chat {
 	color: inherit;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-large);
 	border: 1px solid var(--vscode-inlineChat-border);
-	box-shadow: 0 2px 4px 0 var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-lg);
 	background: var(--vscode-inlineChat-background);
 	padding-top: 3px;
 	position: relative;
@@ -96,22 +96,38 @@
 .monaco-workbench .zone-widget.inline-chat-widget.inline-chat-2 {
 
 	.inline-chat .chat-widget .interactive-session .interactive-input-part {
-		padding: 8px 0 0 0;
+		padding: 8px 0 4px 0;
 	}
 
+	.interactive-session .chat-input-container.focused,
 	.interactive-session .chat-input-container {
-		border-color: transparent;
+		border-color: var(--vscode-inlineChat-background);
+		background-color: var(--vscode-inlineChat-background);
 		padding-left: 0;
+	}
+
+	.chat-attachments-container {
+		margin-right: 0;
 	}
 
 	.chat-attachments-container > .chat-input-toolbar {
 		margin-left: auto;
 		margin-right: 16px;
+		width: 100%;
 	}
 
 	/* TODO@jrieken this isn't the nicest selector... */
 	.request-in-progress .monaco-editor [class^="ced-chat-session-detail"]::after {
 		animation: pulse-opacity 2.5s ease-in-out infinite;
+	}
+
+	.chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
+		background-color: var(--vscode-inlineChat-background);
+	}
+
+	.chat-input-notification-container.has-notification {
+		margin-bottom: 12px;
+		padding-right: 12px;
 	}
 }
 
@@ -172,7 +188,7 @@
 	max-width: 66%;
 }
 
-.monaco-workbench .inline-chat .chat-widget .interactive-session .chat-input-toolbars > .chat-execute-toolbar .chat-modelPicker-item {
+.monaco-workbench .inline-chat .chat-widget .interactive-session .chat-input-toolbars > .chat-execute-toolbar .chat-input-picker-item {
 	min-width: 40px;
 	max-width: 132px;
 }
@@ -310,4 +326,91 @@
 
 .monaco-workbench .inline-chat .chat-attached-context {
 	padding: 2px 0px;
+}
+
+.monaco-workbench .inline-chat .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::before,
+.monaco-workbench .inline-chat .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::after {
+	display: none;
+}
+
+/* Termination card (zone widget) — aligned with overlay widget */
+
+.monaco-workbench .inline-chat-terminated-card {
+	padding: 4px;
+	color: var(--vscode-foreground);
+	font-size: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.monaco-workbench .inline-chat-terminated-card.hidden {
+	display: none;
+}
+
+/* Markdown scrollable area */
+.monaco-workbench .inline-chat-terminated-card > .monaco-scrollable-element {
+	width: 100%;
+}
+
+.monaco-workbench .inline-chat-terminated-card > .monaco-scrollable-element.hidden {
+	display: none;
+}
+
+.monaco-workbench .inline-chat-terminated-card .markdown-scroll-container {
+	width: 100%;
+}
+
+.monaco-workbench .inline-chat-terminated-card .markdown-message {
+	padding: 5px;
+	font-size: 12px;
+	line-height: 1.45;
+}
+
+.monaco-workbench .inline-chat-terminated-card .markdown-message p {
+	margin: 0;
+}
+
+.monaco-workbench .inline-chat-terminated-card .markdown-message code {
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-chat-font-size-body-xs);
+	color: var(--vscode-textPreformat-foreground);
+	background-color: var(--vscode-textPreformat-background);
+	padding: 1px 3px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-textPreformat-border);
+	white-space: pre-wrap;
+}
+
+/* Content row: toolbar */
+.monaco-workbench .inline-chat-terminated-card > .content-row {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 4px;
+}
+
+.monaco-workbench .inline-chat-terminated-card > .content-row > .toolbar .monaco-text-button {
+	padding: 2px 8px;
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+/* Status Placeholder */
+.monaco-workbench .zone-widget.inline-chat-widget .status-placeholder {
+	margin-left: auto;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.1s ease-in-out;
+}
+
+.monaco-workbench .zone-widget.inline-chat-widget .status-placeholder .action-label {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	cursor: default;
+}
+
+.monaco-workbench .zone-widget.inline-chat-widget:hover .status-placeholder,
+.monaco-workbench .zone-widget.inline-chat-widget:focus-within .status-placeholder {
+	opacity: 1;
 }
