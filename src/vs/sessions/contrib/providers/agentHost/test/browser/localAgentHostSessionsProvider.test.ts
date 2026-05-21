@@ -12,7 +12,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, IAgentHostService, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, IAgentHostService, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CustomizationStatus, SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -90,6 +90,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	public createdSessionUris: URI[] = [];
+	public createSessionConfigs: { config?: Record<string, unknown> }[] = [];
 	/**
 	 * Per-call hook used by tests to interleave operations across the
 	 * `createSession` await — e.g. to verify that no subscription is opened
@@ -103,8 +104,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	 * Each entry is `${op}:${uri}`.
 	 */
 	public wireOps: string[] = [];
-	override async createSession(config?: { session?: URI }): Promise<URI> {
+	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		const uri = config?.session ?? URI.parse('copilotcli:///auto-' + this._nextSeq);
+		this.createSessionConfigs.push({ config: config?.config });
 		this.wireOps.push(`createSession:${uri.toString()}`);
 		this.createdSessionUris.push(uri);
 		const hook = this.onCreateSession;
@@ -892,6 +894,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 			seededImmediately: 'autoApprove',
 			forwardedToAgentHost: 'autoApprove',
 		});
+	});
+
+	test('createNewSession forwards seeded config to eager createSession', async () => {
+		const config = new TestConfigurationService();
+		await config.setUserConfiguration('chat.permissions.default', 'autoApprove');
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.createSessionConfigs[0]?.config, { autoApprove: 'autoApprove' });
 	});
 
 	test('createNewSession does not seed autoApprove when chat.permissions.default is the default value', () => {

@@ -719,6 +719,7 @@ class NewSession extends Disposable {
 					provider: this.agentProvider,
 					session: backendUri,
 					workingDirectory: this.workspaceUri,
+					config: this._config?.values,
 					...(this._selectedAgent ? { agent: { uri: this._selectedAgent.uri } } : {}),
 				});
 			} catch (err) {
