@@ -367,7 +367,7 @@ suite('MarkdownRenderer', () => {
 		const anchor = result.querySelector('a');
 		assert.ok(anchor);
 
-		anchor!.dispatchEvent(new MouseEvent(TouchEventType.Tap, { bubbles: true, button: 0 }));
+		anchor.dispatchEvent(new CustomEvent(TouchEventType.Tap, { bubbles: true }));
 
 		assert.strictEqual(activatedLink, 'https://example.com');
 	});

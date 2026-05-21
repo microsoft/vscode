@@ -301,9 +301,12 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			}
 			activateLink(markdown, options, mouseEvent);
 		};
+		const tapCb = (e: CustomEvent) => {
+			activateLink(markdown, options, e);
+		};
 		disposables.add(DOM.addDisposableListener(outElement, 'click', clickCb));
 		disposables.add(DOM.addDisposableListener(outElement, 'auxclick', clickCb));
-		disposables.add(DOM.addDisposableListener(outElement, TouchEventType.Tap, clickCb));
+		disposables.add(DOM.addDisposableListener(outElement, TouchEventType.Tap, tapCb));
 
 		disposables.add(DOM.addDisposableListener(outElement, 'keydown', (e) => {
 			const keyboardEvent = new StandardKeyboardEvent(e);
@@ -446,7 +449,11 @@ function preprocessMarkdownString(markdown: IMarkdownString) {
 	return value;
 }
 
-function activateLink(mdStr: IMarkdownString, options: MarkdownRenderOptions, event: StandardMouseEvent | StandardKeyboardEvent): void {
+function activateLink(mdStr: IMarkdownString, options: MarkdownRenderOptions, event: StandardMouseEvent | StandardKeyboardEvent | CustomEvent): void {
+	if (!DOM.isHTMLElement(event.target)) {
+		return;
+	}
+
 	const target = event.target.closest('a[data-href]');
 	if (!DOM.isHTMLElement(target)) {
 		return;
