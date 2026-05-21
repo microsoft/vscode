@@ -17,6 +17,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { ISandboxDependencyStatus, IWindowsMxcFilesystemPolicy } from '../../common/sandboxHelperService.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../common/settings.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../common/terminalSandboxEngine.js';
+import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../common/terminalSandboxMxcRuntime.js';
 
 suite('TerminalSandboxEngine', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -88,7 +89,7 @@ suite('TerminalSandboxEngine', () => {
 			getSandboxTempDir: () => Promise.resolve(URI.from({ scheme: 'file', path: '/c:/Users/user/.test-data/tmp' })),
 			getWorkspaceStorageReadRoot: () => Promise.resolve(URI.from({ scheme: 'file', path: '/c:/Users/user/workspaceStorage/workspace-id' })),
 			getWriteRoots: () => [URI.from({ scheme: 'file', path: '/c:/workspace' })],
-			getWindowsMxcFilesystemPolicy: () => Promise.resolve({ readonlyPaths: ['C:\\tools\\node', 'C:\\tools\\python', 'C:\\Users\\user\\AppData\\Local\\Programs\\Git'], readwritePaths: [] }),
+			getWindowsMxcFilesystemPolicy: () => Promise.resolve({ readonlyPaths: ['C:\\tools\\node', 'C:\\tools\\python', 'C:\\Users\\user\\AppData\\Local\\Programs\\Git', 'C:\\Users\\user\\AppData\\Local\\Temp'], readwritePaths: [] }),
 			getWindowsMxcEnvironment: () => Promise.resolve(['PATH=C:\\tools\\node;C:\\Windows\\System32', 'PATHEXT=.COM;.EXE;.BAT;.CMD']),
 			...overrides,
 		});
@@ -111,6 +112,7 @@ suite('TerminalSandboxEngine', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
 	});
 
 	test('runAsNode=true prefixes the wrapped command with ELECTRON_RUN_AS_NODE=1', async () => {
@@ -256,10 +258,33 @@ suite('TerminalSandboxEngine', () => {
 		deepStrictEqual(config.network, { defaultPolicy: 'block', allowedHosts: [], blockedHosts: [] });
 		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/workspace'), 'Workspace should be writable');
 		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path).endsWith('/.test-data/tmp')), 'Sandbox temp dir should be writable');
+		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path).endsWith('/.test-data/tmp')), 'Sandbox temp dir should be readable through readonly paths');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/app'), 'App root should be readable for MXC');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/tools/node'), 'MXC available tools policy should add tool paths to readonly paths');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user/appdata/local/programs/git'), 'MXC user profile policy should add user profile paths to readonly paths');
-		ok(config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user'), 'User home should be denied by default');
+		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user/appdata/local/temp'), 'MXC actual temp policy should add host temp path to readonly paths');
+		ok(!config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user'), 'User home should not be denied by default on Windows');
+	});
+
+	test('wrapCommand applies Windows filesystem setting to MXC config', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsFileSystem, {
+			allowWrite: ['C:\\configured\\write'],
+			allowRead: ['C:\\configured\\read'],
+			denyRead: ['C:\\configured\\secret'],
+		});
+		const host = createWindowsHost();
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		await engine.wrapCommand('echo hello', false, 'pwsh');
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config = JSON.parse(createdFiles.get(configPath)!);
+
+		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/configured/write'), 'Configured Windows allowWrite path should be writable');
+		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/configured/read'), 'Configured Windows allowRead path should be readonly');
+		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user/appdata/local/temp'), 'Host temp path from Windows policy should be readonly');
+		ok(config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/configured/secret'), 'Configured Windows denyRead path should be denied');
+		ok(!config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user'), 'User home should not be denied by default on Windows');
 	});
 
 	test('wrapCommand uses arm64 MXC executable on Windows arm64', async () => {

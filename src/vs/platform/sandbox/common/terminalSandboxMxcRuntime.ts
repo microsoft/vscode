@@ -5,29 +5,31 @@
 
 import { win32 } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ITerminalSandboxResolvedNetworkDomains } from './terminalSandboxService.js';
 
-interface IWindowsMxcProcessConfig {
+export interface IWindowsMxcProcessConfig {
 	commandLine: string;
 	cwd?: string;
 	env: string[];
 	timeout: number;
 }
 
-interface IWindowsMxcFilesystemConfig {
+export interface IWindowsMxcFilesystemConfig {
 	readwritePaths: string[];
 	readonlyPaths: string[];
 	deniedPaths: string[];
 }
 
-interface IWindowsMxcNetworkConfig {
+export interface IWindowsMxcNetworkConfig {
 	defaultPolicy: 'allow' | 'block';
 	allowedHosts?: string[];
 	blockedHosts?: string[];
 }
 
-interface IWindowsMxcConfig {
+export interface IWindowsMxcConfig {
 	version: string;
+	containerId: string;
 	containment: 'process';
 	lifecycle: {
 		destroyOnExit: boolean;
@@ -45,7 +47,7 @@ interface IWindowsMxcConfig {
 
 export interface IWindowsMxcConfigOptions {
 	command: string;
-	shell: string | undefined;
+	powerShellPath: string | undefined;
 	cwd: URI | undefined;
 	tempDir: URI;
 	allowNetwork: boolean;
@@ -56,14 +58,30 @@ export interface IWindowsMxcConfigOptions {
 	env: string[];
 }
 
+export const IWindowsMxcTerminalSandboxRuntime = createDecorator<IWindowsMxcTerminalSandboxRuntime>('windowsMxcTerminalSandboxRuntime');
+
+export interface IWindowsMxcTerminalSandboxRuntime {
+	readonly _serviceBrand: undefined;
+
+	getExecutablePath(appRoot: string, arch: string | undefined): string;
+	getRuntimeReadPaths(appRoot: string | undefined, executablePath: string | undefined): string[];
+	createConfig(options: IWindowsMxcConfigOptions): IWindowsMxcConfig;
+	wrapCommand(executablePath: string, configPath: string): string;
+	wrapUnsandboxedCommand(command: string, tempDir: URI | undefined): string;
+	toWindowsPath(uri: URI): string;
+}
+
 /**
  * Windows-only MXC integration for terminal sandboxing.
  *
  * This class is intentionally isolated from the SRT-backed runtime so it can be
  * removed once SRT supports Windows sandboxing.
  */
-export class WindowsMxcTerminalSandboxRuntime {
-	private static readonly _configVersion = '0.4.0-alpha';
+export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSandboxRuntime {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _configVersion = '0.4.0-alpha';
+	private readonly _fallbackPowerShellPath = 'powershell.exe';
 
 	getExecutablePath(appRoot: string, arch: string | undefined): string {
 		const binArch = arch === 'arm64' ? 'arm64' : 'x64';
@@ -84,29 +102,28 @@ export class WindowsMxcTerminalSandboxRuntime {
 	createConfig(options: IWindowsMxcConfigOptions): IWindowsMxcConfig {
 		const tempDirPath = this.toWindowsPath(options.tempDir);
 		return {
-			version: WindowsMxcTerminalSandboxRuntime._configVersion,
+			version: this._configVersion,
+			containerId: 'vscode-terminal-sandbox',
 			containment: 'process',
 			lifecycle: {
 				destroyOnExit: true,
 				preservePolicy: false,
 			},
 			process: {
-				commandLine: this._createProcessCommandLine(options.command, options.shell),
+				commandLine: this._createPowerShellCommandLine(options.command, options.powerShellPath),
 				cwd: options.cwd ? this.toWindowsPath(options.cwd) : tempDirPath,
 				env: [
-					`TEMP=${tempDirPath}`,
-					`TMP=${tempDirPath}`,
 					...options.env
 				],
 				timeout: 0,
 			},
 			filesystem: {
-				readwritePaths: options.allowWritePaths,
-				readonlyPaths: options.allowReadPaths,
-				deniedPaths: []
-				// deniedPaths: options.denyReadPaths,
+				readwritePaths: [...new Set([...options.allowWritePaths])],
+				readonlyPaths: [...new Set([tempDirPath, ...options.allowReadPaths])],
+				deniedPaths: options.denyReadPaths,
 			},
-			network: this._createNetworkConfig(options.allowNetwork, options.networkDomains),
+			//TODO: currently no proxy. By default we allow all network access.
+			network: this._createNetworkConfig(true, options.networkDomains),
 			ui: {
 				disable: false,
 				clipboard: 'none',
@@ -115,22 +132,16 @@ export class WindowsMxcTerminalSandboxRuntime {
 		};
 	}
 
-	wrapCommand(executablePath: string, configPath: string, shell: string | undefined): string {
-		if (this._isCmd(shell)) {
-			return `${this._quoteCmdArgument(executablePath)} --debug --log-file debug.json ${this._quoteCmdArgument(configPath)}`;
-		}
-		return `& ${this._quotePowerShellArgument(executablePath)} --debug --log-file debug.json ${this._quotePowerShellArgument(configPath)}`;
+	wrapCommand(executablePath: string, configPath: string): string {
+		return `& ${this._quotePowerShellArgument(executablePath)}  ${this._quotePowerShellArgument(configPath)}`;
 	}
 
-	wrapUnsandboxedCommand(command: string, tempDir: URI | undefined, shell: string | undefined): string {
+	wrapUnsandboxedCommand(command: string, tempDir: URI | undefined): string {
 		if (!tempDir) {
 			return command;
 		}
 
 		const tempDirPath = this.toWindowsPath(tempDir);
-		if (this._isCmd(shell)) {
-			return `set ${this._quoteCmdArgument(`TEMP=${tempDirPath}`)} && set ${this._quoteCmdArgument(`TMP=${tempDirPath}`)} && ${command}`;
-		}
 		return `$env:TEMP=${this._quotePowerShellArgument(tempDirPath)}; $env:TMP=${this._quotePowerShellArgument(tempDirPath)}; ${command}`;
 	}
 
@@ -154,27 +165,12 @@ export class WindowsMxcTerminalSandboxRuntime {
 		return {
 			defaultPolicy: 'block',
 			allowedHosts: networkDomains.allowedDomains,
-			blockedHosts: networkDomains.deniedDomains,
+			blockedHosts: networkDomains.deniedDomains
 		};
 	}
 
-	private _isCmd(shell: string | undefined): boolean {
-		const shellName = shell ? win32.basename(shell).toLowerCase() : '';
-		return shellName === 'cmd' || shellName === 'cmd.exe';
-	}
-
-	private _isPowerShell(shell: string | undefined): boolean {
-		const shellName = shell ? win32.basename(shell).toLowerCase().replace(/\.exe$/, '') : '';
-		return shellName === 'powershell' || shellName === 'pwsh' || shellName === 'powershell-preview' || shellName === 'pwsh-preview';
-	}
-
-	private _createProcessCommandLine(command: string, shell: string | undefined): string {
-		if (this._isPowerShell(shell)) {
-			return `${this._quoteWindowsProcessArgument(shell!)} -Command ${this._quoteWindowsProcessArgument(command)}`;
-		}
-
-		const cmdShell = shell && this._isCmd(shell) ? shell : 'cmd.exe';
-		return `${this._quoteWindowsProcessArgument(cmdShell)} /d /s /c ${this._quoteCmdArgument(command)}`;
+	private _createPowerShellCommandLine(command: string, powerShellPath: string | undefined): string {
+		return `${this._quoteWindowsProcessArgument(powerShellPath ?? this._fallbackPowerShellPath)} -NonInteractive -Command ${this._quoteWindowsProcessArgument(command)}`;
 	}
 
 	private _quoteWindowsProcessArgument(value: string): string {
@@ -186,9 +182,5 @@ export class WindowsMxcTerminalSandboxRuntime {
 
 	private _quotePowerShellArgument(value: string): string {
 		return `'${value.replace(/'/g, `''`)}'`;
-	}
-
-	private _quoteCmdArgument(value: string): string {
-		return `"${value.replace(/"/g, `""`)}"`;
 	}
 }

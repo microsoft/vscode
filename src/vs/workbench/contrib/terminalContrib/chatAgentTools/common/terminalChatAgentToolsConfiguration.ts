@@ -22,6 +22,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	OutputLocation = 'chat.tools.terminal.outputLocation',
 	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.fileSystem.linux',
 	AgentSandboxMacFileSystem = 'chat.agent.sandbox.fileSystem.mac',
+	AgentSandboxWindowsFileSystem = 'chat.agent.sandbox.fileSystem.windows',
 	AgentSandboxAdvancedRuntime = 'chat.agent.sandbox.advanced.runtime',
 	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
 	EnforceTimeoutFromModel = 'chat.tools.terminal.enforceTimeoutFromModel',
@@ -688,6 +689,37 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			allowRead: [],
 			allowWrite: [],
 			denyWrite: []
+		},
+		tags: ['preview'],
+		restricted: true,
+	},
+	[TerminalChatAgentToolsSettingId.AgentSandboxWindowsFileSystem]: {
+		markdownDescription: localize('agentSandbox.windowsFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on Windows. Paths do not support glob patterns, only literal paths (ex: C:\\src, C:\\Users\\me\\.ssh, .env).", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		type: 'object',
+		properties: {
+			denyRead: {
+				type: 'array',
+				description: localize('agentSandbox.windowsFileSystemSetting.denyRead', "Array of paths to deny access. Leave empty to allow reading all paths."),
+				items: { type: 'string' },
+				default: []
+			},
+			allowRead: {
+				type: 'array',
+				description: localize('agentSandbox.windowsFileSystemSetting.allowRead', "Array of additional paths to allow read-only access. Takes precedence over denyRead."),
+				items: { type: 'string' },
+				default: []
+			},
+			allowWrite: {
+				type: 'array',
+				description: localize('agentSandbox.windowsFileSystemSetting.allowWrite', "Array of additional paths to allow read/write access. Leave empty to disallow writes outside the workspace folders and sandbox temp directory."),
+				items: { type: 'string' },
+				default: []
+			}
+		},
+		default: {
+			denyRead: [],
+			allowRead: [],
+			allowWrite: []
 		},
 		tags: ['preview'],
 		restricted: true,

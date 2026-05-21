@@ -42,7 +42,7 @@ export class SandboxHelperService implements ISandboxHelperService {
 		const availableToolsPolicy = getAvailableToolsPolicy(process.env, { containerType: 'processcontainer' });
 		const userProfilePolicy = getUserProfilePolicy();
 		return {
-			readonlyPaths: [...new Set([...availableToolsPolicy.readonlyPaths, ...userProfilePolicy.readonlyPaths])],
+			readonlyPaths: [...new Set([...availableToolsPolicy.readonlyPaths, ...userProfilePolicy.readonlyPaths, ...this._getPSModuleReadPaths(), ...this._getTempReadPaths()])],
 			readwritePaths: [...new Set([...availableToolsPolicy.readwritePaths, ...userProfilePolicy.readwritePaths])],
 		};
 	}
@@ -60,6 +60,31 @@ export class SandboxHelperService implements ISandboxHelperService {
 
 		const pathExt = getCaseInsensitive(process.env, 'PATHEXT');
 		env.push(`PATHEXT=${typeof pathExt === 'string' && pathExt ? pathExt : '.COM;.EXE;.BAT;.CMD'}`);
+
+		const psModulePath = this._getPSModuleReadPaths();
+		if (psModulePath.length) {
+			env.push(`PSModulePath=${psModulePath.join(';')}`);
+		}
 		return env;
+	}
+
+	private _getPSModuleReadPaths(): string[] {
+		const paths: string[] = [];
+		const psModulePath = getCaseInsensitive(process.env, 'PSModulePath');
+		if (typeof psModulePath === 'string' && psModulePath) {
+			paths.push(...psModulePath.split(';'));
+		}
+		return paths;
+	}
+
+	private _getTempReadPaths(): string[] {
+		const paths: string[] = [];
+		for (const variable of ['TMP', 'TEMP']) {
+			const path = getCaseInsensitive(process.env, variable);
+			if (typeof path === 'string' && path) {
+				paths.push(path);
+			}
+		}
+		return paths;
 	}
 }

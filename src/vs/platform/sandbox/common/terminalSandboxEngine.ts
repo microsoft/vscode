@@ -17,7 +17,7 @@ import { matchesDomainPattern, normalizeDomain } from '../../networkFilter/commo
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
 import { ISandboxDependencyStatus, IWindowsMxcFilesystemPolicy } from './sandboxHelperService.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from './settings.js';
-import { WindowsMxcTerminalSandboxRuntime } from './terminalSandboxMxcRuntime.js';
+import { IWindowsMxcTerminalSandboxRuntime } from './terminalSandboxMxcRuntime.js';
 import { getTerminalSandboxReadAllowListForCommands } from './terminalSandboxReadAllowList.js';
 import { getTerminalSandboxRuntimeConfigurationForCommands } from './terminalSandboxRuntimeConfigurationPerOperation.js';
 import { ITerminalSandboxCommand, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult, TerminalSandboxPrerequisiteCheck } from './terminalSandboxService.js';
@@ -117,13 +117,13 @@ export class TerminalSandboxEngine extends Disposable {
 	private _commandShell: string | undefined;
 	private _os: OperatingSystem = OS;
 	private readonly _defaultWritePaths: string[] = [];
-	private readonly _windowsMxcRuntime = new WindowsMxcTerminalSandboxRuntime();
 
 	constructor(
 		private readonly _host: ITerminalSandboxEngineHost,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
+		@IWindowsMxcTerminalSandboxRuntime private readonly _windowsMxcRuntime: IWindowsMxcTerminalSandboxRuntime,
 	) {
 		super();
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, (e: IConfigurationChangeEvent | undefined) => {
@@ -218,7 +218,7 @@ export class TerminalSandboxEngine extends Disposable {
 				throw new Error('MXC executable path not resolved');
 			}
 			return {
-				command: this._windowsMxcRuntime.wrapCommand(this._mxcPath, this._sandboxConfigPath, shell),
+				command: this._windowsMxcRuntime.wrapCommand(this._mxcPath, this._sandboxConfigPath),
 				isSandboxWrapped: true,
 			};
 		}
@@ -356,6 +356,7 @@ export class TerminalSandboxEngine extends Disposable {
 			|| e.affectsConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxLinuxFileSystem)
 			|| e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxMacFileSystem)
 			|| e.affectsConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxMacFileSystem)
+			|| e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxWindowsFileSystem)
 			|| e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxAdvancedRuntime);
 	}
 
@@ -395,7 +396,7 @@ export class TerminalSandboxEngine extends Disposable {
 
 	private _wrapUnsandboxedCommand(command: string, shell?: string): string {
 		if (this._os === OperatingSystem.Windows) {
-			return this._windowsMxcRuntime.wrapUnsandboxedCommand(command, this._tempDir, shell);
+			return this._windowsMxcRuntime.wrapUnsandboxedCommand(command, this._tempDir);
 		}
 		if (!this._tempDir?.path) {
 			return command;
@@ -537,6 +538,9 @@ export class TerminalSandboxEngine extends Disposable {
 		const macFileSystemSetting = this._os === OperatingSystem.Macintosh
 			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxMacFileSystem, AgentSandboxSettingId.DeprecatedAgentSandboxMacFileSystem) ?? {}
 			: {};
+		const windowsFileSystemSetting = this._os === OperatingSystem.Windows
+			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxWindowsFileSystem) ?? {}
+			: {};
 		const runtimeSetting = this._getSettingValue<Record<string, unknown>>(AgentSandboxSettingId.AgentSandboxAdvancedRuntime) ?? {};
 		const commandRuntimeSetting = getTerminalSandboxRuntimeConfigurationForCommands(this._os, this._commandAllowListCommandDetails);
 		const commandRuntimeAllowReadPaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowRead');
@@ -549,9 +553,9 @@ export class TerminalSandboxEngine extends Disposable {
 		if (this._os === OperatingSystem.Windows) {
 			const filesystemPolicy = await this._getWindowsMxcFilesystemPolicy();
 			const env = await this._getWindowsMxcEnvironment();
-			allowWritePaths = await this._resolveFileSystemPaths(this._updateAllowWritePathsWithWorkspaceFolders(undefined, commandRuntimeAllowWritePaths));
-			allowReadPaths = await this._resolveFileSystemPaths([...(await this._updateAllowReadPathsWithAllowWrite(undefined, allowWritePaths, commandRuntimeAllowReadPaths)), ...filesystemPolicy.readonlyPaths]);
-			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome(undefined));
+			allowWritePaths = await this._resolveFileSystemPaths(this._updateAllowWritePathsWithWorkspaceFolders(windowsFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths));
+			allowReadPaths = await this._resolveFileSystemPaths([...(await this._updateAllowReadPathsWithAllowWrite(windowsFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths)), ...filesystemPolicy.readonlyPaths]);
+			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome(windowsFileSystemSetting.denyRead));
 			this._windowsMxcEnvironment = env;
 		} else if (this._os === OperatingSystem.Macintosh) {
 			allowWritePaths = await this._resolveFileSystemPaths(this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths));
@@ -566,7 +570,7 @@ export class TerminalSandboxEngine extends Disposable {
 		}
 		const sandboxSettings = this._os === OperatingSystem.Windows ? this._windowsMxcRuntime.createConfig({
 			command: this._commandLine ?? '',
-			shell: this._commandShell,
+			powerShellPath: this._commandShell,
 			cwd: this._commandCwd,
 			tempDir: this._tempDir,
 			allowNetwork,
@@ -678,6 +682,10 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	private _updateDenyReadPathsWithHome(configuredDenyRead: string[] | undefined): string[] {
+		// TODO: On Windows, deny read on home directory.
+		if (this._os === OperatingSystem.Windows) {
+			return [...new Set(configuredDenyRead ?? [])];
+		}
 		const userHome = this._userHome ? this._getUriPath(this._userHome) : undefined;
 		return [...new Set([...(configuredDenyRead ?? []), ...(userHome ? [userHome] : [])])];
 	}

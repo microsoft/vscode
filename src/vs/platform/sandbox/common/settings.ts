@@ -13,6 +13,7 @@ export const enum AgentSandboxSettingId {
 	AgentSandboxAllowAutoApprove = 'chat.agent.sandbox.allowAutoApprove',
 	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.fileSystem.linux',
 	AgentSandboxMacFileSystem = 'chat.agent.sandbox.fileSystem.mac',
+	AgentSandboxWindowsFileSystem = 'chat.agent.sandbox.fileSystem.windows',
 	AgentSandboxAdvancedRuntime = 'chat.agent.sandbox.advanced.runtime',
 	DeprecatedAgentSandboxEnabled = 'chat.agent.sandbox',
 	DeprecatedAgentSandboxLinuxFileSystem = 'chat.agent.sandboxFileSystem.linux',
