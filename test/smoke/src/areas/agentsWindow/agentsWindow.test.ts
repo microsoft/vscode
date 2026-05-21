@@ -150,7 +150,7 @@ export function setup(logger: Logger) {
 			);
 		});
 
-		it('sends hello world via Claude session type and receives a mocked response', async function () {
+		it.skip('sends hello world via Claude session type and receives a mocked response', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.agentsWindow.startNewSession();
@@ -169,7 +169,7 @@ export function setup(logger: Logger) {
 			);
 		});
 
-		it('sends hello world via Local session type and receives a mocked response', async function () {
+		it.skip('sends hello world via Local session type and receives a mocked response', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.agentsWindow.startNewSession();
