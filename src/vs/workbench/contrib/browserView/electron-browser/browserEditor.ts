@@ -575,6 +575,9 @@ export class BrowserEditor extends EditorPane {
 		// Start / stop screenshots when the model visibility changes
 		this._inputDisposables.add(this._model.onDidChangeVisibility(() => this.doScreenshot()));
 
+		// Re-clip the placeholder to match the clamped WebContentsView when device emulation toggles.
+		this._inputDisposables.add(this._model.onDidChangeDeviceEmulation(() => this.layoutBrowserContainer()));
+
 		// Listen to model events for UI updates
 		this._inputDisposables.add(this._model.onDidKeyCommand(keyEvent => {
 			// Handle like webview does - convert to webview KeyEvent format
@@ -1027,6 +1030,19 @@ export class BrowserEditor extends EditorPane {
 				zoomFactor: getZoomFactor(this.window),
 				cornerRadius: parseFloat(cornerRadius)
 			});
+
+			// Clip the placeholder screenshot to match the area the WebContentsView occupies.
+			// During device emulation the live view is clamped to the device width and centered,
+			// so the placeholder must follow to avoid bleeding an outdated screenshot on the sides.
+			const device = this._model.deviceEmulation;
+			if (device && containerRect.width > device.width) {
+				const offset = Math.floor((containerRect.width - device.width) / 2);
+				this._placeholderScreenshot.style.left = `${offset}px`;
+				this._placeholderScreenshot.style.right = `${offset}px`;
+			} else {
+				this._placeholderScreenshot.style.left = '';
+				this._placeholderScreenshot.style.right = '';
+			}
 		}
 	}
 

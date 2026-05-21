@@ -156,6 +156,7 @@ export interface IBrowserViewState {
 	storageScope: BrowserViewStorageScope;
 	browserZoomIndex: number;
 	isElementSelectionActive: boolean;
+	deviceEmulation: IBrowserDeviceEmulation | undefined;
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -256,6 +257,70 @@ export function browserZoomAccessibilityLabel(zoomFactor: number): string {
 }
 
 /**
+ * Device emulation profile applied via CDP. When set on a browser view, the
+ * page is rendered with the device's metrics, user agent, touch, and media
+ * features regardless of the actual container size.
+ */
+export interface IBrowserDeviceEmulation {
+	readonly id: string;
+	readonly label: string;
+	readonly width: number;
+	readonly height: number;
+	readonly deviceScaleFactor: number;
+	readonly mobile: boolean;
+	readonly userAgent?: string;
+	readonly hasTouch?: boolean;
+}
+
+/**
+ * Curated set of device presets surfaced in the device picker. Order matters
+ * (most-common-first). Kept short on purpose — additional sizes are rarely
+ * useful in practice.
+ */
+export const BROWSER_DEVICE_PRESETS: readonly IBrowserDeviceEmulation[] = [
+	{
+		id: 'iphone-15-pro',
+		label: 'iPhone 15 Pro',
+		width: 393,
+		height: 852,
+		deviceScaleFactor: 3,
+		mobile: true,
+		hasTouch: true,
+		userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+	},
+	{
+		id: 'iphone-se',
+		label: 'iPhone SE',
+		width: 375,
+		height: 667,
+		deviceScaleFactor: 2,
+		mobile: true,
+		hasTouch: true,
+		userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+	},
+	{
+		id: 'pixel-8',
+		label: 'Pixel 8',
+		width: 412,
+		height: 915,
+		deviceScaleFactor: 2.625,
+		mobile: true,
+		hasTouch: true,
+		userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+	},
+	{
+		id: 'ipad-mini',
+		label: 'iPad Mini',
+		width: 768,
+		height: 1024,
+		deviceScaleFactor: 2,
+		mobile: true,
+		hasTouch: true,
+		userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+	},
+];
+
+/**
  * This should match the isolated world ID defined in `preload-browserView.ts`.
  */
 export const browserViewIsolatedWorldId = 999;
@@ -281,6 +346,7 @@ export interface IBrowserViewService {
 	onDynamicDidClose(id: string): Event<void>;
 	onDynamicDidSelectElement(id: string): Event<IElementData>;
 	onDynamicDidChangeElementSelectionActive(id: string): Event<boolean>;
+	onDynamicDidChangeDeviceEmulation(id: string): Event<IBrowserDeviceEmulation | undefined>;
 
 	/**
 	 * Get all known browser views with their ownership and state information.
@@ -430,6 +496,13 @@ export interface IBrowserViewService {
 
 	/** Set the browser zoom index (independent from VS Code zoom). */
 	setBrowserZoomIndex(id: string, zoomIndex: number): Promise<void>;
+
+	/**
+	 * Set or clear a device emulation profile for a browser view. Passing
+	 * `undefined` returns the view to the default "Responsive" behavior where
+	 * the page mirrors the container size.
+	 */
+	setDeviceEmulation(id: string, device: IBrowserDeviceEmulation | undefined): Promise<void>;
 
 	/**
 	 * Trust a certificate for a given host in the browser view's session.

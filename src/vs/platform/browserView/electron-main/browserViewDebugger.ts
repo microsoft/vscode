@@ -105,11 +105,6 @@ export class BrowserViewDebugger extends Disposable {
 	 * Send a CDP command. Handles Electron-specific workarounds in a single place.
 	 */
 	sendCommand(method: string, params?: unknown, sessionId?: string): Promise<unknown> {
-		// This crashes Electron. Don't pass it through.
-		if (method === 'Emulation.setDeviceMetricsOverride') {
-			return Promise.resolve({});
-		}
-
 		this.ensureAttached();
 		const resultPromise = this._electronDebugger.sendCommand(method, params, sessionId);
 

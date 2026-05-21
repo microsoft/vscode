@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WebContentsView, webContents } from 'electron';
+import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewOpenOptions } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewOpenOptions, IBrowserDeviceEmulation } from '../common/browserView.js';
 import { BrowserViewElementInspector } from './browserViewElementInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
@@ -32,6 +33,7 @@ enum NewPageLocation {
  */
 export class BrowserView extends Disposable {
 	private readonly _view: WebContentsView;
+	private readonly _defaultUserAgent: string;
 	private readonly _faviconRequestCache = new Map<string, Promise<string>>();
 
 	private _lastScreenshot: VSBuffer | undefined = undefined;
@@ -80,6 +82,11 @@ export class BrowserView extends Disposable {
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 
+	private readonly _onDidChangeDeviceEmulation = this._register(new Emitter<IBrowserDeviceEmulation | undefined>());
+	readonly onDidChangeDeviceEmulation: Event<IBrowserDeviceEmulation | undefined> = this._onDidChangeDeviceEmulation.event;
+
+	private _deviceEmulation: IBrowserDeviceEmulation | undefined;
+
 	constructor(
 		public readonly id: string,
 		public readonly owner: IBrowserViewOwner,
@@ -117,6 +124,7 @@ export class BrowserView extends Disposable {
 			// Passing an `undefined` webContents triggers an error in Electron.
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
+		this._defaultUserAgent = this._view.webContents.getUserAgent();
 
 		// Use a default size of 1024x768.
 		this._view.setBounds({ x: -10000, y: -10000, width: 1024, height: 768 });
@@ -273,13 +281,17 @@ export class BrowserView extends Disposable {
 		// Loading state events
 		webContents.on('did-start-loading', () => {
 			this._lastError = undefined;
+			this.traceDeviceEmulation('did-start-loading', this.getSafeTraceLocation(webContents.getURL()));
 
 			// Don't fire loading events for e.g. same-document navigations
 			if (webContents.isLoadingMainFrame()) {
 				fireLoadingEvent(true);
 			}
 		});
-		webContents.on('did-stop-loading', () => fireLoadingEvent(false));
+		webContents.on('did-stop-loading', () => {
+			this.traceDeviceEmulation('did-stop-loading');
+			fireLoadingEvent(false);
+		});
 		webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {
 			if (isMainFrame) {
 				// Ignore ERR_ABORTED (-3) which is the expected error when user stops a page load.
@@ -306,7 +318,10 @@ export class BrowserView extends Disposable {
 				});
 			}
 		});
-		webContents.on('did-finish-load', () => fireLoadingEvent(false));
+		webContents.on('did-finish-load', () => {
+			this.traceDeviceEmulation('did-finish-load', this.getSafeTraceLocation(webContents.getURL()));
+			fireLoadingEvent(false);
+		});
 
 		this.session.trust.installCertErrorHandler(webContents);
 
@@ -324,11 +339,33 @@ export class BrowserView extends Disposable {
 		webContents.on('did-navigate', fireNavigationEvent);
 		webContents.on('did-navigate-in-page', fireNavigationEvent);
 
+		webContents.on('did-start-navigation', (_e, url, isInPlace, isMainFrame) => {
+			if (isMainFrame) {
+				this.traceDeviceEmulation('did-start-navigation', `${isInPlace ? 'in-page' : 'document'} ${this.getSafeTraceLocation(url)}`);
+			}
+		});
+		webContents.on('did-redirect-navigation', (_e, url, _isInPlace, isMainFrame) => {
+			if (isMainFrame) {
+				this.traceDeviceEmulation('did-redirect-navigation', this.getSafeTraceLocation(url));
+			}
+		});
+		webContents.on('did-navigate', (_e, url) => this.traceDeviceEmulation('did-navigate', this.getSafeTraceLocation(url)));
+		webContents.on('did-navigate-in-page', (_e, url, isMainFrame) => {
+			if (isMainFrame) {
+				this.traceDeviceEmulation('did-navigate-in-page', this.getSafeTraceLocation(url));
+			}
+		});
+
 		webContents.on('did-navigate', () => {
 			// Chromium resets the zoom factor to its per-origin default (100%) when
 			// navigating to a new document. Re-apply our stored zoom to override it.
 			this._consoleLogs.length = 0; // Clear console logs on navigation since they are per-page
 			this._view.webContents.setZoomFactor(browserZoomFactors[this._browserZoomIndex]);
+
+			// CDP overrides can be reset by Chromium on cross-process navigation.
+			if (this._deviceEmulation) {
+				void this.applyDeviceEmulation();
+			}
 
 			// Enable pinch-to-zoom
 			void this._view.webContents.setVisualZoomLevelLimits(1, 3).catch(error => {
@@ -472,7 +509,8 @@ export class BrowserView extends Disposable {
 			certificateError: this.session.trust.getCertificateError(url),
 			storageScope: this.session.storageScope,
 			browserZoomIndex: this._browserZoomIndex,
-			isElementSelectionActive: this.inspector.isElementSelectionActive
+			isElementSelectionActive: this.inspector.isElementSelectionActive,
+			deviceEmulation: this._deviceEmulation
 		};
 	}
 
@@ -497,12 +535,165 @@ export class BrowserView extends Disposable {
 		}
 
 		this._view.setBorderRadius(Math.round(bounds.cornerRadius * bounds.zoomFactor));
-		this._view.setBounds({
-			x: Math.round(bounds.x * bounds.zoomFactor),
-			y: Math.round(bounds.y * bounds.zoomFactor),
-			width: Math.round(bounds.width * bounds.zoomFactor),
-			height: Math.round(bounds.height * bounds.zoomFactor)
-		});
+
+		// When a device profile is active, clamp the view to the device dimensions and
+		// center it inside the pane so the editor background fills the empty area instead
+		// of the WebContentsView painting an opaque (black) backdrop.
+		const z = bounds.zoomFactor;
+		let viewWidth = Math.round(bounds.width * z);
+		let viewHeight = Math.round(bounds.height * z);
+		let viewX = Math.round(bounds.x * z);
+		const viewY = Math.round(bounds.y * z);
+		const device = this._deviceEmulation;
+		if (device) {
+			const deviceWidth = Math.round(device.width * z);
+			const deviceHeight = Math.round(device.height * z);
+			if (deviceWidth < viewWidth) {
+				viewX += Math.round((viewWidth - deviceWidth) / 2);
+				viewWidth = deviceWidth;
+			}
+			if (deviceHeight < viewHeight) {
+				viewHeight = deviceHeight;
+			}
+		}
+		this._view.setBounds({ x: viewX, y: viewY, width: viewWidth, height: viewHeight });
+
+		this._lastBounds = bounds;
+		this.syncDeviceMetrics(bounds);
+	}
+
+	private _lastBounds: IBrowserViewBounds | undefined;
+	private _lastDeviceMetrics: { width: number; height: number } | undefined;
+	private _deviceEmulationTraceStart = 0;
+	private readonly _clearDeviceEmulationTraceScheduler = this._register(new RunOnceScheduler(() => this._deviceEmulationTraceStart = 0, 5000));
+
+	private traceDeviceEmulation(event: string, extra?: string): void {
+		if (!this._deviceEmulationTraceStart) {
+			return;
+		}
+		const dt = Date.now() - this._deviceEmulationTraceStart;
+		this.logService.info(`[BrowserView][trace +${dt}ms] ${event}${extra ? ' ' + extra : ''}`);
+	}
+
+	private getSafeTraceLocation(url: string): string {
+		if (!url) {
+			return '';
+		}
+		try {
+			const parsedUrl = new URL(url);
+			switch (parsedUrl.protocol) {
+				case 'http:':
+				case 'https:':
+					return parsedUrl.origin;
+				case 'about:':
+					return `${parsedUrl.protocol}${parsedUrl.pathname}`;
+				default:
+					return parsedUrl.protocol;
+			}
+		} catch {
+			return '<redacted>';
+		}
+	}
+
+	// Mirror container size to the page's layout viewport so CSS media queries see the actual width.
+	// Skipped when an explicit device profile is active — that profile owns the viewport.
+	private syncDeviceMetrics(bounds: IBrowserViewBounds): void {
+		if (this._deviceEmulation) {
+			return;
+		}
+		const width = Math.max(1, Math.round(bounds.width));
+		const height = Math.max(1, Math.round(bounds.height));
+		if (this._lastDeviceMetrics?.width === width && this._lastDeviceMetrics.height === height) {
+			return;
+		}
+		this._lastDeviceMetrics = { width, height };
+
+		this.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
+			width,
+			height,
+			deviceScaleFactor: 0,
+			mobile: false,
+		}).catch(err => this.logService.warn('[BrowserView] setDeviceMetricsOverride failed', err));
+	}
+
+	get deviceEmulation(): IBrowserDeviceEmulation | undefined {
+		return this._deviceEmulation;
+	}
+
+	async setDeviceEmulation(device: IBrowserDeviceEmulation | undefined): Promise<void> {
+		const previous = this._deviceEmulation;
+		this._deviceEmulation = device;
+		this._lastDeviceMetrics = undefined;
+
+		// Trace window: keep tracing webContents/network events for 5s after a device switch
+		// so we can see exactly what the page does (client-side nav, refetches, etc).
+		this._deviceEmulationTraceStart = Date.now();
+		this._clearDeviceEmulationTraceScheduler.schedule();
+		this.traceDeviceEmulation('setDeviceEmulation:start', device ? `${device.id} ${device.width}x${device.height}` : 'off');
+
+		// Use Electron's native API for UA. CDP's setUserAgentOverride doesn't reliably
+		// stick across webContents.reload() and is also scoped to the current target only.
+		const userAgent = device?.userAgent ?? this._defaultUserAgent;
+		this._view.webContents.setUserAgent(userAgent);
+		this.traceDeviceEmulation('setUserAgent', device ? device.id : 'default');
+
+		this.logService.info('[BrowserView] setDeviceEmulation', device ? `${device.id} (${device.width}x${device.height})` : 'off');
+
+		// Resize the WebContentsView BEFORE applying CDP overrides so the view is the
+		// right size when the page's viewport shrinks — avoids a one-frame flash where
+		// the page paints at device width inside the still-full-pane-sized view.
+		if (this._lastBounds) {
+			this.layout(this._lastBounds);
+			this.traceDeviceEmulation('clampedLayout');
+		}
+
+		await this.applyDeviceEmulation();
+		this.traceDeviceEmulation('applyDeviceEmulation:done');
+
+		// Restore the responsive mirror when going back to default so CSS media queries
+		// continue to reflect the actual pane width.
+		if (!device && this._lastBounds) {
+			this.syncDeviceMetrics(this._lastBounds);
+		}
+
+		// Do not reload here. Matches Chrome DevTools Device Mode: metrics/touch/media apply
+		// instantly to the current page, and the new UA takes effect on the next navigation.
+		// Sites that serve different HTML for mobile UAs will only switch once the user reloads.
+		void previous;
+
+		this._onDidChangeDeviceEmulation.fire(device);
+	}
+
+	private async applyDeviceEmulation(): Promise<void> {
+		const device = this._deviceEmulation;
+		try {
+			if (device) {
+				await this.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
+					width: device.width,
+					height: device.height,
+					deviceScaleFactor: device.deviceScaleFactor,
+					mobile: device.mobile,
+					screenOrientation: device.mobile
+						? { type: 'portraitPrimary', angle: 0 }
+						: undefined,
+				});
+				await this.debugger.sendCommand('Emulation.setTouchEmulationEnabled', {
+					enabled: !!device.hasTouch,
+					maxTouchPoints: device.hasTouch ? 5 : 0,
+				});
+				await this.debugger.sendCommand('Emulation.setEmulatedMedia', {
+					features: [{ name: 'pointer', value: device.hasTouch ? 'coarse' : 'fine' }],
+				});
+				this.logService.info('[BrowserView] device emulation applied');
+			} else {
+				await this.debugger.sendCommand('Emulation.clearDeviceMetricsOverride', {});
+				await this.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: false, maxTouchPoints: 1 });
+				await this.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [] });
+				this.logService.info('[BrowserView] device emulation cleared');
+			}
+		} catch (err) {
+			this.logService.error('[BrowserView] applyDeviceEmulation failed', err);
+		}
 	}
 
 	setBrowserZoomIndex(zoomIndex: number): void {

@@ -115,6 +115,30 @@
 		}
 	}
 
+	.browser-device-pill {
+		display: none;
+		align-items: center;
+		gap: 4px;
+		margin: 0;
+		padding: 1px 6px;
+		flex-shrink: 0;
+		border-radius: 9999px;
+		background-color: var(--vscode-badge-background);
+		color: var(--vscode-badge-foreground);
+		font-size: 11px;
+		line-height: 1;
+		white-space: nowrap;
+		pointer-events: none;
+
+		&.visible {
+			display: flex;
+		}
+
+		.codicon {
+			font-size: 12px;
+		}
+	}
+
 	.browser-link-opened-hint-pill {
 		display: none;
 		align-items: center;
