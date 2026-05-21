@@ -207,6 +207,19 @@ export interface TaskCloudAgentBackend extends CloudAgentBackendCommon {
 		taskId: string,
 		prompt: string,
 	): Promise<FollowUpResult | undefined>;
+
+	/**
+	 * Reverse lookup: find the most recent task associated with the given pull request.
+	 * Used by the PR-URI compatibility shim so the provider can keep emitting `/<prNumber>`
+	 * URIs on v2 (preserving archive state across the v1→v2 flip) while still routing
+	 * content/follow-up/openInBrowser through the task endpoints.
+	 * TODO: remove this when the PR-URI shim is removed and the provider emits explicit `task/<taskId>` URIs.
+	 */
+	findTaskIdForPullRequest(
+		owner: string,
+		repo: string,
+		prNumber: number,
+	): Promise<string | undefined>;
 }
 
 /** Discriminated union of all backends. Narrow via `backend.kind`. */
