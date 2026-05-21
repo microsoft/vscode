@@ -59,6 +59,8 @@ class FakeSdkService implements IClaudeAgentSdkService {
 		if (this.getSubagentMessagesRejection) { throw this.getSubagentMessagesRejection; }
 		return this.subagentMessages.get(`${sessionId}::${agentId}`) ?? [];
 	}
+	async createSdkMcpServer(): Promise<never> { throw new Error('not implemented in test fake'); }
+	async tool(): Promise<never> { throw new Error('not implemented in test fake'); }
 }
 
 function makeAgentToolCallTurn(toolCallId: string, opts: { prompt?: string; suffixText?: string; toolName?: string; status?: ToolCallStatus.Completed }): Turn {

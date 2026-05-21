@@ -11,6 +11,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { buildTopLevelSubagentReadyAction, emitInnerAssistantSignals, mapSubagentSystemMessage, SUBAGENT_SPAWNING_TOOL_NAMES, tagWithParent } from './claudeSubagentSignals.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
+import { stripClientToolNamePrefix, hasClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
 import { buildClaudeToolMeta, getClaudePastTenseMessage, getClaudeToolDisplayName } from './claudeToolDisplay.js';
 import { ClaudeToolCallRegistry } from './claudeToolCallRegistry.js';
 import { ToolCallConfirmationReason, type StringOrMarkdown } from '../../common/state/protocol/state.js';
@@ -217,6 +218,7 @@ export function mapSDKMessageToAgentSignals(
 	state: ClaudeMapperState,
 	logService: ILogService,
 	registry: SubagentRegistry,
+	clientId?: string,
 ): AgentSignal[] {
 	if (logService.getLevel() <= LogLevel.Trace) {
 		try {
@@ -229,7 +231,7 @@ export function mapSDKMessageToAgentSignals(
 	switch (message.type) {
 		case 'stream_event':
 			return tagWithParent(
-				mapStreamEvent(message.event, session, turnId, state, logService, message.parent_tool_use_id, registry),
+				mapStreamEvent(message.event, session, turnId, state, logService, message.parent_tool_use_id, registry, clientId),
 				session,
 				message.parent_tool_use_id,
 				registry,
@@ -458,6 +460,7 @@ function mapStreamEvent(
 	logService: ILogService,
 	parentToolUseId: string | null,
 	registry: SubagentRegistry,
+	clientId: string | undefined,
 ): AgentSignal[] {
 	switch (event.type) {
 		case 'message_start':
@@ -497,14 +500,29 @@ function mapStreamEvent(
 				}];
 			}
 			if (block.type === 'tool_use') {
-				state.startToolBlock(event.index, block.id, block.name, turnId);
+				// Phase 10 — strip the SDK's `mcp__<server>__` prefix for
+				// our in-process client-tool MCP server. The SDK surfaces
+				// in-process MCP tools to the model with that prefix, but
+				// the workbench's registered client-tool list (and the
+				// MCP handler's closure) use the unprefixed name. Without
+				// normalizing at the seam, `SessionToolCallReady` /
+				// `SessionToolCallComplete` would carry the prefixed name
+				// and the workbench would never recognize them as client
+				// tools. SDK-owned tools (Read, Write, Bash, etc.) and
+				// subagent spawn tools pass through unchanged because
+				// they don't carry the prefix.
+				const toolName = stripClientToolNamePrefix(block.name);
+				const isClientTool = hasClientToolNamePrefix(block.name);
+				state.startToolBlock(event.index, block.id, toolName, turnId);
 				// Phase 12 — subagent correlation bookkeeping. Either this
 				// tool_use is at the top level and (if Task/Agent) spawns a
 				// new subagent, or it is inner and we record its edge to the
 				// parent. They are mutually exclusive (a Task call inside a
 				// subagent is itself an inner tool_use; the resolver chain
 				// handles nested spawns by following the parent chain).
-				const isSubagentSpawn = SUBAGENT_SPAWNING_TOOL_NAMES.has(block.name);
+				// Gated on `!isClientTool` so a workbench tool named `Task` /
+				// `Agent` cannot impersonate the SDK's subagent-spawn tools.
+				const isSubagentSpawn = !isClientTool && SUBAGENT_SPAWNING_TOOL_NAMES.has(toolName);
 				if (parentToolUseId === null) {
 					if (isSubagentSpawn) {
 						registry.recordSpawn(block.id);
@@ -518,7 +536,8 @@ function mapStreamEvent(
 				// state transitions (D6). Subagent meta from Phase 12 is now
 				// produced by `buildClaudeToolMeta` because
 				// `getClaudeToolKind('Task') === 'subagent'`.
-				const meta = buildClaudeToolMeta(block.name);
+				const meta = buildClaudeToolMeta(toolName);
+				const toolClientId = isClientTool ? clientId : undefined;
 				return [{
 					kind: 'action',
 					session,
@@ -526,8 +545,9 @@ function mapStreamEvent(
 						type: ActionType.SessionToolCallStart,
 						turnId,
 						toolCallId: block.id,
-						toolName: block.name,
-						displayName: getClaudeToolDisplayName(block.name),
+						toolName,
+						displayName: getClaudeToolDisplayName(toolName),
+						...(toolClientId ? { toolClientId } : {}),
 						...(meta ? { _meta: meta } : {}),
 					},
 				}];
@@ -588,14 +608,6 @@ function mapStreamEvent(
 			if (!tracked) {
 				return [];
 			}
-			// Phase 8.5 — emit `SessionToolCallReady` so the tool transitions
-			// out of `Streaming` even when the Claude SDK auto-allows without
-			// calling `canUseTool` (no `claudeCanUseTool` round-trip means
-			// `sessionPermissions` never emits Ready, the state stays in
-			// `Streaming`, and the subsequent `SessionToolCallComplete` is
-			// dropped by the reducer — leaving the tool widget empty).
-			// When `canUseTool` DOES fire, `sessionPermissions` emits a second
-			// Ready that re-transitions Running → PendingConfirmation as needed.
 			const entry = state.toolCalls.lookup(tracked.toolUseId);
 			const info = entry?.info;
 			if (!info) {

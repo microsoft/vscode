@@ -19,7 +19,8 @@ import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { createNoopGitService, createNullSessionDataService, createSessionDataService } from '../common/sessionTestHelpers.js';
+import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { META_CHECKPOINT_WORKING_DIR } from '../../node/agentHostCheckpointService.js';
 
 suite('AgentHostChangesetService', () => {
 
@@ -678,6 +679,136 @@ suite('AgentHostChangesetService', () => {
 				envelopes.some(e => e.action.type === ActionType.ChangesetStatusChanged),
 				'onTurnComplete must drive at least one downstream changeset status transition',
 			);
+		});
+	});
+
+	suite('computeCompareTurnsChangeset', () => {
+
+		function makeCheckpointService(pairs: Record<string, { parent: string; current: string } | undefined>) {
+			return {
+				...NULL_CHECKPOINT_SERVICE,
+				getTurnCheckpointPair: async (_session: URI, turnId: string) => pairs[turnId],
+			};
+		}
+
+		test('publishes diffs as Ready when both checkpoints resolve and git returns diffs', async () => {
+			const sessionStr = sessionUri.toString();
+			setupSession('file:///wd');
+
+			const db = new TestSessionDatabase();
+			await db.setMetadata(META_CHECKPOINT_WORKING_DIR, 'file:///wd');
+
+			const expectedDiffs = [
+				{ after: { uri: 'file:///wd/a.ts', content: { uri: 'file:///wd/a.ts' } }, diff: { added: 4, removed: 1 } },
+			];
+			const calls: Array<{ fromRef: string; toRef: string }> = [];
+			const gitService = createNoopGitService();
+			gitService.computeFileDiffsBetweenRefs = async (_wd, opts) => {
+				calls.push({ fromRef: opts.fromRef, toRef: opts.toRef });
+				return expectedDiffs;
+			};
+			const svc = disposables.add(new AgentHostChangesetService(
+				stateManager,
+				new NullLogService(),
+				createSessionDataService(db),
+				gitService,
+				makeCheckpointService({
+					'orig': { parent: 'ref-orig-parent', current: 'ref-orig' },
+					'mod': { parent: 'ref-orig', current: 'ref-mod' },
+				}),
+			));
+
+			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
+
+			assert.strictEqual(compareUri, `${sessionStr}/changeset/compare/orig/mod`);
+			assert.deepStrictEqual(calls, [{ fromRef: 'ref-orig', toRef: 'ref-mod' }]);
+			const snapshot = stateManager.getSnapshot(compareUri);
+			const state = snapshot?.state as { status: string; files: Array<{ id: string }> } | undefined;
+			assert.deepStrictEqual({ status: state?.status, ids: state?.files.map(f => f.id) }, {
+				status: 'ready',
+				ids: ['file:///wd/a.ts'],
+			});
+		});
+
+		test('transitions to Error when either checkpoint is missing', async () => {
+			const sessionStr = sessionUri.toString();
+			setupSession('file:///wd');
+
+			const gitService = createNoopGitService();
+			let gitCalls = 0;
+			gitService.computeFileDiffsBetweenRefs = async () => { gitCalls++; return undefined; };
+			const svc = disposables.add(new AgentHostChangesetService(
+				stateManager,
+				new NullLogService(),
+				createSessionDataService(new TestSessionDatabase()),
+				gitService,
+				makeCheckpointService({
+					'orig': { parent: 'ref-orig-parent', current: 'ref-orig' },
+					// 'mod' is intentionally absent
+				}),
+			));
+
+			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
+
+			const snapshot = stateManager.getSnapshot(compareUri);
+			const state = snapshot?.state as { status: string; error?: { message: string } } | undefined;
+			assert.strictEqual(state?.status, 'error');
+			assert.ok(state?.error?.message.includes('modified turn'), `expected error to name the missing side, got ${state?.error?.message}`);
+			assert.strictEqual(gitCalls, 0, 'git must not be invoked when a checkpoint is missing');
+		});
+
+		test('returns empty Ready snapshot when both checkpoints point at the same ref', async () => {
+			const sessionStr = sessionUri.toString();
+			setupSession('file:///wd');
+
+			const gitService = createNoopGitService();
+			let gitCalls = 0;
+			gitService.computeFileDiffsBetweenRefs = async () => { gitCalls++; return undefined; };
+			const svc = disposables.add(new AgentHostChangesetService(
+				stateManager,
+				new NullLogService(),
+				createSessionDataService(new TestSessionDatabase()),
+				gitService,
+				makeCheckpointService({
+					'orig': { parent: 'p1', current: 'same-ref' },
+					'mod': { parent: 'same-ref', current: 'same-ref' },
+				}),
+			));
+
+			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
+
+			const snapshot = stateManager.getSnapshot(compareUri);
+			const state = snapshot?.state as { status: string; files: Array<unknown> } | undefined;
+			assert.deepStrictEqual({ status: state?.status, files: state?.files }, { status: 'ready', files: [] });
+			assert.strictEqual(gitCalls, 0, 'git diff must be short-circuited when both refs match');
+		});
+
+		test('transitions to Error when the git diff returns undefined (git failure, not empty)', async () => {
+			const sessionStr = sessionUri.toString();
+			setupSession('file:///wd');
+
+			const db = new TestSessionDatabase();
+			await db.setMetadata(META_CHECKPOINT_WORKING_DIR, 'file:///wd');
+
+			const gitService = createNoopGitService();
+			gitService.computeFileDiffsBetweenRefs = async () => undefined;
+			const svc = disposables.add(new AgentHostChangesetService(
+				stateManager,
+				new NullLogService(),
+				createSessionDataService(db),
+				gitService,
+				makeCheckpointService({
+					'orig': { parent: 'p', current: 'ref-orig' },
+					'mod': { parent: 'ref-orig', current: 'ref-mod' },
+				}),
+			));
+
+			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
+
+			const snapshot = stateManager.getSnapshot(compareUri);
+			const state = snapshot?.state as { status: string; error?: { message: string } } | undefined;
+			assert.strictEqual(state?.status, 'error');
+			assert.ok(state?.error?.message.includes('git'), `expected git-failure error message, got ${state?.error?.message}`);
 		});
 	});
 });

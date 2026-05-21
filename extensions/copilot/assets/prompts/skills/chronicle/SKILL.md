@@ -29,8 +29,9 @@ When the user asks for a standup, daily summary, or "what did I do":
 
 1. Call `copilot_sessionStoreSql` with `action: "standup"` and `description: "Generate standup"`.
 2. The tool returns pre-fetched session data (sessions, turns, files, refs from the last 24 hours).
-3. For any PR references in the data, check their current status (open, merged, draft) if possible.
-4. Format the returned data as a standup report grouped by work stream (branch/feature):
+3. If the result is empty, tell the user no sessions were found in the last 24h, suggest `/chronicle:reindex`, and stop — do not fabricate a standup.
+4. For any PR references in the data, check their current status (open, merged, draft) if possible.
+5. Format the returned data as a standup report grouped by work stream (branch/feature):
 
 ```
 Standup for <date>:

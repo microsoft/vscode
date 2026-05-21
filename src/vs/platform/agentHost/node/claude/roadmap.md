@@ -980,7 +980,7 @@ restart), killed subprocess triggers recovery.
 
 Exit criteria: parity with Copilot agent on stop / steer / switch model.
 
-### Phase 10 — Client-provided tools (in-process MCP)
+### Phase 10 — Client-provided tools (in-process MCP) ✅ **DONE**
 
 The Claude SDK exposes **two distinct MCP entry points** that classify into
 different M11 buckets — do not conflate them:

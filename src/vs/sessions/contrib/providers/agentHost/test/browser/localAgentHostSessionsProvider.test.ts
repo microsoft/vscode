@@ -12,10 +12,10 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, IAgentHostService, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, IAgentHostService, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationStatus, SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -90,6 +90,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	public createdSessionUris: URI[] = [];
+	public createSessionConfigs: { config?: Record<string, unknown> }[] = [];
 	/**
 	 * Per-call hook used by tests to interleave operations across the
 	 * `createSession` await — e.g. to verify that no subscription is opened
@@ -103,8 +104,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	 * Each entry is `${op}:${uri}`.
 	 */
 	public wireOps: string[] = [];
-	override async createSession(config?: { session?: URI }): Promise<URI> {
+	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		const uri = config?.session ?? URI.parse('copilotcli:///auto-' + this._nextSeq);
+		this.createSessionConfigs.push({ config: config?.config });
 		this.wireOps.push(`createSession:${uri.toString()}`);
 		this.createdSessionUris.push(uri);
 		const hook = this.onCreateSession;
@@ -656,6 +658,200 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('setAgent updates existing session agent and dispatches SessionAgentChanged', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'set-agent', { title: 'Set Agent Session' });
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Set Agent Session');
+		assert.ok(session);
+
+		provider.setAgent?.(session!.sessionId, { uri: 'agent://review', name: 'review' });
+
+		// The selected agent is now carried on `mode` (with `kind: 'agent'`).
+		// The wire `SessionAgentChanged` action carries only the URI; the receiver
+		// re-resolves the display name from its customization snapshot.
+		assert.deepStrictEqual(session!.mode.get(), { id: 'agent://review', kind: 'agent' });
+		assert.deepStrictEqual(agentHost.dispatchedActions.at(-1)?.action, {
+			type: ActionType.SessionAgentChanged,
+			agent: { uri: 'agent://review' },
+		});
+	});
+
+	test('setAgent with undefined clears the selection and dispatches an empty action', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'clear-agent', { title: 'Clear Agent Session' });
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Clear Agent Session');
+		assert.ok(session);
+
+		provider.setAgent?.(session!.sessionId, { uri: 'agent://review', name: 'review' });
+		provider.setAgent?.(session!.sessionId, undefined);
+
+		assert.strictEqual(session!.mode.get(), undefined);
+		assert.deepStrictEqual(agentHost.dispatchedActions.at(-1)?.action, {
+			type: ActionType.SessionAgentChanged,
+		});
+	});
+
+	// ---- getCustomAgents / onDidChangeCustomAgents -------
+
+	test('getCustomAgents collects agents from session customizations, coalesced by URI and sorted by name', async () => {
+		const provider = createProvider(disposables, agentHost);
+
+		fireSessionAdded(agentHost, 'agents-merge', { title: 'Merge Session' });
+		const session = provider.getSessions().find(s => s.title.get() === 'Merge Session');
+		assert.ok(session);
+
+		// Custom agents live exclusively on `SessionCustomization.agents`
+		// (populated by the host after parsing each customization). The host
+		// merges host-/client-/session-level customizations into
+		// `state.customizations` for us, so the picker only needs to read
+		// from there. A duplicate `uri` across customizations is coalesced
+		// (first seen wins).
+		const fakeState: SessionState = {
+			summary: {
+				resource: AgentSession.uri('copilotcli', 'agents-merge').toString(),
+				provider: 'copilotcli',
+				title: 'Merge Session',
+				status: ProtocolSessionStatus.Idle,
+				createdAt: 0,
+				modifiedAt: 0,
+			},
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			customizations: [{
+				customization: { uri: 'plugin://session-1', displayName: 'session plugin' },
+				enabled: true,
+				status: CustomizationStatus.Loaded,
+				agents: [
+					{ uri: 'agent://shared', name: 'shared', description: 'from session' },
+					{ uri: 'agent://session-only', name: 'session-only' },
+				],
+			}, {
+				customization: { uri: 'plugin://session-2', displayName: 'second session plugin' },
+				enabled: true,
+				status: CustomizationStatus.Loaded,
+				agents: [
+					{ uri: 'agent://another', name: 'another' },
+					// Duplicate URI — must NOT replace the first-seen entry.
+					{ uri: 'agent://shared', name: 'shared (duplicate)' },
+				],
+			}, {
+				// Disabled customizations are skipped entirely.
+				customization: { uri: 'plugin://disabled', displayName: 'disabled plugin' },
+				enabled: false,
+				status: CustomizationStatus.Loaded,
+				agents: [{ uri: 'agent://disabled', name: 'disabled' }],
+			}, {
+				// Customizations with `agents === undefined` are treated as
+				// "unknown" (host not yet finished parsing) and skipped.
+				customization: { uri: 'plugin://unparsed', displayName: 'unparsed plugin' },
+				enabled: true,
+				status: CustomizationStatus.Loading,
+			}],
+		};
+		// Force a session-state subscription so `_lastSessionStates` gets
+		// populated when we push the fake state below. `getSessionConfig`
+		// is the public hook that calls `_keepSessionStateAlive`.
+		provider.getSessionConfig(session!.sessionId);
+		agentHost.setSessionState('agents-merge', 'copilotcli', fakeState);
+
+		assert.deepStrictEqual(provider.getCustomAgents(session!.sessionId), [
+			{ uri: 'agent://another', name: 'another' },
+			{ uri: 'agent://session-only', name: 'session-only' },
+			// First-seen wins for the duplicate `agent://shared` URI.
+			{ uri: 'agent://shared', name: 'shared', description: 'from session' },
+		]);
+	});
+
+	test('getCustomAgents returns no agents when the session has no SessionState', () => {
+		const provider = createProvider(disposables, agentHost);
+
+		// Root-level customizations on `AgentInfo` no longer contribute
+		// agents directly to the picker — only `SessionCustomization.agents`
+		// does — so a session without a `SessionState` resolves to empty.
+		agentHost.setAgents([
+			{
+				provider: 'copilotcli',
+				displayName: 'Copilot',
+				description: '',
+				models: [],
+				customizations: [{
+					uri: 'plugin://root',
+					displayName: 'root plugin',
+				}],
+			} as AgentInfo,
+		]);
+
+		fireSessionAdded(agentHost, 'root-only', { title: 'Root Only' });
+		const session = provider.getSessions().find(s => s.title.get() === 'Root Only');
+		assert.ok(session);
+
+		assert.deepStrictEqual(provider.getCustomAgents(session!.sessionId), []);
+	});
+
+	test('onDidChangeCustomAgents fires on root state and session state changes', async () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'cust-events', { title: 'Cust Events' });
+		const session = provider.getSessions().find(s => s.title.get() === 'Cust Events');
+		assert.ok(session);
+
+		let fired = 0;
+		disposables.add(provider.onDidChangeCustomAgents(() => { fired++; }));
+
+		// Root state change should fire the event.
+		agentHost.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+		]);
+		const afterRoot = fired;
+		assert.ok(afterRoot > 0, 'expected event to fire on root state change');
+
+		// Session-state update with new customizations should fire it again.
+		provider.getSessionConfig(session!.sessionId);
+		agentHost.setSessionState('cust-events', 'copilotcli', {
+			summary: {
+				resource: AgentSession.uri('copilotcli', 'cust-events').toString(),
+				provider: 'copilotcli',
+				title: 'Cust Events',
+				status: ProtocolSessionStatus.Idle,
+				createdAt: 0,
+				modifiedAt: 0,
+			},
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			customizations: [{
+				customization: {
+					uri: 'plugin://s',
+					displayName: 'session plugin',
+				},
+				enabled: true,
+				status: CustomizationStatus.Loaded,
+				agents: [{ uri: 'agent://s', name: 's' }],
+			}],
+		});
+		assert.ok(fired > afterRoot, 'expected event to fire on session state customization change');
+
+		// A second state update with the SAME customizations reference must
+		// NOT fire — only churn in `customizations` / `activeClient.customizations`
+		// counts.
+		const afterFirstCustomization = fired;
+		agentHost.setSessionState('cust-events', 'copilotcli', {
+			summary: {
+				resource: AgentSession.uri('copilotcli', 'cust-events').toString(),
+				provider: 'copilotcli',
+				title: 'Cust Events Updated',
+				status: ProtocolSessionStatus.Idle,
+				createdAt: 0,
+				modifiedAt: 0,
+			},
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			// Same identity as before:
+			customizations: (provider as unknown as { _lastSessionStates: Map<string, SessionState> })._lastSessionStates.get(session!.sessionId)?.customizations,
+		});
+		assert.strictEqual(fired, afterFirstCustomization, 'expected event NOT to fire when customizations are unchanged');
+	});
+
 	// ---- Session lifecycle -------
 
 	test('createNewSession returns session with correct fields', () => {
@@ -698,6 +894,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 			seededImmediately: 'autoApprove',
 			forwardedToAgentHost: 'autoApprove',
 		});
+	});
+
+	test('createNewSession forwards seeded config to eager createSession', async () => {
+		const config = new TestConfigurationService();
+		await config.setUserConfiguration('chat.permissions.default', 'autoApprove');
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.createSessionConfigs[0]?.config, { autoApprove: 'autoApprove' });
 	});
 
 	test('createNewSession does not seed autoApprove when chat.permissions.default is the default value', () => {
