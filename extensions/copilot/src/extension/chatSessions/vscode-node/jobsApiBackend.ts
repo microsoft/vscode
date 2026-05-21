@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AgentTaskSessionEvent, RemoteAgentJobPayload } from '@vscode/copilot-api';
+import { RemoteAgentJobPayload } from '@vscode/copilot-api';
 import * as vscode from 'vscode';
 import { l10n } from 'vscode';
 import { GithubRepoId } from '../../../platform/git/common/gitService';
@@ -14,14 +14,13 @@ import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import {
-	CloudAgentBackend,
 	CloudDelegationResult,
 	CloudSessionContent,
 	CloudSessionData,
 	CloudSessionIdentity,
 	CreateCloudSessionParams,
 	FollowUpResult,
-	TaskContent,
+	PrCloudAgentBackend,
 } from '../vscode/cloudAgentBackend';
 import { body_suffix, formatBodyPlaceholder, JOBS_API_VERSION, SessionIdForPr } from '../vscode/copilotCodingAgentUtils';
 
@@ -32,7 +31,9 @@ const CLOUD_SESSIONS_AUTH_OPTIONS: AuthOptions = { createIfNone: { detail: l10n.
  * behaviorally identical to the inline code that previously lived in
  * `CopilotCloudSessionsProvider`.
  */
-export class JobsApiBackend implements CloudAgentBackend {
+export class JobsApiBackend implements PrCloudAgentBackend {
+
+	readonly kind = 'pr' as const;
 
 	constructor(
 		private readonly _octoKitService: IOctoKitService,
@@ -110,24 +111,6 @@ export class JobsApiBackend implements CloudAgentBackend {
 			return undefined;
 		}
 		return { url: commentResult.url };
-	}
-
-	// ── Task-keyed methods are not implemented by the Jobs backend ──────────
-
-	fetchTaskContent(_taskId: string): Promise<TaskContent | undefined> {
-		throw new Error('JobsApiBackend does not support task-keyed reads');
-	}
-
-	fetchTaskEvents(_taskId: string): Promise<readonly AgentTaskSessionEvent[]> {
-		throw new Error('JobsApiBackend does not support task-keyed reads');
-	}
-
-	waitForTaskUpdate(_taskId: string, _since: { turnCount: number; updatedAt?: string }, _token?: vscode.CancellationToken): Promise<TaskContent | undefined> {
-		throw new Error('JobsApiBackend does not support task-keyed reads');
-	}
-
-	sendFollowUpToTask(_taskId: string, _prompt: string): Promise<FollowUpResult | undefined> {
-		throw new Error('JobsApiBackend does not support task-keyed reads');
 	}
 
 	async createSession(params: CreateCloudSessionParams, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<CloudDelegationResult> {

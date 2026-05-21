@@ -108,23 +108,16 @@ export interface TaskContent {
 /**
  * Cloud agent backend abstraction.
  *
- * The interface is intentionally bifurcated by identity domain:
+ * Two concrete backends exist, discriminated by `kind`:
+ * - {@link PrCloudAgentBackend} (`kind: 'pr'`) — implemented by `JobsApiBackend` (v1).
+ * - {@link TaskCloudAgentBackend} (`kind: 'task'`) — implemented by `TaskApiBackend` (v2).
  *
- * - **PR-keyed** (`fetchPullRequestContent`, `fetchSessionsForPullRequest`, `sendFollowUpToPullRequest`,
- *   `getSessionLogsSSE`, `getSessionInfo`, `waitForSessionReady`) — implemented by `JobsApiBackend`.
- *   The Task backend throws "not supported" if these are called.
- * - **Task-keyed** (`fetchTaskContent`, `fetchTaskEvents`, `waitForTaskTurn`, `sendFollowUpToTask`) —
- *   implemented by `TaskApiBackend`. The Jobs backend throws "not supported" if these are called.
- * - **Identity-agnostic** (`fetchSessionList`, `createSession`, `parseSessionId`) — both backends
- *   implement; the provider routes based on the identity returned by `parseSessionId` for
- *   reads, and on `CloudDelegationResult.kind` for writes.
- *
- * TypeScript can't enforce which methods are valid for which backend at the call site, so the
- * provider dispatches by `CloudSessionIdentity.type` and throws are tests-time safety nets.
+ * Both share the identity-agnostic surface in {@link CloudAgentBackendCommon}. The
+ * domain-specific surfaces are non-overlapping, so callers narrow via `kind` (or hold a
+ * pre-narrowed reference) and the type system enforces which methods are callable. There
+ * are no runtime "not supported" throws on the type surface.
  */
-export interface CloudAgentBackend {
-	// ── Identity-agnostic ────────────────────────────────────────────────────
-
+export interface CloudAgentBackendCommon {
 	/**
 	 * Fetch a grouped, UI-ready session list across the given repos.
 	 * @param refresh When true, bypass any client-side caches and fetch fresh data.
@@ -144,27 +137,28 @@ export interface CloudAgentBackend {
 
 	/** Parse a session URI into a {@link CloudSessionIdentity}. */
 	parseSessionId(resource: vscode.Uri): CloudSessionIdentity | undefined;
+}
 
-	// ── PR-keyed (Jobs API) ──────────────────────────────────────────────────
+/**
+ * Jobs API (v1) backend surface. Session identity is the pull request; every read is keyed
+ * by PR number / global id and follow-up is an `@copilot` comment.
+ */
+export interface PrCloudAgentBackend extends CloudAgentBackendCommon {
+	readonly kind: 'pr';
 
-	/**
-	 * Fetch initial prompt for a PR-keyed session group. Jobs API only — Task API throws.
-	 */
+	/** Fetch initial prompt for a PR-keyed session group. */
 	fetchPullRequestContent(
 		repoOwner: string,
 		repoName: string,
 		sessions: SessionInfo[],
 	): Promise<CloudSessionContent>;
 
-	/**
-	 * Fetch the session iteration list for a pull request (the per-PR thread of sessions).
-	 * Jobs API only — Task API throws.
-	 */
+	/** Fetch the per-PR thread of session iterations. */
 	fetchSessionsForPullRequest(pr: PullRequestSearchItem): Promise<SessionInfo[]>;
 
 	/**
 	 * Post a follow-up `@copilot` comment to an existing PR-keyed session.
-	 * @param prGlobalId PR GraphQL node id. Jobs API only — Task API throws.
+	 * @param prGlobalId PR GraphQL node id.
 	 */
 	sendFollowUpToPullRequest(
 		prGlobalId: string,
@@ -172,37 +166,35 @@ export interface CloudAgentBackend {
 		targetAgent?: string,
 	): Promise<FollowUpResult | undefined>;
 
-	/** Get a single iteration's status. Jobs API only — Task API throws. */
+	/** Get a single PR-iteration's status. */
 	getSessionInfo(sessionId: string): Promise<SessionInfo | undefined>;
 
-	/** Get a single iteration's raw SSE log stream. Jobs API only — Task API throws. */
+	/** Get a single PR-iteration's raw SSE log stream. */
 	getSessionLogsSSE(sessionId: string): Promise<string>;
 
-	/** Block until a single PR-iteration leaves `queued`. Jobs API only — Task API throws. */
+	/** Block until a single PR-iteration leaves `queued`. */
 	waitForSessionReady(
 		sessionId: string,
 		token?: vscode.CancellationToken,
 	): Promise<SessionInfo | undefined>;
+}
 
-	// ── Task-keyed (Task API) ────────────────────────────────────────────────
+/**
+ * Task API (v2) backend surface. Session identity is the task; the PR (if any) is decoration.
+ * Multi-turn history is `task.sessions[]`; follow-up is a steer call.
+ */
+export interface TaskCloudAgentBackend extends CloudAgentBackendCommon {
+	readonly kind: 'task';
 
-	/**
-	 * Fetch the full task payload with embedded turn sessions. Task API only — Jobs throws.
-	 */
+	/** Fetch the full task payload with embedded turn sessions. */
 	fetchTaskContent(taskId: string): Promise<TaskContent | undefined>;
 
-	/**
-	 * Fetch the typed event timeline for a task (or a specific turn session within it).
-	 * Task API only — Jobs throws.
-	 */
+	/** Fetch the typed event timeline for a task. */
 	fetchTaskEvents(taskId: string): Promise<readonly AgentTaskSessionEvent[]>;
 
 	/**
-	 * Block until the task has changed observably since the given baseline: either a new
-	 * turn was added beyond `since.turnCount`, the task's `updated_at` advanced past
-	 * `since.updatedAt`, or the latest turn's state left the in-progress/queued region.
-	 * Used by active response callbacks (state transitions) and follow-up flows (new turn).
-	 * Task API only.
+	 * Block until the task has changed observably since the given baseline (new turn, an
+	 * advance of `updated_at`, or the latest turn leaving in-progress/queued).
 	 */
 	waitForTaskUpdate(
 		taskId: string,
@@ -210,11 +202,12 @@ export interface CloudAgentBackend {
 		token?: vscode.CancellationToken,
 	): Promise<TaskContent | undefined>;
 
-	/**
-	 * Post a follow-up turn against a task via the steer endpoint. Task API only — Jobs throws.
-	 */
+	/** Post a follow-up turn against a task via the steer endpoint. */
 	sendFollowUpToTask(
 		taskId: string,
 		prompt: string,
 	): Promise<FollowUpResult | undefined>;
 }
+
+/** Discriminated union of all backends. Narrow via `backend.kind`. */
+export type CloudAgentBackend = PrCloudAgentBackend | TaskCloudAgentBackend;

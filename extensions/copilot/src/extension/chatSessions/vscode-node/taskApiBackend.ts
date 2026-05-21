@@ -23,7 +23,7 @@ import {
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { GithubRepoId } from '../../../platform/git/common/gitService';
-import { PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
+import { SessionInfo } from '../../../platform/github/common/githubAPI';
 import { ILogService } from '../../../platform/log/common/logService';
 import {
 	ITaskApiClient,
@@ -31,14 +31,13 @@ import {
 	ListTasksOptions,
 } from '../common/taskApiTypes';
 import {
-	CloudAgentBackend,
 	CloudDelegationResult,
-	CloudSessionContent,
 	CloudSessionData,
 	CloudSessionIdentity,
 	CreateCloudSessionParams,
 	FollowUpResult,
 	PullArtifactRef,
+	TaskCloudAgentBackend,
 	TaskContent,
 } from '../vscode/cloudAgentBackend';
 import { extractTitle, SessionIdForPr, SessionIdForTask } from '../vscode/copilotCodingAgentUtils';
@@ -142,7 +141,9 @@ function taskToPullArtifactRef(
  *
  * Selected via the `github.copilot.chat.cloudAgentBackend.version` setting set to `v2`.
  */
-export class TaskApiBackend implements CloudAgentBackend {
+export class TaskApiBackend implements TaskCloudAgentBackend {
+
+	readonly kind = 'task' as const;
 
 	constructor(
 		private readonly _taskApiClient: ITaskApiClient,
@@ -226,34 +227,6 @@ export class TaskApiBackend implements CloudAgentBackend {
 				pullArtifact: taskToPullArtifactRef(task, repo),
 			}));
 	}
-
-	// ── PR-keyed methods are not supported by the Task backend ──────────────
-
-	fetchPullRequestContent(_repoOwner: string, _repoName: string, _sessions: SessionInfo[]): Promise<CloudSessionContent> {
-		throw new Error('TaskApiBackend does not support PR-keyed reads');
-	}
-
-	fetchSessionsForPullRequest(_pr: PullRequestSearchItem): Promise<SessionInfo[]> {
-		throw new Error('TaskApiBackend does not support PR-keyed reads');
-	}
-
-	sendFollowUpToPullRequest(_prGlobalId: string, _prompt: string, _targetAgent?: string): Promise<FollowUpResult | undefined> {
-		throw new Error('TaskApiBackend does not support PR-keyed reads');
-	}
-
-	getSessionInfo(_sessionId: string): Promise<SessionInfo | undefined> {
-		throw new Error('TaskApiBackend does not support PR-keyed reads; use fetchTaskContent');
-	}
-
-	getSessionLogsSSE(_sessionId: string): Promise<string> {
-		throw new Error('TaskApiBackend does not support PR-keyed reads; use fetchTaskEvents');
-	}
-
-	waitForSessionReady(_sessionId: string, _token?: vscode.CancellationToken): Promise<SessionInfo | undefined> {
-		throw new Error('TaskApiBackend does not support PR-keyed reads; use waitForTaskTurn');
-	}
-
-	// ── Task-keyed methods ──────────────────────────────────────────────────
 
 	async fetchTaskContent(taskId: string): Promise<TaskContent | undefined> {
 		try {
