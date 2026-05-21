@@ -16,7 +16,7 @@ import { ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagemen
 import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { IResponseDelta, OpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { APIUsage } from '../../../platform/networking/common/openai';
-import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
@@ -506,9 +506,24 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 				}
 				try {
 					const roleNames: Record<number, string> = { 1: 'user', 2: 'assistant', 3: 'system' };
-					const inputMsgs = messages.map(m => {
+					const systemTexts: string[] = [];
+					const inputMsgs: Array<{ role: string; parts: Array<{ type: string; content?: string | unknown; id?: string; name?: string; arguments?: unknown; response?: unknown }> }> = [];
+					for (const m of messages) {
 						const msg = m as LanguageModelChatMessage;
 						const role = roleNames[msg.role] ?? String(msg.role);
+						// System messages are emitted via gen_ai.system_instructions only — keeping them
+						// in gen_ai.input.messages causes trace viewers to render the system prompt twice
+						// (issue #299932). Collect their text into the dedicated attribute and skip the entry.
+						if (role === 'system') {
+							if (Array.isArray(msg.content)) {
+								for (const p of msg.content) {
+									if (p instanceof LanguageModelTextPart) {
+										systemTexts.push(p.value);
+									}
+								}
+							}
+							continue;
+						}
 						const parts: Array<{ type: string; content?: string | unknown; id?: string; name?: string; arguments?: unknown; response?: unknown }> = [];
 						if (Array.isArray(msg.content)) {
 							for (const p of msg.content) {
@@ -525,8 +540,12 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 						if (parts.length === 0) {
 							parts.push({ type: 'text', content: '[non-text content]' });
 						}
-						return { role, parts };
-					});
+						inputMsgs.push({ role, parts });
+					}
+					const systemInstructions = toSystemInstructions(systemTexts);
+					if (systemInstructions) {
+						otelSpan.setAttribute(GenAiAttr.SYSTEM_INSTRUCTIONS, truncateForOTel(JSON.stringify(systemInstructions), this._otelService.config.maxAttributeSizeChars));
+					}
 					otelSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(inputMsgs), this._otelService.config.maxAttributeSizeChars));
 				} catch { /* swallow */ }
 			}
