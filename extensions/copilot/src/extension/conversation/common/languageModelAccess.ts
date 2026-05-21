@@ -6,7 +6,58 @@
 
 import { IChatEndpoint, IChatEndpointTokenPricing } from '../../../platform/networking/common/networking';
 import * as l10n from '@vscode/l10n';
-import type { LanguageModelChatInformation } from 'vscode';
+import type { LanguageModelChatInformation, LanguageModelConfigurationSchema } from 'vscode';
+
+/**
+ * Picks a sensible default reasoning-effort level given the levels advertised
+ * by an endpoint and the model `family`. The picker must never receive
+ * `undefined`, otherwise the UI shows an "undefined" state.
+ *
+ * Selection order:
+ *  - claude families  → 'high' if available
+ *  - other families   → 'medium' if available
+ *  - fallback         → the first advertised level
+ */
+export function pickDefaultReasoningEffort(effortLevels: readonly string[], family: string): string | undefined {
+	if (effortLevels.length === 0) {
+		return undefined;
+	}
+	const lowerFamily = family.toLowerCase();
+	const preferred = lowerFamily.startsWith('claude') ? 'high' : 'medium';
+	if (effortLevels.includes(preferred)) {
+		return preferred;
+	}
+	return effortLevels[0];
+}
+
+/**
+ * Builds the `reasoningEffort` property descriptor for a model's
+ * {@link LanguageModelConfigurationSchema}. Centralises the default-selection
+ * and localized descriptions so the picker stays consistent across the
+ * Copilot and BYOK code paths.
+ */
+export function buildReasoningEffortSchemaProperty(effortLevels: readonly string[], family: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
+	return {
+		type: 'string',
+		title: l10n.t('Thinking Effort'),
+		enum: effortLevels,
+		enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
+		enumDescriptions: effortLevels.map(level => {
+			switch (level) {
+				case 'none': return l10n.t('No reasoning applied');
+				case 'minimal': return l10n.t('Minimal reasoning for fastest responses');
+				case 'low': return l10n.t('Faster responses with less reasoning');
+				case 'medium': return l10n.t('Balanced reasoning and speed');
+				case 'high': return l10n.t('Greater reasoning depth but slower');
+				case 'xhigh': return l10n.t('Highest reasoning depth but slowest');
+				case 'max': return l10n.t('Absolute maximum capability with no constraints');
+				default: return level;
+			}
+		}),
+		default: pickDefaultReasoningEffort(effortLevels, family),
+		group: 'navigation',
+	};
+}
 
 /**
  * Returns a description of the model's capabilities and intended use cases.

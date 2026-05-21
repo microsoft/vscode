@@ -46,6 +46,13 @@
 		// supported by blink/chromium. To work around this, we generate an import map that maps all node modules
 		// to a blob that exports all properties of the module as named exports and the module itself as default.
 
+		// Some CommonJS modules export keys that are reserved words in ES module syntax
+		// (e.g. zod exports `enum`, `default`, `function`). Generating `export const enum = ...`
+		// for those would fail to parse, so skip them. Hoisted to outer scope so we don't
+		// reallocate the Set / regex for every dependency the import map covers.
+		const RESERVED_EXPORT_NAMES = new Set(['break', 'case', 'catch', 'class', 'const', 'continue', 'debugger', 'default', 'delete', 'do', 'else', 'enum', 'export', 'extends', 'false', 'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof', 'new', 'null', 'return', 'super', 'switch', 'this', 'throw', 'true', 'try', 'typeof', 'var', 'void', 'while', 'with', 'yield', 'let', 'static', 'implements', 'interface', 'package', 'private', 'protected', 'public', 'await']);
+		const VALID_IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
 		function asRequireBlobUri(name) {
 			let _mod;
 			try {
@@ -61,6 +68,9 @@
 			// export all properties and the module itself as default
 			let jsSrc = `const _mod = require('${name}')\n`;
 			for (const name of Object.keys(_mod)) {
+				if (RESERVED_EXPORT_NAMES.has(name) || !VALID_IDENTIFIER.test(name)) {
+					continue;
+				}
 				jsSrc += `export const ${name} = _mod['${name}'];\n`;
 			}
 			jsSrc += `export default _mod;\n`;

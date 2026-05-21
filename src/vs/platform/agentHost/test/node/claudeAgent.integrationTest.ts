@@ -340,6 +340,9 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 		return [];
 	}
 
+	async createSdkMcpServer(): Promise<never> { throw new Error('not implemented in integration test fake'); }
+	async tool(): Promise<never> { throw new Error('not implemented in integration test fake'); }
+
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
 		this.capturedStartupOptions.push(params.options);
 

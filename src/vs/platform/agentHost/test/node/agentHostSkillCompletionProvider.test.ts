@@ -64,7 +64,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 	}
 
 	async function run(provider: AgentHostSkillCompletionProvider, text: string, offset = text.length) {
-		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, session: 'mock:/session', text, offset }, CancellationToken.None);
+		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: 'mock:/session', text, offset }, CancellationToken.None);
 	}
 
 	test('announces slash as a trigger character', () => {

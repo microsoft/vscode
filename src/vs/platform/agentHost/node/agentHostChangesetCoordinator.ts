@@ -70,12 +70,32 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 */
 	private readonly _pendingUncommittedRefreshes = new Set<string>();
 
+	/**
+	 * Per-session set of turn ids that have at least one live subscriber to
+	 * `<sessionUri>/changeset/turn/<turnId>`. Drives the per-turn recompute
+	 * gating: the changeset service only schedules a per-turn recompute when
+	 * this set says someone is watching the turn URI (per-turn URIs have no
+	 * catalogue chip aggregates, so recomputing for an unobserved turn is
+	 * pure waste).
+	 */
+	private readonly _subscribedTurns = new Map<string, Set<string>>();
+
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _changesets: IAgentHostChangesetService,
 		private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
+		this._changesets.setTurnSubscriberProbe((session, turnId) => this.hasTurnSubscribers(session, turnId));
+	}
+
+	/**
+	 * Returns `true` when at least one client is subscribed to
+	 * `<session>/changeset/turn/<turnId>`. Consulted by the changeset
+	 * service via the probe installed in the constructor.
+	 */
+	hasTurnSubscribers(session: string, turnId: string): boolean {
+		return this._subscribedTurns.get(session)?.has(turnId) ?? false;
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
@@ -131,6 +151,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 */
 	onSessionDisposed(sessionStr: string): void {
 		this._pendingUncommittedRefreshes.delete(sessionStr);
+		this._subscribedTurns.delete(sessionStr);
 	}
 
 	// ---- Subscription hooks -------------------------------------------------
@@ -145,9 +166,42 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * `addSubscriber`, so this single hook covers both paths.
 	 */
 	onFirstSubscriber(resource: URI): void {
-		const parsed = parseChangesetUri(resource.toString());
+		const resourceStr = resource.toString();
+		const parsed = parseChangesetUri(resourceStr);
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._triggerUncommittedRefresh(parsed.sessionUri);
+			return;
+		}
+		if (parsed?.kind === ChangesetKind.Session) {
+			// Session-changeset compute uses git when a working dir is
+			// available and falls back to the SDK edit-tracker otherwise,
+			// so it doesn't need the same deferral as uncommitted.
+			this._changesets.refreshSessionChangeset(parsed.sessionUri);
+			return;
+		}
+		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
+			// Track the new subscriber so the service's per-turn recompute
+			// gating starts including this turn. The initial snapshot is
+			// already produced by `tryHandleSubscribe → computeTurnChangeset`;
+			// subsequent deltas flow from `onToolCallEditsApplied` /
+			// `onTurnComplete` once we've added this turn id here.
+			let set = this._subscribedTurns.get(parsed.sessionUri);
+			if (!set) {
+				set = new Set();
+				this._subscribedTurns.set(parsed.sessionUri, set);
+			}
+			set.add(parsed.turnId);
+			return;
+		}
+		if (!parsed && this._stateManager.getSessionState(resourceStr)) {
+			// Plain session-URI subscription (Agents Window list / detail
+			// observing the session). Refresh both static changesets so
+			// the catalogue chip doesn't show a stale value just because
+			// no turn has run since process start, no one ever subscribed
+			// to the changeset URIs directly, and the user has been
+			// editing files manually in the working tree.
+			this._triggerUncommittedRefresh(resourceStr);
+			this._changesets.refreshSessionChangeset(resourceStr);
 		}
 	}
 
@@ -160,6 +214,16 @@ export class ChangesetSessionCoordinator extends Disposable {
 		const parsed = parseChangesetUri(resource.toString());
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._pendingUncommittedRefreshes.delete(parsed.sessionUri);
+			return;
+		}
+		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
+			const set = this._subscribedTurns.get(parsed.sessionUri);
+			if (set) {
+				set.delete(parsed.turnId);
+				if (set.size === 0) {
+					this._subscribedTurns.delete(parsed.sessionUri);
+				}
+			}
 		}
 	}
 
@@ -192,6 +256,12 @@ export class ChangesetSessionCoordinator extends Disposable {
 		}
 		if (parsed.kind === ChangesetKind.Turn && parsed.turnId) {
 			await this._changesets.computeTurnChangeset(parsed.sessionUri, parsed.turnId);
+		} else if (parsed.kind === ChangesetKind.Compare && parsed.originalTurnId && parsed.modifiedTurnId) {
+			// Compare-turns is computed once on subscribe. Both turns are
+			// typically historical so the snapshot doesn't need to track
+			// live edits; `onFirstSubscriber` / `onLastSubscriber` do not
+			// need to participate.
+			await this._changesets.computeCompareTurnsChangeset(parsed.sessionUri, parsed.originalTurnId, parsed.modifiedTurnId);
 		} else {
 			// Static changesets are seeded by `onSessionRestored` /
 			// `onSessionCreated`. Re-register defensively in case the

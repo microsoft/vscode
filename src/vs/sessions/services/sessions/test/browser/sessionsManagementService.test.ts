@@ -11,7 +11,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -26,7 +25,7 @@ import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browse
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../common/session.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
-import { deduplicateSessions, SessionsManagementService } from '../../browser/sessionsManagementService.js';
+import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 
@@ -194,57 +193,6 @@ function createSessionsManagementService(session: ISession, disposables: ReturnT
 	return { service, chatWidgetService, agentSessionsService };
 }
 
-suite('deduplicateSessions', () => {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('returns all sessions when no deduplication keys are set', () => {
-		const s1 = stubSession({ sessionId: 'a', providerId: 'p1' });
-		const s2 = stubSession({ sessionId: 'b', providerId: 'p2' });
-		const result = deduplicateSessions([s1, s2]);
-		assert.deepStrictEqual(result, [s1, s2]);
-	});
-
-	test('removes duplicate when same deduplicationKey appears across providers', () => {
-		const local = stubSession({ sessionId: 'local-1', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, deduplicationKey: 'copilot:///abc123' });
-		const remote = stubSession({ sessionId: 'remote-1', providerId: 'agenthost-tunnel', deduplicationKey: 'copilot:///abc123' });
-		const result = deduplicateSessions([remote, local]);
-		assert.deepStrictEqual(result, [local]);
-	});
-
-	test('prefers local provider over remote regardless of order', () => {
-		const local = stubSession({ sessionId: 'local-1', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, deduplicationKey: 'copilot:///abc123' });
-		const remote = stubSession({ sessionId: 'remote-1', providerId: 'agenthost-tunnel', deduplicationKey: 'copilot:///abc123' });
-
-		// local first
-		assert.deepStrictEqual(deduplicateSessions([local, remote]), [local]);
-		// remote first
-		assert.deepStrictEqual(deduplicateSessions([remote, local]), [local]);
-	});
-
-	test('keeps first occurrence when no local provider exists among duplicates', () => {
-		const r1 = stubSession({ sessionId: 'r1', providerId: 'agenthost-a', deduplicationKey: 'copilot:///abc123' });
-		const r2 = stubSession({ sessionId: 'r2', providerId: 'agenthost-b', deduplicationKey: 'copilot:///abc123' });
-		const result = deduplicateSessions([r1, r2]);
-		assert.deepStrictEqual(result, [r1]);
-	});
-
-	test('does not deduplicate sessions with different keys', () => {
-		const s1 = stubSession({ sessionId: 's1', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, deduplicationKey: 'copilot:///aaa' });
-		const s2 = stubSession({ sessionId: 's2', providerId: 'agenthost-tunnel', deduplicationKey: 'copilot:///bbb' });
-		const result = deduplicateSessions([s1, s2]);
-		assert.deepStrictEqual(result, [s1, s2]);
-	});
-
-	test('mixes sessions with and without deduplication keys', () => {
-		const keyed1 = stubSession({ sessionId: 'k1', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, deduplicationKey: 'copilot:///abc123' });
-		const keyed2 = stubSession({ sessionId: 'k2', providerId: 'agenthost-tunnel', deduplicationKey: 'copilot:///abc123' });
-		const noKey = stubSession({ sessionId: 'nk', providerId: 'copilot-chat' });
-		const result = deduplicateSessions([keyed2, noKey, keyed1]);
-		assert.deepStrictEqual(result, [noKey, keyed1]);
-	});
-});
-
 suite('SessionsManagementService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -263,43 +211,6 @@ suite('SessionsManagementService', () => {
 		await openPromise;
 
 		assert.deepStrictEqual({ opened: chatWidgetService.opened.map(uri => uri.toString()), observed: agentSessionsService.observed.map(uri => uri.toString()) }, { opened: [session.resource.toString()], observed: [session.resource.toString()] });
-	});
-
-	test('sets active session when added session is displayed in a chat widget', async () => {
-		const originalSession = stubSession({ sessionId: 'original', providerId: 'test' });
-		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
-		const provider = new class extends TestSessionsProvider {
-			override readonly onDidChangeSessions = onDidChangeSessions.event;
-			constructor() { super(originalSession); }
-		};
-
-		const instantiationService = disposables.add(new TestInstantiationService());
-		const chatWidgetService = new TestChatWidgetService();
-		const agentSessionsService = new TestAgentSessionsService();
-
-		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
-		instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
-		instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
-		instantiationService.stub(IChatWidgetService, chatWidgetService);
-		instantiationService.stub(IAgentSessionsService, agentSessionsService);
-		instantiationService.stub(IProgressService, new TestProgressService());
-
-		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
-
-		// Open the original session so it becomes the active session
-		await service.openSession(originalSession.resource);
-		assert.strictEqual(service.activeSession.get()?.sessionId, 'original');
-
-		// Simulate fork: a new session is added and the chat widget displays it
-		const forkedSession = stubSession({ sessionId: 'forked', providerId: 'test' });
-		chatWidgetService.setWidgetSessionResource(forkedSession.resource);
-
-		onDidChangeSessions.fire({ added: [forkedSession], removed: [], changed: [] });
-
-		// The active session should now be the forked session
-		assert.strictEqual(service.activeSession.get()?.sessionId, 'forked');
 	});
 
 	test('does not change active session when added session is not displayed in any widget', async () => {
@@ -338,4 +249,57 @@ suite('SessionsManagementService', () => {
 		// The active session should remain unchanged
 		assert.strictEqual(service.activeSession.get()?.sessionId, 'original');
 	});
+
+	test('restoreLastActiveSession waits for session to appear via onDidChangeSessions', async () => {
+		const targetSession = stubSession({ sessionId: 'target', providerId: 'test' });
+		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+
+		let sessions: ISession[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			constructor() { super(targetSession); }
+			override getSessions(): ISession[] { return sessions; }
+		};
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const chatWidgetService = new TestChatWidgetService();
+		const agentSessionsService = new TestAgentSessionsService();
+
+		// Seed storage so the management service treats `targetSession` as the
+		// last active session and tries to restore it on startup.
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(
+			'agentSessions.activeSessionStates',
+			JSON.stringify([{ sessionResource: targetSession.resource.toString(), isActive: true }]),
+			1 /* StorageScope.WORKSPACE */,
+			1 /* StorageTarget.MACHINE */,
+		);
+
+		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+		instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+		instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+		instantiationService.stub(IChatWidgetService, chatWidgetService);
+		instantiationService.stub(IAgentSessionsService, agentSessionsService);
+		instantiationService.stub(IProgressService, new TestProgressService());
+
+		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+
+		// At this point the provider does not yet know about the session
+		// (mimicking an agent host provider whose cache has not loaded yet).
+		const restorePromise = service.restoreLastActiveSession();
+		await Promise.resolve();
+		assert.deepStrictEqual(chatWidgetService.opened.map(uri => uri.toString()), []);
+
+		// Now the provider learns about the session and fires its change event.
+		// `onDidChangeProviders` does NOT fire here — only the per-provider
+		// session change event — so the fix must subscribe to it as well.
+		sessions = [targetSession];
+		onDidChangeSessions.fire({ added: [targetSession], removed: [], changed: [] });
+
+		await restorePromise;
+		assert.deepStrictEqual(chatWidgetService.opened.map(uri => uri.toString()), [targetSession.resource.toString()]);
+	});
 });
+

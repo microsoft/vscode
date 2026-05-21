@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
+import { defineConfig } from 'eslint/config';
 import fs from 'fs';
 import { builtinModules } from 'module';
 import path from 'path';
@@ -22,7 +23,7 @@ const ignores = fs.readFileSync(path.join(import.meta.dirname, '.eslint-ignore')
 	.split(/\r\n|\n/)
 	.filter(line => line && !line.startsWith('#'));
 
-export default tseslint.config(
+export default defineConfig(
 	// Global ignores
 	{
 		ignores: [
@@ -338,7 +339,7 @@ export default tseslint.config(
 			'src/vs/workbench/services/remote/common/tunnelModel.ts',
 			'src/vs/workbench/services/search/common/textSearchManager.ts',
 			'src/vs/workbench/test/browser/workbenchTestServices.ts',
-			'src/vs/platform/agentHost/common/state/protocol/reducers.ts',
+			'src/vs/platform/agentHost/common/state/protocol/**',
 			'test/automation/src/playwrightDriver.ts',
 			'.eslint-plugin-local/**/*',
 		],
@@ -1502,6 +1503,7 @@ export default tseslint.config(
 					'when': 'hasNode',
 					'allow': [
 						'@github/copilot-sdk',
+						'zod',
 						'@microsoft/dev-tunnels-contracts',
 						'@microsoft/dev-tunnels-management',
 						'@parcel/watcher',
@@ -1645,7 +1647,9 @@ export default tseslint.config(
 						'@vscode/tree-sitter-wasm', // used by agentHost for command auto-approval
 						'@vscode/copilot-api', // used by agentHost for Copilot API requests
 						'@anthropic-ai/sdk', // used by agentHost for Anthropic API requests
-						'@anthropic-ai/claude-agent-sdk' // used by agentHost for Claude Agent SDK session enumeration / queries
+						'@anthropic-ai/claude-agent-sdk', // used by agentHost for Claude Agent SDK session enumeration / queries
+						'@modelcontextprotocol/sdk/**/*', // used by agentHost for Claude client-tool MCP result types (Phase 10)
+						'zod' // used by agentHost for Claude client-tool MCP input schemas
 					]
 				},
 				{
