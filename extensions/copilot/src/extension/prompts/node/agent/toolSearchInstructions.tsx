@@ -100,11 +100,12 @@ export class DeferredToolListReminder extends PromptElement<DeferredToolListRemi
 
 	async render(state: void, sizing: PromptSizing) {
 		const endpoint = sizing.endpoint as IChatEndpoint | undefined;
-		if (!shouldShowToolSearchPrompt(this.props.availableTools, endpoint?.supportsToolSearch, this.toolDeferralService)) {
+		const availableTools = this.props.availableTools ?? [];
+		if (!shouldShowToolSearchPrompt(availableTools, endpoint?.supportsToolSearch, this.toolDeferralService)) {
 			return;
 		}
 
-		const deferredTools = this.props.availableTools
+		const deferredTools = availableTools
 			.filter(tool => !this.toolDeferralService.isNonDeferredTool(tool.name))
 			.map(tool => tool.name)
 			.sort();
