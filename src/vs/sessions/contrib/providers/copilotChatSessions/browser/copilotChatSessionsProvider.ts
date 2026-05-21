@@ -1738,6 +1738,27 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private readonly _currentNewSession = this._register(new MutableDisposable<NewSession>());
 
+	/**
+	 * Clear {@link _currentNewSession} only if it still holds the given
+	 * session. Async flows (commit wait, cache population) may complete
+	 * after a newer session has been assigned — unconditionally clearing
+	 * would dispose the newer session and leave it dangling.
+	 *
+	 * @param session The session that initiated the async flow.
+	 * @param leak When `true` use {@link MutableDisposable.clearAndLeak}
+	 *             (the session is still referenced elsewhere); otherwise
+	 *             use {@link MutableDisposable.clear} which also disposes.
+	 */
+	private _clearCurrentNewSessionIfMatch(session: NewSession, leak?: boolean): void {
+		if (this._currentNewSession.value === session) {
+			if (leak) {
+				this._currentNewSession.clearAndLeak();
+			} else {
+				this._currentNewSession.clear();
+			}
+		}
+	}
+
 	getSession(sessionId: string): ICopilotChatSession | undefined {
 		if (this._currentNewSession.value?.id === sessionId) {
 			return this._currentNewSession.value;
@@ -2124,7 +2145,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			// Remove the temp from the cache (the adapter now owns the committed key)
 			this._sessionCache.delete(key);
-			this._currentNewSession.clear();
+			// Guard: only clear if _currentNewSession still points at this
+			// session — a newer createNewSession may have replaced it while
+			// we were awaiting the commit.
+			this._clearCurrentNewSessionIfMatch(session);
 
 			const committedSession = this._chatToSession(committedChat);
 
@@ -2134,12 +2158,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			return committedSession;
 		} catch (error) {
-			this._currentNewSession.clearAndLeak();
+			this._clearCurrentNewSessionIfMatch(session, /* leak */ true);
 
 			if (error instanceof CancellationError) {
-				// Session was stopped before the agent created a worktree.
-				// Keep the temp session in the list so the user can review
-				// whatever content the agent produced before cancellation.
 				session.setStatus(SessionStatus.Completed);
 				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [newSession] });
 				return newSession;
@@ -2294,7 +2315,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			// Clean up temp session and replace with the real adapter
 			this._sessionCache.delete(tempKey);
-			this._currentNewSession.clear();
+			this._clearCurrentNewSessionIfMatch(session);
 
 			const committedSession = this._chatToSession(committedChat);
 			this._sessionGroupCache.delete(session.id);
@@ -2302,7 +2323,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			return committedSession;
 		} catch (error) {
-			this._currentNewSession.clearAndLeak();
+			this._clearCurrentNewSessionIfMatch(session, /* leak */ true);
 
 			if (error instanceof CancellationError) {
 				// Keep the temp session visible so the user can review
@@ -2449,7 +2470,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			// Clean up temp
 			this._sessionCache.delete(key);
 			this._invalidateGroupingCaches();
-			this._currentNewSession.clear();
+			this._clearCurrentNewSessionIfMatch(newChatSession);
 
 			// Invalidate the session group cache so it rebuilds with the committed chat
 			this._sessionGroupCache.delete(sessionId);
@@ -2459,7 +2480,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			return updatedSession;
 		} catch (error) {
-			this._currentNewSession.clearAndLeak();
+			this._clearCurrentNewSessionIfMatch(newChatSession, /* leak */ true);
 
 			if (error instanceof CancellationError) {
 				// Cancelled before commit — keep the chat in the group so the
