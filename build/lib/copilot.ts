@@ -93,9 +93,9 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
  * survive app/remote packaging for the target platform.
  *
  * .moduleignore strips @github/copilot/prebuilds/** globally because the
- * internal extension SDK uses a copied sdk/prebuilds layout. Agent Host starts
- * the public SDK's CLI from root node_modules/@github/copilot/index.js, whose
- * runtime addon loader expects these files in the root prebuilds layout.
+ * internal extension SDK uses a copied sdk/prebuilds layout. Agent Host uses
+ * the public SDK, whose runtime addon loader expects runtime.node in the root
+ * prebuilds layout.
  */
 export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, nodeModulesRoot = 'node_modules'): string[] {
 	const { nodePlatform, nodeArch } = toNodePlatformArch(platform, arch);
@@ -104,7 +104,6 @@ export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, n
 
 	return [
 		path.posix.join(prebuildDir, 'runtime.node'),
-		path.posix.join(prebuildDir, 'win32-native.node'),
 	];
 }
 
