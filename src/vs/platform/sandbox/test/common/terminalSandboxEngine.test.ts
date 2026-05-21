@@ -247,12 +247,12 @@ suite('TerminalSandboxEngine', () => {
 
 		strictEqual(wrapped.isSandboxWrapped, true);
 		ok(wrapped.command.startsWith(`& 'C:\\app\\node_modules\\@microsoft\\mxc-sdk\\bin\\x64\\wxc-exec.exe'`), `Expected MXC executable. Actual: ${wrapped.command}`);
-		ok(wrapped.command.includes(` --debug --log-file debug.json '${configPath}'`), `Expected wrapped command to pass --debug, --log-file, and the MXC config path. Actual: ${wrapped.command}`);
+		ok(wrapped.command.includes(` '${configPath}'`), `Expected wrapped command to pass the MXC config path. Actual: ${wrapped.command}`);
 		strictEqual(config.version, '0.4.0-alpha');
 		strictEqual(config.containment, 'process');
-		ok(config.process.commandLine.startsWith('pwsh -NonInteractive -Command '), `Expected MXC process to launch through PowerShell. Actual: ${config.process.commandLine}`);
+		strictEqual(config.process.commandLine, 'echo hello');
 		strictEqual(normalizeWindowsPathForAssert(config.process.cwd), 'c:/workspace');
-		strictEqual(config.ui.disable, false, 'PowerShell requires windowing APIs to start under MXC');
+		strictEqual(config.ui.disable, false);
 		ok(config.process.env.includes('PATH=C:\\tools\\node;C:\\Windows\\System32'), 'PATH should be injected into the MXC process env');
 		ok(config.process.env.includes('PATHEXT=.COM;.EXE;.BAT;.CMD'), 'PATHEXT should be injected into the MXC process env');
 		deepStrictEqual(config.network, { defaultPolicy: 'block', allowedHosts: [], blockedHosts: [] });
@@ -298,7 +298,7 @@ suite('TerminalSandboxEngine', () => {
 		ok(configPath, 'Config path should be defined');
 		const config = JSON.parse(createdFiles.get(configPath)!);
 
-		ok(wrapped.command.startsWith(`& 'C:\\app\\node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe' --debug --log-file debug.json `), `Expected arm64 MXC executable with --debug and --log-file. Actual: ${wrapped.command}`);
+		strictEqual(wrapped.command, `& 'C:\\app\\node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe' '${configPath}'`);
 		strictEqual(normalizeWindowsPathForAssert(config.process.cwd), 'c:/users/user/.test-data/tmp');
 	});
 
@@ -310,14 +310,13 @@ suite('TerminalSandboxEngine', () => {
 		let configPath = await engine.getSandboxConfigPath();
 		ok(configPath, 'Config path should be defined');
 		const firstCommandLine = JSON.parse(createdFiles.get(configPath)!).process.commandLine;
-		ok(firstCommandLine.startsWith('pwsh -NonInteractive -Command '), `Expected first command to launch through PowerShell. Actual: ${firstCommandLine}`);
+		strictEqual(firstCommandLine, 'echo first');
 
 		await engine.wrapCommand('echo second', false, 'pwsh');
 		configPath = await engine.getSandboxConfigPath();
 		ok(configPath, 'Config path should be defined');
 		const secondCommandLine = JSON.parse(createdFiles.get(configPath)!).process.commandLine;
-		ok(secondCommandLine.startsWith('pwsh -NonInteractive -Command '), `Expected second command to launch through PowerShell. Actual: ${secondCommandLine}`);
-		ok(secondCommandLine !== firstCommandLine, 'Changing the Windows command should rewrite the MXC process command line');
+		strictEqual(secondCommandLine, 'echo second');
 	});
 
 	test('allowNetwork maps to MXC allow network config on Windows', async () => {

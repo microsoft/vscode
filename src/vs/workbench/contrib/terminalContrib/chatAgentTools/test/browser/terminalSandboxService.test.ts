@@ -1228,12 +1228,10 @@ suite('TerminalSandboxService - network domains', () => {
 
 		strictEqual(wrapped.isSandboxWrapped, true);
 		ok(wrapped.command.includes('node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe'), `Wrapped command should use the MXC Windows executable. Actual: ${wrapped.command}`);
-		ok(wrapped.command.includes(' --debug '), `Wrapped command should pass --debug to MXC. Actual: ${wrapped.command}`);
-		ok(wrapped.command.includes(' --log-file debug.json '), `Wrapped command should pass --log-file debug.json to MXC. Actual: ${wrapped.command}`);
 		ok(wrapped.command.includes(configPath), `Wrapped command should pass the MXC config path. Actual: ${wrapped.command}`);
 		strictEqual(config.version, '0.4.0-alpha');
 		strictEqual(config.containment, 'process');
-		ok(config.process.commandLine.startsWith('pwsh.exe -NonInteractive -Command '), `Expected MXC process to launch through PowerShell. Actual: ${config.process.commandLine}`);
+		strictEqual(config.process.commandLine, 'echo test');
 		strictEqual(config.process.cwd, 'c:\\workspace-one');
 		ok(config.process.env.includes('PATH=c:\\tools\\node;c:\\windows\\system32'), 'PATH should be injected into the MXC process env');
 		ok(config.process.env.includes('PATHEXT=.COM;.EXE;.BAT;.CMD'), 'PATHEXT should be injected into the MXC process env');

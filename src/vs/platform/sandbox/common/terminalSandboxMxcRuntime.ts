@@ -47,7 +47,6 @@ export interface IWindowsMxcConfig {
 
 export interface IWindowsMxcConfigOptions {
 	command: string;
-	powerShellPath: string | undefined;
 	cwd: URI | undefined;
 	tempDir: URI;
 	allowNetwork: boolean;
@@ -81,7 +80,6 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _configVersion = '0.4.0-alpha';
-	private readonly _fallbackPowerShellPath = 'powershell.exe';
 
 	getExecutablePath(appRoot: string, arch: string | undefined): string {
 		const binArch = arch === 'arm64' ? 'arm64' : 'x64';
@@ -110,7 +108,7 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 				preservePolicy: false,
 			},
 			process: {
-				commandLine: this._createPowerShellCommandLine(options.command, options.powerShellPath),
+				commandLine: options.command,
 				cwd: options.cwd ? this.toWindowsPath(options.cwd) : tempDirPath,
 				env: [
 					...options.env
@@ -157,27 +155,14 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 	}
 
 	private _createNetworkConfig(allowNetwork: boolean, networkDomains: ITerminalSandboxResolvedNetworkDomains): IWindowsMxcNetworkConfig {
-		// if (allowNetwork) {
-		// 	return { defaultPolicy: 'allow' };
-		// }
-		return { defaultPolicy: 'allow' };
-		// TODO: No Proxy support in MXC yet, so we can't reliably allowlist domains. For now, we just block all network access when network is disallowed, and will add allowlist support later when Proxy is supported.
-		// return {
-		// 	defaultPolicy: 'block',
-		// 	allowedHosts: networkDomains.allowedDomains,
-		// 	blockedHosts: networkDomains.deniedDomains
-		// };
-	}
-
-	private _createPowerShellCommandLine(command: string, powerShellPath: string | undefined): string {
-		return `${this._quoteWindowsProcessArgument(powerShellPath ?? this._fallbackPowerShellPath)} -NonInteractive -Command ${this._quoteWindowsProcessArgument(command)}`;
-	}
-
-	private _quoteWindowsProcessArgument(value: string): string {
-		if (value.length > 0 && !/[\s"]/.test(value)) {
-			return value;
+		if (allowNetwork) {
+			return { defaultPolicy: 'allow' };
 		}
-		return `"${value.replace(/(\\*)"/g, `$1$1\\"`).replace(/\\+$/g, `$&$&`)}"`;
+		return {
+			defaultPolicy: 'block',
+			allowedHosts: networkDomains.allowedDomains,
+			blockedHosts: networkDomains.deniedDomains
+		};
 	}
 
 	private _quotePowerShellArgument(value: string): string {
