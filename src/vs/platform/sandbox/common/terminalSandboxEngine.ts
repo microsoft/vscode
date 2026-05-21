@@ -345,6 +345,7 @@ export class TerminalSandboxEngine extends Disposable {
 			return true; // initial run-and-subscribe
 		}
 		return e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxEnabled)
+			|| e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled)
 			|| e.affectsConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxEnabled)
 			|| e.affectsConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains)
 			|| e.affectsConfiguration(AgentNetworkDomainSettingId.DeprecatedSandboxAllowedNetworkDomains)
@@ -505,7 +506,14 @@ export class TerminalSandboxEngine extends Disposable {
 	private async _isSandboxConfiguredEnabled(): Promise<boolean> {
 		await this.getOS();
 		const value = this._getSandboxConfiguredEnabledValue();
-		return value === true || value === AgentSandboxEnabledValue.On || value === AgentSandboxEnabledValue.AllowNetwork;
+		const enabled = value === true || value === AgentSandboxEnabledValue.On || value === AgentSandboxEnabledValue.AllowNetwork;
+		if (!enabled) {
+			return false;
+		}
+		if (this._os === OperatingSystem.Windows) {
+			return this._getSandboxConfiguredWindowsEnabledValue() === AgentSandboxEnabledValue.AllowNetwork;
+		}
+		return true;
 	}
 
 	private async _resolveRuntimeInfo(): Promise<void> {
@@ -774,7 +782,14 @@ export class TerminalSandboxEngine extends Disposable {
 		return this._getSettingValue<AgentSandboxEnabledValue | boolean>(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxSettingId.DeprecatedAgentSandboxEnabled) ?? AgentSandboxEnabledValue.Off;
 	}
 
+	private _getSandboxConfiguredWindowsEnabledValue(): AgentSandboxEnabledValue {
+		return this._getSettingValue<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxWindowsEnabled) ?? AgentSandboxEnabledValue.Off;
+	}
+
 	private _isSandboxAllowNetworkConfigured(): boolean {
+		if (this._os === OperatingSystem.Windows) {
+			return this._getSandboxConfiguredWindowsEnabledValue() === AgentSandboxEnabledValue.AllowNetwork;
+		}
 		return this._getSandboxConfiguredEnabledValue() === AgentSandboxEnabledValue.AllowNetwork;
 	}
 

@@ -99,6 +99,10 @@ suite('TerminalSandboxEngine', () => {
 		return path.replace(/\\/g, '/').toLowerCase();
 	}
 
+	function enableWindowsSandbox(): void {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.AllowNetwork);
+	}
+
 	setup(() => {
 		createdFiles = new Map();
 		createFileCount = 0;
@@ -228,15 +232,26 @@ suite('TerminalSandboxEngine', () => {
 		await engine.cleanupTempDir(); // must not throw
 	});
 
-	test('isEnabled returns true on Windows when configured', async () => {
+	test('isEnabled returns false on Windows when Windows sandbox setting is disabled by default', async () => {
+		const host = createWindowsHost();
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		strictEqual(await engine.isEnabled(), false);
+		strictEqual(await engine.isSandboxAllowNetworkEnabled(), false);
+		strictEqual(await engine.getSandboxConfigPath(), undefined);
+	});
+
+	test('isEnabled returns true on Windows when globally enabled and Windows sandbox setting allows network', async () => {
+		enableWindowsSandbox();
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
 
 		strictEqual(await engine.isEnabled(), true);
-		strictEqual(await engine.isSandboxAllowNetworkEnabled(), false);
+		strictEqual(await engine.isSandboxAllowNetworkEnabled(), true);
 	});
 
 	test('wrapCommand uses MXC executable and writes MXC config on Windows', async () => {
+		enableWindowsSandbox();
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
 
@@ -255,7 +270,7 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(config.ui.disable, false);
 		ok(config.process.env.includes('PATH=C:\\tools\\node;C:\\Windows\\System32'), 'PATH should be injected into the MXC process env');
 		ok(config.process.env.includes('PSHOME=C:\\Program Files\\PowerShell\\7'), 'PSHOME should be injected into the MXC process env');
-		deepStrictEqual(config.network, { defaultPolicy: 'block', allowedHosts: [], blockedHosts: [] });
+		deepStrictEqual(config.network, { defaultPolicy: 'allow' });
 		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/workspace'), 'Workspace should be writable');
 		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path).endsWith('/.test-data/tmp')), 'Sandbox temp dir should be writable');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path).endsWith('/.test-data/tmp')), 'Sandbox temp dir should be readable through readonly paths');
@@ -267,6 +282,7 @@ suite('TerminalSandboxEngine', () => {
 	});
 
 	test('wrapCommand applies Windows filesystem setting to MXC config', async () => {
+		enableWindowsSandbox();
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsFileSystem, {
 			allowWrite: ['C:\\configured\\write'],
 			allowRead: ['C:\\configured\\read'],
@@ -288,6 +304,7 @@ suite('TerminalSandboxEngine', () => {
 	});
 
 	test('wrapCommand uses arm64 MXC executable on Windows arm64', async () => {
+		enableWindowsSandbox();
 		const host = createWindowsHost({
 			getRuntimeInfo: () => Promise.resolve({ appRoot: 'C:\\app', arch: 'arm64' }),
 		});
@@ -303,6 +320,7 @@ suite('TerminalSandboxEngine', () => {
 	});
 
 	test('wrapCommand rewrites MXC config when Windows command changes', async () => {
+		enableWindowsSandbox();
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
 
@@ -320,6 +338,7 @@ suite('TerminalSandboxEngine', () => {
 	});
 
 	test('allowNetwork maps to MXC allow network config on Windows', async () => {
+		enableWindowsSandbox();
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));

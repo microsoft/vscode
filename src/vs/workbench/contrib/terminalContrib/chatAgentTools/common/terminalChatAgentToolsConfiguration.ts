@@ -563,6 +563,21 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			}
 		}
 	},
+	[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: {
+		markdownDescription: localize('agentSandbox.windowsEnabledSetting', "Controls whether agent mode sandboxing can be enabled on Windows. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		type: 'string',
+		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.AllowNetwork],
+		enumDescriptions: [
+			localize('agentSandbox.windowsEnabledSetting.offDescription', 'Disable sandboxing for agent mode tools on Windows.'),
+			localize('agentSandbox.windowsEnabledSetting.allowNetworkDescription', 'Enable sandboxing for agent mode tools on Windows and allow all network domains.'),
+		],
+		default: AgentSandboxEnabledValue.Off,
+		tags: ['experimental'],
+		restricted: true,
+		experiment: {
+			mode: 'auto'
+		}
+	},
 	[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]: {
 		markdownDescription: localize('agentSandbox.allowUnsandboxedCommands', "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'boolean',

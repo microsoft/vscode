@@ -1205,6 +1205,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should route remote Windows sandbox commands through MXC', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.AllowNetwork);
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			os: OperatingSystem.Windows,
@@ -1240,6 +1241,27 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(config.filesystem.readonlyPaths.includes('c:\\app'), 'VS Code app root should be readable in the MXC config');
 		ok(config.filesystem.readonlyPaths.includes('c:\\tools\\node'), 'MXC available tools policy should add tool paths to readonly paths');
 		ok(!config.filesystem.deniedPaths.includes('c:\\Users\\test'), 'User home should not be denied by default in the MXC config on Windows');
+	});
+
+	test('should keep remote Windows sandbox disabled unless Windows sandbox setting allows network', async () => {
+		remoteAgentService.remoteEnvironment = {
+			...remoteAgentService.remoteEnvironment!,
+			os: OperatingSystem.Windows,
+			appRoot: URI.file('/c:/app'),
+			execPath: 'c:\\app\\Code.exe',
+			tmpDir: URI.file('/c:/tmp'),
+			userHome: URI.file('/c:/Users/test'),
+			workspaceStorageHome: URI.file('/c:/Users/test/AppData/Roaming/Code/User/workspaceStorage'),
+			arch: 'x64'
+		};
+		workspaceContextService.setWorkspaceFolders([URI.file('/c:/workspace-one')]);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+
+		strictEqual(await sandboxService.isEnabled(), false, 'Windows sandbox should be disabled by default even when the global sandbox setting is enabled');
+		strictEqual(await sandboxService.getSandboxConfigPath(), undefined, 'Windows sandbox config should not be created unless the Windows setting is enabled');
+		const prereqs = await sandboxService.checkForSandboxingPrereqs();
+		strictEqual(prereqs.enabled, false, 'Prereq checks should report Windows sandbox disabled when the Windows setting is disabled');
+		strictEqual(prereqs.failedCheck, undefined, 'No prereq check should fail when Windows sandboxing is disabled');
 	});
 
 	test('should place sandbox temp dir under the local data folder when no remote env is available', async function () {
