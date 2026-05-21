@@ -45,7 +45,7 @@ import { parsedPluginsEqual, toCustomizationAgentRefs, toSdkCustomAgents, toSdkH
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools } from './copilotShellTools.js';
 import { SessionCustomizationDiscovery } from './sessionCustomizationDiscovery.js';
-import { SessionPluginBundler } from './sessionPluginBundler.js';
+import { SessionPluginBundler } from '../shared/sessionPluginBundler.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 
 interface ICreatedWorktree {
