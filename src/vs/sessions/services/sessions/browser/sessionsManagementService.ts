@@ -387,7 +387,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async sendAndCreateChat(session: ISession, options: ISendRequestOptions): Promise<void> {
-		this.logService.info(`[SessionsManagement] sendAndCreateChat: session=${session.resource.toString()}`);
 		this._pendingNewSession = undefined;
 		this.isNewChatSessionContext.set(false);
 		this._isNewChatInSessionContext.set(false);
