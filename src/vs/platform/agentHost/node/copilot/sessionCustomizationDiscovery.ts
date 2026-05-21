@@ -69,7 +69,7 @@ function getSearchRoots(workingDirectory: URI, userHome: URI): { workspace: ISea
 const REFRESH_DEBOUNCE_MS = 100;
 
 /**
- * Discovers customization files (`.agent.md`, `SKILL.md`, `.instructions.md`)
+ * Discovers customization files (agents, skills, and instructions)
  * under well-known directories of the session's working directory and the
  * user's home, and emits {@link onDidChange} when any of those directories
  * change on disk.
