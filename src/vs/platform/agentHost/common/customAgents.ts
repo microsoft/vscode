@@ -57,9 +57,10 @@ export function agentHostAgentPickerStorageKey(resourceScheme: string): string {
  * - Else if a stored agent URI matches an entry in the list, use that entry.
  * - Else `undefined` (the default "Agent" placeholder row).
  *
- * Accepts any object with a `uri` field so callers can pass the platform
- * {@link import('./state/protocol/state.js').AgentSelection} (`URI`) or the
- * sessions-layer `ISessionAgentRef` (`string`) without coupling layers.
+ * `sessionAgentUri` accepts either a platform {@link URI} instance or a raw
+ * URI string. The agent-host protocol
+ * {@link import('./state/protocol/state.js').AgentSelection} URI field and the
+ * sessions-layer `ISessionAgentRef` both provide URI strings.
  */
 export function resolveAgentHostAgent(
 	agents: readonly CustomizationAgentRef[],
