@@ -103,6 +103,15 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 				handle.dispose();
 				this._onDidChangeConnections.fire();
 			}
+
+			// Defense-in-depth: also signal the protocol client directly. The
+			// SSHRelayTransport normally observes `onDidRelayClose` (fired from
+			// the same shared-process code path as this event) and calls back
+			// into the client. If that IPC delivery is missed for any reason,
+			// the renderer-side client would stay in `Connected` until its
+			// liveness watchdog fires — which can take hours when the
+			// renderer is backgrounded and Chromium throttles `setTimeout`.
+			this._remoteAgentHostService.notifyConnectionClosed(connectionId);
 		}));
 
 		// Bridge keyboard-interactive prompts from the shared process to the
