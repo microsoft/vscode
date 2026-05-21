@@ -411,7 +411,7 @@ suite('ChatService', () => {
 		assert.strictEqual(model.getRequests()[0].response?.response.toString(), 'test response');
 	});
 
-	test('sendRequest accepts empty message with explicit file attachment', async () => {
+	test('sendRequest uses attachment summary message with explicit file attachment', async () => {
 		const testService = createChatService();
 
 		const modelRef = testDisposables.add(startSessionModel(testService));
@@ -422,7 +422,7 @@ suite('ChatService', () => {
 		await response.data.responseCompletePromise;
 
 		assert.strictEqual(model.getRequests().length, 1);
-		assert.strictEqual(model.getRequests()[0].message.text, '');
+		assert.strictEqual(model.getRequests()[0].message.text, 'Attached 1 file');
 		assert.deepStrictEqual(model.getRequests()[0].variableData.variables, [fileEntry]);
 	});
 
