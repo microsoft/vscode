@@ -39,14 +39,25 @@ export function taggedCacheInterceptor(
 			return dispatch(dOpts, dHandler);
 		};
 
-		const taggingHandler: undici.Dispatcher.DispatchHandler = {
-			...handler,
-			onResponseStart(controller, statusCode, headers, statusMessage) {
-				const status = classify(state, headers);
-				stampStatus(headers, status);
-				return handler.onResponseStart?.(controller, statusCode, headers, statusMessage);
+		const taggingHandler = new Proxy(handler, {
+			get(target, prop, receiver) {
+				if (prop === 'onResponseStart') {
+					return (
+						controller: Parameters<NonNullable<undici.Dispatcher.DispatchHandler['onResponseStart']>>[0],
+						statusCode: number,
+						headers: unknown,
+						statusMessage?: string,
+					) => {
+						const status = classify(state, headers);
+						stampStatus(headers, status);
+						const orig = Reflect.get(target, prop, receiver) as undici.Dispatcher.DispatchHandler['onResponseStart'];
+						return orig?.call(target, controller, statusCode, headers as Parameters<NonNullable<undici.Dispatcher.DispatchHandler['onResponseStart']>>[2], statusMessage);
+					};
+				}
+				const value = Reflect.get(target, prop, receiver);
+				return typeof value === 'function' ? value.bind(target) : value;
 			},
-		};
+		}) as undici.Dispatcher.DispatchHandler;
 
 		return cacheInterceptor(countingDispatch)(opts, taggingHandler);
 	};
@@ -59,7 +70,7 @@ function classify(
 	if (!state.networkCalled) {
 		return isStaleWarning(headers) ? 'stale-hit' : 'hit';
 	}
-	if (state.conditional && hasAgeHeader(headers)) {
+	if (state.conditional) {
 		return 'revalidated';
 	}
 	return 'miss';
@@ -68,10 +79,6 @@ function classify(
 function isStaleWarning(headers: unknown): boolean {
 	const value = readHeader(headers, 'warning');
 	return typeof value === 'string' && value.startsWith('110');
-}
-
-function hasAgeHeader(headers: unknown): boolean {
-	return readHeader(headers, 'age') !== undefined;
 }
 
 function readHeader(headers: unknown, name: string): string | undefined {

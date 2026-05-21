@@ -49,7 +49,7 @@ suite('NodeFetchFetcher cache - integration', function () {
 				}
 				res.writeHead(200, {
 					'content-type': 'application/json',
-					'cache-control': 'max-age=0, must-revalidate',
+					'cache-control': 'public, max-age=60',
 					'etag': '"v1"',
 				});
 				res.end(JSON.stringify({ hits: originHits }));
@@ -72,6 +72,9 @@ suite('NodeFetchFetcher cache - integration', function () {
 	});
 
 	suiteTeardown(async () => {
+		if (!server) {
+			return;
+		}
 		await new Promise<void>(resolve => server.close(() => resolve()));
 	});
 
@@ -183,7 +186,7 @@ suite('NodeFetchFetcher cache - integration', function () {
 	test('reports revalidated when the origin returns 304 Not Modified', async () => {
 		const first = await fetcher.fetch(`${origin}/etag?key=etag`, { callSite: 'test', cache: true });
 		const firstBody = await first.json();
-		const second = await fetcher.fetch(`${origin}/etag?key=etag`, { callSite: 'test', cache: true });
+		const second = await fetcher.fetch(`${origin}/etag?key=etag`, { callSite: 'test', cache: true, headers: { 'cache-control': 'no-cache' } });
 		const secondBody = await second.json();
 
 		assert.strictEqual(originHits, 2, 'a 304 still counts as an origin request');

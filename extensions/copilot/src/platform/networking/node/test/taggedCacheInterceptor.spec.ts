@@ -68,10 +68,10 @@ describe('taggedCacheInterceptor', () => {
 		expect(stamped).toBe('stale-hit');
 	});
 
-	it('classifies a revalidation when conditional headers reach the origin and the response is served with Age', async () => {
+	it('classifies a revalidation when conditional headers reach the origin', async () => {
 		const { stamped, downstream } = await runTagger((dispatch) => (_opts, handler) => {
 			dispatch({ headers: { 'if-none-match': '"abc"' } }, {} as undici.Dispatcher.DispatchHandler);
-			handler.onResponseStart?.(makeController(), 200, { age: '300' }, 'OK');
+			handler.onResponseStart?.(makeController(), 200, {}, 'OK');
 			return true;
 		});
 
@@ -101,5 +101,29 @@ describe('taggedCacheInterceptor', () => {
 		const tagger = taggedCacheInterceptor({} as Parameters<typeof undici.interceptors.cache>[0]);
 		const intercepted = tagger((() => true) as unknown as undici.Dispatcher['dispatch']);
 		expect(() => intercepted({ headers: {} } as undici.Dispatcher.DispatchOptions, { onResponseStart: () => { } })).not.toThrow();
+	});
+
+	it('forwards prototype-defined handler methods through the tagging proxy', async () => {
+		const { taggedCacheInterceptor, undiciMock } = await importTagger();
+		const middleware: CacheMiddleware = () => (_opts, handler) => {
+			handler.onResponseStart?.(makeController(), 200, {}, 'OK');
+			handler.onResponseData?.(makeController(), Buffer.from('chunk'));
+			handler.onResponseEnd?.(makeController(), {});
+			return true;
+		};
+		undiciMock.interceptors.cache.mockReturnValue(middleware);
+
+		const calls: string[] = [];
+		class ProtoHandler {
+			onResponseStart() { calls.push('start'); }
+			onResponseData() { calls.push('data'); }
+			onResponseEnd() { calls.push('end'); }
+		}
+
+		const tagger = taggedCacheInterceptor({} as Parameters<typeof undici.interceptors.cache>[0]);
+		const intercepted = tagger((() => true) as unknown as undici.Dispatcher['dispatch']);
+		intercepted({ headers: {} } as undici.Dispatcher.DispatchOptions, new ProtoHandler() as unknown as undici.Dispatcher.DispatchHandler);
+
+		expect(calls).toEqual(['start', 'data', 'end']);
 	});
 });
