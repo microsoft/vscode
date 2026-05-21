@@ -4,9 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { z } from 'zod';
+import type { z as ZodNamespace } from 'zod';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { jsonSchemaToZodRawShape } from '../../../node/claude/clientTools/claudeJsonSchemaToZod.js';
+
+// See `claudeJsonSchemaToZod.ts` for why we use `require` instead of
+// `import` for zod (CJS reserved-word exports break the renderer's ESM
+// import-map blob generator).
+// eslint-disable-next-line no-restricted-globals
+const z = require('zod') as typeof ZodNamespace;
 
 function parse(shape: Record<string, z.ZodTypeAny>, value: unknown) {
 	return z.object(shape).safeParse(value);

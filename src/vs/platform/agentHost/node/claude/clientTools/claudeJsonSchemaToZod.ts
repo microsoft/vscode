@@ -3,8 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { z, type ZodTypeAny } from 'zod';
+import type { z as ZodNamespace, ZodTypeAny } from 'zod';
 import type { ToolDefinition } from '../../../common/state/protocol/state.js';
+
+// zod's CJS exports include reserved-word keys (`enum`, `default`,
+// `function`, ...). The renderer test bootstrap generates an ESM
+// blob per dep that re-exports every key, which fails to parse for
+// those names. Use a runtime `require` so the bogus ESM blob is
+// never imported — the dependency is still resolved transitively via
+// `@anthropic-ai/claude-agent-sdk`.
+// eslint-disable-next-line no-restricted-globals
+const z = require('zod') as typeof ZodNamespace;
 
 /**
  * Converts the narrow JSON Schema subset that
