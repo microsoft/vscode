@@ -482,6 +482,29 @@ export class AgentService extends Disposable implements IAgentService {
 			this._attachGitState(session, created.workingDirectory ?? config?.workingDirectory);
 		}
 
+		// Publish the current customization set for the new session now that
+		// the state manager knows about it. Without this, host/global
+		// customizations — and the custom agents they contribute — are
+		// invisible to subscribers (e.g. the agent picker) until something
+		// else triggers a republish (`RootConfigChanged`, plugin reload, or
+		// the first message's `setClientCustomizations`). The provider's
+		// `createSession` cannot do this itself because it runs *before*
+		// `_stateManager.createSession` above, so any action it dispatches
+		// is dropped as "Action for unknown session".
+		if (provider.getSessionCustomizations) {
+			void provider.getSessionCustomizations(session).then(customizations => {
+				if (customizations.length === 0) {
+					return;
+				}
+				this._stateManager.dispatchServerAction(session.toString(), {
+					type: ActionType.SessionCustomizationsChanged,
+					customizations: [...customizations],
+				});
+			}).catch(err => {
+				this._logService.error('[AgentService] createSession: failed to publish initial customizations', err);
+			});
+		}
+
 		return session;
 	}
 
