@@ -157,15 +157,16 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 	}
 
 	private _createNetworkConfig(allowNetwork: boolean, networkDomains: ITerminalSandboxResolvedNetworkDomains): IWindowsMxcNetworkConfig {
-		if (allowNetwork) {
-			return { defaultPolicy: 'allow' };
-		}
-
-		return {
-			defaultPolicy: 'block',
-			allowedHosts: networkDomains.allowedDomains,
-			blockedHosts: networkDomains.deniedDomains
-		};
+		// if (allowNetwork) {
+		// 	return { defaultPolicy: 'allow' };
+		// }
+		return { defaultPolicy: 'allow' };
+		// TODO: No Proxy support in MXC yet, so we can't reliably allowlist domains. For now, we just block all network access when network is disallowed, and will add allowlist support later when Proxy is supported.
+		// return {
+		// 	defaultPolicy: 'block',
+		// 	allowedHosts: networkDomains.allowedDomains,
+		// 	blockedHosts: networkDomains.deniedDomains
+		// };
 	}
 
 	private _createPowerShellCommandLine(command: string, powerShellPath: string | undefined): string {
