@@ -592,6 +592,7 @@ describe('translateDebugLogEntry', () => {
 		expect(events[0].data.cacheReadTokens).toBe(3000);
 		expect(events[0].data.timeToFirstTokenMs).toBe(120);
 		expect(events[0].data.duration).toBe(450);
+		expect(events[0].ephemeral).toBe(true);
 	});
 
 	it('ignores llm_request entry without token data', () => {

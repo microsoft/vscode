@@ -393,7 +393,7 @@ export function translateDebugLogEntry(
 				if (typeof entry.dur === 'number' && entry.dur > 0) {
 					data.duration = entry.dur;
 				}
-				pushEventAt(events, state, ts, 'assistant.usage', data);
+				pushEventAt(events, state, ts, 'assistant.usage', data, /*ephemeral*/ true);
 			}
 			break;
 		}
