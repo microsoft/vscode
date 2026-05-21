@@ -92,6 +92,11 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!provider) {
 			return;
 		}
+		// Defensive: ActionWidgetDropdown picks up Enter/Space on its
+		// label even when `pointer-events: none` is set on the chip.
+		if (provider.isSessionConfigResolving(session.sessionId).get()) {
+			return;
+		}
 		provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, level)
 			.catch(() => { /* best-effort */ });
 	}

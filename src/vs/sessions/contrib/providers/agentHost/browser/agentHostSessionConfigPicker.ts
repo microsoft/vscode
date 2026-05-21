@@ -252,10 +252,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		super();
 
 		this._register(autorun(reader => {
-			const session = this._sessionsManagementService.activeSession.read(reader);
-			if (session) {
-				session.loading.read(reader);
-			}
+			this._sessionsManagementService.activeSession.read(reader);
 			this._renderConfigPickers();
 		}));
 
@@ -305,6 +302,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		// non-mutable properties like `isolation` must remain visible and
 		// interactive there.
 		const isNewSession = provider.getCreateSessionConfig(session.sessionId) !== undefined;
+		// Disable interactions while a resolve is in flight. Schema is
+		// preserved so chips stay visible. Not `session.loading` —
+		// that also covers the required-values-missing state where
+		// chips must remain interactive.
+		const isLoading = provider.isSessionConfigResolving(session.sessionId).get();
 
 		const properties = this._orderProperties(Object.entries(resolvedConfig.schema.properties));
 
@@ -340,8 +342,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			}
 			const value = resolvedConfig.values[property] ?? schema.default;
 			const isReadOnly = this._isReadOnlyChip(property, schema, isNewSession);
+			const isDisabled = isReadOnly || isLoading;
 			const slot = dom.append(this._container, dom.$('.sessions-chat-picker-slot'));
-			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
+			const trigger = renderPickerTrigger(slot, isDisabled, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
 			this._renderTrigger(trigger, property, schema, value, isReadOnly);
 		}
 	}
@@ -411,7 +414,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		if (schema.readOnly || this._actionWidgetService.isVisible) {
 			return;
 		}
-
+		// Mobile bottom-sheet override dispatches through this entry
+		// point, so guard here for both invocation paths.
+		if (provider.isSessionConfigResolving(sessionId).get()) {
+			return;
+		}
 
 		const rawItems = await this._getItems(provider, sessionId, property, schema);
 		const { items, policyRestricted } = applyAutoApproveFiltering(rawItems, property, this._configurationService);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../../base/common/observable.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -16,6 +16,9 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { PermissionPickerActionItem } from '../../../../../workbench/contrib/chat/browser/widget/input/permissionPickerActionItem.js';
+import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AgentHostPermissionPickerDelegate } from './agentHostPermissionPickerDelegate.js';
 
 /**
@@ -42,6 +45,8 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 		@IDialogService dialogService: IDialogService,
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService storageService: IStorageService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
 		const delegate = instantiationService.createInstance(AgentHostPermissionPickerDelegate);
 		super(
@@ -67,6 +72,19 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 		}));
 	}
 
+	/** Active session's `isSessionConfigResolving`. */
+	private readonly _isResolvingActiveSessionConfig = derived(this, reader => {
+		const session = this._sessionsManagementService.activeSession.read(reader);
+		if (!session) {
+			return false;
+		}
+		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		if (!provider || !isAgentHostProvider(provider)) {
+			return false;
+		}
+		return provider.isSessionConfigResolving(session.sessionId).read(reader);
+	});
+
 	override render(container: HTMLElement): void {
 		super.render(container);
 		// The active session can change while this view item is alive (the
@@ -75,6 +93,24 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 		this._register(autorun(reader => {
 			const visible = this._delegate.isApplicable.read(reader);
 			container.style.display = visible ? '' : 'none';
+		}));
+
+		// Reflect the resolving state. The underlying ActionWidgetDropdown
+		// still handles Enter/Space on its label and pointer-events: none
+		// doesn't block keyboard, so the delegate also bails at the
+		// provider boundary.
+		this._register(autorun(reader => {
+			const isResolving = this._isResolvingActiveSessionConfig.read(reader);
+			const element = this.element;
+			if (!element) {
+				return;
+			}
+			element.classList.toggle('disabled', isResolving);
+			if (isResolving) {
+				element.setAttribute('aria-disabled', 'true');
+			} else {
+				element.removeAttribute('aria-disabled');
+			}
 		}));
 	}
 }
