@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsPart.css';
-import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
@@ -14,14 +14,15 @@ import { assertReturnsDefined } from '../../../base/common/types.js';
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
 import { Direction, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { Part } from '../../../workbench/browser/part.js';
-import { ActiveSessionsContext, SessionsFocusContext } from '../../common/contextkeys.js';
-import { $, addDisposableListener, EventType } from '../../../base/browser/dom.js';
+import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
+import { $, addDisposableListener, EventType, isAncestor } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Color } from '../../../base/common/color.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
+import { SessionDropTarget, ISessionDropTargetDelegate } from './sessionDropTarget.js';
 
 /** Sentinel key used in {@link SessionsPart._views} when no session is active. */
 const PLACEHOLDER_KEY = '__placeholder__';
@@ -66,6 +67,8 @@ export class SessionsPart extends Part {
 
 	protected _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
+	private readonly _multipleSessionsVisibleKey: IContextKey<boolean>;
+
 	get preferredHeight(): number | undefined {
 		return this.layoutService.mainContainerDimension.height * 0.4;
 	}
@@ -90,6 +93,7 @@ export class SessionsPart extends Part {
 		// Bind context keys for compatibility with existing when-clauses
 		ActiveSessionsContext.bindTo(contextKeyService);
 		SessionsFocusContext.bindTo(contextKeyService);
+		this._multipleSessionsVisibleKey = MultipleSessionsVisibleContext.bindTo(contextKeyService);
 	}
 
 	override create(parent: HTMLElement): void {
@@ -111,7 +115,29 @@ export class SessionsPart extends Part {
 		this._gridOrder = [PLACEHOLDER_KEY];
 		contentArea.appendChild(this._gridWidget.element);
 
+		// Propagate the grid's maximized-view state to each session view so the
+		// per-view toolbars can render the maximize action in its toggled state.
+		this._register(this._gridWidget.onDidChangeViewMaximized(() => this._updateMaximizedState()));
+
+		// Drop target for receiving sessions dragged from the sessions list.
+		const dropDelegate: ISessionDropTargetDelegate = {
+			findTargetView: (child: HTMLElement) => this._findTargetView(child),
+		};
+		this._register(this.instantiationService.createInstance(SessionDropTarget, contentArea, dropDelegate));
+
 		return contentArea;
+	}
+
+	private _findTargetView(child: HTMLElement): { readonly sessionId: string; readonly element: HTMLElement } | undefined {
+		for (const [key, slot] of this._views) {
+			if (key === PLACEHOLDER_KEY) {
+				continue;
+			}
+			if (isAncestor(child, slot.view.element)) {
+				return { sessionId: key, element: slot.view.element };
+			}
+		}
+		return undefined;
 	}
 
 	/**
@@ -194,6 +220,47 @@ export class SessionsPart extends Part {
 		const activeId = active?.sessionId;
 		for (const [key, slot] of this._views) {
 			slot.view.element.classList.toggle('is-active', key === activeId);
+		}
+
+		this._updateContextKeys(visible);
+	}
+
+	private _updateContextKeys(visible: readonly IActiveSession[]): void {
+		this._multipleSessionsVisibleKey.set(visible.length > 1);
+	}
+
+	/**
+	 * Pushes the grid's current maximized state into each {@link SessionView} so
+	 * its scoped `sessionIsMaximized` context key (used by toolbar actions) is
+	 * accurate. Called whenever the grid emits a maximize change.
+	 */
+	private _updateMaximizedState(): void {
+		if (!this._gridWidget) {
+			return;
+		}
+		for (const slot of this._views.values()) {
+			slot.view.setMaximized(this._gridWidget.isViewMaximized(slot.view));
+		}
+	}
+
+	/**
+	 * Toggles the maximized state of the session view hosting the given session.
+	 * If the view is already maximized, exits maximized state. Otherwise maximizes
+	 * it (no-op if fewer than two non-placeholder views are present).
+	 */
+	toggleMaximizeSession(sessionId: string): void {
+		if (!this._gridWidget) {
+			return;
+		}
+		const slot = this._views.get(sessionId);
+		if (!slot) {
+			return;
+		}
+		if (this._gridWidget.isViewMaximized(slot.view)) {
+			this._gridWidget.exitMaximizedView();
+		} else if (this._gridOrder.filter(k => k !== PLACEHOLDER_KEY).length >= 2) {
+			this._gridWidget.maximizeView(slot.view);
+			slot.view.focus();
 		}
 	}
 

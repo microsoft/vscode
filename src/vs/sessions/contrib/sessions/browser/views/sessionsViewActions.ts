@@ -28,7 +28,7 @@ import { ISession, SessionStatus } from '../../../../services/sessions/common/se
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ActiveSessionSupportsMultiChatContext, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
@@ -862,37 +862,5 @@ registerAction2(class RestoreSessionAction extends Action2 {
 		}
 
 		await sessionsManagementService.unarchiveSession(activeSession);
-	}
-});
-
-registerAction2(class AddChatAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'agentSession.addChat',
-			title: localize2('addChat', "New Sub-Session"),
-			icon: Codicon.plus,
-			menu: [{
-				id: Menus.CommandCenter,
-				order: 102,
-				when: ContextKeyExpr.and(
-					IsAuxiliaryWindowContext.negate(),
-					SessionsWelcomeVisibleContext.negate(),
-					IsNewChatSessionContext.negate(),
-					ActiveSessionSupportsMultiChatContext
-				)
-			}]
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-
-		const activeSession = sessionsManagementService.activeSession.get();
-		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
-			return;
-		}
-
-		sessionsManagementService.openNewChatInSession(activeSession);
 	}
 });

@@ -33,4 +33,5 @@ export const Menus = {
 	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),
 	NewSessionRepositoryConfig: new MenuId('NewSessions.RepositoryConfigMenu'),
 	SessionWorkspaceManage: new MenuId('Sessions.SessionWorkspaceManage'),
+	SessionBarToolbar: new MenuId('SessionsSessionBarToolbar'),
 } as const;

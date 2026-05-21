@@ -10,7 +10,7 @@ import { getClientArea } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { SessionsPart } from './sessionsPart.js';
 import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
-import { ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { autorun } from '../../../base/common/observable.js';
 
 export const ISessionsPartService = createDecorator<ISessionsPartService>('sessionsPartService');
@@ -24,6 +24,12 @@ export interface ISessionsPartService {
 	 * has been added to the DOM via {@link SessionsPart.create}.
 	 */
 	init(): void;
+
+	/**
+	 * Toggles the maximized state of the session view hosting the given session
+	 * in the sessions part's grid.
+	 */
+	toggleMaximizeSession(session: IActiveSession): void;
 }
 
 /**
@@ -69,6 +75,10 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 				this.sessionsManagementService.setActive(session);
 			}
 		}));
+	}
+
+	toggleMaximizeSession(session: IActiveSession): void {
+		this._mainPart.toggleMaximizeSession(session.sessionId);
 	}
 }
 

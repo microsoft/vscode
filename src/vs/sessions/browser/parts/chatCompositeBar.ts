@@ -17,10 +17,19 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
-import { localize } from '../../../nls.js';
+import { localize, localize2 } from '../../../nls.js';
 import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
 import { IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { IInstantiationService, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { Action2, registerAction2 } from '../../../platform/actions/common/actions.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { Menus } from '../menus.js';
+import { MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext } from '../../common/contextkeys.js';
+import { ISessionsPartService } from './sessionsPartService.js';
+import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
+import { DraggedSessionIdentifier, SessionsDataTransfers } from '../dnd.js';
+import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -39,6 +48,7 @@ export class ChatCompositeBar extends Disposable {
 
 	private readonly _container: HTMLElement;
 	private readonly _tabsContainer: HTMLElement;
+	private readonly _toolbar: MenuWorkbenchToolBar;
 	private readonly _tabs: IChatTab[] = [];
 	private readonly _tabDisposables = this._register(new DisposableStore());
 
@@ -49,6 +59,8 @@ export class ChatCompositeBar extends Disposable {
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
 	private _visible = false;
+
+	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
 	get element(): HTMLElement {
 		return this._container;
@@ -63,6 +75,7 @@ export class ChatCompositeBar extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -70,13 +83,50 @@ export class ChatCompositeBar extends Disposable {
 		this._tabsContainer = $('.chat-composite-bar-tabs');
 		this._container.appendChild(this._tabsContainer);
 
+		const toolbarContainer = $('.chat-composite-bar-toolbar');
+		this._container.appendChild(toolbarContainer);
+		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SessionBarToolbar, {
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			menuOptions: { shouldForwardArgs: true },
+			highlightToggledItems: true,
+		}));
+
 		// Scroll active tab into view on resize
 		const resizeObserver = this._register(new DisposableResizeObserver('ChatCompositeBar.activeTabReveal', () => this._revealActiveTab()));
 		this._register(resizeObserver.observe(this._tabsContainer));
 
-		this._updateVisibility();
+		this._setVisible(false);
 		this._updateStyles();
 		this._register(this._themeService.onDidColorThemeChange(() => this._updateStyles()));
+
+		this._registerDragSource();
+	}
+
+	private _registerDragSource(): void {
+		this._container.draggable = true;
+
+		this._register(addDisposableListener(this._container, EventType.DRAG_START, (e: DragEvent) => {
+			const session = this._session;
+			if (!session || !e.dataTransfer) {
+				e.preventDefault();
+				return;
+			}
+
+			this._sessionTransfer.setData(
+				[new DraggedSessionIdentifier(session.sessionId, session.resource)],
+				DraggedSessionIdentifier.prototype,
+			);
+
+			const payload = JSON.stringify({ sessionId: session.sessionId, resource: session.resource.toString() });
+			e.dataTransfer.setData(SessionsDataTransfers.SESSION, payload);
+			e.dataTransfer.effectAllowed = 'move';
+
+			applyDragImage(e, this._container, session.title.get());
+		}));
+
+		this._register(addDisposableListener(this._container, EventType.DRAG_END, () => {
+			this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
+		}));
 	}
 
 	/**
@@ -88,12 +138,14 @@ export class ChatCompositeBar extends Disposable {
 			return;
 		}
 		this._session = session;
+		this._toolbar.context = session;
 
 		const store = new DisposableStore();
 		this._sessionDisposables.value = store;
 
 		if (!session) {
 			this._rebuildTabs([], '', undefined);
+			this._setVisible(false);
 			return;
 		}
 
@@ -102,6 +154,10 @@ export class ChatCompositeBar extends Disposable {
 			const activeChatUri = session.activeChat.read(reader)?.resource.toString() ?? '';
 			const mainChatUri = session.mainChat.resource.toString();
 			this._rebuildTabs(chats, activeChatUri, mainChatUri);
+		}));
+
+		store.add(autorun(reader => {
+			this._setVisible(session.isCreated.read(reader));
 		}));
 	}
 
@@ -115,7 +171,6 @@ export class ChatCompositeBar extends Disposable {
 		}
 
 		this._updateActiveTab(activeChatId);
-		this._updateVisibility();
 	}
 
 	private _createTab(chat: IChat, isMainChat: boolean): void {
@@ -253,10 +308,9 @@ export class ChatCompositeBar extends Disposable {
 		activeTab?.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 	}
 
-	private _updateVisibility(): void {
-		// Show when there are multiple sessions, hide when there is only one (or none)
+	private _setVisible(visible: boolean): void {
 		const wasVisible = this._visible;
-		this._visible = this._tabs.length > 1;
+		this._visible = visible;
 		this._container.style.display = this._visible ? '' : 'none';
 		if (wasVisible !== this._visible) {
 			this._onDidChangeVisibility.fire(this._visible);
@@ -277,3 +331,77 @@ export class ChatCompositeBar extends Disposable {
 		this._container.style.setProperty('--chat-tab-active-border', activeBorder?.toString() ?? '');
 	}
 }
+
+registerAction2(class AddChatToSessionBarAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.addChat',
+			title: localize2('chatCompositeBar.addChat', "New Chat"),
+			icon: Codicon.add,
+			menu: {
+				id: Menus.SessionBarToolbar,
+				when: SessionIsCreatedContext,
+				group: 'navigation',
+				order: 10,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
+		if (!session) {
+			return;
+		}
+		accessor.get(ISessionsManagementService).openNewChatInSession(session);
+	}
+});
+
+registerAction2(class CloseStickySessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.close',
+			title: localize2('chatCompositeBar.close', "Close"),
+			icon: Codicon.close,
+			menu: {
+				id: Menus.SessionBarToolbar,
+				when: SessionIsStickyContext,
+				group: 'navigation',
+				order: 30,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
+		if (!session) {
+			return;
+		}
+		accessor.get(ISessionsManagementService).toggleSessionStickiness(session);
+	}
+});
+
+registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.toggleMaximize',
+			title: localize2('chatCompositeBar.maximize', "Maximize Session"),
+			icon: Codicon.screenFull,
+			toggled: {
+				condition: SessionIsMaximizedContext,
+				icon: Codicon.screenNormal,
+				title: localize('chatCompositeBar.unmaximize', "Restore Session"),
+			},
+			menu: {
+				id: Menus.SessionBarToolbar,
+				when: MultipleSessionsVisibleContext,
+				group: 'navigation',
+				order: 20,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
+		if (!session) {
+			return;
+		}
+		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
+	}
+});

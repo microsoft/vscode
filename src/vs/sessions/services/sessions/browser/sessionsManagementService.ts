@@ -57,7 +57,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _visibility: VisibleSessions;
 	readonly activeSession: IObservable<IActiveSession | undefined>;
 	readonly visibleSessions: IObservable<readonly IActiveSession[]>;
-	readonly stickySessionIds: IObservable<readonly string[]>;
 
 	/** Tracks the pending new session so it can be restored by {@link openNewSessionView}. */
 	private _pendingNewSession: ISession | undefined;
@@ -109,7 +108,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		));
 		this.activeSession = this._visibility.activeSession;
 		this.visibleSessions = this._visibility.visibleSessions;
-		this.stickySessionIds = this._visibility.stickySessionIds;
 
 		// Save on shutdown
 		this._register(this.storageService.onWillSaveState(() => this._saveSessionStates()));
@@ -578,6 +576,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	toggleSessionStickiness(session: ISession): void {
 		this._visibility.toggleStickiness(session);
+	}
+
+	insertStickyAt(session: ISession, targetSessionId: string, side: 'left' | 'right'): void {
+		this._visibility.insertStickyAt(session, targetSessionId, side);
 	}
 
 	private _restoreInitialChat(session: ISession): IChat {

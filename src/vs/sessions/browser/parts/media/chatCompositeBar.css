@@ -20,6 +20,15 @@
 	gap: 0;
 	overflow-x: auto;
 	overflow-y: hidden;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.chat-composite-bar-toolbar {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-left: 4px;
 }
 
 .chat-composite-bar-tabs::-webkit-scrollbar {
@@ -48,8 +57,11 @@
 }
 
 /* Active state: background container instead of underline — mirrors auxiliarybar checked */
-.chat-composite-bar-tab.active {
+.session-view .chat-composite-bar-tab.active {
 	color: var(--chat-tab-active-foreground);
+}
+
+.session-view.is-active .chat-composite-bar-tab.active {
 	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent);
 }
 

@@ -26,6 +26,9 @@ export class ActiveSession extends Disposable implements IActiveSession {
 	private readonly _isCreated = observableValue<boolean>('activeSessionIsCreated', true);
 	readonly isCreated: IObservable<boolean> = this._isCreated;
 
+	private readonly _sticky = observableValue<boolean>('activeSessionSticky', false);
+	readonly sticky: IObservable<boolean> = this._sticky;
+
 	private readonly _activeChat: ISettableObservable<IChat>;
 	readonly activeChat: IObservable<IChat>;
 
@@ -44,6 +47,10 @@ export class ActiveSession extends Disposable implements IActiveSession {
 
 	setIsCreated(value: boolean): void {
 		this._isCreated.set(value, undefined);
+	}
+
+	setSticky(value: boolean): void {
+		this._sticky.set(value, undefined);
 	}
 
 	/** Register a disposable that lives as long as this wrapper. */
@@ -97,9 +104,6 @@ export class VisibleSessions extends Disposable {
 
 	private readonly _visibleSessions = observableValue<readonly IActiveSession[]>(this, []);
 	readonly visibleSessions: IObservable<readonly IActiveSession[]> = this._visibleSessions;
-
-	private readonly _stickySessionIds = observableValue<readonly string[]>(this, []);
-	readonly stickySessionIds: IObservable<readonly string[]> = this._stickySessionIds;
 
 	private readonly _wrappers = this._register(new DisposableMap<string, ActiveSession>());
 	/** Ordered session ids in the grid (left-to-right). */
@@ -162,6 +166,53 @@ export class VisibleSessions extends Disposable {
 		this._activeSession.set(undefined, undefined);
 		this._refresh();
 		return undefined;
+	}
+
+	/**
+	 * Insert (or move) a session into the grid as sticky, positioned next to
+	 * a target session that is already visible. Used by drag-and-drop to drop
+	 * a session at a specific location in the grid.
+	 *
+	 * - If the session is not yet visible, a new sticky entry is created at
+	 *   the computed position.
+	 * - If the session is already visible (sticky or transient), it is moved
+	 *   to the computed position and promoted to sticky.
+	 * - If the dragged session is the active transient session and ends up
+	 *   sticky, the transient slot is cleared.
+	 *
+	 * No-op if `targetSessionId` is not currently visible.
+	 */
+	insertStickyAt(session: ISession, targetSessionId: string, side: 'left' | 'right'): void {
+		const id = session.sessionId;
+		const targetIdx = this._visibleList.indexOf(targetSessionId);
+		if (targetIdx < 0) {
+			return;
+		}
+
+		let destIdx = side === 'left' ? targetIdx : targetIdx + 1;
+
+		const currentIdx = this._visibleList.indexOf(id);
+		if (currentIdx >= 0) {
+			// Already visible: move only if the destination differs from the
+			// current position (dropping to the right of the previous slot or
+			// to the left of the next slot are both no-ops).
+			if (currentIdx !== destIdx && currentIdx + 1 !== destIdx) {
+				this._visibleList.splice(currentIdx, 1);
+				if (currentIdx < destIdx) {
+					destIdx--;
+				}
+				this._visibleList.splice(destIdx, 0, id);
+			}
+		} else {
+			this._getOrCreateWrapper(session);
+			this._visibleList.splice(destIdx, 0, id);
+		}
+
+		if (this._transientId === id) {
+			this._transientId = undefined;
+		}
+		this._stickyIds.add(id);
+		this._refresh();
 	}
 
 	/**
@@ -272,11 +323,11 @@ export class VisibleSessions extends Disposable {
 		for (const id of this._visibleList) {
 			const wrapper = this._wrappers.get(id);
 			if (wrapper) {
+				wrapper.setSticky(this._stickyIds.has(id));
 				wrappers.push(wrapper);
 			}
 		}
 		this._visibleSessions.set(wrappers, undefined);
-		this._stickySessionIds.set([...this._stickyIds], undefined);
 	}
 
 	private _getOrCreateWrapper(session: ISession): ActiveSession {

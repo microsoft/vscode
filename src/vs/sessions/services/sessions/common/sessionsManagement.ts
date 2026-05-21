@@ -31,6 +31,9 @@ export interface IActiveSession extends ISession {
 	readonly activeChat: IObservable<IChat>;
 
 	readonly isCreated: IObservable<boolean>;
+
+	/** Whether this session is sticky in the sessions part's grid. */
+	readonly sticky: IObservable<boolean>;
 }
 
 /**
@@ -85,12 +88,6 @@ export interface ISessionsManagementService {
 	readonly visibleSessions: IObservable<readonly IActiveSession[]>;
 
 	/**
-	 * Observable list of session ids that are currently sticky in the grid.
-	 * Order is not meaningful; consumers should treat this as a set.
-	 */
-	readonly stickySessionIds: IObservable<readonly string[]>;
-
-	/**
 	 * Toggle a session's stickiness in the grid.
 	 * - If the session is currently sticky: removes it. If it was the active
 	 *   session, it becomes the transient session instead so it stays in the
@@ -100,6 +97,14 @@ export interface ISessionsManagementService {
 	 *   session is inserted into the grid next to the active one.
 	 */
 	toggleSessionStickiness(session: ISession): void;
+
+	/**
+	 * Insert (or move) a session into the grid as sticky, positioned next to
+	 * a target session that is already visible. If the session is not yet
+	 * visible, a new sticky entry is created. If it is already visible, it
+	 * is moved to the new position and promoted to sticky.
+	 */
+	insertStickyAt(session: ISession, targetSessionId: string, side: 'left' | 'right'): void;
 
 	setActive(session: IActiveSession): void;
 
