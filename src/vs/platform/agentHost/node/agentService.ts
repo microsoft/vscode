@@ -37,6 +37,7 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostChangesetService, IAgentHostChangesetService } from './agentHostChangesetService.js';
+import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/agentHostCheckpointService.js';
 import { CHANGESET_DB_METADATA_KEYS, ChangesetSessionCoordinator } from './agentHostChangesetCoordinator.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
@@ -140,6 +141,7 @@ export class AgentService extends Disposable implements IAgentService {
 		private readonly _sessionDataService: ISessionDataService,
 		private readonly _productService: IProductService,
 		private readonly _gitService: IAgentHostGitService,
+		private readonly _checkpointService: IAgentHostCheckpointService = NULL_CHECKPOINT_SERVICE,
 		private readonly _rootConfigResource?: URI,
 		private readonly _telemetryService: ITelemetryService = NullTelemetryService,
 	) {
@@ -168,6 +170,12 @@ export class AgentService extends Disposable implements IAgentService {
 			[ISessionDataService, this._sessionDataService],
 		);
 		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
+
+		// The checkpoint service is constructed in the outer agent-host
+		// DI scope and passed via {@link _checkpointService}; register it
+		// in the inner service collection so the changeset service /
+		// side effects can resolve it via DI.
+		services.set(IAgentHostCheckpointService, this._checkpointService);
 
 		// The changeset service owns the entire static / per-turn changeset
 		// pipeline (compute, publish, persist, restore). Constructed locally
@@ -344,6 +352,7 @@ export class AgentService extends Disposable implements IAgentService {
 					status: liveState.summary.status,
 					activity: liveState.summary.activity,
 					model: liveState.summary.model ?? s.model,
+					agent: liveState.summary.agent ?? s.agent,
 					changesets: liveState.summary.changesets ?? s.changesets,
 				};
 			}
@@ -492,6 +501,7 @@ export class AgentService extends Disposable implements IAgentService {
 			modifiedAt: now,
 			...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
 			model: config?.model,
+			agent: config?.agent,
 			workingDirectory: (created.workingDirectory ?? config?.workingDirectory)?.toString(),
 			changesets: buildDefaultChangesetCatalogue(session.toString()),
 		};
@@ -1210,6 +1220,7 @@ export class AgentService extends Disposable implements IAgentService {
 			modifiedAt: meta.modifiedTime,
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			model: meta.model,
+			agent: meta.agent,
 			workingDirectory: meta.workingDirectory?.toString(),
 			changesets: buildDefaultChangesetCatalogue(sessionStr),
 		};

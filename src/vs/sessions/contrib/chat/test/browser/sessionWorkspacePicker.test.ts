@@ -29,7 +29,7 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { WorkspacePicker, IWorkspaceSelection } from '../../browser/sessionWorkspacePicker.js';
+import { WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { IWorkspacesService } from '../../../../../platform/workspaces/common/workspaces.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -45,10 +45,23 @@ const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 
 // ---- Mock providers ---------------------------------------------------------
 
+// Maps mock provider id → URI path prefix it resolves. In production, the
+// URI's authority/scheme determines which provider can resolve it; the
+// tests use file URIs only, so we map provider ids to their conventional
+// path roots (e.g. /remote, /local, /copilot, /agent-host).
+const MOCK_PROVIDER_PATH_PREFIXES: Record<string, string> = {
+	'agenthost-remote-1': '/remote',
+	'local-1': '/local',
+	'default-copilot': '/copilot',
+	'local-agent-host': '/agent-host',
+};
+
 function createMockProvider(id: string, opts?: {
 	connectionStatus?: ISettableObservable<RemoteAgentHostConnectionStatus>;
 	browseActions?: readonly ISessionWorkspaceBrowseAction[];
 }): ISessionsProvider {
+	const pathPrefix = MOCK_PROVIDER_PATH_PREFIXES[id];
+	const canResolve = (uri: URI) => !pathPrefix || uri.path === pathPrefix || uri.path.startsWith(`${pathPrefix}/`);
 	const base = {
 		id,
 		label: `Provider ${id}`,
@@ -56,20 +69,25 @@ function createMockProvider(id: string, opts?: {
 		sessionTypes: [],
 		onDidChangeSessionTypes: Event.None,
 		browseActions: opts?.browseActions ?? [],
-		resolveWorkspace: (uri: URI): ISessionWorkspace => ({
-			uri,
-			label: uri.path.substring(1) || uri.path,
-			icon: Codicon.folder,
-			folders: [{
-				root: uri,
-				workingDirectory: uri,
-				name: uri.path.substring(1) || uri.path,
-				description: undefined,
-				gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
-			}],
-			requiresWorkspaceTrust: false,
-			isVirtualWorkspace: false,
-		}),
+		resolveWorkspace: (uri: URI): ISessionWorkspace | undefined => {
+			if (!canResolve(uri)) {
+				return undefined;
+			}
+			return {
+				uri,
+				label: uri.path.substring(1) || uri.path,
+				icon: Codicon.folder,
+				folders: [{
+					root: uri,
+					workingDirectory: uri,
+					name: uri.path.substring(1) || uri.path,
+					description: undefined,
+					gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
+				}],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			};
+		},
 		onDidChangeSessions: Event.None,
 		getSessions: () => [],
 		createNewSession: () => { throw new Error('Not implemented'); },
@@ -178,7 +196,7 @@ function createTestPicker(
 // ---- Assertion helpers ------------------------------------------------------
 
 function assertSelectedProvider(picker: WorkspacePicker, expectedProviderId: string | undefined, message?: string): void {
-	assert.strictEqual(picker.selectedProject?.providerId, expectedProviderId, message);
+	assert.strictEqual(picker.selectedResolved?.providerId, expectedProviderId, message);
 }
 
 // ---- Tests ------------------------------------------------------------------
@@ -237,7 +255,7 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		assertSelectedProvider(picker, 'agenthost-remote-1', 'Selection is restored synchronously');
 
-		const events: Array<IWorkspaceSelection | undefined> = [];
+		const events: Array<URI | undefined> = [];
 		disposables.add(picker.onDidSelectWorkspace(e => events.push(e)));
 
 		// Advance past the grace period.
@@ -287,11 +305,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		const picker = createTestPicker(disposables, providersService, storage);
 
 		// User picks a local workspace while the remote is still trying to connect.
-		const localPick: IWorkspaceSelection = {
-			providerId: 'local-1',
-			workspace: localProvider.resolveWorkspace(URI.file('/local/picked'))!,
-		};
-		picker.setSelectedWorkspace(localPick, false);
+		picker.setSelectedWorkspace(URI.file('/local/picked'), { fireEvent: false });
 
 		// Grace period elapses; remote still disconnected — must not affect user pick.
 		await timeout(10_000);
@@ -344,7 +358,7 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		assertSelectedProvider(picker, 'agenthost-remote-1', 'Selection is restored while connecting');
 
-		const events: Array<IWorkspaceSelection | undefined> = [];
+		const events: Array<URI | undefined> = [];
 		disposables.add(picker.onDidSelectWorkspace(e => events.push(e)));
 
 		// SSH tunnel begins.
@@ -409,7 +423,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		remoteStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 		assert.strictEqual(
-			picker.selectedProject?.workspace.folders[0]?.root.path,
+			picker.selectedResolved?.workspace.folders[0]?.root.path,
 			'/remote/project',
 		);
 	});
@@ -431,19 +445,15 @@ suite('WorkspacePicker - Connection Status', () => {
 		// Select the local workspace
 		const resolvedWorkspace = localProvider.resolveWorkspace(URI.file('/local/project'));
 		assert.ok(resolvedWorkspace, 'resolveWorkspace should resolve file:// URIs');
-		const localWorkspace: IWorkspaceSelection = {
-			providerId: 'local-1',
-			workspace: resolvedWorkspace,
-		};
-		picker.setSelectedWorkspace(localWorkspace, false);
+		picker.setSelectedWorkspace(URI.file('/local/project'), { fireEvent: false });
 
 		// Verify storage: only the local entry should be checked
 		const raw = storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
 		assert.ok(raw, 'Storage should have recent workspaces');
-		const stored = JSON.parse(raw!) as { providerId: string; checked: boolean }[];
+		const stored = JSON.parse(raw!) as { uri: { path: string }; checked: boolean }[];
 		const checkedEntries = stored.filter(e => e.checked);
 		assert.strictEqual(checkedEntries.length, 1, 'Only one entry should be checked');
-		assert.strictEqual(checkedEntries[0].providerId, 'local-1', 'The local entry should be checked');
+		assert.strictEqual(checkedEntries[0].uri.path, '/local/project', 'The local entry should be checked');
 	});
 
 	test('local provider is never treated as unavailable', () => {
@@ -511,11 +521,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		assertSelectedProvider(picker, undefined, 'No fallback while checked entry pending');
 
 		// User explicitly picks a Copilot workspace.
-		const copilotPick: IWorkspaceSelection = {
-			providerId: 'default-copilot',
-			workspace: copilotProvider.resolveWorkspace(URI.file('/copilot/picked'))!,
-		};
-		picker.setSelectedWorkspace(copilotPick, false);
+		picker.setSelectedWorkspace(URI.file('/copilot/picked'), { fireEvent: false });
 		assertSelectedProvider(picker, 'default-copilot', 'User pick is honored');
 
 		// Now the late provider for the (still-stored) checked entry arrives.

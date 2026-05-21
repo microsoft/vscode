@@ -47,6 +47,6 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "org:microsoft $MILESTONE is:issue is:closed label:bug reason:completed -label:verified created:>=$TPI_CREATION"
+    "value": "org:microsoft $MILESTONE is:issue is:closed label:bug reason:completed -label:verified created:>=$TPI_CREATION -label:on-testplan -label:error-telemetry"
   }
 ]
