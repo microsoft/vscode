@@ -38,10 +38,10 @@ import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from '../../wi
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
 /**
- * Shared footer menu for both Agent Host custom-agent pickers — the
- * Agents-Window picker (in `vs/sessions`) and the workbench chat-editor
- * picker — so the "Configure Custom Agents…" Action2 contribution is
- * visible in both surfaces from a single registration.
+ * Shared footer-menu identifier for both Agent Host custom-agent pickers —
+ * the Agents-Window picker (in `vs/sessions`) and the workbench
+ * chat-editor picker. What is shared here is the {@link MenuId}; each
+ * surface contributes its own footer actions against this menu as needed.
  */
 export const MenuIdAgentHostAgentPicker = new MenuId('AgentHostAgentPicker');
 
