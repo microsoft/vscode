@@ -143,7 +143,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 			const editor = this._known.get(e.info.id);
 			if (editor && e.openOptions) {
-				this._openEditorForCreatedView(editor, e.info.owner, e.openOptions);
+				void this._openEditorForCreatedView(editor, e.info.owner, e.openOptions).catch(error => {
+					this.logService.error('[BrowserViewWorkbenchService] Failed to open editor for created browser view.', error);
+				});
 			}
 		}));
 	}
