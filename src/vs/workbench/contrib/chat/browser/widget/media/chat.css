@@ -3476,6 +3476,114 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		padding-bottom: 5px;
 	}
 
+	.interactive-item-container.interactive-request .value > .chat-request-attachment-cards {
+		width: fit-content;
+		max-width: 90%;
+		margin-left: auto;
+		margin-bottom: 6px;
+		padding-bottom: 0;
+		background: transparent;
+		border: 0;
+		justify-content: flex-end;
+		gap: 8px;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment {
+		box-sizing: border-box;
+		width: 88px;
+		height: 88px;
+		padding: 8px;
+		border-radius: 8px;
+		background-color: var(--vscode-input-background);
+		border-color: var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
+		align-items: flex-start;
+		justify-content: space-between;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment,
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment {
+		color: var(--vscode-foreground);
+		flex-direction: column;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment::after,
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment::after {
+		content: attr(data-attachment-type);
+		max-width: 100%;
+		box-sizing: border-box;
+		padding: 1px 6px;
+		border: 1px solid var(--vscode-input-border, transparent);
+		border-radius: 4px;
+		color: var(--vscode-descriptionForeground);
+		font-size: 11px;
+		line-height: 16px;
+		text-transform: uppercase;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment {
+		padding: 0;
+		overflow: hidden;
+		justify-content: center;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment .chat-attached-context-pill {
+		width: 100%;
+		height: 100%;
+		padding: 0;
+		margin: 0;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment .chat-attached-context-pill-image {
+		width: 100%;
+		height: 100%;
+		border-radius: 7px;
+		margin: 0;
+		object-fit: cover;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment .chat-attached-context-custom-text {
+		display: none;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment .monaco-icon-label,
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment .monaco-icon-label {
+		width: 100%;
+		min-height: 0;
+		align-items: flex-start;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment .monaco-icon-label::before,
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment .monaco-icon-label::before {
+		display: none;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment .monaco-icon-label-container,
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment .monaco-icon-label-container {
+		min-width: 0;
+		width: 100%;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment .monaco-icon-label,
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment .monaco-icon-label-container,
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment .monaco-highlighted-label,
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment .monaco-icon-label,
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment .monaco-icon-label-container,
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment .monaco-highlighted-label {
+		max-width: 100%;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment .monaco-highlighted-label,
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment .monaco-highlighted-label {
+		white-space: normal;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+	}
+
 	.interactive-request .header.header-disabled,
 	.request-hover.has-no-actions,
 	.request-hover.hidden,
