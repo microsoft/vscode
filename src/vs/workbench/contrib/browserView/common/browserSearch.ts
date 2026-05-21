@@ -29,8 +29,6 @@ export interface IBrowserSearchEngine {
 	readonly id: BrowserSearchEngineId;
 	/** Human-readable label shown in the settings UI. */
 	readonly label: string;
-	/** Short brand name used in inline UI (e.g. ghost text). */
-	readonly displayName: string;
 	/**
 	 * Build a search URL for the given query string. The query is the raw
 	 * (already trimmed) user input; implementations are responsible for
@@ -54,36 +52,25 @@ export const BROWSER_SEARCH_ENGINES: readonly IBrowserSearchEngine[] = [
 	{
 		id: BrowserSearchEngineId.Bing,
 		label: localize('browser.search.engine.bing', "Bing (Default)"),
-		displayName: 'Bing',
 		buildSearchUrl: (q) => `https://www.bing.com/search?q=${encodeQuery(q)}`,
 	},
 	{
 		id: BrowserSearchEngineId.Yahoo,
 		label: localize('browser.search.engine.yahoo', "Yahoo!"),
-		displayName: 'Yahoo!',
 		buildSearchUrl: (q) =>
 			`https://search.yahoo.com/search?p=${encodeQuery(q)}`,
 	},
 	{
 		id: BrowserSearchEngineId.Google,
 		label: localize('browser.search.engine.google', "Google"),
-		displayName: 'Google',
 		buildSearchUrl: (q) => `https://www.google.com/search?q=${encodeQuery(q)}`,
 	},
 	{
 		id: BrowserSearchEngineId.DuckDuckGo,
 		label: localize('browser.search.engine.duckduckgo', "DuckDuckGo"),
-		displayName: 'DuckDuckGo',
 		buildSearchUrl: (q) => `https://duckduckgo.com/?q=${encodeQuery(q)}`,
 	},
 ];
-
-/**
- * Look up a registered search engine by id, falling back to the default.
- */
-export function getBrowserSearchEngine(engineId: BrowserSearchEngineId | undefined): IBrowserSearchEngine {
-	return BROWSER_SEARCH_ENGINES.find((e) => e.id === engineId) ?? BROWSER_SEARCH_ENGINES[0];
-}
 
 /**
  * Classification of an address bar input. Mirrors the four non-deprecated
@@ -424,5 +411,8 @@ export function buildSearchUrl(
 	query: string,
 	engineId: BrowserSearchEngineId,
 ): string {
-	return getBrowserSearchEngine(engineId).buildSearchUrl(query.trim().replace(/\s+/g, ' '));
+	const engine =
+		BROWSER_SEARCH_ENGINES.find((e) => e.id === engineId) ??
+		BROWSER_SEARCH_ENGINES[0];
+	return engine.buildSearchUrl(query.trim().replace(/\s+/g, ' '));
 }

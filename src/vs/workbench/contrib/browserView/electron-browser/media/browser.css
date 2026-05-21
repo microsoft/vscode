@@ -592,35 +592,6 @@
 		display: flex;
 		align-items: center;
 		min-width: 0;
-		position: relative;
-	}
-
-	/* Ghost text rendered as an overlay so the visible suffix sits right
-		after the user's typed text. The mirror span (transparent) reproduces
-		the user's value to push the suffix to the correct x-position. */
-	.browser-url-ghost-text {
-		position: absolute;
-		inset: 0;
-		display: none;
-		align-items: center;
-		padding: 4px 8px;
-		font-size: 13px;
-		line-height: 17px;
-		white-space: pre;
-		overflow: hidden;
-		pointer-events: none;
-
-		&.visible {
-			display: flex;
-		}
-	}
-
-	.browser-url-ghost-text-mirror {
-		color: transparent;
-	}
-
-	.browser-url-ghost-text-suffix {
-		color: var(--vscode-input-placeholderForeground);
 	}
 
 	.browser-url-display {
