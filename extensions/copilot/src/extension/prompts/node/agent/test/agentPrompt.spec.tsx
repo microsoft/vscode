@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PromptElement } from '@vscode/prompt-tsx';
 import { afterAll, beforeAll, beforeEach, expect, suite, test } from 'vitest';
 import { IChatMLFetcher } from '../../../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation } from '../../../../../platform/chat/common/commonTypes';
@@ -11,6 +12,7 @@ import { CodeGenerationTextInstruction, ConfigKey, IConfigurationService } from 
 import { MockEndpoint } from '../../../../../platform/endpoint/test/node/mockEndpoint';
 import { messageToMarkdown } from '../../../../../platform/log/common/messageStringify';
 import { IResponseDelta } from '../../../../../platform/networking/common/fetch';
+import { CUSTOM_TOOL_SEARCH_NAME } from '../../../../../platform/networking/common/anthropic';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
@@ -28,7 +30,10 @@ import { createExtensionUnitTestingServices } from '../../../../test/node/servic
 import { ToolName } from '../../../../tools/common/toolNames';
 import { IToolsService } from '../../../../tools/common/toolsService';
 import { PromptRenderer } from '../../base/promptRenderer';
+import { InstructionMessage } from '../../base/instructionMessage';
 import { AgentPrompt, AgentPromptProps } from '../agentPrompt';
+import { ReminderInstructionsProps } from '../defaultAgentInstructions';
+import { HiddenModelMReminderInstructions } from '../openai/hiddenModelMPrompt';
 import { PromptRegistry } from '../promptRegistry';
 
 const testFamilies = [
@@ -48,6 +53,14 @@ const testFamilies = [
 	'gemini-2.0-flash',
 	'grok-code-fast-1'
 ];
+
+class HiddenModelMReminderMessage extends PromptElement<ReminderInstructionsProps> {
+	override render() {
+		return <InstructionMessage>
+			<HiddenModelMReminderInstructions {...this.props} />
+		</InstructionMessage>;
+	}
+}
 
 testFamilies.forEach(family => {
 	suite(`AgentPrompt - ${family}`, () => {
@@ -318,5 +331,163 @@ testFamilies.forEach(family => {
 				],
 			}, undefined))).toMatchFileSnapshot(getSnapshotFile('edited_file_events_grouped_by_kind'));
 		});
+	});
+});
+
+suite('OpenAI reminder instructions', () => {
+	let accessor: ITestingServicesAccessor;
+	const fileTsUri = URI.file('/workspace/file.ts');
+	let conversation: Conversation;
+
+	beforeAll(() => {
+		const testDoc = createTextDocumentData(fileTsUri, 'line 1\nline 2\n\nline 4\nline 5', 'ts').document;
+
+		const services = createExtensionUnitTestingServices();
+		services.define(IWorkspaceService, new SyncDescriptor(
+			TestWorkspaceService,
+			[
+				[URI.file('/workspace')],
+				[testDoc]
+			]
+		));
+		accessor = services.createTestingAccessor();
+	});
+
+	beforeEach(() => {
+		const turn = new Turn('turnId', { type: 'user', message: 'hello' });
+		conversation = new Conversation('sessionId', [turn]);
+	});
+
+	afterAll(() => {
+		accessor.dispose();
+	});
+
+	function createAvailableTool(name: string) {
+		return {
+			name,
+			description: `${name} tool`,
+			source: undefined,
+			inputSchema: { type: 'object', properties: {} },
+			tags: [],
+		};
+	}
+
+	async function renderAgentPromptForTools(family: string, availableTools: ReturnType<typeof createAvailableTool>[]): Promise<string> {
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = instantiationService.createInstance(MockEndpoint, family);
+		const customizations = await PromptRegistry.resolveAllCustomizations(instantiationService, endpoint);
+		const renderer = PromptRenderer.create(instantiationService, endpoint, AgentPrompt, {
+			priority: 1,
+			endpoint,
+			location: ChatLocation.Panel,
+			promptContext: {
+				chatVariables: new ChatVariablesCollection(),
+				history: [],
+				query: 'hello',
+				conversation,
+				tools: {
+					availableTools,
+					toolInvocationToken: null as never,
+					toolReferences: [],
+				}
+			},
+			customizations,
+		});
+
+		const result = await renderer.render();
+		return result.messages
+			.map(message => messageToMarkdown(message))
+			.join('\n\n')
+			.replace(/\\+/g, '/');
+	}
+
+	async function renderHiddenModelMReminderForTools(availableTools: ReturnType<typeof createAvailableTool>[], supportsToolSearch = true): Promise<string> {
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = instantiationService.createInstance(MockEndpoint, 'gpt-5.5');
+		endpoint.supportsToolSearch = supportsToolSearch;
+		const renderer = PromptRenderer.create(instantiationService, endpoint, HiddenModelMReminderMessage, {
+			priority: 1,
+			endpoint,
+			availableTools,
+			hasTodoTool: false,
+			hasEditFileTool: false,
+			hasReplaceStringTool: false,
+			hasMultiReplaceStringTool: false,
+		});
+
+		const result = await renderer.render();
+		return result.messages
+			.map(message => messageToMarkdown(message))
+			.join('\n\n')
+			.replace(/\\+/g, '/');
+	}
+
+	test.each([
+		'gpt-5.4',
+		'gpt-5.5',
+	])('omits tool_search reminder when %s has zero deferred tools', async family => {
+		const text = await renderAgentPromptForTools(family, [
+			createAvailableTool(ToolName.ReadFile),
+			createAvailableTool(ToolName.FindTextInFiles),
+			createAvailableTool(CUSTOM_TOOL_SEARCH_NAME),
+		]);
+
+		expect(text).not.toContain('IMPORTANT: Before calling any deferred tool that was not previously returned by tool_search');
+	});
+
+	test.each([
+		'gpt-5.4',
+		'gpt-5.5',
+	])('keeps tool_search reminder when %s still has deferred tools', async family => {
+		const text = await renderAgentPromptForTools(family, [
+			createAvailableTool(ToolName.ReadFile),
+			createAvailableTool(CUSTOM_TOOL_SEARCH_NAME),
+			createAvailableTool('create_directory'),
+		]);
+
+		expect(text).toContain('IMPORTANT: Before calling any deferred tool that was not previously returned by tool_search');
+	});
+
+	test.each([
+		'gpt-5.4',
+		'gpt-5.5',
+	])('omits tool_search prompt guidance when %s has deferred tools but tool_search is unavailable', async family => {
+		const text = await renderAgentPromptForTools(family, [
+			createAvailableTool(ToolName.ReadFile),
+			createAvailableTool('create_directory'),
+		]);
+
+		expect(text).not.toContain('IMPORTANT: Before calling any deferred tool that was not previously returned by tool_search');
+		expect(text).not.toContain('You MUST use tool_search to load deferred tools BEFORE calling them.');
+		expect(text).not.toContain('Available deferred tools (must be loaded with tool_search before use):');
+	});
+
+	test('hidden-model-m reminder omits tool_search reminder when zero deferred tools', async () => {
+		const text = await renderHiddenModelMReminderForTools([
+			createAvailableTool(ToolName.ReadFile),
+			createAvailableTool(ToolName.FindTextInFiles),
+			createAvailableTool(CUSTOM_TOOL_SEARCH_NAME),
+		]);
+
+		expect(text).not.toContain('IMPORTANT: Before calling any deferred tool that was not previously returned by tool_search');
+	});
+
+	test('hidden-model-m reminder keeps tool_search reminder when deferred tools remain', async () => {
+		const text = await renderHiddenModelMReminderForTools([
+			createAvailableTool(ToolName.ReadFile),
+			createAvailableTool(CUSTOM_TOOL_SEARCH_NAME),
+			createAvailableTool('create_directory'),
+		]);
+
+		expect(text).toContain('IMPORTANT: Before calling any deferred tool that was not previously returned by tool_search');
+	});
+
+	test('hidden-model-m reminder omits tool_search reminder when tool_search is unavailable', async () => {
+		const text = await renderHiddenModelMReminderForTools([
+			createAvailableTool(ToolName.ReadFile),
+			createAvailableTool('create_directory'),
+		], false);
+
+		expect(text).not.toContain('IMPORTANT: Before calling any deferred tool that was not previously returned by tool_search');
 	});
 });

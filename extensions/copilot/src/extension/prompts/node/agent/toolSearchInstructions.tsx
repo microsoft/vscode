@@ -18,6 +18,13 @@ export interface DeferredToolListReminderProps extends BasePromptElementProps {
 	readonly availableTools: readonly LanguageModelToolInformation[] | undefined;
 }
 
+export function hasAvailableTool(
+	availableTools: readonly LanguageModelToolInformation[] | undefined,
+	toolName: string,
+): boolean {
+	return !!availableTools?.some(tool => tool.name === toolName);
+}
+
 /**
  * True when `availableTools` contains at least one tool that the deferral
  * service treats as deferred. Shared between the system-prompt guidance and
@@ -28,6 +35,16 @@ export function hasDeferredTool(
 	toolDeferralService: IToolDeferralService,
 ): boolean {
 	return !!availableTools?.some(tool => !toolDeferralService.isNonDeferredTool(tool.name));
+}
+
+export function shouldShowToolSearchPrompt(
+	availableTools: readonly LanguageModelToolInformation[] | undefined,
+	endpointSupportsToolSearch: boolean | undefined,
+	toolDeferralService: IToolDeferralService,
+): boolean {
+	return !!endpointSupportsToolSearch
+		&& hasAvailableTool(availableTools, CUSTOM_TOOL_SEARCH_NAME)
+		&& hasDeferredTool(availableTools, toolDeferralService);
 }
 
 /**
@@ -46,7 +63,7 @@ export class ToolSearchToolPromptOptimized extends PromptElement<ToolSearchToolP
 
 	async render(state: void, sizing: PromptSizing) {
 		const endpoint = sizing.endpoint as IChatEndpoint | undefined;
-		if (!endpoint?.supportsToolSearch || !hasDeferredTool(this.props.availableTools, this.toolDeferralService)) {
+		if (!shouldShowToolSearchPrompt(this.props.availableTools, endpoint?.supportsToolSearch, this.toolDeferralService)) {
 			return;
 		}
 
@@ -83,7 +100,7 @@ export class DeferredToolListReminder extends PromptElement<DeferredToolListRemi
 
 	async render(state: void, sizing: PromptSizing) {
 		const endpoint = sizing.endpoint as IChatEndpoint | undefined;
-		if (!endpoint?.supportsToolSearch || !this.props.availableTools) {
+		if (!shouldShowToolSearchPrompt(this.props.availableTools, endpoint?.supportsToolSearch, this.toolDeferralService)) {
 			return;
 		}
 

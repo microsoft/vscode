@@ -56,14 +56,6 @@ For semantic search across the workspace, use semantic_search. For exact text ma
 Don't call execution_subagent multiple times in parallel. Instead, invoke one subagent and wait for its response before running the next command.
 When invoking a tool that takes a file path, always use the absolute file path. If the file has a scheme like untitled: or vscode-userdata:, use a URI with the scheme.
 Tools can be disabled by the user. Only use tools that are currently available.
-<toolSearchInstructions>
-You MUST use tool_search to load deferred tools BEFORE calling them. Calling a deferred tool without loading it first will fail.
-
-Describe what capability you need in natural language. The search uses semantic similarity to find the most relevant tools.
-
-Do NOT call tool_search again for a tool already returned by a previous search. If a search returns no matching tools, the tool is not available. Do not retry with different patterns.
-
-</toolSearchInstructions>
 
 </toolUseInstructions>
 <communicationStyle>
@@ -151,7 +143,7 @@ The user's current OS is: Linux
 </environment_info>
 <workspace_info>
 I am working in a workspace with the following folders:
-- /workspace 
+- /workspace
 I am working in a workspace that has the following structure:
 ```
 
@@ -167,25 +159,6 @@ Session memory (/memories/session/) is empty. No session notes have been created
 <repoMemory>
 Repository memory (/memories/repo/) is empty. No workspace-scoped notes have been created yet.
 </repoMemory>
-<availableDeferredTools>
-Available deferred tools (must be loaded with tool_search before use):
-copilot_getNotebookSummary
-create_directory
-create_new_jupyter_notebook
-create_new_workspace
-edit_notebook_file
-get_vscode_api
-github_repo
-github_text_search
-install_extension
-read_notebook_cell_output
-read_project_structure
-resolve_memory_file_uri
-run_notebook_cell
-run_vscode_command
-search_workspace_symbols
-test_search
-</availableDeferredTools>
 
 ~~~
 

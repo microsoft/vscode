@@ -500,6 +500,7 @@ export class AgentUserMessage extends PromptElement<AgentUserMessageProps> {
 		const ReminderInstructionsClass = this.props.ReminderInstructionsClass ?? DefaultReminderInstructions;
 		const reminderProps: ReminderInstructionsProps = {
 			endpoint: this.props.endpoint,
+			availableTools: this.props.availableTools,
 			hasTodoTool,
 			hasEditFileTool,
 			hasReplaceStringTool,

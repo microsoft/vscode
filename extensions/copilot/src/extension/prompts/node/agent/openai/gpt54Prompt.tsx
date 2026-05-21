@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PromptElement, PromptSizing } from '@vscode/prompt-tsx';
+import { PromptElement, PromptElementProps, PromptSizing } from '@vscode/prompt-tsx';
 import { isGpt54 } from '../../../../../platform/endpoint/common/chatModelCapabilities';
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
+import { IToolDeferralService } from '../../../../../platform/networking/common/toolDeferralService';
 import { ToolName } from '../../../../tools/common/toolNames';
 import { GPT5CopilotIdentityRule } from '../../base/copilotIdentity';
 import { InstructionMessage } from '../../base/instructionMessage';
@@ -16,7 +17,7 @@ import { ResponseRenderingRules } from '../../panel/editorIntegrationRules';
 import { ApplyPatchInstructions, DefaultAgentPromptProps, detectToolCapabilities, getEditingReminder, McpToolInstructions, ReminderInstructionsProps } from '../defaultAgentInstructions';
 import { FileLinkificationInstructions } from '../fileLinkificationInstructions';
 import { CopilotIdentityRulesConstructor, IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SafetyRulesConstructor, SystemPrompt } from '../promptRegistry';
-import { CUSTOM_TOOL_SEARCH_NAME, ToolSearchToolPromptOptimized } from '../toolSearchInstructions';
+import { CUSTOM_TOOL_SEARCH_NAME, shouldShowToolSearchPrompt, ToolSearchToolPromptOptimized } from '../toolSearchInstructions';
 
 export class Gpt54Prompt extends PromptElement<DefaultAgentPromptProps> {
 	async render(state: void, sizing: PromptSizing) {
@@ -241,8 +242,15 @@ class Gpt54PromptResolver implements IAgentPrompt {
 }
 
 export class Gpt54ReminderInstructions extends PromptElement<ReminderInstructionsProps> {
+	constructor(
+		props: PromptElementProps<ReminderInstructionsProps>,
+		@IToolDeferralService private readonly toolDeferralService: IToolDeferralService,
+	) {
+		super(props);
+	}
+
 	async render(state: void, sizing: PromptSizing) {
-		const toolSearchEnabled = !!this.props.endpoint.supportsToolSearch;
+		const toolSearchEnabled = shouldShowToolSearchPrompt(this.props.availableTools, this.props.endpoint.supportsToolSearch, this.toolDeferralService);
 		return <>
 			You are an agent—keep going until the user's query is completely resolved before ending your turn. ONLY stop if solved or genuinely blocked.<br />
 			Take action when possible; the user expects you to do useful work without unnecessary questions.<br />

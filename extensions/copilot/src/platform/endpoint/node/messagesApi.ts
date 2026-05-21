@@ -5,6 +5,7 @@
 
 import { ContentBlockParam, DocumentBlockParam, ImageBlockParam, MessageParam, RedactedThinkingBlockParam, TextBlockParam, ThinkingBlockParam, ToolReferenceBlockParam, ToolResultBlockParam } from '@anthropic-ai/sdk/resources';
 import { Raw } from '@vscode/prompt-tsx';
+import { createRequestToolManifest } from '../../../extension/tools/common/requestToolManifest';
 import { Response } from '../../../platform/networking/common/fetcherService';
 import { AsyncIterableObject } from '../../../util/vs/base/common/async';
 import { SSEParser } from '../../../util/vs/base/common/sseParser';
@@ -103,9 +104,17 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const configurationService = accessor.get(IConfigurationService);
 	const experimentationService = accessor.get(IExperimentationService);
 	const toolDeferralService = accessor.get(IToolDeferralService);
+	const requestToolManifest = createRequestToolManifest(
+		(options.requestOptions?.tools ?? [])
+			.filter(tool => !!tool.function.name)
+			.map(tool => ({ name: tool.function.name })),
+		toolDeferralService,
+	);
 
 	const toolSearchEnabled = !!endpoint.supportsToolSearch
-		&& !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
+		&& !!options.modelCapabilities?.enableToolSearch
+		&& requestToolManifest.hasDeferredTools
+		&& requestToolManifest.activeToolNames.includes(CUSTOM_TOOL_SEARCH_NAME);
 
 	// Split tools into non-deferred and deferred up front so we can build finalTools
 	// with non-deferred first. This ensures the cache_control breakpoint on the last
@@ -115,6 +124,9 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	if (options.requestOptions?.tools) {
 		for (const tool of options.requestOptions.tools) {
 			if (!tool.function.name || tool.function.name.length === 0) {
+				continue;
+			}
+			if (tool.function.name === CUSTOM_TOOL_SEARCH_NAME && !toolSearchEnabled) {
 				continue;
 			}
 			const isDeferred = options.modelCapabilities?.enableToolSearch && toolSearchEnabled && !toolDeferralService.isNonDeferredTool(tool.function.name);

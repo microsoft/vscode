@@ -68,6 +68,7 @@ export class DefaultToolReferencesHint extends PromptElement<ToolReferencesHintP
 
 export interface ReminderInstructionsProps extends BasePromptElementProps {
 	readonly endpoint: IChatEndpoint;
+	readonly availableTools: readonly LanguageModelToolInformation[] | undefined;
 	readonly hasTodoTool: boolean;
 	readonly hasEditFileTool: boolean;
 	readonly hasReplaceStringTool: boolean;

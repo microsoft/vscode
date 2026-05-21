@@ -14,6 +14,7 @@ import { SSEParser } from '../../../util/vs/base/common/sseParser';
 import { isDefined } from '../../../util/vs/base/common/types';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
+import { createRequestToolManifest } from '../../../extension/tools/common/requestToolManifest';
 import { ChatLocation } from '../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
@@ -48,6 +49,7 @@ export function getResponsesApiCompactionThreshold(configService: IConfiguration
 export function createResponsesRequestBody(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions, model: string, endpoint: IChatEndpoint): IEndpointBody {
 	const configService = accessor.get(IConfigurationService);
 	const expService = accessor.get(IExperimentationService);
+	const toolDeferralService = accessor.get(IToolDeferralService);
 	const verbosity = getVerbosityForModelSync(endpoint);
 	const compactThreshold = getResponsesApiCompactionThreshold(configService, expService, endpoint);
 	// compaction supported for all the models but works well for codex models and any future models after 5.3
@@ -63,12 +65,18 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	// (excluded from the request entirely). Uses OpenAI's client-executed tool search protocol: we add
 	// { type: 'tool_search', execution: 'client' }. The model emits tool_search_call, which we handle via
 	// our ToolSearchTool embeddings search, then round-trip as tool_search_output in the next request.
+	const requestToolManifest = createRequestToolManifest(
+		(options.requestOptions?.tools ?? [])
+			.filter(tool => !!tool.function.name)
+			.map(tool => ({ name: tool.function.name })),
+		toolDeferralService,
+	);
 	const toolSearchEnabled = !!endpoint.supportsToolSearch
-		&& !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
+		&& requestToolManifest.hasDeferredTools
+		&& requestToolManifest.activeToolNames.includes(CUSTOM_TOOL_SEARCH_NAME);
 	const isAllowedConversationAgent = options.location === ChatLocation.Agent || options.location === ChatLocation.MessagesProxy;
 	const isSubagent = options.telemetryProperties?.subType?.startsWith('subagent') ?? false;
 	const shouldDeferTools = toolSearchEnabled && isAllowedConversationAgent && !isSubagent;
-	const toolDeferralService = shouldDeferTools ? accessor.get(IToolDeferralService) : undefined;
 
 	type ResponsesFunctionTool = OpenAI.Responses.FunctionTool & OpenAiResponsesFunctionTool;
 	const functionTools: ResponsesFunctionTool[] = [];
@@ -82,7 +90,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 			if (tool.function.name === CUSTOM_TOOL_SEARCH_NAME) {
 				continue;
 			}
-			const isDeferred = shouldDeferTools && !toolDeferralService!.isNonDeferredTool(tool.function.name);
+			const isDeferred = shouldDeferTools && !toolDeferralService.isNonDeferredTool(tool.function.name);
 			// Client-executed tool search: deferred tools are NOT sent in the request.
 			// They are returned via tool_search_output when the model searches for them.
 			if (isDeferred) {
@@ -122,7 +130,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	const toolsMap = options.requestOptions?.tools
 		? new Map(options.requestOptions.tools.map(t => [t.function.name, t]))
 		: undefined;
-	const shouldLoadToolFromToolSearch = shouldDeferTools ? (name: string) => !toolDeferralService!.isNonDeferredTool(name) : undefined;
+	const shouldLoadToolFromToolSearch = shouldDeferTools ? (name: string) => !toolDeferralService.isNonDeferredTool(name) : undefined;
 
 	const body: IEndpointBody = {
 		model,
