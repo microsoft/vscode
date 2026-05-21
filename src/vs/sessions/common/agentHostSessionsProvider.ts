@@ -8,7 +8,7 @@ import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationAgentRef, RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 
 /**
@@ -88,6 +88,23 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * Unknown keys (no schema entry) are ignored.
 	 */
 	replaceRootConfig(values: Record<string, unknown>): Promise<void>;
+
+	// -- Custom Agents --
+
+	/**
+	 * Fires when the effective custom-agent set for any session may have
+	 * changed (root state customizations or per-session customizations
+	 * updated). The event has no payload — consumers re-read via
+	 * {@link getCustomAgents}.
+	 */
+	readonly onDidChangeCustomAgents: Event<void>;
+	/**
+	 * Returns the merged, de-duped custom-agent list a session should see,
+	 * computed from root, active-client, and session customizations. Returns
+	 * an empty array when the session is unknown or no agents have been
+	 * advertised.
+	 */
+	getCustomAgents(sessionId: string): readonly CustomizationAgentRef[];
 }
 
 export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
