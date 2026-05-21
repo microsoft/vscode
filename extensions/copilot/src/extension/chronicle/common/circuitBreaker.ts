@@ -67,7 +67,11 @@ export class CircuitBreaker {
 		}
 		const prev = this.state;
 		this.state = next;
-		this.options.onStateChange?.(prev, next);
+		try {
+			this.options.onStateChange?.(prev, next);
+		} catch {
+			// Best-effort: a misbehaving listener must not break the breaker.
+		}
 	}
 
 	/**

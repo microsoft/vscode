@@ -237,7 +237,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			failureThreshold: 5,
 			resetTimeoutMs: 1_000,
 			maxResetTimeoutMs: 30_000,
-			onStateChange: (from, to) => {
+			onStateChange: (_from, to) => {
 				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
 					operation: 'circuitBreaker',
 					transition: to.toLowerCase(),
