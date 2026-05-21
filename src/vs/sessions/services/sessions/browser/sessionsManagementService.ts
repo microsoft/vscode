@@ -827,7 +827,6 @@ class ActiveSession implements IActiveSession {
 	get changes() { return this._session.changes; }
 	get changesets() { return this._session.changesets; }
 	get modelId() { return this._session.modelId; }
-	get agent() { return this._session.agent; }
 	get mode() { return this._session.mode; }
 	get loading() { return this._session.loading; }
 	get isArchived() { return this._session.isArchived; }
