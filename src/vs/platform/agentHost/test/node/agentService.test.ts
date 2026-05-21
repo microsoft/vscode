@@ -573,10 +573,6 @@ suite('AgentService (node dispatcher)', () => {
 					label: 'This Turn',
 					uriTemplate: `${sessionUri.toString()}/changeset/turn/{turnId}`,
 				},
-				{
-					label: 'Compare Turns',
-					uriTemplate: `${sessionUri.toString()}/changeset/compare/{originalTurnId}/{modifiedTurnId}`,
-				},
 			]);
 		});
 
@@ -718,10 +714,6 @@ suite('AgentService (node dispatcher)', () => {
 					label: 'This Turn',
 					uriTemplate: `${sessionUri.toString()}/changeset/turn/{turnId}`,
 				},
-				{
-					label: 'Compare Turns',
-					uriTemplate: `${sessionUri.toString()}/changeset/compare/{originalTurnId}/{modifiedTurnId}`,
-				},
 			]);
 		});
 
@@ -826,10 +818,6 @@ suite('AgentService (node dispatcher)', () => {
 				{
 					label: 'This Turn',
 					uriTemplate: `${sessionUri.toString()}/changeset/turn/{turnId}`,
-				},
-				{
-					label: 'Compare Turns',
-					uriTemplate: `${sessionUri.toString()}/changeset/compare/{originalTurnId}/{modifiedTurnId}`,
 				},
 			]);
 		});
@@ -1006,7 +994,6 @@ suite('AgentService (node dispatcher)', () => {
 				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session` },
 				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 				{ label: 'This Turn', uriTemplate: `${session.toString()}/changeset/turn/{turnId}` },
-				{ label: 'Compare Turns', uriTemplate: `${session.toString()}/changeset/compare/{originalTurnId}/{modifiedTurnId}` },
 			]);
 		});
 
@@ -2050,10 +2037,6 @@ suite('AgentService (node dispatcher)', () => {
 					label: 'This Turn',
 					uriTemplate: `${sessionResource.toString()}/changeset/turn/{turnId}`,
 				},
-				{
-					label: 'Compare Turns',
-					uriTemplate: `${sessionResource.toString()}/changeset/compare/{originalTurnId}/{modifiedTurnId}`,
-				},
 			]);
 
 			const changesetSnapshot = localService.stateManager.getSnapshot(`${sessionResource.toString()}/changeset/session`);
@@ -2103,10 +2086,6 @@ suite('AgentService (node dispatcher)', () => {
 				{
 					label: 'This Turn',
 					uriTemplate: `${sessionResource.toString()}/changeset/turn/{turnId}`,
-				},
-				{
-					label: 'Compare Turns',
-					uriTemplate: `${sessionResource.toString()}/changeset/compare/{originalTurnId}/{modifiedTurnId}`,
 				},
 			]);
 

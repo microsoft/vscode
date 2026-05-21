@@ -71,7 +71,6 @@ suite('AgentHostChangesetService', () => {
 			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
 			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 			{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
-			{ label: 'Compare Turns', uriTemplate: `${sessionStr}/changeset/compare/{originalTurnId}/{modifiedTurnId}` },
 		]);
 
 		changesetService.registerStaticChangesets(sessionStr);
@@ -90,7 +89,6 @@ suite('AgentHostChangesetService', () => {
 			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
 			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 			{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
-			{ label: 'Compare Turns', uriTemplate: `${sessionStr}/changeset/compare/{originalTurnId}/{modifiedTurnId}` },
 		]);
 	});
 
@@ -103,7 +101,7 @@ suite('AgentHostChangesetService', () => {
 		changesetService.registerStaticChangesets(sessionStr);
 
 		const changesets = stateManager.getSessionState(sessionStr)?.summary.changesets;
-		assert.strictEqual(changesets?.length, 4, 'expected the four default catalogue entries');
+		assert.strictEqual(changesets?.length, 3, 'expected the three default catalogue entries');
 	});
 
 	test('restoreStaticChangeset publishes files in Ready and refreshes catalogue counts', () => {
@@ -147,10 +145,6 @@ suite('AgentHostChangesetService', () => {
 			{
 				label: 'This Turn',
 				uriTemplate: `${sessionStr}/changeset/turn/{turnId}`,
-			},
-			{
-				label: 'Compare Turns',
-				uriTemplate: `${sessionStr}/changeset/compare/{originalTurnId}/{modifiedTurnId}`,
 			},
 		]);
 	});
@@ -207,10 +201,6 @@ suite('AgentHostChangesetService', () => {
 				{
 					label: 'This Turn',
 					uriTemplate: `${sessionStr}/changeset/turn/{turnId}`,
-				},
-				{
-					label: 'Compare Turns',
-					uriTemplate: `${sessionStr}/changeset/compare/{originalTurnId}/{modifiedTurnId}`,
 				},
 			],
 		});
