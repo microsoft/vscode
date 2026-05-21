@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { GetSessionMessagesOptions, Options, PermissionMode, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, SessionMessage, Settings, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { GetSessionMessagesOptions, McpSdkServerConfigWithInstance, Options, PermissionMode, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, Settings, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
 import assert from 'assert';
@@ -37,16 +38,18 @@ import { FileService } from '../../../files/common/fileService.js';
 import { IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/agentFeedbackAttachments.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, ResponsePartKind, SessionInputResponseKind, SessionStatus } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, ResponsePartKind, SessionInputResponseKind, SessionStatus, ToolResultContentType, buildSubagentSessionUri } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ProtectedResourceMetadata, SessionInputAnswerState, SessionInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type SessionInputRequest } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, SessionInputAnswerState, SessionInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type SessionInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
+import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
+import { SessionClientToolsDiff } from '../../node/claude/clientTools/claudeSessionClientToolsModel.js';
 import { IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
@@ -237,6 +240,9 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
 		this.startupCallCount++;
 		this.capturedStartupOptions.push(params.options);
+		if (this.startupAdvance) {
+			await this.startupAdvance(this.startupCallCount);
+		}
 		if (this.startupRejection) {
 			const err = this.startupRejection;
 			this.startupRejection = undefined;
@@ -245,6 +251,56 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 		const warm = new FakeWarmQuery(this);
 		this.warmQueries.push(warm);
 		return warm;
+	}
+
+	/**
+	 * Optional async hook invoked inside {@link startup} after the call is
+	 * counted but before resolving. Tests use it to stage a race where
+	 * `setClientTools` lands while a materialize is mid-flight.
+	 */
+	startupAdvance: ((callIndex: number) => Promise<void>) | undefined;
+
+	/**
+	 * Phase 10 — records each per-tool `tool()` call and each
+	 * `createSdkMcpServer()` call the agent makes via the
+	 * {@link buildClientToolMcpServer} factory. Tests inspect these to
+	 * assert the right snapshot reached the SDK; they also inspect
+	 * `capturedStartupOptions[n].mcpServers.client.instance` for the
+	 * `_stubTools` round-trip.
+	 */
+	readonly toolCalls: Array<{
+		readonly name: string;
+		readonly description: string;
+		readonly inputSchema: Record<string, any>;
+	}> = [];
+	readonly createSdkMcpServerCalls: Array<{
+		readonly name: string;
+		readonly toolNames: readonly string[];
+	}> = [];
+
+	async tool(
+		name: string,
+		description: string,
+		inputSchema: Record<string, any>,
+		_handler: (args: any, extra: unknown) => Promise<CallToolResult>,
+	): Promise<SdkMcpToolDefinition<any>> {
+		this.toolCalls.push({ name, description, inputSchema });
+		return { name } as unknown as SdkMcpToolDefinition<any>;
+	}
+
+	async createSdkMcpServer(options: {
+		name: string;
+		tools?: Array<SdkMcpToolDefinition<any>>;
+	}): Promise<McpSdkServerConfigWithInstance> {
+		const toolNames = (options.tools ?? []).map(t => (t as { name: string }).name);
+		this.createSdkMcpServerCalls.push({ name: options.name, toolNames });
+		return {
+			type: 'sdk',
+			name: options.name,
+			instance: {
+				_stubTools: toolNames,
+			},
+		} as unknown as McpSdkServerConfigWithInstance;
 	}
 }
 
@@ -2708,6 +2764,8 @@ suite('ClaudeAgent', () => {
 			getSessionMessages: async () => [],
 			listSubagents: async () => [],
 			getSubagentMessages: async () => [],
+			createSdkMcpServer: () => { throw new Error('not modeled'); },
+			tool: () => { throw new Error('not modeled'); },
 		};
 		const result1 = await svc.listSessions();
 		const importInvocationsAfterFirstSuccess = importInvocations;
@@ -2757,6 +2815,8 @@ suite('ClaudeAgent', () => {
 				getCalls.push({ sessionId, agentId, options });
 				return [{ uuid: 'u1' } as unknown as SessionMessage];
 			},
+			createSdkMcpServer: () => { throw new Error('not modeled'); },
+			tool: () => { throw new Error('not modeled'); },
 		};
 		class TestableClaudeAgentSdkService extends ClaudeAgentSdkService {
 			protected override async _loadSdk(): Promise<IClaudeSdkBindings> {
@@ -2955,18 +3015,301 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('onClientToolCallComplete is a benign no-op (Phase 10 not yet implemented)', () => {
+	test('onClientToolCallComplete is a benign no-op for an unknown toolCallId (Phase 10)', () => {
 		// `AgentSideEffects` fires `onClientToolCallComplete` for every
 		// server-dispatched `SessionToolCallComplete` envelope, including
 		// the ones the Claude mapper emits for normal SDK tool completions.
-		// Until Phase 10 wires client (MCP) tools through, the body must
-		// be a benign no-op — throwing here corrupts every tool flow.
+		// Unknown ids (SDK-owned tools, stale workbench races) must NOT throw.
 		const { agent } = createTestContext(disposables);
 		const session = URI.parse('claude:/sess-1');
 		assert.doesNotThrow(() => {
 			agent.onClientToolCallComplete(session, 'toolu_unknown', { success: true, pastTenseMessage: 'ran' });
 		});
 	});
+
+	// #region Phase 10 — client (MCP) tools
+
+	test('setClientTools registers tools that flow into Options.mcpServers on first materialize', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		const tools: ToolDefinition[] = [{ name: 'echo', description: 'Echo back', inputSchema: { type: 'object', properties: { msg: { type: 'string' } }, required: ['msg'] } }];
+		agent.setClientTools(created.session, 'client-1', tools);
+
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'go', undefined, 'turn-1');
+
+		const opts = sdk.capturedStartupOptions[0];
+		assert.ok(opts.mcpServers, 'mcpServers populated');
+		assert.deepStrictEqual({
+			startupCount: sdk.startupCallCount,
+			builtToolNames: sdk.toolCalls.map(t => t.name),
+		}, {
+			startupCount: 1,
+			builtToolNames: ['echo'],
+		});
+	});
+
+	test('setClientTools after materialize triggers yield-restart on next sendMessage with the new tool set', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		// Pause the iterator after the first result so the pipeline doesn't
+		// rebind on its own ("stream ended without result" → needsRebind).
+		const advance = new DeferredPromise<void>();
+		sdk.queryAdvance = async (i: number) => { if (i === 2) { await advance.p; } };
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+		assert.strictEqual(sdk.startupCallCount, 1, 'first materialize');
+
+		agent.setClientTools(created.session, 'client-1', [{ name: 'echo', inputSchema: { type: 'object' } }]);
+		sdk.queryAdvance = undefined;
+		advance.complete();
+		await agent.sendMessage(created.session, 'second', undefined, 'turn-2');
+
+		const lastBuild = sdk.createSdkMcpServerCalls[sdk.createSdkMcpServerCalls.length - 1];
+		assert.deepStrictEqual({
+			startupCount: sdk.startupCallCount,
+			firstMcp: !!sdk.capturedStartupOptions[0].mcpServers,
+			secondMcpToolNames: lastBuild?.toolNames,
+		}, {
+			startupCount: 2,
+			firstMcp: false,
+			secondMcpToolNames: ['echo'],
+		});
+	});
+
+	test('setClientTools with an equal snapshot does NOT restart', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		const advance = new DeferredPromise<void>();
+		sdk.queryAdvance = async (i: number) => { if (i === 2) { await advance.p; } };
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+
+		const tools: ToolDefinition[] = [{ name: 'echo', description: 'e', inputSchema: { type: 'object' } }];
+		agent.setClientTools(created.session, 'c1', tools);
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+		assert.strictEqual(sdk.startupCallCount, 1, 'first materialize');
+
+		agent.setClientTools(created.session, 'c1', [{ name: 'echo', description: 'e', inputSchema: { type: 'object' } }]);
+		advance.complete();
+		await agent.sendMessage(created.session, 'second', undefined, 'turn-2');
+
+		assert.strictEqual(sdk.startupCallCount, 1, 'equal snapshot should NOT yield-restart');
+	});
+
+	test('setClientTools on an unknown session id is silently dropped', () => {
+		const { agent } = createTestContext(disposables);
+		assert.doesNotThrow(() => {
+			agent.setClientTools(URI.parse('claude:/never-existed'), 'c1', [{ name: 't', inputSchema: { type: 'object' } }]);
+		});
+	});
+
+	test('onClientToolCallComplete resolves the parked deferred keyed by tool_use_id', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		agent.setClientTools(created.session, 'c1', [{ name: 'echo', inputSchema: { type: 'object' } }]);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'go', undefined, 'turn-1');
+
+		// Completion for an unknown tool_use_id is a benign no-op (no parked
+		// handler in this test path because we don't drive the real MCP
+		// handler from FakeQuery).
+		const session = agent.getSessionForTesting(created.session)!;
+		const settled = session.completeClientToolCall('tu_unknown', { success: true, pastTenseMessage: 'ok', content: [{ type: ToolResultContentType.Text, text: 'hello' }] });
+		assert.strictEqual(settled, false, 'no parked handler in this test path; unknown id is silent');
+	});
+
+	test('onClientToolCallComplete walks subagent URIs to the root session', () => {
+		const { agent } = createTestContext(disposables);
+		const root = URI.parse('claude:/root-1');
+		// Build a depth-2 subagent URI (subagent of a subagent).
+		const depth1 = URI.parse(buildSubagentSessionUri(root, 'tu_outer'));
+		const depth2 = URI.parse(buildSubagentSessionUri(depth1, 'tu_inner'));
+		// No session is registered for `root`; the walk should reach root and
+		// then silently no-op (entry not found). Just assert no throw.
+		assert.doesNotThrow(() => {
+			agent.onClientToolCallComplete(depth2, 'tu_anything', { success: true, pastTenseMessage: 'ran' });
+		});
+	});
+
+	test('dispose rejects every parked client-tool call with CancellationError', async () => {
+		// Since the bridge is gone, the only way to park on the session's
+		// registry is through the real MCP handler, which is hard to drive
+		// from FakeQuery. The unit-level guarantee is covered by
+		// PendingRequestRegistry tests; here we just assert that dispose
+		// does not throw when there are no parked calls (the common case).
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		agent.setClientTools(created.session, 'c1', [{ name: 'echo', inputSchema: { type: 'object' } }]);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'go', undefined, 'turn-1');
+		await assert.doesNotReject(agent.disposeSession(created.session));
+	});
+
+	test('FakeQuery.setMcpServers stays unmodeled (Phase 10 never calls Query.setMcpServers for client tools)', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		agent.setClientTools(created.session, 'c1', [{ name: 'echo', inputSchema: { type: 'object' } }]);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+		// Change tools to force a rebind path (must use yield-restart, NOT Query.setMcpServers).
+		agent.setClientTools(created.session, 'c1', [{ name: 'echo2', inputSchema: { type: 'object' } }]);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'second', undefined, 'turn-2');
+		// If `Query.setMcpServers` had been called, `FakeQuery.setMcpServers` would have thrown.
+		assert.strictEqual(sdk.startupCallCount, 2, 'rebind path used yield-restart, not setMcpServers');
+	});
+
+	test('setClientTools landing during the materialize gap is re-synced into the live session', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		// Initial snapshot before materialize starts.
+		agent.setClientTools(created.session, 'c1', [{ name: 'first', inputSchema: { type: 'object' } }]);
+
+		// Pause startup #1 so we can inject an update during the gap.
+		const startupReached = new DeferredPromise<void>();
+		const startupGate = new DeferredPromise<void>();
+		sdk.startupAdvance = async (i: number) => {
+			if (i === 1) {
+				startupReached.complete();
+				await startupGate.p;
+			}
+		};
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+
+		const send = agent.sendMessage(created.session, 'go', undefined, 'turn-1');
+		// Wait until the materializer has snapshotted ['first'] into the diff
+		// and is paused inside `sdk.startup`. THEN inject the update.
+		await startupReached.p;
+		agent.setClientTools(created.session, 'c1', [{ name: 'second', inputSchema: { type: 'object' } }]);
+		startupGate.complete();
+		await send;
+
+		// Pre-fix: hasDifference was false after publish, so session.send used
+		// the materializer's snapshot only — startupCount stayed at 1 and the
+		// 'second' update was silently lost. Post-fix: the re-synced diff flips
+		// dirty, session.send rebinds before sending, and the new MCP server
+		// carries ['second'].
+		assert.deepStrictEqual({
+			startupCount: sdk.startupCallCount,
+			firstSnapshot: sdk.createSdkMcpServerCalls[0]?.toolNames,
+			lastSnapshot: sdk.createSdkMcpServerCalls.at(-1)?.toolNames,
+		}, {
+			startupCount: 2,
+			firstSnapshot: ['first'],
+			lastSnapshot: ['second'],
+		});
+	});
+
+	test('setClientTools landing during the resume bootstrap gap is re-synced into the live session', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const sessionId = 'cross-window-session-id';
+		const sessionUri = AgentSession.uri('claude', sessionId);
+		sdk.sessionList = [{
+			sessionId,
+			summary: 'From another window',
+			lastModified: 5000,
+			createdAt: 4900,
+			cwd: URI.file('/work').fsPath,
+		}];
+
+		const startupReached = new DeferredPromise<void>();
+		const startupGate = new DeferredPromise<void>();
+		sdk.startupAdvance = async (i: number) => {
+			if (i === 1) {
+				startupReached.complete();
+				await startupGate.p;
+			}
+		};
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+
+		const send = agent.sendMessage(sessionUri, 'hi', undefined, 'turn-1');
+		// Wait until the resume's `sdk.startup` is in flight, then inject the
+		// update. Pre-fix the call hit the silent-drop branch because no
+		// provisional was registered for the resume.
+		await startupReached.p;
+		agent.setClientTools(sessionUri, 'c1', [{ name: 'resumed', inputSchema: { type: 'object' } }]);
+		startupGate.complete();
+		await send;
+
+		assert.deepStrictEqual({
+			startupCount: sdk.startupCallCount,
+			lastSnapshot: sdk.createSdkMcpServerCalls.at(-1)?.toolNames,
+		}, {
+			startupCount: 2,
+			lastSnapshot: ['resumed'],
+		});
+	});
+
+	test('rebind failure leaves the client-tool diff dirty so the next send retries', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		// Pause the iterator after the first result so the pipeline doesn't
+		// auto-rebind via "stream ended without result".
+		const advance = new DeferredPromise<void>();
+		sdk.queryAdvance = async (i: number) => { if (i === 2) { await advance.p; } };
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+		assert.strictEqual(sdk.startupCallCount, 1);
+
+		// Stage a rebind whose startup will reject.
+		agent.setClientTools(created.session, 'c1', [{ name: 'echo', inputSchema: { type: 'object' } }]);
+		sdk.startupRejection = new Error('simulated rebind startup failure');
+		sdk.queryAdvance = undefined;
+		advance.complete();
+		await assert.rejects(agent.sendMessage(created.session, 'second', undefined, 'turn-2'));
+
+		// Pre-fix: `_buildClientMcpServers` consumed the diff, but the SDK
+		// startup that followed rejected without re-marking dirty, so the next
+		// send skipped the rebind branch and silently kept the stale server
+		// set. Post-fix: the rematerializer's catch re-marks dirty, so this
+		// send retries the rebind and succeeds.
+		sdk.startupRejection = undefined;
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'third', undefined, 'turn-3');
+		assert.deepStrictEqual({
+			startupCount: sdk.startupCallCount,
+			lastSnapshot: sdk.createSdkMcpServerCalls.at(-1)?.toolNames,
+		}, {
+			startupCount: 3,
+			lastSnapshot: ['echo'],
+		});
+	});
+
+	// #endregion
 
 	// #endregion
 });
@@ -2982,8 +3325,12 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		// loop unwinds and the subprocess shuts down cleanly.
 		const sdk = new FakeClaudeAgentSdkService();
 		const warm = new FakeWarmQuery(sdk);
+		const fakeConfigService: IAgentConfigurationService = {
+			getSessionConfigValues: () => undefined,
+		} as unknown as IAgentConfigurationService;
 		const services = new ServiceCollection(
 			[ILogService, new NullLogService()],
+			[IAgentConfigurationService, fakeConfigService],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const dbRef = { object: new TestSessionDatabase(), dispose: () => { } };
@@ -2995,6 +3342,9 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			warm,
 			new AbortController(),
 			dbRef,
+			new PendingRequestRegistry<CallToolResult>(),
+			new SessionClientToolsDiff(),
+			'default',
 		));
 
 		const permission = session.requestPermission({

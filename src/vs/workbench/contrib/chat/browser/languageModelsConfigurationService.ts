@@ -53,7 +53,7 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super();
-		this.modelsConfigurationFile = uriIdentityService.extUri.joinPath(userDataProfileService.currentProfile.location, 'chatLanguageModels.json');
+		this.modelsConfigurationFile = userDataProfileService.currentProfile.languageModelsResource;
 		this.updateLanguageModelsConfiguration();
 		// Watch the parent folder for reliable change detection across platforms (especially Windows
 		// where `fs.watch` on individual files can miss in-place writes).

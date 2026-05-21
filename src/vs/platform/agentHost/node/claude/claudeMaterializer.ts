@@ -3,21 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { McpSdkServerConfigWithInstance, Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
+import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { resolveClaudeEffort } from '../../common/claudeModelConfig.js';
+import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import type { ModelSelection } from '../../common/state/protocol/state.js';
+import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentSessionProjectInfo } from '../../common/agentService.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
+import { buildClientToolMcpServer } from './clientTools/claudeClientToolMcpServer.js';
 import { IClaudeProxyHandle } from './claudeProxyService.js';
+import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
+import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 
 /**
  * In-memory record for a provisional Claude session passed into
@@ -32,6 +38,40 @@ export interface IClaudeMaterializeProvisional {
 	readonly abortController: AbortController;
 	readonly project: IAgentSessionProjectInfo | undefined;
 	readonly model: ModelSelection | undefined;
+	/**
+	 * Phase 10 — the workbench-registered client-tool snapshot at
+	 * materialize time (if any). The materializer seeds the session's
+	 * {@link SessionClientToolsDiff.model} from this and uses it to build
+	 * the SDK's initial `Options.mcpServers`.
+	 */
+	readonly clientTools?: readonly ToolDefinition[];
+	/**
+	 * Phase 10 — the workbench `clientId` paired with {@link clientTools}.
+	 * Used by the stream mapper to stamp `SessionToolCallStart.toolClientId`.
+	 */
+	readonly clientId?: string;
+}
+
+/**
+ * Per-session bundle the agent hands to {@link ClaudeMaterializer.materialize}.
+ * Everything the materializer needs to bring a session up AND to rebind
+ * it on yield-restart — the materializer attaches the rematerializer
+ * hook internally using this bundle, so the agent does not own any
+ * SDK / client-tool plumbing.
+ */
+export interface IMaterializeContext {
+	readonly provisional: IClaudeMaterializeProvisional;
+	readonly proxyHandle: IClaudeProxyHandle;
+	readonly canUseTool: NonNullable<Options['canUseTool']>;
+	/**
+	 * Fallback permission mode used when the live read from
+	 * {@link IAgentConfigurationService} returns `undefined` (e.g. the
+	 * session's schema has not been registered yet). The materializer
+	 * reads the live value at materialize / rebind and falls back to
+	 * this value so the SDK never silently downgrades to `'default'`.
+	 */
+	readonly permissionModeFallback: ClaudePermissionMode;
+	readonly isResume: boolean;
 }
 
 /**
@@ -63,26 +103,32 @@ export class ClaudeMaterializer {
 		@IClaudeAgentSdkService private readonly _sdkService: IClaudeAgentSdkService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) { }
 
-	async materialize(
-		provisional: IClaudeMaterializeProvisional,
-		proxyHandle: IClaudeProxyHandle,
-		permissionMode: ClaudePermissionMode,
-		canUseTool: NonNullable<Options['canUseTool']>,
-		startMode: 'fresh' | 'resume' = 'fresh',
-	): Promise<ClaudeAgentSession> {
+	async materialize(ctx: IMaterializeContext): Promise<ClaudeAgentSession> {
+		const { provisional, proxyHandle, canUseTool, isResume, permissionModeFallback } = ctx;
 		if (!provisional.workingDirectory) {
 			throw new Error(`Cannot materialize Claude session ${provisional.sessionId}: workingDirectory is required`);
 		}
 
-		const isResume = startMode === 'resume';
-		const options = await this._buildOptions(provisional, proxyHandle, permissionMode, canUseTool, isResume);
+		// Phase 10 — per-session client-tool plumbing. The MCP server's
+		// `tool()` handler closures capture the SAME registry + diff that
+		// the eventually-owned session holds, so the closures park on the
+		// session's live registry (council finding C1).
+		const pendingClientToolCalls = new PendingRequestRegistry<CallToolResult>();
+		const toolDiff = new SessionClientToolsDiff();
+		toolDiff.model.setTools(provisional.clientTools, provisional.clientId);
+
+		const permissionMode = readClaudePermissionMode(this._configurationService, provisional.sessionUri) ?? permissionModeFallback;
+		const initialMcpServers = await this._buildClientMcpServers(toolDiff, pendingClientToolCalls);
+
+		const options = await this._buildOptions(provisional, proxyHandle, permissionMode, canUseTool, isResume, initialMcpServers);
 
 		// Trace what the SDK gets so live debugging doesn't have to infer
 		// from the absence of a `fileEdit` block whether the edit-tracking
 		// plumbing was wired this session.
-		this._logService.info(`[Claude] session ${provisional.sessionId}: enableFileCheckpointing=${options.enableFileCheckpointing} startMode=${startMode}`);
+		this._logService.info(`[Claude] session ${provisional.sessionId}: enableFileCheckpointing=${options.enableFileCheckpointing} isResume=${isResume}`);
 
 		const warm = await this._sdkService.startup({ options });
 
@@ -101,8 +147,9 @@ export class ClaudeMaterializer {
 		// the session, which disposes the ref ahead of its `WarmQuery`
 		// abort so any in-flight write completes.
 		const dbRef = this._sessionDataService.openDatabase(provisional.sessionUri);
+		let session: ClaudeAgentSession;
 		try {
-			return this._instantiationService.createInstance(
+			session = this._instantiationService.createInstance(
 				ClaudeAgentSession,
 				provisional.sessionId,
 				provisional.sessionUri,
@@ -110,6 +157,9 @@ export class ClaudeMaterializer {
 				warm,
 				provisional.abortController,
 				dbRef,
+				pendingClientToolCalls,
+				toolDiff,
+				permissionModeFallback,
 			);
 		} catch (err) {
 			// Construction failed — own the cleanup so no resource leaks.
@@ -117,6 +167,27 @@ export class ClaudeMaterializer {
 			await warm[Symbol.asyncDispose]();
 			throw err;
 		}
+
+		// Phase 9 — wire the rematerializer so the session can rebind the
+		// SDK on yield-restart (e.g. after a client-tool snapshot change).
+		// The closure captures the ctx so `getPermissionMode` is re-read on
+		// each rebind and any concurrent `SessionConfigChanged` wins.
+		session.attachRematerializer(async (_reason) => {
+			const liveMode = readClaudePermissionMode(this._configurationService, provisional.sessionUri) ?? permissionModeFallback;
+			try {
+				const mcpServers = await this._buildClientMcpServers(session.toolDiff, pendingClientToolCalls);
+				return await this._materializeResume(provisional, proxyHandle, liveMode, canUseTool, mcpServers);
+			} catch (err) {
+				// The client-tool diff was consumed by `_buildClientMcpServers`,
+				// but the rebind never reached a live SDK. Re-mark dirty so the
+				// next send retries with the same snapshot instead of silently
+				// running on the stale server set.
+				session.toolDiff.markDirty();
+				throw err;
+			}
+		});
+
+		return session;
 	}
 
 	/**
@@ -134,18 +205,19 @@ export class ClaudeMaterializer {
 	 * the field via `this`, so swapping `_abortController` post-rebind is
 	 * sufficient).
 	 */
-	async materializeResume(
+	private async _materializeResume(
 		provisional: IClaudeMaterializeProvisional,
 		proxyHandle: IClaudeProxyHandle,
 		permissionMode: ClaudePermissionMode,
 		canUseTool: NonNullable<Options['canUseTool']>,
+		mcpServers: Record<string, McpSdkServerConfigWithInstance> | undefined,
 	): Promise<{ readonly warm: WarmQuery; readonly abortController: AbortController }> {
 		if (!provisional.workingDirectory) {
 			throw new Error(`Cannot materialize Claude session ${provisional.sessionId}: workingDirectory is required`);
 		}
 		const abortController = new AbortController();
 		const resumedProvisional: IClaudeMaterializeProvisional = { ...provisional, abortController };
-		const options = await this._buildOptions(resumedProvisional, proxyHandle, permissionMode, canUseTool, true);
+		const options = await this._buildOptions(resumedProvisional, proxyHandle, permissionMode, canUseTool, true, mcpServers);
 		this._logService.info(`[Claude] session ${provisional.sessionId}: resume rebuild`);
 		const warm = await this._sdkService.startup({ options });
 		return { warm, abortController };
@@ -157,6 +229,7 @@ export class ClaudeMaterializer {
 		permissionMode: ClaudePermissionMode,
 		canUseTool: NonNullable<Options['canUseTool']>,
 		isResume: boolean,
+		mcpServers: Record<string, McpSdkServerConfigWithInstance> | undefined,
 	): Promise<Options> {
 		const subprocessEnv = buildSubprocessEnv();
 		// Settings env: forwarded to the Claude subprocess via the SDK's
@@ -224,11 +297,32 @@ export class ClaudeMaterializer {
 			...(isResume
 				? { resume: provisional.sessionId }
 				: { sessionId: provisional.sessionId }),
+			...(mcpServers ? { mcpServers } : {}),
 			settingSources: ['user', 'project', 'local'],
 			settings: { env: settingsEnv },
 			systemPrompt: { type: 'preset', preset: 'claude_code' },
 			stderr: data => this._logService.error(`[Claude SDK stderr] ${data}`),
 		};
+	}
+
+	/**
+	 * Phase 10 — consume the diff (clears its dirty bit) and build the
+	 * in-process MCP server config from the resulting tool snapshot.
+	 * Resolves to `undefined` when the snapshot is empty so
+	 * `Options.mcpServers` is omitted entirely and the SDK keeps its
+	 * default. If the build throws the diff is re-marked dirty so the
+	 * next sendMessage retries (C6).
+	 */
+	private async _buildClientMcpServers(
+		toolDiff: SessionClientToolsDiff,
+		registry: PendingRequestRegistry<CallToolResult>,
+	): Promise<Record<string, McpSdkServerConfigWithInstance> | undefined> {
+		const { tools } = toolDiff.consume();
+		if (!tools || tools.length === 0) {
+			return undefined;
+		}
+		const server = await buildClientToolMcpServer(tools, id => registry.register(id), this._sdkService);
+		return { client: server };
 	}
 }
 

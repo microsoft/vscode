@@ -128,6 +128,16 @@ npx @playwright/cli snapshot
 - The `--agents` flag launches the Agents workbench instead of the standard VS Code workbench.
 - Set `VSCODE_SKIP_PRELAUNCH=1` to skip the compile step if you've already built.
 
+> **🚨 Driving the Agents window UI is not the same as driving regular Code OSS.**
+> The session sidebar, agent picker, and chat input have their own quirks that
+> trip up the obvious `click + type` patterns. Before you spend time fighting
+> the UI, read **[references/agents-window-guide.md](./references/agents-window-guide.md)**
+> — it covers the agent picker (Copilot CLI vs Claude), `[Local]` vs non-`[Local]`
+> sessions, the reliable keyboard-navigation trick for the agent dropdown, how
+> to send a follow-up turn in the same session, how to restore an existing
+> chat, and the kill / relaunch / verify-out-is-fresh dance you need after a
+> source code change.
+
 ## Launching VS Code Extensions for Debugging
 
 To debug a VS Code extension via npx @playwright/cli, launch VS Code Insiders with `--extensionDevelopmentPath` and `--remote-debugging-port`. Use `--user-data-dir` to avoid conflicting with an already-running instance.

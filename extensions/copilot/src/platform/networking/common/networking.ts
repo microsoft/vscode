@@ -261,15 +261,30 @@ export interface ICreateEndpointBodyOptions extends IMakeChatRequestOptions {
 }
 
 /**
- * Normalized token pricing in AICs per million tokens.
+ * A single tier of normalized token pricing in AICs per million tokens.
  */
-export interface IChatEndpointTokenPricing {
+export interface ITokenPriceTier {
 	/** Cost in AICs per million input tokens */
 	readonly inputPrice: number;
 	/** Cost in AICs per million output tokens */
 	readonly outputPrice: number;
 	/** Cost in AICs per million cached (read) tokens */
 	readonly cacheReadTokenPrice: number;
+}
+
+/**
+ * Normalized token pricing in AICs per million tokens, mirroring the CAPI
+ * tiered structure with explicit `default` and optional `longContext` tiers.
+ */
+export interface IChatEndpointTokenPricing {
+	/** Default-context tier pricing. */
+	readonly default: ITokenPriceTier;
+	/**
+	 * Long-context tier pricing, present only when its rates differ from the
+	 * default tier. When absent the model either has no long-context tier or
+	 * its prices match the default tier.
+	 */
+	readonly longContext?: ITokenPriceTier;
 }
 
 export interface IChatEndpoint extends IEndpoint {
@@ -296,8 +311,8 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly restrictedToSkus?: string[];
 	/**
 	 * Normalized token pricing in AICs per million tokens.
-	 * Computed from the raw billing token_prices by dividing by 1_000_000_000
-	 * and normalizing to per-million-token rates based on batch_size.
+	 * Computed from the raw billing token_prices and normalized
+	 * to per-million-token rates based on batch_size.
 	 */
 	readonly tokenPricing?: IChatEndpointTokenPricing;
 	readonly priceCategory?: string;

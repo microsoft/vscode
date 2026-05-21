@@ -986,7 +986,7 @@ configurationRegistry.registerConfiguration({
 		[AgentHostEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process."),
-			default: product.quality !== 'stable',
+			default: false,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostClaudeAgentSdkPathSettingId]: {
