@@ -62,9 +62,14 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('prebuilds', 'darwin-arm64', 'runtime.node'),
 			path.join('prebuilds', 'darwin-x64', 'icu-native.node'),
 			path.join('prebuilds', 'darwin-x64', 'runtime.node'),
+			path.join('prebuilds', 'linux-arm64', 'icu-native.node'),
 			path.join('prebuilds', 'linux-arm64', 'runtime.node'),
 			path.join('prebuilds', 'linux-x64', 'icu-native.node'),
 			path.join('prebuilds', 'linux-x64', 'runtime.node'),
+			path.join('prebuilds', 'linuxmusl-arm64', 'icu-native.node'),
+			path.join('prebuilds', 'linuxmusl-arm64', 'runtime.node'),
+			path.join('prebuilds', 'linuxmusl-x64', 'icu-native.node'),
+			path.join('prebuilds', 'linuxmusl-x64', 'runtime.node'),
 			path.join('prebuilds', 'win32-arm64', 'icu-native.node'),
 			path.join('prebuilds', 'win32-arm64', 'runtime.node'),
 			path.join('prebuilds', 'win32-arm64', 'win32-native.node'),
@@ -89,6 +94,8 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('ripgrep', 'bin', 'darwin-x64', 'rg'),
 			path.join('ripgrep', 'bin', 'linux-x64', 'rg'),
 			path.join('ripgrep', 'bin', 'linux-arm64', 'rg'),
+			path.join('ripgrep', 'bin', 'linuxmusl-arm64', 'rg'),
+			path.join('ripgrep', 'bin', 'linuxmusl-x64', 'rg'),
 			// sharp related files
 			path.join('sharp', 'node_modules', '@img', 'sharp-wasm32', 'lib', 'sharp-wasm32.node.wasm'),
 			// sharp related files, files copied by us.
@@ -106,6 +113,7 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('pvrecorder', 'node_modules', '@picovoice', 'pvrecorder-node', 'lib', 'windows', 'arm64', 'pv_recorder.node'),
 			// mxc-bin (Windows sandbox + WSL helpers used by the SDK's command execution).
 			path.join('mxc-bin', 'arm64', 'lxc-exec'),
+			path.join('mxc-bin', 'arm64', 'mxc-exec-mac'),
 			path.join('mxc-bin', 'arm64', 'winhttp-proxy-shim.exe'),
 			path.join('mxc-bin', 'arm64', 'wslcsdk.dll'),
 			path.join('mxc-bin', 'arm64', 'wxc-exec.exe'),
@@ -127,7 +135,6 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('mxc-bin', 'x64', '_manifest', 'spdx_2.2', 'manifest.spdx.cose'),
 			// parsing commands for shell.
 			'tree-sitter-bash.wasm',
-			'tree-sitter-powershell.wasm',
 			'tree-sitter.wasm',
 			'tree-sitter-c_sharp.wasm',
 			'tree-sitter-c.wasm',

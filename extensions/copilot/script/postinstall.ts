@@ -114,6 +114,10 @@ async function copyCopilotCliPrebuildFiles() {
 		recursive: true, force: true, filter: (src) => {
 			try {
 				if (fs.statSync(src).isFile()) {
+					const normalizedSrc = src.split(path.sep).join(path.posix.sep);
+					if (normalizedSrc.includes('/prebuilds/linuxmusl-')) {
+						return false;
+					}
 					return src.endsWith('computer.node') || src.endsWith('runtime.node');
 				}
 				return true;
