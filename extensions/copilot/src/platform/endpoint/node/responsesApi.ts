@@ -182,10 +182,9 @@ function hasResponsesApiCompactionTrigger(body: IEndpointBody): boolean {
 function normalizeResponsesApiCompactionTriggerRequestBody(body: IEndpointBody): void {
 	// Codex sends compaction-trigger requests as explicit-history Responses API
 	// inputs. Do not mix the trigger with previous_response_id continuation, and
-	// omit generation/truncation-only controls that are not part of the compaction
-	// request shape.
+	// omit truncation-only controls that are not part of the compaction request
+	// shape.
 	delete body.previous_response_id;
-	delete body.max_output_tokens;
 	delete body.top_logprobs;
 	delete body.truncation;
 }

@@ -77,7 +77,7 @@ suite('Networking test Suite', function () {
 		assert.strictEqual(headerBuffer!['Editor-Version'], `vscode/test-version`);
 	});
 
-	test('strips max_output_tokens from compaction trigger requests before sending', async function () {
+	test('preserves max_output_tokens on compaction trigger requests before sending', async function () {
 		const testingServiceCollection = createPlatformServices();
 		testingServiceCollection.define(IFetcherService, new StaticFetcherService());
 		const accessor = testingServiceCollection.createTestingAccessor();
@@ -95,7 +95,7 @@ suite('Networking test Suite', function () {
 			},
 		});
 
-		assert.strictEqual(bodyBuffer?.max_output_tokens, undefined);
+		assert.strictEqual(bodyBuffer?.max_output_tokens, 4096);
 		assert.strictEqual(bodyBuffer?.previous_response_id, undefined);
 		assert.strictEqual(bodyBuffer?.truncation, undefined);
 	});

@@ -693,7 +693,7 @@ describe('createResponsesRequestBody', () => {
 		}, endpoint.model, endpoint));
 
 		expect(body.input?.at(-1)).toEqual({ type: openAIContextManagementCompactionTriggerType });
-		expect(body).not.toHaveProperty('max_output_tokens');
+		expect(body.max_output_tokens).toBe(4096);
 		expect(body).not.toHaveProperty('top_logprobs');
 		expect(body).not.toHaveProperty('truncation');
 		expect(body).not.toHaveProperty('previous_response_id');

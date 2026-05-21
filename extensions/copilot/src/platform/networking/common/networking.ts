@@ -501,7 +501,6 @@ function sanitizeCompactionTriggerRequestBody(body: IEndpointBody | undefined): 
 	}
 
 	delete body.previous_response_id;
-	delete body.max_output_tokens;
 	delete body.top_logprobs;
 	delete body.truncation;
 }
