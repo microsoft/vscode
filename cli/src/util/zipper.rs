@@ -70,6 +70,11 @@ where
 		let outpath: PathBuf = match file.enclosed_name() {
 			Some(path) => {
 				let relative: PathBuf = path.iter().skip(skip_segments_no).collect();
+				// Skip bare top-level directory entries that become empty once
+				// their single segment has been stripped.
+				if relative.as_os_str().is_empty() {
+					continue;
+				}
 				safe_extract_join(&canonical_root, &relative)?
 			}
 			None => continue,
