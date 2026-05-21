@@ -8,6 +8,7 @@
 
 import type { URI, Snapshot } from './state.js';
 import type { ActionEnvelope, StateAction } from './actions.js';
+import type { TelemetryCapabilities } from '../channels-otlp/state.js';
 
 // ─── BaseParams ──────────────────────────────────────────────────────────────
 
@@ -101,6 +102,16 @@ export interface InitializeResult {
 	 * `'@'` or `'/'`.
 	 */
 	completionTriggerCharacters?: string[];
+	/**
+	 * OTLP telemetry channels the host emits, if any. Each populated field is
+	 * either a literal `ahp-otlp:` channel URI or an RFC 6570 URI template a
+	 * client expands before subscribing (currently only the `logs` channel
+	 * defines a template variable, `{level}`, for subscriber-side severity
+	 * filtering). Clients MAY ignore signals they cannot process.
+	 *
+	 * @see {@link /specification/telemetry-channel | Telemetry Channel}
+	 */
+	telemetry?: TelemetryCapabilities;
 }
 
 // ─── ping ────────────────────────────────────────────────────────────────────
