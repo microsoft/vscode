@@ -567,7 +567,12 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 				host: 'https://github.com',
 				copilotUser: {
 					endpoints: {
-						api: overrideProxyUrl
+						api: overrideProxyUrl,
+						// `proxy` must also point at the mock server so that SDK
+						// calls to /copilot_internal/v2/token and /models/session
+						// are routed to the mock instead of the real GitHub API
+						// (which would reject the fake HMAC with a 401).
+						proxy: overrideProxyUrl,
 					}
 				}
 			};
@@ -600,4 +605,3 @@ export function isEnabledForCopilotCLI(customization: { sessionTypes?: readonly 
 	const sessionTypes = customization.sessionTypes;
 	return sessionTypes === undefined || sessionTypes.includes('copilotcli') || false;
 }
-
