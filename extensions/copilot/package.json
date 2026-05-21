@@ -2263,49 +2263,49 @@
         "icon": "$(chat-sparkle)",
         "title": "%copilot.title%",
         "content": "%github.copilot.viewsWelcome.individual.expired%",
-        "when": "github.copilot.interactiveSession.individual.expired"
+        "when": "github.copilot.interactiveSession.individual.expired && !github.copilot.hasByokModels"
       },
       {
         "icon": "$(chat-sparkle)",
         "title": "%copilot.title%",
         "content": "%github.copilot.viewsWelcome.enterprise%",
-        "when": "github.copilot.interactiveSession.enterprise.disabled"
+        "when": "github.copilot.interactiveSession.enterprise.disabled && !github.copilot.hasByokModels"
       },
       {
         "icon": "$(chat-sparkle)",
         "title": "%copilot.title%",
         "content": "%github.copilot.viewsWelcome.offline%",
-        "when": "github.copilot.offline"
+        "when": "github.copilot.offline && !github.copilot.hasByokModels"
       },
       {
         "icon": "$(chat-sparkle)",
         "title": "%copilot.title%",
         "content": "%github.copilot.viewsWelcome.invalidToken%",
-        "when": "github.copilot.interactiveSession.invalidToken"
+        "when": "github.copilot.interactiveSession.invalidToken && !github.copilot.hasByokModels"
       },
       {
         "icon": "$(chat-sparkle)",
         "title": "%copilot.title%",
         "content": "%github.copilot.viewsWelcome.rateLimited%",
-        "when": "github.copilot.interactiveSession.rateLimited"
+        "when": "github.copilot.interactiveSession.rateLimited && !github.copilot.hasByokModels"
       },
       {
         "icon": "$(chat-sparkle)",
         "title": "%copilot.title%",
         "content": "%github.copilot.viewsWelcome.gitHubLoginFailed%",
-        "when": "github.copilot.interactiveSession.gitHubLoginFailed"
+        "when": "github.copilot.interactiveSession.gitHubLoginFailed && !github.copilot.hasByokModels"
       },
       {
         "icon": "$(chat-sparkle)",
         "title": "%copilot.title%",
         "content": "%github.copilot.viewsWelcome.contactSupport%",
-        "when": "github.copilot.interactiveSession.contactSupport"
+        "when": "github.copilot.interactiveSession.contactSupport && !github.copilot.hasByokModels"
       },
       {
         "icon": "$(chat-sparkle)",
         "title": "%copilot.title%",
         "content": "%github.copilot.viewsWelcome.chatDisabled%",
-        "when": "github.copilot.interactiveSession.chatDisabled"
+        "when": "github.copilot.interactiveSession.chatDisabled && !github.copilot.hasByokModels"
       },
       {
         "icon": "$(chat-sparkle)",
@@ -6885,7 +6885,7 @@
     "@opentelemetry/sdk-trace-node": "^2.5.1",
     "@opentelemetry/semantic-conventions": "^1.39.0",
     "@sinclair/typebox": "^0.34.41",
-    "@vscode/copilot-api": "^0.3.0",
+    "@vscode/copilot-api": "^0.3.1",
     "@vscode/extension-telemetry": "^1.5.1",
     "@vscode/l10n": "^0.0.18",
     "@vscode/prompt-tsx": "^0.4.0-alpha.8",

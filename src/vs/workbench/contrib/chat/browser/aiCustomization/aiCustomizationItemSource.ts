@@ -411,5 +411,44 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 	}
 }
 
+export class PureItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
+
+	readonly onDidChange: Event<void>;
+	private cachedPromise: Promise<readonly IAICustomizationListItem[] | undefined> | undefined;
+
+	constructor(
+		readonly sessionResource: URI,
+		private readonly itemProvider: ICustomizationItemProvider,
+		private readonly itemNormalizer: AICustomizationItemNormalizer,
+	) {
+		super();
+		this.onDidChange = this.itemProvider.onDidChange;
+
+		// Invalidate cache when provider or skills change
+		this._register(this.itemProvider.onDidChange(() => {
+			this.cachedPromise = undefined;
+		}));
+	}
+
+
+	async fetchItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		// Use cached result if available
+		if (!this.cachedPromise) {
+			this.cachedPromise = this.itemProvider.provideChatSessionCustomizations(this.sessionResource, CancellationToken.None).then(items =>
+				items ? this.itemNormalizer.normalizeItems(items, promptType) : undefined
+			);
+		}
+		const cached = this.cachedPromise;
+		const allItems = await cached;
+		if (cached !== this.cachedPromise || !allItems) {
+			return [];
+		}
+		return allItems.filter(item => item.promptType === promptType);
+	}
+
+
+}
+
+
 
 // #endregion

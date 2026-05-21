@@ -842,6 +842,14 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 				return;
 			}
 
+			const folder = this.sessionWorkspace.folders[0];
+			const baseGitRepo: ISessionGitRepository = folder.gitRepository ?? {
+				uri: folder.root,
+				workTreeUri: undefined,
+				baseBranchName: undefined,
+				gitHubInfo: constObservable(undefined),
+			};
+
 			this._register(autorun((reader) => {
 				const state = repo.state.read(reader);
 				const head = state.HEAD;
@@ -854,9 +862,9 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 				this._workspaceData.set({
 					...this.sessionWorkspace,
 					folders: [{
-						...this.sessionWorkspace.folders[0],
+						...folder,
 						gitRepository: {
-							...this.sessionWorkspace.folders[0].gitRepository!,
+							...baseGitRepo,
 							branchName,
 							upstreamBranchName,
 							uncommittedChanges,
@@ -1728,21 +1736,16 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	// -- Session Lifecycle --
 
-	private _currentNewSession: NewSession | undefined;
+	private readonly _currentNewSession = this._register(new MutableDisposable<NewSession>());
 
 	getSession(sessionId: string): ICopilotChatSession | undefined {
-		if (this._currentNewSession?.id === sessionId) {
-			return this._currentNewSession;
+		if (this._currentNewSession.value?.id === sessionId) {
+			return this._currentNewSession.value;
 		}
 		return this._findChatSession(sessionId);
 	}
 
 	createNewSession(workspaceUri: URI, sessionTypeId: string): ISession {
-		if (this._currentNewSession) {
-			this._currentNewSession.dispose();
-			this._currentNewSession = undefined;
-		}
-
 		const workspace = this.resolveWorkspace(workspaceUri);
 		if (!workspace) {
 			throw new Error(`Cannot resolve workspace for URI: ${workspaceUri.toString()}`);
@@ -1754,20 +1757,21 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			}
 			const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: `/untitled-${generateUuid()}` });
 			const session = this.instantiationService.createInstance(RemoteNewSession, resource, workspace, AgentSessionProviders.Cloud, this.id);
-			this._currentNewSession = session;
+			this._currentNewSession.value = session;
 			return this._chatToSession(session);
 		}
 
 		if (sessionTypeId === ClaudeCodeSessionType.id) {
 			const resource = URI.from({ scheme: AgentSessionProviders.Claude, path: `/untitled-${generateUuid()}` });
 			const session = this.instantiationService.createInstance(ClaudeCodeNewSession, resource, workspace, this.id);
-			this._currentNewSession = session;
+			this._currentNewSession.value = session;
 			return this._chatToSession(session);
 		}
 
 		if (sessionTypeId === LocalSessionType.id) {
 			const session = this.instantiationService.createInstance(LocalNewSession, workspace, this.id);
-			this._currentNewSession = session;
+			session.setPermissionLevel(this._defaultPermissionLevel());
+			this._currentNewSession.value = session;
 			return this._chatToSession(session);
 		}
 
@@ -1776,13 +1780,28 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: `/untitled-${generateUuid()}` });
 		const session = this.instantiationService.createInstance(CopilotCLISession, resource, workspace, this.id);
-		this._currentNewSession = session;
+		session.setPermissionLevel(this._defaultPermissionLevel());
+		this._currentNewSession.value = session;
 		return this._chatToSession(session);
 	}
 
+	/**
+	 * Resolves the initial permission level for a brand-new session from
+	 * `chat.permissions.default`, clamped to `Default` when enterprise policy
+	 * disables global auto-approval.
+	 */
+	private _defaultPermissionLevel(): ChatPermissionLevel {
+		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		if (policyRestricted) {
+			return ChatPermissionLevel.Default;
+		}
+		const level = this.configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
+		return isChatPermissionLevel(level) ? level : ChatPermissionLevel.Default;
+	}
+
 	setModel(sessionId: string, modelId: string): void {
-		if (this._currentNewSession?.id === sessionId) {
-			this._currentNewSession.setModelId(modelId);
+		if (this._currentNewSession.value?.id === sessionId) {
+			this._currentNewSession.value.setModelId(modelId);
 			return;
 		}
 
@@ -1924,9 +1943,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				const key = chat.resource.toString();
 				this._sessionCache.delete(key);
 				this._invalidateGroupingCaches();
-				if (this._currentNewSession?.id === chatId) {
-					this._currentNewSession.dispose();
-					this._currentNewSession = undefined;
+				if (this._currentNewSession.value?.id === chatId) {
+					this._currentNewSession.clear();
 				}
 			}
 			this._sessionGroupCache.delete(sessionId);
@@ -1958,7 +1976,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	async sendAndCreateChat(sessionId: string, options: ISendRequestOptions): Promise<ISession> {
 		// Determine if this is the first chat or a subsequent chat
-		const session = this._currentNewSession;
+		const session = this._currentNewSession.value;
 		if (session && session.id === sessionId) {
 			// First chat — use the existing new-session flow
 			return this._sendFirstChat(session, options);
@@ -2106,8 +2124,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			// Remove the temp from the cache (the adapter now owns the committed key)
 			this._sessionCache.delete(key);
-			this._currentNewSession = undefined;
-			session.dispose();
+			this._currentNewSession.clear();
 
 			const committedSession = this._chatToSession(committedChat);
 
@@ -2117,7 +2134,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			return committedSession;
 		} catch (error) {
-			this._currentNewSession = undefined;
+			this._currentNewSession.clearAndLeak();
 
 			if (error instanceof CancellationError) {
 				// Session was stopped before the agent created a worktree.
@@ -2187,7 +2204,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const key = session.resource.toString();
 		this._sessionCache.set(key, session);
 		this._invalidateGroupingCaches();
-		this._currentNewSession = undefined;
+		this._currentNewSession.clearAndLeak();
 		const newSession = this._chatToSession(session);
 		this._onDidChangeSessions.fire({ added: [newSession], removed: [], changed: [] });
 
@@ -2277,8 +2294,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			// Clean up temp session and replace with the real adapter
 			this._sessionCache.delete(tempKey);
-			this._currentNewSession = undefined;
-			session.dispose();
+			this._currentNewSession.clear();
 
 			const committedSession = this._chatToSession(committedChat);
 			this._sessionGroupCache.delete(session.id);
@@ -2286,7 +2302,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			return committedSession;
 		} catch (error) {
-			this._currentNewSession = undefined;
+			this._currentNewSession.clearAndLeak();
 
 			if (error instanceof CancellationError) {
 				// Keep the temp session visible so the user can review
@@ -2347,8 +2363,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	private async _sendSubsequentChat(sessionId: string, options: ISendRequestOptions): Promise<ISession> {
 		// Reuse a chat that was pre-created by addChat(), otherwise create one
 		let newChatSession: CopilotCLISession;
-		if (this._currentNewSession && this._getGroupIdForChat(this._currentNewSession) === sessionId) {
-			newChatSession = this._currentNewSession as CopilotCLISession;
+		const current = this._currentNewSession.value;
+		if (current && this._getGroupIdForChat(current) === sessionId) {
+			newChatSession = current as CopilotCLISession;
 		} else {
 			newChatSession = this._createNewSessionFrom(sessionId);
 			newChatSession.setTitle(localize('new chat', "New Chat"));
@@ -2432,8 +2449,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			// Clean up temp
 			this._sessionCache.delete(key);
 			this._invalidateGroupingCaches();
-			this._currentNewSession = undefined;
-			newChatSession.dispose();
+			this._currentNewSession.clear();
 
 			// Invalidate the session group cache so it rebuilds with the committed chat
 			this._sessionGroupCache.delete(sessionId);
@@ -2443,7 +2459,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			return updatedSession;
 		} catch (error) {
-			this._currentNewSession = undefined;
+			this._currentNewSession.clearAndLeak();
 
 			if (error instanceof CancellationError) {
 				// Cancelled before commit — keep the chat in the group so the
@@ -2502,11 +2518,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			throw new Error('Workspace has no folder');
 		}
 
-		if (this._currentNewSession) {
-			this._currentNewSession.dispose();
-			this._currentNewSession = undefined;
-		}
-
 		const newWorkspace = this.resolveWorkspace(folder.workingDirectory);
 		if (!newWorkspace) {
 			throw new Error(`Cannot resolve workspace for working directory URI: ${folder.workingDirectory.toString()}`);
@@ -2516,10 +2527,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		session.setModelId(chat.modelId.get());
 		session.setIsolationMode('workspace');
 		session.setOption(PARENT_SESSION_OPTION_ID, chat.resource.path.slice(1));
-		const level = this.configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
-		const permissionLevel = isChatPermissionLevel(level) ? level : ChatPermissionLevel.Default;
-		session.setPermissionLevel(permissionLevel);
-		this._currentNewSession = session;
+		session.setPermissionLevel(this._defaultPermissionLevel());
+		this._currentNewSession.value = session;
 		return session;
 	}
 
@@ -2821,8 +2830,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._sessionCache.delete(key);
 		this._invalidateGroupingCaches();
 		this._sessionGroupCache.delete(chatSession.id);
-		if (this._currentNewSession?.id === chatSession.id) {
-			this._currentNewSession = undefined;
+		if (this._currentNewSession.value?.id === chatSession.id) {
+			this._currentNewSession.clearAndLeak();
 		}
 		const removedSession = this._chatToSession(chatSession);
 		this._sessionGroupCache.delete(chatSession.id);
