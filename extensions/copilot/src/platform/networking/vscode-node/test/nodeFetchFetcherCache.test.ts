@@ -17,7 +17,7 @@ suite('NodeFetchFetcher cache - integration', function () {
 	let fetcher: IFetcherService;
 
 	suiteSetup(async function () {
-		if (typeof (globalThis as any).__vscodeCreateFetchPatch !== 'function') {
+		if (typeof (globalThis as { __vscodeCreateFetchPatch?: unknown }).__vscodeCreateFetchPatch !== 'function') {
 			this.skip();
 		}
 
