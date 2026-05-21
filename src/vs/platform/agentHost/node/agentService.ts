@@ -496,7 +496,11 @@ export class AgentService extends Disposable implements IAgentService {
 				if (customizations.length === 0) {
 					return;
 				}
-				this._stateManager.dispatchServerAction(session.toString(), {
+				const sessionKey = session.toString();
+				if (!this._stateManager.getSessionState(sessionKey)) {
+					return;
+				}
+				this._stateManager.dispatchServerAction(sessionKey, {
 					type: ActionType.SessionCustomizationsChanged,
 					customizations: [...customizations],
 				});
