@@ -18,6 +18,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogger, ILoggerService, ILogService, NullLogger, NullLogService } from '../../../../../platform/log/common/log.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpAllowListService, McpAllowListState } from '../../../../../platform/mcp/common/mcpAllowListService.js';
 import { IMcpSandboxConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
@@ -212,6 +213,7 @@ suite('Workbench - MCP - Registry', () => {
 			[IDialogService, testDialogService],
 			[IMcpSandboxService, testMcpSandboxService],
 			[IProductService, {}],
+			[IMcpAllowListService, { state: McpAllowListState.NotApplicable, waitForReady: () => Promise.resolve(), isAllowed: () => true }],
 		);
 
 		logger = new NullLogger();

@@ -64,7 +64,7 @@ function getOrderedRemotes(repositoryState: GitRepositoryState): readonly GitRem
 	return Array.from(remotes.values());
 }
 
-function parseRemoteUrl(fetchUrl: string): { host: string; rawHost: string; path: string } | undefined {
+export function parseRemoteUrl(fetchUrl: string): { host: string; rawHost: string; path: string } | undefined {
 	fetchUrl = fetchUrl.trim();
 	try {
 		// Normalize git shorthand syntax (git@github.com:user/repo.git) into an explicit ssh:// url

@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { importAMDNodeModule } from '../../../../amdX.js';
 import { assertNever } from '../../../../base/common/assert.js';
+import { raceTimeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -20,6 +22,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IMcpAllowListService, McpAllowListState } from '../../../../platform/mcp/common/mcpAllowListService.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -35,7 +38,7 @@ import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { IMcpSandboxService } from './mcpSandboxService.js';
 import { McpServerConnection } from './mcpServerConnection.js';
-import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpServerTrust, McpStartServerInteraction, UserInteractionRequiredError } from './mcpTypes.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, McpStartServerInteraction, UserInteractionRequiredError } from './mcpTypes.js';
 
 const notTrustedNonce = '__vscode_not_trusted';
 
@@ -90,6 +93,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		@IMcpSandboxService private readonly _mcpSandboxService: IMcpSandboxService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IMcpAllowListService private readonly _mcpAllowlistService: IMcpAllowListService,
 	) {
 		super();
 		this._mcpAccessValue = observableConfigValue(mcpAccessConfig, McpAccessValue.All, configurationService);
@@ -502,6 +506,19 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			throw new Error('No delegate found that can handle the connection');
 		}
 
+		// Enterprise allowlist gate: wait for allowlist data and check if server is permitted
+		const allowlistResult = await this._checkAllowlist(definition);
+		if (allowlistResult !== true) {
+			if (opts.errorOnUserInteraction) {
+				throw new UserInteractionRequiredError('allowlist');
+			}
+			this._notificationService.notify({
+				severity: Severity.Warning,
+				message: allowlistResult.value,
+			});
+			return undefined;
+		}
+
 		const trusted = await this._checkTrust(collection, definition, opts);
 		interaction?.participants.set(definition.id, { s: 'resolved' });
 		if (!trusted) {
@@ -561,5 +578,71 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			opts.errorOnUserInteraction,
 			opts.taskManager,
 		);
+	}
+
+	/**
+	 * Checks the enterprise MCP allowlist. Waits for the allowlist to be ready,
+	 * then computes the server fingerprint and verifies it against the allowlist.
+	 */
+	private async _checkAllowlist(definition: McpServerDefinition): Promise<true | IMarkdownString> {
+		if (this._mcpAllowlistService.state === McpAllowListState.NotApplicable) {
+			return true;
+		}
+
+		if (this._mcpAllowlistService.state === McpAllowListState.Loading) {
+			await raceTimeout(this._mcpAllowlistService.waitForReady(), 10_000);
+		}
+
+		const fingerprint = await this._computeServerFingerprint(definition);
+		if (!fingerprint) {
+			if (this._mcpAllowlistService.state === McpAllowListState.Ready) {
+				return new MarkdownString(localize('mcp.allowlist.noFingerprint', "Cannot verify this MCP server against your organization's policy because its identity could not be determined."));
+			} else {
+				return true;
+			}
+		}
+
+		return this._mcpAllowlistService.isAllowed(fingerprint);
+	}
+
+	/**
+	 * Computes a fingerprint for a server definition using @github/mcp-registry SDK types.
+	 * Bridges VS Code's McpServerLaunch to the SDK's ServerIdentity.
+	 */
+	private async _computeServerFingerprint(definition: McpServerDefinition): Promise<string | undefined> {
+		const launch = definition.launch;
+		if (!launch) {
+			return undefined;
+		}
+
+		try {
+			// Dynamic import to avoid loading the SDK when enterprise is not active
+			const { computeFingerprint, commandToRegistryType } = await importAMDNodeModule<typeof import('@github/mcp-registry')>('@github/mcp-registry', 'dist/index.js');
+
+			if (launch.type === McpServerTransportType.Stdio) {
+				const registryType = commandToRegistryType(launch.command);
+				if (registryType && launch.args.length > 0) {
+					return computeFingerprint({
+						packages: [{
+							registryType,
+							identifier: launch.args[0],
+						}],
+					});
+				}
+			} else if (launch.type === McpServerTransportType.HTTP) {
+				return computeFingerprint({
+					remotes: [{
+						url: launch.uri.toString(),
+						headerNames: launch.headers.length > 0
+							? launch.headers.map(h => h[0])
+							: undefined,
+					}],
+				});
+			}
+		} catch (error) {
+			this._logService.debug('[McpRegistry] Failed to compute fingerprint:', error);
+		}
+
+		return undefined;
 	}
 }
