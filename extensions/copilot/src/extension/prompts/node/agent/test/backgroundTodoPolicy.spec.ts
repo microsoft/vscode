@@ -366,6 +366,27 @@ describe('BackgroundTodoProcessor.shouldRun (policy)', () => {
 		expect(result.reason).toBe('initialActivity');
 	});
 
+	test('new turns reset initial backoff during policy evaluation', async () => {
+		const processor = new BackgroundTodoProcessor();
+		const firstTurnRounds = Array.from({ length: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD }, (_, i) => makeContextRound(`turn-1-r${i}`));
+		const firstTurnDecision = processor.shouldRun(makeInput({
+			promptContext: makePromptContext({ toolCallRounds: firstTurnRounds }),
+			turnId: 'turn-1',
+		}));
+		expect(firstTurnDecision.decision).toBe(BackgroundTodoDecision.Run);
+
+		processor.start(firstTurnDecision.delta!, async () => ({ outcome: 'noop' }));
+		await processor.waitForCompletion();
+
+		const secondTurnRounds = Array.from({ length: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD }, (_, i) => makeContextRound(`turn-2-r${i}`));
+		const secondTurnDecision = processor.shouldRun(makeInput({
+			promptContext: makePromptContext({ toolCallRounds: secondTurnRounds }),
+			turnId: 'turn-2',
+		}));
+		expect(secondTurnDecision.decision).toBe(BackgroundTodoDecision.Run);
+		expect(secondTurnDecision.reason).toBe('initialActivity');
+	});
+
 	test('threshold is capped at MAX_INITIAL_BACKOFF_THRESHOLD and agent still monitors', async () => {
 		const processor = new BackgroundTodoProcessor();
 

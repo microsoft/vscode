@@ -85,6 +85,8 @@ export interface IBackgroundTodoPolicyInput {
 	readonly isAgentPrompt: boolean;
 	/** The current prompt context for delta computation. */
 	readonly promptContext: IBuildPromptContext;
+	/** ID of the current user turn, used to reset turn-scoped policy backoff. */
+	readonly turnId?: string;
 	/** Whether a todo list already exists for this session. `undefined` means unknown. */
 	readonly todoListExists?: boolean;
 }
@@ -156,9 +158,7 @@ export class BackgroundTodoProcessor {
 	/** Number of consecutive no-op passes that completed while no todos had been
 	 *  created yet.  Used to back off the initial-branch firing threshold. */
 	private _consecutiveInitialNoops: number = 0;
-	/** Turn ID from the most recent {@link requestRegularPass} call.  When
-	 *  the turn changes, per-turn state like `_consecutiveInitialNoops` is
-	 *  reset so a new user message starts with a fresh policy evaluation. */
+	/** Turn ID most recently observed by policy evaluation or direct regular-pass queueing. */
 	private _lastSeenTurnId: string | undefined;
 
 	// ── Two-slot queue ──────────────────────────────────────────
@@ -176,15 +176,6 @@ export class BackgroundTodoProcessor {
 	/** Turn ID for which final review has already been attempted/queued.
 	 *  Prevents duplicate finalize passes within a single turn. */
 	private _finalReviewAttemptedTurnId: string | undefined;
-	/** The most recent execution context from any {@link requestRegularPass}
-	 *  call.  Used by {@link requestFinalReview} to build the synthetic
-	 *  final-review delta when no explicit context is provided. */
-	private _lastExecutionContext: IBackgroundTodoExecutionContext | undefined;
-	/** Turn ID associated with {@link _lastExecutionContext}.  Used by
-	 *  {@link requestFinalReview} to skip when the execution context is
-	 *  stale (from a previous turn with no new activity this turn). */
-	private _lastExecutionContextTurnId: string | undefined;
-
 	readonly deltaTracker = new BackgroundTodoDeltaTracker();
 
 	constructor(
@@ -206,6 +197,8 @@ export class BackgroundTodoProcessor {
 	 * Callers supply only the external context they already have.
 	 */
 	shouldRun(input: IBackgroundTodoPolicyInput): IBackgroundTodoDecisionResult {
+		this._resetInitialBackoffForTurn(input.turnId);
+
 		// ── Hard gates ────────────────────────────────────────────
 		if (input.todoToolExplicitlyEnabled) {
 			return { decision: BackgroundTodoDecision.Skip, reason: 'todoToolExplicitlyEnabled' };
@@ -276,15 +269,22 @@ export class BackgroundTodoProcessor {
 		return { decision: BackgroundTodoDecision.Wait, reason: 'belowThreshold', delta };
 	}
 
+	private _resetInitialBackoffForTurn(turnId: string | undefined): void {
+		if (turnId !== undefined && turnId !== this._lastSeenTurnId) {
+			this._consecutiveInitialNoops = 0;
+			this._lastSeenTurnId = turnId;
+		}
+	}
+
 	// ── Public queue API ────────────────────────────────────────
 
 	/**
 	 * Enqueue or coalesce a regular background pass. If a pass is already
 	 * running, the delta is stashed and will drain when the current pass
-	 * completes.  Always updates {@link _lastExecutionContext}.
+	 * completes.
 	 *
-	 * @param turnId  The ID of the turn that triggered this pass.  Used by
-	 *                {@link requestFinalReview} to detect stale contexts.
+	 * @param turnId The ID of the turn that triggered this pass. Kept for direct
+	 * queueing callers that do not evaluate {@link shouldRun} first.
 	 */
 	requestRegularPass(
 		delta: IBackgroundTodoDelta,
@@ -292,13 +292,7 @@ export class BackgroundTodoProcessor {
 		parentToken?: CancellationToken,
 		turnId?: string,
 	): void {
-		// Reset per-turn state when a new turn is detected.
-		if (turnId !== undefined && turnId !== this._lastSeenTurnId) {
-			this._consecutiveInitialNoops = 0;
-			this._lastSeenTurnId = turnId;
-		}
-		this._lastExecutionContext = context;
-		this._lastExecutionContextTurnId = turnId;
+		this._resetInitialBackoffForTurn(turnId);
 		this._logService?.debug(`[BackgroundTodo] requestRegularPass — newRounds=${delta.metadata.newRoundCount}, substantive=${delta.metadata.substantiveToolCallCount}, state=${this._state}, turnId=${turnId}`);
 		this._pendingRegularDelta = delta;
 		this._pendingRegularContext = context;
@@ -312,19 +306,12 @@ export class BackgroundTodoProcessor {
 	 * the processor is currently Idle, InProgress, or Failed.
 	 *
 	 * No-op when:
-	 * - No execution context has been recorded (no prompt build happened).
 	 * - No todos have been created yet (nothing to finalize).
 	 * - Final review was already requested for the given {@link turnId}.
 	 */
-	requestFinalReview(turnId: string, parentToken?: CancellationToken): void {
-		if (!this._hasCreatedTodos || !this._lastExecutionContext) {
-			this._logService?.debug(`[BackgroundTodo] final review skipped — hasCreatedTodos=${this._hasCreatedTodos}, hasExecutionContext=${this._lastExecutionContext !== undefined}`);
-			return;
-		}
-		// Skip if the execution context is from a different turn — no bg todo
-		// work happened this turn, so there is nothing new to finalize.
-		if (this._lastExecutionContextTurnId !== undefined && this._lastExecutionContextTurnId !== turnId) {
-			this._logService?.debug(`[BackgroundTodo] final review skipped — execution context is from turn ${this._lastExecutionContextTurnId}, not current turn ${turnId}`);
+	requestFinalReview(turnId: string, context: IBackgroundTodoExecutionContext, parentToken?: CancellationToken): void {
+		if (!this._hasCreatedTodos) {
+			this._logService?.debug('[BackgroundTodo] final review skipped - no todos have been created');
 			return;
 		}
 		if (this._finalReviewAttemptedTurnId === turnId) {
@@ -334,7 +321,7 @@ export class BackgroundTodoProcessor {
 		this._finalReviewAttemptedTurnId = turnId;
 		this._logService?.debug(`[BackgroundTodo] final review requested for turn ${turnId} — currentState=${this._state}`);
 
-		this._pendingFinalReview = { ...this._lastExecutionContext, isFinalReview: true };
+		this._pendingFinalReview = { ...context, isFinalReview: true };
 		this._pendingFinalReviewToken = parentToken;
 		this._drainQueue();
 	}
@@ -804,8 +791,6 @@ export class BackgroundTodoProcessor {
 		this._pendingRegularAdvanceCursor = true;
 		this._pendingFinalReview = undefined;
 		this._pendingFinalReviewToken = undefined;
-		this._lastExecutionContext = undefined;
-		this._lastExecutionContextTurnId = undefined;
 		this._lastSeenTurnId = undefined;
 		this._finalReviewAttemptedTurnId = undefined;
 	}
