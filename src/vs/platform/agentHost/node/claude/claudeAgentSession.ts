@@ -352,7 +352,7 @@ export class ClaudeAgentSession extends Disposable {
 	 *   so this is free when nothing changed.
 	 *
 	 * Model / effort are not threaded through here — the pipeline's current
-	 * model / effort (set eagerly via {@link queueModelChange}) is whatever
+	 * model / effort (set eagerly via {@link setModel}) is whatever
 	 * the SDK has been told.
 	 */
 	async send(prompt: SDKUserMessage, turnId: string): Promise<void> {

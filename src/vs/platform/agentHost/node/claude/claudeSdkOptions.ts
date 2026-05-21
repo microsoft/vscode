@@ -35,11 +35,16 @@ export interface IBuildOptionsInput {
 }
 
 /**
- * Build the SDK {@link Options} bag for a Claude session startup. Pure
- * over its inputs except for the unavoidable `await rgDiskPath()` (which
- * is itself memoized inside the ripgrep helper). The returned options
- * carry the caller-supplied `abortController` so a racing dispose
- * unwinds `sdk.startup()` cleanly.
+ * Build the SDK {@link Options} bag for a Claude session startup.
+ * Deterministic over its declared inputs plus three ambient reads:
+ *   1. `process.env.PATH` (composed into `Options.settings.env.PATH`
+ *      so ripgrep wins over any system install),
+ *   2. `process.env` keys via {@link buildSubprocessEnv} (used to
+ *      strip `VSCODE_*` / `ELECTRON_*` / `NODE_OPTIONS` /
+ *      `ANTHROPIC_API_KEY` from the spawn env),
+ *   3. the memoized `rgDiskPath()` lookup.
+ * The returned options carry the caller-supplied `abortController` so a
+ * racing dispose unwinds `sdk.startup()` cleanly.
  *
  * Used by both the initial materialize and the yield-restart rematerialize
  * — both call sites pass a freshly-built `mcpServers` snapshot consumed
