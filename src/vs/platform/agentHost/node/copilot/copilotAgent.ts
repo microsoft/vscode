@@ -313,7 +313,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async getSessionCustomizations(session: URI): Promise<readonly SessionCustomization[]> {
-		return this._plugins.getSessionCustomizations(await this._getSessionCustomizationDirectory(session));
+		return this._plugins.getSessionCustomizationsSettled(await this._getSessionCustomizationDirectory(session));
 	}
 
 	private async _getSessionCustomizationDirectory(session: URI): Promise<URI | undefined> {
@@ -1947,6 +1947,32 @@ class PluginController extends Disposable {
 			result.push(this._applyEnablement(sessionResolved.customization));
 		}
 		return result;
+	}
+
+	/**
+	 * Settled variant of {@link getSessionCustomizations}: awaits the
+	 * in-flight host sync, the in-flight client sync, and (when a directory
+	 * is supplied) the session-discovered entry's initial scan + parse
+	 * before snapshotting the customization list.
+	 *
+	 * Callers that publish customizations into session state at session
+	 * creation time MUST use this — the synchronous variant can return an
+	 * empty list for a brand-new working directory because
+	 * {@link SessionDiscoveredEntry} kicks off its `_refresh()` in its
+	 * constructor without anyone awaiting it.
+	 */
+	public async getSessionCustomizationsSettled(directory: URI | undefined): Promise<readonly SessionCustomization[]> {
+		const entry = directory ? this._getOrCreateSessionEntry(directory) : undefined;
+		await Promise.all([
+			this._hostSync.catch(err => {
+				this._logService.warn('[Copilot:PluginController] Host customization update failed', err);
+			}),
+			this._clientSync.catch(err => {
+				this._logService.warn('[Copilot:PluginController] Customization sync failed', err);
+			}),
+			entry?.whenSettled(),
+		]);
+		return this.getSessionCustomizations(directory);
 	}
 
 	/**
