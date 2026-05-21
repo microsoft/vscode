@@ -10,6 +10,9 @@ import * as path from 'path';
 import { Application, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 
+const COPILOT_CLI_SCENARIO_ID = 'smoke-editor-copilot-cli';
+const COPILOT_CLI_REPLY = 'MOCKED_EDITOR_COPILOT_CLI_RESPONSE';
+
 const failureMarkers = [
 	'Authorization failed',
 	'sign in to GitHub',
@@ -19,6 +22,26 @@ const failureMarkers = [
 	'Cannot find module',
 ];
 
+interface MockLlmServer {
+	readonly url: string;
+	requestCount(): number;
+	close(): Promise<void>;
+}
+
+function buildCopilotChatToken(mockUrl: string): string {
+	return Buffer.from(JSON.stringify({
+		token: 'smoketest-fake-token',
+		expires_at: Math.floor(Date.now() / 1000) + 3600,
+		refresh_in: 1800,
+		sku: 'free_limited_copilot',
+		individual: true,
+		isNoAuthUser: true,
+		copilot_plan: 'free',
+		organization_login_list: [],
+		endpoints: { api: mockUrl, proxy: mockUrl },
+	})).toString('base64');
+}
+
 export function setup(logger: Logger, opts: { web?: boolean; remote?: boolean }) {
 	const enabled = process.env.COPILOT_CLI_UI_SMOKE === '1' && !opts.web && !opts.remote;
 
@@ -26,29 +49,71 @@ export function setup(logger: Logger, opts: { web?: boolean; remote?: boolean })
 		this.timeout(3 * 60 * 1000);
 		this.retries(0);
 
-		installAllHandlers(logger);
+		let mockServer: MockLlmServer;
+
+		before(async function () {
+			const mockLlmServerPath = path.join(
+				__dirname, '..', '..', '..', '..', '..', 'scripts', 'chat-simulation', 'common', 'mock-llm-server.js'
+			);
+			const { startServer, ScenarioBuilder, registerScenario } = require(mockLlmServerPath);
+
+			registerScenario('text-only', new ScenarioBuilder().emit('OK').build());
+			registerScenario(COPILOT_CLI_SCENARIO_ID, new ScenarioBuilder().emit(COPILOT_CLI_REPLY).build());
+
+			mockServer = await startServer(0);
+			logger.log(`Copilot CLI mock LLM server started at ${mockServer.url}`);
+		});
+
+		installAllHandlers(logger, opts => ({
+			...opts,
+			extraEnv: {
+				...(opts.extraEnv ?? {}),
+				GITHUB_PAT: 'smoketest-fake-pat',
+				IS_SCENARIO_AUTOMATION: '1',
+				VSCODE_COPILOT_CHAT_TOKEN: mockServer ? buildCopilotChatToken(mockServer.url) : undefined,
+			},
+		}));
+
+		before(async function () {
+			const app = this.app as Application;
+			await app.workbench.settingsEditor.addUserSettings([
+				['github.copilot.advanced.debug.overrideProxyUrl', JSON.stringify(mockServer.url)],
+				['github.copilot.advanced.debug.overrideCapiUrl', JSON.stringify(mockServer.url)],
+				['chat.allowAnonymousAccess', 'true'],
+				['github.copilot.chat.githubMcpServer.enabled', 'false'],
+				['chat.mcp.discovery.enabled', 'false'],
+				['chat.mcp.enabled', 'false'],
+			]);
+		});
+
+		after(async function () {
+			await mockServer?.close();
+		});
 
 		it('opens a Copilot CLI session and receives a response', async function () {
 			const app = this.app as Application;
+			const requestsBefore = mockServer.requestCount();
 
 			try {
 				await app.workbench.quickaccess.runCommand('smoketest.openCopilotCliChat');
 				await app.workbench.chat.waitForChatEditor(600);
-				await app.workbench.chat.sendMessage('Reply with one short sentence. Do not run tools or edit files.', 'editor');
+				await app.workbench.chat.sendMessage(`Reply with one short sentence. Do not run tools or edit files. [scenario:${COPILOT_CLI_SCENARIO_ID}]`, 'editor');
 				await app.workbench.chat.waitForResponse(1500, 'editor');
 			} catch (error) {
-				const diagnostics = await getCopilotCliDiagnostics(app);
+				const diagnostics = await getCopilotCliDiagnostics(app, mockServer);
 				throw new Error(`Copilot CLI smoke test failed: ${diagnostics.summary}\n\nOriginal UI wait failure:\n${formatError(error)}\n\n${diagnostics.details}`);
 			}
 
 			const responseText = (await app.workbench.chat.getLatestResponseText('editor')).trim();
-			const diagnostics = responseText.length > 0 ? undefined : await getCopilotCliDiagnostics(app);
+			const diagnostics = responseText.length > 0 ? undefined : await getCopilotCliDiagnostics(app, mockServer);
 			assert.ok(responseText.length > 0, `Expected Copilot CLI to produce a non-empty response.${diagnostics ? `\nLikely cause: ${diagnostics.summary}\n\n${diagnostics.details}` : ''}`);
+			assert.ok(responseText.includes(COPILOT_CLI_REPLY), `Expected Copilot CLI response to include mocked scenario response "${COPILOT_CLI_REPLY}".\n\nResponse:\n${responseText}`);
+			assert.ok(mockServer.requestCount() > requestsBefore, 'Expected the mock LLM server to receive a request from the Copilot CLI editor session');
 
 			const normalizedResponse = responseText.toLowerCase();
 			const matchedFailureMarker = failureMarkers.find(marker => normalizedResponse.includes(marker.toLowerCase()));
 			if (matchedFailureMarker) {
-				const diagnostics = await getCopilotCliDiagnostics(app);
+				const diagnostics = await getCopilotCliDiagnostics(app, mockServer);
 				assert.fail(`Copilot CLI response contained failure marker "${matchedFailureMarker}". Likely cause: ${diagnostics.summary}\n\nResponse:\n${responseText}\n\n${diagnostics.details}`);
 			}
 		});
@@ -60,7 +125,7 @@ interface CopilotCliDiagnostics {
 	readonly details: string;
 }
 
-async function getCopilotCliDiagnostics(app: Application): Promise<CopilotCliDiagnostics> {
+async function getCopilotCliDiagnostics(app: Application, mockServer?: MockLlmServer): Promise<CopilotCliDiagnostics> {
 	const logs = await app.code.driver.getLogs();
 	const copilotChatLog = findNewestLog(logs, 'GitHub Copilot Chat.log');
 	const extensionHostLog = findNewestLog(logs, 'exthost.log');
@@ -77,9 +142,8 @@ async function getCopilotCliDiagnostics(app: Application): Promise<CopilotCliDia
 		summary: summarizeCopilotCliFailure(combinedDiagnostics),
 		details: [
 			'Copilot CLI diagnostics:',
-			`authEnv=GITHUB_PAT:${!!process.env.GITHUB_PAT} GITHUB_OAUTH_TOKEN:${!!process.env.GITHUB_OAUTH_TOKEN} VSCODE_COPILOT_CHAT_TOKEN:${!!process.env.VSCODE_COPILOT_CHAT_TOKEN}`,
-			`copilotApiUrl=${process.env.COPILOT_API_URL ?? '(unset)'}`,
-			`isScenarioAutomation=${process.env.IS_SCENARIO_AUTOMATION ?? '(unset)'}`,
+			`mockServer=${mockServer?.url ?? '(not started)'} requestCount=${mockServer?.requestCount() ?? '(unknown)'}`,
+			'appExtraEnv=GITHUB_PAT:true IS_SCENARIO_AUTOMATION:true VSCODE_COPILOT_CHAT_TOKEN:true',
 			`copilotCliUiSmoke=${process.env.COPILOT_CLI_UI_SMOKE ?? '(unset)'}`,
 			`copilotChatLog=${copilotChatLog?.relativePath ?? '(not found)'}`,
 			`copilotChatLogTail:\n${copilotChatTail || '(empty)'}`,
