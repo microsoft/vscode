@@ -2222,6 +2222,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		try {
 			const result = await this.chatService.sendRequest(chatResource, query, sendOptions);
 			if (result.kind === 'rejected') {
+				this._sessionCache.delete(session.resource.toString());
+				this._invalidateGroupingCaches();
+				this._onDidChangeSessions.fire({ added: [], removed: [newSession], changed: [] });
 				throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
 			}
 			// Extract promises to detect cancellation vs normal completion
