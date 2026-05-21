@@ -165,7 +165,7 @@ export class BrowserViewInspector extends Disposable {
 		}));
 
 		Event.once(session.onClose)(() => {
-			this._registry.clearPendingForSession(session);
+			this._registry.disposeBySession(session);
 		});
 
 		// Enable Runtime + Page to start receiving context and frame events
@@ -392,10 +392,16 @@ class FrameInspectorRegistry extends Disposable {
 		}
 	}
 
-	/** Dispose the inspector owning the given CDP frameId, if any. Also cleans pending frames. */
+	/** Dispose the inspector owning the given CDP frameId, if any. Also cleans pending entries. */
 	disposeByFrameId(frameId: string): void {
 		this._byFrameId.get(frameId)?.dispose();
-		// Also remove any pending frame entries whose frame is now detached/destroyed
+		// Remove pending session entries whose frameId matches the detached frame
+		for (const [token, pending] of this._pendingSessions) {
+			if (pending.frameId === frameId) {
+				this._pendingSessions.delete(token);
+			}
+		}
+		// Remove any pending frame entries whose frame is now detached/destroyed
 		for (const [token, frame] of this._pendingFrames) {
 			if (frame.detached || frame.isDestroyed()) {
 				this._pendingFrames.delete(token);
@@ -403,7 +409,7 @@ class FrameInspectorRegistry extends Disposable {
 		}
 	}
 
-	/** Dispose all inspectors whose connection is the given session. */
+	/** Dispose all inspectors whose connection is the given session and clear related pending state. */
 	disposeBySession(session: ICDPConnection): void {
 		const set = this._bySession.get(session);
 		if (set) {
@@ -411,10 +417,6 @@ class FrameInspectorRegistry extends Disposable {
 				inspector.dispose();
 			}
 		}
-	}
-
-	/** Remove pending context entries that reference the given session. */
-	clearPendingForSession(session: ICDPConnection): void {
 		for (const [token, pending] of this._pendingSessions) {
 			if (pending.session === session) {
 				this._pendingSessions.delete(token);

@@ -275,6 +275,10 @@ export class BrowserViewFrameInspector extends Disposable {
 			uniqueContextId: this._uniqueContextId,
 		}) as { result: { objectId?: string } };
 
+		if (!result?.objectId) {
+			throw new Error(`Element not found: ${elementId}`);
+		}
+
 		return this.extractNodeData({ objectId: result.objectId });
 	}
 
