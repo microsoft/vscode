@@ -496,7 +496,8 @@ describe('SessionStoreSqlTool', () => {
 			const required = [
 				'### Cost Tips',
 				'usage_input_tokens', 'usage_output_tokens', 'usage_model',
-				'attachments', 'agent_name',
+				'agent_name',
+				'assistant.usage',
 				'local SQLite',
 				'chat.sessionSync.enabled',
 			];

@@ -104,10 +104,9 @@ The goal is **personalized, data-grounded recommendations** for reducing token u
 
 **Cost-relevant schema (in addition to the Database Schema section below)**
 
-- **Cloud DuckDB only** — the local SQLite store does **not** record per-event token usage, has no `events` table, and has no attachments table. If the active backend is local, gate all token queries and tell the user that real token-level analysis requires enabling cloud sync (`chat.sessionSync.enabled`).
-- **events** (cloud): per-event billing — `usage_input_tokens`, `usage_output_tokens`, `usage_model`, plus `agent_name`/`agent_description`. Filter `usage_input_tokens IS NOT NULL` to isolate billable events.
-- **attachments** (cloud): file attachments from user messages — `session_id`, `display_name`, `path`, `type`. Join to sessions/turns to find sessions that pulled in large or frequent attachments.
-- **sessions.agent_name** / **agent_description** (both backends): values like `Copilot CLI`, `Copilot Coding Agent`, `Copilot Code Review`, or custom agents/subagents. Use to break spend down by agent type.
+- **Cloud DuckDB only** — the local SQLite store does **not** record per-event token usage and has no `events` table. If the active backend is local, gate all token queries and tell the user that real token-level analysis requires enabling cloud sync (`chat.sessionSync.enabled`).
+- **events** (cloud): per-event billing — rows where `type = 'assistant.usage'` carry `usage_input_tokens`, `usage_output_tokens`, `usage_model`. To break spend down by agent type, JOIN `events e` to `sessions s ON s.id = e.session_id` and group by `s.agent_name`.
+- **sessions.agent_name** / **agent_description** (both backends): values like `VS Code agent` (VS Code chat), `Copilot CLI`, `Copilot Coding Agent`, `Copilot Code Review`, or custom agents/subagents. Use to break spend down by agent type.
 - Use `LENGTH(user_message)` on `turns` (or `LENGTH(user_content)` on `events` where `type = 'user.message'`) to find oversized pastes.
 
 **Step 1: Investigate cost and token patterns**
@@ -116,19 +115,19 @@ Use `copilot_sessionStoreSql` with `action: "query"`. What to investigate depend
 
 *Cloud (DuckDB) — start with agent-type awareness:*
 
-The session store mixes session types via `sessions.agent_name` (and `events.agent_name` for per-event scope). Your advice is only useful if you know which agents the user actually runs, so this is the **first** thing to learn.
+The session store mixes session types via `sessions.agent_name` (join events to sessions on `session_id` to get the agent for any per-event analysis). Your advice is only useful if you know which agents the user actually runs, so this is the **first** thing to learn.
 
-- **Enumerate every agent in use.** Run e.g. `SELECT agent_name, agent_description, COUNT(*) AS n FROM sessions WHERE created_at > now() - INTERVAL '30 days' GROUP BY 1, 2 ORDER BY n DESC` so you see the full inventory — official agents and any custom agents/subagents in `agent_description`. Do not assume.
-- **Decide which to advise on.** Include any agent type the user can make cheaper: `Copilot CLI` (interactive), `Copilot Coding Agent` (autonomous cloud tasks), custom agents and subagents. **Always exclude** `agent_name = 'Copilot Code Review'` and any other agent the user does not drive interactively.
-- **Tailor advice per agent.** CLI tips (compaction, model switching, subagent delegation) look different from Coding Agent tips (prompt scoping, smaller task framing) and custom-agent tips (slimming tool lists, narrowing prompts).
+- **Enumerate every agent in use.** Run e.g. `SELECT agent_name, agent_description, COUNT(*) AS n FROM sessions WHERE updated_at > now() - INTERVAL '30 days' GROUP BY 1, 2 ORDER BY n DESC` so you see the full inventory — official agents and any custom agents/subagents in `agent_description`. Do not assume.
+- **Decide which to advise on.** Include any agent type the user can make cheaper: `VS Code agent` (VS Code chat — usually the dominant agent), `Copilot CLI` (interactive terminal), `Copilot Coding Agent` (autonomous cloud tasks), custom agents and subagents. **Always exclude** `agent_name = 'Copilot Code Review'` and any other agent the user does not drive interactively.
+- **Tailor advice per agent.** VS Code agent tips (compaction, model picker, fresh chats, `.github/copilot-instructions.md`, custom skills/agents) look different from CLI tips (compaction, model switching, subagent delegation), Coding Agent tips (prompt scoping, smaller task framing), and custom-agent tips (slimming tool lists, narrowing prompts).
 
-Then drill into cost patterns:
+Then drill into cost patterns (filter `events` rows by `type = 'assistant.usage'` for billable rows):
 
-- **Token-heavy sessions and turns** — sum `usage_input_tokens` and `usage_output_tokens` per session and per model from `events`. Which sessions burned the most tokens? Which models?
+- **Token-heavy sessions and turns** — sum `usage_input_tokens` and `usage_output_tokens` per session and per model from `events` where `type = 'assistant.usage'`. Which sessions burned the most tokens? Which models?
 - **Input-to-output ratios** — when input tokens dwarf output tokens, the user is paying to re-send a bloated context every turn. Strongest signal that compaction, smaller working sets, or fresh sessions would help.
 - **Model mix** — break down spend by `usage_model`. Are premium models being used for routine work (renames, simple edits, status checks) that a cheaper model could handle?
 - **Per-turn growth** — within long sessions, does `usage_input_tokens` keep climbing turn-over-turn? Strong signal that compaction wasn't used.
-- **Large attachments or pastes** — query `attachments` for sessions that pulled in many or large files (group by `session_id`, count, look at `type`). Also use `LENGTH(user_content)` on `events` where `type = 'user.message'` for oversized pastes that should have been file references.
+- **Oversized pastes** — `LENGTH(user_content)` on `events` where `type = 'user.message'` to find user messages that should have been file references (also visible in `session_files` as repeated reads of the same path within one session).
 - **Group cost breakdowns by `agent_name`** (and `agent_description` where useful) in at least one query so the user sees where their spend actually goes — and so you spot if a single custom agent dominates.
 
 *Local (SQLite) — no token data; use proxies:*
