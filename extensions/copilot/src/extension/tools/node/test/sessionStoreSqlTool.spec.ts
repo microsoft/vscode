@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
+import * as path from 'path';
 import type * as vscode from 'vscode';
 import { describe, expect, it, vi } from 'vitest';
 import type { ISessionStore } from '../../../../platform/chronicle/common/sessionStore';
@@ -431,6 +433,59 @@ describe('SessionStoreSqlTool', () => {
 				cts.token,
 			);
 			expect(query.invocationMessage).toContain('uerying');
+		});
+	});
+
+	// Single source of truth: column-level schema lives in chronicle/SKILL.md.
+	// The tool description only carries small, low-drift signals (dialect, read-only,
+	// date-math anti-pattern, table names, skill pointer) — these tests pin that contract.
+	describe('schema-error regression anchors', () => {
+		const copilotRoot = path.resolve(__dirname, '..', '..', '..', '..', '..');
+
+		it('SQLite modelDescription in package.json carries required anchors', () => {
+			const pkg = JSON.parse(fs.readFileSync(path.join(copilotRoot, 'package.json'), 'utf-8'));
+			const entry = (pkg.contributes.languageModelTools as { name: string; modelDescription?: string }[])
+				.find(t => t.name === 'copilot_sessionStoreSql');
+			expect(entry?.modelDescription, 'copilot_sessionStoreSql entry missing modelDescription').toBeDefined();
+			const desc = entry!.modelDescription!;
+
+			const required = [
+				'SQLite', 'queries are read-only', 'SELECT', 'WITH',
+				`datetime('now'`, 'NOT `now() - INTERVAL',
+				'MATCH', 'chronicle',
+				'sessions', 'turns', 'session_files', 'session_refs', 'checkpoints', 'search_index',
+			];
+			expect(required.filter(a => !desc.includes(a))).toEqual([]);
+		});
+
+		it('DuckDB CLOUD_MODEL_DESCRIPTION (via alternativeDefinition) carries required anchors', () => {
+			const configService = {
+				_serviceBrand: undefined as any,
+				getConfig: vi.fn(() => false),
+				getNonExtensionConfig: vi.fn((key: string) => key === 'chat.sessionSync.enabled'),
+				getExperimentBasedConfig: vi.fn(() => false),
+				getExperimentBasedConfigObservable: vi.fn(() => ({ read: () => false })),
+			} as any;
+			const { tool } = createToolInstance({ configService });
+			const desc: string = tool.alternativeDefinition(makeToolInfo()).description;
+
+			const required = [
+				'DuckDB', 'queries are read-only', 'SELECT', 'WITH',
+				'now() - INTERVAL', `NOT \`datetime('now'`,
+				'ILIKE', 'chronicle',
+				'sessions', 'turns', 'session_files', 'session_refs', 'checkpoints', 'events', 'tool_requests',
+			];
+			expect(required.filter(a => !desc.includes(a))).toEqual([]);
+		});
+
+		it('chronicle slash prompts reference the chronicle skill', () => {
+			const promptDir = path.join(copilotRoot, 'assets', 'prompts');
+			const prompts = ['chronicle-tips.prompt.md', 'chronicle-standup.prompt.md', 'chronicle-search.prompt.md'];
+			const missing = prompts.filter(name => {
+				const body = fs.readFileSync(path.join(promptDir, name), 'utf-8');
+				return !/\*\*chronicle\*\* skill/.test(body);
+			});
+			expect(missing).toEqual([]);
 		});
 	});
 });

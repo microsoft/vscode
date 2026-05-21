@@ -6,11 +6,11 @@
 import { ActiveLineMarker } from './activeLineMarker';
 import { onceDocumentLoaded } from './events';
 import { createPosterForVsCode } from './messaging';
-import { getEditorLineNumberForPageOffset, getElementsForSourceLine, getLineElementForFragment, scrollToRevealSourceLine } from './scroll-sync';
+import { getEditorLineNumberForPageOffset, getElementsForSourceLine, getElementsForSourceLineRange, getLineElementForFragment, scrollToRevealSourceLine } from './scroll-sync';
 import { SettingsManager, getData, getRawData } from './settings';
 import throttle = require('lodash.throttle');
 import morphdom from 'morphdom';
-import type { MarkdownPreviewLineChanges, ToWebviewMessage } from '../types/previewMessaging';
+import type { MarkdownPreviewChangeIndicator, MarkdownPreviewInnerChange, MarkdownPreviewLineChanges, ToWebviewMessage } from '../types/previewMessaging';
 import { isOfScheme, Schemes } from '../src/util/schemes';
 import { DiffScrollSyncManager } from './diffScrollSync';
 
@@ -384,62 +384,82 @@ function applyChangeIndicators(lineChanges: MarkdownPreviewLineChanges | undefin
 		return;
 	}
 
-	for (const indicator of lineChanges.changeIndicators) {
-		const { previous, next } = getElementsForSourceLine(indicator.modifiedLine, documentVersion);
+	for (const block of getRenderedChangeBlocks(lineChanges.changeIndicators)) {
+		if (block.indicator.type === 'deletion') {
+			const wrapper = createChangeIndicatorElement(block.indicator);
+			block.elements[0].parentElement?.insertBefore(wrapper, block.elements[0]);
+			continue;
+		}
 
-		if (indicator.type === 'deletion') {
-			// For pure deletions, the indicator should appear just before the line at modifiedLine.
-			// Use `next` if previous doesn't exactly match the target line, since the deletion
-			// point is between two elements.
-			const targetElement = (previous.line === indicator.modifiedLine)
-				? (previous.codeElement || previous.element)
-				: (next?.codeElement || next?.element || previous.codeElement || previous.element);
-			if (!targetElement) {
-				continue;
-			}
-
-			const wrapper = createChangeIndicatorElement(indicator);
-			targetElement.parentElement?.insertBefore(wrapper, targetElement);
-		} else {
-			// For modifications, mark each modified line and add a gutter bar
-			const seen = new Set<HTMLElement>();
-			let isFirst = true;
-			for (let i = 0; i < indicator.modifiedLineCount; i++) {
-				const line = indicator.modifiedLine + i;
-				const { previous: p, next: n } = getElementsForSourceLine(line, documentVersion);
-				const lineElement = p.line >= 0 ? p : n;
-				const element = (lineElement?.codeElement || lineElement?.element) as HTMLElement | undefined;
-				if (element && !seen.has(element)) {
-					seen.add(element);
-					element.classList.add('code-line-diff-modified');
-					addModificationGutterBar(element, isFirst ? indicator : undefined);
-					isFirst = false;
-				}
-			}
+		let isFirst = true;
+		for (const element of block.elements) {
+			element.classList.add('code-line-diff-modified');
+			addModificationGutterBar(element, isFirst ? block.indicator : undefined);
+			isFirst = false;
 		}
 	}
 }
 
-function createChangeIndicatorElement(indicator: { type: string; originalLineCount: number; originalContent: string; modifiedContent: string }): HTMLDivElement {
+interface RenderedChangeBlock {
+	readonly indicator: MarkdownPreviewChangeIndicator;
+	readonly elements: readonly HTMLElement[];
+}
+
+function getRenderedChangeBlocks(indicators: readonly MarkdownPreviewChangeIndicator[]): RenderedChangeBlock[] {
+	const blocks: RenderedChangeBlock[] = [];
+	for (const indicator of indicators) {
+		const elements = indicator.type === 'deletion'
+			? getDeletionChangeElements(indicator.modifiedLine)
+			: getModificationChangeElements(indicator.modifiedLine, indicator.modifiedLineCount);
+		if (elements.length) {
+			blocks.push({ indicator, elements });
+		}
+	}
+	return blocks;
+}
+
+function getDeletionChangeElements(modifiedLine: number): readonly HTMLElement[] {
+	const { previous, next } = getElementsForSourceLine(modifiedLine, documentVersion);
+	const targetElement = (previous.line === modifiedLine)
+		? (previous.codeElement || previous.element)
+		: (next?.codeElement || next?.element || previous.codeElement || previous.element);
+	return targetElement ? [targetElement] : [];
+}
+
+function getModificationChangeElements(modifiedLine: number, modifiedLineCount: number): readonly HTMLElement[] {
+	const elements: HTMLElement[] = [];
+	const seen = new Set<HTMLElement>();
+	const lineElements = getElementsForSourceLineRange(modifiedLine, modifiedLine + modifiedLineCount, documentVersion);
+	for (const lineElement of lineElements) {
+		const element = lineElement.codeElement || lineElement.element;
+		if (element && !seen.has(element)) {
+			seen.add(element);
+			elements.push(element);
+		}
+	}
+	return elements;
+}
+
+function createChangeIndicatorElement(indicator: MarkdownPreviewChangeIndicator): HTMLDivElement {
 	const wrapper = document.createElement('div');
 	wrapper.className = `diff-change-indicator diff-change-indicator-${indicator.type}`;
 	wrapper.setAttribute('data-original-line-count', String(indicator.originalLineCount));
 
 	const arrowLine = document.createElement('span');
 	arrowLine.className = 'diff-change-indicator-arrow';
-	const tooltip = createDiffTooltip(indicator.originalContent, indicator.modifiedContent);
+	const tooltip = createDiffTooltip(indicator);
 	arrowLine.appendChild(tooltip);
 	wrapper.appendChild(arrowLine);
 
 	return wrapper;
 }
 
-function addModificationGutterBar(element: HTMLElement, indicator?: { originalContent: string; modifiedContent: string }): void {
+function addModificationGutterBar(element: HTMLElement, indicator?: MarkdownPreviewChangeIndicator): void {
 	const gutter = document.createElement('div');
 	gutter.className = 'diff-modification-gutter';
 
 	if (indicator) {
-		const tooltip = createDiffTooltip(indicator.originalContent, indicator.modifiedContent);
+		const tooltip = createDiffTooltip(indicator);
 		gutter.appendChild(tooltip);
 	}
 
@@ -447,201 +467,104 @@ function addModificationGutterBar(element: HTMLElement, indicator?: { originalCo
 	element.appendChild(gutter);
 }
 
-function createDiffTooltip(originalContent: string, modifiedContent: string): HTMLDivElement {
+function createDiffTooltip(indicator: MarkdownPreviewChangeIndicator): HTMLDivElement {
 	const tooltip = document.createElement('div');
 	tooltip.className = 'diff-change-indicator-tooltip';
 
-	const originalLines = originalContent ? originalContent.split('\n') : [];
-	const modifiedLines = modifiedContent ? modifiedContent.split('\n') : [];
-	const lineDiff = computeLineLCS(originalLines, modifiedLines);
-
-	for (const entry of lineDiff) {
-		if (entry.type === 'equal') {
-			// Show unchanged lines in both sections with no highlight
-			const section = document.createElement('div');
-			section.className = 'diff-tooltip-unchanged';
-			const pre = document.createElement('pre');
-			pre.textContent = entry.text;
-			section.appendChild(pre);
-			tooltip.appendChild(section);
-		} else if (entry.type === 'delete') {
-			const section = document.createElement('div');
-			section.className = 'diff-tooltip-deleted';
-			const pre = document.createElement('pre');
-			pre.textContent = entry.text;
-			section.appendChild(pre);
-			tooltip.appendChild(section);
-		} else if (entry.type === 'insert') {
-			const section = document.createElement('div');
-			section.className = 'diff-tooltip-added';
-			const pre = document.createElement('pre');
-			pre.textContent = entry.text;
-			section.appendChild(pre);
-			tooltip.appendChild(section);
-		} else if (entry.type === 'modify') {
-			// Show old and new with word-level highlights
-			const delSection = document.createElement('div');
-			delSection.className = 'diff-tooltip-deleted';
-			const delPre = document.createElement('pre');
-			appendInlineHighlights(delPre, entry.oldTokens!, entry.newTokens!, 'delete');
-			delSection.appendChild(delPre);
-			tooltip.appendChild(delSection);
-
-			const addSection = document.createElement('div');
-			addSection.className = 'diff-tooltip-added';
-			const addPre = document.createElement('pre');
-			appendInlineHighlights(addPre, entry.oldTokens!, entry.newTokens!, 'insert');
-			addSection.appendChild(addPre);
-			tooltip.appendChild(addSection);
-		}
+	if (indicator.originalContent) {
+		appendDiffTooltipSection(tooltip, 'diff-tooltip-deleted', indicator.originalContent, indicator.originalInnerChanges, 'diff-tooltip-inner-deleted');
+	}
+	if (indicator.modifiedContent) {
+		appendDiffTooltipSection(tooltip, 'diff-tooltip-added', indicator.modifiedContent, indicator.modifiedInnerChanges, 'diff-tooltip-inner-added');
 	}
 
 	return tooltip;
 }
 
-interface DiffEntry {
-	type: 'equal' | 'delete' | 'insert' | 'modify';
-	text: string;
-	oldTokens?: string[];
-	newTokens?: string[];
+function appendDiffTooltipSection(tooltip: HTMLElement, className: string, content: string, innerChanges: readonly MarkdownPreviewInnerChange[] | undefined, innerChangeClassName: string): void {
+	const section = document.createElement('div');
+	section.className = className;
+	const pre = document.createElement('pre');
+	appendDiffTooltipContent(pre, content, innerChanges, innerChangeClassName);
+	section.appendChild(pre);
+	tooltip.appendChild(section);
 }
 
-/**
- * Compute a line-level diff using LCS, grouping adjacent changed lines.
- * When a block has both deletions and insertions, pairs them as 'modify' for inline highlighting.
- */
-function computeLineLCS(oldLines: string[], newLines: string[]): DiffEntry[] {
-	const m = oldLines.length;
-	const n = newLines.length;
-
-	// Build LCS table
-	const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-	for (let i = 1; i <= m; i++) {
-		for (let j = 1; j <= n; j++) {
-			if (oldLines[i - 1] === newLines[j - 1]) {
-				dp[i][j] = dp[i - 1][j - 1] + 1;
-			} else {
-				dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
-			}
-		}
+function appendDiffTooltipContent(container: HTMLElement, content: string, innerChanges: readonly MarkdownPreviewInnerChange[] | undefined, innerChangeClassName: string): void {
+	if (!innerChanges?.length) {
+		container.textContent = content;
+		return;
 	}
 
-	// Backtrack to get diff operations
-	const rawDiff: Array<{ type: 'equal' | 'delete' | 'insert'; line: string }> = [];
-	let i = m, j = n;
-	while (i > 0 || j > 0) {
-		if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
-			rawDiff.push({ type: 'equal', line: oldLines[i - 1] });
-			i--; j--;
-		} else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-			rawDiff.push({ type: 'insert', line: newLines[j - 1] });
-			j--;
-		} else {
-			rawDiff.push({ type: 'delete', line: oldLines[i - 1] });
-			i--;
+	const innerChangesByLine = groupInnerChangesByLine(innerChanges);
+	const lines = content.split('\n');
+	for (let line = 0; line < lines.length; ++line) {
+		appendDiffTooltipLine(container, lines[line], innerChangesByLine.get(line), innerChangeClassName);
+		if (line + 1 < lines.length) {
+			container.appendChild(document.createTextNode('\n'));
 		}
 	}
-	rawDiff.reverse();
-
-	// Group into entries, pairing adjacent delete/insert blocks as 'modify'
-	const result: DiffEntry[] = [];
-	let idx = 0;
-	while (idx < rawDiff.length) {
-		const item = rawDiff[idx];
-		if (item.type === 'equal') {
-			result.push({ type: 'equal', text: item.line });
-			idx++;
-		} else {
-			// Collect contiguous changed block
-			const delLines: string[] = [];
-			const insLines: string[] = [];
-			while (idx < rawDiff.length && rawDiff[idx].type !== 'equal') {
-				if (rawDiff[idx].type === 'delete') {
-					delLines.push(rawDiff[idx].line);
-				} else {
-					insLines.push(rawDiff[idx].line);
-				}
-				idx++;
-			}
-
-			// Pair up lines for inline highlighting
-			const paired = Math.min(delLines.length, insLines.length);
-			for (let k = 0; k < paired; k++) {
-				result.push({
-					type: 'modify',
-					text: '',
-					oldTokens: tokenize(delLines[k]),
-					newTokens: tokenize(insLines[k]),
-				});
-			}
-			// Remaining unpaired lines
-			for (let k = paired; k < delLines.length; k++) {
-				result.push({ type: 'delete', text: delLines[k] });
-			}
-			for (let k = paired; k < insLines.length; k++) {
-				result.push({ type: 'insert', text: insLines[k] });
-			}
-		}
-	}
-
-	return result;
 }
 
-/** Split a line into alternating word and whitespace tokens */
-function tokenize(line: string): string[] {
-	return line.match(/\S+|\s+/g) || [''];
+function appendDiffTooltipLine(container: HTMLElement, lineText: string, innerChanges: readonly MarkdownPreviewInnerChange[] | undefined, innerChangeClassName: string): void {
+	const normalizedInnerChanges = normalizeInnerChanges(innerChanges, lineText.length);
+	let offset = 0;
+	for (const change of normalizedInnerChanges) {
+		if (offset < change.startColumn) {
+			container.appendChild(document.createTextNode(lineText.slice(offset, change.startColumn)));
+		}
+
+		const span = document.createElement('span');
+		span.className = innerChangeClassName;
+		span.textContent = lineText.slice(change.startColumn, change.endColumn);
+		container.appendChild(span);
+		offset = change.endColumn;
+	}
+
+	if (offset < lineText.length) {
+		container.appendChild(document.createTextNode(lineText.slice(offset)));
+	}
 }
 
-/** Compute LCS indices for two token arrays */
-function tokenLCS(a: string[], b: string[]): Set<number>[] {
-	const m = a.length, n = b.length;
-	const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-	for (let i = 1; i <= m; i++) {
-		for (let j = 1; j <= n; j++) {
-			if (a[i - 1] === b[j - 1]) {
-				dp[i][j] = dp[i - 1][j - 1] + 1;
-			} else {
-				dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
-			}
-		}
-	}
-	const aMatch = new Set<number>();
-	const bMatch = new Set<number>();
-	let i = m, j = n;
-	while (i > 0 && j > 0) {
-		if (a[i - 1] === b[j - 1]) {
-			aMatch.add(i - 1);
-			bMatch.add(j - 1);
-			i--; j--;
-		} else if (dp[i][j - 1] >= dp[i - 1][j]) {
-			j--;
+function groupInnerChangesByLine(innerChanges: readonly MarkdownPreviewInnerChange[]): Map<number, readonly MarkdownPreviewInnerChange[]> {
+	const groupedInnerChanges = new Map<number, MarkdownPreviewInnerChange[]>();
+	for (const change of innerChanges) {
+		const lineChanges = groupedInnerChanges.get(change.line);
+		if (lineChanges) {
+			lineChanges.push(change);
 		} else {
-			i--;
+			groupedInnerChanges.set(change.line, [change]);
 		}
 	}
-	return [aMatch, bMatch];
+	return groupedInnerChanges;
 }
 
-/**
- * Append tokens to a <pre> element with inline highlights for changed tokens.
- * @param side 'delete' renders oldTokens highlighting removals; 'insert' renders newTokens highlighting additions
- */
-function appendInlineHighlights(pre: HTMLPreElement, oldTokens: string[], newTokens: string[], side: 'delete' | 'insert'): void {
-	const [oldMatch, newMatch] = tokenLCS(oldTokens, newTokens);
-	const tokens = side === 'delete' ? oldTokens : newTokens;
-	const matchSet = side === 'delete' ? oldMatch : newMatch;
-	const highlightClass = side === 'delete' ? 'diff-inline-deleted' : 'diff-inline-added';
+function normalizeInnerChanges(innerChanges: readonly MarkdownPreviewInnerChange[] | undefined, lineLength: number): { startColumn: number; endColumn: number }[] {
+	if (!innerChanges?.length) {
+		return [];
+	}
 
-	for (let i = 0; i < tokens.length; i++) {
-		if (matchSet.has(i)) {
-			pre.appendChild(document.createTextNode(tokens[i]));
+	const sortedInnerChanges = innerChanges
+		.map(change => ({
+			startColumn: clampColumn(change.startColumn, lineLength),
+			endColumn: clampColumn(change.endColumn, lineLength),
+		}))
+		.filter(change => change.startColumn < change.endColumn)
+		.sort((a, b) => a.startColumn - b.startColumn || a.endColumn - b.endColumn);
+	const normalizedInnerChanges: { startColumn: number; endColumn: number }[] = [];
+	for (const change of sortedInnerChanges) {
+		const previous = normalizedInnerChanges[normalizedInnerChanges.length - 1];
+		if (previous && change.startColumn <= previous.endColumn) {
+			previous.endColumn = Math.max(previous.endColumn, change.endColumn);
 		} else {
-			const span = document.createElement('span');
-			span.className = highlightClass;
-			span.textContent = tokens[i];
-			pre.appendChild(span);
+			normalizedInnerChanges.push(change);
 		}
 	}
+	return normalizedInnerChanges;
+}
+
+function clampColumn(column: number, lineLength: number): number {
+	return Math.min(Math.max(column, 0), lineLength);
 }
 
 
@@ -666,24 +589,41 @@ function applyInnerChangeHighlights(lineChanges: MarkdownPreviewLineChanges | un
 		return;
 	}
 
-	let i = 0;
-	while (true) {
-		const startMarker = root.querySelector(`[data-diff-start="${i}"]`);
-		const endMarker = root.querySelector(`[data-diff-end="${i}"]`);
-		if (!startMarker || !endMarker) {
-			break;
-		}
-
+	for (const { startMarker, endMarker } of getDiffMarkerPairs(root)) {
 		const range = new Range();
 		range.setStartAfter(startMarker);
 		range.setEndBefore(endMarker);
 		ranges.push(range);
-		i++;
 	}
 
 	if (ranges.length > 0) {
 		CSS.highlights.set(highlightName, new Highlight(...ranges));
 	}
+}
+
+interface DiffMarkerPair {
+	readonly startMarker: Element;
+	readonly endMarker: Element;
+}
+
+function getDiffMarkerPairs(root: Element): DiffMarkerPair[] {
+	const endMarkersById = new Map<string, Element>();
+	for (const endMarker of root.querySelectorAll('[data-diff-end]')) {
+		const id = endMarker.getAttribute('data-diff-end');
+		if (id !== null) {
+			endMarkersById.set(id, endMarker);
+		}
+	}
+
+	const pairs: DiffMarkerPair[] = [];
+	for (const startMarker of root.querySelectorAll('[data-diff-start]')) {
+		const id = startMarker.getAttribute('data-diff-start');
+		const endMarker = id === null ? undefined : endMarkersById.get(id);
+		if (endMarker && !(startMarker.compareDocumentPosition(endMarker) & Node.DOCUMENT_POSITION_PRECEDING)) {
+			pairs.push({ startMarker, endMarker });
+		}
+	}
+	return pairs;
 }
 
 

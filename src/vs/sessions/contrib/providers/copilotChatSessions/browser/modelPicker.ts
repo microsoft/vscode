@@ -12,12 +12,12 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
-import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider, RemoteNewSession } from './copilotChatSessionsProvider.js';
+import { INewChatModelPickerService } from '../../../chat/browser/newChatModelPicker.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 
 const FILTER_THRESHOLD = 10;
@@ -57,8 +57,10 @@ export class CloudModelPicker extends Disposable {
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@INewChatModelPickerService private readonly newChatModelPickerService: INewChatModelPickerService,
 	) {
 		super();
+		this._register(this.newChatModelPickerService.registerModelPicker(() => this._showPicker()));
 
 		this._register(autorun(reader => {
 			const session = sessionsManagementService.activeSession.read(reader);
@@ -224,7 +226,6 @@ export class CloudModelPicker extends Disposable {
 
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
 		this._triggerElement.ariaLabel = localize('modelPicker.triggerAriaLabel', "Pick Model, {0}", label);
 

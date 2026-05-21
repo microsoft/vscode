@@ -842,6 +842,14 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 				return;
 			}
 
+			const folder = this.sessionWorkspace.folders[0];
+			const baseGitRepo: ISessionGitRepository = folder.gitRepository ?? {
+				uri: folder.root,
+				workTreeUri: undefined,
+				baseBranchName: undefined,
+				gitHubInfo: constObservable(undefined),
+			};
+
 			this._register(autorun((reader) => {
 				const state = repo.state.read(reader);
 				const head = state.HEAD;
@@ -854,9 +862,9 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 				this._workspaceData.set({
 					...this.sessionWorkspace,
 					folders: [{
-						...this.sessionWorkspace.folders[0],
+						...folder,
 						gitRepository: {
-							...this.sessionWorkspace.folders[0].gitRepository!,
+							...baseGitRepo,
 							branchName,
 							upstreamBranchName,
 							uncommittedChanges,
@@ -3122,6 +3130,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			mainChat,
 			capabilities: {
 				supportsMultipleChats: primaryChat.sessionType === CopilotCLISessionType.id && this._isMultiChatEnabled(),
+				// Cloud-agent sessions run worktreeCreated tasks server-side during
+				// environment provisioning, so the agents-window dispatcher must
+				// not re-run them. CLI / local sessions don't.
+				runsWorktreeCreatedTasks: primaryChat.sessionType === CopilotCloudSessionType.id,
 			},
 		};
 		this._sessionGroupCache.set(sessionId, session);
@@ -3155,7 +3167,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			lastTurnEnd: chat.lastTurnEnd,
 			chats: chatsObs,
 			mainChat,
-			capabilities: { supportsMultipleChats: false },
+			capabilities: {
+				supportsMultipleChats: false,
+				runsWorktreeCreatedTasks: chat.sessionType === CopilotCloudSessionType.id,
+			},
 		};
 	}
 

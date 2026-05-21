@@ -29,6 +29,7 @@ import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupTaskTests } from './areas/task/task.test';
 import { setup as setupChatTests } from './areas/chat/chatDisabled.test';
 import { setup as setupAccessibilityTests } from './areas/accessibility/accessibility.test';
+import { setup as setupAgentsWindowTests } from './areas/agentsWindow/agentsWindow.test';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
 
@@ -418,5 +419,6 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
 	if (!opts.web) { setupChatTests(logger); }
+	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupAgentsWindowTests(logger); }
 	setupAccessibilityTests(logger, opts, quality);
 });

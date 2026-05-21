@@ -85,7 +85,7 @@ export function buildMobileWorkspacePickerRows(
 		// scoped to a single host via the host picker, so the host
 		// indication is redundant — render every workspace as a folder
 		// to match the inline folder search results below.
-		const isWorkspaceRow = !!data?.selection;
+		const isWorkspaceRow = !!data?.folderUri;
 		const icon = isWorkspaceRow ? Codicon.folder : item.group?.icon;
 		rows.push({
 			sheetItem: {
@@ -220,7 +220,11 @@ export async function showMobileWorkspacePickerSheet(
 				const sheetItems: IMobilePickerSheetItem[] = [];
 				flattened.forEach((entry, idx) => {
 					const id = `${SEARCH_RESULT_ID_PREFIX}${idx}`;
-					folderRunById.set(id, () => dispatch({ selection: { providerId: entry.providerId, workspace: entry.workspace } }));
+					const folderUri = entry.workspace.folders[0]?.root;
+					if (!folderUri) {
+						return;
+					}
+					folderRunById.set(id, () => dispatch({ folderUri, providerId: entry.providerId }));
 					folderLabelById.set(id, entry.workspace.label);
 					sheetItems.push({
 						id,

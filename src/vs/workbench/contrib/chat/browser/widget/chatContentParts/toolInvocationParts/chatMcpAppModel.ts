@@ -736,7 +736,22 @@ export class ChatMcpAppModel extends Disposable {
 	}
 
 	private async _handleOpenLink(params: McpApps.McpUiOpenLinkRequest['params']): Promise<McpApps.McpUiOpenLinkResult> {
-		const ok = await this._openerService.open(params.url);
+		// The MCP Apps protocol scopes ui/open-link to "open an external URL in
+		// the host's default browser". Restrict to http/https so guest content
+		// cannot reach internal product-scheme URL handlers (e.g. forging an
+		// auth callback) through this capability.
+		let parsed: URI;
+		try {
+			parsed = URI.parse(params.url, true);
+		} catch {
+			this._logService.warn(`[MCP App] Rejected ui/open-link with unparseable URL`);
+			return { isError: true };
+		}
+		if (parsed.scheme !== 'http' && parsed.scheme !== 'https') {
+			this._logService.warn(`[MCP App] Rejected ui/open-link with non-http(s) scheme: ${parsed.scheme}`);
+			return { isError: true };
+		}
+		const ok = await this._openerService.open(parsed, { openExternal: true });
 		return { isError: !ok };
 	}
 

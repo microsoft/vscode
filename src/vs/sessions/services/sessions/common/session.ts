@@ -167,6 +167,19 @@ export interface ISessionChangeset {
 	readonly modifiedCheckpointRef: IObservable<string | undefined>;
 }
 
+/**
+ * A custom agent reference used by session-level selection. Mirrors the Agent
+ * Host protocol's `AgentSelection` shape but lives in the sessions layer so the
+ * sessions service API does not leak the protocol type to non-Agent-Host
+ * consumers.
+ */
+export interface ISessionAgentRef {
+	/** Stable agent URI (matches the contributing customization's agent ref). */
+	readonly uri: string;
+	/** Agent name. */
+	readonly name: string;
+}
+
 export interface IChatCheckpoints {
 	/** Reference to the first checkpoint in the chat. */
 	readonly firstCheckpointRef: string;
@@ -243,6 +256,8 @@ export interface ISession {
 	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
+	/** Currently selected custom agent, or `undefined` for the provider default. Optional so providers without custom-agent support can omit it. */
+	readonly agent?: IObservable<ISessionAgentRef | undefined>;
 	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
@@ -261,13 +276,6 @@ export interface ISession {
 	readonly mainChat: IChat;
 	/** Capabilities of this session. */
 	readonly capabilities: ISessionCapabilities;
-	/**
-	 * Optional key used to deduplicate sessions across providers. When
-	 * multiple sessions share the same key, only one is kept by
-	 * {@link ISessionsManagementService.getSessions}. Local providers are
-	 * preferred over remote ones.
-	 */
-	readonly deduplicationKey?: string;
 }
 
 /**
@@ -292,6 +300,16 @@ export function toSessionId(providerId: string, resource: URI): string {
 export interface ISessionCapabilities {
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
+	/**
+	 * Whether the session's underlying runtime (e.g. a cloud agent host)
+	 * already runs `runOptions.runOn === 'worktreeCreated'` tasks during
+	 * environment provisioning. When `true`, the agents-window
+	 * client-side dispatcher must NOT run those tasks itself to avoid
+	 * double-execution. Defaults to `false` for sessions backed by local
+	 * or remote agent hosts, where the client is the only thing that
+	 * could trigger them.
+	 */
+	readonly runsWorktreeCreatedTasks?: boolean;
 }
 
 /**
