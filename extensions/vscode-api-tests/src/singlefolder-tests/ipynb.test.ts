@@ -50,4 +50,28 @@ suite('ipynb NotebookSerializer', function () {
 		assert.strictEqual(notebookEditor.notebook.cellAt(1).kind, vscode.NotebookCellKind.Code);
 		assert.strictEqual(notebookEditor.notebook.cellAt(1).outputs.length, 1);
 	});
+
+	test('Can open a REPL notebook', async () => {
+		const data = new vscode.NotebookData([{
+			kind: vscode.NotebookCellKind.Markup, value: 'REPL Started',
+			languageId: 'Markdown',
+		}]);
+
+		data.metadata = {
+			cells: [],
+			metadata: {},
+			nbformat: 4,
+			nbformat_minor: 2,
+		};
+		const doc = await vscode.workspace.openNotebookDocument('jupyter-notebook', data);
+		await vscode.window.showNotebookDocument(doc, { asRepl: 'REPL-notebook' });
+
+		const notebookEditor = vscode.window.activeNotebookEditor;
+		assert.ok(notebookEditor);
+
+		assert.strictEqual(notebookEditor.notebook.cellCount, 2, 'REPL notebook should have the initial markdown cell and a code cell for input');
+		assert.strictEqual(notebookEditor.notebook.cellAt(0).kind, vscode.NotebookCellKind.Markup);
+		assert.strictEqual(notebookEditor.notebook.cellAt(1).kind, vscode.NotebookCellKind.Code);
+		assert.strictEqual(notebookEditor.replOptions?.appendIndex, 1, 'REPL notebook should append new cells before the input cell');
+	});
 });
