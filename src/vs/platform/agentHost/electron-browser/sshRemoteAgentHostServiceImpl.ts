@@ -13,8 +13,8 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { IRemoteAgentHostService, RemoteAgentHostEntryType } from '../common/remoteAgentHostService.js';
-import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../common/remoteAgentHostService.js';
+import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../quickinput/common/quickInput.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
@@ -31,6 +31,33 @@ import {
 	type ISSHResolvedConfig,
 	type ISSHConnectProgress,
 } from '../common/sshRemoteAgentHost.js';
+
+export const ISSHRelayClientFactory = createDecorator<ISSHRelayClientFactory>('sshRelayClientFactory');
+
+export interface ISSHRelayClientFactory {
+	readonly _serviceBrand: undefined;
+	createClient(mainService: ISSHRemoteAgentHostMainService, connectionId: string, address: string): RemoteAgentHostProtocolClient;
+}
+
+export class SSHRelayClientFactory implements ISSHRelayClientFactory {
+	declare readonly _serviceBrand: undefined;
+
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+	) { }
+
+	createClient(mainService: ISSHRemoteAgentHostMainService, connectionId: string, address: string): RemoteAgentHostProtocolClient {
+		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
+		const logger = ahpLoggingEnabled ? this._instantiationService.createInstance(
+			AhpJsonlLogger,
+			{ logsHome: this._environmentService.logsHome, connectionId, transport: 'ssh' },
+		) : undefined;
+		const transport = this._instantiationService.createInstance(SSHRelayTransport, connectionId, mainService, logger);
+		return this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined);
+	}
+}
 
 /**
  * Renderer-side implementation of {@link ISSHRemoteAgentHostService} that
@@ -53,9 +80,8 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@ILogService private readonly _logService: ILogService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@ISSHRelayClientFactory private readonly _relayClientFactory: ISSHRelayClientFactory,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 	) {
 		super();
@@ -67,7 +93,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		this.onDidReportConnectProgress = this._mainService.onDidReportConnectProgress;
 
 		// When shared process fires onDidCloseConnection, clean up the renderer-side handle.
-		// Do NOT remove the configured entry — it stays in settings so startup reconnect
+		// Do NOT remove the configured entry — it stays persisted so startup reconnect
 		// can re-establish the SSH tunnel on next launch.
 		this._register(this._mainService.onDidCloseConnection(connectionId => {
 			const handle = this._connections.get(connectionId);
@@ -92,6 +118,10 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	async connect(config: ISSHAgentHostConfig): Promise<ISSHAgentHostConnection> {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			throw new Error('Remote agent host connections are not enabled.');
+		}
+
 		const augmentedConfig = this._augmentConfig(config);
 		this._logService.info(`[SSHRemoteAgentHost] Connecting to ${config.host}`);
 		const result = await this._mainService.connect(augmentedConfig);
@@ -120,6 +150,10 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	async reconnect(sshConfigHost: string, name: string): Promise<ISSHAgentHostConnection> {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			throw new Error('Remote agent host connections are not enabled.');
+		}
+
 		const commandOverride = this._getRemoteAgentHostCommand();
 		const agentForward = this._isSSHAgentForwardingEnabled();
 		this._logService.info(`[SSHRemoteAgentHost] Reconnecting to ${sshConfigHost}`);
@@ -212,15 +246,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	private _createRelayClient(result: { connectionId: string; address: string }): RemoteAgentHostProtocolClient {
-		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
-		const logger = ahpLoggingEnabled ? this._instantiationService.createInstance(
-			AhpJsonlLogger,
-			{ logsHome: this._environmentService.logsHome, connectionId: result.connectionId, transport: 'ssh' },
-		) : undefined;
-		const transport = new SSHRelayTransport(result.connectionId, this._mainService, logger);
-		return this._instantiationService.createInstance(
-			RemoteAgentHostProtocolClient, result.address, transport,
-		);
+		return this._relayClientFactory.createClient(this._mainService, result.connectionId, result.address);
 	}
 
 	private _augmentConfig(config: ISSHAgentHostConfig): ISSHAgentHostConfig {
@@ -295,7 +321,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 					return;
 				}
 				if (value === undefined) {
-					// User cancelled — submit empty responses to fail this attempt.
+					// User cancelled — abort the owning connection attempt.
 					await this._mainService.respondKeyboardInteractive(request.requestId, undefined);
 					return;
 				}

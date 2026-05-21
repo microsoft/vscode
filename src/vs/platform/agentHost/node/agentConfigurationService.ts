@@ -15,7 +15,7 @@ import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHos
 import type { ISchema, SchemaDefinition, SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { parseSubagentSessionUri, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 
 export const IAgentConfigurationService = createDecorator<IAgentConfigurationService>('agentConfigurationService');
@@ -174,9 +174,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void {
-		this._stateManager.dispatchServerAction({
+		this._stateManager.dispatchServerAction(session, {
 			type: ActionType.SessionConfigChanged,
-			session,
 			config: patch,
 		});
 	}
@@ -205,7 +204,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	updateRootConfig(patch: Record<string, unknown>, replace = false): void {
-		this._stateManager.dispatchServerAction({
+		this._stateManager.dispatchServerAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: patch,
 			replace,

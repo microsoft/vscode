@@ -13,6 +13,7 @@ import { TERMINAL_BACKGROUND_COLOR } from '../workbench/contrib/terminal/common/
 import '../workbench/api/browser/extensionHost.contribution.js';
 import '../workbench/browser/workbench.contribution.js';
 import { agentsPanelBackground } from './common/theme.js';
+import './common/sizes.js';
 
 getColorRegistry().updateDefaultColor(PANEL_BACKGROUND, agentsPanelBackground);
 getColorRegistry().updateDefaultColor(TERMINAL_BACKGROUND_COLOR, agentsPanelBackground);
@@ -216,7 +217,7 @@ import '../workbench/contrib/notebook/browser/notebook.contribution.js';
 import '../workbench/contrib/speech/browser/speech.contribution.js';
 
 // Chat
-import '../workbench/contrib/chat/browser/chat.contribution.js';
+import '../workbench/contrib/chat/browser/chat.shared.contribution.js';
 //import '../workbench/contrib/inlineChat/browser/inlineChat.contribution.js';
 import '../workbench/contrib/mcp/browser/mcp.contribution.js';
 import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
@@ -448,12 +449,13 @@ import './browser/layoutActions.js';
 import './contrib/accountMenu/browser/account.contribution.js';
 import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
-import './contrib/chat/browser/agentHost/agentHostSessionConfigPicker.js';
+import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
+import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import './contrib/chat/browser/customizationsDebugLog.contribution.js';
-import './contrib/copilotChatSessions/browser/copilotChatSessions.contribution.js';
+import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
 import './contrib/sessions/browser/views/sessionsListModelService.js';
-import './contrib/remoteAgentHost/browser/agentHostFilterService.js';
+import './services/agentHostFilter/browser/agentHostFilterService.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changes.contribution.js';
 import './contrib/layout/browser/sessionLayout.contribution.js';

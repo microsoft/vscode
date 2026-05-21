@@ -11,8 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IActiveSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { IChat, ISession, ISessionType, SessionStatus } from '../../common/session.js';
+import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace, SessionStatus } from '../../common/session.js';
 import { SessionsNavigation } from '../../browser/sessionNavigation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ISendRequestOptions } from '../../common/sessionsProvider.js';
@@ -23,7 +23,6 @@ const stubChat = {
 	title: constObservable('Chat'),
 	updatedAt: constObservable(new Date()),
 	status: constObservable(SessionStatus.Completed),
-	changesets: constObservable([]),
 	changes: constObservable([]),
 	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
@@ -42,7 +41,6 @@ function stubChatWithId(id: string, status: SessionStatus = SessionStatus.Comple
 		updatedAt: constObservable(new Date()),
 		status: constObservable(status),
 		checkpoints: constObservable(undefined),
-		changesets: constObservable([]),
 		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
@@ -75,7 +73,6 @@ function stubSession(id: string, status: SessionStatus = SessionStatus.Completed
 		isRead: constObservable(true),
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
-		gitHubInfo: constObservable(undefined),
 		chats: constObservable(sessionChats),
 		mainChat: sessionChats[0],
 		capabilities: { supportsMultipleChats: chats !== undefined && chats.length > 1 },
@@ -130,6 +127,8 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 
 	getAllSessionTypes(): ISessionType[] { return []; }
+	getSessionTypesForFolder(_folderUri: URI): IProviderSessionType[] { return []; }
+	resolveWorkspace(_folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined { return undefined; }
 
 	async openSession(sessionResource: URI): Promise<void> {
 		this._openedResource = sessionResource;
@@ -158,7 +157,7 @@ class MockSessionStore implements ISessionsManagementService {
 		}
 	}
 	restoreLastActiveSession(): Promise<void> { throw new Error('not implemented'); }
-	createNewSession(_providerId: string, _workspaceUri: URI, _sessionTypeId?: string): ISession { throw new Error('not implemented'); }
+	createNewSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	unsetNewSession(): void { throw new Error('not implemented'); }
 	sendAndCreateChat(_session: ISession, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
 	sendRequest(_session: ISession, _chat: IChat, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }

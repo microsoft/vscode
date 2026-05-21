@@ -5,12 +5,10 @@
 
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
-import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { createDirectoryIfNotExists, IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { FileType } from '../../../platform/filesystem/common/fileTypes';
 import { ILogService } from '../../../platform/log/common/logService';
-import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { URI } from '../../../util/vs/base/common/uri';
@@ -155,13 +153,9 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 		@IMemoryCleanupService private readonly memoryCleanupService: IMemoryCleanupService,
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
 		@ILogService private readonly logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExperimentationService private readonly experimentationService: IExperimentationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
-		if (this.configurationService.getExperimentBasedConfig(ConfigKey.MemoryToolEnabled, this.experimentationService)) {
-			this.memoryCleanupService.start();
-		}
+		this.memoryCleanupService.start();
 	}
 
 	prepareInvocation(options: vscode.LanguageModelToolInvocationPrepareOptions<MemoryToolParams>, _token: CancellationToken): vscode.ProviderResult<vscode.PreparedToolInvocation> {

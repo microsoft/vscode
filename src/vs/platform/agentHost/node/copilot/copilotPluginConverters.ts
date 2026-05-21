@@ -6,9 +6,11 @@
 import { spawn } from 'child_process';
 import type { CustomAgentConfig, MCPServerConfig, SessionConfig } from '@github/copilot-sdk';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IMcpServerDefinition, INamedPluginResource, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import type { CustomizationAgentRef } from '../../common/state/protocol/state.js';
 import { dirname } from '../../../../base/common/path.js';
 
 type SessionHooks = NonNullable<SessionConfig['hooks']>;
@@ -70,22 +72,49 @@ function toStringEnv(env: Record<string, string | number | null>): Record<string
 
 /**
  * Converts parsed plugin agents into the SDK's `customAgents` config.
- * Reads each agent's `.md` file to use as the prompt.
+ *
+ * Each agent file is read and (when present) its YAML frontmatter is parsed:
+ *  - `name` falls back to the agent's resource name (filename stem).
+ *  - `description` is forwarded verbatim.
+ *  - `tools` is forwarded as the SDK's allow-list; an empty / missing array
+ *    becomes `null` so the SDK grants the agent access to all tools.
+ *  - `prompt` is the markdown body that follows the frontmatter (or the
+ *    full file content when there is no frontmatter).
  */
 export async function toSdkCustomAgents(agents: readonly INamedPluginResource[], fileService: IFileService): Promise<CustomAgentConfig[]> {
 	const configs: CustomAgentConfig[] = [];
 	for (const agent of agents) {
 		try {
 			const content = await fileService.readFile(agent.uri);
+			const raw = content.value.toString();
+			const md = parseFrontMatter(raw);
+			const name = md?.getStringValue('name') ?? agent.name;
+			const description = md?.getStringValue('description');
+			const tools = md?.getStringArrayValue('tools');
+			const prompt = md?.body ?? raw;
 			configs.push({
-				name: agent.name,
-				prompt: content.value.toString(),
+				name,
+				...(description ? { description } : {}),
+				tools: tools && tools.length > 0 ? tools : null,
+				prompt,
 			});
 		} catch {
 			// Skip agents whose file cannot be read
 		}
 	}
 	return configs;
+}
+
+/**
+ * Projects parsed plugin agents into the protocol's {@link CustomizationAgentRef}
+ * shape so they can be advertised on the owning {@link CustomizationRef.agents}.
+ */
+export function toCustomizationAgentRefs(agents: readonly INamedPluginResource[]): CustomizationAgentRef[] {
+	return agents.map(a => ({
+		uri: a.uri.toString(),
+		name: a.name,
+		...(a.description ? { description: a.description } : {}),
+	}));
 }
 
 // ---------------------------------------------------------------------------

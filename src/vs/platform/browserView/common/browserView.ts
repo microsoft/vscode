@@ -11,6 +11,7 @@ const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
 	// Tab management
 	Open = `${commandPrefix}.open`,
+	OpenFile = `${commandPrefix}.openFile`,
 	NewTab = `${commandPrefix}.newTab`,
 	QuickOpen = `${commandPrefix}.quickOpen`,
 	OpenOrList = `${commandPrefix}.openOrList`,
@@ -63,6 +64,17 @@ export interface IElementData {
 	readonly computedStyles?: Record<string, string>;
 	readonly dimensions?: { readonly top: number; readonly left: number; readonly width: number; readonly height: number };
 	readonly innerText?: string;
+}
+
+export interface IBrowserViewTheme {
+	readonly focusBorder?: string;
+	readonly buttonBackground?: string;
+	readonly buttonForeground?: string;
+	readonly font?: string;
+}
+
+export interface IBrowserViewConfiguration {
+	readonly aiFeaturesDisabled?: boolean;
 }
 
 export interface IBrowserViewBounds {
@@ -456,8 +468,20 @@ export interface IBrowserViewService {
 	toggleElementSelection(id: string, enabled?: boolean): Promise<void>;
 
 	/**
+	 * Update the theme used by injected UI across all browser views.
+	 * @param theme The theme variables to apply
+	 */
+	updateTheme(theme: IBrowserViewTheme): Promise<void>;
+
+	/**
 	 * Update the keybinding accelerators used in browser view context menus.
 	 * @param keybindings A map of command ID to accelerator label
 	 */
 	updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void>;
+
+	/**
+	 * Update workbench configuration that affect browser view behavior.
+	 * @param config The configuration to apply
+	 */
+	updateConfiguration(config: IBrowserViewConfiguration): Promise<void>;
 }

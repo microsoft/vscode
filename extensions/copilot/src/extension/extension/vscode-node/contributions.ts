@@ -17,6 +17,7 @@ import { IExtensionContributionFactory, asContributionFactory } from '../../comm
 import { CompletionsUnificationContribution } from '../../completions/vscode-node/completionsUnificationContribution';
 import { ConfigurationMigrationContribution } from '../../configuration/vscode-node/configurationMigration';
 import { ContextKeysContribution } from '../../contextKeys/vscode-node/contextKeys.contribution';
+import { ByokUtilityModelNotificationContribution } from '../../chatInputNotification/vscode-node/byokUtilityModel.contribution';
 import { ChatInputNotificationContribution } from '../../chatInputNotification/vscode-node/chatInputNotification.contribution';
 import { AiMappedEditsContrib } from '../../conversation/vscode-node/aiMappedEditsContrib';
 import { ConversationFeature } from '../../conversation/vscode-node/conversationFeature';
@@ -76,6 +77,7 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(PowerStateLogger),
 	asContributionFactory(ContextKeysContribution),
 	asContributionFactory(ChatInputNotificationContribution),
+	asContributionFactory(ByokUtilityModelNotificationContribution),
 	asContributionFactory(CopilotDebugCommandContribution),
 	asContributionFactory(DebugCommandsContribution),
 	asContributionFactory(LanguageModelAccess),
@@ -104,6 +106,7 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(OTelContrib),
 	asContributionFactory(SessionStoreTracker),
 	sessionSyncContribution,
+	asContributionFactory(BYOKContrib),
 ];
 
 /**
@@ -124,7 +127,6 @@ export const vscodeNodeChatContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(SetupTestsContribution),
 	asContributionFactory(FixTestFailureContribution),
 	asContributionFactory(IgnoredFileProviderContribution),
-	asContributionFactory(BYOKContrib),
 	asContributionFactory(McpSetupCommands),
 	asContributionFactory(LanguageModelProxyContrib),
 	asContributionFactory(PromptFileContribution),

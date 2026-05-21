@@ -55,7 +55,9 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 		super();
 		this.modelsConfigurationFile = uriIdentityService.extUri.joinPath(userDataProfileService.currentProfile.location, 'chatLanguageModels.json');
 		this.updateLanguageModelsConfiguration();
-		this._register(fileService.watch(this.modelsConfigurationFile));
+		// Watch the parent folder for reliable change detection across platforms (especially Windows
+		// where `fs.watch` on individual files can miss in-place writes).
+		this._register(fileService.watch(uriIdentityService.extUri.dirname(this.modelsConfigurationFile)));
 		this._register(fileService.onDidFilesChange(e => {
 			if (e.contains(this.modelsConfigurationFile)) {
 				this.updateLanguageModelsConfiguration();
@@ -161,24 +163,36 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 			return;
 		}
 
-		if (!options.group.range) {
-			return;
-		}
-
 		if (options.snippet) {
 			// Insert snippet at the end of the last property line (before the closing brace line), with comma prepended
 			const model = codeEditor.getModel();
 			if (!model) {
 				return;
 			}
-			const lastPropertyLine = options.group.range.endLineNumber - 1;
-			const lastPropertyLineLength = model.getLineLength(lastPropertyLine);
-			const insertPosition = { lineNumber: lastPropertyLine, column: lastPropertyLineLength + 1 };
+			const targetRange = options.snippetTarget === 'models' ? options.group.modelsRange : options.group.range;
+			if (!targetRange) {
+				return;
+			}
+			const models = options.group.models;
+			const isModelsArray = options.snippetTarget === 'models' && Array.isArray(models);
+			const emptyModelsArray = isModelsArray && models.length === 0;
+			const insertBeforeModelsArrayEnd = emptyModelsArray || (isModelsArray && targetRange.startLineNumber === targetRange.endLineNumber);
+			const lastPropertyLine = targetRange.endLineNumber - 1;
+			const insertPosition = insertBeforeModelsArrayEnd ? {
+				lineNumber: targetRange.endLineNumber,
+				column: targetRange.endColumn - 1
+			} : {
+				lineNumber: lastPropertyLine,
+				column: model.getLineLength(lastPropertyLine) + 1
+			};
 			codeEditor.setPosition(insertPosition);
 			codeEditor.revealPositionNearTop(insertPosition);
 			codeEditor.focus();
-			SnippetController2.get(codeEditor)?.insert(',\n' + options.snippet);
+			SnippetController2.get(codeEditor)?.insert(emptyModelsArray ? options.snippet : ',\n' + options.snippet);
 		} else {
+			if (!options.group.range) {
+				return;
+			}
 			const position = { lineNumber: options.group.range.startLineNumber, column: options.group.range.startColumn };
 			codeEditor.setPosition(position);
 			codeEditor.revealPositionNearTop(position);
@@ -201,6 +215,7 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 			const updatedLanguageModelsProviderGroups = await update(languageModelsProviderGroups);
 			for (const group of updatedLanguageModelsProviderGroups) {
 				delete group.range;
+				delete group.modelsRange;
 			}
 			model.setValue(JSON.stringify(updatedLanguageModelsProviderGroups, undefined, '\t'));
 			await this.textFileService.save(this.modelsConfigurationFile);
@@ -271,19 +286,37 @@ export function parseLanguageModelsProviderGroups(model: ITextModel): LanguageMo
 				currentProperty = null;
 				return;
 			}
-			const array: unknown[] = [];
+			const array: unknown[] & { _parentModelsRange?: Mutable<IRange> } = [];
+			const parent = currentParent as Record<string, unknown> & { range?: IRange; modelsRange?: Mutable<IRange> };
+			if (currentProperty === 'models' && parent.range) {
+				const start = model.getPositionAt(offset);
+				const end = model.getPositionAt(offset + length);
+				parent.modelsRange = {
+					startLineNumber: start.lineNumber,
+					startColumn: start.column,
+					endLineNumber: end.lineNumber,
+					endColumn: end.column
+				};
+				array._parentModelsRange = parent.modelsRange;
+			}
 			onValue(array, offset, length);
 			previousParents.push(currentParent);
 			currentParent = array;
 			currentProperty = null;
 		},
 		onArrayEnd: (offset: number, length: number) => {
-			const parent = currentParent as { _parentConfigurationRange?: Mutable<IRange> };
+			const parent = currentParent as { _parentConfigurationRange?: Mutable<IRange>; _parentModelsRange?: Mutable<IRange> };
 			if (parent._parentConfigurationRange) {
 				const end = model.getPositionAt(offset + length);
 				parent._parentConfigurationRange.endLineNumber = end.lineNumber;
 				parent._parentConfigurationRange.endColumn = end.column;
 				delete parent._parentConfigurationRange;
+			}
+			if (parent._parentModelsRange) {
+				const end = model.getPositionAt(offset + length);
+				parent._parentModelsRange.endLineNumber = end.lineNumber;
+				parent._parentModelsRange.endColumn = end.column;
+				delete parent._parentModelsRange;
 			}
 			currentParent = previousParents.pop();
 		},

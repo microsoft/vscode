@@ -73,7 +73,44 @@ const HIDDEN_FAMILY_H_HASHES: string[] = [
 	'70fcded3f255d368e868cc807d8838a62108bfa5c86ce7d37966f58cda229e33',
 ];
 
-function getModelId(model: LanguageModelChat | IChatEndpoint): string {
+const HIDDEN_FAMILY_M_HASHES: string[] = [
+	'0902565c0c0fe145633a1f246ae551acc0f621249ef050428eba357fbd4655ee',
+];
+
+/**
+ * Per-model capability override. Lets advanced users (and evals) alias an
+ * unknown/preview model id to a known production family for capability
+ * routing. Read once per endpoint in `ChatEndpoint`'s constructor from the
+ * `chat.modelCapabilityOverrides` setting; the aliased family flows through
+ * every family-prefix-based heuristic (Anthropic family detection, prompt
+ * resolver, multi-replace tools, tool search, context editing, extended
+ * cache TTL, memory, PDF support, …).
+ *
+ * The model id on the wire is unaffected; only our local capability layer
+ * sees the alias.
+ */
+export interface IModelCapabilityOverride {
+	/**
+	 * Alias the model's family for capability routing (e.g. set to
+	 * `"claude-opus-4.7"` to make a preview model receive every Anthropic
+	 * Claude Opus 4.7 capability).
+	 */
+	family?: string;
+}
+
+/**
+ * Returns the capability override (if any) for the given model id, read
+ * from the `chat.modelCapabilityOverrides` setting.
+ */
+export function getModelCapabilityOverride(
+	modelId: string,
+	configurationService: IConfigurationService,
+): IModelCapabilityOverride | undefined {
+	const map = configurationService.getConfig(ConfigKey.Advanced.ModelCapabilityOverrides);
+	return map?.[modelId];
+}
+
+export function getModelId(model: LanguageModelChat | IChatEndpoint): string {
 	return 'id' in model ? model.id : model.model;
 }
 
@@ -96,11 +133,6 @@ export function isHiddenModelE(model: LanguageModelChat | IChatEndpoint) {
 export function isHiddenModelF(model: LanguageModelChat | IChatEndpoint) {
 	const h = getCachedSha256Hash(model.family);
 	return HIDDEN_MODEL_F_HASHES.includes(h);
-}
-
-export function isHiddenModelG(model: LanguageModelChat | IChatEndpoint | string) {
-	const family_hash = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
-	return family_hash === '3ae755cc6122a54cc873e3ba2bd8703883b4a711d1af2707ef00f2c2c963ee8d';
 }
 
 export function isHiddenFamilyH(model: LanguageModelChat | IChatEndpoint) {
@@ -144,24 +176,10 @@ export function isGpt55LargePromptSectionsExp(
 	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55LargePromptSections, experimentationService);
 }
 
-export function isGpt54ConcisePromptExp(
-	accessor: ServicesAccessor,
-	model: LanguageModelChat | IChatEndpoint | string,
-) {
-	const configurationService = accessor.get(IConfigurationService);
-	const experimentationService = accessor.get(IExperimentationService);
-	return isGpt54(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt54ConcisePromptExp, experimentationService);
+export function isHiddenModelM(model: LanguageModelChat | IChatEndpoint | string) {
+	const family_hash = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
+	return HIDDEN_FAMILY_M_HASHES.includes(family_hash);
 }
-
-export function isGpt54LargePromptExp(
-	accessor: ServicesAccessor,
-	model: LanguageModelChat | IChatEndpoint | string,
-) {
-	const configurationService = accessor.get(IConfigurationService);
-	const experimentationService = accessor.get(IExperimentationService);
-	return isGpt54(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt54LargePromptExp, experimentationService);
-}
-
 
 export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) {
 	const family = typeof model === 'string' ? model : model.family;
@@ -241,7 +259,8 @@ export function modelSupportsApplyPatch(model: LanguageModelChat | IChatEndpoint
 		|| isVSCModelB(model)
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
-		|| isHiddenModelB(model);
+		|| isHiddenModelB(model)
+		|| isHiddenModelM(model);
 }
 
 /**
@@ -254,7 +273,8 @@ export function modelPrefersJsonNotebookRepresentation(model: LanguageModelChat 
 		|| isGpt53Codex(model.family)
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
-		|| isHiddenModelB(model);
+		|| isHiddenModelB(model)
+		|| isHiddenModelM(model);
 }
 
 /**
@@ -337,7 +357,7 @@ export function modelSupportsSimplifiedApplyPatchInstructions(model: LanguageMod
 }
 
 export function isAnthropicFamily(model: LanguageModelChat | IChatEndpoint): boolean {
-	return model.family.startsWith('claude') || model.family.startsWith('Anthropic') || isHiddenModelG(model);
+	return model.family.startsWith('claude') || model.family.startsWith('Anthropic');
 }
 
 export function isGeminiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
@@ -416,65 +436,64 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
 
 /**
  * Tool search is supported by:
- * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
- * - Claude Sonnet 4.6 (claude-sonnet-4-6-* or claude-sonnet-4.6-*)
- * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
- * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
- * - Claude Opus 4.7 (claude-opus-4-7-* or claude-opus-4.7-*)
- * - OpenAI gpt-5.4/gpt-5.5, but only when the `ResponsesApiToolSearchEnabled` setting is enabled
+ * - Claude Sonnet 4.5 / 4.6 (claude-sonnet-4-5-* or 4-6-*)
+ * - Claude Opus 4.5 / 4.6 / 4.7 (claude-opus-4-5-*, 4-6-*, or 4-7-*)
+ * - OpenAI gpt-5.4 and gpt-5.5 (via Responses API client-side tool search)
+ *
+ * Accepts either an id string, a {@link LanguageModelChat}, or an
+ * {@link IChatEndpoint} — when given an endpoint/chat the model **family**
+ * is also checked, so a per-model family override (see
+ * {@link IModelCapabilityOverride}) lights this up automatically.
  */
-export function modelSupportsToolSearch(modelId: string, configurationService?: IConfigurationService, experimentationService?: IExperimentationService): boolean {
-	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	if (isResponsesApiToolSearchModelId(normalized)) {
-		return !!configurationService && !!experimentationService && isResponsesApiToolSearchEnabled(modelId, configurationService, experimentationService);
-	}
-
-	return normalized.startsWith('claude-sonnet-4-5') ||
-		normalized.startsWith('claude-sonnet-4-6') ||
-		normalized.startsWith('claude-opus-4-5') ||
-		normalized.startsWith('claude-opus-4-6') ||
-		normalized.startsWith('claude-opus-4-7') ||
-		isHiddenModelG(modelId);
-}
-
-function isResponsesApiToolSearchModelId(normalizedModelId: string): boolean {
-	return normalizedModelId === 'gpt-5-4' || normalizedModelId === 'gpt-5-5';
-}
-
-export function isResponsesApiToolSearchEnabled(
-	endpoint: IChatEndpoint | string,
-	configurationService: IConfigurationService,
-	experimentationService: IExperimentationService,
-): boolean {
-	const modelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
-	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	return isResponsesApiToolSearchModelId(normalized) && configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiToolSearchEnabled, experimentationService);
+export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const id = typeof model === 'string' ? model : getModelId(model);
+	const family = typeof model === 'string' ? model : model.family;
+	const matches = (s: string) => {
+		const n = s.toLowerCase().replace(/\./g, '-');
+		return n === 'gpt-5-4' ||
+			n === 'gpt-5-5' ||
+			n.startsWith('claude-sonnet-4-5') ||
+			n.startsWith('claude-sonnet-4-6') ||
+			n.startsWith('claude-opus-4-5') ||
+			n.startsWith('claude-opus-4-6') ||
+			n.startsWith('claude-opus-4-7');
+	};
+	return matches(id) || matches(family) || isHiddenModelM(id);
 }
 
 /**
  * Context editing is supported by:
- * - Claude Haiku 4.5 (claude-haiku-4-5-* or claude-haiku-4.5-*)
- * - Claude Sonnet 4.6 (claude-sonnet-4-6-* or claude-sonnet-4.6-*)
- * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
- * - Claude Sonnet 4 (claude-sonnet-4-*)
- * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
- * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
- * - Claude Opus 4.1 (claude-opus-4-1-* or claude-opus-4.1-*)
- * - Claude Opus 4 (claude-opus-4-*)
- * Provider-agnostic: add additional model prefixes here as other providers adopt context editing.
+ * - Claude Haiku 4.5
+ * - Claude Sonnet 4 / 4.5 / 4.6
+ * - Claude Opus 4 / 4.1 / 4.5 / 4.6
+ *
+ * Accepts either an id string, a {@link LanguageModelChat}, or an
+ * {@link IChatEndpoint} — when given an endpoint/chat the model **family**
+ * is also checked, so a per-model family override (see
+ * {@link IModelCapabilityOverride}) lights this up automatically.
+ *
+ * Provider-agnostic: add additional model prefixes here as other providers
+ * adopt context editing.
  */
-export function modelSupportsContextEditing(modelId: string): boolean {
-	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	// The 1M context variant doesn't need context editing
-	if (normalized.includes('1m')) {
+export function modelSupportsContextEditing(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const id = typeof model === 'string' ? model : getModelId(model);
+	const family = typeof model === 'string' ? model : model.family;
+	const normalize = (s: string) => s.toLowerCase().replace(/\./g, '-');
+	const normalizedId = normalize(id);
+	const normalizedFamily = normalize(family);
+	// The 1M context variant doesn't need context editing. Check id and family
+	// up-front so an override or normalization can't accidentally re-enable it.
+	if (normalizedId.includes('1m') || normalizedFamily.includes('1m')) {
 		return false;
 	}
-	return normalized.startsWith('claude-haiku-4-5') ||
-		normalized.startsWith('claude-sonnet-4-6') ||
-		normalized.startsWith('claude-sonnet-4-5') ||
-		normalized.startsWith('claude-sonnet-4') ||
-		normalized.startsWith('claude-opus-4-6') ||
-		normalized.startsWith('claude-opus-4-5') ||
-		normalized.startsWith('claude-opus-4-1') ||
-		normalized.startsWith('claude-opus-4');
+	const matches = (n: string) =>
+		n.startsWith('claude-haiku-4-5') ||
+		n.startsWith('claude-sonnet-4-6') ||
+		n.startsWith('claude-sonnet-4-5') ||
+		n.startsWith('claude-sonnet-4') ||
+		n.startsWith('claude-opus-4-6') ||
+		n.startsWith('claude-opus-4-5') ||
+		n.startsWith('claude-opus-4-1') ||
+		n.startsWith('claude-opus-4');
+	return matches(normalizedId) || matches(normalizedFamily);
 }

@@ -116,12 +116,33 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 	private readonly _onConnection = this._register(new Emitter<IProtocolTransport>());
 	readonly onConnection = this._onConnection.event;
 
+	/**
+	 * Resolves once the underlying TCP / socket listener has bound, or
+	 * rejects with the bind error. Use this before reading {@link address}
+	 * or {@link boundPort} — querying the address synchronously after
+	 * construction races against the listener bind.
+	 */
+	readonly whenListening: Promise<void>;
+
 	get address(): string | undefined {
 		const addr = this._wss.address();
 		if (!addr || typeof addr === 'string') {
 			return addr ?? undefined;
 		}
 		return `${addr.address}:${addr.port}`;
+	}
+
+	/**
+	 * The actual TCP port the server is bound to. `undefined` when the
+	 * listener has not bound yet (await {@link whenListening} first) or
+	 * when the server is bound to a unix socket / named pipe.
+	 */
+	get boundPort(): number | undefined {
+		const addr = this._wss.address();
+		if (!addr || typeof addr === 'string') {
+			return undefined;
+		}
+		return addr.port;
 	}
 
 	/**
@@ -175,12 +196,27 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 			// and attach the WebSocket server to it.
 			this._httpServer = http.createServer();
 			this._wss = new ws.WebSocketServer({ server: this._httpServer, verifyClient });
-			this._httpServer.listen(opts.socketPath, () => {
-				this._logService.info(`[WebSocketProtocol] Server listening on socket ${opts.socketPath}`);
+			const httpServer = this._httpServer;
+			this.whenListening = new Promise<void>((resolve, reject) => {
+				httpServer.once('listening', () => {
+					this._logService.info(`[WebSocketProtocol] Server listening on socket ${opts.socketPath}`);
+					resolve();
+				});
+				httpServer.once('error', reject);
 			});
+			this._httpServer.listen(opts.socketPath);
 		} else {
 			this._wss = new ws.WebSocketServer({ port: opts.port, host, verifyClient });
-			this._logService.info(`[WebSocketProtocol] Server listening on ${host}:${opts.port}`);
+			const wss = this._wss;
+			this.whenListening = new Promise<void>((resolve, reject) => {
+				wss.once('listening', () => {
+					const addr = wss.address();
+					const bound = !addr || typeof addr === 'string' ? `${host}:${opts.port}` : `${addr.address}:${addr.port}`;
+					this._logService.info(`[WebSocketProtocol] Server listening on ${bound}`);
+					resolve();
+				});
+				wss.once('error', reject);
+			});
 		}
 
 		this._wss.on('connection', (wsConn) => {
