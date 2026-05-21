@@ -237,6 +237,14 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			failureThreshold: 5,
 			resetTimeoutMs: 1_000,
 			maxResetTimeoutMs: 30_000,
+			onStateChange: (from, to) => {
+				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
+					operation: 'circuitBreaker',
+					transition: to.toLowerCase(),
+				}, {
+					failureCount: this._circuitBreaker.getFailureCount(),
+				});
+			},
 		});
 
 		// Register delete cloud sessions command
@@ -818,7 +826,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 						"indexingLevel": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The indexing level for the session." },
 						"droppedEvents": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of events in a failed batch." },
 						"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reason session was disabled (no_consent, no_repo, init_error, create_error, policy_blocked_cached)." },
-						"transition": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Circuit breaker state transition (open, closed)." },
+						"transition": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Circuit breaker state transition (open, half_open, closed)." },
 						"eventsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of actually submitted events (sum of eventsBySession sizes)." },
 						"orphanedCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of orphaned events not submitted (re-queued or dropped)." },
 						"batchDurationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time to submit batch in ms." },
@@ -1144,6 +1152,9 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		// splice/unshift churn on each timer tick. _bufferEvents still enforces
 		// MAX_BUFFER_SIZE so memory stays bounded.
 		if (this._cloudClient.isRateLimited()) {
+			// Release the probe slot consumed by canRequest() above so we don't
+			// burn it on a flush we never actually attempted.
+			this._circuitBreaker.cancelProbe();
 			return;
 		}
 
@@ -1255,9 +1266,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 					orphanedCount: orphanedEntries.length,
 					batchDurationMs: Date.now() - batchStart,
 					bufferSize: this._eventBuffer.length,
-				});
-
-				if (!this._firstCloudWriteLogged) {
+				}); if (!this._firstCloudWriteLogged) {
 					this._firstCloudWriteLogged = true;
 
 					this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
@@ -1270,14 +1279,20 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 				this._setSyncState({ kind: 'error' });
 
 				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
-					operation: 'circuitBreaker',
-					transition: 'open',
+					operation: 'flushFailure',
 				}, {
 					failureCount: this._circuitBreaker.getFailureCount(),
 					eventsCount: submittedCount,
 					orphanedCount: orphanedEntries.length,
 					bufferSize: this._eventBuffer.length,
 				});
+			} else {
+				// Nothing failed but there was also nothing to submit (eg. all
+				// entries were orphans, or only policy/rate-limited sessions).
+				// Release any probe slot consumed by canRequest() so HALF_OPEN
+				// can probe again on the next tick instead of waiting for the
+				// probe timeout.
+				this._circuitBreaker.cancelProbe();
 			}
 
 			if (policyBlockedSessions > 0) {
