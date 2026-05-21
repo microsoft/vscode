@@ -129,7 +129,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 		const finish = () => {
 			{
 				const headerPickle = pickle.createEmpty();
-				headerPickle.writeString(JSON.stringify(filesystem.header));
+				headerPickle.writeString(JSON.stringify(sortAsarHeader(filesystem.header)));
 				const headerBuf = headerPickle.toBuffer();
 
 				const sizePickle = pickle.createEmpty();
@@ -163,4 +163,23 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 			};
 		}
 	});
+}
+
+// Recursively sorts directory entries in an asar filesystem header so that
+// serialization order does not depend on the order in which files arrived in
+// the input stream (which is filesystem-dependent via readdir).
+function sortAsarHeader<T>(node: T): T {
+	if (!node || typeof node !== 'object') {
+		return node;
+	}
+	const obj = node as Record<string, unknown>;
+	const files = obj['files'];
+	if (files && typeof files === 'object') {
+		const sorted: Record<string, unknown> = {};
+		for (const key of Object.keys(files as Record<string, unknown>).sort()) {
+			sorted[key] = sortAsarHeader((files as Record<string, unknown>)[key]);
+		}
+		obj['files'] = sorted;
+	}
+	return node;
 }
