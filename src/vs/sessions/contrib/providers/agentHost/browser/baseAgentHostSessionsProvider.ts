@@ -23,6 +23,7 @@ import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/co
 import { AgentSelection, CustomizationAgentRef, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary, type ChangesetSummary } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -469,6 +470,16 @@ interface INewSessionConstructionContext {
 	 * list as the committed session that replaces it.
 	 */
 	readonly instantiationService: IInstantiationService;
+	/**
+	 * Forwards `SessionState` snapshots from the eagerly-held wire
+	 * subscription back to the provider. `state === undefined` is a
+	 * cleanup sentinel emitted by {@link NewSession.dispose} on the
+	 * close-without-graduation path so the provider can drop any cached
+	 * entry it accumulated for this session. The graduation path skips
+	 * this sentinel because the running-session subscription pipeline
+	 * takes over ownership of the same `sessionId` key.
+	 */
+	readonly onSessionState?: (sessionId: string, state: SessionState | undefined) => void;
 }
 
 /**
@@ -526,7 +537,16 @@ class NewSession extends Disposable {
 	/** Connection used to create the backend session, captured for `disposeSession` on tear-down. */
 	private _connection: IAgentConnection | undefined;
 	/** Held state subscription. Set after the wire `createSession` resolves. */
-	private _subscription: IReference<unknown> | undefined;
+	private _subscription: IReference<IAgentSubscription<SessionState>> | undefined;
+	/**
+	 * `onDidChange` listener for {@link _subscription}. Forwards every
+	 * `SessionState` snapshot to the provider via {@link _onSessionState}
+	 * so the new session's customizations (and any other state) reach
+	 * `_lastSessionStates` while the session is still Untitled. Detached
+	 * in {@link graduate} (handoff) and {@link dispose} (close-without-send).
+	 */
+	private readonly _stateListener = this._register(new MutableDisposable());
+	private readonly _onSessionState: ((sessionId: string, state: SessionState | undefined) => void) | undefined;
 
 	private readonly _logService: ILogService;
 	private readonly _providerId: string;
@@ -541,6 +561,7 @@ class NewSession extends Disposable {
 		this.agentProvider = ctx.sessionType.id;
 		this._providerId = ctx.providerId;
 		this._logService = ctx.logService;
+		this._onSessionState = ctx.onSessionState;
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
 		this._status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
@@ -742,7 +763,23 @@ class NewSession extends Disposable {
 			// handler refcounts the same subscription via `getSubscription`
 			// when chat content opens, so when we release this ref on
 			// graduation the wire-level refcount stays positive.
-			this._subscription = connection.getSubscription(StateComponents.Session, backendUri);
+			const ref = connection.getSubscription(StateComponents.Session, backendUri);
+			this._subscription = ref;
+
+			// Forward `SessionState` updates back to the provider so
+			// `_lastSessionStates` (and therefore `getCustomAgents`) becomes
+			// populated for this still-Untitled session. Seed once from the
+			// cached value, then attach a listener for subsequent deltas.
+			const onSessionState = this._onSessionState;
+			if (onSessionState) {
+				const initial = ref.object.value;
+				if (initial && !(initial instanceof Error)) {
+					onSessionState(this.sessionId, initial);
+				}
+				this._stateListener.value = ref.object.onDidChange(state => {
+					onSessionState(this.sessionId, state);
+				});
+			}
 		})();
 	}
 
@@ -752,6 +789,12 @@ class NewSession extends Disposable {
 	 * graduated into a real running session.
 	 */
 	graduate(): void {
+		// Detach the new-session listener BEFORE releasing the subscription.
+		// Both code paths (this one and the running-session pipeline) write
+		// `_lastSessionStates` under the same `sessionId` key, so detaching
+		// here hands ownership cleanly to `_ensureSessionStateSubscription`
+		// without a transient empty-read window or a duplicate writer.
+		this._stateListener.clear();
 		this._subscription?.dispose();
 		this._subscription = undefined;
 		this._backendUri = undefined;
@@ -762,6 +805,18 @@ class NewSession extends Disposable {
 	override dispose(): void {
 		// Bump the seq so any in-flight resolveConfig discards itself.
 		this._configRequestSeq++;
+
+		// Detach the state listener BEFORE firing the cleanup sentinel so
+		// a racing `onDidChange` cannot re-populate `_lastSessionStates`
+		// after we have asked the provider to delete the entry. Then fire
+		// the sentinel so the provider drops the cached snapshot. Only
+		// fires when a listener was actually wired (i.e. `eagerCreate`
+		// reached the post-`createSession` branch).
+		const hadListener = !!this._stateListener.value;
+		this._stateListener.clear();
+		if (hadListener) {
+			this._onSessionState?.(this.sessionId, undefined);
+		}
 
 		this._subscription?.dispose();
 		this._subscription = undefined;
@@ -1120,6 +1175,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			logService: this._logService,
 			initialConfigValues: this._initialNewSessionConfig(),
 			instantiationService: this._instantiationService,
+			onSessionState: (id, state) => state === undefined
+				? this._handleNewSessionStateGone(id)
+				: this._handleNewSessionStateUpdate(id, state),
 		});
 		this._newSession = newSession;
 		this._onDidChangeSessionConfig.fire(newSession.sessionId);
@@ -1728,6 +1786,34 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._seedRunningConfigFromState(sessionId, state);
 		this._applySessionMetaFromState(sessionId, state);
+	}
+
+	/**
+	 * NewSession variant of {@link _applySessionStateUpdate}: writes the
+	 * customizations subset (the only one the agent picker reads) and
+	 * fires `_onDidChangeCustomAgents` when it changes. Skips
+	 * {@link _seedRunningConfigFromState} (NewSession owns its own config
+	 * via `NewSession._config`) and {@link _applySessionMetaFromState}
+	 * (which only applies to cached running sessions).
+	 */
+	private _handleNewSessionStateUpdate(sessionId: string, state: SessionState): void {
+		const previous = this._lastSessionStates.get(sessionId);
+		this._lastSessionStates.set(sessionId, state);
+		if (previous?.customizations !== state.customizations || previous?.activeClient?.customizations !== state.activeClient?.customizations) {
+			this._onDidChangeCustomAgents.fire();
+		}
+	}
+
+	/**
+	 * Cleanup sentinel from {@link NewSession.dispose}: drops the cached
+	 * `_lastSessionStates` entry the new session contributed. Fires
+	 * `_onDidChangeCustomAgents` so any open picker re-reads and falls
+	 * back to the empty list rather than rendering stale agents.
+	 */
+	private _handleNewSessionStateGone(sessionId: string): void {
+		if (this._lastSessionStates.delete(sessionId)) {
+			this._onDidChangeCustomAgents.fire();
+		}
 	}
 
 	private _applySessionMetaFromState(sessionId: string, state: SessionState): void {
