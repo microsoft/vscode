@@ -122,8 +122,7 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 				readonlyPaths: [...new Set([tempDirPath, ...options.allowReadPaths])],
 				deniedPaths: options.denyReadPaths,
 			},
-			//TODO: currently no proxy. By default we allow all network access.
-			network: this._createNetworkConfig(true, options.networkDomains),
+			network: this._createNetworkConfig(options.allowNetwork, options.networkDomains),
 			ui: {
 				disable: false,
 				clipboard: 'none',
@@ -133,7 +132,7 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 	}
 
 	wrapCommand(executablePath: string, configPath: string): string {
-		return `& ${this._quotePowerShellArgument(executablePath)}  ${this._quotePowerShellArgument(configPath)}`;
+		return `& ${this._quotePowerShellArgument(executablePath)} ${this._quotePowerShellArgument(configPath)}`;
 	}
 
 	wrapUnsandboxedCommand(command: string, tempDir: URI | undefined): string {
