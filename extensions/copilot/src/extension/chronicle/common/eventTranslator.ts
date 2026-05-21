@@ -249,7 +249,7 @@ export function translateSpan(
 				data.duration = span.endTime - span.startTime;
 			}
 
-			pushEvent(events, state, 'assistant.usage', data, /*ephemeral*/ false, subagentId);
+			pushEvent(events, state, 'assistant.usage', data, /*ephemeral*/ true, subagentId);
 		}
 	}
 
