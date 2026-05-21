@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { Application, Logger } from '../../../../automation';
-import { installAllHandlers } from '../../utils';
+import { getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
 
 const COPILOT_CLI_SCENARIO_ID = 'smoke-editor-copilot-cli';
 const COPILOT_CLI_REPLY = 'MOCKED_EDITOR_COPILOT_CLI_RESPONSE';
@@ -22,26 +22,6 @@ const failureMarkers = [
 	'Cannot find module',
 ];
 
-interface MockLlmServer {
-	readonly url: string;
-	requestCount(): number;
-	close(): Promise<void>;
-}
-
-function buildCopilotChatToken(mockUrl: string): string {
-	return Buffer.from(JSON.stringify({
-		token: 'smoketest-fake-token',
-		expires_at: Math.floor(Date.now() / 1000) + 3600,
-		refresh_in: 1800,
-		sku: 'free_limited_copilot',
-		individual: true,
-		isNoAuthUser: true,
-		copilot_plan: 'free',
-		organization_login_list: [],
-		endpoints: { api: mockUrl, proxy: mockUrl },
-	})).toString('base64');
-}
-
 export function setup(logger: Logger, opts: { web?: boolean; remote?: boolean }) {
 	const enabled = process.env.COPILOT_CLI_UI_SMOKE === '1' && !opts.web && !opts.remote;
 
@@ -52,10 +32,7 @@ export function setup(logger: Logger, opts: { web?: boolean; remote?: boolean })
 		let mockServer: MockLlmServer;
 
 		before(async function () {
-			const mockLlmServerPath = path.join(
-				__dirname, '..', '..', '..', '..', '..', 'scripts', 'chat-simulation', 'common', 'mock-llm-server.js'
-			);
-			const { startServer, ScenarioBuilder, registerScenario } = require(mockLlmServerPath);
+			const { startServer, ScenarioBuilder, registerScenario } = require(getMockLlmServerPath());
 
 			registerScenario('text-only', new ScenarioBuilder().emit('OK').build());
 			registerScenario(COPILOT_CLI_SCENARIO_ID, new ScenarioBuilder().emit(COPILOT_CLI_REPLY).build());
@@ -68,9 +45,7 @@ export function setup(logger: Logger, opts: { web?: boolean; remote?: boolean })
 			...opts,
 			extraEnv: {
 				...(opts.extraEnv ?? {}),
-				GITHUB_PAT: 'smoketest-fake-pat',
-				IS_SCENARIO_AUTOMATION: '1',
-				VSCODE_COPILOT_CHAT_TOKEN: mockServer ? buildCopilotChatToken(mockServer.url) : undefined,
+				...getCopilotSmokeTestEnv(mockServer),
 			},
 		}));
 
