@@ -19,7 +19,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { basename, dirname } from '../../../../../base/common/path.js';
+import { basename, dirname, extname } from '../../../../../base/common/path.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -251,6 +251,9 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const fileBasename = basename(resource.path);
+		const attachmentType = attachment.kind === 'directory' ? localize('chat.directoryAttachmentType', "Folder") : extname(fileBasename).slice(1).toUpperCase() || localize('chat.fileAttachmentType', "File");
+		this.element.classList.add(attachment.kind === 'directory' ? 'directory-attachment' : 'file-attachment');
+		this.element.dataset.attachmentType = attachmentType;
 		const fileDirname = dirname(resource.path);
 		const friendlyName = `${fileBasename} ${fileDirname}`;
 		let ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
@@ -452,6 +455,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
+		this.element.classList.add('image-attachment');
 
 		let ariaLabel: string;
 		if (attachment.omittedState === OmittedState.Full) {

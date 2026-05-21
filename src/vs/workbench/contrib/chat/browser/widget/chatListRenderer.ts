@@ -56,7 +56,7 @@ import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPla
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
@@ -1416,12 +1416,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		let content: IChatRendererContent[] = [];
+		const explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry);
+		const otherVariables = element.variables.filter(variable => !isExplicitFileOrImageVariableEntry(variable));
+		const explicitAttachmentSummary = getExplicitFileOrImageAttachmentSummary(explicitFileOrImageVariables);
+		const shouldHideAttachmentSummary = explicitAttachmentSummary !== undefined && element.messageText.trim() === explicitAttachmentSummary;
 		if (!element.confirmation) {
 			const markdown = isChatFollowup(element.message) ?
 				element.message.message :
 				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, element.message);
-			const attachmentSummary = !element.messageText.trim() ? getExplicitFileOrImageAttachmentSummary(element.variables) : undefined;
-			const requestMarkdown = markdown.trim() ? markdown : attachmentSummary;
+			const attachmentSummary = !element.messageText.trim() && !explicitFileOrImageVariables.length ? getExplicitFileOrImageAttachmentSummary(element.variables) : undefined;
+			const requestMarkdown = shouldHideAttachmentSummary ? undefined : markdown.trim() ? markdown : attachmentSummary;
 			if (requestMarkdown) {
 				content = [{ content: new MarkdownString(requestMarkdown), kind: 'markdownContent' }];
 			}
@@ -1437,6 +1441,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		dom.clearNode(templateData.value);
 		const parts: IChatContentPart[] = [];
+		const explicitAttachmentsPart = explicitFileOrImageVariables.length ? this.renderAttachments(explicitFileOrImageVariables, element.contentReferences, element.modelId, templateData) : undefined;
+		if (explicitAttachmentsPart?.domNode) {
+			explicitAttachmentsPart.domNode.classList.add('chat-request-attachment-cards');
+			templateData.value.appendChild(explicitAttachmentsPart.domNode);
+			templateData.elementDisposables.add(explicitAttachmentsPart);
+		}
+		const contentContainer = templateData.value;
 
 		let inlineSlashCommandRendered = false;
 		let codeBlockStartIndex = 0;
@@ -1467,13 +1478,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						newPart.domNode.style.display = 'inline-flex';
 					}
 					const cmdPart = this.instantiationService.createInstance(ChatAgentCommandContentPart, element.slashCommand, () => this._onDidClickRerunWithAgentOrCommandDetection.fire({ sessionResource: element.sessionResource, requestId: element.id }));
-					templateData.value.appendChild(cmdPart.domNode);
+					contentContainer.appendChild(cmdPart.domNode);
 					parts.push(cmdPart);
 					inlineSlashCommandRendered = true;
 				}
 
 				if (newPart.domNode && !newPart.domNode.parentElement) {
-					templateData.value.appendChild(newPart.domNode);
+					contentContainer.appendChild(newPart.domNode);
 				}
 				parts.push(newPart);
 				codeBlockStartIndex += newPart.codeblocks?.length ?? 0;
@@ -1485,8 +1496,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		templateData.renderedParts = parts;
 
-		if (element.variables.length) {
-			const newPart = this.renderAttachments(element.variables, element.contentReferences, element.modelId, templateData);
+		if (otherVariables.length) {
+			const newPart = this.renderAttachments(otherVariables, element.contentReferences, element.modelId, templateData);
 			if (newPart.domNode) {
 				// p has a :last-child rule for margin
 				templateData.value.appendChild(newPart.domNode);
