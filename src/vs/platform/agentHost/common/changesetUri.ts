@@ -62,17 +62,19 @@ export const thisTurnChangesetLabel = (): string => localize('thisTurnChangeset.
 
 /**
  * Returns the description shown next to the `Branch Changes` catalogue
- * entry — formatted as `${branchName} → ${baseBranchName}`. Returns
- * `undefined` when the branch info is incomplete or the current branch
- * equals the base (e.g. working directly on `main`), so callers can omit
- * the description entirely in those cases. This is intentionally
- * worktree-flavoured: `baseBranchName` is only populated by the git
- * probe when `refs/remotes/origin/HEAD` resolves, which is the typical
- * worktree-isolation scenario.
+ * entry. When both `branchName` and `baseBranchName` are known
+ * (typical worktree-isolation case), formats as `${branchName} → ${baseBranchName}`.
+ * Falls back to `branchName` alone when the base branch is unknown
+ * (non-worktree session, or a session whose working copy has no
+ * `refs/remotes/origin/HEAD`). Returns `undefined` only when no branch
+ * name is known at all, so callers can omit the description entirely.
  */
 export function formatSessionChangesetDescription(branchName: string | undefined, baseBranchName: string | undefined): string | undefined {
-	if (!branchName || !baseBranchName || branchName === baseBranchName) {
-		return undefined;
+	if (!branchName || !baseBranchName) {
+		return branchName;
+	}
+	if (branchName === baseBranchName) {
+		return branchName;
 	}
 	return `${branchName} → ${baseBranchName}`;
 }

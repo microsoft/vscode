@@ -991,7 +991,7 @@ suite('AgentService (node dispatcher)', () => {
 			const state = localService.stateManager.getSessionState(session.toString());
 			assert.ok(state);
 			assert.deepStrictEqual(state!.summary.changesets, [
-				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session` },
+				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'main' },
 				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 				{ label: 'This Turn', uriTemplate: `${session.toString()}/changeset/turn/{turnId}` },
 			]);
