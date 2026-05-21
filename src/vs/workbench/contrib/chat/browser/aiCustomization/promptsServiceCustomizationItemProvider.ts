@@ -17,10 +17,9 @@ import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js'
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor, matchesInstructionFileFilter, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { ICustomizationAgentRef, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor, matchesInstructionFileFilter, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 import { BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { getFriendlyName, isChatExtensionItem } from './aiCustomizationItemSource.js';
-import { CustomizationAgentRef } from '../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 
 /**
  * Adapts the rich promptsService model to the same provider-shaped items
@@ -56,9 +55,9 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		return itemSets.flat();
 	}
 
-	async provideCustomAgents(sessionResource: URI, token: CancellationToken): Promise<readonly CustomizationAgentRef[]> {
+	async provideCustomAgents(sessionResource: URI, token: CancellationToken): Promise<readonly ICustomizationAgentRef[]> {
 		const agents = await this.promptsService.getCustomAgents(token);
-		return agents.map(agent => ({ uri: agent.uri, name: agent.name, description: agent.description } satisfies CustomizationAgentRef));
+		return agents.map(agent => ({ uri: agent.uri, name: agent.name, description: agent.description } satisfies ICustomizationAgentRef));
 	}
 
 	private async provideCustomizations(promptType: PromptsType, token: CancellationToken = CancellationToken.None): Promise<readonly ICustomizationItem[]> {

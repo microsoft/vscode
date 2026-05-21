@@ -10,9 +10,9 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { extname } from '../../../../../../base/common/path.js';
 import { joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { CustomizationStatus, StateComponents, type SessionCustomization, type AgentInfo, type CustomizationRef, type RootState, CustomizationAgentRef } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationStatus, StateComponents, type SessionCustomization, type AgentInfo, type CustomizationRef, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
+import { ICustomizationAgentRef, ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -82,8 +82,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return rootState.agents.find(agent => agent.provider === this._agentInfo.provider)?.customizations;
 	}
 
-	private toRemoteUri(customization: CustomizationRef): URI {
-		const original = URI.parse(customization.uri);
+	private toRemoteUri(customizationUri: string): URI {
+		const original = URI.parse(customizationUri);
 		// The synthetic synced-customization bundle lives in the client's
 		// in-memory filesystem. Don't wrap it as an agent-host:// URI —
 		// the server doesn't have this scheme registered, so wrapping it
@@ -109,7 +109,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	private toItem(customization: CustomizationRef, sessionCustomization?: SessionCustomization): ICustomizationItem {
 		const clientId = sessionCustomization?.clientId; // set if the configuration came from the client
 		const badge = this.toBadge(customization, clientId !== undefined);
-		const uri = this.toRemoteUri(customization);
+		const uri = this.toRemoteUri(customization.uri);
 		return {
 			itemKey: customizationItemKey(customization, clientId),
 			uri: uri,
@@ -140,9 +140,14 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return sessionState && !(sessionState instanceof Error) ? sessionState.customizations ?? [] : [];
 	}
 
-	async provideCustomAgents(sessionResource: URI): Promise<readonly CustomizationAgentRef[]> {
+	async provideCustomAgents(sessionResource: URI): Promise<readonly ICustomizationAgentRef[]> {
 		const sessionCustomizations = this.getSessionCustomizations(sessionResource);
-		return sessionCustomizations.flatMap(c => c.agents ?? []);
+		const agents = sessionCustomizations.flatMap(c => c.agents ?? []);
+		return agents.map(agent => ({
+			uri: this.toRemoteUri(agent.uri),
+			name: agent.name,
+			description: agent.description,
+		}));
 	}
 
 	async provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[]> {
@@ -173,7 +178,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				items.set(customizationItemKey(sessionCustomization.customization, sessionCustomization.clientId), item);
 			} else {
 				// create a dummy parent item for the synthetic bundle, it does not go into the items map, just need it to expand.
-				item = { uri: this.toRemoteUri(sessionCustomization.customization), type: 'plugin', name: '', source: AICustomizationSources.plugin, groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined };
+				item = { uri: this.toRemoteUri(sessionCustomization.customization.uri), type: 'plugin', name: '', source: AICustomizationSources.plugin, groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined };
 			}
 
 			// Always expand plugin contents so individual files are visible.
