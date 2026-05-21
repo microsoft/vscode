@@ -10,7 +10,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { extname } from '../../../../../../base/common/path.js';
 import { joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { CustomizationStatus, StateComponents, type SessionCustomization, type AgentInfo, type CustomizationRef, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationStatus, StateComponents, type SessionCustomization, type AgentInfo, type CustomizationRef, type RootState, CustomizationAgentRef } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
@@ -134,6 +134,17 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return AgentSession.uri(this._agentInfo.provider, rawId);
 	}
 
+	private getSessionCustomizations(sessionResource: URI): readonly SessionCustomization[] {
+		const sessionUri = this._resolveSessionUri(sessionResource);
+		const sessionState = this._connection.getSubscriptionUnmanaged(StateComponents.Session, sessionUri)?.value;
+		return sessionState && !(sessionState instanceof Error) ? sessionState.customizations ?? [] : [];
+	}
+
+	async provideCustomAgents(sessionResource: URI): Promise<readonly CustomizationAgentRef[]> {
+		const sessionCustomizations = this.getSessionCustomizations(sessionResource);
+		return sessionCustomizations.flatMap(c => c.agents ?? []);
+	}
+
 	async provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[]> {
 		const items = new Map<string, ICustomizationItem>();
 
@@ -146,10 +157,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			items.set(customizationItemKey(customization, undefined), item);
 			plugins.push({ item, nonce: customization.nonce, status: undefined, statusMessage: undefined, enabled: undefined, childGroupKey: REMOTE_HOST_GROUP, isBundleItem: false });
 		}
-		const sessionUri = this._resolveSessionUri(sessionResource);
-		const sessionState = this._connection.getSubscriptionUnmanaged(StateComponents.Session, sessionUri)?.value;
-		const sessionCustomizations = sessionState && !(sessionState instanceof Error) ? sessionState.customizations ?? [] : [];
-		for (const sessionCustomization of sessionCustomizations) {
+		for (const sessionCustomization of this.getSessionCustomizations(sessionResource)) {
 			const isBundleItem = isSyntheticBundle(sessionCustomization.customization);
 			const isClientSynced = sessionCustomization.clientId !== undefined;
 			const childGroupKey = isClientSynced ? REMOTE_CLIENT_GROUP : REMOTE_HOST_GROUP;

@@ -20,6 +20,7 @@ import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/servi
 import { ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor, matchesInstructionFileFilter, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 import { BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { getFriendlyName, isChatExtensionItem } from './aiCustomizationItemSource.js';
+import { CustomizationAgentRef } from '../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 
 /**
  * Adapts the rich promptsService model to the same provider-shaped items
@@ -53,6 +54,11 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 			this.provideCustomizations(PromptsType.prompt, token),
 		]);
 		return itemSets.flat();
+	}
+
+	async provideCustomAgents(sessionResource: URI, token: CancellationToken): Promise<readonly CustomizationAgentRef[]> {
+		const agents = await this.promptsService.getCustomAgents(token);
+		return agents.map(agent => ({ uri: agent.uri, name: agent.name, description: agent.description } satisfies CustomizationAgentRef));
 	}
 
 	private async provideCustomizations(promptType: PromptsType, token: CancellationToken = CancellationToken.None): Promise<readonly ICustomizationItem[]> {
