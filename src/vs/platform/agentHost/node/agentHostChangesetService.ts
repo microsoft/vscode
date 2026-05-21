@@ -499,7 +499,20 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				fromRef: originalPair.current,
 				toRef: modifiedPair.current,
 			});
-			this._publishChangesetDiffs(session, compareUri, diffs ?? []);
+			if (diffs === undefined) {
+				// `computeFileDiffsBetweenRefs` returns undefined to signal a
+				// git failure (not a git work tree, bad ref, transport error,
+				// etc.) and an empty array to signal "no changes". Collapsing
+				// both into [] would mask real failures as an empty Ready
+				// snapshot — surface the failure explicitly instead.
+				this._stateManager.dispatchServerAction(compareUri, {
+					type: ActionType.ChangesetStatusChanged,
+					status: ChangesetStatus.Error,
+					error: { errorType: 'computeFailed', message: `Failed to compute compare-turns diff from git (${originalPair.current}..${modifiedPair.current}).` },
+				});
+				return compareUri;
+			}
+			this._publishChangesetDiffs(session, compareUri, diffs);
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to compute compare-turns diffs for ${session}/${originalTurnId}/${modifiedTurnId}`, err);
 			this._stateManager.dispatchServerAction(compareUri, {

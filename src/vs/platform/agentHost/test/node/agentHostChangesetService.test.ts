@@ -782,5 +782,33 @@ suite('AgentHostChangesetService', () => {
 			assert.deepStrictEqual({ status: state?.status, files: state?.files }, { status: 'ready', files: [] });
 			assert.strictEqual(gitCalls, 0, 'git diff must be short-circuited when both refs match');
 		});
+
+		test('transitions to Error when the git diff returns undefined (git failure, not empty)', async () => {
+			const sessionStr = sessionUri.toString();
+			setupSession('file:///wd');
+
+			const db = new TestSessionDatabase();
+			await db.setMetadata(META_CHECKPOINT_WORKING_DIR, 'file:///wd');
+
+			const gitService = createNoopGitService();
+			gitService.computeFileDiffsBetweenRefs = async () => undefined;
+			const svc = disposables.add(new AgentHostChangesetService(
+				stateManager,
+				new NullLogService(),
+				createSessionDataService(db),
+				gitService,
+				makeCheckpointService({
+					'orig': { parent: 'p', current: 'ref-orig' },
+					'mod': { parent: 'ref-orig', current: 'ref-mod' },
+				}),
+			));
+
+			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
+
+			const snapshot = stateManager.getSnapshot(compareUri);
+			const state = snapshot?.state as { status: string; error?: { message: string } } | undefined;
+			assert.strictEqual(state?.status, 'error');
+			assert.ok(state?.error?.message.includes('git'), `expected git-failure error message, got ${state?.error?.message}`);
+		});
 	});
 });

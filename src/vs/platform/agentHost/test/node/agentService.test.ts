@@ -2252,13 +2252,12 @@ suite('AgentService (node dispatcher)', () => {
 		function defaultCatalogue(sessionStr: string) {
 			// These tests have no working directory resolved, so
 			// `_attachGitState` treats it as transient and does NOT strip
-			// the git-only entries. All four default entries are
+			// the two git-only entries. All three default entries are
 			// advertised (without counts) until a real compute lands.
 			return [
 				{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
 				{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 				{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
-				{ label: 'Compare Turns', uriTemplate: `${sessionStr}/changeset/compare/{originalTurnId}/{modifiedTurnId}` },
 			];
 		}
 

@@ -60,9 +60,6 @@ export const uncommittedChangesetDescription = (): string => localize('uncommitt
 /** Localized human-readable label for the per-turn changeset template entry. */
 export const thisTurnChangesetLabel = (): string => localize('thisTurnChangeset.label', "This Turn");
 
-/** Localized human-readable label for the compare-turns changeset template entry. */
-export const compareTurnsChangesetLabel = (): string => localize('compareTurnsChangeset.label', "Compare Turns");
-
 /** Marker injected into a changeset URI's path. */
 const CHANGESET_PATH_SEGMENT = '/changeset/';
 
