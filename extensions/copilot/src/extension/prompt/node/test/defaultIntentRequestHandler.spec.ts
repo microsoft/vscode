@@ -6,7 +6,7 @@
 
 import { Raw, RenderPromptResult } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, expect, suite, test, vi } from 'vitest';
-import type { ChatLanguageModelToolReference, ChatPromptReference, ChatRequest, ExtendedChatResponsePart, LanguageModelChat } from 'vscode';
+import type { ChatLanguageModelToolReference, ChatPromptReference, ChatRequest, ExtendedChatResponsePart, LanguageModelChat, LanguageModelToolInformation } from 'vscode';
 import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
 import { toTextPart } from '../../../../platform/chat/common/globalStringUtils';
 import { StaticChatMLFetcher } from '../../../../platform/chat/test/common/staticChatMLFetcher';
@@ -20,6 +20,7 @@ import { NullWorkspaceFileIndex } from '../../../../platform/workspaceChunkSearc
 import { IWorkspaceFileIndex } from '../../../../platform/workspaceChunkSearch/node/workspaceFileIndex';
 import { ChatResponseStreamImpl } from '../../../../util/common/chatResponseStreamImpl';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { constObservable } from '../../../../util/vs/base/common/observableInternal';
 import { isObject, isUndefinedOrNull } from '../../../../util/vs/base/common/types';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
@@ -28,6 +29,7 @@ import { ChatLocation, ChatResponseConfirmationPart, ChatResponseMarkdownPart, L
 import { ToolCallingLoop } from '../../../intents/node/toolCallingLoop';
 import { ToolResultMetadata } from '../../../prompts/node/panel/toolCalling';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
+import { IToolGrouping, IToolGroupingService } from '../../../tools/common/virtualTools/virtualToolTypes';
 import { Conversation, Turn } from '../../common/conversation';
 import { IBuildPromptContext } from '../../common/intents';
 import { ToolCallRound } from '../../common/toolCallRound';
@@ -42,9 +44,12 @@ suite('defaultIntentRequestHandler', () => {
 	let promptResult: RenderPromptResult | RenderPromptResult[];
 	let telemetry: SpyingTelemetryService;
 	let fetcher: StaticChatMLFetcher;
-	let endpoint: IChatEndpoint;
+	let endpoint: MockEndpoint;
 	let turnIdCounter = 0;
 	let builtPrompts: IBuildPromptContext[] = [];
+	let availableTools: LanguageModelToolInformation[] = [];
+	let groupedTools: LanguageModelToolInformation[] | undefined;
+	let toolGroupingComputeCount = 0;
 	const sessionId = 'some-session-id';
 
 	const getTurnId = () => `turn-id-${turnIdCounter}`;
@@ -57,12 +62,22 @@ suite('defaultIntentRequestHandler', () => {
 		services.define(ITelemetryService, telemetry);
 		services.define(IChatMLFetcher, fetcher);
 		services.define(IWorkspaceFileIndex, new SyncDescriptor(NullWorkspaceFileIndex));
+		services.define(IToolGroupingService, {
+			_serviceBrand: undefined,
+			threshold: constObservable(0),
+			create: (_sessionId, tools) => new TestToolGrouping(tools, () => groupedTools ?? tools, () => {
+				toolGroupingComputeCount++;
+			}),
+		});
 
 		accessor = services.createTestingAccessor();
 		endpoint = accessor.get(IInstantiationService).createInstance(MockEndpoint, undefined);
 		builtPrompts = [];
 		response = [];
 		promptResult = nullRenderPromptResult();
+		availableTools = [];
+		groupedTools = undefined;
+		toolGroupingComputeCount = 0;
 		turnIdCounter = 0;
 		(ToolCallingLoop as any).NextToolCallId = 0;
 		(ToolCallRound as any).generateID = () => 'static-id';
@@ -87,12 +102,65 @@ suite('defaultIntentRequestHandler', () => {
 		});
 	}
 
+	class TestToolGrouping implements IToolGrouping {
+		public tools: readonly LanguageModelToolInformation[];
+
+		constructor(
+			tools: readonly LanguageModelToolInformation[],
+			private readonly getComputedTools: () => readonly LanguageModelToolInformation[],
+			private readonly onCompute: () => void,
+		) {
+			this.tools = tools;
+		}
+
+		didCall(): LanguageModelToolResult | undefined {
+			return undefined;
+		}
+
+		didTakeTurn(): void {
+		}
+
+		didInvalidateCache(): void {
+		}
+
+		getContainerFor() {
+			return undefined;
+		}
+
+		ensureExpanded(): void {
+		}
+
+		async compute(): Promise<LanguageModelToolInformation[]> {
+			this.onCompute();
+			return [...this.getComputedTools()];
+		}
+
+		async computeAll(): Promise<LanguageModelToolInformation[]> {
+			this.onCompute();
+			return [...this.getComputedTools()];
+		}
+	}
+
+	function makeToolInfo(name: string): LanguageModelToolInformation {
+		return {
+			name,
+			description: `Tool for ${name}`,
+			inputSchema: { type: 'object', properties: {} },
+			source: undefined,
+			tags: [],
+		};
+	}
+
 	class TestIntent implements IIntent {
 		id = 'test';
 		description = 'test intent';
 		locations = [ChatLocation.Panel];
+
+		constructor(private readonly tools: readonly LanguageModelToolInformation[] = []) {
+		}
+
 		invoke(): Promise<IIntentInvocation> {
-			return Promise.resolve(new TestIntentInvocation(this, this.locations[0], endpoint));
+			return Promise.resolve(new TestIntentInvocation(this, this.locations[0], endpoint, this.tools));
 		}
 	}
 
@@ -103,7 +171,12 @@ suite('defaultIntentRequestHandler', () => {
 			readonly intent: IIntent,
 			readonly location: ChatLocation,
 			readonly endpoint: IChatEndpoint,
+			private readonly tools: readonly LanguageModelToolInformation[],
 		) { }
+
+		getAvailableTools(): LanguageModelToolInformation[] {
+			return [...this.tools];
+		}
 
 		async buildPrompt(context: IBuildPromptContext): Promise<RenderPromptResult> {
 			builtPrompts.push(context);
@@ -145,8 +218,9 @@ suite('defaultIntentRequestHandler', () => {
 
 	const makeHandler = ({
 		request = new TestChatRequest(),
-		turns = []
-	}: { request?: ChatRequest; turns?: Turn[] } = {}) => {
+		turns = [],
+		tools = availableTools,
+	}: { request?: ChatRequest; turns?: Turn[]; tools?: readonly LanguageModelToolInformation[] } = {}) => {
 		turns.push(new Turn(
 			getTurnId(),
 			{ type: 'user', message: request.prompt },
@@ -156,7 +230,7 @@ suite('defaultIntentRequestHandler', () => {
 		const instaService = accessor.get(IInstantiationService);
 		return instaService.createInstance(
 			DefaultIntentRequestHandler,
-			new TestIntent(),
+			new TestIntent(tools),
 			new Conversation(sessionId, turns),
 			request,
 			responseStream,
@@ -189,6 +263,34 @@ suite('defaultIntentRequestHandler', () => {
 		// Wait for event loop to finish as we often fire off telemetry without properly awaiting it as it doesn't matter when it is sent
 		await new Promise(setImmediate);
 		expect(getDerandomizedTelemetry()).toMatchSnapshot();
+	});
+
+	test('keeps activate_vs_code_interaction in request-scoped tools for anthropic tool search requests', async () => {
+		endpoint.family = 'claude-sonnet-4';
+		endpoint.model = 'claude-sonnet-4';
+		endpoint.supportsToolSearch = true;
+
+		availableTools = [
+			makeToolInfo('read_file'),
+			makeToolInfo('get_errors'),
+			makeToolInfo('create_new_workspace'),
+		];
+		groupedTools = [
+			makeToolInfo('read_file'),
+			makeToolInfo('activate_vs_code_interaction'),
+		];
+
+		const handler = makeHandler({ tools: availableTools });
+		chatResponse[0] = 'some response here :)';
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+		};
+
+		await handler.getResult();
+
+		expect(toolGroupingComputeCount).toBeGreaterThan(0);
+		expect(builtPrompts[0].tools?.availableTools.map(tool => tool.name)).toContain('activate_vs_code_interaction');
 	});
 
 	test('propagates resolvedModel into result metadata from a successful response', async () => {
