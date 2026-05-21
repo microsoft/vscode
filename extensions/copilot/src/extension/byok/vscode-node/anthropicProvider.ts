@@ -20,6 +20,7 @@ import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, Ge
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
+import { buildOTelInputFromChatMessages } from './byokOTelHelpers';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { toErrorMessage } from '../../../util/common/errorMessage';
@@ -505,43 +506,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					otelSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs), this._otelService.config.maxAttributeSizeChars));
 				}
 				try {
-					const roleNames: Record<number, string> = { 1: 'user', 2: 'assistant', 3: 'system' };
-					const systemTexts: string[] = [];
-					const inputMsgs: Array<{ role: string; parts: Array<{ type: string; content?: string | unknown; id?: string; name?: string; arguments?: unknown; response?: unknown }> }> = [];
-					for (const m of messages) {
-						const msg = m as LanguageModelChatMessage;
-						const role = roleNames[msg.role] ?? String(msg.role);
-						// System messages are emitted via gen_ai.system_instructions only — keeping them
-						// in gen_ai.input.messages causes trace viewers to render the system prompt twice
-						// (issue #299932). Collect their text into the dedicated attribute and skip the entry.
-						if (role === 'system') {
-							if (Array.isArray(msg.content)) {
-								for (const p of msg.content) {
-									if (p instanceof LanguageModelTextPart) {
-										systemTexts.push(p.value);
-									}
-								}
-							}
-							continue;
-						}
-						const parts: Array<{ type: string; content?: string | unknown; id?: string; name?: string; arguments?: unknown; response?: unknown }> = [];
-						if (Array.isArray(msg.content)) {
-							for (const p of msg.content) {
-								if (p instanceof LanguageModelTextPart) {
-									parts.push({ type: 'text', content: p.value });
-								} else if (p instanceof LanguageModelToolCallPart) {
-									parts.push({ type: 'tool_call', id: p.callId, name: p.name, arguments: p.input });
-								} else if (p instanceof LanguageModelToolResultPart) {
-									const resultText = p.content.map((c: unknown) => c instanceof LanguageModelTextPart ? c.value : '').join('');
-									parts.push({ type: 'tool_call_response', id: p.callId, response: resultText });
-								}
-							}
-						}
-						if (parts.length === 0) {
-							parts.push({ type: 'text', content: '[non-text content]' });
-						}
-						inputMsgs.push({ role, parts });
-					}
+					const { systemTexts, inputMsgs } = buildOTelInputFromChatMessages(messages);
 					const systemInstructions = toSystemInstructions(systemTexts);
 					if (systemInstructions) {
 						otelSpan.setAttribute(GenAiAttr.SYSTEM_INSTRUCTIONS, truncateForOTel(JSON.stringify(systemInstructions), this._otelService.config.maxAttributeSizeChars));
