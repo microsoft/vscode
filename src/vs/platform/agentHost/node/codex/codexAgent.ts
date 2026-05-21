@@ -425,6 +425,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		entry.state.approvalPolicy = liveApproval;
 		entry.state.sandboxMode = liveSandbox;
 
+		this._logService.info(`[Codex:${sessionId}] _sendMessageCore: model=${entry.state.model?.id ?? '<default>'}, modelConfig=${JSON.stringify(entry.state.model?.config ?? {})}, approval=${liveApproval}, sandbox=${liveSandbox}`);
+
 		// --- Rebuild the Thread when options drift ---
 		const currentModels = this._models.get();
 		const desiredKey = makeThreadOptionsKey(entry.state.model, liveApproval, liveSandbox, currentModels);
@@ -437,22 +439,24 @@ export class CodexAgent extends Disposable implements IAgent {
 			...(liveSandbox ? { sandboxMode: liveSandbox } : {}),
 			skipGitRepoCheck: true,
 		};
+
+		this._logService.info(`[Codex:${sessionId}] thread state: hasThread=${!!entry.state.thread}, threadId=${entry.state.thread?.id ?? '<none>'}, currentKey=${entry.state.threadOptionsKey ?? '<none>'}, desiredKey=${desiredKey}, effort=${effort ?? '<none>'}`);
+		this._logService.info(`[Codex:${sessionId}] threadOptions: ${JSON.stringify(threadOptions)}`);
+
 		if (!entry.state.thread) {
+			this._logService.info(`[Codex:${sessionId}] creating NEW thread (no existing thread)`);
 			entry.state.thread = codex.startThread(threadOptions);
 			entry.state.threadOptionsKey = desiredKey;
 		} else if (entry.state.threadOptionsKey !== desiredKey) {
-			// Always start a fresh thread on model/config change rather than
-			// resuming the existing one. `resumeThread(id, newOptions)` sends
-			// the new model to the same CAPI integration endpoint that served
-			// the original thread, but CAPI's Responses endpoint restricts
-			// available models by integrator — a model that works on a fresh
-			// thread may be rejected when swapped into an existing one.
-			// Starting fresh avoids the "model_not_available_for_integrator"
-			// error. The workbench maintains the conversation context
-			// independently of the CLI's thread state.
-			entry.state.thread = codex.startThread(threadOptions);
+			const existingId = entry.state.thread.id;
+			this._logService.info(`[Codex:${sessionId}] thread options CHANGED: existingId=${existingId ?? '<none>'}, using ${existingId ? 'resumeThread' : 'startThread'}`);
+			entry.state.thread = existingId
+				? codex.resumeThread(existingId, threadOptions)
+				: codex.startThread(threadOptions);
 			entry.state.threadOptionsKey = desiredKey;
 			this._logService.info(`[Codex:${sessionId}] thread rebuilt for model swap: model=${entry.state.model?.id ?? '<default>'} effort=${effort ?? '<default>'}`);
+		} else {
+			this._logService.info(`[Codex:${sessionId}] thread REUSED (options unchanged)`);
 		}
 
 		// --- Resolve prompt with attachments + steering ---
@@ -466,6 +470,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				entry.state.abortController = new AbortController();
 			}
 			const turnState = createCodexTurnState();
+			this._logService.info(`[Codex:${sessionId}] calling runStreamed: threadId=${entry.state.thread.id ?? '<pending>'}, promptLength=${resolvedPrompt.length}`);
 			const { events } = await entry.state.thread.runStreamed(resolvedPrompt, { signal: entry.state.abortController.signal });
 			for await (const event of events) {
 				for (const signal of mapCodexEvent(sessionUri, effectiveTurnId, event, turnState)) {
@@ -475,10 +480,12 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._fire(sessionUri, { type: ActionType.SessionTurnComplete, turnId: effectiveTurnId });
 		} catch (err) {
 			if (err instanceof CancellationError || entry.state.abortController.signal.aborted) {
+				this._logService.info(`[Codex:${sessionId}] turn cancelled`);
 				this._fire(sessionUri, { type: ActionType.SessionTurnCancelled, turnId: effectiveTurnId });
 				return;
 			}
 			const message = err instanceof Error ? err.message : String(err);
+			this._logService.error(`[Codex:${sessionId}] turn ERROR: ${message}`, err instanceof Error ? err.stack : undefined);
 			this._fire(sessionUri, {
 				type: ActionType.SessionError,
 				turnId: effectiveTurnId,
@@ -635,13 +642,16 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	async changeModel(session: URI, model: ModelSelection): Promise<void> {
 		const sessionId = AgentSession.id(session);
+		this._logService.info(`[Codex:${sessionId}] changeModel called: newModel=${model.id ?? '<none>'}, config=${JSON.stringify(model.config ?? {})}`);
 		const entry = this._sessions.get(sessionId);
 		if (entry) {
+			this._logService.info(`[Codex:${sessionId}] changeModel: updating materialized session (oldModel=${entry.state.model?.id ?? '<none>'})`);
 			entry.state.model = model;
 			return;
 		}
 		const provisional = this._provisionalSessions.get(sessionId);
 		if (provisional) {
+			this._logService.info(`[Codex:${sessionId}] changeModel: updating provisional session (oldModel=${provisional.model?.id ?? '<none>'})`);
 			provisional.model = model;
 		}
 		// Don't rebuild the thread here — the change only matters for the

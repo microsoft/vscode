@@ -247,7 +247,8 @@ export class CodexProxyService implements ICodexProxyService {
 	): Promise<void> {
 		const method = req.method ?? 'GET';
 		const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
-		this._logService.trace(`[${PROXY_USER_FACING_NAME}] ${method} ${pathname}`);
+		const incomingHeaders = Object.keys(req.headers).join(', ');
+		this._logService.info(`[${PROXY_USER_FACING_NAME}] >>> ${method} ${pathname} (headers: ${incomingHeaders})`);
 
 		if (method === 'GET' && pathname === '/') {
 			res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -286,6 +287,14 @@ export class CodexProxyService implements ICodexProxyService {
 			return;
 		}
 
+		// --- DEBUG: log the model and key fields from the request body ---
+		try {
+			const parsed = JSON.parse(body);
+			this._logService.info(`[${PROXY_USER_FACING_NAME}] >>> /responses body: model=${parsed.model ?? '<none>'}, previous_response_id=${parsed.previous_response_id ?? '<none>'}, stream=${parsed.stream ?? '<none>'}, input_items=${Array.isArray(parsed.input) ? parsed.input.length : '<not-array>'}`);
+		} catch {
+			this._logService.info(`[${PROXY_USER_FACING_NAME}] >>> /responses body (unparseable): ${body.slice(0, 200)}`);
+		}
+
 		const entry: IInFlight = { ac: new AbortController(), res, clientGone: false };
 		runtime.inFlight.add(entry);
 		const onClose = () => {
@@ -295,11 +304,14 @@ export class CodexProxyService implements ICodexProxyService {
 		res.on('close', onClose);
 
 		try {
+			this._logService.info(`[${PROXY_USER_FACING_NAME}] forwarding to CAPI responses...`);
 			const upstream = await this._copilotApiService.responses(runtime.githubToken, body, { signal: entry.ac.signal });
 			// Mirror upstream status + content-type and stream the body
 			// through. Responses API uses SSE for streaming, plain JSON
 			// otherwise — both are byte-faithful pipes.
 			const contentType = upstream.headers.get('content-type') ?? 'application/json';
+			const upstreamHeaders = [...upstream.headers.entries()].map(([k, v]) => `${k}: ${v}`).join(', ');
+			this._logService.info(`[${PROXY_USER_FACING_NAME}] <<< CAPI response: status=${upstream.status}, contentType=${contentType}, headers=[${upstreamHeaders}]`);
 			res.writeHead(upstream.status, { 'Content-Type': contentType });
 			if (!upstream.body) {
 				res.end();
@@ -325,12 +337,15 @@ export class CodexProxyService implements ICodexProxyService {
 			res.end();
 		} catch (err) {
 			if (entry.clientGone) {
+				this._logService.info(`[${PROXY_USER_FACING_NAME}] client disconnected during upstream call`);
 				return;
 			}
 			if (err instanceof CopilotApiError) {
+				this._logService.error(`[${PROXY_USER_FACING_NAME}] CAPI error: status=${err.status}, message=${err.message}`);
 				writeJsonError(res, err.status, 'api_error', err.message);
 				return;
 			}
+			this._logService.error(`[${PROXY_USER_FACING_NAME}] upstream error: ${err instanceof Error ? err.message : String(err)}`);
 			writeJsonError(res, 502, 'api_error', err instanceof Error ? err.message : String(err));
 		} finally {
 			res.removeListener('close', onClose);

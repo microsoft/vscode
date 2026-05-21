@@ -400,7 +400,23 @@ export class CopilotApiService implements ICopilotApiService {
 	): Promise<Response> {
 		const capiClient = await this._getClientForToken(githubToken);
 		const requestId = generateUuid();
-		this._logService.debug('[CopilotApiService] POST responses', `requestId=${requestId}`);
+
+		// --- DEBUG: parse the request body to log the model being sent ---
+		let requestModel = '<unknown>';
+		try {
+			const parsed = JSON.parse(body);
+			requestModel = parsed.model ?? '<none>';
+		} catch { /* ignore parse errors */ }
+
+		const outboundHeaders: Record<string, string> = {
+			...options?.headers,
+			'Content-Type': 'application/json',
+			'Authorization': `Bearer ${githubToken.slice(0, 8)}...`,
+			'X-Request-Id': requestId,
+			'OpenAI-Intent': 'conversation',
+		};
+		this._logService.info(`[CopilotApiService] POST responses: requestId=${requestId}, model=${requestModel}, outboundHeaders=${Object.keys(outboundHeaders).join(', ')}`);
+
 		const response = await capiClient.makeRequest<Response>(
 			{
 				method: 'POST',
@@ -416,11 +432,16 @@ export class CopilotApiService implements ICopilotApiService {
 			},
 			{ type: RequestType.ChatResponses },
 		);
+
+		// --- DEBUG: log upstream response details ---
+		this._logService.info(`[CopilotApiService] response: status=${response.status}, statusText=${response.statusText}, requestId=${requestId}`);
+
 		if (!response.ok) {
 			if (response.status === 401 || response.status === 403) {
 				this._invalidateClientForToken(githubToken);
 			}
 			const text = await response.text().catch(() => '');
+			this._logService.error(`[CopilotApiService] CAPI error body: ${text.slice(0, 500)}`);
 			throw buildCopilotApiHttpError(response.status, response.statusText, text);
 		}
 		return response;
@@ -594,13 +615,21 @@ export class CopilotApiService implements ICopilotApiService {
 	private async _buildClientForToken(githubToken: string): Promise<ICachedClient> {
 		const { extensionInfo, userUrl } = await this._getCapiBase();
 		const fetch = this._fetch;
+		const logService = this._logService;
 		const capiClient = new CAPIClient(extensionInfo, undefined, {
-			fetch: (url, options) => fetch(url, {
-				method: options.method ?? 'GET',
-				headers: options.headers,
-				body: options.body,
-				signal: options.signal as AbortSignal | undefined,
-			}),
+			fetch: (url, options) => {
+				// --- DEBUG: log every outbound CAPI request with headers ---
+				const headerKeys = options.headers ? Object.keys(options.headers).join(', ') : '<none>';
+				const integrationId = options.headers?.['Copilot-Integration-Id'] ?? options.headers?.['copilot-integration-id'] ?? '<not set>';
+				logService.info(`[CopilotApiService:fetch] ${options.method ?? 'GET'} ${typeof url === 'string' ? url : url.toString()}`);
+				logService.info(`[CopilotApiService:fetch] headers: [${headerKeys}], Copilot-Integration-Id=${integrationId}`);
+				return fetch(url, {
+					method: options.method ?? 'GET',
+					headers: options.headers,
+					body: options.body,
+					signal: options.signal as AbortSignal | undefined,
+				});
+			},
 		});
 
 		this._logService.debug('[CopilotApiService] Discovering CAPI endpoints via /copilot_internal/user');
