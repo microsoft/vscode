@@ -564,7 +564,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		}
 	},
 	[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: {
-		markdownDescription: localize('agentSandbox.windowsEnabledSetting', "Controls whether agent mode sandboxing can be enabled on Windows.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		markdownDescription: localize('agentSandbox.windowsEnabledSetting', "Controls whether agent mode uses sandboxing on Windows."),
 		type: 'string',
 		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.AllowNetwork],
 		enumDescriptions: [

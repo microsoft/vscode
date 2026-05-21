@@ -1205,6 +1205,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should route remote Windows sandbox commands through MXC', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.AllowNetwork);
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
@@ -1257,7 +1258,7 @@ suite('TerminalSandboxService - network domains', () => {
 		workspaceContextService.setWorkspaceFolders([URI.file('/c:/workspace-one')]);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 
-		strictEqual(await sandboxService.isEnabled(), false, 'Windows sandbox should be disabled by default even when the global sandbox setting is enabled');
+		strictEqual(await sandboxService.isEnabled(), false, 'Windows sandbox should be disabled when the Windows sandbox setting is off');
 		strictEqual(await sandboxService.getSandboxConfigPath(), undefined, 'Windows sandbox config should not be created unless the Windows setting is enabled');
 		const prereqs = await sandboxService.checkForSandboxingPrereqs();
 		strictEqual(prereqs.enabled, false, 'Prereq checks should report Windows sandbox disabled when the Windows setting is disabled');

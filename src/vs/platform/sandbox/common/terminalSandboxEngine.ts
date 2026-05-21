@@ -505,15 +505,11 @@ export class TerminalSandboxEngine extends Disposable {
 
 	private async _isSandboxConfiguredEnabled(): Promise<boolean> {
 		await this.getOS();
-		const value = this._getSandboxConfiguredEnabledValue();
-		const enabled = value === true || value === AgentSandboxEnabledValue.On || value === AgentSandboxEnabledValue.AllowNetwork;
-		if (!enabled) {
-			return false;
-		}
 		if (this._os === OperatingSystem.Windows) {
 			return this._getSandboxConfiguredWindowsEnabledValue() === AgentSandboxEnabledValue.AllowNetwork;
 		}
-		return true;
+		const value = this._getSandboxConfiguredEnabledValue();
+		return value === true || value === AgentSandboxEnabledValue.On || value === AgentSandboxEnabledValue.AllowNetwork;
 	}
 
 	private async _resolveRuntimeInfo(): Promise<void> {

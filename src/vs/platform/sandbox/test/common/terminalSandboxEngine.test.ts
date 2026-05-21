@@ -241,7 +241,8 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(await engine.getSandboxConfigPath(), undefined);
 	});
 
-	test('isEnabled returns true on Windows when globally enabled and Windows sandbox setting allows network', async () => {
+	test('isEnabled returns true on Windows when Windows sandbox setting allows network even if global sandboxing is off', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
 		enableWindowsSandbox();
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
