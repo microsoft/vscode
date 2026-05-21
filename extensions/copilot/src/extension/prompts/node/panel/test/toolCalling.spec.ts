@@ -14,6 +14,7 @@ import { Event } from '../../../../../util/vs/base/common/event';
 import { constObservable } from '../../../../../util/vs/base/common/observable';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry';
+import type { SpyingTelemetryService } from '../../../../../platform/telemetry/node/spyingTelemetryService';
 import { LanguageModelDataPart, LanguageModelTextPart, LanguageModelToolResult } from '../../../../../vscodeTypes';
 import { ChatVariablesCollection } from '../../../../prompt/common/chatVariablesCollection';
 import type { Conversation } from '../../../../prompt/common/conversation';
@@ -600,6 +601,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		const endpointProvider = accessor.get(IEndpointProvider);
 		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 		const telemetryService = accessor.get(ITelemetryService);
+		const spyingTelemetryService = telemetryService as SpyingTelemetryService;
 		const configService = accessor.get(IConfigurationService);
 
 		// Disable image uploads in test environment to avoid auth requirement
@@ -625,10 +627,24 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 				telemetryService,
 				'testTool',
 				toolResult,
+				{ conversationId: 'conversation-id', requestId: 'request-id' },
 			);
 		}).not.toThrow();
 
 		// Give async rendering a moment to complete without unhandled rejection
 		await new Promise(resolve => setTimeout(resolve, 100));
+
+		const telemetryEvent = spyingTelemetryService.getEvents().telemetryServiceEvents.find(event => event.eventName === 'agent.tool.responseLength');
+		expect(telemetryEvent).toMatchObject({
+			properties: {
+				conversationId: 'conversation-id',
+				requestId: 'request-id',
+				model: endpoint.model,
+				toolName: 'testTool',
+			},
+			measurements: {
+				tokenCount: expect.any(Number),
+			},
+		});
 	});
 });
