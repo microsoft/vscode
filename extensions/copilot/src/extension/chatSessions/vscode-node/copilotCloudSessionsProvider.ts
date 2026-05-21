@@ -33,7 +33,7 @@ import { SingleSlotTtlCache, TtlCache } from '../common/ttlCache';
 import { isUntitledSessionId } from '../common/utils';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
 import { CONTINUE_TRUNCATION, extractTitle, getAuthorDisplayName, getRepoId, SessionIdForPr, SessionIdForTask, toOpenPullRequestWebviewUri, truncatePrompt } from '../vscode/copilotCodingAgentUtils';
-import { CloudAgentBackend, PrCloudAgentBackend, PullArtifactRef, TaskCloudAgentBackend } from '../vscode/cloudAgentBackend';
+import { CloudAgentBackend, PullArtifactRef } from '../vscode/cloudAgentBackend';
 import { CopilotCloudGitOperationsManager } from './copilotCloudGitOperationsManager';
 import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotCloudSessionContentBuilder';
 import { JobsApiBackend } from './jobsApiBackend';
@@ -311,12 +311,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	private readonly WORKSPACE_CONTEXT_PREFIX = 'copilot.cloudAgent';
 
 	// Backend abstraction for Jobs API / Task API migration. Selection happens in the constructor.
-	// `_backend` holds the union for identity-agnostic methods (fetchSessionList, createSession,
-	// parseSessionId). `_prBackend` / `_taskBackend` are pre-narrowed references; exactly one
-	// is defined at any time, matching the active backend.
+	// The discriminated union is narrowed per-method via local `const backend = this._backend`
+	// after a `kind` guard — there are no instance fields for each backend kind, and no
+	// runtime "not supported" throws on the type surface.
 	private readonly _backend: CloudAgentBackend;
-	private readonly _prBackend: PrCloudAgentBackend | undefined;
-	private readonly _taskBackend: TaskCloudAgentBackend | undefined;
 
 	constructor(
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
@@ -345,15 +343,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		const backendVersion = configurationService.getConfig(ConfigKey.CloudAgentBackendVersion);
 		if (backendVersion === 'v2') {
 			const taskApiClient = new TaskApiHttpClient(capiClientService, this._authenticationService, this.logService);
-			const taskBackend = new TaskApiBackend(taskApiClient, this.logService);
-			this._backend = taskBackend;
-			this._taskBackend = taskBackend;
-			this._prBackend = undefined;
+			this._backend = new TaskApiBackend(taskApiClient, this.logService);
 		} else {
-			const prBackend = new JobsApiBackend(this._octoKitService, this.logService, this.telemetry, this._otelService);
-			this._backend = prBackend;
-			this._prBackend = prBackend;
-			this._taskBackend = undefined;
+			this._backend = new JobsApiBackend(this._octoKitService, this.logService, this.telemetry, this._otelService);
 		}
 
 		this.registerCommands();
@@ -733,8 +725,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			return;
 		}
 
-		const prBackend = this._prBackend;
-		if (!prBackend) {
+		const backend = this._backend;
+		if (backend.kind !== 'pr') {
 			// Task backend has no per-session info endpoint; task entries don't participate in
 			// this poller (they use `waitForTaskUpdate` via active response callbacks instead).
 			return;
@@ -744,7 +736,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			// Fetch only the active sessions using allSettled to handle individual failures
 			const sessionResults = await Promise.allSettled(
 				Array.from(this.activeSessionIds).map(sessionId =>
-					prBackend.getSessionInfo(sessionId)
+					backend.getSessionInfo(sessionId)
 				)
 			);
 
@@ -1308,8 +1300,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 		// PR-keyed flow requires the Jobs backend. If we're on v2, a legacy PR URI is unreachable
 		// content under this provider — render an empty session rather than throwing.
-		const prBackend = this._prBackend;
-		if (!prBackend) {
+		const backend = this._backend;
+		if (backend.kind !== 'pr') {
 			this.logService.warn(`PR-keyed session ${resource} opened while Task backend is active; returning empty session.`);
 			return this.createEmptySession(resource);
 		}
@@ -1337,7 +1329,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				summaryReference.complete(undefined);
 				return undefined;
 			}
-			const content = await prBackend.fetchPullRequestContent(repoOwner, repoName, sessions);
+			const content = await backend.fetchPullRequestContent(repoOwner, repoName, sessions);
 			let prompt = content.initialPrompt || 'Initial Implementation';
 			// When delegating, we append the summary to the prompt, & that can be very large and doesn't look great.
 			// Turn the summary into a reference instead.
@@ -1378,7 +1370,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			return match ?? getDefault();
 		};
 
-		const sessions = await prBackend.fetchSessionsForPullRequest(pr);
+		const sessions = await backend.fetchSessionsForPullRequest(pr);
 		const sortedSessions = sessions
 			.filter((session, index, array) =>
 				array.findIndex(s => s.id === session.id) === index
@@ -1393,7 +1385,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		});
 
 		const sessionContentBuilder = new ChatSessionContentBuilder(CopilotCloudSessionsProvider.TYPE, this._gitService);
-		const history = await sessionContentBuilder.buildSessionHistory(getProblemStatement(pr.repository.owner.login, pr.repository.name, sortedSessions), sortedSessions, pr, (sessionId: string) => prBackend.getSessionLogsSSE(sessionId), storedReferences);
+		const history = await sessionContentBuilder.buildSessionHistory(getProblemStatement(pr.repository.owner.login, pr.repository.name, sortedSessions), sortedSessions, pr, (sessionId: string) => backend.getSessionLogsSSE(sessionId), storedReferences);
 
 		// const selectedCustomAgent = undefined; /* TODO: Needs API to support this. */
 		// const selectedModel = undefined; /* TODO: Needs API to support this. */
@@ -1420,18 +1412,18 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	 * `task.sessions[]`. PR resolution is decorative; never feeds the thread.
 	 */
 	private async provideTaskChatSessionContent(resource: Uri, taskId: string, _token: vscode.CancellationToken): Promise<vscode.ChatSession> {
-		const taskBackend = this._taskBackend;
-		if (!taskBackend) {
+		const backend = this._backend;
+		if (backend.kind !== 'task') {
 			this.logService.warn(`Task-keyed session ${resource} opened while Jobs backend is active; returning empty session.`);
 			return this.createEmptySession(resource);
 		}
-		const taskContent = await taskBackend.fetchTaskContent(taskId);
+		const taskContent = await backend.fetchTaskContent(taskId);
 		if (!taskContent) {
 			this.logService.error(`Task not found for ID: ${taskId}`);
 			return this.createEmptySession(resource);
 		}
 
-		const events = await taskBackend.fetchTaskEvents(taskId);
+		const events = await backend.fetchTaskEvents(taskId);
 
 		// Best-effort PR decoration for the header card.
 		let pullRequest: PullRequestSearchItem | undefined;
@@ -1461,12 +1453,12 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 	private createTaskActiveResponseCallback(taskId: string, since: { turnCount: number; updatedAt?: string }): (stream: vscode.ChatResponseStream, token: vscode.CancellationToken) => Thenable<void> {
 		return async (_stream: vscode.ChatResponseStream, token: vscode.CancellationToken) => {
-			const taskBackend = this._taskBackend;
-			if (!taskBackend) {
+			const backend = this._backend;
+			if (backend.kind !== 'task') {
 				return;
 			}
 			// Poll until the active turn settles (new turn, in-place state change, or updated_at moves).
-			const updated = await taskBackend.waitForTaskUpdate(taskId, since, token);
+			const updated = await backend.waitForTaskUpdate(taskId, since, token);
 			if (updated) {
 				this.refresh();
 			}
@@ -1477,12 +1469,12 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		// Task-keyed (v2): open the task's html_url directly.
 		const taskParsed = SessionIdForTask.parse(chatSessionItem.resource);
 		if (taskParsed) {
-			const taskBackend = this._taskBackend;
-			if (!taskBackend) {
+			const backend = this._backend;
+			if (backend.kind !== 'task') {
 				this.logService.warn(`Task URI ${chatSessionItem.resource} opened while Jobs backend is active.`);
 				return;
 			}
-			const taskContent = await taskBackend.fetchTaskContent(taskParsed.taskId);
+			const taskContent = await backend.fetchTaskContent(taskParsed.taskId);
 			const url = taskContent?.task.html_url;
 			if (!url) {
 				vscode.window.showErrorMessage(vscode.l10n.t('Could not find task {0}', taskParsed.taskId));
@@ -1532,11 +1524,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 	private createActiveResponseCallback(pr: PullRequestSearchItem, sessionId: string): (stream: vscode.ChatResponseStream, token: vscode.CancellationToken) => Thenable<void> {
 		return async (stream: vscode.ChatResponseStream, token: vscode.CancellationToken) => {
-			const prBackend = this._prBackend;
-			if (!prBackend) {
+			const backend = this._backend;
+			if (backend.kind !== 'pr') {
 				return;
 			}
-			const ready = await prBackend.waitForSessionReady(sessionId, token);
+			const ready = await backend.waitForSessionReady(sessionId, token);
 			if (ready) {
 				this.refresh();
 			}
@@ -2226,18 +2218,18 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	}
 
 	private async handleTaskFollowUp(taskId: string, prompt: string, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<{}> {
-		const taskBackend = this._taskBackend;
-		if (!taskBackend) {
+		const backend = this._backend;
+		if (backend.kind !== 'task') {
 			stream.warning(vscode.l10n.t('Task follow-up is not available on the current backend.'));
 			return {};
 		}
-		const before = await taskBackend.fetchTaskContent(taskId);
+		const before = await backend.fetchTaskContent(taskId);
 		if (!before) {
 			stream.warning(vscode.l10n.t('Could not find the task for this chat session.'));
 			return {};
 		}
 		stream.progress(vscode.l10n.t('Delegating'));
-		const result = await taskBackend.sendFollowUpToTask(taskId, prompt);
+		const result = await backend.sendFollowUpToTask(taskId, prompt);
 		if (!result) {
 			stream.markdown(vscode.l10n.t('Failed to send follow-up to the task.'));
 			return {};
@@ -2245,7 +2237,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		stream.markdown(vscode.l10n.t('Cloud agent has begun work on your follow-up'));
 		stream.markdown('\n\n');
 		stream.progress(vscode.l10n.t('Waiting for new turn'));
-		const updated = await taskBackend.waitForTaskUpdate(taskId, {
+		const updated = await backend.waitForTaskUpdate(taskId, {
 			turnCount: before.task.sessions?.length ?? 0,
 			updatedAt: before.task.updated_at,
 		}, token);
@@ -2397,8 +2389,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	}
 
 	private async streamSessionLogs(stream: vscode.ChatResponseStream, pullRequest: PullRequestSearchItem, sessionId: string, token: vscode.CancellationToken): Promise<void> {
-		const prBackend = this._prBackend;
-		if (!prBackend) {
+		const backend = this._backend;
+		if (backend.kind !== 'pr') {
 			return;
 		}
 		let lastLogLength = 0;
@@ -2426,14 +2418,14 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					}
 
 					// Get the specific session info
-					const sessionInfo = await prBackend.getSessionInfo(sessionId);
+					const sessionInfo = await backend.getSessionInfo(sessionId);
 					if (!sessionInfo || token.isCancellationRequested) {
 						complete();
 						return;
 					}
 
 					// Get session logs
-					const logs = await prBackend.getSessionLogsSSE(sessionId);
+					const logs = await backend.getSessionLogsSSE(sessionId);
 
 					// Check if session is still in progress
 					if (sessionInfo.state !== 'in_progress') {
@@ -2600,12 +2592,12 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		token: vscode.CancellationToken,
 		waitForTransitionToInProgress: boolean = false
 	): Promise<SessionInfo | undefined> {
-		const prBackend = this._prBackend;
-		if (!prBackend) {
+		const backend = this._backend;
+		if (backend.kind !== 'pr') {
 			return undefined;
 		}
 		// Get the current number of sessions
-		const initialSessions = await prBackend.fetchSessionsForPullRequest(pullRequest);
+		const initialSessions = await backend.fetchSessionsForPullRequest(pullRequest);
 		const initialSessionCount = initialSessions.length;
 
 		// Poll for a new session to start
@@ -2614,7 +2606,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		const startTime = Date.now();
 
 		while (Date.now() - startTime < maxWaitTime && !token.isCancellationRequested) {
-			const currentSessions = await prBackend.fetchSessionsForPullRequest(pullRequest);
+			const currentSessions = await backend.fetchSessionsForPullRequest(pullRequest);
 
 			// Check if a new session has started
 			if (currentSessions.length > initialSessionCount) {
@@ -2623,7 +2615,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				if (!waitForTransitionToInProgress) {
 					return newSession;
 				}
-				const inProgressSession = await prBackend.waitForSessionReady(newSession.id, token);
+				const inProgressSession = await backend.waitForSessionReady(newSession.id, token);
 				if (!inProgressSession) {
 					stream.markdown(vscode.l10n.t('Timed out waiting for cloud agent to begin work. Please try again shortly.'));
 					return;
@@ -2640,8 +2632,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	}
 
 	private async addFollowUpToExistingPR(pullRequestNumber: number, userPrompt: string, summary?: string, targetAgent = 'copilot'): Promise<string | undefined> {
-		const prBackend = this._prBackend;
-		if (!prBackend) {
+		const backend = this._backend;
+		if (backend.kind !== 'pr') {
 			return undefined;
 		}
 		try {
@@ -2662,7 +2654,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				return;
 			}
 
-			const commentResult = await prBackend.sendFollowUpToPullRequest(pr.id, userPrompt + (summary ? '\n\n' + summary : ''), targetAgent);
+			const commentResult = await backend.sendFollowUpToPullRequest(pr.id, userPrompt + (summary ? '\n\n' + summary : ''), targetAgent);
 			if (!commentResult) {
 				this.logService.error(`Failed to add comment to PR #${pullRequestNumber}`);
 				return;
