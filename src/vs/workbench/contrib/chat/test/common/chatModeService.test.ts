@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -20,9 +20,10 @@ import { IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatMode, ChatModeService } from '../../common/chatModes.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { createVSCodeHarnessDescriptor, CustomizationHarnessServiceBase, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { MockPromptsService } from './promptSyntax/service/mockPromptsService.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
+import { SessionType } from '../../common/chatSessionsService.js';
 
 class TestChatAgentService implements Partial<IChatAgentService> {
 	_serviceBrand: undefined;
@@ -53,6 +54,7 @@ suite('ChatModeService', () => {
 	let storageService: TestStorageService;
 	let configurationService: TestConfigurationService;
 	let chatModeService: ChatModeService;
+	let customizationHarnessService: CustomizationHarnessServiceBase;
 
 	setup(async () => {
 		instantiationService = testDisposables.add(new TestInstantiationService());
@@ -60,17 +62,14 @@ suite('ChatModeService', () => {
 		chatAgentService = new TestChatAgentService();
 		storageService = testDisposables.add(new TestStorageService());
 		configurationService = new TestConfigurationService();
-
+		customizationHarnessService = testDisposables.add(new CustomizationHarnessServiceBase([createVSCodeHarnessDescriptor([PromptsStorage.extension])], SessionType.Local, promptsService));
 		instantiationService.stub(IPromptsService, promptsService);
 		instantiationService.stub(IChatAgentService, chatAgentService);
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(ICustomizationHarnessService, {
-			onDidChangeCustomAgents: Event.None,
-			getCustomAgents: async () => [],
-		});
+		instantiationService.stub(ICustomizationHarnessService, customizationHarnessService);
 
 		chatModeService = testDisposables.add(instantiationService.createInstance(ChatModeService));
 		// Eagerly create the ChatModes for the local session type and await
