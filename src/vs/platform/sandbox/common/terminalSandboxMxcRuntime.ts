@@ -66,7 +66,7 @@ export interface IWindowsMxcTerminalSandboxRuntime {
 	getRuntimeReadPaths(appRoot: string | undefined, executablePath: string | undefined): string[];
 	createConfig(options: IWindowsMxcConfigOptions): IWindowsMxcConfig;
 	wrapCommand(executablePath: string, configPath: string): string;
-	wrapUnsandboxedCommand(command: string, tempDir: URI | undefined): string;
+	wrapUnsandboxedCommand(command: string): string;
 	toWindowsPath(uri: URI): string;
 }
 
@@ -133,13 +133,8 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 		return `& ${this._quotePowerShellArgument(executablePath)} ${this._quotePowerShellArgument(configPath)}`;
 	}
 
-	wrapUnsandboxedCommand(command: string, tempDir: URI | undefined): string {
-		if (!tempDir) {
-			return command;
-		}
-
-		const tempDirPath = this.toWindowsPath(tempDir);
-		return `$env:TEMP=${this._quotePowerShellArgument(tempDirPath)}; $env:TMP=${this._quotePowerShellArgument(tempDirPath)}; ${command}`;
+	wrapUnsandboxedCommand(command: string): string {
+		return command;
 	}
 
 	toWindowsPath(uri: URI): string {

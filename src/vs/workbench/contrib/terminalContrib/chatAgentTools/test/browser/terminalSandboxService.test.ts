@@ -166,7 +166,7 @@ suite('TerminalSandboxService - network domains', () => {
 			readonlyPaths: ['c:\\tools\\node'],
 			readwritePaths: [],
 		};
-		environment = ['PATH=c:\\tools\\node;c:\\windows\\system32', 'PATHEXT=.COM;.EXE;.BAT;.CMD'];
+		environment = ['PATH=c:\\tools\\node;c:\\windows\\system32', 'PSHOME=c:\\program files\\powershell\\7'];
 
 		checkSandboxDependencies(): Promise<ISandboxDependencyStatus> {
 			this.callCount++;
@@ -1234,7 +1234,7 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(config.process.commandLine, 'echo test');
 		strictEqual(config.process.cwd, 'c:\\workspace-one');
 		ok(config.process.env.includes('PATH=c:\\tools\\node;c:\\windows\\system32'), 'PATH should be injected into the MXC process env');
-		ok(config.process.env.includes('PATHEXT=.COM;.EXE;.BAT;.CMD'), 'PATHEXT should be injected into the MXC process env');
+		ok(config.process.env.includes('PSHOME=c:\\program files\\powershell\\7'), 'PSHOME should be injected into the MXC process env');
 		ok(config.filesystem.readwritePaths.includes('c:\\workspace-one'), 'Workspace folder should be writable in the MXC config');
 		ok(config.filesystem.readwritePaths.some((path: string) => path.includes('tmp_vscode_7')), 'Sandbox temp dir should be writable in the MXC config');
 		ok(config.filesystem.readonlyPaths.includes('c:\\app'), 'VS Code app root should be readable in the MXC config');

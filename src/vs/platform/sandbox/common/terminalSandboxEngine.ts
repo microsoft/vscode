@@ -396,7 +396,7 @@ export class TerminalSandboxEngine extends Disposable {
 
 	private _wrapUnsandboxedCommand(command: string, shell?: string): string {
 		if (this._os === OperatingSystem.Windows) {
-			return this._windowsMxcRuntime.wrapUnsandboxedCommand(command, this._tempDir);
+			return this._windowsMxcRuntime.wrapUnsandboxedCommand(command);
 		}
 		if (!this._tempDir?.path) {
 			return command;

@@ -90,7 +90,7 @@ suite('TerminalSandboxEngine', () => {
 			getWorkspaceStorageReadRoot: () => Promise.resolve(URI.from({ scheme: 'file', path: '/c:/Users/user/workspaceStorage/workspace-id' })),
 			getWriteRoots: () => [URI.from({ scheme: 'file', path: '/c:/workspace' })],
 			getWindowsMxcFilesystemPolicy: () => Promise.resolve({ readonlyPaths: ['C:\\tools\\node', 'C:\\tools\\python', 'C:\\Users\\user\\AppData\\Local\\Programs\\Git', 'C:\\Users\\user\\AppData\\Local\\Temp'], readwritePaths: [] }),
-			getWindowsMxcEnvironment: () => Promise.resolve(['PATH=C:\\tools\\node;C:\\Windows\\System32', 'PATHEXT=.COM;.EXE;.BAT;.CMD']),
+			getWindowsMxcEnvironment: () => Promise.resolve(['PATH=C:\\tools\\node;C:\\Windows\\System32', 'PSHOME=C:\\Program Files\\PowerShell\\7']),
 			...overrides,
 		});
 	}
@@ -254,7 +254,7 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(normalizeWindowsPathForAssert(config.process.cwd), 'c:/workspace');
 		strictEqual(config.ui.disable, false);
 		ok(config.process.env.includes('PATH=C:\\tools\\node;C:\\Windows\\System32'), 'PATH should be injected into the MXC process env');
-		ok(config.process.env.includes('PATHEXT=.COM;.EXE;.BAT;.CMD'), 'PATHEXT should be injected into the MXC process env');
+		ok(config.process.env.includes('PSHOME=C:\\Program Files\\PowerShell\\7'), 'PSHOME should be injected into the MXC process env');
 		deepStrictEqual(config.network, { defaultPolicy: 'block', allowedHosts: [], blockedHosts: [] });
 		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/workspace'), 'Workspace should be writable');
 		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path).endsWith('/.test-data/tmp')), 'Sandbox temp dir should be writable');

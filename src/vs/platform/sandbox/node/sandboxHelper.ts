@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getCaseInsensitive } from '../../../base/common/objects.js';
+import { win32 } from '../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../base/common/platform.js';
 import { findExecutable } from '../../../base/node/processes.js';
 import { ISandboxDependencyStatus, ISandboxHelperService, IWindowsMxcFilesystemPolicy } from '../common/sandboxHelperService.js';
@@ -41,8 +42,9 @@ export class SandboxHelperService implements ISandboxHelperService {
 		const { getAvailableToolsPolicy, getUserProfilePolicy } = await import('@microsoft/mxc-sdk');
 		const availableToolsPolicy = getAvailableToolsPolicy(process.env, { containerType: 'processcontainer' });
 		const userProfilePolicy = getUserProfilePolicy();
+		const psHome = await this._getPSHome();
 		return {
-			readonlyPaths: [...new Set([...availableToolsPolicy.readonlyPaths, ...userProfilePolicy.readonlyPaths, ...this._getPSModuleReadPaths(), ...this._getTempReadPaths()])],
+			readonlyPaths: [...new Set([...availableToolsPolicy.readonlyPaths, ...userProfilePolicy.readonlyPaths, ...this._getTempReadPaths(), ...(psHome ? [psHome] : [])])],
 			readwritePaths: [...new Set([...availableToolsPolicy.readwritePaths, ...userProfilePolicy.readwritePaths])],
 		};
 	}
@@ -58,23 +60,21 @@ export class SandboxHelperService implements ISandboxHelperService {
 			env.push(`PATH=${path}`);
 		}
 
-		const pathExt = getCaseInsensitive(process.env, 'PATHEXT');
-		env.push(`PATHEXT=${typeof pathExt === 'string' && pathExt ? pathExt : '.COM;.EXE;.BAT;.CMD'}`);
-
-		const psModulePath = this._getPSModuleReadPaths();
-		if (psModulePath.length) {
-			env.push(`PSModulePath=${psModulePath.join(';')}`);
+		const psHome = await this._getPSHome();
+		if (psHome) {
+			env.push(`PSHOME=${psHome}`);
 		}
 		return env;
 	}
 
-	private _getPSModuleReadPaths(): string[] {
-		const paths: string[] = [];
-		const psModulePath = getCaseInsensitive(process.env, 'PSModulePath');
-		if (typeof psModulePath === 'string' && psModulePath) {
-			paths.push(...psModulePath.split(';'));
+	private async _getPSHome(): Promise<string | undefined> {
+		const psHome = getCaseInsensitive(process.env, 'PSHOME');
+		if (typeof psHome === 'string' && psHome) {
+			return psHome;
 		}
-		return paths;
+
+		const powerShellPath = await findExecutable('pwsh') ?? await findExecutable('powershell');
+		return powerShellPath ? win32.dirname(powerShellPath) : undefined;
 	}
 
 	private _getTempReadPaths(): string[] {
