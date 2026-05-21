@@ -21,6 +21,9 @@ const { EventEmitter } = require('events');
 
 const ROOT = path.join(__dirname, '..', '..', '..');
 
+/** @type {(msg: string) => void} */
+let _log = console.log;
+
 // -- Scenario fixtures -------------------------------------------------------
 
 /**
@@ -404,7 +407,7 @@ function makeThinkingIdChunk(cotId) {
 function handleRequest(req, res) {
 	const contentLength = req.headers['content-length'] || '0';
 	const ts = new Date().toISOString().slice(11, -1); // HH:MM:SS.mmm
-	console.log(`[mock-llm] ${ts} ${req.method} ${req.url} (${contentLength} bytes)`);
+	_log(`[mock-llm] ${ts} ${req.method} ${req.url} (${contentLength} bytes)`);
 
 	// CORS
 	res.setHeader('Access-Control-Allow-Origin', '*');
@@ -734,14 +737,14 @@ async function handleChatCompletions(body, res) {
 				? userMsgs[userMsgs.length - 1].content.substring(0, 100)
 				: '(structured)';
 			const ts = new Date().toISOString().slice(11, -1);
-			console.log(`[mock-llm]   ${ts} → ${messages.length} msgs, last user: "${lastContent}"`);
+			_log(`[mock-llm]   ${ts} → ${messages.length} msgs, last user: "${lastContent}"`);
 		}
 		// Extract available tool names from the request's tools array
 		const tools = parsed.tools || [];
 		requestToolNames = tools.map((/** @type {any} */ t) => t.function?.name).filter(Boolean);
 		if (requestToolNames.length > 0) {
 			const ts = new Date().toISOString().slice(11, -1);
-			console.log(`[mock-llm]   ${ts} → ${requestToolNames.length} tools available: ${requestToolNames.join(', ')}`);
+			_log(`[mock-llm]   ${ts} → ${requestToolNames.length} tools available: ${requestToolNames.join(', ')}`);
 		}
 
 		// Search user messages in reverse order (newest first) for the scenario
@@ -784,7 +787,7 @@ async function handleChatCompletions(body, res) {
 		const modelTurnCount = scenario.turns.filter(t => t.kind !== 'user').length;
 
 		const ts = new Date().toISOString().slice(11, -1);
-		console.log(`[mock-llm]   ${ts} → multi-turn scenario ${scenarioId}, model turn ${turnIndex + 1}/${modelTurnCount} (${turn.kind}), ${countCompletedModelTurns(messages)} completed turns in history`);
+		_log(`[mock-llm]   ${ts} → multi-turn scenario ${scenarioId}, model turn ${turnIndex + 1}/${modelTurnCount} (${turn.kind}), ${countCompletedModelTurns(messages)} completed turns in history`);
 
 		if (turn.kind === 'tool-calls') {
 			await streamToolCalls(res, turn.toolCalls, requestToolNames, scenarioId);
@@ -969,7 +972,7 @@ async function handleMessagesApi(body, res) {
 					? last.content.map((/** @type {any} */ c) => c.text || '').join('').substring(0, 100)
 					: '(structured)';
 			const ts = new Date().toISOString().slice(11, -1);
-			console.log(`[mock-llm]   ${ts} → messages-api: ${messages.length} msgs, last user: "${lastContent}"`);
+			_log(`[mock-llm]   ${ts} → messages-api: ${messages.length} msgs, last user: "${lastContent}"`);
 		}
 
 		for (let mi = messages.length - 1; mi >= 0; mi--) {
@@ -1060,7 +1063,7 @@ async function streamToolCalls(res, toolCalls, requestToolNames, scenarioId) {
 		let toolName = requestToolNames.find(name => call.toolNamePattern.test(name));
 		if (!toolName) {
 			toolName = call.toolNamePattern.source.replace(/[\\.|?*+^${}()\[\]]/g, '');
-			console.warn(`[mock-llm]   No matching tool for pattern ${call.toolNamePattern}, using fallback: ${toolName}`);
+			_log(`[mock-llm]   No matching tool for pattern ${call.toolNamePattern}, using fallback: ${toolName}`);
 		}
 
 		// Stream tool call: start chunk, then arguments in fragments
@@ -1084,8 +1087,12 @@ async function streamToolCalls(res, toolCalls, requestToolNames, scenarioId) {
 /**
  * Start the mock server and return a handle.
  * @param {number} port
+ * @param {{ logger?: (msg: string) => void }} [options]
  */
-function startServer(port = 0) {
+function startServer(port = 0, options) {
+	if (options?.logger) {
+		_log = options.logger;
+	}
 	return new Promise((resolve, reject) => {
 		let reqCount = 0;
 		let completions = 0;
@@ -1160,8 +1167,8 @@ if (require.main === module) {
 	registerPerfScenarios();
 	const port = parseInt(process.argv[2] || '0', 10);
 	startServer(port).then((/** @type {any} */ handle) => {
-		console.log(`Mock LLM server listening at ${handle.url}`);
-		console.log('Scenarios:', Object.keys(SCENARIOS).join(', '));
+		_log(`Mock LLM server listening at ${handle.url}`);
+		_log(`Scenarios: ${Object.keys(SCENARIOS).join(', ')}`);
 	});
 }
 

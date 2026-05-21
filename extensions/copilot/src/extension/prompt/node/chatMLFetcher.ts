@@ -27,7 +27,7 @@ import { sendEngineMessagesTelemetry } from '../../../platform/networking/node/c
 import { CAPIWebSocketErrorEvent, IChatWebSocketManager, isCAPIWebSocketError } from '../../../platform/networking/node/chatWebSocketManager';
 import { sendCommunicationErrorTelemetry } from '../../../platform/networking/node/stream';
 import { ChatFailKind, ChatRequestCanceled, ChatRequestFailed, ChatResults, FetchResponseKind } from '../../../platform/openai/node/fetch';
-import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, normalizeProviderMessages, StdAttr, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
+import { collectSystemTextsFromRequestBody, CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, normalizeProviderMessages, StdAttr, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
@@ -273,29 +273,12 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							: JSON.stringify(lastUserMsg.content);
 						otelInferenceSpan.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userContent, this._otelService.config.maxAttributeSizeChars));
 					}
-					// System instructions — check messages array, top-level system (Anthropic), or instructions (Responses API)
-					const systemMsg = capiMessages?.find(m => m.role === 'system');
-					const systemContent = systemMsg?.content
-						?? (requestBody as Record<string, unknown>).system
-						?? (requestBody as Record<string, unknown>).instructions;
-					if (systemContent) {
-						let systemText: string;
-						if (typeof systemContent === 'string') {
-							systemText = systemContent;
-						} else if (Array.isArray(systemContent)) {
-							// Anthropic format: array of content blocks — extract text only,
-							// dropping metadata like cache_control so the value is stable across turns.
-							systemText = (systemContent as Array<{ text?: string }>)
-								.map(b => b.text ?? '')
-								.join('\n');
-						} else {
-							systemText = JSON.stringify(systemContent);
-						}
-						// Format as OTel GenAI system instruction JSON schema
-						const systemInstructions = toSystemInstructions(systemText);
-						if (systemInstructions) {
-							otelInferenceSpan.setAttribute(GenAiAttr.SYSTEM_INSTRUCTIONS, JSON.stringify(systemInstructions));
-						}
+					// System instructions go on a dedicated attribute; stripped from
+					// input messages below to avoid rendering the prompt twice.
+					const systemTexts = collectSystemTextsFromRequestBody(requestBody);
+					const systemInstructions = toSystemInstructions(systemTexts);
+					if (systemInstructions) {
+						otelInferenceSpan.setAttribute(GenAiAttr.SYSTEM_INSTRUCTIONS, truncateForOTel(JSON.stringify(systemInstructions), this._otelService.config.maxAttributeSizeChars));
 					}
 				}
 
@@ -303,8 +286,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				if (otelInferenceSpan) {
 					const capiMessages = (requestBody.messages ?? requestBody.input) as ReadonlyArray<Record<string, unknown>> | undefined;
 					if (capiMessages) {
-						// Normalize provider-specific content (Anthropic tool_use/tool_result, OpenAI tool messages) to OTel schema
-						otelInferenceSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(normalizeProviderMessages(capiMessages)), this._otelService.config.maxAttributeSizeChars));
+						// Normalize provider-specific content to OTel schema; exclude
+						// system entries since they are emitted via `system_instructions`.
+						const nonSystemMessages = capiMessages.filter(m => (m as { role?: unknown }).role !== 'system');
+						otelInferenceSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(normalizeProviderMessages(nonSystemMessages)), this._otelService.config.maxAttributeSizeChars));
 					}
 					// Tool definitions: emit on every chat span so trace viewers can render the
 					// tool catalog per LLM call (issue #299934). Includes `parameters` per

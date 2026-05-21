@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationStatus, type CustomizationAgentRef, type SessionCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { getEffectiveAgents } from '../../browser/agentHostAgents.js';
+import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 
 function sc(uri: string, agents?: CustomizationAgentRef[], enabled = true): SessionCustomization {
 	return {

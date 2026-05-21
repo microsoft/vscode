@@ -54,6 +54,9 @@ const MAX_BUFFER_SIZE = 1_000;
 /** Soft cap — switch to faster drain. */
 const SOFT_BUFFER_CAP = 500;
 
+/** Max CHAT spans buffered per session while awaiting INVOKE_AGENT. */
+const MAX_PENDING_CHAT_SPANS_PER_SESSION = 32;
+
 /** Time to suppress further cloud session creates for an owner after a policy-blocked response. */
 const POLICY_BLOCKED_TTL_MS = 60 * 60 * 1000;
 
@@ -90,6 +93,9 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 	/** Sessions currently initializing (prevent concurrent init). */
 	private readonly _initializingSessions = new Set<string>();
+
+	/** CHAT spans received before session was initialized, keyed by session ID. */
+	private readonly _pendingChatSpans = new Map<string, { span: ICompletedSpanData; subagentId: string | undefined }[]>();
 
 	/** Sessions whose cloud-session creation was rate-limited; awaiting retry on a later flush. */
 	private readonly _rateLimitedSessions = new Set<string>();
@@ -330,6 +336,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		this._translationStates.clear();
 		this._disabledSessions.clear();
 		this._initializingSessions.clear();
+		this._pendingChatSpans.clear();
 		this._rateLimitedSessions.clear();
 
 		super.dispose();
@@ -717,11 +724,16 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			// appear as one continuous timeline in the cloud rather than
 			// surfacing each sub-agent invocation as its own standalone session.
 			const parentChatSessionId = span.attributes[CopilotChatAttr.PARENT_CHAT_SESSION_ID] as string | undefined;
-			const ownChatSessionId = (span.attributes[CopilotChatAttr.CHAT_SESSION_ID] as string | undefined)
+			const ownChatSessionIdAttr = span.attributes[CopilotChatAttr.CHAT_SESSION_ID] as string | undefined;
+			const ownChatSessionId = ownChatSessionIdAttr
 				?? (span.attributes[GenAiAttr.CONVERSATION_ID] as string | undefined)
 				?? (span.attributes[CopilotChatAttr.SESSION_ID] as string | undefined);
 			const sessionId = parentChatSessionId ?? ownChatSessionId;
 			const subagentId = parentChatSessionId ? ownChatSessionId : undefined;
+			// A real VS Code chat session id is required to safely buffer CHAT spans;
+			// gen_ai.conversation.id / session.id fallbacks belong to non-chat callers
+			// that will never produce a matching INVOKE_AGENT to replay against.
+			const hasRealChatSessionId = parentChatSessionId !== undefined || ownChatSessionIdAttr !== undefined;
 			const operationName = span.attributes[GenAiAttr.OPERATION_NAME] as string | undefined;
 			if (!sessionId || this._disabledSessions.has(sessionId)) {
 				return;
@@ -735,6 +747,26 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			if (!this._cloudSessions.has(sessionId)
 				&& !this._initializingSessions.has(sessionId)
 				&& !this._rateLimitedSessions.has(sessionId)) {
+				if (operationName === GenAiOperationName.CHAT) {
+					// CHAT spans (LLM calls) complete before their parent invoke_agent.
+					// Buffer them so usage events aren't lost for the first turn — but
+					// only when the span carries a real chat session id; otherwise no
+					// INVOKE_AGENT will ever arrive to replay against and the buffer
+					// would grow unbounded.
+					if (!hasRealChatSessionId) {
+						return;
+					}
+					let pending = this._pendingChatSpans.get(sessionId);
+					if (!pending) {
+						pending = [];
+						this._pendingChatSpans.set(sessionId, pending);
+					}
+					if (pending.length >= MAX_PENDING_CHAT_SPANS_PER_SESSION) {
+						pending.shift();
+					}
+					pending.push({ span, subagentId });
+					return;
+				}
 				if (operationName !== GenAiOperationName.INVOKE_AGENT || subagentId) {
 					return;
 				}
@@ -750,6 +782,20 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			if (events.length > 0) {
 				this._bufferEvents(sessionId, events);
 				this._ensureFlushTimer();
+			}
+
+			// Replay any CHAT spans that arrived before session initialization
+			if (operationName === GenAiOperationName.INVOKE_AGENT && !subagentId) {
+				const pendingChats = this._pendingChatSpans.get(sessionId);
+				if (pendingChats) {
+					this._pendingChatSpans.delete(sessionId);
+					for (const { span: chatSpan, subagentId: chatSubagentId } of pendingChats) {
+						const chatEvents = translateSpan(chatSpan, state, context, chatSubagentId);
+						if (chatEvents.length > 0) {
+							this._bufferEvents(sessionId, chatEvents);
+						}
+					}
+				}
 			}
 		} catch {
 			// Non-fatal — individual span processing failure
@@ -1070,6 +1116,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		this._translationStates.delete(sessionId);
 		this._disabledSessions.delete(sessionId);
 		this._initializingSessions.delete(sessionId);
+		this._pendingChatSpans.delete(sessionId);
 		this._rateLimitedSessions.delete(sessionId);
 		// Keep _cloudSessions entry — the cloud session ID mapping is needed
 		// for future delete operations (e.g. sidebar delete fires after dispose).

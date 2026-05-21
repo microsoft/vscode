@@ -10,7 +10,7 @@ import { DisposableStore, toDisposable } from '../../../../../../base/common/lif
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -31,6 +31,7 @@ import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/
 import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { CLAUDE_CODE_ENABLED_SETTING, CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, ClaudeCodeSessionType } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -203,11 +204,11 @@ function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	sendRequest: () => Promise<ChatSendResult>,
-	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; claudeEnabled?: boolean; createNewChatSessionItem?: IChatSessionsService['createNewChatSessionItem'] },
+	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; claudeEnabled?: boolean; createNewChatSessionItem?: IChatSessionsService['createNewChatSessionItem']; configurationService?: TestConfigurationService },
 ): CopilotChatSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
-	const configService = new TestConfigurationService();
+	const configService = opts?.configurationService ?? new TestConfigurationService();
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', true);
 	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? true);
 
@@ -1325,6 +1326,58 @@ suite('CopilotChatSessionsProvider', () => {
 
 			// Clean up the kept session so it doesn't leak
 			await provider.deleteSession(sessionId);
+		});
+	});
+
+	// ---- New session default permission level seeding -----------------------
+
+	suite('new session default permission level', () => {
+		const workspace = URI.file('/test/repo');
+
+		function makeConfig(opts: { defaultLevel?: ChatPermissionLevel; policyRestricted?: boolean }): TestConfigurationService {
+			const config = new class extends TestConfigurationService {
+				override inspect<T>(key: string): IConfigurationValue<T> {
+					const base = super.inspect<T>(key);
+					if (opts.policyRestricted && key === ChatConfiguration.GlobalAutoApprove) {
+						return { ...base, policyValue: false as unknown as T };
+					}
+					return base;
+				}
+			}();
+			if (opts.defaultLevel) {
+				config.setUserConfiguration(ChatConfiguration.DefaultPermissionLevel, opts.defaultLevel);
+			}
+			return config;
+		}
+
+		test('CLI session seeds permission level from chat.permissions.default', () => {
+			const configurationService = makeConfig({ defaultLevel: ChatPermissionLevel.Autopilot });
+			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }), { configurationService });
+
+			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId);
+
+			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Autopilot);
+		});
+
+		test('clamps to Default when chat.tools.global.autoApprove policy is false', () => {
+			const configurationService = makeConfig({ defaultLevel: ChatPermissionLevel.Autopilot, policyRestricted: true });
+			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }), { configurationService });
+
+			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId);
+
+			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Default);
+		});
+
+		test('falls back to Default when chat.permissions.default is unset', () => {
+			const configurationService = makeConfig({});
+			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }), { configurationService });
+
+			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId);
+
+			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Default);
 		});
 	});
 });
