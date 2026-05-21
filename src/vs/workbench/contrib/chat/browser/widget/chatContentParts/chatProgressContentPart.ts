@@ -191,7 +191,7 @@ function pickWorkingLabel(elementId: string, configurationService: IConfiguratio
 		return existing.label;
 	}
 
-	const fun = maybePickFunWorkingMessage();
+	const fun = maybePickFunWorkingMessage(configurationService);
 	const label = fun ?? (() => {
 		const pool = buildPhrasePool(defaultThinkingMessages, configurationService);
 		return pool[Math.floor(Math.random() * pool.length)];

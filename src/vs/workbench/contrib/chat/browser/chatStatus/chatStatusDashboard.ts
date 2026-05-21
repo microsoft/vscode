@@ -518,7 +518,9 @@ export class ChatStatusDashboard extends DomWidget {
 		const newUser = isNewUser(this.chatEntitlementService) && !hasByokModels;
 		const anonymousUser = this.chatEntitlementService.anonymous;
 		const disabled = this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted;
-		const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown && !hasByokModels;
+		// Keep the Sign-in entry visible even when BYOK models are present so air-gapped
+		// users can still authenticate to unlock the full Copilot experience.
+		const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 		if (!(newUser || signedOut || disabled)) {
 			return;
 		}
@@ -537,7 +539,7 @@ export class ChatStatusDashboard extends DomWidget {
 		} else if (disabled) {
 			descriptionText = localize('enableDescription', "Enable Copilot to use AI features.");
 		} else {
-			descriptionText = localize('signInDescription', "Sign in to use Copilot AI features.");
+			descriptionText = localize('signInDescription', "Sign in to use GitHub Copilot AI features.");
 		}
 
 		let buttonLabel: string;
@@ -548,7 +550,7 @@ export class ChatStatusDashboard extends DomWidget {
 		} else if (disabled) {
 			buttonLabel = localize('enableCopilotButton', "Enable AI Features");
 		} else {
-			buttonLabel = localize('signInToUseAIFeatures', "Sign in to use AI Features");
+			buttonLabel = localize('signInToUseAIFeatures', "Sign in to use GitHub Copilot");
 		}
 
 		let commandId: string;

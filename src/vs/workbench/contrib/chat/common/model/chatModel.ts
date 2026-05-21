@@ -3100,7 +3100,7 @@ export namespace ChatResponseResource {
 }
 
 function _logChangesToStateModel(newState: Partial<IChatModelInputState> | undefined, oldState: Partial<IChatModelInputState> | undefined, logger: ILogService) {
-	if (canLog(logger.getLevel(), LogLevel.Debug) || newState?.selectedModel?.identifier === oldState?.selectedModel?.identifier) {
+	if (!canLog(logger.getLevel(), LogLevel.Debug) || newState?.selectedModel?.identifier === oldState?.selectedModel?.identifier) {
 		return;
 	}
 	const stack = new Error().stack;
@@ -3109,7 +3109,7 @@ function _logChangesToStateModel(newState: Partial<IChatModelInputState> | undef
 }
 
 export function logChangesToStateModel(model: IInputModel | undefined, message: string, newState: Partial<IChatModelInputState> | undefined, oldState: Partial<IChatModelInputState> | undefined, logger: ILogService) {
-	if (canLog(logger.getLevel(), LogLevel.Debug)) {
+	if (!canLog(logger.getLevel(), LogLevel.Debug)) {
 		return;
 	}
 	message = [message,

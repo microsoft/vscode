@@ -15,10 +15,12 @@ import type { ChangesetSummary, URI } from './state/sessionState.js';
  *     <sessionUri>/changeset/uncommitted
  *     <sessionUri>/changeset/session
  *     <sessionUri>/changeset/turn/<turnId>
+ *     <sessionUri>/changeset/compare/<originalTurnId>/<modifiedTurnId>
  *
  * Catalogue entries on `summary.changesets` may also advertise the
- * URI-template form `<sessionUri>/changeset/turn/{turnId}`; clients
- * expand the template before subscribing.
+ * URI-template forms `<sessionUri>/changeset/turn/{turnId}` and
+ * `<sessionUri>/changeset/compare/{originalTurnId}/{modifiedTurnId}`;
+ * clients expand the template before subscribing.
  *
  * Keeping changeset URIs nested under the session URI namespace lets the
  * server cleanly tear down every changeset for a session when that session
@@ -37,6 +39,15 @@ const TURN_CHANGESET_PREFIX = 'turn/';
 /** Template variable name used inside the per-turn URI template. */
 const TURN_TEMPLATE_VARIABLE = '{turnId}';
 
+/** Path prefix used by compare-turns changeset URIs (`compare/<originalTurnId>/<modifiedTurnId>`). */
+const COMPARE_CHANGESET_PREFIX = 'compare/';
+
+/** Template variable name for the original turn in the compare-turns URI template. */
+const COMPARE_ORIGINAL_TEMPLATE_VARIABLE = '{originalTurnId}';
+
+/** Template variable name for the modified turn in the compare-turns URI template. */
+const COMPARE_MODIFIED_TEMPLATE_VARIABLE = '{modifiedTurnId}';
+
 /** Localized human-readable label for the session-wide changeset entry. */
 export const sessionChangesetLabel = (): string => localize('branchChangeset.label', "Branch Changes");
 
@@ -49,6 +60,25 @@ export const uncommittedChangesetDescription = (): string => localize('uncommitt
 /** Localized human-readable label for the per-turn changeset template entry. */
 export const thisTurnChangesetLabel = (): string => localize('thisTurnChangeset.label', "This Turn");
 
+/**
+ * Returns the description shown next to the `Branch Changes` catalogue
+ * entry. When both `branchName` and `baseBranchName` are known
+ * (typical worktree-isolation case), formats as `${branchName} → ${baseBranchName}`.
+ * Falls back to `branchName` alone when the base branch is unknown
+ * (non-worktree session, or a session whose working copy has no
+ * `refs/remotes/origin/HEAD`). Returns `undefined` only when no branch
+ * name is known at all, so callers can omit the description entirely.
+ */
+export function formatSessionChangesetDescription(branchName: string | undefined, baseBranchName: string | undefined): string | undefined {
+	if (!branchName || !baseBranchName) {
+		return branchName;
+	}
+	if (branchName === baseBranchName) {
+		return branchName;
+	}
+	return `${branchName} → ${baseBranchName}`;
+}
+
 /** Marker injected into a changeset URI's path. */
 const CHANGESET_PATH_SEGMENT = '/changeset/';
 
@@ -57,6 +87,7 @@ export const enum ChangesetKind {
 	Session = 'session',
 	Uncommitted = 'uncommitted',
 	Turn = 'turn',
+	Compare = 'compare',
 	/** Producer-defined id we don't recognise (single-segment only). */
 	Unknown = 'unknown',
 }
@@ -89,6 +120,31 @@ export function buildTurnChangesetUri(sessionUri: URI, turnId: string): URI {
 }
 
 /**
+ * Returns the URI _template_ that catalogue entries advertise for the
+ * compare-turns changeset; clients expand both `{originalTurnId}` and
+ * `{modifiedTurnId}` to build the subscribable URI via
+ * {@link buildCompareTurnsChangesetUri}.
+ */
+export function buildCompareTurnsChangesetUriTemplate(sessionUri: URI): URI {
+	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${COMPARE_CHANGESET_PREFIX}${COMPARE_ORIGINAL_TEMPLATE_VARIABLE}/${COMPARE_MODIFIED_TEMPLATE_VARIABLE}`;
+}
+
+/**
+ * Returns the subscribable URI for the compare-turns changeset between
+ * `originalTurnId` (the "from" endpoint) and `modifiedTurnId` (the "to"
+ * endpoint). Diff direction is `originalTurnId → modifiedTurnId`.
+ */
+export function buildCompareTurnsChangesetUri(sessionUri: URI, originalTurnId: string, modifiedTurnId: string): URI {
+	if (!originalTurnId || originalTurnId.includes('/')) {
+		throw new Error(`buildCompareTurnsChangesetUri: originalTurnId must be non-empty and not contain '/' (got ${JSON.stringify(originalTurnId)})`);
+	}
+	if (!modifiedTurnId || modifiedTurnId.includes('/')) {
+		throw new Error(`buildCompareTurnsChangesetUri: modifiedTurnId must be non-empty and not contain '/' (got ${JSON.stringify(modifiedTurnId)})`);
+	}
+	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${COMPARE_CHANGESET_PREFIX}${originalTurnId}/${modifiedTurnId}`;
+}
+
+/**
  * Returns the subscribable URI for an opaque, producer-defined
  * `changesetId`. The id must not contain `/` — well-known multi-segment
  * shapes have dedicated builders (e.g. {@link buildTurnChangesetUri}).
@@ -107,7 +163,7 @@ export function buildChangesetUri(sessionUri: URI, changesetId: string): URI {
  * Parses a changeset URI back into `(sessionUri, changesetId, kind)`,
  * or returns `undefined` if `uri` is not a changeset URI we recognise.
  */
-export function parseChangesetUri(uri: URI): { sessionUri: URI; changesetId: string; kind: ChangesetKind; turnId?: string } | undefined {
+export function parseChangesetUri(uri: URI): { sessionUri: URI; changesetId: string; kind: ChangesetKind; turnId?: string; originalTurnId?: string; modifiedTurnId?: string } | undefined {
 	const idx = uri.lastIndexOf(CHANGESET_PATH_SEGMENT);
 	if (idx < 0) {
 		return undefined;
@@ -130,6 +186,22 @@ export function parseChangesetUri(uri: URI): { sessionUri: URI; changesetId: str
 			return undefined;
 		}
 		return { sessionUri, changesetId, kind: ChangesetKind.Turn, turnId };
+	}
+	if (changesetId.startsWith(COMPARE_CHANGESET_PREFIX)) {
+		const tail = changesetId.slice(COMPARE_CHANGESET_PREFIX.length);
+		const parts = tail.split('/');
+		// Reject anything that isn't exactly `<originalTurnId>/<modifiedTurnId>`,
+		// and reject unexpanded template variables on either side.
+		if (parts.length !== 2) {
+			return undefined;
+		}
+		const [originalTurnId, modifiedTurnId] = parts;
+		if (!originalTurnId || !modifiedTurnId
+			|| originalTurnId === COMPARE_ORIGINAL_TEMPLATE_VARIABLE
+			|| modifiedTurnId === COMPARE_MODIFIED_TEMPLATE_VARIABLE) {
+			return undefined;
+		}
+		return { sessionUri, changesetId, kind: ChangesetKind.Compare, originalTurnId, modifiedTurnId };
 	}
 	if (changesetId.includes('/')) {
 		return undefined;
@@ -161,6 +233,15 @@ export function parseTurnChangesetUri(uri: URI): { sessionUri: URI; turnId: stri
 	return { sessionUri: parsed.sessionUri, turnId: parsed.turnId };
 }
 
+/** Returns the parsed turn ids when `uri` is a compare-turns changeset URI. */
+export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; originalTurnId: string; modifiedTurnId: string } | undefined {
+	const parsed = parseChangesetUri(uri);
+	if (parsed?.kind !== ChangesetKind.Compare || parsed.originalTurnId === undefined || parsed.modifiedTurnId === undefined) {
+		return undefined;
+	}
+	return { sessionUri: parsed.sessionUri, originalTurnId: parsed.originalTurnId, modifiedTurnId: parsed.modifiedTurnId };
+}
+
 /**
  * Builds the default ordered `summary.changesets` catalogue for a
  * session (`Branch Changes`, `Uncommitted Changes`, `This Turn`) with
@@ -169,9 +250,15 @@ export function parseTurnChangesetUri(uri: URI): { sessionUri: URI; turnId: stri
  *
  * The first two entries (`Branch Changes`, `Uncommitted Changes`) are
  * git-only; `AgentService._attachGitState` strips them asynchronously
- * for sessions whose working directory is not a git repo (or absent).
- * The backing per-changeset states are still registered for every
- * session — only the catalogue advertisements are stripped.
+ * for sessions whose working directory is not a git repo. The backing
+ * per-changeset states are still registered for every session — only
+ * the catalogue advertisements are stripped.
+ *
+ * The compare-turns changeset (built by
+ * {@link buildCompareTurnsChangesetUri}) is intentionally NOT included
+ * in the default catalogue: it is subscribe-only. Clients that want
+ * compare-turns diffs construct the URI themselves from two known
+ * turn ids and subscribe directly.
  */
 export function buildDefaultChangesetCatalogue(sessionUri: URI): ChangesetSummary[] {
 	return [
