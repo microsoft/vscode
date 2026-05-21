@@ -40,6 +40,7 @@ import { IWorkspaceEditingService } from '../../../../../services/workspaces/com
 import { InMemoryTestFileService, mock, TestChatEntitlementService, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
+import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
@@ -408,6 +409,33 @@ suite('ChatService', () => {
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.ok(model.getRequests()[0].response);
 		assert.strictEqual(model.getRequests()[0].response?.response.toString(), 'test response');
+	});
+
+	test('sendRequest accepts empty message with explicit file attachment', async () => {
+		const testService = createChatService();
+
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+		const fileEntry: IChatRequestVariableEntry = { kind: 'file', id: 'file', name: 'README.md', value: URI.file('/test/README.md') };
+		const response = await testService.sendRequest(model.sessionResource, '', { attachedContext: [fileEntry] });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		assert.strictEqual(model.getRequests().length, 1);
+		assert.strictEqual(model.getRequests()[0].message.text, '');
+		assert.deepStrictEqual(model.getRequests()[0].variableData.variables, [fileEntry]);
+	});
+
+	test('sendRequest rejects empty message without explicit file attachment', async () => {
+		const testService = createChatService();
+
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+		const workspaceEntry: IChatRequestVariableEntry = { kind: 'workspace', id: 'workspace', name: 'workspace', value: 'workspace' };
+
+		assert.deepStrictEqual(await testService.sendRequest(model.sessionResource, ''), { kind: 'rejected', reason: 'Empty message' });
+		assert.deepStrictEqual(await testService.sendRequest(model.sessionResource, '', { attachedContext: [workspaceEntry] }), { kind: 'rejected', reason: 'Empty message' });
+		assert.strictEqual(model.getRequests().length, 0);
 	});
 
 	test('sendRequest fails', async () => {
