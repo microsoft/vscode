@@ -29,7 +29,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, IReader } from '../../../../../../base/common/observable.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
@@ -192,10 +192,31 @@ const funWorkingMessages = [
 
 const FUN_WORKING_MESSAGE_RATE = 100;
 
+type ThinkingPhrasesConfiguration = { mode?: 'replace' | 'append'; phrases?: string[] };
+
+function getCustomThinkingPhrases(configurationService: IConfigurationService): { customPhrases: string[]; replaceDefaults: boolean } {
+	const config = configurationService.getValue<ThinkingPhrasesConfiguration>(ChatConfiguration.ThinkingPhrases);
+	const customPhrases = Array.isArray(config?.phrases)
+		? config.phrases
+			.filter((phrase): phrase is string => typeof phrase === 'string')
+			.map(phrase => phrase.trim())
+			.filter(phrase => phrase.length > 0)
+		: [];
+
+	return {
+		customPhrases,
+		replaceDefaults: config?.mode === 'replace' && customPhrases.length > 0,
+	};
+}
+
 /** Returns an easter-egg message ~1 in {@link FUN_WORKING_MESSAGE_RATE}, else `undefined`. */
-export function maybePickFunWorkingMessage(): string | undefined {
-	if (Math.floor(Math.random() * FUN_WORKING_MESSAGE_RATE) === 0) {
-		return funWorkingMessages[Math.floor(Math.random() * funWorkingMessages.length)];
+export function maybePickFunWorkingMessage(configurationService: IConfigurationService, random = Math.random): string | undefined {
+	if (getCustomThinkingPhrases(configurationService).replaceDefaults) {
+		return undefined;
+	}
+
+	if (Math.floor(random() * FUN_WORKING_MESSAGE_RATE) === 0) {
+		return funWorkingMessages[Math.floor(random() * funWorkingMessages.length)];
 	}
 	return undefined;
 }
@@ -206,16 +227,10 @@ export function maybePickFunWorkingMessage(): string | undefined {
  * custom phrases are added to the defaults.
  */
 export function buildPhrasePool(defaults: string[], configurationService: IConfigurationService): string[] {
-	const config = configurationService.getValue<{ mode?: 'replace' | 'append'; phrases?: string[] }>(ChatConfiguration.ThinkingPhrases);
-	const customPhrases = Array.isArray(config?.phrases)
-		? config.phrases
-			.filter((phrase): phrase is string => typeof phrase === 'string')
-			.map(phrase => phrase.trim())
-			.filter(phrase => phrase.length > 0)
-		: [];
+	const { customPhrases, replaceDefaults } = getCustomThinkingPhrases(configurationService);
 
 	if (customPhrases.length > 0) {
-		return config?.mode === 'replace' ? [...customPhrases] : [...defaults, ...customPhrases];
+		return replaceDefaults ? [...customPhrases] : [...defaults, ...customPhrases];
 	}
 	return [...defaults];
 }
@@ -278,13 +293,14 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private titleDetailContainer: HTMLElement | undefined;
 	private readonly _externalResourceWidget: ChatThinkingExternalResourceWidget;
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly _pendingAppendRefresh = this._register(new MutableDisposable<IDisposable>());
 	private readonly diffStatsByPartId = new Map<string, IEditSessionDiffStats>();
 	private _aggregatedDiff: IEditSessionDiffStats = { added: 0, removed: 0 };
 
 	get aggregatedDiff(): IEditSessionDiffStats { return this._aggregatedDiff; }
 
 	private getRandomWorkingMessage(category: WorkingMessageCategory = WorkingMessageCategory.Tool): string {
-		const fun = maybePickFunWorkingMessage();
+		const fun = maybePickFunWorkingMessage(this.configurationService);
 		if (fun) {
 			return fun;
 		}
@@ -509,6 +525,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.workingSpinnerLabel.textContent = this.getRandomWorkingMessage(WorkingMessageCategory.Thinking);
 			this.workingSpinnerElement.appendChild(this.workingSpinnerLabel);
 			this.wrapper.appendChild(this.workingSpinnerElement);
+			this.updateWorkingSpinnerVisibility();
 		}
 
 		// wrap content in scrollable element for fixed scrolling mode
@@ -849,8 +866,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		// don't allow feedback on fixed scrolling before reaching max height.
 		if (allowExpansion && this.fixedScrollingMode && !this.streamingCompleted && !this.element.isComplete && this.wrapper) {
-			const contentHeight = knownContentHeight ?? (this.lastKnownContentHeight || this.wrapper.scrollHeight);
-			if (contentHeight <= THINKING_SCROLL_MAX_HEIGHT) {
+			// Use only the cached height — never read scrollHeight here to avoid forced reflows.
+			// If the cache is empty, conservatively disallow expansion; the ResizeObserver
+			// will populate lastKnownContentHeight and trigger another call once layout settles.
+			const contentHeight = knownContentHeight ?? this.lastKnownContentHeight;
+			if (!contentHeight || contentHeight <= THINKING_SCROLL_MAX_HEIGHT) {
 				allowExpansion = false;
 			}
 		}
@@ -869,6 +889,30 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.wrapper.insertBefore(element, this.workingSpinnerElement);
 		} else {
 			this.wrapper.appendChild(element);
+		}
+	}
+
+	private updateWorkingSpinnerVisibility(reader?: IReader): void {
+		if (!this.wrapper || !this.workingSpinnerElement) {
+			return;
+		}
+
+		const hasRunningTerminalTool = this.toolInvocations.some(toolInvocation => {
+			const terminalData = toolInvocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
+			if (terminalData?.kind !== 'terminal' || terminalData.terminalCommandState?.exitCode !== undefined) {
+				return false;
+			}
+
+			return !IChatToolInvocation.isComplete(toolInvocation, reader);
+		});
+
+		const isAttached = this.workingSpinnerElement.parentNode === this.wrapper;
+		if (hasRunningTerminalTool && isAttached) {
+			this.workingSpinnerElement.remove();
+			this._onDidChangeHeight.fire();
+		} else if (!hasRunningTerminalTool && !isAttached && !this.streamingCompleted && !this.element.isComplete) {
+			this.wrapper.appendChild(this.workingSpinnerElement);
+			this._onDidChangeHeight.fire();
 		}
 	}
 
@@ -1158,7 +1202,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		const timeout = setTimeout(() => cts.cancel(), 5000);
 
 		try {
-			const models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
+			const models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
 			if (!models.length) {
 				this.setFallbackTitle();
 				return;
@@ -1424,6 +1468,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		// Track tool invocation metadata immediately (for title generation)
 		this.trackToolMetadata(toolInvocationId, toolInvocationOrMarkdown);
+		this.updateWorkingSpinnerVisibility();
 		this.appendedItemCount++;
 
 		// Listen for diff changes from edit pills
@@ -1507,6 +1552,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		this._externalResourceWidget.removeToolInvocation(toolCallId);
 
+		this.updateWorkingSpinnerVisibility();
 		this.updateDropdownClickability();
 		this._onDidChangeHeight.fire();
 	}
@@ -1581,6 +1627,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 
 		this.updateDropdownClickability();
+		this.updateWorkingSpinnerVisibility();
 		return true;
 	}
 
@@ -1658,6 +1705,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 		this.toolLabelsByCallId.delete(toolCallId);
 		this._externalResourceWidget.removeToolInvocation(toolCallId);
+		this.updateWorkingSpinnerVisibility();
 		this.updateDropdownClickability();
 		this._onDidChangeHeight.fire();
 	}
@@ -1756,6 +1804,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 					}
 
 					const currentState = toolInvocationOrMarkdown.state.read(reader);
+					this.updateWorkingSpinnerVisibility(reader);
 
 					// queue item to be removed if it was streaming and presentation is hidden
 					if (isStreaming && currentState.type !== IChatToolInvocation.StateKind.Streaming) {
@@ -1955,9 +2004,24 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 				}
 			}
 
+			// Coalesce reads of scrollHeight to avoid forced reflows when many items
+			// are appended in the same tick (e.g. when restoring a session).
+			this.scheduleAppendRefresh();
+		}
+	}
+
+	private scheduleAppendRefresh(): void {
+		if (this._pendingAppendRefresh.value) {
+			return;
+		}
+		this._pendingAppendRefresh.value = scheduleAtNextAnimationFrame(getWindow(this.wrapper), () => {
+			this._pendingAppendRefresh.clear();
+			if (this._store.isDisposed) {
+				return;
+			}
 			this.refreshContentHeight();
 			this.updateScrollDimensionsFromCache();
-		}
+		});
 	}
 
 	private materializeLazyItem(item: ILazyItem): void {

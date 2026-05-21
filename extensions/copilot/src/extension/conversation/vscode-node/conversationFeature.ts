@@ -85,32 +85,61 @@ export class ConversationFeature implements IExtensionContribution {
 		this._enabled = false;
 		this._activated = false;
 
-		// Register Copilot token listener
-		this.registerCopilotTokenListener();
-
 		const activationBlockerDeferred = new DeferredPromise<void>();
 		this.activationBlocker = activationBlockerDeferred.p;
+
+		// Activation and chat enablement can be driven by either a Copilot token OR the presence of a BYOK model.
+		let hasByokModels = false;
+		const reevaluate = () => {
+			const hasToken = !!authenticationService.copilotToken;
+			const shouldActivate = hasToken || hasByokModels;
+			if (hasToken) {
+				this.logService.info(`copilot token sku: ${authenticationService.copilotToken?.sku ?? ''}`);
+			}
+			this.enabled = shouldActivate;
+			this.activated = shouldActivate;
+			if (shouldActivate && !activationBlockerDeferred.isSettled) {
+				if (hasToken) {
+					markChatExtGlobal(ChatExtGlobalPerfMark.DidWaitForCopilotToken);
+				}
+				activationBlockerDeferred.complete();
+			}
+		};
+
 		if (authenticationService.copilotToken) {
 			this.logService.info(`ConversationFeature: Copilot token already available`);
-			this.activated = true;
-			activationBlockerDeferred.complete();
 		} else {
 			markChatExtGlobal(ChatExtGlobalPerfMark.WillWaitForCopilotToken);
-			this.logService.info(`ConversationFeature: Waiting for copilot token to activate conversation feature`);
+			this.logService.info(`ConversationFeature: Waiting for copilot token or BYOK model to activate conversation feature`);
 		}
 
-		this._disposables.add(authenticationService.onDidAuthenticationChange(async () => {
-			const hasSession = !!authenticationService.copilotToken;
-			this.logService.info(`ConversationFeature: onDidAuthenticationChange has token: ${hasSession}`);
-			if (hasSession) {
-				markChatExtGlobal(ChatExtGlobalPerfMark.DidWaitForCopilotToken);
-				this.activated = true;
-			} else {
-				this.activated = false;
+		const refreshHasByokModels = async () => {
+			try {
+				const models = await vscode.lm.selectChatModels({});
+				const value = models.some(m => m.vendor !== 'copilot');
+				if (value !== hasByokModels) {
+					hasByokModels = value;
+					this.logService.info(`ConversationFeature: BYOK models ${value ? 'available' : 'unavailable'}`);
+					reevaluate();
+				}
+			} catch (e) {
+				this.logService.warn(`ConversationFeature: failed to query language models: ${e}`);
 			}
+		};
+		void refreshHasByokModels();
+		this._disposables.add(vscode.lm.onDidChangeChatModels(() => void refreshHasByokModels()));
 
-			activationBlockerDeferred.complete();
+		// Always unblock activation when auth settles; chat enablement is driven by `reevaluate` independently.
+		// Without this, BYOK-only sessions can deadlock (the BYOK query needs this extension fully activated,
+		// while activation waits for the BYOK query to set `hasByokModels`).
+		this._disposables.add(authenticationService.onDidAuthenticationChange(() => {
+			reevaluate();
+			if (!activationBlockerDeferred.isSettled) {
+				activationBlockerDeferred.complete();
+			}
 		}));
+
+		reevaluate();
 	}
 
 	get enabled() {
@@ -170,13 +199,17 @@ export class ConversationFeature implements IExtensionContribution {
 		} else {
 			this._searchProviderRegistered = true;
 
-			// Don't register for no auth user
-			if (this.authenticationService.copilotToken?.isNoAuthUser) {
+			// Don't register for no auth user or BYOK-only users
+			if (!this.authenticationService.anyGitHubSession || this.authenticationService.copilotToken?.isNoAuthUser) {
 				this.logService.debug('ConversationFeature: Skipping search provider registration - no GitHub session available');
 				return;
 			}
 
-			return vscode.workspace.registerAITextSearchProvider('file', this.instantiationService.createInstance(SemanticSearchTextSearchProvider));
+			const provider = this.instantiationService.createInstance(SemanticSearchTextSearchProvider);
+			return combinedDisposable(
+				provider,
+				vscode.workspace.registerAITextSearchProvider('file', provider),
+			);
 		}
 	}
 
@@ -186,6 +219,13 @@ export class ConversationFeature implements IExtensionContribution {
 		}
 
 		this._settingsSearchProviderRegistered = true;
+
+		// Don't register for no auth user or or BYOK-only users
+		if (!this.authenticationService.anyGitHubSession || this.authenticationService.copilotToken?.isNoAuthUser) {
+			this.logService.debug('ConversationFeature: Skipping settings search provider registration - no GitHub session available');
+			return;
+		}
+
 		return vscode.ai.registerSettingsSearchProvider(this.settingsEditorSearchService);
 	}
 
@@ -213,6 +253,11 @@ export class ConversationFeature implements IExtensionContribution {
 	}
 
 	private registerParticipantDetectionProvider() {
+		// Many BYOK models are slow and we don't want to risk invalid detection with those, at least for now.
+		if (!this.authenticationService.anyGitHubSession) {
+			return;
+		}
+
 		if ('registerChatParticipantDetectionProvider' in vscode.chat) {
 			const provider = this.instantiationService.createInstance(IntentDetector);
 			return vscode.chat.registerChatParticipantDetectionProvider(provider);
@@ -338,14 +383,6 @@ export class ConversationFeature implements IExtensionContribution {
 			)
 		].forEach(d => disposables.add(d));
 		return disposables;
-	}
-
-	private registerCopilotTokenListener() {
-		this._disposables.add(this.authenticationService.onDidAuthenticationChange(() => {
-			const chatEnabled = this.authenticationService.copilotToken !== undefined;
-			this.logService.info(`copilot token sku: ${this.authenticationService.copilotToken?.sku ?? ''}`);
-			this.enabled = chatEnabled ?? false;
-		}));
 	}
 
 	private registerTerminalQuickFixProviders() {

@@ -126,26 +126,33 @@ suite('parseQuotas', () => {
 			resetDate: '2026-06-01T00:00:00.000Z',
 			resetDateHasTime: true,
 			usageBasedBilling: true,
+			canUpgradePlan: undefined,
 			chat: {
 				percentRemaining: 100,
 				unlimited: true,
+				hasQuota: undefined,
 				usageBasedBilling: true,
 				resetAt: undefined,
 				entitlement: 0,
+				quotaRemaining: undefined,
 			},
 			completions: {
 				percentRemaining: 100,
 				unlimited: true,
+				hasQuota: undefined,
 				usageBasedBilling: true,
 				resetAt: undefined,
 				entitlement: 0,
+				quotaRemaining: undefined,
 			},
 			premiumChat: {
 				percentRemaining: 97.4,
 				unlimited: false,
+				hasQuota: undefined,
 				usageBasedBilling: true,
 				resetAt: undefined,
 				entitlement: 3900,
+				quotaRemaining: undefined,
 			},
 			additionalUsageEnabled: true,
 			additionalUsageCount: 0,
@@ -307,5 +314,126 @@ suite('parseQuotas', () => {
 		assert.strictEqual(quotas.completions?.percentRemaining, 100);
 		assert.strictEqual(quotas.completions?.entitlement, 4000);
 		assert.strictEqual(quotas.premiumChat, undefined);
+	});
+
+	test('pooled entitlements exhausted when has_quota is false and overages are disabled', () => {
+		const data = makeEntitlementsData({
+			access_type_sku: 'copilot_enterprise_seat_multi_quota',
+			copilot_plan: 'enterprise',
+			token_based_billing: true,
+			quota_snapshots: {
+				chat: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 100,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+				completions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 100,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 0,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.hasQuota, false);
+		assert.strictEqual(quotas.premiumChat?.unlimited, true);
+		assert.strictEqual(quotas.additionalUsageEnabled, false);
+	});
+
+	test('pooled entitlements not exhausted when has_quota is true', () => {
+		const data = makeEntitlementsData({
+			access_type_sku: 'copilot_enterprise_seat_multi_quota',
+			copilot_plan: 'enterprise',
+			token_based_billing: true,
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 50,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: true,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.hasQuota, true);
+		assert.strictEqual(quotas.premiumChat?.unlimited, true);
+		assert.strictEqual(quotas.additionalUsageEnabled, false);
+	});
+
+	test('parses quota_remaining from snapshot data', () => {
+		const data = makeEntitlementsData({
+			token_based_billing: true,
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 7.5,
+					unlimited: false,
+					entitlement: '20000',
+					quota_remaining: 1501,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.quotaRemaining, 1501);
+		assert.strictEqual(quotas.premiumChat?.entitlement, 20000);
+	});
+
+	test('quotaRemaining is undefined when not present in snapshot', () => {
+		const data = makeEntitlementsData({
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 50,
+					unlimited: false,
+					entitlement: '1000',
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.quotaRemaining, undefined);
+	});
+
+	test('pooled entitlements not exhausted when overages are enabled even if has_quota is false', () => {
+		const data = makeEntitlementsData({
+			access_type_sku: 'copilot_enterprise_seat_multi_quota',
+			copilot_plan: 'enterprise',
+			token_based_billing: true,
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 5,
+					overage_permitted: true,
+					percent_remaining: 0,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.hasQuota, false);
+		assert.strictEqual(quotas.additionalUsageEnabled, true);
 	});
 });

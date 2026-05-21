@@ -9,7 +9,7 @@ import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { toAction } from '../../../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -34,6 +34,7 @@ import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../..
 import * as semver from '../../../../../../base/common/semver/semver.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IUpdateService, StateType } from '../../../../../../platform/update/common/update.js';
 
 function isVersionAtLeast(current: string, required: string): boolean {
@@ -81,6 +82,67 @@ function getVendorDisplayName(languageModelsService: ILanguageModelsService, ven
 	return vendor.charAt(0).toUpperCase() + vendor.slice(1);
 }
 
+/**
+ * Identifies a provider group bucket in the model picker. A bucket is
+ * defined by `(vendor, groupName)` so that BYOK setups with multiple
+ * user-configured groups under the same vendor (e.g. two `customoai`
+ * entries named "Provider 1" and "Provider 2") are surfaced as
+ * distinct sections — matching what the model configuration view shows.
+ */
+type ProviderGroupKey = string;
+
+function getProviderGroupKey(vendor: string, groupName: string): ProviderGroupKey {
+	return `${vendor}\u0000${groupName}`;
+}
+
+interface IProviderGroupInfo {
+	readonly vendor: string;
+	readonly groupName: string;
+}
+
+/**
+ * Builds a `modelIdentifier -> { vendor, groupName }` lookup by walking
+ * `getLanguageModelGroups()` for every registered vendor. Mirrors the
+ * grouping used by `chatModelsViewModel.ts` so the picker and the model
+ * configuration view stay aligned.
+ */
+function buildModelToProviderGroupMap(languageModelsService: ILanguageModelsService): Map<string, IProviderGroupInfo> {
+	const map = new Map<string, IProviderGroupInfo>();
+	for (const vendor of languageModelsService.getVendors()) {
+		const groups = languageModelsService.getLanguageModelGroups(vendor.vendor);
+		for (const group of groups) {
+			// `group.group` is undefined for built-in vendors that have no
+			// user configuration; fall back to the vendor display name so
+			// the bucket key matches the single-section render path.
+			const groupName = group.group?.name ?? vendor.displayName;
+			for (const identifier of group.modelIdentifiers) {
+				map.set(identifier, { vendor: vendor.vendor, groupName });
+			}
+		}
+	}
+	return map;
+}
+
+/**
+ * Resolves the provider group for a model, falling back to the vendor
+ * display name when no group entry is registered (e.g. legacy vendors or
+ * tests that stub out `getLanguageModelGroups`).
+ */
+function getProviderGroupForModel(
+	model: ILanguageModelChatMetadataAndIdentifier,
+	modelToGroup: Map<string, IProviderGroupInfo>,
+	languageModelsService: ILanguageModelsService,
+): IProviderGroupInfo {
+	const info = modelToGroup.get(model.identifier);
+	if (info) {
+		return info;
+	}
+	return {
+		vendor: model.metadata.vendor,
+		groupName: getVendorDisplayName(languageModelsService, model.metadata.vendor),
+	};
+}
+
 type ChatModelChangeClassification = {
 	owner: 'lramos15';
 	comment: 'Reporting when the model picker is switched';
@@ -116,17 +178,19 @@ function isMultiplierPricing(model: ILanguageModelChatMetadataAndIdentifier): bo
 function createModelItem(
 	action: IActionWidgetDropdownAction & { section?: string },
 	model?: ILanguageModelChatMetadataAndIdentifier,
-	descriptionOverride?: string | MarkdownString,
 	openerService?: IOpenerService,
 	vendorLabel?: string,
 	isUBB?: boolean,
+	ariaDescription?: string,
+	pinAction?: IAction,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	const hover = model && openerService ? getModelHoverContent(model, openerService, isUBB) : undefined;
 	return {
 		item: action,
 		kind: ActionListItemKind.Action,
 		label: action.label,
-		description: descriptionOverride ?? action.description,
+		description: action.description,
+		ariaDescription,
 		group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 		hideIcon: false,
 		section: action.section,
@@ -134,8 +198,27 @@ function createModelItem(
 		badge: vendorLabel,
 		hover: hover ? { content: hover.element, disposable: hover.disposable } : undefined,
 		tooltip: action.tooltip,
+		toolbarActions: pinAction ? [pinAction] : undefined,
 		submenuActions: action.toolbarActions?.length ? action.toolbarActions : undefined,
 	};
+}
+
+/**
+ * Creates a pin/unpin toolbar action for a model item in the picker.
+ */
+function createPinAction(
+	modelIdentifier: string,
+	isPinned: boolean,
+	onTogglePin: (modelIdentifier: string, pinned: boolean) => void,
+): IAction {
+	return toAction({
+		id: `pin.${modelIdentifier}`,
+		label: isPinned
+			? localize('chat.modelPicker.unpin', "Unpin Model")
+			: localize('chat.modelPicker.pin', "Pin Model"),
+		class: ThemeIcon.asClassName(isPinned ? Codicon.pinned : Codicon.pin),
+		run: () => onTogglePin(modelIdentifier, !isPinned),
+	});
 }
 
 /**
@@ -166,21 +249,16 @@ function resolveConfigProperty(
 }
 
 /**
- * Returns a visual pricing category indicator using codicon circles.
- * One filled circle for "low", two for "medium", three for "high", four for "very_high".
- * Empty circles are shown for the remaining slots (out of four total).
+ * Returns a screen-reader-friendly label for the price category.
  */
-function getPriceCategoryIndicator(priceCategory: string | undefined): string | undefined {
-	let filled: number;
+function getPriceCategoryLabel(priceCategory: string | undefined): string | undefined {
 	switch (priceCategory) {
-		case 'low': filled = 1; break;
-		case 'medium': filled = 2; break;
-		case 'high': filled = 3; break;
-		case 'very_high': filled = 4; break;
+		case 'low': return localize('chat.priceCategory.low', "Low cost");
+		case 'medium': return localize('chat.priceCategory.medium', "Medium cost");
+		case 'high': return localize('chat.priceCategory.high', "High cost");
+		case 'very_high': return localize('chat.priceCategory.veryHigh', "Very high cost");
 		default: return undefined;
 	}
-	const total = 4;
-	return '$(circle-filled)'.repeat(filled) + '$(circle)'.repeat(total - filled);
 }
 
 /**
@@ -223,12 +301,11 @@ function createModelAction(
 	section?: string,
 	suppressVendorInDetail?: boolean,
 	isUBB?: boolean,
-): { action: IActionWidgetDropdownAction & { section?: string }; descriptionOverride?: MarkdownString } {
+): { action: IActionWidgetDropdownAction & { section?: string }; ariaDescription?: string } {
 	// Only show pricing in the description line if it's a multiplier (e.g. "2x").
 	// Detailed AIC/token pricing is shown in the hover instead.
 	const pricingForDescription = isMultiplierPricing(model) ? model.metadata.pricing : undefined;
-	// Price category circles are UBB-only
-	const priceCategoryIndicator = isUBB ? getPriceCategoryIndicator(model.metadata.priceCategory) : undefined;
+	const priceCategoryLabel = isUBB ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
 	// In PRU mode, show the current configuration value (e.g. thinking effort "High") in the description
 	const configDescription = !isUBB ? getModelConfigurationDescription(model, languageModelsService) : undefined;
 	// Strip the detail when suppressVendorInDetail is set — the vendor is
@@ -236,16 +313,6 @@ function createModelAction(
 	const detail = suppressVendorInDetail ? undefined : model.metadata.detail;
 	const textParts = [configDescription, detail, pricingForDescription].filter(Boolean);
 	const textDescription = textParts.length > 0 ? textParts.join(' · ') : undefined;
-
-	let descriptionOverride: MarkdownString | undefined;
-	if (priceCategoryIndicator) {
-		const md = new MarkdownString('', { isTrusted: false, supportThemeIcons: true });
-		if (textDescription) {
-			md.appendText(textDescription + ' · ');
-		}
-		md.appendMarkdown(priceCategoryIndicator);
-		descriptionOverride = md;
-	}
 
 	// In PRU mode, restore per-model configuration toolbar actions (e.g. thinking effort gear)
 	const toolbarActions = !isUBB ? languageModelsService.getModelConfigurationActions(model.identifier) : undefined;
@@ -256,18 +323,22 @@ function createModelAction(
 		icon: model.metadata.statusIcon,
 		checked: model.identifier === selectedModelId,
 		class: undefined,
-		description: priceCategoryIndicator ? undefined : textDescription,
+		description: textDescription,
 		tooltip: model.metadata.name,
 		label: model.metadata.name,
 		section,
 		toolbarActions: toolbarActions && toolbarActions.length > 0 ? toolbarActions : undefined,
 		run: () => onSelect(model),
 	};
-	return { action, descriptionOverride };
+	const ariaDescription = priceCategoryLabel
+		? (textDescription ? textDescription + ' · ' + priceCategoryLabel : priceCategoryLabel)
+		: undefined;
+	return { action, ariaDescription };
 }
 
 function shouldShowManageModelsAction(chatEntitlementService: IChatEntitlementService): boolean {
-	return chatEntitlementService.entitlement === ChatEntitlement.Free ||
+	return chatEntitlementService.hasByokModels ||
+		chatEntitlementService.entitlement === ChatEntitlement.Free ||
 		chatEntitlementService.entitlement === ChatEntitlement.EDU ||
 		chatEntitlementService.entitlement === ChatEntitlement.Pro ||
 		chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
@@ -297,19 +368,27 @@ function createManageModelsAction(commandService: ICommandService): IActionWidge
  * 2. Promoted section (selected + recently used + featured models from control manifest)
  *    - Available models sorted alphabetically, followed by unavailable models
  *    - Unavailable models show upgrade/update/admin status
- *    - Promoted models show an inline source label next to the model name
- * 3. Other Models (collapsible toggle) - models grouped by vendor with separator headers
- *    - Each vendor group has a titled separator header
+ *    - Promoted models show an inline source label (the provider group
+ *      name) when more than one group is configured.
+ * 3. Other Models (collapsible toggle) - models grouped by provider group
+ *    (vendor + user-configured group name) with separator headers
+ *    - Each provider group has a titled separator header. This matches
+ *      the buckets shown in the model configuration view, so a BYOK setup
+ *      with several groups under a single vendor (e.g. an "OpenAI
+ *      Compatible" group and an "AWS Bedrock" group both registered to
+ *      the `customoai` vendor) renders as distinct sections.
  * 4. Optional "Manage Models..." action shown in Other Models after a separator
  */
 export function buildModelPickerItems(
 	models: ILanguageModelChatMetadataAndIdentifier[],
 	selectedModelId: string | undefined,
 	recentModelIds: string[],
+	pinnedModelIds: string[],
 	controlModels: IStringDictionary<IModelControlEntry>,
 	currentVSCodeVersion: string,
 	updateStateType: StateType,
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
+	onTogglePin: ((modelIdentifier: string, pinned: boolean) => void) | undefined,
 	manageSettingsUrl: string | undefined,
 	useGroupedModelPicker: boolean,
 	manageModelsAction: IActionWidgetDropdownAction | undefined,
@@ -335,6 +414,13 @@ export function buildModelPickerItems(
 
 	if (useGroupedModelPicker) {
 		let otherModels: ILanguageModelChatMetadataAndIdentifier[] = [];
+		// Build a lookup so each model can be assigned to its provider group
+		// (vendor + user-configured group name). This must happen before both
+		// the promoted-section badge logic and the Other Models grouping so
+		// that both surfaces use the same notion of "distinct provider".
+		const modelToGroup = languageModelsService
+			? buildModelToProviderGroupMap(languageModelsService)
+			: new Map<string, IProviderGroupInfo>();
 		if (models.length) {
 			// Collect all available models into lookup maps
 			const allModelsMap = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
@@ -370,11 +456,51 @@ export function buildModelPickerItems(
 			const autoModel = models.find(m => isAutoModel(m));
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
-				const { action: autoAction, descriptionOverride: autoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
-				items.push(createModelItem(autoAction, autoModel, autoDesc, openerService, undefined, isUBB));
+				const { action: autoAction, ariaDescription: autoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
+				items.push(createModelItem(autoAction, autoModel, openerService, undefined, isUBB, autoAriaDesc));
 			}
 
-			// --- 2. Promoted section (selected + recently used + featured) ---
+			// Precompute group labels needed for inline badges
+			const allGroupKeys = new Set(
+				models.map(m => {
+					const info = getProviderGroupForModel(m, modelToGroup, languageModelsService!);
+					return getProviderGroupKey(info.vendor, info.groupName);
+				})
+			);
+			const showGroupLabel = allGroupKeys.size > 1;
+
+			// Helper to create a pin/unpin toolbar action for a model
+			const makePinAction = (model: ILanguageModelChatMetadataAndIdentifier) =>
+				onTogglePin ? createPinAction(model.identifier, pinnedModelIds.includes(model.identifier), onTogglePin) : undefined;
+
+			// --- 2. Pinned models ---
+			const pinnedSet = new Set(pinnedModelIds);
+			const pinnedModels: ILanguageModelChatMetadataAndIdentifier[] = [];
+			for (const id of pinnedModelIds) {
+				if (placed.has(id)) {
+					continue;
+				}
+				const model = resolveModel(id);
+				if (model && !placed.has(model.identifier)) {
+					markPlaced(model.identifier, model.metadata.id);
+					pinnedModels.push(model);
+				}
+			}
+			if (pinnedModels.length > 0) {
+				items.push({ kind: ActionListItemKind.Separator, label: localize('chat.modelPicker.pinned', "Pinned") });
+				for (const model of pinnedModels) {
+					const groupLabel = showGroupLabel
+						? getProviderGroupForModel(model, modelToGroup, languageModelsService!).groupName
+						: undefined;
+					const { action: pinnedAction, ariaDescription: pinnedAriaDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, undefined, showGroupLabel, isUBB);
+					items.push(createModelItem(pinnedAction, model, openerService, groupLabel, isUBB, pinnedAriaDesc, makePinAction(model)));
+				}
+			}
+
+			// --- 3. Promoted section (selected + recently used + featured) ---
+			// MRU excludes pinned models and is limited to 3 entries
+			const filteredRecentIds = recentModelIds.filter(id => !pinnedSet.has(id)).slice(0, 3);
+
 			type PromotedItem =
 				| { kind: 'available'; model: ILanguageModelChatMetadataAndIdentifier }
 				| { kind: 'unavailable'; id: string; entry: IModelControlEntry; reason: 'upgrade' | 'update' | 'admin' };
@@ -413,8 +539,8 @@ export function buildModelPickerItems(
 				tryPlaceModel(selectedModelId);
 			}
 
-			// Recently used models
-			for (const id of recentModelIds) {
+			// Recently used models (filtered to exclude pinned, limited to 3)
+			for (const id of filteredRecentIds) {
 				tryPlaceModel(id);
 			}
 
@@ -445,8 +571,12 @@ export function buildModelPickerItems(
 			}
 
 			// Render promoted section: available first, then sorted alphabetically by name.
-			// Promoted models show their vendor name inline only when multiple vendors are present.
+			// Promoted models show their provider group name inline only when more
+			// than one provider group is configured across all models.
 			if (promotedItems.length > 0) {
+				if (items.length > 0) {
+					items.push({ kind: ActionListItemKind.Separator });
+				}
 				promotedItems.sort((a, b) => {
 					const aAvail = a.kind === 'available' ? 0 : 1;
 					const bAvail = b.kind === 'available' ? 0 : 1;
@@ -458,21 +588,20 @@ export function buildModelPickerItems(
 					return aName.localeCompare(bName);
 				});
 
-				const allVendors = new Set(models.map(m => m.metadata.vendor));
-				const showPromotedVendorLabel = allVendors.size > 1;
-
 				for (const item of promotedItems) {
 					if (item.kind === 'available') {
-						const vendorLabel = showPromotedVendorLabel ? getVendorDisplayName(languageModelsService!, item.model.metadata.vendor) : undefined;
-						const { action: promotedAction, descriptionOverride: promotedDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!, undefined, showPromotedVendorLabel, isUBB);
-						items.push(createModelItem(promotedAction, item.model, promotedDesc, openerService, vendorLabel, isUBB));
+						const groupLabel = showGroupLabel
+							? getProviderGroupForModel(item.model, modelToGroup, languageModelsService!).groupName
+							: undefined;
+						const { action: promotedAction, ariaDescription: promotedAriaDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!, undefined, showGroupLabel, isUBB);
+						items.push(createModelItem(promotedAction, item.model, openerService, groupLabel, isUBB, promotedAriaDesc, makePinAction(item.model)));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
 					}
 				}
 			}
 
-			// --- 3. Other Models (collapsible, grouped by vendor) ---
+			// --- 3. Other Models (collapsible, grouped by provider group) ---
 			otherModels = models.filter(m => !placed.has(m.identifier) && !placed.has(m.metadata.id));
 
 			if (otherModels.length > 0) {
@@ -502,42 +631,47 @@ export function buildModelPickerItems(
 					className: 'chat-model-picker-section-toggle',
 				});
 
-				// Group remaining models by vendor and create collapsible vendor sub-sections
-				const vendorGroups = new Map<string, ILanguageModelChatMetadataAndIdentifier[]>();
+				// Group remaining models by provider group (vendor + user-configured
+				// group name). This matches `chatModelsViewModel.getProviderGroupId`,
+				// so that BYOK setups with several groups under a single vendor
+				// (e.g. multiple `customoai` entries) render as distinct sections.
+				interface IProviderGroupBucket {
+					vendor: string;
+					groupName: string;
+					models: ILanguageModelChatMetadataAndIdentifier[];
+				}
+				const providerGroups = new Map<ProviderGroupKey, IProviderGroupBucket>();
 				for (const model of otherModels) {
-					const vendor = model.metadata.vendor;
-					let group = vendorGroups.get(vendor);
-					if (!group) {
-						group = [];
-						vendorGroups.set(vendor, group);
+					const info = getProviderGroupForModel(model, modelToGroup, languageModelsService!);
+					const key = getProviderGroupKey(info.vendor, info.groupName);
+					let bucket = providerGroups.get(key);
+					if (!bucket) {
+						bucket = { vendor: info.vendor, groupName: info.groupName, models: [] };
+						providerGroups.set(key, bucket);
 					}
-					group.push(model);
+					bucket.models.push(model);
 				}
 
-				// Sort vendors: copilot first, then alphabetically by display name
-				const sortedVendors = [...vendorGroups.keys()].sort((a, b) => {
-					if (a === 'copilot') { return -1; }
-					if (b === 'copilot') { return 1; }
-					return getVendorDisplayName(languageModelsService!, a).localeCompare(getVendorDisplayName(languageModelsService!, b));
+				// Sort buckets: copilot vendor first, then alphabetically by group name
+				const sortedBuckets = [...providerGroups.values()].sort((a, b) => {
+					if (a.vendor === 'copilot' && b.vendor !== 'copilot') { return -1; }
+					if (b.vendor === 'copilot' && a.vendor !== 'copilot') { return 1; }
+					return a.groupName.localeCompare(b.groupName);
 				});
 
-				const showVendorHeaders = sortedVendors.length > 1;
+				const showGroupHeaders = sortedBuckets.length > 1;
 
-				for (const vendor of sortedVendors) {
-					const vendorModels = vendorGroups.get(vendor)!;
-
-					if (showVendorHeaders) {
-						const vendorDisplayName = getVendorDisplayName(languageModelsService!, vendor);
-						// Vendor separator header
+				for (const bucket of sortedBuckets) {
+					if (showGroupHeaders) {
 						items.push({
 							kind: ActionListItemKind.Separator,
-							label: vendorDisplayName,
+							label: bucket.groupName,
 							section: ModelPickerSection.Other,
 						});
 					}
 
-					// Vendor models sorted: available first, then alphabetically by name
-					const sortedVendorModels = [...vendorModels].sort((a, b) => {
+					// Models within a bucket sorted: available first, then alphabetically by name
+					const sortedBucketModels = [...bucket.models].sort((a, b) => {
 						const aEntry = controlModels[a.metadata.id] ?? controlModels[a.identifier];
 						const bEntry = controlModels[b.metadata.id] ?? controlModels[b.identifier];
 						const aAvail = aEntry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, aEntry.minVSCodeVersion) ? 1 : 0;
@@ -546,13 +680,13 @@ export function buildModelPickerItems(
 						return a.metadata.name.localeCompare(b.metadata.name);
 					});
 
-					for (const model of sortedVendorModels) {
+					for (const model of sortedBucketModels) {
 						const entry = controlModels[model.metadata.id] ?? controlModels[model.identifier];
 						if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 							items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 						} else {
-							const { action: vendorAction, descriptionOverride: vendorDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other, showVendorHeaders, isUBB);
-							items.push(createModelItem(vendorAction, model, vendorDesc, openerService, undefined, isUBB));
+							const { action: bucketAction, ariaDescription: bucketAriaDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other, showGroupHeaders, isUBB);
+							items.push(createModelItem(bucketAction, model, openerService, undefined, isUBB, bucketAriaDesc, makePinAction(model)));
 						}
 					}
 				}
@@ -575,8 +709,8 @@ export function buildModelPickerItems(
 		// Flat list: auto first, then all models sorted alphabetically
 		const autoModel = models.find(m => isAutoModel(m));
 		if (autoModel) {
-			const { action: flatAutoAction, descriptionOverride: flatAutoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
-			items.push(createModelItem(flatAutoAction, autoModel, flatAutoDesc, openerService, undefined, isUBB));
+			const { action: flatAutoAction, ariaDescription: flatAutoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
+			items.push(createModelItem(flatAutoAction, autoModel, openerService, undefined, isUBB, flatAutoAriaDesc));
 		}
 		const sortedModels = models
 			.filter(m => m !== autoModel)
@@ -585,8 +719,8 @@ export function buildModelPickerItems(
 				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
 			});
 		for (const model of sortedModels) {
-			const { action: flatAction, descriptionOverride: flatDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
-			items.push(createModelItem(flatAction, model, flatDesc, openerService, undefined, isUBB));
+			const { action: flatAction, ariaDescription: flatAriaDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
+			items.push(createModelItem(flatAction, model, openerService, undefined, isUBB, flatAriaDesc));
 		}
 	}
 
@@ -599,7 +733,7 @@ export function getModelPickerAccessibilityProvider() {
 			if (element.kind !== ActionListItemKind.Action) {
 				return null;
 			}
-			const description = typeof element.description === 'string' ? element.description : element.description?.value;
+			const description = element.ariaDescription ?? (typeof element.description === 'string' ? element.description : element.description?.value);
 			return [element.label, element.badge, description].filter((part): part is string => !!part).join(', ');
 		},
 		isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
@@ -700,7 +834,7 @@ export class ModelPickerWidget extends Disposable {
 
 	private _selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	private _badge: ModelPickerBadge | undefined;
-	private _hideChevrons: IObservable<boolean> | undefined;
+	private _compact: IObservable<boolean> | undefined;
 
 	private _domNode: HTMLElement | undefined;
 	private _badgeIcon: HTMLElement | undefined;
@@ -731,6 +865,7 @@ export class ModelPickerWidget extends Disposable {
 		@IChatEntitlementService private readonly _entitlementService: IChatEntitlementService,
 		@IUpdateService private readonly _updateService: IUpdateService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
@@ -738,22 +873,17 @@ export class ModelPickerWidget extends Disposable {
 			this._renderLabel();
 		}));
 
-		let lastIsUBB = !!this._entitlementService.quotas.usageBasedBilling;
-		this._register(this._entitlementService.onDidChangeQuotaRemaining(() => {
-			const currentIsUBB = !!this._entitlementService.quotas.usageBasedBilling;
-			if (currentIsUBB !== lastIsUBB) {
-				lastIsUBB = currentIsUBB;
-				this._renderLabel();
-			}
+		this._register(this._entitlementService.onDidChangeUsageBasedBilling(() => {
+			this._renderLabel();
 		}));
 	}
 
-	setHideChevrons(hideChevrons: IObservable<boolean>): void {
-		this._hideChevrons = hideChevrons;
+	setCompact(compact: IObservable<boolean>): void {
+		this._compact = compact;
 		this._register(autorun(reader => {
-			const hide = hideChevrons.read(reader);
+			const isCompact = compact.read(reader);
 			if (this._domNode) {
-				this._domNode.classList.toggle('hide-chevrons', hide);
+				this._domNode.classList.toggle('compact', isCompact);
 			}
 			this._renderLabel();
 		}));
@@ -781,8 +911,8 @@ export class ModelPickerWidget extends Disposable {
 		this._domNode.setAttribute('role', 'group');
 
 		// Apply initial collapsed state now that _domNode exists
-		if (this._hideChevrons?.get()) {
-			this._domNode.classList.toggle('hide-chevrons', true);
+		if (this._compact?.get()) {
+			this._domNode.classList.toggle('compact', true);
 		}
 
 		// Model name button
@@ -878,15 +1008,28 @@ export class ModelPickerWidget extends Disposable {
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
 		};
-		const manageSettingsUrl = this._productService.defaultChatAgent?.manageSettingsUrl;
+		const manageSettingsUrl = this._defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings);
+		const onTogglePin = (modelIdentifier: string, pinned: boolean) => {
+			if (pinned) {
+				this._languageModelsService.pinModel(modelIdentifier);
+			} else {
+				this._languageModelsService.unpinModel(modelIdentifier);
+			}
+			// Re-show the picker to reflect the updated pin state
+			this._actionWidgetService.hide();
+			this.show(anchorElement);
+		};
+
 		const items = buildModelPickerItems(
 			models,
 			this._selectedModel?.identifier,
-			this._languageModelsService.getRecentlyUsedModelIds(),
+			this._languageModelsService.getRecentlyUsedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
+			this._languageModelsService.getPinnedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
 			controlModelsForTier,
 			this._productService.version,
 			this._updateService.state.type,
 			onSelect,
+			onTogglePin,
 			manageSettingsUrl,
 			this._delegate.useGroupedModelPicker(),
 			isUBB ? manageModelsAction : undefined,
@@ -898,14 +1041,21 @@ export class ModelPickerWidget extends Disposable {
 			isUBB,
 		);
 
-		const hasPriceCategories = models.some(m => !!m.metadata.priceCategory);
+		// Collect all hover disposables so they are properly cleaned up when the
+		// picker is hidden. The ActionListWidget only tracks the disposable for the
+		// currently-shown hover; all other items' hover disposables would leak.
+		const hoverDisposables = new DisposableStore();
+		for (const item of items) {
+			if (item.hover?.disposable) {
+				hoverDisposables.add(item.hover.disposable);
+			}
+		}
 
 		const listOptions = {
 			// Always show the filter to allow for the secondary heading to show
 			showFilter: true,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 			filterActions: !isUBB && manageModelsAction ? [manageModelsAction] : undefined,
-			secondaryHeading: isUBB && hasPriceCategories ? localize('chat.modelPicker.cost', "Cost") : undefined,
 			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
 			onDidToggleSection: (section: string, collapsed: boolean) => {
@@ -931,6 +1081,7 @@ export class ModelPickerWidget extends Disposable {
 				action.run();
 			},
 			onHide: () => {
+				hoverDisposables.dispose();
 				this._nameButton?.setAttribute('aria-expanded', 'false');
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
@@ -1274,15 +1425,28 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, op
 			});
 		}
 
+		const priceCategoryLabel = getPriceCategoryLabel(model.metadata.priceCategory);
 		if (costLines.length > 0) {
 			const costSection = dom.$('.chat-model-hover-cost');
-			costSection.appendChild(dom.$('.chat-model-hover-cost-title', undefined, localize('models.priceTitle', "Cost (per 1M tokens)")));
+			const titleRow = dom.$('.chat-model-hover-cost-title-row');
+			titleRow.appendChild(dom.$('.chat-model-hover-cost-title', undefined, localize('models.priceTitle', "Cost (per 1M tokens)")));
+			if (priceCategoryLabel) {
+				titleRow.appendChild(dom.$('span.chat-model-hover-cost-tag', undefined, priceCategoryLabel));
+			}
+			costSection.appendChild(titleRow);
 			for (const line of costLines) {
 				costSection.appendChild(dom.$('.chat-model-hover-cost-line', undefined,
 					dom.$('span.chat-model-hover-cost-line-label', undefined, `${line.label}: `),
 					dom.$('span', undefined, line.value),
 				));
 			}
+			container.appendChild(costSection);
+		} else if (priceCategoryLabel) {
+			const costSection = dom.$('.chat-model-hover-cost');
+			const titleRow = dom.$('.chat-model-hover-cost-title-row');
+			titleRow.appendChild(dom.$('.chat-model-hover-cost-title', undefined, localize('models.priceCategoryTitle', "Cost")));
+			titleRow.appendChild(dom.$('span.chat-model-hover-cost-tag', undefined, priceCategoryLabel));
+			costSection.appendChild(titleRow);
 			container.appendChild(costSection);
 		} else if (model.metadata.pricing && !isMultiplierPricing(model)) {
 			const costSection = dom.$('.chat-model-hover-cost');

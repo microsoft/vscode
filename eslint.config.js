@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
+import { defineConfig } from 'eslint/config';
 import fs from 'fs';
 import { builtinModules } from 'module';
 import path from 'path';
@@ -22,7 +23,7 @@ const ignores = fs.readFileSync(path.join(import.meta.dirname, '.eslint-ignore')
 	.split(/\r\n|\n/)
 	.filter(line => line && !line.startsWith('#'));
 
-export default tseslint.config(
+export default defineConfig(
 	// Global ignores
 	{
 		ignores: [
@@ -186,6 +187,18 @@ export default tseslint.config(
 			'local/code-no-telemetry-common-property': 'warn',
 		}
 	},
+	// Force all gulp imports under build/ to go through the gulp facade
+	{
+		files: [
+			'build/**/*.ts',
+		],
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-direct-gulp-import': 'warn',
+		}
+	},
 	// Disallow 'in' operator except in type predicates
 	{
 		files: [
@@ -326,7 +339,7 @@ export default tseslint.config(
 			'src/vs/workbench/services/remote/common/tunnelModel.ts',
 			'src/vs/workbench/services/search/common/textSearchManager.ts',
 			'src/vs/workbench/test/browser/workbenchTestServices.ts',
-			'src/vs/platform/agentHost/common/state/protocol/reducers.ts',
+			'src/vs/platform/agentHost/common/state/protocol/**',
 			'test/automation/src/playwrightDriver.ts',
 			'.eslint-plugin-local/**/*',
 		],
@@ -1495,7 +1508,7 @@ export default tseslint.config(
 						'@parcel/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',
-						'@vscode/ripgrep',
+						'@vscode/ripgrep-universal',
 						'@vscode/iconv-lite-umd',
 						'@vscode/native-watchdog',
 						'@vscode/policy-watcher',
@@ -1656,7 +1669,8 @@ export default tseslint.config(
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
 						'vs/editor/~',
-						'@vscode/tree-sitter-wasm' // node module allowed even in /common/
+						'@vscode/tree-sitter-wasm', // node module allowed even in /common/
+						'@vscode/diff' // type import (loaded at runtime via resolveAmdNodeModulePath)
 					]
 				},
 				{
@@ -1920,7 +1934,8 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/workbench/contrib/terminal/terminal.all.js',
-						'vs/sessions/common/theme.js' // side-effect import for color registry
+						'vs/sessions/common/theme.js', // side-effect import for color registry
+						'vs/sessions/common/sizes.js' // side-effect import for size registry
 					]
 				},
 				{
@@ -2017,6 +2032,7 @@ export default tseslint.config(
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
 						'vs/workbench/~',
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
@@ -2037,6 +2053,7 @@ export default tseslint.config(
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
 						'vs/workbench/~',
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
@@ -2057,6 +2074,7 @@ export default tseslint.config(
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
 						'vs/workbench/~',
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
@@ -2073,6 +2091,7 @@ export default tseslint.config(
 						'vs/platform/*/~',
 						'vs/sessions/~',
 						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
 						'vs/workbench/~',
 						'vs/workbench/browser/**',
 						'vs/workbench/services/*/~',
@@ -2090,6 +2109,7 @@ export default tseslint.config(
 						'vs/sessions/~',
 						'vs/sessions/test/**',
 						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
 						'vs/workbench/~',
 						'vs/workbench/browser/**',
 						'vs/workbench/services/*/~',
@@ -2126,6 +2146,24 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/contrib/providers/*/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
+						'vs/sessions/services/*/~',
 					]
 				},
 				{
@@ -2368,8 +2406,8 @@ export default tseslint.config(
 			'extensions/markdown-language-features/src/**/*.ts',
 			'extensions/markdown-language-features/notebook/**/*.ts',
 			'extensions/markdown-language-features/preview-src/**/*.ts',
-			'extensions/mermaid-chat-features/chat-webview-src/**/*.ts',
-			'extensions/mermaid-chat-features/src/**/*.ts',
+			'extensions/mermaid-markdown-features/preview-src/chat/**/*.ts',
+			'extensions/mermaid-markdown-features/src/**/*.ts',
 			'extensions/media-preview/src/**/*.ts',
 			'extensions/simple-browser/**/*.ts',
 			'extensions/typescript-language-features/**/*.ts',
@@ -2390,9 +2428,9 @@ export default tseslint.config(
 					'extensions/simple-browser/tsconfig.json',
 					'extensions/simple-browser/preview-src/tsconfig.json',
 
-					// Mermaid chat features
-					'extensions/mermaid-chat-features/tsconfig.json',
-					'extensions/mermaid-chat-features/chat-webview-src/tsconfig.json',
+					// Mermaid markdown features
+					'extensions/mermaid-markdown-features/tsconfig.json',
+					'extensions/mermaid-markdown-features/preview-src/chat/tsconfig.json',
 
 					// TypeScript
 					'extensions/typescript-language-features/tsconfig.json',

@@ -12,7 +12,7 @@ import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpo
 import { modelSupportsToolSearch } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { buildToolInputSchema } from '../../../platform/endpoint/node/messagesApi';
 import { ILogService } from '../../../platform/log/common/logService';
-import { ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, isAnthropicMemoryToolEnabled } from '../../../platform/networking/common/anthropic';
+import { ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, modelSupportsMemory } from '../../../platform/networking/common/anthropic';
 import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { IResponseDelta, OpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { APIUsage } from '../../../platform/networking/common/openai';
@@ -140,7 +140,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					},
 				});
 
-			const memoryToolEnabled = isAnthropicMemoryToolEnabled(model.id, this._configurationService, this._experimentationService);
+			const memoryToolEnabled = modelSupportsMemory(model.id);
 
 			// Requires the client-side tool_search tool in the request: without it, defer-loaded tools can't be retrieved.
 			// If the user disables tool_search in the tool picker, it won't be present here and tool search is skipped.

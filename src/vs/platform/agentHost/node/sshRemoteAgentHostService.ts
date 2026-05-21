@@ -12,6 +12,7 @@ import { dirname, join, isAbsolute, basename } from '../../../base/common/path.j
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
 import { raceTimeout } from '../../../base/common/async.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
@@ -23,6 +24,8 @@ import {
 	type ISSHAgentHostConfigSanitized,
 	type ISSHConnectProgress,
 	type ISSHConnectResult,
+	type ISSHKeyboardInteractivePrompt,
+	type ISSHKeyboardInteractiveRequest,
 	type ISSHRelayMessage,
 	type ISSHResolvedConfig,
 } from '../common/sshRemoteAgentHost.js';
@@ -38,6 +41,7 @@ import {
 	writeAgentHostState,
 } from './sshRemoteAgentHostHelpers.js';
 import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
+import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 
 /** Minimal subset of ssh2.ClientChannel used by this module (duplex stream). */
 interface SSHChannel extends NodeJS.ReadWriteStream {
@@ -91,14 +95,79 @@ const RECONNECT_RELAY_TIMEOUT_MS = 60_000;
 export type SSHAuthAttempt =
 	| { readonly type: 'publickey'; readonly username: string; readonly key: Buffer; readonly keyPath: string }
 	| { readonly type: 'agent'; readonly username: string; readonly agent: string }
-	| { readonly type: 'password'; readonly username: string; readonly password: string };
+	| { readonly type: 'password'; readonly username: string; readonly password: string }
+	| { readonly type: 'keyboard-interactive'; readonly username: string };
 
 function describeAuthAttempt(attempt: SSHAuthAttempt): string {
 	switch (attempt.type) {
 		case 'publickey': return `publickey ${attempt.keyPath}`;
 		case 'agent': return 'agent';
 		case 'password': return 'password';
+		case 'keyboard-interactive': return 'keyboard-interactive';
 	}
+}
+
+/**
+ * Callback invoked when the SSH server requests keyboard-interactive
+ * authentication. The handler must eventually call `finish` with the
+ * user's responses (or an empty array to fail this attempt).
+ */
+export type SSHKeyboardInteractivePromptHandler = (
+	name: string,
+	instructions: string,
+	prompts: readonly ISSHKeyboardInteractivePrompt[],
+	finish: (responses: readonly string[]) => void,
+) => void;
+
+/**
+ * Translate a {@link SSHAuthAttempt} into the payload shape ssh2 expects in
+ * its `authHandler` callback. Returns `undefined` when the attempt cannot be
+ * realized (currently only `keyboard-interactive` without a prompt handler).
+ *
+ * The kbi case is the one place where we still need a callback-bridge: ssh2
+ * calls our `prompt` with a `finish(string[])` and we hand the responses to
+ * `kbiHandler`. Isolating that here keeps it out of the iteration loop below.
+ */
+function toAuthMethod(
+	attempt: SSHAuthAttempt,
+	kbiHandler: SSHKeyboardInteractivePromptHandler | undefined,
+): AnyAuthMethod | undefined {
+	switch (attempt.type) {
+		case 'publickey': {
+			// Strip our internal `keyPath` metadata before handing to ssh2.
+			const { keyPath: _kp, ...payload } = attempt;
+			return payload;
+		}
+		case 'agent':
+		case 'password':
+			return attempt;
+		case 'keyboard-interactive': {
+			if (!kbiHandler) {
+				return undefined;
+			}
+			return {
+				type: 'keyboard-interactive',
+				username: attempt.username,
+				prompt: (name, instructions, _lang, prompts, finish) => {
+					const normalized = prompts.map(p => ({ prompt: p.prompt, echo: p.echo ?? true }));
+					kbiHandler(name, instructions, normalized, responses => finish([...responses]));
+				},
+			};
+		}
+	}
+}
+
+/**
+ * `agent` is a publickey-flavored method at the SSH protocol level — servers
+ * advertise `publickey`, not `agent`, in `methodsLeft`. Returns true when the
+ * server still has the underlying protocol method on offer.
+ */
+function isMethodAllowedByServer(attempt: SSHAuthAttempt, methodsLeft: AuthenticationType[] | null): boolean {
+	if (!methodsLeft) {
+		return true;
+	}
+	const protocolMethod: AuthenticationType = attempt.type === 'agent' ? 'publickey' : attempt.type;
+	return methodsLeft.includes(protocolMethod);
 }
 
 /**
@@ -106,30 +175,31 @@ function describeAuthAttempt(attempt: SSHAuthAttempt): string {
  * filtering by the server-advertised `methodsLeft` when ssh2 provides one.
  * Returns `false` when the queue is exhausted, which causes ssh2 to surface
  * an authentication failure to the caller.
+ *
+ * `kbiHandler` (when provided) is invoked by ssh2 if the server picks the
+ * `keyboard-interactive` attempt, and is responsible for collecting
+ * responses (e.g. by prompting the user).
  */
 export function makeAuthHandler(
 	attempts: readonly SSHAuthAttempt[],
 	logService: ILogService,
+	kbiHandler?: SSHKeyboardInteractivePromptHandler,
 ): (methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void {
 	let index = 0;
 	return (methodsLeft, _partialSuccess, callback) => {
 		while (index < attempts.length) {
 			const attempt = attempts[index++];
-			// `agent` is a publickey-flavored method at the SSH protocol level —
-			// servers advertise `publickey`, not `agent`, in `methodsLeft`.
-			const protocolMethod: AuthenticationType = attempt.type === 'agent' ? 'publickey' : attempt.type;
-			if (methodsLeft && !methodsLeft.includes(protocolMethod)) {
-				logService.info(`${LOG_PREFIX} Skipping ${describeAuthAttempt(attempt)} — server only allows ${methodsLeft.join(', ')}`);
+			if (!isMethodAllowedByServer(attempt, methodsLeft)) {
+				logService.info(`${LOG_PREFIX} Skipping ${describeAuthAttempt(attempt)} — server only allows ${methodsLeft!.join(', ')}`);
+				continue;
+			}
+			const method = toAuthMethod(attempt, kbiHandler);
+			if (!method) {
+				logService.warn(`${LOG_PREFIX} ${describeAuthAttempt(attempt)} skipped: no prompt handler available`);
 				continue;
 			}
 			logService.info(`${LOG_PREFIX} Trying auth: ${describeAuthAttempt(attempt)}`);
-			// Strip our internal `keyPath` metadata before handing to ssh2.
-			if (attempt.type === 'publickey') {
-				const { keyPath: _kp, ...payload } = attempt;
-				callback(payload);
-			} else {
-				callback(attempt);
-			}
+			callback(method);
 			return;
 		}
 		logService.info(`${LOG_PREFIX} No more auth methods to try; giving up`);
@@ -211,8 +281,9 @@ function startRemoteAgentHost(
 			}, 60_000);
 
 			const checkForOutput = () => {
+				const clean = removeAnsiEscapeCodes(outputBuf);
 				if (pid === undefined) {
-					const pidMatch = outputBuf.match(/VSCODE_PID=(\d+)/);
+					const pidMatch = clean.match(/VSCODE_PID=(\d+)/);
 					if (pidMatch) {
 						pid = parseInt(pidMatch[1], 10);
 						logService.info(`${LOG_PREFIX} Remote agent host PID: ${pid}`);
@@ -220,7 +291,7 @@ function startRemoteAgentHost(
 				}
 
 				if (!resolved) {
-					const match = outputBuf.match(/ws:\/\/(?:127\.0\.0\.1|localhost):(\d+)(?:\?tkn=([^\s&]+))?/);
+					const match = clean.match(/ws:\/\/(?:127\.0\.0\.1|localhost):(\d+)(?:\?tkn=([^\s&]+))?/);
 					if (match) {
 						resolved = true;
 						clearTimeout(timeout);
@@ -427,6 +498,20 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose: Event<string> = this._onDidRelayClose.event;
 
+	private readonly _onDidRequestKeyboardInteractive = this._register(new Emitter<ISSHKeyboardInteractiveRequest>());
+	readonly onDidRequestKeyboardInteractive: Event<ISSHKeyboardInteractiveRequest> = this._onDidRequestKeyboardInteractive.event;
+
+	private readonly _onDidCancelKeyboardInteractive = this._register(new Emitter<string>());
+	readonly onDidCancelKeyboardInteractive: Event<string> = this._onDidCancelKeyboardInteractive.event;
+
+	/**
+	 * Pending keyboard-interactive prompts awaiting a response from the renderer.
+	 * Keyed by `requestId`. Each entry can either finish the ssh2 prompt with
+	 * responses or cancel the owning connect attempt when the user dismisses it.
+	 */
+	private readonly _pendingKbiRequests = new Map<string, { finish: (responses: readonly string[]) => void; cancelConnect: () => void }>();
+	private _kbiRequestCounter = 0;
+
 	private readonly _connections = this._register(new DisposableMap<string, SSHConnection>());
 
 	private _nativeRequire: NodeJS.Require | undefined;
@@ -556,7 +641,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 			// 1. Establish SSH connection
 			reportProgress(localize('sshProgressConnecting', "Establishing SSH connection..."));
-			sshClient = await this._connectSSH(config);
+			sshClient = await this._connectSSH(config, connectionKey);
 
 			if (config.remoteAgentHostCommand) {
 				// Dev override: skip platform detection and CLI install,
@@ -580,14 +665,16 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			// 4. Check for an already-running agent host on the remote.
 			//    This prevents accumulating orphaned processes when the SSH
 			//    connection drops and we reconnect.
+			let remoteHost: string = '127.0.0.1';
 			let remotePort: number | undefined;
 			let connectionToken: string | undefined;
 			let agentStream: SSHChannel | undefined;
 
 			reportProgress(localize('sshProgressCheckingAgent', "Checking for existing agent host..."));
 			const exec = bindSshExec(sshClient);
-			const existingAH = await findRunningAgentHost(exec, this._logService, this._quality);
-			if (existingAH) {
+			const existingAH = await findRunningAgentHost(exec, this._logService, this._serverDataFolderName, this._quality);
+			if (existingAH.kind === 'compatible') {
+				remoteHost = existingAH.host;
 				remotePort = existingAH.port;
 				connectionToken = existingAH.connectionToken;
 			}
@@ -601,7 +688,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				agentStream = result.stream;
 
 				// Record state for future reuse
-				await writeAgentHostState(exec, this._logService, this._quality, result.pid, remotePort, connectionToken);
+				await writeAgentHostState(exec, this._logService, this._serverDataFolderName, this._quality, result.pid, remotePort, connectionToken);
 			}
 
 			// 6. Connect to remote agent host via WebSocket relay (no local TCP port)
@@ -611,29 +698,30 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			let relay: { send: (data: string) => void; close: () => void };
 			try {
 				relay = await this._createWebSocketRelay(
-					sshClient, '127.0.0.1', remotePort, connectionToken,
+					sshClient, remoteHost, remotePort, connectionToken,
 					(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
 					() => { conn?.dispose(); },
 				);
 			} catch (relayErr) {
-				if (!existingAH) {
+				if (existingAH.kind !== 'compatible') {
 					throw relayErr;
 				}
 				// The reused agent host is not connectable — kill it and start fresh
 				const relayErrorMessage = relayErr instanceof Error ? relayErr.message : String(relayErr);
-				this._logService.warn(`${LOG_PREFIX} Failed to connect to reused agent host on port ${remotePort}: ${relayErrorMessage}. Starting fresh`);
-				await cleanupRemoteAgentHost(exec, this._logService, this._quality);
+				this._logService.warn(`${LOG_PREFIX} Failed to connect to reused agent host on ${remoteHost}:${remotePort}: ${relayErrorMessage}. Starting fresh`);
+				await cleanupRemoteAgentHost(exec, this._logService, this._serverDataFolderName, this._quality);
 
 				reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
 				const result = await this._startRemoteAgentHost(sshClient, this._quality, config.remoteAgentHostCommand);
+				remoteHost = '127.0.0.1';
 				remotePort = result.port;
 				connectionToken = result.connectionToken;
 				agentStream = result.stream;
-				await writeAgentHostState(exec, this._logService, this._quality, result.pid, remotePort, connectionToken);
+				await writeAgentHostState(exec, this._logService, this._serverDataFolderName, this._quality, result.pid, remotePort, connectionToken);
 
 				reportProgress(localize('sshProgressForwarding', "Connecting to remote agent host..."));
 				relay = await this._createWebSocketRelay(
-					sshClient, '127.0.0.1', remotePort, connectionToken,
+					sshClient, remoteHost, remotePort, connectionToken,
 					(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
 					() => { conn?.dispose(); },
 				);
@@ -866,11 +954,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	protected async _connectSSH(
 		config: ISSHAgentHostConfig,
+		connectionKey?: string,
 	): Promise<SSHClient> {
-		const nativeRequire = await this._getNativeRequire();
-		const ssh2Module = nativeRequire('ssh2') as { Client: new () => unknown };
-		const SSHClientCtor = ssh2Module.Client;
-
 		const connectConfig: ConnectConfig = {
 			host: config.host,
 			port: config.port ?? 22,
@@ -881,10 +966,37 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 		const attempts = await this._buildAuthAttempts(config);
 		this._logService.info(`${LOG_PREFIX} Built ${attempts.length} auth attempt(s): ${attempts.map(a => describeAuthAttempt(a)).join(', ')}`);
+		const displayHost = config.sshConfigHost ?? `${config.username}@${config.host}`;
+		// Track requestIds we created during this connect so we can fire
+		// onDidCancelKeyboardInteractive for any still-pending prompts when
+		// the connect attempt fails or completes.
+		const liveKbiRequests = new Set<string>();
+		let cancelConnectFromKbi: (() => void) | undefined;
+		const kbiHandler: SSHKeyboardInteractivePromptHandler | undefined = attempts.some(a => a.type === 'keyboard-interactive')
+			? (name, instructions, prompts, finish) => {
+				const requestId = this._handleKeyboardInteractive(connectionKey ?? displayHost, displayHost, config.username, name, instructions, prompts, finish, () => cancelConnectFromKbi?.());
+				liveKbiRequests.add(requestId);
+			}
+			: undefined;
 		// Cast: the ssh2 @types don't model `false` (give-up) for the
 		// callback nor `null` for the first invocation's `methodsLeft`,
 		// even though the runtime supports both per the ssh2 docs.
-		connectConfig.authHandler = makeAuthHandler(attempts, this._logService) as unknown as ConnectConfig['authHandler'];
+		connectConfig.authHandler = makeAuthHandler(attempts, this._logService, kbiHandler) as unknown as ConnectConfig['authHandler'];
+
+		const cancelLiveKbiRequests = () => {
+			for (const requestId of liveKbiRequests) {
+				// Pull the pending finish callback (if any) and invoke it with
+				// empty responses so ssh2 stops waiting on this attempt — without
+				// this, ssh2 hangs until `readyTimeout` elapses when a connect
+				// attempt is aborted mid-prompt. The renderer also gets notified
+				// so it can dismiss any open quick-input UI.
+				const pending = this._pendingKbiRequests.get(requestId);
+				this._pendingKbiRequests.delete(requestId);
+				this._onDidCancelKeyboardInteractive.fire(requestId);
+				pending?.finish([]);
+			}
+			liveKbiRequests.clear();
+		};
 
 		if (config.agentForward) {
 			const agentSock = this._isAgentAvailable();
@@ -900,21 +1012,54 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			}
 		}
 
+		const client = await this._createSSHClient();
 		return new Promise<SSHClient>((resolve, reject) => {
-			const client = new SSHClientCtor() as SSHClient;
+			let settled = false;
+
+			const resolveConnect = () => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				this._logService.info(`${LOG_PREFIX} SSH connection established to ${config.host}`);
+				cancelLiveKbiRequests();
+				resolve(client);
+			};
+
+			const rejectConnect = (err: Error, endClient: boolean) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				cancelLiveKbiRequests();
+				if (endClient) {
+					client.end();
+				}
+				reject(err);
+			};
+
+			cancelConnectFromKbi = () => {
+				this._logService.info(`${LOG_PREFIX} SSH keyboard-interactive prompt cancelled by user for ${displayHost}`);
+				rejectConnect(new CancellationError(), true);
+			};
 
 			client.on('ready', () => {
-				this._logService.info(`${LOG_PREFIX} SSH connection established to ${config.host}`);
-				resolve(client);
+				resolveConnect();
 			});
 
 			client.on('error', (err: Error) => {
 				this._logService.error(`${LOG_PREFIX} SSH connection error: ${err.message}`);
-				reject(err);
+				rejectConnect(err, false);
 			});
 
 			client.connect(connectConfig);
 		});
+	}
+
+	protected async _createSSHClient(): Promise<SSHClient> {
+		const nativeRequire = await this._getNativeRequire();
+		const ssh2Module = nativeRequire('ssh2') as { Client: new () => unknown };
+		return new ssh2Module.Client() as SSHClient;
 	}
 
 	/**
@@ -950,6 +1095,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 						attempts.push({ type: 'publickey', username, key: contents, keyPath });
 					}
 				}
+				// Final fallback: keyboard-interactive (typically a password prompt).
+				// Only meaningful if the server advertises it; the auth handler
+				// will skip it otherwise. The prompt is forwarded to the renderer
+				// via {@link onDidRequestKeyboardInteractive}.
+				attempts.push({ type: 'keyboard-interactive', username });
 				break;
 			}
 			case SSHAuthMethod.KeyFile: {
@@ -995,6 +1145,62 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	/**
+	 * Forward a keyboard-interactive challenge from ssh2 to the renderer and
+	 * register the `finish` callback so {@link respondKeyboardInteractive} can
+	 * supply the user's responses when they arrive. Returns the generated
+	 * `requestId` so the caller can track in-flight prompts.
+	 */
+	protected _handleKeyboardInteractive(
+		connectionKey: string,
+		displayHost: string,
+		username: string,
+		name: string,
+		instructions: string,
+		prompts: readonly ISSHKeyboardInteractivePrompt[],
+		finish: (responses: readonly string[]) => void,
+		cancelConnect: () => void,
+	): string {
+		const requestId = `kbi-${++this._kbiRequestCounter}`;
+		// Wrap finish so it can only fire once — ssh2 ignores duplicate calls,
+		// but we also want to ensure we drop the pending entry exactly once.
+		let settled = false;
+		const finishOnce = (responses: readonly string[]) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			this._pendingKbiRequests.delete(requestId);
+			finish(responses);
+		};
+		this._pendingKbiRequests.set(requestId, { finish: finishOnce, cancelConnect });
+		this._logService.info(`${LOG_PREFIX} keyboard-interactive challenge from ${displayHost}: ${prompts.length} prompt(s)`);
+		this._onDidRequestKeyboardInteractive.fire({
+			requestId,
+			connectionKey,
+			displayHost,
+			username,
+			name,
+			instructions,
+			prompts: prompts.map(p => ({ prompt: p.prompt, echo: p.echo })),
+		});
+		return requestId;
+	}
+
+	async respondKeyboardInteractive(requestId: string, responses: readonly string[] | undefined): Promise<void> {
+		const pending = this._pendingKbiRequests.get(requestId);
+		if (!pending) {
+			this._logService.warn(`${LOG_PREFIX} respondKeyboardInteractive: no pending request for ${requestId}`);
+			return;
+		}
+		if (responses === undefined) {
+			pending.cancelConnect();
+			pending.finish([]);
+			return;
+		}
+		pending.finish(responses);
+	}
+
+	/**
 	 * Test seam: read a private key file from disk. Returns `undefined` if the
 	 * file doesn't exist; logs and returns `undefined` for any other read error
 	 * so a single broken key doesn't abort the whole auth flow.
@@ -1015,6 +1221,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	private get _quality(): string {
 		return this._productService.quality || 'insider';
+	}
+
+	private get _serverDataFolderName(): string {
+		return this._productService.serverDataFolderName ?? '.vscode-server-oss';
 	}
 
 	protected _startRemoteAgentHost(

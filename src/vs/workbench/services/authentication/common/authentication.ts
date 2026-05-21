@@ -54,6 +54,11 @@ export interface IAuthenticationCreateSessionOptions {
 	 */
 	authorizationServer?: URI;
 	/**
+	 * When specified, the authentication provider will request a token bound to this resource URI
+	 * (RFC 8707 resource indicator).
+	 */
+	resource?: string;
+	/**
 	 * Allows the authentication provider to take in additional parameters.
 	 * It is up to the provider to define what these parameters are and handle them.
 	 * This is useful for passing in additional information that is specific to the provider
@@ -116,6 +121,11 @@ export interface IAuthenticationGetSessionsOptions {
 	 * the provider can use this authorization server, then it is passed down to the auth provider.
 	 */
 	authorizationServer?: URI;
+	/**
+	 * When specified, the authentication provider will request a token bound to this resource URI
+	 * (RFC 8707 resource indicator).
+	 */
+	resource?: string;
 	/**
 	 * Allows the authentication provider to take in additional parameters.
 	 * It is up to the provider to define what these parameters are and handle them.
@@ -376,6 +386,11 @@ export interface IAuthenticationProviderSessionOptions {
 	 * attempt to return sessions that are only related to this authorization server.
 	 */
 	authorizationServer?: URI;
+	/**
+	 * When specified, the authentication provider will request a token bound to this resource URI
+	 * (RFC 8707 resource indicator).
+	 */
+	resource?: string;
 	/**
 	 * Allows the authentication provider to take in additional parameters.
 	 * It is up to the provider to define what these parameters are and handle them.

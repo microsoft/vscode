@@ -39,7 +39,8 @@ const config = {
 		ui: 'tdd',
 		color: true,
 		forbidOnly: !!process.env.CI,
-		timeout: 5000
+		timeout: 5000,
+		retries: isSanity ? 1 : 0
 	}
 };
 

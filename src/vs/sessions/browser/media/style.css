@@ -152,13 +152,24 @@
 	margin-bottom: 0;
 }
 
-.agent-sessions-workbench .part.editor:not(.modal-editor-part) {
+.agent-sessions-workbench.noauxiliarybar .part.chatbar {
+	margin-right: 0;
+}
+
+.agent-sessions-workbench .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	/*
 	 * No right margin so the editor flushes against the auxiliary bar (whose
 	 * `margin-left` is 0 in this state). The grid sash sits at the visual
 	 * seam between the two cards. The 5px bottom margin pairs with the
 	 * panel's `margin-top: 5px` to center the sash; it drops to 0 when the
 	 * panel is hidden (see `.nopanel` override).
+	 *
+	 * Scoped to `.monaco-grid-view` so the card-like styling only applies to
+	 * the main workbench editor part — auxiliary window editor parts are
+	 * created as a direct child of the aux container (no grid view wrapper)
+	 * and the `agent-sessions-workbench` class is mirrored onto the aux
+	 * container via `trackAttributes`, so without this scoping the styling
+	 * would leak into floating editor windows.
 	 */
 	margin: 0 0 5px 5px;
 	background: var(--vscode-agentsPanel-background);
@@ -172,7 +183,7 @@
 	overflow: hidden;
 }
 
-.agent-sessions-workbench .part.editor:not(.modal-editor-part)::after {
+.agent-sessions-workbench .monaco-grid-view .part.editor:not(.modal-editor-part)::after {
 	box-shadow: none;
 }
 
@@ -361,7 +372,7 @@
 }
 
 .agent-sessions-workbench.nopanel .part.auxiliarybar,
-.agent-sessions-workbench.nopanel .part.editor:not(.modal-editor-part) {
+.agent-sessions-workbench.nopanel .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	margin-bottom: 0;
 }
 
@@ -655,6 +666,7 @@
 }
 
 @starting-style {
+
 	/* Shared starting values */
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
@@ -692,6 +704,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
 	.agent-sessions-workbench .part.chatbar {
@@ -864,6 +877,7 @@
 		transform: translateY(30%);
 		opacity: 0.5;
 	}
+
 	to {
 		transform: translateY(0);
 		opacity: 1;
@@ -919,6 +933,7 @@
 		transform: translateY(100%);
 		opacity: 0.5;
 	}
+
 	to {
 		transform: translateY(0);
 		opacity: 1;
@@ -956,6 +971,7 @@
 		transform: translateX(100%);
 		opacity: 0;
 	}
+
 	to {
 		transform: translateX(0);
 		opacity: 1;

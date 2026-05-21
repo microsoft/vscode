@@ -8,16 +8,18 @@ import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { RemoteAgentHostConnectionStatus, IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { RemoteAgentHostConnectionStatus, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { IOutputService } from '../../../../../workbench/services/output/common/output.js';
@@ -27,9 +29,10 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { WorkspacePicker, IWorkspaceSelection } from '../../browser/sessionWorkspacePicker.js';
+import { WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { IWorkspacesService } from '../../../../../platform/workspaces/common/workspaces.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -42,10 +45,23 @@ const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 
 // ---- Mock providers ---------------------------------------------------------
 
+// Maps mock provider id → URI path prefix it resolves. In production, the
+// URI's authority/scheme determines which provider can resolve it; the
+// tests use file URIs only, so we map provider ids to their conventional
+// path roots (e.g. /remote, /local, /copilot, /agent-host).
+const MOCK_PROVIDER_PATH_PREFIXES: Record<string, string> = {
+	'agenthost-remote-1': '/remote',
+	'local-1': '/local',
+	'default-copilot': '/copilot',
+	'local-agent-host': '/agent-host',
+};
+
 function createMockProvider(id: string, opts?: {
 	connectionStatus?: ISettableObservable<RemoteAgentHostConnectionStatus>;
 	browseActions?: readonly ISessionWorkspaceBrowseAction[];
 }): ISessionsProvider {
+	const pathPrefix = MOCK_PROVIDER_PATH_PREFIXES[id];
+	const canResolve = (uri: URI) => !pathPrefix || uri.path === pathPrefix || uri.path.startsWith(`${pathPrefix}/`);
 	const base = {
 		id,
 		label: `Provider ${id}`,
@@ -53,12 +69,25 @@ function createMockProvider(id: string, opts?: {
 		sessionTypes: [],
 		onDidChangeSessionTypes: Event.None,
 		browseActions: opts?.browseActions ?? [],
-		resolveWorkspace: (uri: URI): ISessionWorkspace => ({
-			label: uri.path.substring(1) || uri.path,
-			icon: Codicon.folder,
-			repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
-			requiresWorkspaceTrust: false,
-		}),
+		resolveWorkspace: (uri: URI): ISessionWorkspace | undefined => {
+			if (!canResolve(uri)) {
+				return undefined;
+			}
+			return {
+				uri,
+				label: uri.path.substring(1) || uri.path,
+				icon: Codicon.folder,
+				folders: [{
+					root: uri,
+					workingDirectory: uri,
+					name: uri.path.substring(1) || uri.path,
+					description: undefined,
+					gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
+				}],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			};
+		},
 		onDidChangeSessions: Event.None,
 		getSessions: () => [],
 		createNewSession: () => { throw new Error('Not implemented'); },
@@ -150,7 +179,7 @@ function createTestPicker(
 	instantiationService.stub(IClipboardService, {});
 	instantiationService.stub(IPreferencesService, {});
 	instantiationService.stub(IOutputService, {});
-	instantiationService.stub(IConfigurationService, { getValue: () => undefined });
+	instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
 	instantiationService.stub(ICommandService, { executeCommand: async () => { } });
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
@@ -159,6 +188,7 @@ function createTestPicker(
 		getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
 		onDidChangeRecentlyOpened: Event.None,
 	});
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
 
 	return disposables.add(instantiationService.createInstance(WorkspacePicker));
 }
@@ -166,7 +196,7 @@ function createTestPicker(
 // ---- Assertion helpers ------------------------------------------------------
 
 function assertSelectedProvider(picker: WorkspacePicker, expectedProviderId: string | undefined, message?: string): void {
-	assert.strictEqual(picker.selectedProject?.providerId, expectedProviderId, message);
+	assert.strictEqual(picker.selectedResolved?.providerId, expectedProviderId, message);
 }
 
 // ---- Tests ------------------------------------------------------------------
@@ -225,7 +255,7 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		assertSelectedProvider(picker, 'agenthost-remote-1', 'Selection is restored synchronously');
 
-		const events: Array<IWorkspaceSelection | undefined> = [];
+		const events: Array<URI | undefined> = [];
 		disposables.add(picker.onDidSelectWorkspace(e => events.push(e)));
 
 		// Advance past the grace period.
@@ -275,11 +305,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		const picker = createTestPicker(disposables, providersService, storage);
 
 		// User picks a local workspace while the remote is still trying to connect.
-		const localPick: IWorkspaceSelection = {
-			providerId: 'local-1',
-			workspace: localProvider.resolveWorkspace(URI.file('/local/picked'))!,
-		};
-		picker.setSelectedWorkspace(localPick, false);
+		picker.setSelectedWorkspace(URI.file('/local/picked'), { fireEvent: false });
 
 		// Grace period elapses; remote still disconnected — must not affect user pick.
 		await timeout(10_000);
@@ -332,7 +358,7 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		assertSelectedProvider(picker, 'agenthost-remote-1', 'Selection is restored while connecting');
 
-		const events: Array<IWorkspaceSelection | undefined> = [];
+		const events: Array<URI | undefined> = [];
 		disposables.add(picker.onDidSelectWorkspace(e => events.push(e)));
 
 		// SSH tunnel begins.
@@ -397,7 +423,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		remoteStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 		assert.strictEqual(
-			picker.selectedProject?.workspace.repositories[0]?.uri.path,
+			picker.selectedResolved?.workspace.folders[0]?.root.path,
 			'/remote/project',
 		);
 	});
@@ -419,19 +445,15 @@ suite('WorkspacePicker - Connection Status', () => {
 		// Select the local workspace
 		const resolvedWorkspace = localProvider.resolveWorkspace(URI.file('/local/project'));
 		assert.ok(resolvedWorkspace, 'resolveWorkspace should resolve file:// URIs');
-		const localWorkspace: IWorkspaceSelection = {
-			providerId: 'local-1',
-			workspace: resolvedWorkspace,
-		};
-		picker.setSelectedWorkspace(localWorkspace, false);
+		picker.setSelectedWorkspace(URI.file('/local/project'), { fireEvent: false });
 
 		// Verify storage: only the local entry should be checked
 		const raw = storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
 		assert.ok(raw, 'Storage should have recent workspaces');
-		const stored = JSON.parse(raw!) as { providerId: string; checked: boolean }[];
+		const stored = JSON.parse(raw!) as { uri: { path: string }; checked: boolean }[];
 		const checkedEntries = stored.filter(e => e.checked);
 		assert.strictEqual(checkedEntries.length, 1, 'Only one entry should be checked');
-		assert.strictEqual(checkedEntries[0].providerId, 'local-1', 'The local entry should be checked');
+		assert.strictEqual(checkedEntries[0].uri.path, '/local/project', 'The local entry should be checked');
 	});
 
 	test('local provider is never treated as unavailable', () => {
@@ -499,11 +521,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		assertSelectedProvider(picker, undefined, 'No fallback while checked entry pending');
 
 		// User explicitly picks a Copilot workspace.
-		const copilotPick: IWorkspaceSelection = {
-			providerId: 'default-copilot',
-			workspace: copilotProvider.resolveWorkspace(URI.file('/copilot/picked'))!,
-		};
-		picker.setSelectedWorkspace(copilotPick, false);
+		picker.setSelectedWorkspace(URI.file('/copilot/picked'), { fireEvent: false });
 		assertSelectedProvider(picker, 'default-copilot', 'User pick is honored');
 
 		// Now the late provider for the (still-stored) checked entry arrives.
@@ -519,7 +537,7 @@ suite('WorkspacePicker - Connection Status', () => {
 /** Minimal subclass that exposes the protected `_getAvailableTabs` for testing. */
 class TestablePicker extends WorkspacePicker {
 	getAvailableTabs(): string[] {
-		return this._getAvailableGroups();
+		return this._getAvailableTabs().map(t => t.id);
 	}
 }
 
@@ -533,7 +551,7 @@ function makeBrowseAction(providerId: string, group: string | undefined, label =
 	};
 }
 
-function createTestablePicker(disposables: DisposableStore, providersService: MockSessionsProvidersService): TestablePicker {
+function createTestablePicker(disposables: DisposableStore, providersService: MockSessionsProvidersService, remoteAgentHostsEnabled = true): TestablePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { }, show: () => { } });
 	instantiationService.stub(IContextViewService, { showContextView: () => ({ close: () => { } }), hideContextView: () => { }, layout: () => { } });
@@ -545,7 +563,7 @@ function createTestablePicker(disposables: DisposableStore, providersService: Mo
 	instantiationService.stub(IClipboardService, {});
 	instantiationService.stub(IPreferencesService, {});
 	instantiationService.stub(IOutputService, {});
-	instantiationService.stub(IConfigurationService, { getValue: () => undefined });
+	instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: remoteAgentHostsEnabled }));
 	instantiationService.stub(ICommandService, { executeCommand: async () => { } });
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
@@ -554,6 +572,7 @@ function createTestablePicker(disposables: DisposableStore, providersService: Mo
 		getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
 		onDidChangeRecentlyOpened: Event.None,
 	});
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	return disposables.add(instantiationService.createInstance(TestablePicker));
 }
 
@@ -575,6 +594,14 @@ suite('WorkspacePicker - Tab discovery', () => {
 		providersService.setProviders([createMockProvider('p1')]);
 		const picker = createTestablePicker(disposables, providersService);
 		assert.deepStrictEqual(picker.getAvailableTabs(), [SESSION_WORKSPACE_GROUP_REMOTE]);
+	});
+
+	test('hides Remote group when remote agent hosts are disabled', () => {
+		providersService.setProviders([
+			createMockProvider('p1', { browseActions: [makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_REMOTE)] }),
+		]);
+		const picker = createTestablePicker(disposables, providersService, false);
+		assert.deepStrictEqual(picker.getAvailableTabs(), []);
 	});
 
 	test('orders well-known groups Local first, then alphabetical', () => {
@@ -619,11 +646,19 @@ suite('WorkspacePicker - Tab discovery', () => {
 		const provider: ISessionsProvider = {
 			...createMockProvider('p1'),
 			resolveWorkspace: (uri: URI): ISessionWorkspace => ({
+				uri,
 				label: uri.path,
 				icon: Codicon.folder,
 				group: 'Cloud',
-				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
+				folders: [{
+					root: uri,
+					workingDirectory: uri,
+					name: uri.path,
+					description: undefined,
+					gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
+				}],
 				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
 			}),
 		};
 		const storage = disposables.add(new TestStorageService());
@@ -641,7 +676,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		instantiationService.stub(IClipboardService, {});
 		instantiationService.stub(IPreferencesService, {});
 		instantiationService.stub(IOutputService, {});
-		instantiationService.stub(IConfigurationService, { getValue: () => undefined });
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
 		instantiationService.stub(ICommandService, { executeCommand: async () => { } });
 		instantiationService.stub(IFileDialogService, {});
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
@@ -650,6 +685,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
 			onDidChangeRecentlyOpened: Event.None,
 		});
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		const picker = disposables.add(instantiationService.createInstance(TestablePicker));
 		// Recent workspace group ('Cloud') is not added as a tab — only
 		// browse actions and the always-present Remote group contribute tabs.

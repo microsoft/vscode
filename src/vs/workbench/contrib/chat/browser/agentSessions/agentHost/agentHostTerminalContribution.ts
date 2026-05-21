@@ -6,9 +6,10 @@
 import { OS } from '../../../../../../base/common/platform.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
+import { ROOT_STATE_URI } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
@@ -70,13 +71,19 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 					if (AGENT_HOST_SHELL_DEPENDENT_SETTINGS.some(s => e.affectsConfiguration(s))) {
 						this._pushDefaultShell();
 					}
+					if (e.affectsConfiguration(AgentHostCustomTerminalToolEnabledSettingId)) {
+						this._pushCustomTerminalToolEnabled();
+					}
 				}));
 				store.add(this._terminalProfileService.onDidChangeAvailableProfiles(() => this._pushDefaultShell()));
 				// Retry the push when the host's root state hydrates or its schema
 				// changes - the initial push from `_reconcile()` may have raced an
 				// undefined `rootState.value`, in which case the schema gate below
 				// in `_pushDefaultShell` returned early.
-				store.add(this._agentHostService.rootState.onDidChange(() => this._pushDefaultShell()));
+				store.add(this._agentHostService.rootState.onDidChange(() => {
+					this._pushDefaultShell();
+					this._pushCustomTerminalToolEnabled();
+				}));
 				this._conditionalListeners.value = store;
 				this._reconcile();
 			}
@@ -100,6 +107,7 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 			});
 		}
 		this._pushDefaultShell();
+		this._pushCustomTerminalToolEnabled();
 	}
 
 	/**
@@ -153,9 +161,29 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		this._agentHostService.dispatch({
+		this._agentHostService.dispatch(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostConfigKey.DefaultShell]: profile.path },
+		});
+	}
+
+	private _pushCustomTerminalToolEnabled(): void {
+		const rootState = this._agentHostService.rootState.value;
+		if (!rootState || rootState instanceof Error) {
+			return;
+		}
+		if (!rootState.config?.schema.properties[AgentHostConfigKey.DisableCustomTerminalTool]) {
+			return;
+		}
+
+		const disableCustomTerminalTool = !this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId);
+		if (rootState.config.values[AgentHostConfigKey.DisableCustomTerminalTool] === disableCustomTerminalTool) {
+			return;
+		}
+
+		this._agentHostService.dispatch(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostConfigKey.DisableCustomTerminalTool]: disableCustomTerminalTool },
 		});
 	}
 }

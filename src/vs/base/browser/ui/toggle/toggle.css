@@ -22,6 +22,12 @@
 	background-color: var(--vscode-inputOption-hoverBackground);
 }
 
+.monaco-custom-toggle.disabled {
+	opacity: 0.4;
+	cursor: default;
+	pointer-events: none;
+}
+
 .hc-black .monaco-custom-toggle:hover,
 .hc-light .monaco-custom-toggle:hover {
 	border: 1px dashed var(--vscode-focusBorder);
