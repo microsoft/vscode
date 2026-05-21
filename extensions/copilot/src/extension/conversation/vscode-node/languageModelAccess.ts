@@ -43,7 +43,7 @@ import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
-import { formatPricingLabel, getModelCapabilitiesDescription } from '../common/languageModelAccess';
+import { formatPricingLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty } from '../common/languageModelAccess';
 
 /**
  * Markers in the autoModelHint experiment variable that indicate the auto model
@@ -97,44 +97,12 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchem
 		return {};
 	}
 
-	const properties: Record<string, {
-		type: string;
-		title: string;
-		enum: readonly (string | number)[];
-		enumItemLabels: string[];
-		enumDescriptions: string[];
-		default?: string | number;
-		group: string;
-	}> = {};
+	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
 
 	// Reasoning effort config
 	const effortLevels = endpoint.supportsReasoningEffort;
 	if (effortLevels && effortLevels.length > 1) {
-		let defaultEffort: string | undefined;
-		if (family.startsWith('claude')) {
-			defaultEffort = effortLevels.includes('high') ? 'high' : undefined;
-		} else if (family.startsWith('gpt-')) {
-			defaultEffort = effortLevels.includes('medium') ? 'medium' : undefined;
-		}
-
-		properties.reasoningEffort = {
-			type: 'string',
-			title: vscode.l10n.t('Thinking Effort'),
-			enum: effortLevels,
-			enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
-			enumDescriptions: effortLevels.map(level => {
-				switch (level) {
-					case 'none': return vscode.l10n.t('No reasoning applied');
-					case 'low': return vscode.l10n.t('Faster responses with less reasoning');
-					case 'medium': return vscode.l10n.t('Balanced reasoning and speed');
-					case 'high': return vscode.l10n.t('Greater reasoning depth but slower');
-					case 'xhigh': return vscode.l10n.t('Highest reasoning depth but slowest');
-					default: return level;
-				}
-			}),
-			default: defaultEffort,
-			group: 'navigation',
-		};
+		properties.reasoningEffort = buildReasoningEffortSchemaProperty(effortLevels, family);
 	}
 
 	// Context size config
@@ -572,6 +540,11 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	}
 
 	private async _getToken(): Promise<CopilotToken | undefined> {
+		if (!this._authenticationService.anyGitHubSession) {
+			this._logService.warn('[LanguageModelAccess] LanguageModel/Embeddings are not available without auth session');
+			return undefined;
+		}
+
 		try {
 			const copilotToken = await this._authenticationService.getCopilotToken();
 			return copilotToken;

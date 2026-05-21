@@ -842,6 +842,14 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 				return;
 			}
 
+			const folder = this.sessionWorkspace.folders[0];
+			const baseGitRepo: ISessionGitRepository = folder.gitRepository ?? {
+				uri: folder.root,
+				workTreeUri: undefined,
+				baseBranchName: undefined,
+				gitHubInfo: constObservable(undefined),
+			};
+
 			this._register(autorun((reader) => {
 				const state = repo.state.read(reader);
 				const head = state.HEAD;
@@ -854,9 +862,9 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 				this._workspaceData.set({
 					...this.sessionWorkspace,
 					folders: [{
-						...this.sessionWorkspace.folders[0],
+						...folder,
 						gitRepository: {
-							...this.sessionWorkspace.folders[0].gitRepository!,
+							...baseGitRepo,
 							branchName,
 							upstreamBranchName,
 							uncommittedChanges,
@@ -2867,7 +2875,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		const removedData: ICopilotChatSession[] = [];
 		for (const [key, adapter] of this._sessionCache) {
-			if (!currentKeys.has(key) && adapter !== this._currentNewSession) {
+			if (!currentKeys.has(key) && adapter instanceof AgentSessionAdapter) {
 				removedData.push(adapter);
 				cacheChanged = true;
 			}

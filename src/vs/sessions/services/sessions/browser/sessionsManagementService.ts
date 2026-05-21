@@ -725,6 +725,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				};
 
 				disposables.add(this.sessionsProvidersService.onDidChangeProviders(() => tryRestore()));
+				// Also retry when a provider's session list changes. Providers
+				// like the agent host load their session cache asynchronously
+				// (after authentication settles), so the target session may
+				// appear without `onDidChangeProviders` ever firing again.
+				disposables.add(this.onDidChangeSessions(() => tryRestore()));
 
 				// Call immediately in case the session became available between the
 				// initial getSession check above and the listener registration here.
@@ -822,6 +827,7 @@ class ActiveSession implements IActiveSession {
 	get changes() { return this._session.changes; }
 	get changesets() { return this._session.changesets; }
 	get modelId() { return this._session.modelId; }
+	get agent() { return this._session.agent; }
 	get mode() { return this._session.mode; }
 	get loading() { return this._session.loading; }
 	get isArchived() { return this._session.isArchived; }

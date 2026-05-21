@@ -177,8 +177,9 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				}
 			}
 
-			// Signed out
-			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown && !this.chatEntitlementService.hasByokModels) {
+			// Signed out — keep showing Sign-in affordance even when BYOK models are present
+			// so air-gapped users can still authenticate to unlock the full Copilot experience.
+			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
 				return this.getSetupEntryProps();
 			}
 

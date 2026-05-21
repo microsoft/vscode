@@ -520,6 +520,12 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 				summary: { ...state.summary, model: action.model, modifiedAt: Date.now() },
 			};
 
+		case ActionType.SessionAgentChanged:
+			return {
+				...state,
+				summary: { ...state.summary, agent: action.agent, modifiedAt: Date.now() },
+			};
+
 		case ActionType.SessionIsReadChanged:
 			return {
 				...state,
@@ -616,6 +622,9 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 				if (action.statusMessage !== undefined) {
 					inserted.statusMessage = action.statusMessage;
 				}
+				if (action.agents !== undefined) {
+					inserted.agents = action.agents;
+				}
 				return { ...state, customizations: [...list, inserted] };
 			}
 			const updated = [...list];
@@ -628,6 +637,9 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 			}
 			if (action.statusMessage !== undefined) {
 				next.statusMessage = action.statusMessage;
+			}
+			if (action.agents !== undefined) {
+				next.agents = action.agents;
 			}
 			updated[idx] = next;
 			return { ...state, customizations: updated };
