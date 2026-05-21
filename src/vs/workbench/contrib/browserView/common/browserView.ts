@@ -35,7 +35,8 @@ import {
 	IBrowserViewOwner,
 	browserZoomDefaultIndex,
 	browserZoomFactors,
-	IBrowserViewState
+	IBrowserViewState,
+	IBrowserDeviceProfile
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -213,6 +214,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly canZoomIn: boolean;
 	readonly canZoomOut: boolean;
 	readonly isElementSelectionActive: boolean;
+	readonly device: IBrowserDeviceProfile | undefined;
 
 	readonly onDidChangeSharingState: Event<BrowserViewSharingState>;
 	readonly onDidChangeZoom: Event<void>;
@@ -229,6 +231,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onWillDispose: Event<void>;
 	readonly onDidSelectElement: Event<IElementData>;
 	readonly onDidChangeElementSelectionActive: Event<boolean>;
+	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined>;
 
 	layout(bounds: IBrowserViewBounds): Promise<void>;
 	setVisible(visible: boolean): Promise<void>;
@@ -251,6 +254,7 @@ export interface IBrowserViewModel extends IDisposable {
 	resetZoom(): Promise<void>;
 	getConsoleLogs(): Promise<string>;
 	toggleElementSelection(enabled?: boolean): Promise<void>;
+	setDevice(device: IBrowserDeviceProfile | undefined): Promise<void>;
 }
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
@@ -272,6 +276,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _sharedWithAgent: boolean = false;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 	private _isElementSelectionActive: boolean = false;
+	private _device: IBrowserDeviceProfile | undefined;
 
 	private readonly _onDidChangeSharingState = this._register(new Emitter<BrowserViewSharingState>());
 	readonly onDidChangeSharingState: Event<BrowserViewSharingState> = this._onDidChangeSharingState.event;
@@ -314,6 +319,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._storageScope = initialState.storageScope;
 		this._browserZoomIndex = initialState.browserZoomIndex;
 		this._isElementSelectionActive = initialState.isElementSelectionActive;
+		this._device = initialState.device;
 		this._isEphemeral = this._storageScope === BrowserViewStorageScope.Ephemeral;
 		this._zoomHost = parseZoomHost(this._url);
 
@@ -387,6 +393,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._visible = visible;
 		}));
 
+		this._register(this.onDidChangeDevice(device => {
+			this._device = device;
+		}));
+
 		this._register(this.onDidChangeElementSelectionActive(active => {
 			if (active) {
 				this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatStartEvent, IntegratedBrowserAddElementToChatStartClassification>('integratedBrowser.addElementToChat.start', {});
@@ -425,6 +435,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get zoomFactor(): number { return browserZoomFactors[this._browserZoomIndex]; }
 	get canZoomIn(): boolean { return this._browserZoomIndex < browserZoomFactors.length - 1; }
 	get canZoomOut(): boolean { return this._browserZoomIndex > 0; }
+	get isElementSelectionActive(): boolean { return this._isElementSelectionActive; }
+	get device(): IBrowserDeviceProfile | undefined { return this._device; }
 
 	get onDidNavigate(): Event<IBrowserViewNavigationEvent> {
 		return this.browserViewService.onDynamicDidNavigate(this.id);
@@ -460,6 +472,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	get onDidChangeVisibility(): Event<IBrowserViewVisibilityEvent> {
 		return this.browserViewService.onDynamicDidChangeVisibility(this.id);
+	}
+
+	get onDidChangeDevice(): Event<IBrowserDeviceProfile | undefined> {
+		return this.browserViewService.onDynamicDidChangeDeviceEmulation(this.id);
 	}
 
 	get onDidClose(): Event<void> {
@@ -583,10 +599,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.getConsoleLogs(this.id);
 	}
 
-	get isElementSelectionActive(): boolean {
-		return this._isElementSelectionActive;
-	}
-
 	async toggleElementSelection(enabled?: boolean): Promise<void> {
 		return this.browserViewService.toggleElementSelection(this.id, enabled);
 	}
@@ -597,6 +609,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	get onDidChangeElementSelectionActive(): Event<boolean> {
 		return this.browserViewService.onDynamicDidChangeElementSelectionActive(this.id);
+	}
+
+	async setDevice(device: IBrowserDeviceProfile | undefined): Promise<void> {
+		return this.browserViewService.setDeviceEmulation(this.id, device);
 	}
 
 	private static readonly SHARE_DONT_ASK_KEY = 'browserView.shareWithAgent.dontAskAgain';

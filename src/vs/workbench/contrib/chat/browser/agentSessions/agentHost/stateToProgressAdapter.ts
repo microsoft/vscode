@@ -427,7 +427,7 @@ function getToolErrorString(tc: ToolCallState): string | undefined {
  */
 export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string | undefined): IChatToolInvocationSerialized {
 	const terminalContentUri = tc.status === ToolCallStatus.Completed ? getTerminalContentUri(tc.content) : undefined;
-	const isTerminal = !!terminalContentUri;
+	const isTerminal = !!terminalContentUri || getToolKind(tc) === 'terminal';
 	const isSuccess = tc.status === ToolCallStatus.Completed && tc.success;
 	const invocationMsg = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? localize('ahp.running', "Running {0}...", tc.displayName);
 
@@ -463,7 +463,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	}
 
 	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | undefined;
-	if (isTerminal || getToolKind(tc) === 'terminal') {
+	if (isTerminal) {
 		toolSpecificData = {
 			kind: 'terminal',
 			commandLine: { original: getTerminalInput(tc) ?? '' },

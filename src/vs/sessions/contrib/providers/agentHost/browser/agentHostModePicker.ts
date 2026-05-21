@@ -124,6 +124,23 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	protected _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem>[] { return []; }
 	protected _handleFooterActionItem(_item: IAgentHostSessionEnumPickerItem): boolean { return false; }
 
+	/**
+	 * `true` while the active session's provider is resolving its config.
+	 * Subclasses gate picker-open paths on this; the desktop chip is
+	 * rendered visually disabled in {@link _updateTrigger}.
+	 */
+	protected _isCurrentlyResolvingConfig(): boolean {
+		const session = this._sessionsManagementService.activeSession.get();
+		if (!session) {
+			return false;
+		}
+		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		if (!provider || !isAgentHostProvider(provider)) {
+			return false;
+		}
+		return provider.isSessionConfigResolving(session.sessionId).get();
+	}
+
 	private _getActiveContext(): { provider: IAgentHostSessionsProvider; sessionId: string; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[] } | undefined {
 		const session = this._sessionsManagementService.activeSession.get();
 		if (!session) {
@@ -177,6 +194,13 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		labelSpan.textContent = label;
 
 		this._triggerElement.ariaLabel = this._getTriggerAriaLabel(label);
+
+		// Reflect the resolving state. Schema is preserved across the
+		// round-trip so the chip keeps its label; toggling `.disabled`
+		// on the slot blocks pointer events (see chatWidget.css).
+		const isResolving = ctx.provider.isSessionConfigResolving(ctx.sessionId).get();
+		this._slotElement.classList.toggle('disabled', isResolving);
+		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
 	}
 
 	protected _showPicker(): void {
@@ -185,6 +209,10 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		}
 		const ctx = this._getActiveContext();
 		if (!ctx) {
+			return;
+		}
+		// Defensive against stale keyboard activation on a disabled chip.
+		if (this._isCurrentlyResolvingConfig()) {
 			return;
 		}
 
