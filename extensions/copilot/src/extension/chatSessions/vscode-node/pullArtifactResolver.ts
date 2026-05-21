@@ -42,12 +42,22 @@ export async function resolvePullArtifact(
 			log.trace(`resolvePullArtifact: getPullRequestFromGlobalId failed for ${ref.globalId}: ${e}`);
 		}
 	}
-	if (ref.headRef && ref.repo.owner && ref.repo.name) {
+	// Fallback to listing the repo's open PRs and matching by databaseId or headRef. We list
+	// once and try both predicates so the round trip pays off when either signal is available.
+	if ((ref.databaseId !== undefined || ref.headRef) && ref.repo.owner && ref.repo.name) {
 		try {
 			const prs = await octokit.getOpenPullRequestsForUser(ref.repo.owner, ref.repo.name, {});
-			const match = prs.find(p => p.headRefName === ref.headRef);
-			if (match) {
-				return match;
+			if (ref.databaseId !== undefined) {
+				const byId = prs.find(p => p.fullDatabaseId === ref.databaseId);
+				if (byId) {
+					return byId;
+				}
+			}
+			if (ref.headRef) {
+				const byHead = prs.find(p => p.headRefName === ref.headRef);
+				if (byHead) {
+					return byHead;
+				}
 			}
 		} catch (e) {
 			log.trace(`resolvePullArtifact: getOpenPullRequestsForUser failed for ${ref.repo.owner}/${ref.repo.name}: ${e}`);

@@ -179,12 +179,12 @@ export class ChatSessionContentBuilder {
 
 			// Group events by their owning turn session id; events without a session id (or
 			// with an unknown one) fall into the first turn's bucket.
+			const turnIds = new Set(turnSessions.map(s => s.id));
+			const fallbackKey = turnSessions[0]?.id ?? '';
 			const eventsByTurnId = new Map<string, AgentTaskSessionEvent[]>();
 			for (const event of events) {
 				const sessionId = (event as { session_id?: string }).session_id;
-				const key = sessionId && turnSessions.some(s => s.id === sessionId)
-					? sessionId
-					: (turnSessions[0]?.id ?? '');
+				const key = sessionId && turnIds.has(sessionId) ? sessionId : fallbackKey;
 				const bucket = eventsByTurnId.get(key) ?? [];
 				bucket.push(event);
 				eventsByTurnId.set(key, bucket);

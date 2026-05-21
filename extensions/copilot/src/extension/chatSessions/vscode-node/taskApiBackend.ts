@@ -106,6 +106,28 @@ function taskToSessionInfo(task: AgentTask): SessionInfo {
 }
 
 /**
+ * Parse `task.html_url` (e.g. `https://github.com/<owner>/<repo>/agents/tasks/<id>`) to
+ * recover the repo identity. The Task API wire shape only carries `task.repository.id`, so
+ * when the caller doesn't already know the repo (e.g. the global `listTasks` path) this is
+ * how we keep `PullArtifactRef.repo.owner/name` populated for resolver fallbacks.
+ */
+function parseRepoFromTaskUrl(htmlUrl: string | undefined): { owner: string; name: string } | undefined {
+	if (!htmlUrl) {
+		return undefined;
+	}
+	try {
+		const { pathname } = new URL(htmlUrl);
+		const match = pathname.match(/^\/([^/]+)\/([^/]+)\//);
+		if (match) {
+			return { owner: match[1], name: match[2] };
+		}
+	} catch {
+		// not a parseable URL
+	}
+	return undefined;
+}
+
+/**
  * Build a raw {@link PullArtifactRef} for a task that has a `pull` artifact. The provider
  * resolves this to a full `PullRequestSearchItem` lazily (`resolvePullArtifact`); the
  * backend itself stays agnostic of GraphQL / PR identity lookups.
@@ -120,10 +142,11 @@ function taskToPullArtifactRef(
 	if (!pullArtifact) {
 		return undefined;
 	}
+	const repo = repoIdentity ?? parseRepoFromTaskUrl(task.html_url);
 	return {
 		repo: {
-			owner: repoIdentity?.owner ?? '',
-			name: repoIdentity?.name ?? '',
+			owner: repo?.owner ?? '',
+			name: repo?.name ?? '',
 		},
 		globalId: pullArtifact.data.global_id,
 		databaseId: pullArtifact.data.id,
@@ -132,14 +155,10 @@ function taskToPullArtifactRef(
 }
 
 /**
- * Cloud agent backend backed by Mission Control's Task API.
- *
- * The shape of this class is reviewed and integrated against `CopilotCloudSessionsProvider`
- * today; the actual HTTP wire is not yet available — every call to {@link ITaskApiClient}
- * currently routes to {@link StubTaskApiClient} which throws. A follow-up PR will provide
- * a real client implementation backed by `@vscode/copilot-api`.
- *
- * Selected via the `github.copilot.chat.cloudAgentBackend.version` setting set to `v2`.
+ * Cloud agent backend backed by Mission Control's Task API (v2). Selected via the
+ * `github.copilot.chat.cloudAgentBackend.version` setting set to `v2`. HTTP requests
+ * route through {@link TaskApiHttpClient} below, which uses `ICAPIClientService` for
+ * GHE-aware URL construction and auth.
  */
 export class TaskApiBackend implements TaskCloudAgentBackend {
 
