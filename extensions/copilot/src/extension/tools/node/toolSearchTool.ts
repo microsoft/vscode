@@ -12,7 +12,6 @@ import { LanguageModelTextPart, LanguageModelToolResult } from '../../../vscodeT
 import { IBuildPromptContext } from '../../prompt/common/intents';
 import { createRequestToolManifest } from '../common/requestToolManifest';
 import { CopilotToolMode, ICopilotModelSpecificTool, ToolRegistry } from '../common/toolsRegistry';
-import { IToolsService } from '../common/toolsService';
 import { IToolEmbeddingsComputer } from '../common/virtualTools/toolEmbeddingsComputer';
 
 export interface IToolSearchParams {
@@ -21,16 +20,15 @@ export interface IToolSearchParams {
 }
 
 const DEFAULT_SEARCH_LIMIT = 5;
-const requestScopedDeferredToolNamesKey = Symbol('requestScopedDeferredToolNames');
+const requestScopedDeferredToolsKey = Symbol('requestScopedDeferredTools');
 
 type ResolvedToolSearchParams = IToolSearchParams & {
-	[requestScopedDeferredToolNamesKey]?: readonly string[];
+	[requestScopedDeferredToolsKey]?: readonly vscode.LanguageModelToolInformation[];
 };
 
 export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchParams> {
 	constructor(
 		@IToolEmbeddingsComputer private readonly _toolEmbeddingsComputer: IToolEmbeddingsComputer,
-		@IToolsService private readonly _toolsService: IToolsService,
 		@IToolDeferralService private readonly _toolDeferralService: IToolDeferralService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
@@ -44,19 +42,15 @@ export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchPara
 			]);
 		}
 
-		const requestScopedDeferredToolNames = (options.input as ResolvedToolSearchParams)[requestScopedDeferredToolNamesKey];
+		const requestScopedDeferredTools = (options.input as ResolvedToolSearchParams)[requestScopedDeferredToolsKey];
 
-		if (!requestScopedDeferredToolNames) {
+		if (!requestScopedDeferredTools) {
 			throw new Error('ToolSearchTool: request-scoped deferred tools are unavailable. Ensure resolveInput is called before invoke.');
 		}
 
-		const allowedToolNames = new Set(requestScopedDeferredToolNames);
-		const availableTools = createRequestToolManifest(this._toolsService.tools, this._toolDeferralService)
-			.deferredTools
-			.filter(tool => allowedToolNames.has(tool.name));
 		const matchedToolNames = await this._toolEmbeddingsComputer.searchToolsByQuery(
 			query,
-			availableTools,
+			requestScopedDeferredTools,
 			limit ?? DEFAULT_SEARCH_LIMIT,
 			token,
 		);
@@ -74,8 +68,8 @@ export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchPara
 	async resolveInput(input: IToolSearchParams, promptContext: IBuildPromptContext, _mode: CopilotToolMode): Promise<IToolSearchParams> {
 		const manifest = createRequestToolManifest(promptContext.tools?.availableTools ?? [], this._toolDeferralService);
 		const resolvedInput: ResolvedToolSearchParams = { ...input };
-		Object.defineProperty(resolvedInput, requestScopedDeferredToolNamesKey, {
-			value: Object.freeze([...manifest.deferredToolNames]),
+		Object.defineProperty(resolvedInput, requestScopedDeferredToolsKey, {
+			value: Object.freeze([...manifest.deferredTools]),
 			enumerable: false,
 		});
 		return resolvedInput;
