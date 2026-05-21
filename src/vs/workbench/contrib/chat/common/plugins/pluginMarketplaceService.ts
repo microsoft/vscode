@@ -383,8 +383,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 		// Hydrate plugin metadata for installed entries that are not yet in
 		// the in-memory cache (e.g. after restart when installed.json is read
-		// but the metadata map is empty). Walks up from each plugin URI to
-		// find the marketplace.json in the enclosing repository directory.
+		// but the metadata map is empty). Modern entries match by plugin name;
+		// older entries without names fall back to matching by install URI.
 		this._register(autorun(reader => {
 			const entries = this._installedPluginsStore.value.read(reader);
 			const unhydrated = entries.filter(e => !this._pluginMetadata.has(e.pluginUri.toString()));
@@ -583,13 +583,18 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void {
 		this._pluginMetadata.set(pluginUri.toString(), plugin);
+		const entry: IStoredInstalledPlugin = {
+			pluginUri,
+			marketplace: plugin.marketplaceReference.rawValue,
+			name: plugin.name,
+		};
 		const current = this._installedPluginsStore.get();
 		const existing = current.find(e => isEqual(e.pluginUri, pluginUri));
 		if (existing) {
 			// Still update to trigger watchers to re-check, something might have happened that we want to know about
-			this._installedPluginsStore.set(current.map(c => c === existing ? { pluginUri, marketplace: plugin.marketplaceReference.rawValue } : c), undefined);
+			this._installedPluginsStore.set(current.map(c => c === existing ? entry : c), undefined);
 		} else {
-			this._installedPluginsStore.set([...current, { pluginUri, marketplace: plugin.marketplaceReference.rawValue }], undefined);
+			this._installedPluginsStore.set([...current, entry], undefined);
 		}
 	}
 
@@ -606,10 +611,10 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	// --- Plugin metadata hydration -----------------------------------------------
 
 	/**
-	 * For each plugin URI that has no cached metadata, walk up the directory
-	 * tree from the plugin towards the agent-plugins root looking for a
-	 * marketplace definition file. When found, read the marketplace plugins
-	 * and match by source path to populate {@link _pluginMetadata}.
+	 * Hydrates installed entries from marketplace metadata. Entries written
+	 * by current builds include the marketplace plugin name, which is enough
+	 * to re-read the full plugin descriptor from the marketplace source. Old
+	 * entries without a name fall back to matching by install URI.
 	 *
 	 * After hydration completes the installed-plugins store is "touched" so
 	 * that the derived {@link installedPlugins} observable re-evaluates with
@@ -631,23 +636,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			}
 
 			try {
-				const repoDir = this._pluginRepositoryService.getRepositoryUri(reference);
-				let plugins = await this._readPluginsFromDirectory(repoDir, reference);
-				if (plugins.length === 0) {
-					// The entry may have come from a single-plugin repo
-					// installed via `installPluginFromSource` (no
-					// marketplace.json). Try the plugin manifest at the
-					// repo root — its synthesised install URI matches what
-					// `addInstalledPlugin` recorded.
-					const single = await this.readSinglePluginManifest(repoDir, reference);
-					if (single) {
-						plugins = [single];
-					}
-				}
-				const match = plugins.find(p => {
-					const installUri = this._pluginRepositoryService.getPluginInstallUri(p);
-					return isEqual(installUri, entry.pluginUri);
-				});
+				const plugins = await this._readPluginsForInstalledEntry(reference, CancellationToken.None);
+				const match = plugins.find(p => entry.name ? p.name === entry.name : isEqual(this._pluginRepositoryService.getPluginInstallUri(p), entry.pluginUri));
 				if (match) {
 					this._pluginMetadata.set(key, match);
 					hydrated++;
@@ -663,6 +653,25 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			const current = this._installedPluginsStore.get();
 			this._installedPluginsStore.set([...current], undefined);
 		}
+	}
+
+	private async _readPluginsForInstalledEntry(reference: IMarketplaceReference, token: CancellationToken): Promise<IMarketplacePlugin[]> {
+		if (reference.kind === MarketplaceReferenceKind.GitHubShorthand && reference.githubRepo) {
+			return this._fetchFromGitHubRepo(reference, reference.githubRepo, token);
+		}
+
+		const repoDir = this._pluginRepositoryService.getRepositoryUri(reference);
+		let plugins = await this._readPluginsFromDirectory(repoDir, reference, token);
+		if (plugins.length === 0) {
+			// The entry may have come from a single-plugin repo installed
+			// via `installPluginFromSource` (no marketplace.json). Try the
+			// plugin manifest at the repo root.
+			const single = await this.readSinglePluginManifest(repoDir, reference);
+			if (single) {
+				plugins = [single];
+			}
+		}
+		return plugins;
 	}
 
 	/**

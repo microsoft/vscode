@@ -20,7 +20,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { localize } from '../../../nls.js';
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import { htmlAttributeEncodeValue } from '../../../base/common/strings.js';
-import { BrowserViewInspectElementId } from './browserViewElementInspector.js';
+import { BrowserViewInspectElementId } from './browserViewInspector.js';
 
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
@@ -408,7 +408,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 		const inspectTarget = this._configuration.aiFeaturesDisabled
 			? undefined
-			: await view.inspector.getElementHandle(BrowserViewInspectElementId.ContextMenuTarget);
+			: params.frame && await view.inspector.getElementHandle(BrowserViewInspectElementId.ContextMenuTarget, params.frame);
 		const menu = new Menu();
 
 		if (params.linkURL) {

@@ -10,12 +10,13 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IResponseDelta, OpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { APIUsage } from '../../../platform/networking/common/openai';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
-import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { toErrorMessage } from '../../../util/common/errorMessage';
+import { buildOTelInputFromChatMessages } from './byokOTelHelpers';
 import { RecordedProgress } from '../../../util/common/progressRecorder';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { BYOKKnownModels, byokKnownModelsToAPIInfo, BYOKModelCapabilities, LMResponsePart } from '../common/byokProvider';
@@ -366,25 +367,11 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 					otelSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs), this._otelService.config.maxAttributeSizeChars));
 				}
 				try {
-					const roleNames: Record<number, string> = { 1: 'user', 2: 'assistant', 3: 'system' };
-					const inputMsgs = messages.map(m => {
-						const msg = m as LanguageModelChatMessage;
-						const role = roleNames[msg.role] ?? String(msg.role);
-						const parts: Array<{ type: string; content?: string; id?: string; name?: string; arguments?: unknown }> = [];
-						if (Array.isArray(msg.content)) {
-							for (const p of msg.content) {
-								if (p instanceof LanguageModelTextPart) {
-									parts.push({ type: 'text', content: p.value });
-								} else if (p instanceof LanguageModelToolCallPart) {
-									parts.push({ type: 'tool_call', id: p.callId, name: p.name, arguments: p.input });
-								}
-							}
-						}
-						if (parts.length === 0) {
-							parts.push({ type: 'text', content: '[non-text content]' });
-						}
-						return { role, parts };
-					});
+					const { systemTexts, inputMsgs } = buildOTelInputFromChatMessages(messages);
+					const systemInstructions = toSystemInstructions(systemTexts);
+					if (systemInstructions) {
+						otelSpan.setAttribute(GenAiAttr.SYSTEM_INSTRUCTIONS, truncateForOTel(JSON.stringify(systemInstructions), this._otelService.config.maxAttributeSizeChars));
+					}
 					otelSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(inputMsgs), this._otelService.config.maxAttributeSizeChars));
 				} catch { /* swallow */ }
 			}

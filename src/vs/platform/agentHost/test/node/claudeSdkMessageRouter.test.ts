@@ -57,6 +57,7 @@ function createRouter(disposables: Pick<DisposableStore, 'add'>): IRouterHarness
 		URI.parse('claude:/sess-1'),
 		dbRef,
 		subagents,
+		undefined,
 	));
 	const signals: AgentSignal[] = [];
 	disposables.add(router.onDidProduceSignal(s => signals.push(s)));

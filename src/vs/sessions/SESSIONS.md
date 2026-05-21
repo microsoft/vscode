@@ -101,6 +101,8 @@ Each session operates on an **`ISessionWorkspace`** containing one or more **`IS
 
 Workspaces carry a `group` label (e.g., `"Local"`, `"Remote"`) used by the workspace picker to organize entries into tabs via the `SESSION_WORKSPACE_GROUP_LOCAL` / `SESSION_WORKSPACE_GROUP_REMOTE` constants.
 
+Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side only for newly created sessions, after the session reports a concrete `gitRepository.workTreeUri`. Restored sessions and runtimes that declare `capabilities.runsWorktreeCreatedTasks` are skipped so setup tasks are not re-run on window open or double-run with server-side provisioning; untitled placeholders are deferred until they become committed worktree sessions.
+
 ### Session Types
 
 An **`ISessionType`** identifies an agent backend (e.g., `'copilot-cli'`, `'copilot-cloud'`). Each provider declares which session types it supports and can dynamically update the list via `onDidChangeSessionTypes`. The management service exposes `getAllSessionTypes()` for UI pickers.
@@ -116,13 +118,23 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
 ### Creating a New Session
 
 ```
-1. User picks a workspace in the workspace picker
-   → SessionsManagementService.createNewSession(providerId, workspaceUri, sessionTypeId?)
-   → Looks up provider in SessionsProvidersService
-   → Calls provider.createNewSession(workspaceUri, sessionTypeId)
+1. User picks a folder in the workspace picker
+   → WorkspacePicker fires onDidSelectWorkspace(folderUri)
+   → SessionsManagementService.createNewSession(folderUri, options?)
+   → Iterates providers, picks the first one whose resolveWorkspace(folderUri)
+     succeeds (filtered by options.sessionTypeId when given)
+   → Calls provider.createNewSession(folderUri, sessionTypeId)
    → Returns ISession, set as activeSession
 
-2. User types a message and sends
+2. User picks a different session type for the same folder
+   → SessionTypePicker queries getSessionTypesForFolder(folderUri),
+     groups entries by provider, shows them in the dropdown
+   → On selection, fires onDidSelectSessionType({ providerId, sessionTypeId })
+   → SessionsManagementService.createNewSession(folderUri, { providerId, sessionTypeId })
+     routes through the picked provider — even when the same sessionType.id
+     is also offered by another provider
+
+3. User types a message and sends
    → SessionsManagementService.sendAndCreateChat(session, {query, attachedContext})
    → Delegates to provider.sendAndCreateChat(sessionId, options)
    → Provider sends request, returns committed session
@@ -168,4 +180,3 @@ Providers may fire `onDidReplaceSession` when a temporary (untitled) session is 
 5. Use `toSessionId(providerId, resource)` for session IDs
 6. Fire `onDidChangeSessions` on every session change and `onDidReplaceSession` on untitled→committed transitions
 7. Set `supportsLocalWorkspaces: true` if the provider can resolve local file-system workspaces
-

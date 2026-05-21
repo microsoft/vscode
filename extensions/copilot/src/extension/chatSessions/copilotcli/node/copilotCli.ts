@@ -96,6 +96,10 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 	}
 
 	private _fetchAndCacheModels(): void {
+		if (!this._authenticationService.anyGitHubSession) {
+			this.logService.info('[CopilotCLIModels] Skipping model fetch since there is no GitHub session');
+			return;
+		}
 		const availableModels = this._availableModels = this._getAvailableModels();
 		availableModels.then(models => {
 			// Bail out if a newer fetch has superseded this one (e.g. auth changed mid-flight).
@@ -162,6 +166,9 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 			} satisfies CopilotCLIModelInfo));
 		} catch (ex) {
 			this.logService.error(`[CopilotCLISession] Failed to fetch models`, ex);
+			// Clear cached promise so subsequent calls retry instead of
+			// permanently returning an empty list after a transient failure.
+			this._availableModels = undefined;
 			return [];
 		}
 	}
@@ -280,8 +287,9 @@ export interface CLIAgentInfo {
 	readonly agent: Readonly<SweCustomAgent>;
 	/** File URI for prompt-file agents, synthetic `copilotcli:` URI for SDK-only agents. */
 	readonly sourceUri: URI;
-	readonly extensionId?: string;
-	readonly pluginUri?: URI;
+	readonly source: vscode.ChatResourceSource;
+	readonly extensionId: string | undefined;
+	readonly pluginUri: URI | undefined;
 }
 
 export interface ICopilotCLIAgents {
@@ -374,7 +382,7 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 			});
 		}
 
-		return this._agentsPromise.then(infos => infos.map(i => ({ agent: this.cloneAgent(i.agent), sourceUri: i.sourceUri })));
+		return this._agentsPromise.then(infos => infos.map(i => ({ agent: this.cloneAgent(i.agent), sourceUri: i.sourceUri, source: i.source, extensionId: i.extensionId, pluginUri: i.pluginUri })));
 	}
 
 	async getAgentsImpl(): Promise<readonly CLIAgentInfo[]> {
@@ -435,6 +443,9 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 				...(model ? { model } : {}),
 			},
 			sourceUri: customAgent.uri,
+			source: customAgent.source,
+			extensionId: customAgent.extensionId,
+			pluginUri: customAgent.pluginUri
 		};
 	}
 
@@ -563,7 +574,12 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 				host: 'https://github.com',
 				copilotUser: {
 					endpoints: {
-						api: overrideProxyUrl
+						api: overrideProxyUrl,
+						// `proxy` must also point at the mock server so that SDK
+						// calls to /copilot_internal/v2/token and /models/session
+						// are routed to the mock instead of the real GitHub API
+						// (which would reject the fake HMAC with a 401).
+						proxy: overrideProxyUrl,
 					}
 				}
 			};

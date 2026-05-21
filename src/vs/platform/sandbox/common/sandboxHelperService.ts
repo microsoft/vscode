@@ -12,7 +12,14 @@ export interface ISandboxDependencyStatus {
 	readonly socatInstalled: boolean;
 }
 
+export interface IWindowsMxcFilesystemPolicy {
+	readonly readonlyPaths: string[];
+	readonly readwritePaths: string[];
+}
+
 export interface ISandboxHelperService {
 	readonly _serviceBrand: undefined;
 	checkSandboxDependencies(): Promise<ISandboxDependencyStatus | undefined>;
+	getWindowsMxcFilesystemPolicy(): Promise<IWindowsMxcFilesystemPolicy | undefined>;
+	getWindowsMxcEnvironment(): Promise<string[] | undefined>;
 }

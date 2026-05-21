@@ -21,7 +21,7 @@ import { ServiceCollection } from '../../instantiation/common/serviceCollection.
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
-import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../common/changesetUri.js';
+import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -37,6 +37,7 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostChangesetService, IAgentHostChangesetService } from './agentHostChangesetService.js';
+import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/agentHostCheckpointService.js';
 import { CHANGESET_DB_METADATA_KEYS, ChangesetSessionCoordinator } from './agentHostChangesetCoordinator.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
@@ -140,6 +141,7 @@ export class AgentService extends Disposable implements IAgentService {
 		private readonly _sessionDataService: ISessionDataService,
 		private readonly _productService: IProductService,
 		private readonly _gitService: IAgentHostGitService,
+		private readonly _checkpointService: IAgentHostCheckpointService = NULL_CHECKPOINT_SERVICE,
 		private readonly _rootConfigResource?: URI,
 		private readonly _telemetryService: ITelemetryService = NullTelemetryService,
 	) {
@@ -168,6 +170,12 @@ export class AgentService extends Disposable implements IAgentService {
 			[ISessionDataService, this._sessionDataService],
 		);
 		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
+
+		// The checkpoint service is constructed in the outer agent-host
+		// DI scope and passed via {@link _checkpointService}; register it
+		// in the inner service collection so the changeset service /
+		// side effects can resolve it via DI.
+		services.set(IAgentHostCheckpointService, this._checkpointService);
 
 		// The changeset service owns the entire static / per-turn changeset
 		// pipeline (compute, publish, persist, restore). Constructed locally
@@ -344,6 +352,7 @@ export class AgentService extends Disposable implements IAgentService {
 					status: liveState.summary.status,
 					activity: liveState.summary.activity,
 					model: liveState.summary.model ?? s.model,
+					agent: liveState.summary.agent ?? s.agent,
 					changesets: liveState.summary.changesets ?? s.changesets,
 				};
 			}
@@ -406,7 +415,26 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sessionToProvider.set(session.toString(), provider.id);
 		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
 
-		const sessionConfig = await this._resolveCreatedSessionConfig(provider, config);
+		// Resolve config and seed the initial customization set in parallel so
+		// both are available before we register the session in the state
+		// manager. Seeding `state.customizations` directly (instead of
+		// dispatching `SessionCustomizationsChanged` after the fact) means
+		// the very first snapshot a subscriber sees already contains
+		// host/global customizations and the custom agents they contribute,
+		// so the agent picker doesn't have to wait for a follow-up republish
+		// (`RootConfigChanged`, plugin reload, or the first message's
+		// `setClientCustomizations`). Subsequent updates flow through the
+		// existing `SessionCustomizationsChanged` / `SessionCustomizationUpdated`
+		// actions published by `PluginController`.
+		const [sessionConfig, initialCustomizations] = await Promise.all([
+			this._resolveCreatedSessionConfig(provider, config),
+			provider.getSessionCustomizations
+				? provider.getSessionCustomizations(session).catch(err => {
+					this._logService.error('[AgentService] createSession: failed to resolve initial customizations', err);
+					return undefined;
+				})
+				: Promise.resolve(undefined),
+		]);
 
 		// When forking, populate the new session's protocol state with
 		// the source session's turns so the client sees the forked history.
@@ -423,6 +451,9 @@ export class AgentService extends Disposable implements IAgentService {
 			state.config = sessionConfig;
 			state.turns = sourceTurns;
 			state.activeClient = config.activeClient;
+			if (initialCustomizations && initialCustomizations.length > 0) {
+				state.customizations = [...initialCustomizations];
+			}
 		} else {
 			// Provisional sessions defer the `sessionAdded` notification and
 			// the `SessionReady` lifecycle transition until the agent fires
@@ -434,6 +465,9 @@ export class AgentService extends Disposable implements IAgentService {
 			const state = this._stateManager.createSession(summary, { emitNotification: !created.provisional });
 			state.config = sessionConfig;
 			state.activeClient = config?.activeClient;
+			if (initialCustomizations && initialCustomizations.length > 0) {
+				state.customizations = [...initialCustomizations];
+			}
 		}
 		// Persist initial config values so a subsequent `restoreSession` can
 		// re-hydrate them. We persist the full resolved values (not just the
@@ -492,6 +526,7 @@ export class AgentService extends Disposable implements IAgentService {
 			modifiedAt: now,
 			...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
 			model: config?.model,
+			agent: config?.agent,
 			workingDirectory: (created.workingDirectory ?? config?.workingDirectory)?.toString(),
 			changesets: buildDefaultChangesetCatalogue(session.toString()),
 		};
@@ -575,6 +610,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				const next = withSessionGitState(current, gitState);
 				this._stateManager.setSessionMeta(sessionKey, next);
+				this._updateBranchChangesetDescription(sessionKey, gitState);
 			},
 			e => {
 				this._logService.warn(`[AgentService] Failed to compute git state for ${session}`, e);
@@ -604,6 +640,45 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		this._stateManager.setSessionChangesets(sessionKey, filtered);
+	}
+
+	/**
+	 * Patches the `Branch Changes` catalogue entry's `description` to
+	 * `${branchName} → ${baseBranchName}` once the git probe resolves
+	 * both names (typical worktree-isolation case). No-ops when the
+	 * entry has already been stripped (non-git working dir), when the
+	 * branch info is incomplete, or when the description is unchanged.
+	 * The count-refresh path in `AgentHostChangesetService` preserves
+	 * extra fields via spread, so the description survives subsequent
+	 * compute passes without further plumbing.
+	 */
+	private _updateBranchChangesetDescription(sessionKey: string, gitState: { branchName?: string; baseBranchName?: string }): void {
+		const description = formatSessionChangesetDescription(gitState.branchName, gitState.baseBranchName);
+		const state = this._stateManager.getSessionState(sessionKey);
+		const current = state?.summary.changesets;
+		if (!current || current.length === 0) {
+			return;
+		}
+		const branchUri = buildSessionChangesetUri(sessionKey);
+		let changed = false;
+		const next = current.map(c => {
+			if (c.uriTemplate !== branchUri) {
+				return c;
+			}
+			if (c.description === description) {
+				return c;
+			}
+			changed = true;
+			if (description === undefined) {
+				const { description: _omit, ...rest } = c;
+				return rest;
+			}
+			return { ...c, description };
+		});
+		if (!changed) {
+			return;
+		}
+		this._stateManager.setSessionChangesets(sessionKey, next);
 	}
 
 	private _persistConfigValues(session: URI, values: Record<string, unknown>): void {
@@ -1210,6 +1285,7 @@ export class AgentService extends Disposable implements IAgentService {
 			modifiedAt: meta.modifiedTime,
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			model: meta.model,
+			agent: meta.agent,
 			workingDirectory: meta.workingDirectory?.toString(),
 			changesets: buildDefaultChangesetCatalogue(sessionStr),
 		};
