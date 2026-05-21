@@ -342,9 +342,18 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			}
 			const value = resolvedConfig.values[property] ?? schema.default;
 			const isReadOnly = this._isReadOnlyChip(property, schema, isNewSession);
-			const isDisabled = isReadOnly || isLoading;
 			const slot = dom.append(this._container, dom.$('.sessions-chat-picker-slot'));
-			const trigger = renderPickerTrigger(slot, isDisabled, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
+			// `renderPickerTrigger`'s `disabled` flag means "read-only"
+			// (renders a `<span>` with `aria-readonly`). The resolving
+			// state is transient and uses `.disabled` on the slot (see
+			// CSS in `chatWidget.css`) + `aria-disabled` on the trigger,
+			// keeping it focusable and using correct ARIA semantics. The
+			// click handler bails when resolving in `_showPicker`.
+			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
+			if (!isReadOnly && isLoading) {
+				slot.classList.add('disabled');
+				trigger.setAttribute('aria-disabled', 'true');
+			}
 			this._renderTrigger(trigger, property, schema, value, isReadOnly);
 		}
 	}

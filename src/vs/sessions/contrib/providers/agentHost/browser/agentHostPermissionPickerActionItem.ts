@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { autorun, derived } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -32,6 +32,8 @@ import { AgentHostPermissionPickerDelegate } from './agentHostPermissionPickerDe
 export class AgentHostPermissionPickerActionItem extends PermissionPickerActionItem {
 
 	private readonly _delegate: AgentHostPermissionPickerDelegate;
+	/** Active session's `isSessionConfigResolving`. */
+	private readonly _isResolvingActiveSessionConfig: IObservable<boolean>;
 
 	constructor(
 		action: MenuItemAction,
@@ -63,6 +65,19 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 			storageService,
 		);
 		this._delegate = this._register(delegate);
+		// Initialized here (not as a class field) so the `derived` body can
+		// safely close over the parameter-property service references.
+		this._isResolvingActiveSessionConfig = derived(this, reader => {
+			const session = this._sessionsManagementService.activeSession.read(reader);
+			if (!session) {
+				return false;
+			}
+			const provider = this._sessionsProvidersService.getProvider(session.providerId);
+			if (!provider || !isAgentHostProvider(provider)) {
+				return false;
+			}
+			return provider.isSessionConfigResolving(session.sessionId).read(reader);
+		});
 
 		// The base widget's label is rendered on demand via `refresh()`. Keep it
 		// in sync with the delegate's level observable.
@@ -71,19 +86,6 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 			this.refresh();
 		}));
 	}
-
-	/** Active session's `isSessionConfigResolving`. */
-	private readonly _isResolvingActiveSessionConfig = derived(this, reader => {
-		const session = this._sessionsManagementService.activeSession.read(reader);
-		if (!session) {
-			return false;
-		}
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
-		if (!provider || !isAgentHostProvider(provider)) {
-			return false;
-		}
-		return provider.isSessionConfigResolving(session.sessionId).read(reader);
-	});
 
 	override render(container: HTMLElement): void {
 		super.render(container);
