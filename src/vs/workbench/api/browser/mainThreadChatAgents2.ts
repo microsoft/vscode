@@ -716,6 +716,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				// Convert UriComponents to URI and register any inline content
 				return contributions.map(c => {
 					return {
+						name: c.name,
+						description: c.description,
+						sessionTypes: c.sessionTypes,
 						uri: URI.revive(c.uri),
 					};
 				});
