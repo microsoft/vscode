@@ -39,6 +39,7 @@ export {
 	type SessionTurnCompleteAction,
 	type SessionTurnStartedAction,
 	type SessionUsageAction,
+	type SessionAgentChangedAction,
 	type SessionServerToolsChangedAction,
 	type SessionActiveClientChangedAction,
 	type SessionActiveClientToolsChangedAction,
@@ -90,6 +91,7 @@ import type {
 	RootActiveSessionsChangedAction,
 	SessionDeltaAction,
 	SessionModelChangedAction,
+	SessionAgentChangedAction,
 	SessionReasoningAction,
 	SessionResponsePartAction,
 	SessionToolCallApprovedAction,
@@ -160,6 +162,7 @@ export type ITitleChangedAction = SessionTitleChangedAction;
 export type IUsageAction = SessionUsageAction;
 export type IReasoningAction = SessionReasoningAction;
 export type IModelChangedAction = SessionModelChangedAction;
+export type IAgentChangedAction = SessionAgentChangedAction;
 export type ICustomizationsChangedAction = import('./protocol/actions.js').SessionCustomizationsChangedAction;
 export type ICustomizationToggledAction = import('./protocol/actions.js').SessionCustomizationToggledAction;
 

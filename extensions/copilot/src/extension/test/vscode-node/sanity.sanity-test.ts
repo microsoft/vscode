@@ -113,7 +113,10 @@ suite('Copilot Chat Sanity Test', function () {
 			// (and what kind of parts).
 			const runAgentRequest = async (): Promise<SpyChatResponseStream> => {
 				const stream = new SpyChatResponseStream();
-				const testRequest = new TestChatRequest(`You must use the get_errors tool to check the window for errors. It may fail, that's ok, just testing, don't retry.`);
+				// Keep the instruction unconditional. Any hedging language ("it may
+				// fail, that's ok", "it's fine if it errors") gives newer models cover
+				// to skip the invocation entirely and just narrate a plausible failure.
+				const testRequest = new TestChatRequest(`Call the get_errors tool now to check the current window for errors. You must invoke the tool exactly once, then reply with a brief summary of whatever it returned.`);
 				testRequest.tools.set(ContributedToolName.GetErrors, true);
 				const interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], testRequest, stream, fakeToken, { agentName: '', agentId: '', intentId: Intent.Agent }, () => false, undefined);
 
