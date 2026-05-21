@@ -1239,8 +1239,8 @@ describe('createMessagesRequestBody tool search deferral', () => {
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
 
 		const tools = body.tools as AnthropicMessagesTool[];
-		// RED contract for later phases: when no request tool is deferred, the
-		// request should omit the client-side tool_search scaffold entirely.
+		// Behavioral contract: when no request tool is deferred, the request
+		// should omit the client-side tool_search scaffold entirely.
 		expect(tools.map(tool => ({ name: tool.name, defer_loading: tool.defer_loading }))).toEqual([
 			{ name: 'read_file', defer_loading: undefined },
 			{ name: 'grep_search', defer_loading: undefined },
