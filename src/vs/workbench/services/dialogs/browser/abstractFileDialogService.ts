@@ -122,25 +122,50 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 	async preferredHome(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
 		const preferLocal = schemeFilter === Schemas.file;
+		const userHome = await this.pathService.userHome({ preferLocal });
 		const preferredHomeConfig = this.configurationService.inspect<string>('files.dialog.defaultPath');
 		const preferredHomeCandidate = preferLocal ? preferredHomeConfig.userLocalValue : preferredHomeConfig.userRemoteValue;
 		this.logService.debug(`[FileDialogService] Preferred home: preferLocal=${preferLocal}, userLocalValue=${preferredHomeConfig.userLocalValue}, userRemoteValue=${preferredHomeConfig.userRemoteValue}`);
+
 		if (preferredHomeCandidate) {
-			const isPreferredHomeCandidateAbsolute = preferLocal ? localPathIsAbsolute(preferredHomeCandidate) : (await this.pathService.path).isAbsolute(preferredHomeCandidate);
-			if (isPreferredHomeCandidateAbsolute) {
-				const preferredHomeNormalized = preferLocal ? localPathNormalize(preferredHomeCandidate) : (await this.pathService.path).normalize(preferredHomeCandidate);
-				const preferredHome = resources.toLocalResource(await this.pathService.fileURI(preferredHomeNormalized), this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
-				if (await this.fileService.exists(preferredHome)) {
-					this.logService.debug(`[FileDialogService] Preferred home using files.dialog.defaultPath setting: ${preferredHome}`);
-					return preferredHome;
+			let preferredHomeUri: URI | undefined;
+
+			if (preferredHomeCandidate.startsWith('~')) {
+				// Handle tilde expansion
+				if (preferredHomeCandidate === '~' || preferredHomeCandidate.startsWith('~/') || preferredHomeCandidate.startsWith('~\\')) {
+					let relativePath = preferredHomeCandidate.slice(2);
+					relativePath = preferLocal
+						? localPathNormalize(relativePath)
+						: (await this.pathService.path).normalize(relativePath);
+					const isRelativePath = preferLocal ? !localPathIsAbsolute(relativePath) : !(await this.pathService.path).isAbsolute(relativePath);
+					if (isRelativePath) {
+						preferredHomeUri = resources.joinPath(userHome, relativePath);
+					} else {
+						this.logService.debug(`[FileDialogService] Preferred home path after ~ resolved to absolute: ${relativePath}`);
+					}
+				} else {
+					this.logService.debug(`[FileDialogService] Preferred home files.dialog.defaultPath does not support tilde expansion: ${preferredHomeCandidate}`);
 				}
-				this.logService.debug(`[FileDialogService] Preferred home files.dialog.defaultPath path does not exist: ${preferredHome}`);
 			} else {
-				this.logService.debug(`[FileDialogService] Preferred home files.dialog.defaultPath is not absolute: ${preferredHomeCandidate}`);
+				// Handle absolute paths
+				const isPreferredHomeCandidateAbsolute = preferLocal ? localPathIsAbsolute(preferredHomeCandidate) : (await this.pathService.path).isAbsolute(preferredHomeCandidate);
+				if (isPreferredHomeCandidateAbsolute) {
+					const preferredHomeNormalized = preferLocal ? localPathNormalize(preferredHomeCandidate) : (await this.pathService.path).normalize(preferredHomeCandidate);
+					preferredHomeUri = resources.toLocalResource(await this.pathService.fileURI(preferredHomeNormalized), this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
+				} else {
+					this.logService.debug(`[FileDialogService] Preferred home files.dialog.defaultPath is not absolute: ${preferredHomeCandidate}`);
+				}
+			}
+
+			if (preferredHomeUri) {
+				if (await this.fileService.exists(preferredHomeUri)) {
+					this.logService.debug(`[FileDialogService] Preferred home using files.dialog.defaultPath setting: ${preferredHomeUri}`);
+					return preferredHomeUri;
+				}
+				this.logService.debug(`[FileDialogService] Preferred home files.dialog.defaultPath path does not exist: ${preferredHomeUri}`);
 			}
 		}
 
-		const userHome = this.pathService.userHome({ preferLocal });
 		this.logService.debug(`[FileDialogService] Preferred home using user home: ${userHome}`);
 		return userHome;
 	}
