@@ -97,7 +97,7 @@ Phase numbers are stable identifiers — code comments, plan files
 do **not** renumber. The actual landing order diverges from numeric order
 to unblock self-hosting sooner:
 
-**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 11 → 12 → 6.5 → 14 → 15**
+**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 10.5 → 11 → 12 → 6.5 → 14 → 15**
 
 Phase 13 (session restoration) is pulled forward immediately after Phase 9
 because it unlocks two high-leverage capabilities:
@@ -1026,6 +1026,34 @@ Exit criteria: client tools callable from a Claude session.
   `ToolDefinition.inputSchema` — use a converter library or hand-roll?
   Check what `ideMcpServer.ts` does.
 - Idle timeout for the MCP gateway — sensible default?
+
+### Phase 10.5 — Unified `ClaudeAgentSession` lifecycle ✅ **DONE**
+
+Structural follow-up to Phase 10. The dual-map session pattern
+(`_provisionalSessions` + `_sessions`) is the direct source of every
+race bug surfaced by Phase 10's council review. Each was fixed with
+compensation code; this phase collapses the structure so the
+compensation goes away.
+
+**Goal:** one `_sessions` map of `ClaudeAgentSession` objects that own
+their own `materialize()` lifecycle. Delete `_provisionalSessions`,
+`IClaudeProvisionalSession`, and the `ClaudeMaterializer` class (pure
+helpers move to a new `claudeSdkOptions.ts` module).
+
+**Scope:** internal refactor — `IAgent` surface unchanged. 8 bite-size
+steps, each landing behind the agentHost test suite. Phase 10's race
+regressions remain green and become trivially true once the structural
+split is gone. `CopilotAgent` uses the same pattern but stays as
+reference only (different lifecycle semantics — no MCP, no
+yield-restart).
+
+Exit criteria: zero `_provisionalSessions` / `IClaudeProvisionalSession`
+/ `ClaudeMaterializer` references under `src/vs/platform/agentHost/`;
+Phase 10 race regressions still passing; E2E scenario (create →
+set-model → send → set-client-tools → send → rebind → abort →
+dispose) clean across the whole session lifecycle.
+
+Full step-by-step plan: [phase10.5-plan.md](./phase10.5-plan.md).
 
 ### Phase 11 — Customizations / plugins (full surface)
 

@@ -5,9 +5,9 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildSubprocessEnv } from '../../node/claude/claudeMaterializer.js';
+import { buildSubprocessEnv } from '../../node/claude/claudeSdkOptions.js';
 
-suite('ClaudeMaterializer / buildSubprocessEnv', () => {
+suite('claudeSdkOptions / buildSubprocessEnv', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
