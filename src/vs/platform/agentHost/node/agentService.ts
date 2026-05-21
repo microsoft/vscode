@@ -21,7 +21,7 @@ import { ServiceCollection } from '../../instantiation/common/serviceCollection.
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
-import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../common/changesetUri.js';
+import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -585,6 +585,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				const next = withSessionGitState(current, gitState);
 				this._stateManager.setSessionMeta(sessionKey, next);
+				this._updateBranchChangesetDescription(sessionKey, gitState);
 			},
 			e => {
 				this._logService.warn(`[AgentService] Failed to compute git state for ${session}`, e);
@@ -614,6 +615,45 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		this._stateManager.setSessionChangesets(sessionKey, filtered);
+	}
+
+	/**
+	 * Patches the `Branch Changes` catalogue entry's `description` to
+	 * `${branchName} → ${baseBranchName}` once the git probe resolves
+	 * both names (typical worktree-isolation case). No-ops when the
+	 * entry has already been stripped (non-git working dir), when the
+	 * branch info is incomplete, or when the description is unchanged.
+	 * The count-refresh path in `AgentHostChangesetService` preserves
+	 * extra fields via spread, so the description survives subsequent
+	 * compute passes without further plumbing.
+	 */
+	private _updateBranchChangesetDescription(sessionKey: string, gitState: { branchName?: string; baseBranchName?: string }): void {
+		const description = formatSessionChangesetDescription(gitState.branchName, gitState.baseBranchName);
+		const state = this._stateManager.getSessionState(sessionKey);
+		const current = state?.summary.changesets;
+		if (!current || current.length === 0) {
+			return;
+		}
+		const branchUri = buildSessionChangesetUri(sessionKey);
+		let changed = false;
+		const next = current.map(c => {
+			if (c.uriTemplate !== branchUri) {
+				return c;
+			}
+			if (c.description === description) {
+				return c;
+			}
+			changed = true;
+			if (description === undefined) {
+				const { description: _omit, ...rest } = c;
+				return rest;
+			}
+			return { ...c, description };
+		});
+		if (!changed) {
+			return;
+		}
+		this._stateManager.setSessionChangesets(sessionKey, next);
 	}
 
 	private _persistConfigValues(session: URI, values: Record<string, unknown>): void {
