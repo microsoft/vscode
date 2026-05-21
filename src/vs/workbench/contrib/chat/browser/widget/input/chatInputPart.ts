@@ -705,8 +705,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const ids = models.map(m => m.identifier).join(', ');
 					const metadataIds = models.map(m => m.metadata.id).join(', ');
 					logChangesToStateModel(this._inputModel, `resetting current language model due to model list change from ${modelIdentifier}, identifiers: ${ids}, metadataIds: ${metadataIds}`, undefined, undefined, this.logService);
-					this.
-						setCurrentLanguageModelToDefault();
+					this.setCurrentLanguageModelToDefault();
 				}
 			} else if (shouldResetOnModelListChange(modelIdentifier, models)) {
 				this.setCurrentLanguageModelToDefault();
