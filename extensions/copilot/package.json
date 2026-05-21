@@ -1987,10 +1987,15 @@
                 "responses",
                 "messages"
               ],
+              "enumItemLabels": [
+                "Chat Completions",
+                "Responses",
+                "Messages"
+              ],
               "enumDescriptions": [
-                "Chat Completions API.",
-                "Responses API.",
-                "Messages API."
+                "Chat Completions API",
+                "Responses API",
+                "Messages API"
               ],
               "default": "chat-completions",
               "title": "API Type",
@@ -2039,6 +2044,17 @@
                       "responses",
                       "messages"
                     ],
+                    "enumItemLabels": [
+                      "Chat Completions",
+                      "Responses",
+                      "Messages"
+                    ],
+                    "enumDescriptions": [
+                      "Chat Completions API",
+                      "Responses API",
+                      "Messages API"
+                    ],
+                    "title": "API Type",
                     "markdownDescription": "Request/response format used to talk to this endpoint:\n- `chat-completions`: Chat Completions API (default).\n- `responses`: Responses API.\n- `messages`: Messages API.\n\nWhen omitted, falls back to the group-level `apiType`, then to the URL path."
                   },
                   "toolCalling": {

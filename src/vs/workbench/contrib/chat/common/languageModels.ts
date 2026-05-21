@@ -1703,9 +1703,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return undefined;
 		}
 		const enumDescriptions = propertySchema.enumDescriptions;
+		const enumItemLabels = (propertySchema as IJSONSchema & { enumItemLabels?: string[] }).enumItemLabels;
 		const initial = existing?.[property] !== undefined ? String(existing[property]) : (propertySchema.default !== undefined ? String(propertySchema.default) : undefined);
 		const items: IQuickPickItem[] = values.map((value, index) => ({
-			label: String(value),
+			label: enumItemLabels?.[index] ?? String(value),
 			description: enumDescriptions?.[index],
 			id: String(value)
 		}));
