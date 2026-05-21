@@ -8,13 +8,14 @@ import type * as vscode from 'vscode';
 import { IChatHookService, type IPreToolUseHookResult } from '../../../../../platform/chat/common/chatHookService';
 import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../../../platform/endpoint/common/endpointProvider';
+import type { IChatEndpoint } from '../../../../../platform/networking/common/networking';
 import { DeferredPromise } from '../../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
 import { Event } from '../../../../../util/vs/base/common/event';
 import { constObservable } from '../../../../../util/vs/base/common/observable';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry';
-import type { SpyingTelemetryService } from '../../../../../platform/telemetry/node/spyingTelemetryService';
+import { SpyingTelemetryService } from '../../../../../platform/telemetry/node/spyingTelemetryService';
 import { LanguageModelDataPart, LanguageModelTextPart, LanguageModelToolResult } from '../../../../../vscodeTypes';
 import { ChatVariablesCollection } from '../../../../prompt/common/chatVariablesCollection';
 import type { Conversation } from '../../../../prompt/common/conversation';
@@ -596,12 +597,13 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		// of undefined (reading "supportsVision")' when a tool result contained an image.
 
 		const testingServiceCollection = createExtensionUnitTestingServices();
+		const spyingTelemetryService = new SpyingTelemetryService();
+		testingServiceCollection.define(ITelemetryService, spyingTelemetryService);
 		const accessor = testingServiceCollection.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
 		const endpointProvider = accessor.get(IEndpointProvider);
 		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 		const telemetryService = accessor.get(ITelemetryService);
-		const spyingTelemetryService = telemetryService as SpyingTelemetryService;
 		const configService = accessor.get(IConfigurationService);
 
 		// Disable image uploads in test environment to avoid auth requirement
@@ -623,7 +625,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		expect(() => {
 			sendInvokedToolTelemetry(
 				instantiationService,
-				endpoint as any, // endpoint satisfies IChatEndpoint
+				endpoint as IChatEndpoint,
 				telemetryService,
 				'testTool',
 				toolResult,
