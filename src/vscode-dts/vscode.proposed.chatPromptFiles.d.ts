@@ -11,7 +11,7 @@ declare module 'vscode' {
 	/**
 	 * Indicates where a chat resource was loaded from.
 	 */
-	export type ChatResourceSource = 'local' | 'user' | 'extension' | 'plugin';
+	export type ChatResourceSource = 'local' | 'user' | 'extension' | 'plugin' | 'builtin';
 
 	/**
 	 * Represents a chat-related resource, such as a custom agent, instructions, prompt file, skill, or slash command.
