@@ -132,7 +132,6 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 				this.workspaceStorage(e.workspace).init();
 			}
 
-
 			Event.once(Event.any(e.window.onDidClose, e.window.onDidDestroy))(async () => {
 				if (this.shutdownReason) {
 					return;
