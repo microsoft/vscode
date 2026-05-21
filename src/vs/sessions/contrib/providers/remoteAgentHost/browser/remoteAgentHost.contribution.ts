@@ -11,6 +11,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { type AgentProvider, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, type IRemoteAgentHostSSHConnection, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TunnelAgentHostsSettingId } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -49,6 +50,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
 import { createRemoteAgentCustomizationItemProvider, createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
+import { RemoteAgentHostLogForwarder } from './remoteAgentHostLogForwarder.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
@@ -566,11 +568,25 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 
 		const { address, name } = connectionInfo;
-		const channelLabel = `Agent Host (${name || address})`;
+		const channelLabel = `Agent Host IPC (${name || address})`;
 		const connState = this._instantiationService.createInstance(ConnectionState, name, connection, `agenthost.${connection.clientId}`, channelLabel);
 		const loggedConnection = connState.loggedConnection;
 		this._connections.set(address, connState);
 		const store = connState.store;
+
+		// Bridge the host's OTLP logs channel into a dedicated workbench
+		// Output channel (`Agent Host (${name})`). Concrete clients
+		// returned by `IRemoteAgentHostService.getConnection` are always
+		// `RemoteAgentHostProtocolClient` instances — `IAgentConnection`
+		// erases the concrete type, so cast here at the integration
+		// point rather than polluting that interface with OTLP-specific
+		// surface.
+		store.add(this._instantiationService.createInstance(
+			RemoteAgentHostLogForwarder,
+			connection as RemoteAgentHostProtocolClient,
+			address,
+			name || address,
+		));
 
 		// Track authority -> connection mapping for FS provider routing
 		const authority = agentHostAuthority(address);
