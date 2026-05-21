@@ -215,5 +215,6 @@ type AssertBindingsMatchSdk = {
 // `true`, this assignment fails to compile. Module-local so the runtime
 // surface stays clean — the only purpose is the type-level assertion.
 const _assertBindingsMatchSdk: { [K in keyof IClaudeSdkBindings]: true } = null as unknown as AssertBindingsMatchSdk;
+void _assertBindingsMatchSdk;
 
 // #endregion
