@@ -10,6 +10,8 @@ import { IToolDeferralService } from '../../../../platform/networking/common/too
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { TestChatRequest } from '../../../test/node/testHelpers';
+import { ChatVariablesCollection } from '../../../prompt/common/chatVariablesCollection';
+import { IBuildPromptContext } from '../../../prompt/common/intents';
 import { IToolsService } from '../../common/toolsService';
 import { ToolSearchTool } from '../toolSearchTool';
 import { TestToolsService } from './testToolsService';
@@ -22,6 +24,19 @@ function makeToolInfo(name: string): vscode.LanguageModelToolInformation {
 		tags: [],
 		source: undefined,
 	} as vscode.LanguageModelToolInformation;
+}
+
+function makePromptContext(availableTools?: readonly vscode.LanguageModelToolInformation[]): IBuildPromptContext {
+	return {
+		query: 'test query',
+		history: [],
+		chatVariables: new ChatVariablesCollection([]),
+		tools: availableTools ? {
+			toolReferences: [],
+			toolInvocationToken: undefined as never,
+			availableTools,
+		} : undefined,
+	};
 }
 
 suite('ToolSearchTool', () => {
@@ -151,6 +166,77 @@ suite('ToolSearchTool', () => {
 
 		await tool.invoke(
 			{ input: resolvedInput } as vscode.LanguageModelToolInvocationOptions<{ query: string }>,
+			{ isCancellationRequested: false } as vscode.CancellationToken,
+		);
+
+		expect(searchedToolNames).toEqual([['activate_vs_code_interaction']]);
+	});
+
+	test('preserves request-scoped deferred tools after resolved input is shallow-cloned', async () => {
+		const searchedToolNames: string[][] = [];
+		const nonDeferred = new Set(['read_file']);
+		const tool = new ToolSearchTool(
+			{
+				searchToolsByQuery: async (_query: string, tools: readonly vscode.LanguageModelToolInformation[]) => {
+					searchedToolNames.push(tools.map(candidate => candidate.name));
+					return tools.map(candidate => candidate.name);
+				},
+			} as any,
+			{
+				isNonDeferredTool: (name: string) => nonDeferred.has(name),
+			} as any,
+			{ trace() { } } as any,
+		);
+
+		const resolvedInput = await tool.resolveInput(
+			{ query: 'vscode interaction tools' },
+			makePromptContext([
+				makeToolInfo('read_file'),
+				makeToolInfo('activate_vs_code_interaction'),
+			]),
+			0,
+		);
+
+		const clonedResolvedInput = { ...resolvedInput };
+
+		await tool.invoke(
+			{ input: clonedResolvedInput } as vscode.LanguageModelToolInvocationOptions<{ query: string }>,
+			{ isCancellationRequested: false } as vscode.CancellationToken,
+		);
+
+		expect(searchedToolNames).toEqual([['activate_vs_code_interaction']]);
+		expect((tool as any)._requestScopedDeferredToolsContexts.size).toBe(0);
+	});
+
+	test('preserves request-scoped deferred tools after resolved input is JSON-round-tripped', async () => {
+		const searchedToolNames: string[][] = [];
+		const nonDeferred = new Set(['read_file']);
+		const tool = new ToolSearchTool(
+			{
+				searchToolsByQuery: async (_query: string, tools: readonly vscode.LanguageModelToolInformation[]) => {
+					searchedToolNames.push(tools.map(candidate => candidate.name));
+					return tools.map(candidate => candidate.name);
+				},
+			} as any,
+			{
+				isNonDeferredTool: (name: string) => nonDeferred.has(name),
+			} as any,
+			{ trace() { } } as any,
+		);
+
+		const resolvedInput = await tool.resolveInput(
+			{ query: 'vscode interaction tools' },
+			makePromptContext([
+				makeToolInfo('read_file'),
+				makeToolInfo('activate_vs_code_interaction'),
+			]),
+			0,
+		);
+
+		const jsonRoundTrippedInput = JSON.parse(JSON.stringify(resolvedInput));
+
+		await tool.invoke(
+			{ input: jsonRoundTrippedInput } as vscode.LanguageModelToolInvocationOptions<{ query: string }>,
 			{ isCancellationRequested: false } as vscode.CancellationToken,
 		);
 

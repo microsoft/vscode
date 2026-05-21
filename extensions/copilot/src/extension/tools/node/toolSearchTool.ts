@@ -20,13 +20,17 @@ export interface IToolSearchParams {
 }
 
 const DEFAULT_SEARCH_LIMIT = 5;
-const requestScopedDeferredToolsKey = Symbol('requestScopedDeferredTools');
+const requestScopedDeferredToolsContextIdKey = '__toolSearchRequestContextId';
+
+let nextRequestScopedDeferredToolsContextId = 0;
 
 type ResolvedToolSearchParams = IToolSearchParams & {
-	[requestScopedDeferredToolsKey]?: readonly vscode.LanguageModelToolInformation[];
+	[requestScopedDeferredToolsContextIdKey]?: string;
 };
 
 export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchParams> {
+	private readonly _requestScopedDeferredToolsContexts = new Map<string, readonly vscode.LanguageModelToolInformation[]>();
+
 	constructor(
 		@IToolEmbeddingsComputer private readonly _toolEmbeddingsComputer: IToolEmbeddingsComputer,
 		@IToolDeferralService private readonly _toolDeferralService: IToolDeferralService,
@@ -42,7 +46,13 @@ export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchPara
 			]);
 		}
 
-		const requestScopedDeferredTools = (options.input as ResolvedToolSearchParams)[requestScopedDeferredToolsKey];
+		const requestScopedDeferredToolsContextId = (options.input as ResolvedToolSearchParams)[requestScopedDeferredToolsContextIdKey];
+		const requestScopedDeferredTools = requestScopedDeferredToolsContextId
+			? this._requestScopedDeferredToolsContexts.get(requestScopedDeferredToolsContextId)
+			: undefined;
+		if (requestScopedDeferredToolsContextId && requestScopedDeferredTools) {
+			this._requestScopedDeferredToolsContexts.delete(requestScopedDeferredToolsContextId);
+		}
 
 		if (!requestScopedDeferredTools) {
 			throw new Error('ToolSearchTool: request-scoped deferred tools are unavailable. Ensure resolveInput is called before invoke.');
@@ -67,11 +77,12 @@ export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchPara
 
 	async resolveInput(input: IToolSearchParams, promptContext: IBuildPromptContext, _mode: CopilotToolMode): Promise<IToolSearchParams> {
 		const manifest = createRequestToolManifest(promptContext.tools?.availableTools ?? [], this._toolDeferralService);
-		const resolvedInput: ResolvedToolSearchParams = { ...input };
-		Object.defineProperty(resolvedInput, requestScopedDeferredToolsKey, {
-			value: Object.freeze([...manifest.deferredTools]),
-			enumerable: false,
-		});
+		const requestScopedDeferredToolsContextId = `tool-search-${nextRequestScopedDeferredToolsContextId++}`;
+		this._requestScopedDeferredToolsContexts.set(requestScopedDeferredToolsContextId, Object.freeze([...manifest.deferredTools]));
+		const resolvedInput: ResolvedToolSearchParams = {
+			...input,
+			[requestScopedDeferredToolsContextIdKey]: requestScopedDeferredToolsContextId,
+		};
 		return resolvedInput;
 	}
 }
