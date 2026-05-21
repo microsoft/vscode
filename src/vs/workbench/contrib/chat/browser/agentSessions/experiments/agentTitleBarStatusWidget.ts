@@ -167,6 +167,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
 	) {
 		super(undefined, action, options);
 
@@ -752,7 +753,18 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'agentStatusCommandCenter',
 			actionViewItemProvider: (action, options) => {
-				return createActionViewItem(this.instantiationService, action, { ...options, hoverDelegate });
+				const mergedOptions = { ...options, hoverDelegate };
+				// Allow other contributions to supply a custom view item for any
+				// action rendered inside the agent pill — same mechanism the
+				// outer command-center toolbar uses via MenuWorkbenchToolBar.
+				const factory = this.actionViewItemService.lookUp(MenuId.CommandCenterCenter, action instanceof SubmenuItemAction ? action.item.submenu.id : action.id);
+				if (factory) {
+					const custom = factory(action, mergedOptions, this.instantiationService, getWindow(toolbarContainer).vscodeWindowId);
+					if (custom) {
+						return custom;
+					}
+				}
+				return createActionViewItem(this.instantiationService, action, mergedOptions);
 			}
 		});
 		disposables.add(toolbar);

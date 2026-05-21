@@ -276,6 +276,10 @@ import './contrib/scm/browser/scm.contribution.js';
 import './contrib/scm/browser/quickDiff.contribution.js';
 import './contrib/scm/browser/scm.service.contribution.js';
 
+// Worktrees
+import './services/worktrees/browser/worktreeGroupService.js';
+import './contrib/worktrees/browser/worktrees.contribution.js';
+
 // Debug
 import './contrib/debug/browser/debug.contribution.js';
 import './contrib/debug/browser/debugEditorContribution.js';
