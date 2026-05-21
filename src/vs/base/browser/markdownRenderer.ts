@@ -22,6 +22,7 @@ import * as domSanitize from './domSanitize.js';
 import { convertTagToPlaintext } from './domSanitize.js';
 import { StandardKeyboardEvent } from './keyboardEvent.js';
 import { StandardMouseEvent } from './mouseEvent.js';
+import { EventType as TouchEventType, Gesture } from './touch.js';
 import { renderIcon, renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
 
 export type MarkdownActionHandler = (linkContent: string, mdStr: IMarkdownString) => void;
@@ -291,7 +292,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	// Add event listeners for links
 	if (options.actionHandler) {
-		const clickCb = (e: PointerEvent) => {
+		disposables.add(Gesture.addTarget(outElement));
+
+		const clickCb = (e: MouseEvent) => {
 			const mouseEvent = new StandardMouseEvent(DOM.getWindow(outElement), e);
 			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 				return;
@@ -300,6 +303,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		};
 		disposables.add(DOM.addDisposableListener(outElement, 'click', clickCb));
 		disposables.add(DOM.addDisposableListener(outElement, 'auxclick', clickCb));
+		disposables.add(DOM.addDisposableListener(outElement, TouchEventType.Tap, clickCb));
 
 		disposables.add(DOM.addDisposableListener(outElement, 'keydown', (e) => {
 			const keyboardEvent = new StandardKeyboardEvent(e);
