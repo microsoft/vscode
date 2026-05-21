@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -44,13 +44,17 @@ function makeClaudePermissionModeConfig(): ResolveSessionConfigResult {
 	} as ResolveSessionConfigResult;
 }
 
-class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'setSessionConfigValue'> {
+class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'setSessionConfigValue' | 'isSessionConfigResolving'> {
 	readonly id = PROVIDER_ID;
 	readonly onDidChangeSessionConfig: Event<string> = Event.None;
 	readonly setCalls: Array<[string, string, unknown]> = [];
 
 	getSessionConfig(_sessionId: string): ResolveSessionConfigResult {
 		return makeClaudePermissionModeConfig();
+	}
+
+	isSessionConfigResolving(_sessionId: string) {
+		return constObservable(false);
 	}
 
 	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
