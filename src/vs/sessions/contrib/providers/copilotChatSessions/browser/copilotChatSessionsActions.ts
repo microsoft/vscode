@@ -591,6 +591,7 @@ registerAction2(class DeleteSessionAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(ChatSessionProviderIdContext.key, COPILOT_PROVIDER_ID),
 					ContextKeyExpr.notEquals('chatSessionType', ClaudeCodeSessionType.id),
+					ContextKeyExpr.notEquals('chatSessionType', LocalSessionType.id),
 				),
 			}]
 		});
