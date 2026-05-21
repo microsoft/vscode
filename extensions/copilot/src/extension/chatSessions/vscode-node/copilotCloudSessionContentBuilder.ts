@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as pathLib from 'path';
+import { AgentTaskGetResponse, AgentTaskSession, AgentTaskSessionEvent } from '@vscode/copilot-api';
 import * as vscode from 'vscode';
 import { ChatRequestTurn, ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseMultiDiffPart, ChatResponseProgressPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatResult, ChatToolInvocationPart, MarkdownString, Uri } from 'vscode';
 import { IGitService } from '../../../platform/git/common/gitService';
@@ -156,6 +157,92 @@ export class ChatSessionContentBuilder {
 			.forEach(result => history.push(...result.turns));
 
 		return history;
+	}
+
+	/**
+	 * Render a Task API task as chat history. Each entry in `task.sessions[]` is one turn
+	 * (request = the turn prompt; response = a markdown summary derived from events scoped
+	 * to that turn). This does NOT call the SSE log parser — events are typed.
+	 *
+	 * `pullArtifact` is shown as a header card only when the task happens to have a PR.
+	 */
+	public buildTaskHistory(
+		task: AgentTaskGetResponse,
+		events: readonly AgentTaskSessionEvent[],
+		pullRequest: PullRequestSearchItem | undefined,
+		initialReferences: Promise<vscode.ChatPromptReference[]>,
+	): Promise<Array<ChatRequestTurn | ChatResponseTurn2>> {
+		return (async () => {
+			const history: Array<ChatRequestTurn | ChatResponseTurn2> = [];
+			const turnSessions = task.sessions ?? [];
+			const references = Array.from(await initialReferences);
+
+			// Group events by their owning turn session id; events without a session id (or
+			// with an unknown one) fall into the first turn's bucket.
+			const turnIds = new Set(turnSessions.map(s => s.id));
+			const fallbackKey = turnSessions[0]?.id ?? '';
+			const eventsByTurnId = new Map<string, AgentTaskSessionEvent[]>();
+			for (const event of events) {
+				const sessionId = (event as { session_id?: string }).session_id;
+				const key = sessionId && turnIds.has(sessionId) ? sessionId : fallbackKey;
+				const bucket = eventsByTurnId.get(key) ?? [];
+				bucket.push(event);
+				eventsByTurnId.set(key, bucket);
+			}
+
+			turnSessions.forEach((turn, index) => {
+				const turnReferences = index === 0 ? references : [];
+				history.push(new ChatRequestTurn2(
+					turn.prompt ?? task.name ?? '',
+					undefined,
+					turnReferences,
+					this.type,
+					[],
+					[],
+					undefined,
+					undefined,
+					undefined,
+				));
+
+				// PR card after the first request, if a PR is attached.
+				if (index === 0 && pullRequest && pullRequest.author && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+					const card = new vscode.ChatResponsePullRequestPart(
+						{ command: 'github.copilot.chat.openPullRequestReroute', title: vscode.l10n.t('View Pull Request {0}', `#${pullRequest.number}`), arguments: [pullRequest.number] },
+						pullRequest.title,
+						pullRequest.body,
+						getAuthorDisplayName(pullRequest.author),
+						`#${pullRequest.number}`,
+					);
+					history.push(new vscode.ChatResponseTurn2([card], {}, this.type));
+				}
+
+				history.push(this.buildTaskResponseTurn(turn, eventsByTurnId.get(turn.id) ?? []));
+			});
+
+			return history;
+		})();
+	}
+
+	private buildTaskResponseTurn(turn: AgentTaskSession, _events: readonly AgentTaskSessionEvent[]): ChatResponseTurn2 {
+		// Minimal v2 rendering: status + model + head_ref. Richer event-based rendering
+		// (tool calls, diffs, file edits) lands in a follow-up once event shapes are stable.
+		const parts: Array<ChatResponseMarkdownPart | ChatResponseProgressPart> = [];
+		if (turn.state === 'in_progress' || turn.state === 'queued') {
+			parts.push(new ChatResponseProgressPart(vscode.l10n.t('Session is initializing...')));
+		} else {
+			const summary = new MarkdownString();
+			summary.appendMarkdown(vscode.l10n.t('**State:** {0}', turn.state));
+			if (turn.model) {
+				summary.appendMarkdown('  \n');
+				summary.appendMarkdown(vscode.l10n.t('**Model:** `{0}`', turn.model));
+			}
+			if (turn.head_ref) {
+				summary.appendMarkdown('  \n');
+				summary.appendMarkdown(vscode.l10n.t('**Branch:** `{0}`', turn.head_ref));
+			}
+			parts.push(new ChatResponseMarkdownPart(summary));
+		}
+		return new ChatResponseTurn2(parts, {}, this.type);
 	}
 
 	private async createResponseTurn(pullRequest: PullRequestSearchItem, logs: string, session: SessionInfo): Promise<ChatResponseTurn2 | undefined> {
