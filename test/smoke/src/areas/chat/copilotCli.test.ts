@@ -97,14 +97,14 @@ export function setup(logger: Logger, opts: { web?: boolean; remote?: boolean })
 			try {
 				await app.workbench.quickaccess.runCommand('smoketest.openCopilotCliChat');
 				await app.workbench.chat.waitForChatEditor(600);
-				await app.workbench.chat.sendMessage(`Reply with one short sentence. Do not run tools or edit files. [scenario:${COPILOT_CLI_SCENARIO_ID}]`, 'editor');
-				await app.workbench.chat.waitForResponse(1500, 'editor');
+				await app.workbench.chat.sendEditorMessage(`Reply with one short sentence. Do not run tools or edit files. [scenario:${COPILOT_CLI_SCENARIO_ID}]`);
+				await app.workbench.chat.waitForEditorResponse(1500);
 			} catch (error) {
 				const diagnostics = await getCopilotCliDiagnostics(app, mockServer);
-				throw new Error(`Copilot CLI smoke test failed: ${diagnostics.summary}\n\nOriginal UI wait failure:\n${formatError(error)}\n\n${diagnostics.details}`);
+				throw new Error(`Copilot CLI smoke test failed: ${diagnostics.summary}\n\nUI symptom: ${summarizeUiFailure(error)}\n\n${diagnostics.details}`);
 			}
 
-			const responseText = (await app.workbench.chat.getLatestResponseText('editor')).trim();
+			const responseText = (await app.workbench.chat.getLatestEditorResponseText()).trim();
 			const diagnostics = responseText.length > 0 ? undefined : await getCopilotCliDiagnostics(app, mockServer);
 			assert.ok(responseText.length > 0, `Expected Copilot CLI to produce a non-empty response.${diagnostics ? `\nLikely cause: ${diagnostics.summary}\n\n${diagnostics.details}` : ''}`);
 			assert.ok(responseText.includes(COPILOT_CLI_REPLY), `Expected Copilot CLI response to include mocked scenario response "${COPILOT_CLI_REPLY}".\n\nResponse:\n${responseText}`);
@@ -130,33 +130,36 @@ async function getCopilotCliDiagnostics(app: Application, mockServer?: MockLlmSe
 	const copilotChatLog = findNewestLog(logs, 'GitHub Copilot Chat.log');
 	const extensionHostLog = findNewestLog(logs, 'exthost.log');
 	const copilotChatTail = tail(copilotChatLog?.contents ?? '', 12000);
-	const extensionHostRelevantTail = tail(extensionHostLog?.contents ?? '', 16000)
-		.split(/\r?\n/)
-		.filter(line => /copilot|github|MODULE_NOT_FOUND|dlopen|node-pty|ripgrep|runtime\.node|pty\.node|authentication|auth/i.test(line))
-		.slice(-50)
-		.join('\n');
+	const extensionHostTail = tail(extensionHostLog?.contents ?? '', 16000);
 	const sessionEventsTail = readSessionEventsTail(extractLatestSessionId(copilotChatTail));
-	const combinedDiagnostics = [copilotChatTail, extensionHostRelevantTail, sessionEventsTail].join('\n');
+	const combinedDiagnostics = [copilotChatTail, extensionHostTail, sessionEventsTail].join('\n');
+	const summary = summarizeCopilotCliFailure(combinedDiagnostics);
+	const relevantLogTail = getRelevantLogTail(combinedDiagnostics, summary);
 
 	return {
-		summary: summarizeCopilotCliFailure(combinedDiagnostics),
+		summary,
 		details: [
 			'Copilot CLI diagnostics:',
 			`mockServer=${mockServer?.url ?? '(not started)'} requestCount=${mockServer?.requestCount() ?? '(unknown)'}`,
 			'appExtraEnv=GITHUB_PAT:true IS_SCENARIO_AUTOMATION:true VSCODE_COPILOT_CHAT_TOKEN:true',
 			`copilotCliUiSmoke=${process.env.COPILOT_CLI_UI_SMOKE ?? '(unset)'}`,
 			`copilotChatLog=${copilotChatLog?.relativePath ?? '(not found)'}`,
-			`copilotChatLogTail:\n${copilotChatTail || '(empty)'}`,
 			`extensionHostLog=${extensionHostLog?.relativePath ?? '(not found)'}`,
-			`extensionHostRelevantTail:\n${extensionHostRelevantTail || '(empty)'}`,
-			`copilotCliSessionEventsTail:\n${sessionEventsTail || '(empty)'}`,
-		].join('\n\n')
+			`relevantLogTail:\n${relevantLogTail || '(empty; see attached smoke test logs for full output)'}`,
+			sessionEventsTail && !sessionEventsTail.startsWith('Session events file not found:')
+				? `copilotCliSessionEventsTail:\n${sessionEventsTail}`
+				: undefined,
+		].filter((line): line is string => !!line).join('\n\n')
 	};
 }
 
-function formatError(error: unknown): string {
+function summarizeUiFailure(error: unknown): string {
 	if (error instanceof Error) {
-		return error.stack ?? error.message;
+		const timeout = error.message.match(/Timeout: get element '([^']+)' after ([^.]+)\./);
+		if (timeout) {
+			return `no completed response rendered; timed out waiting for ${timeout[1]} after ${timeout[2]}`;
+		}
+		return error.message;
 	}
 	return String(error);
 }
@@ -197,6 +200,29 @@ function isQueryFailure(message: string): boolean {
 
 function isAuthFailure(message: string): boolean {
 	return /Authorization failed|Unauthorized|\b401\b|No model available|policy enablement|sign in to GitHub|getGitHubSession.*undefined|Authentication (?:failed|required)|Timed out waiting for authentication provider|authentication provider ['"]github['"]/i.test(message);
+}
+
+function getRelevantLogTail(diagnostics: string, summary: string): string {
+	const nativeFailure = summary.startsWith('native SDK module missing') || summary.startsWith('native module / SDK boot failure');
+	return diagnostics
+		.split(/\r?\n/)
+		.map(line => line.trim())
+		.filter(line => line && !isKnownScenarioAutomationNoise(line))
+		.filter(line => nativeFailure ? isNativeFailureLine(line) : isRelevantFailureLine(line))
+		.slice(-40)
+		.join('\n');
+}
+
+function isNativeFailureLine(line: string): boolean {
+	return /Native addon ".*" not found|runtime\.node|pty\.node|MODULE_NOT_FOUND|Cannot find module|Failed to load @github\/copilot\/sdk|Failed to initialize|CopilotCLI error: \(query\)|Using Copilot CLI session|Invoking session/i.test(line);
+}
+
+function isRelevantFailureLine(line: string): boolean {
+	return isNativeFailureLine(line) || isAuthFailure(line) || /\[CopilotCLI\]|\[CopilotCLISession\]|No model available/i.test(line);
+}
+
+function isKnownScenarioAutomationNoise(line: string): boolean {
+	return /GitHubOrgCustomAgentProvider|GitHubOrgInstructionsProvider|getCurrentAuthedUser is not a function|Invalid response format/.test(line);
 }
 
 function findNewestLog(logs: readonly { relativePath: string; contents: string }[], fileName: string): { relativePath: string; contents: string } | undefined {
