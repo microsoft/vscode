@@ -86,6 +86,10 @@ const terminalSandboxReadAllowListKeywordMap: ReadonlyMap<string, TerminalSandbo
  */
 
 function getTerminalSandboxReadAllowListForOperation(operation: TerminalSandboxReadAllowListOperation, os: OperatingSystem): readonly string[] {
+	if (os === OperatingSystem.Windows) {
+		return [];
+	}
+
 	switch (operation) {
 		case TerminalSandboxReadAllowListOperation.Git:
 			switch (os) {
