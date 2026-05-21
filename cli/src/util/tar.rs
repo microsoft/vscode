@@ -107,8 +107,10 @@ where
 			// Skip bare top-level directory entries (e.g. "vscode-server-linux-x64/")
 			// once their single segment has been stripped. They contribute no file
 			// to extract, and the directory will be created on demand for nested
-			// entries below.
-			if relative.as_os_str().is_empty() {
+			// entries below. Only directory entries are skipped; non-directory
+			// entries with an empty relative path fall through to
+			// `safe_extract_join`, which rejects them.
+			if relative.as_os_str().is_empty() && entry.header().entry_type().is_dir() {
 				return Ok(());
 			}
 
