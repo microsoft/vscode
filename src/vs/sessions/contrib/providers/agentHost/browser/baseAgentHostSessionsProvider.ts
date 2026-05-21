@@ -40,7 +40,7 @@ import { ISendRequestOptions, ISessionChangeEvent } from '../../../../services/s
 import { computePullRequestIcon } from '../../../github/common/types.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { mapProtocolStatus } from './agentHostDiffs.js';
-import { getEffectiveAgents } from './agentHostAgents.js';
+import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { createChangesets } from '../../copilotChatSessions/browser/copilotChatSessionsChangesets.js';
 
 // ============================================================================
