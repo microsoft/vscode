@@ -218,8 +218,13 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			} else {
 				let tokenCountPromise: Promise<number> | undefined;
 				const countTokens = () => tokenCountPromise ??= chatEndpoint.acquireTokenizer().countMessagesTokens(messages);
-				const copilotToken = await this._authenticationService.getCopilotToken();
-				usernameToScrub = copilotToken.username;
+				let copilotToken: CopilotToken | undefined;
+				try {
+					copilotToken = await this._authenticationService.getCopilotToken();
+				} catch {
+					// BYOK / air-gapped: no Copilot token available. Continue without one.
+				}
+				usernameToScrub = copilotToken?.username ?? this._authenticationService.copilotToken?.username;
 
 				const fetchResult = await this._fetchAndStreamChat(
 					chatEndpoint,
@@ -886,7 +891,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		baseTelemetryData: TelemetryData,
 		finishedCb: FinishedCallback,
 		secretKey: string | undefined,
-		copilotToken: CopilotToken,
+		copilotToken: CopilotToken | undefined,
 		location: ChatLocation,
 		ourRequestId: string,
 		nChoices: number | undefined,
@@ -965,7 +970,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		baseTelemetryData: TelemetryData,
 		finishedCb: FinishedCallback,
 		secretKey: string | undefined,
-		copilotToken: CopilotToken,
+		copilotToken: CopilotToken | undefined,
 		location: ChatLocation,
 		ourRequestId: string,
 		nChoices: number | undefined,
@@ -1020,9 +1025,9 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			this._logService.debug(`modelMaxResponseTokens ${request.max_tokens ?? 2048}`);
 			this._logService.debug(`chat model ${chatEndpointInfo.model}`);
 
-			secretKey ??= copilotToken.token;
-			if (!secretKey) {
-				// If no key is set we error
+			secretKey ??= copilotToken?.token;
+			// BYOK endpoints may not need a secret key (e.g., Ollama local), they use getExtraHeaders instead.
+			if (!secretKey && !chatEndpointInfo.getExtraHeaders) {
 				const urlOrRequestMetadata = stringifyUrlOrRequestMetadata(chatEndpointInfo.urlOrRequestMetadata);
 				this._logService.error(`Failed to send request to ${urlOrRequestMetadata} due to missing key`);
 				sendCommunicationErrorTelemetry(this._telemetryService, `Failed to send request to ${urlOrRequestMetadata} due to missing key`);
@@ -1102,7 +1107,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		request: IEndpointBody,
 		baseTelemetryData: TelemetryData,
 		finishedCb: FinishedCallback,
-		secretKey: string,
+		secretKey: string | undefined,
 		location: ChatLocation,
 		ourRequestId: string,
 		turnId: string,
@@ -1118,7 +1123,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		const intent = locationToIntent(location);
 		const agentInteractionType = interactionTypeOverride ?? intent;
 		const additionalHeaders: Record<string, string> = {
-			'Authorization': `Bearer ${secretKey}`,
+			...(secretKey ? { 'Authorization': `Bearer ${secretKey}` } : {}),
 			'X-Request-Id': ourRequestId,
 			'OpenAI-Intent': intent,
 			'X-GitHub-Api-Version': '2025-05-01',
@@ -1288,7 +1293,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		request: IEndpointBody,
 		baseTelemetryData: TelemetryData,
 		finishedCb: FinishedCallback,
-		secretKey: string,
+		secretKey: string | undefined,
 		location: ChatLocation,
 		ourRequestId: string,
 		nChoices: number | undefined,
@@ -1405,7 +1410,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		chatEndpoint: IChatEndpoint,
 		ourRequestId: string,
 		request: IEndpointBody,
-		secretKey: string,
+		secretKey: string | undefined,
 		location: ChatLocation,
 		cancellationToken: CancellationToken,
 		userInitiatedRequest?: boolean,

@@ -52,12 +52,12 @@ describe('byokKnownModelToAPIInfoWithEffort', () => {
 		expect((info as { configurationSchema?: { properties: { reasoningEffort: { default?: string } } } }).configurationSchema?.properties.reasoningEffort.default).toBe('high');
 	});
 
-	it('falls back to no default when the preferred level is not in the supported list', () => {
+	it('falls back to the first advertised level when the family has no explicit default', () => {
 		const info = byokKnownModelToAPIInfoWithEffort('TestProvider', 'grok-4', {
 			...baseCapabilities,
 			supportsReasoningEffort: ['low', 'high'],
 		});
 
-		expect((info as { configurationSchema?: { properties: { reasoningEffort: { default?: string } } } }).configurationSchema?.properties.reasoningEffort.default).toBeUndefined();
+		expect((info as { configurationSchema?: { properties: { reasoningEffort: { default?: string } } } }).configurationSchema?.properties.reasoningEffort.default).toBe('low');
 	});
 });

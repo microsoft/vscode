@@ -1078,7 +1078,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// matching pending promise on the SDK session.
 	}
 
-	setClientCustomizations(_clientId: string, _customizations: CustomizationRef[], _progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
+	setClientCustomizations(_session: URI, _clientId: string, _customizations: CustomizationRef[]): Promise<ISyncedCustomization[]> {
 		throw new Error('TODO: Phase 11');
 	}
 

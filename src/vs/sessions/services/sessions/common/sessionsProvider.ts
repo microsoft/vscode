@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
+import { IChat, ISession, ISessionAgentRef, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -93,23 +93,23 @@ export interface ISessionsProvider {
 	 * Resolve a workspace for the given repository URI.
 	 * Returns `undefined` when the provider cannot handle the given URI
 	 * (e.g. wrong scheme or authority).
-	 * @param repositoryUri The URI of the repository to resolve the workspace for.
+	 * @param workspaceUri The URI of the repository to resolve the workspace for.
 	 */
-	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined;
+	resolveWorkspace(workspaceUri: URI): ISessionWorkspace | undefined;
 
 	/**
-	 * Create a new session for the given repository URI.
+	 * Create a new session for the given workspace URI.
 	 * The provider should not add this session to its session list until the first request is sent.
-	 * @param repositoryUri The URI of the repository to create the session for.
+	 * @param workspaceUri The URI of the repository to create the session for.
 	 * @param sessionTypeId The ID of the session type to create.
 	 */
-	createNewSession(repositoryUri: URI, sessionTypeId: string): ISession;
+	createNewSession(workspaceUri: URI, sessionTypeId: string): ISession;
 
 	/**
-	 * Get the session types supported for a given repository URI.
-	 * @param repositoryUri The URI of the repository to get session types for.
+	 * Get the session types supported for a given workspace URI.
+	 * @param workspaceUri The URI of the workspace to get session types for.
 	 */
-	getSessionTypes(repositoryUri: URI): ISessionType[];
+	getSessionTypes(workspaceUri: URI): ISessionType[];
 
 	/**
 	 * Rename a chat within a session.
@@ -125,6 +125,15 @@ export interface ISessionsProvider {
 	 * @param modelId The ID of the model to set for the session.
 	 */
 	setModel(sessionId: string, modelId: string): void;
+
+	/**
+	 * Set (or clear) the selected custom agent for a session. Optional so
+	 * providers that don't expose custom agents can omit it.
+	 * @param sessionId The ID of the session.
+	 * @param agent The agent to select, or `undefined` to clear the selection
+	 *              and use the provider's default behavior.
+	 */
+	setAgent?(sessionId: string, agent: ISessionAgentRef | undefined): void;
 
 	/**
 	 * Archive a session.

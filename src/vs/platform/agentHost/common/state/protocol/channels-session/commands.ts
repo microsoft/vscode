@@ -9,7 +9,7 @@
 import type { URI } from '../common/state.js';
 import type { BaseParams } from '../common/commands.js';
 import type { ModelSelection } from '../channels-root/state.js';
-import type { Turn, SessionActiveClient, MessageAttachment } from './state.js';
+import type { Turn, SessionActiveClient, MessageAttachment, AgentSelection } from './state.js';
 
 // ─── createSession ───────────────────────────────────────────────────────────
 
@@ -65,6 +65,12 @@ export interface CreateSessionParams extends BaseParams {
 	provider?: string;
 	/** Model selection (ID and optional model-specific configuration) */
 	model?: ModelSelection;
+	/**
+	 * Initial custom agent selection for the new session.
+	 *
+	 * Omit to start the session with no custom agent selected (provider default).
+	 */
+	agent?: AgentSelection;
 	/** Working directory for the session */
 	workingDirectory?: URI;
 	/**

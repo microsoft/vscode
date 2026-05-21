@@ -19,7 +19,7 @@ export interface IElectronConfiguration {
 }
 
 export async function resolveElectronConfiguration(options: LaunchOptions): Promise<IElectronConfiguration> {
-	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, crashesPath, extraArgs } = options;
+	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, crashesPath, extraArgs, extraEnv } = options;
 	const env = { ...process.env };
 
 	const args: string[] = [
@@ -88,6 +88,19 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 
 	if (extraArgs) {
 		args.push(...extraArgs);
+	}
+
+	// Apply extraEnv last so caller-provided env truly has final precedence
+	// over anything resolveElectronConfiguration sets (e.g. TESTRESOLVER_*).
+	// Copilot review feedback #317545.
+	if (extraEnv) {
+		for (const [key, value] of Object.entries(extraEnv)) {
+			if (value === undefined) {
+				delete env[key];
+			} else {
+				env[key] = value;
+			}
+		}
 	}
 
 	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
