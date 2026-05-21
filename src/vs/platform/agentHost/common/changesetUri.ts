@@ -60,6 +60,23 @@ export const uncommittedChangesetDescription = (): string => localize('uncommitt
 /** Localized human-readable label for the per-turn changeset template entry. */
 export const thisTurnChangesetLabel = (): string => localize('thisTurnChangeset.label', "This Turn");
 
+/**
+ * Returns the description shown next to the `Branch Changes` catalogue
+ * entry — formatted as `${branchName} → ${baseBranchName}`. Returns
+ * `undefined` when the branch info is incomplete or the current branch
+ * equals the base (e.g. working directly on `main`), so callers can omit
+ * the description entirely in those cases. This is intentionally
+ * worktree-flavoured: `baseBranchName` is only populated by the git
+ * probe when `refs/remotes/origin/HEAD` resolves, which is the typical
+ * worktree-isolation scenario.
+ */
+export function formatSessionChangesetDescription(branchName: string | undefined, baseBranchName: string | undefined): string | undefined {
+	if (!branchName || !baseBranchName || branchName === baseBranchName) {
+		return undefined;
+	}
+	return `${branchName} → ${baseBranchName}`;
+}
+
 /** Marker injected into a changeset URI's path. */
 const CHANGESET_PATH_SEGMENT = '/changeset/';
 
