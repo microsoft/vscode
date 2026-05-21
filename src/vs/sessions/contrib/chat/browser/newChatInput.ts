@@ -48,7 +48,7 @@ import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
 import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
@@ -544,7 +544,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const attachedContext = this._contextAttachments.attachments.length > 0
 			? [...this._contextAttachments.attachments]
 			: undefined;
-		const request = query || getExplicitFileOrImageAttachmentSummary(attachedContext ?? []) || '';
+		const request = query;
 
 		if (this._draftState) {
 			this._history.append(this._toHistoryEntry(this._draftState));
