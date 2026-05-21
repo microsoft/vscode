@@ -25,12 +25,11 @@ suite('agentHostAgentPicker', () => {
 	});
 
 	suite('resolveAgentHostAgent', () => {
-		test('returns the session-selected agent when it is in the list', () => {
-			assert.strictEqual(resolveAgentHostAgent(agents, 'agent://b', undefined), beta);
-		});
-
-		test('accepts a plain string URI from the sessions layer', () => {
-			assert.strictEqual(resolveAgentHostAgent(agents, 'agent://b', undefined), beta);
+		test('returns the session-selected agent when its URI is in the list', () => {
+			assert.deepStrictEqual(
+				resolveAgentHostAgent(agents, 'agent://b', undefined),
+				{ uri: 'agent://b', name: 'beta', description: 'b desc' },
+			);
 		});
 
 		test('falls back to the stored URI when the session has no selection', () => {
@@ -40,20 +39,28 @@ suite('agentHostAgentPicker', () => {
 		test('returns undefined when neither session nor stored selection matches the list', () => {
 			assert.strictEqual(resolveAgentHostAgent(agents, undefined, 'agent://missing'), undefined);
 			assert.strictEqual(resolveAgentHostAgent(agents, 'agent://missing', undefined), undefined);
+			assert.strictEqual(resolveAgentHostAgent(agents, 'agent://missing', undefined), undefined);
 		});
 
 		test('session selection wins over stored selection', () => {
-			assert.strictEqual(resolveAgentHostAgent(agents, 'agent://a', 'agent://b'), alpha);
+			assert.deepStrictEqual(
+				resolveAgentHostAgent(agents, 'agent://a', 'agent://b'),
+				{ uri: 'agent://a', name: 'alpha' },
+			);
 		});
 
-		test('falls through to stored URI when the session agent is not in the list', () => {
+		test('falls through to stored URI when the session agent URI is not in the list', () => {
 			// The session's recorded selection is no longer in the effective
 			// agent list (e.g. the customization providing it was removed),
 			// so the stored fallback is consulted.
-			assert.strictEqual(resolveAgentHostAgent(agents, 'agent://gone', 'agent://a'), alpha);
+			assert.deepStrictEqual(
+				resolveAgentHostAgent(agents, 'agent://gone', 'agent://a'),
+				{ uri: 'agent://a', name: 'alpha' },
+			);
 		});
 
 		test('returns undefined for an empty agent list', () => {
+			assert.strictEqual(resolveAgentHostAgent([], 'agent://a', 'agent://a'), undefined);
 			assert.strictEqual(resolveAgentHostAgent([], 'agent://a', 'agent://a'), undefined);
 			assert.strictEqual(resolveAgentHostAgent([], undefined, undefined), undefined);
 		});

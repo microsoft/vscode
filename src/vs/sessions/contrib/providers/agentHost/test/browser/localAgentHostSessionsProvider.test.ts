@@ -665,9 +665,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		provider.setAgent?.(session!.sessionId, { uri: 'agent://review', name: 'review' });
 
-		assert.deepStrictEqual(session!.agent?.get(), { uri: 'agent://review', name: 'review' });
-		// `SessionAgentChanged` carries only the agent URI in the wire protocol;
-		// the receiver re-resolves the display name from its customization snapshot.
+		// The selected agent is now carried on `mode` (with `kind: 'agent'`).
+		// The wire `SessionAgentChanged` action carries only the URI; the receiver
+		// re-resolves the display name from its customization snapshot.
+		assert.deepStrictEqual(session!.mode.get(), { id: 'agent://review', kind: 'agent' });
 		assert.deepStrictEqual(agentHost.dispatchedActions.at(-1)?.action, {
 			type: ActionType.SessionAgentChanged,
 			agent: { uri: 'agent://review' },
@@ -684,7 +685,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		provider.setAgent?.(session!.sessionId, { uri: 'agent://review', name: 'review' });
 		provider.setAgent?.(session!.sessionId, undefined);
 
-		assert.strictEqual(session!.agent?.get(), undefined);
+		assert.strictEqual(session!.mode.get(), undefined);
 		assert.deepStrictEqual(agentHost.dispatchedActions.at(-1)?.action, {
 			type: ActionType.SessionAgentChanged,
 		});

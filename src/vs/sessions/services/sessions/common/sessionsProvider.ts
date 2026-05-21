@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IChat, ISession, ISessionAgentRef, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -125,15 +125,6 @@ export interface ISessionsProvider {
 	 * @param modelId The ID of the model to set for the session.
 	 */
 	setModel(sessionId: string, modelId: string): void;
-
-	/**
-	 * Set (or clear) the selected custom agent for a session. Optional so
-	 * providers that don't expose custom agents can omit it.
-	 * @param sessionId The ID of the session.
-	 * @param agent The agent to select, or `undefined` to clear the selection
-	 *              and use the provider's default behavior.
-	 */
-	setAgent?(sessionId: string, agent: ISessionAgentRef | undefined): void;
 
 	/**
 	 * Archive a session.
