@@ -96,7 +96,7 @@ function getTurnFromBaseTelemetry(baseTelemetry: TelemetryData): number | undefi
 	}
 
 	const parsedTurnIndex = Number(turnIndex);
-	return Number.isFinite(parsedTurnIndex) ? parsedTurnIndex + 1 : undefined;
+	return Number.isFinite(parsedTurnIndex) ? parsedTurnIndex : undefined;
 }
 
 export class ChatMLFetcherTelemetrySender {
