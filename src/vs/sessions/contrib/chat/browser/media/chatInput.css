@@ -54,7 +54,8 @@
 	color: var(--vscode-agentsChatInput-placeholderForeground);
 }
 
-.chat-input-picker-item .action-label.disabled {
+.chat-input-picker-item .action-label.disabled,
+.chat-input-picker-item.disabled .action-label {
 	opacity: 0.5;
 	cursor: default;
 	pointer-events: none;

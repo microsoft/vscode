@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 import { UriTemplate } from '../../common/uriTemplate.js';
 import * as assert from 'assert';
 

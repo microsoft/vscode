@@ -537,6 +537,15 @@ class NewSession extends Disposable {
 	 */
 	private _configRequestSeq = 0;
 
+	/**
+	 * `true` while a `resolveConfig` round-trip is in flight. Distinct from
+	 * {@link ISession.loading} which also stays true when required config
+	 * values are missing — pickers gate on this so they stay interactive
+	 * in that state. Set sync in {@link beginResolveConfigSync} so the
+	 * optimistic `onDidChangeSessionConfig` pulse already exposes it.
+	 */
+	private readonly _isResolvingConfig: ISettableObservable<boolean>;
+
 	/** Backend session URI, set the moment {@link eagerCreate} starts. */
 	private _backendUri: URI | undefined;
 	/** Connection used to create the backend session, captured for `disposeSession` on tear-down. */
@@ -583,6 +592,7 @@ class NewSession extends Disposable {
 		const description = observableValue<IMarkdownString | undefined>(this, undefined);
 		const lastTurnEnd = observableValue<Date | undefined>(this, undefined);
 		this._loading = observableValue(this, true);
+		this._isResolvingConfig = observableValue(this, false);
 		const createdAt = new Date();
 
 		const mainChat: IChat = {
@@ -658,13 +668,37 @@ class NewSession extends Disposable {
 	getConfigValues(): Record<string, unknown> | undefined { return this._config?.values; }
 
 	/**
-	 * Optimistically merges a single property into the cached config. Used by
-	 * the picker to update local state before the next {@link resolveConfig}
-	 * round-trip completes.
+	 * Optimistically merges a single property into the cached config.
+	 * Preserves the existing schema so schema-driven pickers don't flash
+	 * during the async re-resolve. {@link resolveConfig} replaces both
+	 * schema and values when its response lands.
 	 */
 	setConfigValue(property: string, value: unknown): void {
-		const current = this._config?.values ?? {};
-		this._config = { schema: { type: 'object', properties: {} }, values: { ...current, [property]: value } };
+		const current = this._config;
+		this._config = {
+			schema: current?.schema ?? { type: 'object', properties: {} },
+			values: { ...(current?.values ?? {}), [property]: value },
+		};
+	}
+
+	/**
+	 * `true` while a {@link resolveConfig} round-trip is in flight. See
+	 * {@link _isResolvingConfig} for why this is distinct from {@link ISession.loading}.
+	 */
+	get isResolvingConfig(): IObservable<boolean> { return this._isResolvingConfig; }
+
+	/** Mark a resolve as starting before the optimistic event fires. */
+	beginResolveConfigSync(): void {
+		this._isResolvingConfig.set(true, undefined);
+	}
+
+	/**
+	 * Clear the in-flight flag for early-return paths that skip
+	 * {@link resolveConfig} (e.g. no connection), where the `finally`
+	 * cleanup never runs.
+	 */
+	endResolveConfigSync(): void {
+		this._isResolvingConfig.set(false, undefined);
 	}
 
 	/**
@@ -676,6 +710,7 @@ class NewSession extends Disposable {
 	 */
 	async resolveConfig(connection: IAgentConnection): Promise<boolean> {
 		const seq = ++this._configRequestSeq;
+		this._isResolvingConfig.set(true, undefined);
 		try {
 			const result = await connection.resolveSessionConfig({
 				provider: this.agentProvider,
@@ -693,6 +728,11 @@ class NewSession extends Disposable {
 			}
 			this._config = undefined;
 			return true;
+		} finally {
+			// Only the latest request owns the flag.
+			if (seq === this._configRequestSeq) {
+				this._isResolvingConfig.set(false, undefined);
+			}
 		}
 	}
 
@@ -1208,7 +1248,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private async _refreshNewSessionConfig(session: NewSession): Promise<void> {
 		const connection = this.connection;
 		if (!connection) {
+			// {@link resolveConfig} (the only other clear path) is skipped
+			// on this branch, so clear the flag here to avoid stalling
+			// the picker forever.
+			session.endResolveConfigSync();
 			session.setLoading(false);
+			this._onDidChangeSessionConfig.fire(session.sessionId);
 			return;
 		}
 		session.setLoading(true);
@@ -1269,10 +1314,33 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._runningSessionConfigs.get(sessionId);
 	}
 
+	/**
+	 * Observable: `true` while a `resolveSessionConfig` round-trip is in
+	 * flight. Distinct from `session.loading` (which also covers the
+	 * required-values-missing state) — pickers gate on this so they stay
+	 * interactive when the user has to fill in required values.
+	 */
+	isSessionConfigResolving(sessionId: string): IObservable<boolean> {
+		return this._newSession?.sessionId === sessionId
+			? this._newSession.isResolvingConfig
+			: constObservable(false);
+	}
+
 	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
-		// New session (pre-creation): re-resolve the full config schema
+		// New session: re-resolve the full config schema. Flip the
+		// resolving flag and `loading` *before* firing the change event
+		// so the first picker re-render already observes the in-flight
+		// state.
 		const newSession = this._newSession?.sessionId === sessionId ? this._newSession : undefined;
 		if (newSession) {
+			// Defense-in-depth: pickers render disabled during a resolve,
+			// but keyboard dropdown and mobile sheet paths bypass that.
+			// Drop the second pick so it can't race the schema replacement.
+			if (newSession.isResolvingConfig.get()) {
+				return;
+			}
+			newSession.beginResolveConfigSync();
+			newSession.setLoading(true);
 			newSession.setConfigValue(property, value);
 			this._onDidChangeSessionConfig.fire(sessionId);
 			await this._refreshNewSessionConfig(newSession);

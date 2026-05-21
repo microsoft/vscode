@@ -35,6 +35,11 @@ export class MobileAgentHostModePicker extends AgentHostModePicker {
 		if (!this._triggerElement) {
 			return;
 		}
+		// Guard applies to both the phone sheet and the desktop popover —
+		// either path can dispatch through `setSessionConfigValue`.
+		if (this._isCurrentlyResolvingConfig()) {
+			return;
+		}
 		if (this._phonePresenter.enabled.get()) {
 			// The presenter's agent-host branch reads mode + model
 			// directly from the active session's provider, so we don't
