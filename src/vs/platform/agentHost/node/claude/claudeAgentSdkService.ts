@@ -212,7 +212,8 @@ type AssertBindingsMatchSdk = {
 };
 
 // Forces the mapped type above to be eagerly checked: if any entry is not
-// `true`, this assignment fails to compile.
-export const _assertBindingsMatchSdk: { [K in keyof IClaudeSdkBindings]: true } = null as unknown as AssertBindingsMatchSdk;
+// `true`, this assignment fails to compile. Module-local so the runtime
+// surface stays clean — the only purpose is the type-level assertion.
+const _assertBindingsMatchSdk: { [K in keyof IClaudeSdkBindings]: true } = null as unknown as AssertBindingsMatchSdk;
 
 // #endregion

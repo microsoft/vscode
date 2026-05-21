@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../base/common/async.js';
+import { CancellationError } from '../../../base/common/errors.js';
 
 /**
  * Registry of parked deferred promises keyed by string id. Used to
@@ -33,8 +34,17 @@ export class PendingRequestRegistry<T> {
 	 * eventually feeds {@link respond} originates from a different code
 	 * path (e.g. an MCP handler invoked by the SDK whose completion
 	 * arrives via a workbench round-trip).
+	 *
+	 * If `key` is already registered (duplicate `tool_use_id` from the
+	 * SDK, retry, or logic bug), the previous deferred is rejected with
+	 * a {@link CancellationError} so its awaiter unwinds instead of
+	 * leaking forever.
 	 */
 	register(key: string): Promise<T> {
+		const existing = this._entries.get(key);
+		if (existing && !existing.isSettled) {
+			existing.error(new CancellationError());
+		}
 		const deferred = new DeferredPromise<T>();
 		this._entries.set(key, deferred);
 		return deferred.p;

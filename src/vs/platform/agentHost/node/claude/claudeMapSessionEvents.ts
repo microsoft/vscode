@@ -520,7 +520,9 @@ function mapStreamEvent(
 				// parent. They are mutually exclusive (a Task call inside a
 				// subagent is itself an inner tool_use; the resolver chain
 				// handles nested spawns by following the parent chain).
-				const isSubagentSpawn = SUBAGENT_SPAWNING_TOOL_NAMES.has(toolName);
+				// Gated on `!isClientTool` so a workbench tool named `Task` /
+				// `Agent` cannot impersonate the SDK's subagent-spawn tools.
+				const isSubagentSpawn = !isClientTool && SUBAGENT_SPAWNING_TOOL_NAMES.has(toolName);
 				if (parentToolUseId === null) {
 					if (isSubagentSpawn) {
 						registry.recordSpawn(block.id);
