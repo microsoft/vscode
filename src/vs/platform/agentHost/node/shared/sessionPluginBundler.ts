@@ -12,7 +12,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
 import type { CustomizationRef } from '../../common/state/sessionState.js';
 import type { URI as ProtocolURI } from '../../common/state/protocol/state.js';
-import { DiscoveredType, type IDiscoveredFile } from './sessionCustomizationDiscovery.js';
+import { DiscoveredType, type IDiscoveredFile } from '../copilot/sessionCustomizationDiscovery.js';
 
 const DISPLAY_NAME = 'VS Code Synced Data';
 const HOST_DISCOVERY_DIR = 'host-discovery';
