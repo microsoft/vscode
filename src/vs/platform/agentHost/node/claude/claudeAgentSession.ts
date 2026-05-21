@@ -4,18 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { PermissionMode, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
+import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeRuntimeEffortLevel } from '../../common/claudeModelConfig.js';
 import { AgentSignal } from '../../common/agentService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { PendingMessage, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
+import { PendingMessage, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, ToolCallPendingConfirmationState, type ToolDefinition } from '../../common/state/protocol/state.js';
+import type { ToolCallResult } from '../../common/state/sessionState.js';
+import { convertToolCallResult } from './clientTools/claudeClientToolResult.js';
+import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
+import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { ClaudeSdkPipeline, IRematerializer } from './claudeSdkPipeline.js';
+import { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { ClaudePermissionKind } from './claudeToolDisplay.js';
 
 // Re-export for callers that import IRematerializer from the session.
@@ -36,6 +45,17 @@ export class ClaudeAgentSession extends Disposable {
 	private readonly _pipeline: ClaudeSdkPipeline;
 
 	/**
+	 * Phase 12 — per-session registry of Task tool calls that spawn
+	 * subagents (`SubagentSpawn` records keyed by `tool_use_id`, plus a
+	 * reverse index from inner `tool_use_id` to its parent Task). Owned
+	 * here so the registry dies with the session; consumers in the live
+	 * mapper (`ClaudeSdkMessageRouter` / `claudeMapSessionEvents` /
+	 * `claudeSubagentSignals`) and the `canUseTool` bridge read from
+	 * the same instance via the session.
+	 */
+	readonly subagents: SubagentRegistry = this._register(new SubagentRegistry());
+
+	/**
 	 * Phase 7 / S3.2. Tool-permission deferreds parked inside
 	 * {@link Options.canUseTool}. Keyed by SDK `tool_use_id`.
 	 */
@@ -47,6 +67,17 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	private readonly _pendingUserInputs = new PendingRequestRegistry<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }>();
 
+	/**
+	 * Phase 10 — owns the workbench-registered client-tool snapshot
+	 * (via {@link SessionClientToolsDiff.model}) plus the
+	 * "changed since last successful build" dirty bit. Read by the
+	 * agent's sendMessage diff check; used by the materialize /
+	 * rematerializer flow to pin the SDK build against a specific
+	 * snapshot. See {@link SessionClientToolsDiff} for the C6 race
+	 * semantics this collaborator enforces.
+	 */
+	readonly toolDiff: SessionClientToolsDiff;
+
 	private readonly _onDidSessionProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidSessionProgress: Event<AgentSignal> = this._onDidSessionProgress.event;
 
@@ -57,11 +88,16 @@ export class ClaudeAgentSession extends Disposable {
 		warm: WarmQuery,
 		abortController: AbortController,
 		dbRef: IReference<ISessionDatabase>,
+		private readonly _pendingClientToolCalls: PendingRequestRegistry<CallToolResult>,
+		toolDiff: SessionClientToolsDiff,
+		private readonly _permissionModeFallback: ClaudePermissionMode,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
+		this.toolDiff = this._register(toolDiff);
 		this._pipeline = this._register(instantiationService.createInstance(
-			ClaudeSdkPipeline, sessionId, sessionUri, warm, abortController, dbRef,
+			ClaudeSdkPipeline, sessionId, sessionUri, warm, abortController, dbRef, this.subagents, toolDiff.model.state.get().clientId,
 		));
 		this._register(this._pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(s)));
 	}
@@ -83,12 +119,40 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/**
-	 * Send a user prompt. Model / effort are not threaded through here
-	 * — the pipeline's current model / effort (set eagerly via
-	 * {@link queueModelChange}) is whatever the SDK has been told.
+	 * Send a user prompt. Performs the per-turn pre-flight before
+	 * yielding to the pipeline:
+	 *
+	 * - If {@link toolDiff} reports the workbench client-tool snapshot has
+	 *   diverged from what the live `Query` was started with, yield-restart
+	 *   so the SDK picks up the new `Options.mcpServers`. The rebind itself
+	 *   re-applies the live `permissionMode` via the rematerializer.
+	 * - Otherwise forward the live `permissionMode` to the bound `Query` so
+	 *   a `SessionConfigChanged` action that arrived between turns wins.
+	 *   The pipeline's bijective cache dedupes a no-op `setPermissionMode`,
+	 *   so this is free when nothing changed.
+	 *
+	 * Model / effort are not threaded through here — the pipeline's current
+	 * model / effort (set eagerly via {@link queueModelChange}) is whatever
+	 * the SDK has been told.
 	 */
-	send(prompt: SDKUserMessage, turnId: string): Promise<void> {
+	async send(prompt: SDKUserMessage, turnId: string): Promise<void> {
+		if (this.toolDiff.hasDifference) {
+			await this.rebindForClientTools();
+		} else {
+			await this._pipeline.setPermissionMode(this._currentPermissionMode());
+		}
 		return this._pipeline.send(prompt, turnId);
+	}
+
+	/**
+	 * Live `permissionMode` for this session: reads from
+	 * {@link IAgentConfigurationService} and falls back to the snapshot
+	 * captured at materialize time when the live read is `undefined`
+	 * (e.g. cross-window resume before the workbench has registered the
+	 * session's schema).
+	 */
+	private _currentPermissionMode(): ClaudePermissionMode {
+		return readClaudePermissionMode(this._configurationService, this.sessionUri) ?? this._permissionModeFallback;
 	}
 
 	/**
@@ -168,6 +232,8 @@ export class ClaudeAgentSession extends Disposable {
 		readonly state: ToolCallPendingConfirmationState;
 		readonly permissionKind: ClaudePermissionKind;
 		readonly permissionPath?: string;
+		/** Phase 12 step 5 — when the confirmation belongs to a subagent context, route it to the subagent session. */
+		readonly parentToolCallId?: string;
 	}): Promise<boolean> {
 		if (this._pipeline.isAborted) {
 			return Promise.resolve(false);
@@ -179,6 +245,7 @@ export class ClaudeAgentSession extends Disposable {
 				state: args.state,
 				permissionKind: args.permissionKind,
 				...(args.permissionPath !== undefined ? { permissionPath: args.permissionPath } : {}),
+				...(args.parentToolCallId !== undefined ? { parentToolCallId: args.parentToolCallId } : {}),
 			});
 		});
 	}
@@ -192,7 +259,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * a deferred until {@link respondToUserInputRequest} resolves it.
 	 * Resolves with `{ response: Cancel }` if the pipeline is aborted.
 	 */
-	requestUserInput(request: SessionInputRequest): Promise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }> {
+	requestUserInput(request: SessionInputRequest, parentToolCallId?: string): Promise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }> {
 		if (this._pipeline.isAborted) {
 			return Promise.resolve({ response: SessionInputResponseKind.Cancel });
 		}
@@ -202,9 +269,9 @@ export class ClaudeAgentSession extends Disposable {
 				session: this.sessionUri,
 				action: {
 					type: ActionType.SessionInputRequested,
-					session: this.sessionUri.toString(),
 					request,
 				},
+				...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
 			});
 		});
 	}
@@ -219,11 +286,47 @@ export class ClaudeAgentSession extends Disposable {
 
 	// #endregion
 
+	// #region Phase 10 — client tools
+
+	/** Replace the registered client tools snapshot. */
+	setClientTools(tools: readonly ToolDefinition[], clientId?: string): void {
+		this.toolDiff.model.setTools(tools, clientId);
+		this._pipeline.setClientId(this.toolDiff.model.state.get().clientId);
+	}
+
+	/**
+	 * Resolve a parked client-tool MCP handler with the workbench-supplied
+	 * result. Returns `true` if a matching deferred was found and settled.
+	 * Unknown ids are a benign no-op — `agentSideEffects.ts` forwards every
+	 * `SessionToolCallComplete` envelope, so SDK-owned tool completions land
+	 * here too and must NOT throw.
+	 */
+	completeClientToolCall(toolCallId: string, result: ToolCallResult): boolean {
+		const converted = convertToolCallResult(result, toolCallId);
+		return this._pendingClientToolCalls.respond(toolCallId, converted);
+	}
+
+	/**
+	 * Drive a yield-restart so the SDK picks up the new client-tool set on
+	 * its next user request. Cancels any in-flight client-tool MCP handlers
+	 * and resets the bridge state before swapping the {@link Query}; the
+	 * agent's rematerializer rebuilds `Options.mcpServers` from
+	 * {@link toolDiff} during the rebind and pins `applied` to the
+	 * build-time snapshot via {@link SessionClientToolsDiff.build}.
+	 */
+	async rebindForClientTools(): Promise<void> {
+		this._pendingClientToolCalls.rejectAll(new CancellationError());
+		await this._pipeline.rebindForRestart();
+	}
+
+	// #endregion
+
 	override dispose(): void {
 		// Resolve parked deferreds before tearing the pipeline down so the
 		// SDK's canUseTool callback unwinds with a deny and the loop exits.
 		this._pendingPermissions.denyAll(false);
 		this._pendingUserInputs.denyAll({ response: SessionInputResponseKind.Cancel });
+		this._pendingClientToolCalls.rejectAll(new CancellationError());
 		super.dispose();
 	}
 }

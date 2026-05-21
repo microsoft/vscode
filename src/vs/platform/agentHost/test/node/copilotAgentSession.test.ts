@@ -6,7 +6,7 @@
 import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join, sep } from '../../../../base/common/path.js';
@@ -17,6 +17,9 @@ import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../telemetry/common/gdprTypings.js';
+import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -39,6 +42,7 @@ class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
+	messages: SessionEvent[] = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
 	planReadResult: { exists: boolean; content: string | null; path: string | null } = { exists: false, content: null, path: null };
@@ -65,10 +69,13 @@ class MockCopilotSession {
 	}
 
 	// Stubs for methods the wrapper / session class calls
-	async send(request: unknown) { this.sendRequests.push(request); return ''; }
+	async send(request: unknown) {
+		this.sendRequests.push(request);
+		return `message-${this.sendRequests.length}`;
+	}
 	async abort() { }
 	async setModel() { }
-	async getMessages(): Promise<SessionEvent[]> { return []; }
+	async getMessages(): Promise<SessionEvent[]> { return this.messages; }
 	async destroy() { }
 
 	readonly rpc = {
@@ -99,6 +106,32 @@ class CapturingLogService extends NullLogService {
 		this.warnings.push({ message, args });
 		super.warn(message, ...args);
 	}
+}
+
+class RecordingTelemetryService implements ITelemetryService {
+	declare readonly _serviceBrand: undefined;
+	readonly telemetryLevel = TelemetryLevel.NONE;
+	readonly sessionId = 'someValue.sessionId';
+	readonly machineId = 'someValue.machineId';
+	readonly sqmId = 'someValue.sqmId';
+	readonly devDeviceId = 'someValue.devDeviceId';
+	readonly firstSessionDate = 'someValue.firstSessionDate';
+	readonly sendErrorTelemetry = false;
+	readonly events: Array<{ eventName: string; data: unknown }> = [];
+
+	publicLog(): void { }
+
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
+		this.events.push({ eventName, data });
+	}
+
+	publicLogError(): void { }
+
+	publicLogError2(): void { }
+
+	setExperimentProperty(): void { }
+
+	setCommonProperty(): void { }
 }
 
 // ---- Helpers ----------------------------------------------------------------
@@ -147,6 +180,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	clientSnapshot?: IActiveClientSnapshot;
 	environmentServiceRegistration?: 'native' | 'none';
 	logService?: ILogService;
+	telemetryService?: ITelemetryService;
 	captureWrapperCallbacks?: { current?: Parameters<SessionWrapperFactory>[0] };
 	workingDirectory?: URI;
 	/** Per-key effective config values returned by the fake configuration service. */
@@ -197,6 +231,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	const services = new ServiceCollection();
 	services.set(ILogService, options?.logService ?? new NullLogService());
+	services.set(ITelemetryService, options?.telemetryService ?? new NullTelemetryServiceShape());
 	services.set(IFileService, {
 		_serviceBrand: undefined,
 		readFile: async (resource: URI) => {
@@ -303,6 +338,59 @@ suite('CopilotAgentSession', () => {
 					},
 				},
 			],
+		}]);
+	});
+
+	test('sends simple attachments as text blobs and restores them from SDK blobs', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('/act-on-feedback', [{
+			type: MessageAttachmentKind.Simple,
+			label: 'Feedback',
+			modelRepresentation: 'Feedback text for the model',
+		}]);
+
+		const expectedAttachment = {
+			type: MessageAttachmentKind.Simple,
+			label: 'Feedback',
+			modelRepresentation: 'Feedback text for the model',
+		};
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: '/act-on-feedback',
+			attachments: [{
+				type: 'blob',
+				data: encodeBase64(VSBuffer.fromString('Feedback text for the model')),
+				mimeType: 'text/plain',
+				displayName: 'Feedback',
+			}],
+		}]);
+
+		mockSession.messages = [{
+			type: 'user.message',
+			id: 'event-1',
+			parentId: null,
+			timestamp: new Date().toISOString(),
+			data: {
+				interactionId: 'message-1',
+				content: '/act-on-feedback',
+				attachments: [{
+					type: 'blob',
+					data: encodeBase64(VSBuffer.fromString('Feedback text for the model')),
+					mimeType: 'text/plain',
+					displayName: 'Feedback',
+				}],
+			},
+		}];
+
+		assert.deepStrictEqual(await session.getMessages(), [{
+			id: 'message-1',
+			userMessage: {
+				text: '/act-on-feedback',
+				attachments: [expectedAttachment],
+			},
+			responseParts: [],
+			usage: undefined,
+			state: 'cancelled',
 		}]);
 	});
 
@@ -897,6 +985,120 @@ suite('CopilotAgentSession', () => {
 				assert.ok(!pastStr.includes('cd /repo/project'), `past-tense message should not contain stripped prefix, got: ${pastStr}`);
 				assert.ok(pastStr.includes('npm test'), `past-tense message should contain the rewritten command, got: ${pastStr}`);
 			}
+		});
+
+		test('live tool_complete emits languageModelToolInvoked telemetry', async () => {
+			const telemetryService = new RecordingTelemetryService();
+			const { mockSession } = await createAgentSession(disposables, { telemetryService });
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-bash-telemetry',
+				toolName: 'bash',
+				arguments: { command: 'npm test' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-bash-telemetry',
+				success: true,
+				result: { content: 'passed' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-mcp-telemetry',
+				toolName: 'mcp_tool',
+				arguments: {},
+				mcpServerName: 'test-server',
+				mcpToolName: 'lookup',
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-mcp-telemetry',
+				success: false,
+				error: { code: 'denied', message: 'denied' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			const normalizedEvents = telemetryService.events.map(event => {
+				const data = event.data as {
+					result: string;
+					chatSessionId: string | undefined;
+					toolId: string;
+					toolExtensionId: string | undefined;
+					toolSourceKind: string;
+					invocationTimeMs?: number;
+				};
+				return {
+					eventName: event.eventName,
+					data: {
+						...data,
+						invocationTimeMs: typeof data.invocationTimeMs === 'number' && data.invocationTimeMs >= 0,
+					},
+				};
+			});
+
+			assert.deepStrictEqual(normalizedEvents, [
+				{
+					eventName: 'languageModelToolInvoked',
+					data: {
+						result: 'success',
+						chatSessionId: AgentSession.uri('copilot', 'test-session-1').toString(),
+						toolId: 'bash',
+						toolExtensionId: undefined,
+						toolSourceKind: 'agentHost',
+						invocationTimeMs: true,
+					},
+				},
+				{
+					eventName: 'languageModelToolInvoked',
+					data: {
+						result: 'userCancelled',
+						chatSessionId: AgentSession.uri('copilot', 'test-session-1').toString(),
+						toolId: 'mcp_tool',
+						toolExtensionId: undefined,
+						toolSourceKind: 'mcp',
+						invocationTimeMs: true,
+					},
+				},
+			]);
+		});
+
+		test('client tool telemetry does not use clientId as toolExtensionId', async () => {
+			const telemetryService = new RecordingTelemetryService();
+			const { mockSession } = await createAgentSession(disposables, {
+				telemetryService,
+				clientSnapshot: {
+					clientId: 'test-client',
+					tools: [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }],
+					plugins: [],
+				},
+			});
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-client-telemetry',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-client-telemetry',
+				success: true,
+				result: { content: 'done' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			const [event] = telemetryService.events;
+			assert.deepStrictEqual({
+				eventName: event.eventName,
+				data: {
+					...(event.data as object),
+					invocationTimeMs: typeof (event.data as { invocationTimeMs?: number }).invocationTimeMs === 'number',
+				},
+			}, {
+				eventName: 'languageModelToolInvoked',
+				data: {
+					result: 'success',
+					chatSessionId: AgentSession.uri('copilot', 'test-session-1').toString(),
+					toolId: 'my_tool',
+					toolExtensionId: undefined,
+					toolSourceKind: 'client',
+					invocationTimeMs: true,
+				},
+			});
 		});
 
 		test('live tool_start does not rewrite when cd target differs from workingDirectory', async () => {
