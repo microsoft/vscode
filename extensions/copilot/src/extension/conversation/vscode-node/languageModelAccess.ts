@@ -572,6 +572,11 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	}
 
 	private async _getToken(): Promise<CopilotToken | undefined> {
+		if (!this._authenticationService.anyGitHubSession) {
+			this._logService.warn('[LanguageModelAccess] LanguageModel/Embeddings are not available without auth session');
+			return undefined;
+		}
+
 		try {
 			const copilotToken = await this._authenticationService.getCopilotToken();
 			return copilotToken;

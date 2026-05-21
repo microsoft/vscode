@@ -1621,7 +1621,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.OfflineByok]: {
 			type: 'boolean',
 			description: nls.localize('chat.offlineByok', "Experimental: enable BYOK chat features without GitHub sign-in."),
-			default: false,
+			default: product.quality !== 'stable',
 			scope: ConfigurationScope.WINDOW,
 			included: false,
 		},
