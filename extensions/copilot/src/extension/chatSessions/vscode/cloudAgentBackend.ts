@@ -198,12 +198,15 @@ export interface CloudAgentBackend {
 	fetchTaskEvents(taskId: string): Promise<readonly AgentTaskSessionEvent[]>;
 
 	/**
-	 * Block until the task has gained a new turn beyond `sinceTurnCount`. Used after
-	 * `sendFollowUpToTask` to detect that the new turn has appeared. Task API only.
+	 * Block until the task has changed observably since the given baseline: either a new
+	 * turn was added beyond `since.turnCount`, the task's `updated_at` advanced past
+	 * `since.updatedAt`, or the latest turn's state left the in-progress/queued region.
+	 * Used by active response callbacks (state transitions) and follow-up flows (new turn).
+	 * Task API only.
 	 */
-	waitForTaskTurn(
+	waitForTaskUpdate(
 		taskId: string,
-		sinceTurnCount: number,
+		since: { turnCount: number; updatedAt?: string },
 		token?: vscode.CancellationToken,
 	): Promise<TaskContent | undefined>;
 

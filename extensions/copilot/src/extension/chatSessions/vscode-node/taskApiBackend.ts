@@ -279,13 +279,19 @@ export class TaskApiBackend implements CloudAgentBackend {
 		}
 	}
 
-	async waitForTaskTurn(taskId: string, sinceTurnCount: number, token?: vscode.CancellationToken): Promise<TaskContent | undefined> {
+	async waitForTaskUpdate(taskId: string, since: { turnCount: number; updatedAt?: string }, token?: vscode.CancellationToken): Promise<TaskContent | undefined> {
 		const startTime = Date.now();
 		while (Date.now() - startTime < TASK_SESSION_POLL_TIMEOUT_MS && !(token?.isCancellationRequested)) {
 			try {
 				const task = await this._taskApiClient.getTask(taskId);
 				const turnCount = task.sessions?.length ?? 0;
-				if (turnCount > sinceTurnCount) {
+				// Fire when any observable changed: a new turn was added, the task's
+				// `updated_at` advanced (covers in-place state transitions), or the latest
+				// turn left the in-progress/queued region.
+				const updatedAtChanged = since.updatedAt && task.updated_at && task.updated_at !== since.updatedAt;
+				const latestTurnState = task.sessions?.[turnCount - 1]?.state;
+				const latestTurnSettled = latestTurnState && latestTurnState !== 'in_progress' && latestTurnState !== 'queued' && latestTurnState !== 'idle' && latestTurnState !== 'waiting_for_user';
+				if (turnCount > since.turnCount || updatedAtChanged || latestTurnSettled) {
 					return {
 						task,
 						turns: [],

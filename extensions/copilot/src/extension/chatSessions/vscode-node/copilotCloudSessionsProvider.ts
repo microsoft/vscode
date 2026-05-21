@@ -1132,9 +1132,15 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: fetched ${sessionList.length} grouped sessions`);
 			this.cachedSessionsSize = sessionList.length;
 
-			// Track active sessions for background polling
+			// Track active sessions for background polling. Only PR-keyed (Jobs API) entries
+			// participate — task-keyed entries (v2) have their own active-response callback path
+			// via `createTaskActiveResponseCallback`, which uses `waitForTaskUpdate`. Polling task
+			// ids through `getSessionInfo` would throw on the Task backend.
 			const newActiveSessionIds = new Set<string>();
 			for (const entry of sessionList) {
+				if (entry.pullArtifact || entry.latestSession.resource_type === 'task') {
+					continue;
+				}
 				const s = entry.latestSession;
 				if (s.state === 'in_progress' || s.state === 'queued') {
 					newActiveSessionIds.add(s.id);
@@ -1209,10 +1215,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					pullRequestState: derivePullRequestState(pr),
 				} satisfies { readonly [key: string]: unknown };
 
-				// v2 (Task API): entry carries a `pullArtifact` → task is the identity, PR is
-				// decoration only. URI must always be `/task/<taskId>` so opens route through
-				// the task-keyed pipeline (not `fetchSessionsForPullRequest`, which throws on v2).
-				// v1 (Jobs API): no `pullArtifact` → PR is the identity, URI is `/<prNumber>`.
 				const resource = entry.pullArtifact
 					? vscode.Uri.from({ scheme: CopilotCloudSessionsProvider.TYPE, path: '/' + SessionIdForTask.getId(entry.latestSession.id) })
 					: vscode.Uri.from({ scheme: CopilotCloudSessionsProvider.TYPE, path: '/' + pr.number });
@@ -1412,7 +1414,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 		const latestTurn = taskContent.task.sessions?.[taskContent.task.sessions.length - 1];
 		const activeResponseCallback = latestTurn && (latestTurn.state === 'in_progress' || latestTurn.state === 'queued')
-			? this.createTaskActiveResponseCallback(taskId, taskContent.task.sessions?.length ?? 0)
+			? this.createTaskActiveResponseCallback(taskId, {
+				turnCount: taskContent.task.sessions?.length ?? 0,
+				updatedAt: taskContent.task.updated_at,
+			})
 			: undefined;
 
 		return {
@@ -1423,10 +1428,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		};
 	}
 
-	private createTaskActiveResponseCallback(taskId: string, currentTurnCount: number): (stream: vscode.ChatResponseStream, token: vscode.CancellationToken) => Thenable<void> {
+	private createTaskActiveResponseCallback(taskId: string, since: { turnCount: number; updatedAt?: string }): (stream: vscode.ChatResponseStream, token: vscode.CancellationToken) => Thenable<void> {
 		return async (_stream: vscode.ChatResponseStream, token: vscode.CancellationToken) => {
-			// Poll until the active turn settles (a new turn appears or the current state changes).
-			const updated = await this._backend.waitForTaskTurn(taskId, currentTurnCount, token);
+			// Poll until the active turn settles (new turn, in-place state change, or updated_at moves).
+			const updated = await this._backend.waitForTaskUpdate(taskId, since, token);
 			if (updated) {
 				this.refresh();
 			}
@@ -1493,6 +1498,20 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			}
 			return this.streamSessionLogs(stream, pr, sessionId, token);
 		};
+	}
+
+	/**
+	 * Determine whether a chat context refers to a not-yet-committed (untitled) session.
+	 * The proposed `ChatSessionContext.isUntitled` flag is deprecated and will be removed
+	 * along with the concept of `untitled-` sessions; the resource URI is the source of
+	 * truth. See `isUntitledSessionId` in `../common/utils.ts`.
+	 */
+	private isUntitledChatSession(context: vscode.ChatContext): boolean {
+		const resource = context.chatSessionContext?.chatSessionItem?.resource;
+		if (!resource) {
+			return false;
+		}
+		return isUntitledSessionId(resource.path.slice(1));
 	}
 
 	private createEmptySession(resource: Uri): vscode.ChatSession {
@@ -1730,9 +1749,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			if (processedReferences.length > 0) {
 				this.sessionReferencesMap.set(sessionUri, processedReferences);
 			}
-			if (metadata.chatContext.chatSessionContext?.isUntitled) {
+			if (this.isUntitledChatSession(metadata.chatContext)) {
 				this._onDidCommitChatSessionItem.fire({
-					original: metadata.chatContext.chatSessionContext.chatSessionItem,
+					original: metadata.chatContext.chatSessionContext!.chatSessionItem,
 					modified: { resource: sessionUri, label: invokeResult.title },
 				});
 			} else {
@@ -1770,10 +1789,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}
 		const uri = await toOpenPullRequestWebviewUri({ owner: pullRequest.repository.owner.login, repo: pullRequest.repository.name, pullRequestNumber: pullRequest.number });
 
-		if (metadata.chatContext.chatSessionContext?.isUntitled) {
+		if (this.isUntitledChatSession(metadata.chatContext)) {
 			// Untitled flow
 			this._onDidCommitChatSessionItem.fire({
-				original: metadata.chatContext.chatSessionContext.chatSessionItem,
+				original: metadata.chatContext.chatSessionContext!.chatSessionItem,
 				modified: {
 					resource: sessionUri,
 					label: `Pull Request ${number}`
@@ -2048,7 +2067,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 		// Only skip confirmation if neither buttons were modified nor message was modified
 		if (buttons.length === 1 && !messageModified) {
-			if (context.chatSessionContext?.isUntitled) {
+			if (this.isUntitledChatSession(context)) {
 				return; // Don't show the confirmation
 			}
 			const seenDelegationPromptBefore = this.getWorkspaceContext(SEEN_DELEGATION_PROMPT_KEY);
@@ -2125,7 +2144,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		emitCloudSessionInvokeEvent(this._otelService, partnerAgent?.name ?? 'unknown', modelId ?? 'unknown', request.id);
 
 		// Follow up
-		if (context.chatSessionContext && !context.chatSessionContext.isUntitled && request.sessionResource.scheme === CopilotCloudSessionsProvider.TYPE) {
+		if (context.chatSessionContext && !this.isUntitledChatSession(context) && request.sessionResource.scheme === CopilotCloudSessionsProvider.TYPE) {
 			await this.handleFollowUp(request, context, stream, token);
 			return {};
 		}
@@ -2177,7 +2196,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		stream.markdown(vscode.l10n.t('Cloud agent has begun work on your follow-up'));
 		stream.markdown('\n\n');
 		stream.progress(vscode.l10n.t('Waiting for new turn'));
-		const updated = await this._backend.waitForTaskTurn(taskId, before.task.sessions?.length ?? 0, token);
+		const updated = await this._backend.waitForTaskUpdate(taskId, {
+			turnCount: before.task.sessions?.length ?? 0,
+			updatedAt: before.task.updated_at,
+		}, token);
 		if (updated) {
 			this.refresh();
 		}
@@ -2185,7 +2207,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	}
 
 	private async handleFollowUp(request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken) {
-		if (!context.chatSessionContext || context.chatSessionContext.isUntitled) {
+		if (!context.chatSessionContext || this.isUntitledChatSession(context)) {
 			return {};
 		}
 		const { prompt } = request;

@@ -122,7 +122,7 @@ export class JobsApiBackend implements CloudAgentBackend {
 		throw new Error('JobsApiBackend does not support task-keyed reads');
 	}
 
-	waitForTaskTurn(_taskId: string, _sinceTurnCount: number, _token?: vscode.CancellationToken): Promise<TaskContent | undefined> {
+	waitForTaskUpdate(_taskId: string, _since: { turnCount: number; updatedAt?: string }, _token?: vscode.CancellationToken): Promise<TaskContent | undefined> {
 		throw new Error('JobsApiBackend does not support task-keyed reads');
 	}
 
