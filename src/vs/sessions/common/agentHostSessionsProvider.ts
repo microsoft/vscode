@@ -10,6 +10,7 @@ import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
 import { CustomizationAgentRef, RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
+import { ISessionAgentRef } from '../services/sessions/common/session.js';
 
 /**
  * Extended sessions provider for agent host providers (local and remote).
@@ -105,6 +106,16 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * advertised.
 	 */
 	getCustomAgents(sessionId: string): readonly CustomizationAgentRef[];
+
+	/**
+	 * Set (or clear) the selected custom agent for a session. Optional so
+	 * providers that don't expose custom agents can omit it.
+	 * @param sessionId The ID of the session.
+	 * @param agent The agent to select, or `undefined` to clear the selection
+	 *              and use the provider's default behavior.
+	 */
+	setAgent?(sessionId: string, agent: ISessionAgentRef | undefined): void;
+
 }
 
 export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';

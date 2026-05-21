@@ -19,10 +19,11 @@ import { ISessionsProvidersService } from '../../../../../services/sessions/brow
 import { SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { getAvailableModels, modelPickerStorageKey, SessionModelPicker } from '../../browser/copilotChatSessionsActions.js';
+import { getAvailableModels, modelPickerStorageKey, SessionModelPicker, shouldShowSessionManageModelsAction } from '../../browser/copilotChatSessionsActions.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
-import { ClaudeCodeSessionType } from '../../browser/copilotChatSessionsProvider.js';
+import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID } from '../../browser/copilotChatSessionsProvider.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
+import { SessionType } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 function makeModel(id: string, sessionType: string): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -145,6 +146,31 @@ suite('getAvailableModels', () => {
 		const sessionsManagementService = instantiationService.get(ISessionsManagementService);
 		const result = getAvailableModels(languageModelsService, sessionsManagementService);
 		assert.deepStrictEqual(result, [models[2]]);
+	});
+});
+
+suite('shouldShowSessionManageModelsAction', () => {
+	const disposables = new DisposableStore();
+
+	teardown(() => disposables.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows only for Copilot Local sessions', () => {
+		const localServices = stubServices(disposables, {
+			activeSession: { providerId: COPILOT_PROVIDER_ID, sessionId: 'local', sessionType: SessionType.Local },
+		}).instantiationService;
+		const cliServices = stubServices(disposables, {
+			activeSession: { providerId: COPILOT_PROVIDER_ID, sessionId: 'cli', sessionType: CopilotCLISessionType.id },
+		}).instantiationService;
+		const otherProviderServices = stubServices(disposables, {
+			activeSession: { providerId: 'other-provider', sessionId: 'other-local', sessionType: SessionType.Local },
+		}).instantiationService;
+
+		assert.deepStrictEqual([
+			shouldShowSessionManageModelsAction(localServices.get(ISessionsManagementService)),
+			shouldShowSessionManageModelsAction(cliServices.get(ISessionsManagementService)),
+			shouldShowSessionManageModelsAction(otherProviderServices.get(ISessionsManagementService)),
+		], [true, false, false]);
 	});
 });
 

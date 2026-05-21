@@ -929,7 +929,6 @@ describe('AutomodeService', () => {
 			const firstResult = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint, claudeEndpoint]);
 			expect(firstResult.model).toBe('gpt-4o');
 
-			// Without invalidation, changing prompt should still return cached model
 			const chatRequest2: Partial<ChatRequest> = {
 				location: ChatLocation.Panel,
 				prompt: 'second question',
@@ -938,10 +937,8 @@ describe('AutomodeService', () => {
 			const cachedResult = await automodeService.resolveAutoModeEndpoint(chatRequest2 as ChatRequest, [gpt4oEndpoint, claudeEndpoint]);
 			expect(cachedResult.model).toBe('gpt-4o');
 
-			// Invalidate the cache
 			automodeService.invalidateRouterCache({ sessionId: 'session-invalidate' } as ChatRequest);
 
-			// Now the router should re-run and pick claude
 			mockRouterResponse(
 				['gpt-4o', 'claude-sonnet'],
 				{ chosen_model: 'claude-sonnet', candidate_models: ['claude-sonnet'] }
@@ -1022,7 +1019,6 @@ describe('AutomodeService', () => {
 			};
 
 			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [nonVisionEndpoint1, nonVisionEndpoint2]);
-			// No vision model available, should keep the first available model and warn
 			expect(result.model).toBe('gpt-4o-mini');
 			expect(mockLogService.warn).toHaveBeenCalledWith(
 				expect.stringContaining('no vision-capable model')
@@ -1093,7 +1089,6 @@ describe('AutomodeService', () => {
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI', { supportsVision: true });
 			const claudeEndpoint = createEndpoint('claude-sonnet', 'Anthropic', { supportsVision: false });
 
-			// Router picks claude-sonnet (no vision), vision fallback should override to gpt-4o
 			mockRouterResponse(
 				['claude-sonnet', 'gpt-4o'],
 				{ chosen_model: 'claude-sonnet', candidate_models: ['claude-sonnet', 'gpt-4o'] }
@@ -1104,7 +1099,7 @@ describe('AutomodeService', () => {
 				location: ChatLocation.Panel,
 				prompt: 'describe this image',
 				sessionId: 'session-telemetry-vision',
-				references: [{ id: 'img', value: { mimeType: 'image/png', data: new Uint8Array() } }] as any
+				references: [{ id: 'img', value: { mimeType: 'image/png', data: new Uint8Array([1, 2, 3]), isPasted: true } }] as any
 			};
 
 			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint, claudeEndpoint]);
@@ -1116,6 +1111,13 @@ describe('AutomodeService', () => {
 				candidateModel: 'claude-sonnet',
 				actualModel: 'gpt-4o',
 				overrideReason: 'clientOverride',
+			});
+			expect(selectionEvent![2]).toMatchObject({
+				imageCount: 1,
+				totalImageBytes: 3,
+				maxImageBytes: 3,
+				imagePngCount: 1,
+				imageClipboardCount: 1,
 			});
 		});
 
@@ -1139,7 +1141,6 @@ describe('AutomodeService', () => {
 
 			const telemetryCalls = mockTelemetryService.sendMSFTTelemetryEvent.mock.calls;
 			const selectionEvent = telemetryCalls.find((call: unknown[]) => call[0] === 'automode.routerModelSelection');
-			// candidateModel is not set when router returns unknown model, so event should not emit
 			expect(selectionEvent).toBeUndefined();
 		});
 	});

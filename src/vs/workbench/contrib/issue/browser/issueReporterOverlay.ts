@@ -211,7 +211,7 @@ export class IssueReporterOverlay {
 		append(progressArea, $('span.wizard-step-separator'));
 		this.stepLabel = append(progressArea, $('span.wizard-step-label'));
 
-		append(toolbar, $('div.spacer'));
+		append(toolbar, $('div.wizard-toolbar-spacer'));
 
 		this.updateBanner = append(this.wizardPanel, $('div.wizard-update-banner'));
 		this.updateBanner.setAttribute('role', 'status');
@@ -296,7 +296,7 @@ export class IssueReporterOverlay {
 		const workbench = targetWindow.document.querySelector('.monaco-workbench') as HTMLElement | null;
 		const mountTarget = workbench ?? targetWindow.document.body;
 
-		this.floatingBar = $('div.wizard-floating-bar');
+		this.floatingBar = $('div.issue-reporter-floating-bar');
 
 		// Drag handle
 		const dragArea = append(this.floatingBar, $('div.wizard-floating-drag'));
@@ -736,9 +736,6 @@ export class IssueReporterOverlay {
 	}
 
 	private updateTitlePlaceholder(): void {
-		if (!this.titleInput) {
-			return;
-		}
 		switch (this.selectedIssueSource) {
 			case IssueSource.Extension:
 				this.titleInput.setPlaceHolder(localize('extensionPlaceholder', "E.g. Missing alt text on extension readme image"));
@@ -776,9 +773,6 @@ export class IssueReporterOverlay {
 	}
 
 	private updateExtensionOptions(): void {
-		if (!this.extensionSelect) {
-			return;
-		}
 		this.extensionOptions = this.getExtensionOptions();
 		this.extensionSelect.setOptions(this.getExtensionSelectItems(), this.getSelectedExtensionIndex());
 		if (!this.selectedExtension && this.data.extensionId) {
@@ -787,9 +781,6 @@ export class IssueReporterOverlay {
 	}
 
 	private updateExtensionFieldVisibility(): void {
-		if (!this.extensionField) {
-			return;
-		}
 		this.extensionField.classList.toggle('hidden', this.selectedIssueSource !== IssueSource.Extension);
 	}
 
@@ -805,9 +796,7 @@ export class IssueReporterOverlay {
 			: undefined;
 		this.selectedExtension = extension;
 		this.data.extensionId = extension?.id;
-		if (this.extensionSelect) {
-			this.extensionSelect.select(this.getSelectedExtensionIndex());
-		}
+		this.extensionSelect.select(this.getSelectedExtensionIndex());
 		this.updateExtensionValidation();
 		this.updateIssueSourceFlags();
 
@@ -863,10 +852,6 @@ export class IssueReporterOverlay {
 	}
 
 	private updateTargetStatus(): void {
-		if (!this.targetStatus) {
-			return;
-		}
-
 		this.targetStatus.textContent = '';
 		this.extensionStatus.textContent = '';
 		if (!this.selectedIssueSource) {
@@ -1078,9 +1063,6 @@ export class IssueReporterOverlay {
 
 	/** Update the guidance text above the description based on selected category */
 	private updateDescriptionGuidance(): void {
-		if (!this.descriptionGuidance) {
-			return;
-		}
 		const markdownHint = localize('markdownSupported', "Markdown formatting is supported.");
 		switch (this.selectedIssueType) {
 			case IssueType.Bug:
@@ -1763,10 +1745,10 @@ export class IssueReporterOverlay {
 
 	/** Mark a specific attachment as uploading / done */
 	setAttachmentUploadState(index: number, state: 'pending' | 'uploading' | 'done'): void {
-		const card = this.reviewThumbCards[index];
-		if (!card) {
+		if (index < 0 || index >= this.reviewThumbCards.length) {
 			return;
 		}
+		const card = this.reviewThumbCards[index];
 		card.classList.remove('upload-pending', 'upload-uploading', 'upload-done');
 		card.classList.add(`upload-${state}`);
 
@@ -2221,9 +2203,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 
 	setUpdateAvailable(showUpdateBanner: boolean): void {
 		this.showUpdateBanner = showUpdateBanner;
-		if (this.updateBanner) {
-			this.updateBanner.style.display = showUpdateBanner ? '' : 'none';
-		}
+		this.updateBanner.style.display = showUpdateBanner ? '' : 'none';
 	}
 
 	focus(): void {
