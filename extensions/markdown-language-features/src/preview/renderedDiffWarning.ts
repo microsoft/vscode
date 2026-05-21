@@ -64,7 +64,7 @@ export class RenderedDiffWarningManager extends Disposable {
 		if (!this.#statusBarItem) {
 			this.#statusBarItem = vscode.window.createStatusBarItem('markdown.renderedDiffWarning', vscode.StatusBarAlignment.Right, 100);
 			this.#statusBarItem.name = vscode.l10n.t('Rendered Markdown Diff Warning');
-			this.#statusBarItem.text = '$(warning) ' + vscode.l10n.t('Rendered Diff');
+			this.#statusBarItem.text = vscode.l10n.t('{0} Rendered Diff', '$(warning)');
 			this.#statusBarItem.tooltip = vscode.l10n.t('Rendered Markdown diffs may hide important changes. Click for details.');
 			this.#statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
 			this.#statusBarItem.command = this.#showWarningCommandId;
