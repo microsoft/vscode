@@ -666,9 +666,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		provider.setAgent?.(session!.sessionId, { uri: 'agent://review', name: 'review' });
 
 		assert.deepStrictEqual(session!.agent?.get(), { uri: 'agent://review', name: 'review' });
+		// `SessionAgentChanged` carries only the agent URI in the wire protocol;
+		// the receiver re-resolves the display name from its customization snapshot.
 		assert.deepStrictEqual(agentHost.dispatchedActions.at(-1)?.action, {
 			type: ActionType.SessionAgentChanged,
-			agent: { uri: 'agent://review', name: 'review' },
+			agent: { uri: 'agent://review' },
 		});
 	});
 
@@ -690,40 +692,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- getCustomAgents / onDidChangeCustomAgents -------
 
-	test('getCustomAgents merges root + session-state customizations, scoped to the session agent provider', async () => {
+	test('getCustomAgents collects agents from session customizations, coalesced by URI and sorted by name', async () => {
 		const provider = createProvider(disposables, agentHost);
-
-		// Two host-advertised agent providers; only `copilotcli` customizations
-		// should flow through for a `copilotcli` session.
-		agentHost.setAgents([
-			{
-				provider: 'copilotcli',
-				displayName: 'Copilot',
-				description: '',
-				models: [],
-				customizations: [{
-					uri: 'plugin://root-copilot',
-					displayName: 'root copilot plugin',
-				}],
-			} as AgentInfo,
-			{
-				provider: 'openai',
-				displayName: 'OpenAI',
-				description: '',
-				models: [],
-				customizations: [{
-					uri: 'plugin://root-openai',
-					displayName: 'openai-only plugin',
-				}],
-			} as AgentInfo,
-		]);
 
 		fireSessionAdded(agentHost, 'agents-merge', { title: 'Merge Session' });
 		const session = provider.getSessions().find(s => s.title.get() === 'Merge Session');
 		assert.ok(session);
 
-		// Seed session state with both session-level and active-client
-		// customizations, including a duplicate URI that must win over root.
+		// Custom agents live exclusively on `SessionCustomization.agents`
+		// (populated by the host after parsing each customization). The host
+		// merges host-/client-/session-level customizations into
+		// `state.customizations` for us, so the picker only needs to read
+		// from there. A duplicate `uri` across customizations is coalesced
+		// (first seen wins).
 		const fakeState: SessionState = {
 			summary: {
 				resource: AgentSession.uri('copilotcli', 'agents-merge').toString(),
@@ -736,25 +717,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			turns: [],
 			customizations: [{
-				customization: {
-					uri: 'plugin://session-1',
-					displayName: 'session plugin',
-				},
+				customization: { uri: 'plugin://session-1', displayName: 'session plugin' },
 				enabled: true,
 				status: CustomizationStatus.Loaded,
 				agents: [
 					{ uri: 'agent://shared', name: 'shared', description: 'from session' },
 					{ uri: 'agent://session-only', name: 'session-only' },
 				],
+			}, {
+				customization: { uri: 'plugin://session-2', displayName: 'second session plugin' },
+				enabled: true,
+				status: CustomizationStatus.Loaded,
+				agents: [
+					{ uri: 'agent://another', name: 'another' },
+					// Duplicate URI — must NOT replace the first-seen entry.
+					{ uri: 'agent://shared', name: 'shared (duplicate)' },
+				],
+			}, {
+				// Disabled customizations are skipped entirely.
+				customization: { uri: 'plugin://disabled', displayName: 'disabled plugin' },
+				enabled: false,
+				status: CustomizationStatus.Loaded,
+				agents: [{ uri: 'agent://disabled', name: 'disabled' }],
+			}, {
+				// Customizations with `agents === undefined` are treated as
+				// "unknown" (host not yet finished parsing) and skipped.
+				customization: { uri: 'plugin://unparsed', displayName: 'unparsed plugin' },
+				enabled: true,
+				status: CustomizationStatus.Loading,
 			}],
-			activeClient: {
-				clientId: 'workbench',
-				tools: [],
-				customizations: [{
-					uri: 'plugin://client-1',
-					displayName: 'client plugin',
-				}],
-			},
 		};
 		// Force a session-state subscription so `_lastSessionStates` gets
 		// populated when we push the fake state below. `getSessionConfig`
@@ -763,16 +754,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.setSessionState('agents-merge', 'copilotcli', fakeState);
 
 		assert.deepStrictEqual(provider.getCustomAgents(session!.sessionId), [
-			{ uri: 'agent://client-only', name: 'client-only' },
-			{ uri: 'agent://root-a', name: 'root-a' },
+			{ uri: 'agent://another', name: 'another' },
 			{ uri: 'agent://session-only', name: 'session-only' },
-			// Session layer wins over root for the duplicate URI.
+			// First-seen wins for the duplicate `agent://shared` URI.
 			{ uri: 'agent://shared', name: 'shared', description: 'from session' },
 		]);
 	});
 
-	test('getCustomAgents returns root-only agents when the session has no SessionState', () => {
+	test('getCustomAgents returns no agents when the session has no SessionState', () => {
 		const provider = createProvider(disposables, agentHost);
+
+		// Root-level customizations on `AgentInfo` no longer contribute
+		// agents directly to the picker — only `SessionCustomization.agents`
+		// does — so a session without a `SessionState` resolves to empty.
 		agentHost.setAgents([
 			{
 				provider: 'copilotcli',
@@ -790,9 +784,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const session = provider.getSessions().find(s => s.title.get() === 'Root Only');
 		assert.ok(session);
 
-		assert.deepStrictEqual(provider.getCustomAgents(session!.sessionId), [
-			{ uri: 'agent://root-only', name: 'root-only' },
-		]);
+		assert.deepStrictEqual(provider.getCustomAgents(session!.sessionId), []);
 	});
 
 	test('onDidChangeCustomAgents fires on root state and session state changes', async () => {
