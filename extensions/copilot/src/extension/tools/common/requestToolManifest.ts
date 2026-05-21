@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CUSTOM_TOOL_SEARCH_NAME } from '../../../platform/networking/common/anthropic';
 import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 
 export interface IRequestToolManifest<TTool extends { name: string }> {
@@ -15,6 +16,10 @@ export interface IRequestToolManifest<TTool extends { name: string }> {
 	readonly hasDeferredTools: boolean;
 }
 
+function isDeferredRequestTool(toolName: string, toolDeferralService: IToolDeferralService): boolean {
+	return toolName !== CUSTOM_TOOL_SEARCH_NAME && !toolDeferralService.isNonDeferredTool(toolName);
+}
+
 export function createRequestToolManifest<TTool extends { name: string }>(activeTools: readonly TTool[], toolDeferralService: IToolDeferralService): IRequestToolManifest<TTool> {
 	const activeToolNames: string[] = [];
 	const nonDeferredTools: TTool[] = [];
@@ -24,12 +29,12 @@ export function createRequestToolManifest<TTool extends { name: string }>(active
 
 	for (const tool of activeTools) {
 		activeToolNames.push(tool.name);
-		if (toolDeferralService.isNonDeferredTool(tool.name)) {
-			nonDeferredTools.push(tool);
-			nonDeferredToolNames.push(tool.name);
-		} else {
+		if (isDeferredRequestTool(tool.name, toolDeferralService)) {
 			deferredTools.push(tool);
 			deferredToolNames.push(tool.name);
+		} else {
+			nonDeferredTools.push(tool);
+			nonDeferredToolNames.push(tool.name);
 		}
 	}
 
@@ -42,4 +47,13 @@ export function createRequestToolManifest<TTool extends { name: string }>(active
 		deferredToolNames,
 		hasDeferredTools: deferredTools.length > 0,
 	};
+}
+
+export function pruneToolSearchWhenNoDeferredTools<TTool extends { name: string }>(activeTools: readonly TTool[], toolDeferralService: IToolDeferralService): TTool[] {
+	const requestToolManifest = createRequestToolManifest(activeTools, toolDeferralService);
+	if (requestToolManifest.hasDeferredTools) {
+		return [...activeTools];
+	}
+
+	return activeTools.filter(tool => tool.name !== CUSTOM_TOOL_SEARCH_NAME);
 }

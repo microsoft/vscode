@@ -208,6 +208,35 @@ suite('ToolSearchTool', () => {
 		expect((tool as any)._requestScopedDeferredToolsContexts.size).toBe(0);
 	});
 
+	test('evicts stale request-scoped deferred tool contexts opportunistically', async () => {
+		const nonDeferred = new Set(['read_file']);
+		const tool = new ToolSearchTool(
+			{
+				searchToolsByQuery: async (_query: string, tools: readonly vscode.LanguageModelToolInformation[]) => tools.map(candidate => candidate.name),
+			} as any,
+			{
+				isNonDeferredTool: (name: string) => nonDeferred.has(name),
+			} as any,
+			{ trace() { } } as any,
+		);
+
+		(tool as any)._requestScopedDeferredToolsContexts.set('stale-context', {
+			createdAt: Date.now() - (6 * 60 * 1000),
+			tools: Object.freeze([makeToolInfo('stale_tool')]),
+		});
+
+		await tool.resolveInput(
+			{ query: 'fresh tools' },
+			makePromptContext([
+				makeToolInfo('read_file'),
+				makeToolInfo('fresh_tool'),
+			]),
+			0,
+		);
+
+		expect((tool as any)._requestScopedDeferredToolsContexts.has('stale-context')).toBe(false);
+	});
+
 	test('preserves request-scoped deferred tools after resolved input is JSON-round-tripped', async () => {
 		const searchedToolNames: string[][] = [];
 		const nonDeferred = new Set(['read_file']);
@@ -292,12 +321,44 @@ suite('ToolSearchTool', () => {
 		expect(searchedToolNames).toEqual([[]]);
 		expect(result.content).toEqual([expect.objectContaining({ value: '[]' })]);
 	});
+
+	test('does not treat tool_search itself as a deferred candidate when building the request snapshot', async () => {
+		const searchedToolNames: string[][] = [];
+		const tool = new ToolSearchTool(
+			{
+				searchToolsByQuery: async (_query: string, tools: readonly vscode.LanguageModelToolInformation[]) => {
+					searchedToolNames.push(tools.map(candidate => candidate.name));
+					return tools.map(candidate => candidate.name);
+				},
+			} as any,
+			{
+				isNonDeferredTool: () => false,
+			} as any,
+			{ trace() { } } as any,
+		);
+
+		const resolvedInput = await tool.resolveInput(
+			{ query: 'real deferred tools' },
+			makePromptContext([
+				makeToolInfo('tool_search'),
+				makeToolInfo('create_directory'),
+			]),
+			0,
+		);
+
+		await tool.invoke(
+			{ input: resolvedInput } as vscode.LanguageModelToolInvocationOptions<{ query: string }>,
+			{ isCancellationRequested: false } as vscode.CancellationToken,
+		);
+
+		expect(searchedToolNames).toEqual([['create_directory']]);
+	});
 });
 
 suite('TestToolsService getEnabledTools', () => {
 	test('prunes tool_search when the request has zero deferred tools without removing unrelated tools', () => {
 		const services = createExtensionUnitTestingServices();
-		const nonDeferred = new Set(['tool_search', 'read_file']);
+		const nonDeferred = new Set(['read_file']);
 		services.define(IToolDeferralService, {
 			_serviceBrand: undefined,
 			isNonDeferredTool: (name: string) => nonDeferred.has(name),
@@ -317,7 +378,11 @@ suite('TestToolsService getEnabledTools', () => {
 				[{ name: 'read_file' } as vscode.LanguageModelToolInformation, true],
 			]);
 
-			const relevantNames = toolsService.getEnabledTools(request, endpoint)
+			const relevantNames = toolsService.getEnabledTools(
+				request,
+				endpoint,
+				tool => tool.name === 'tool_search' || tool.name === 'read_file',
+			)
 				.map(tool => tool.name)
 				.filter(name => name === 'tool_search' || name === 'read_file')
 				.sort();
@@ -352,7 +417,11 @@ suite('TestToolsService getEnabledTools', () => {
 				[{ name: 'enabled_deferred_tool' } as vscode.LanguageModelToolInformation, true],
 			]);
 
-			const relevantNames = toolsService.getEnabledTools(request, endpoint)
+			const relevantNames = toolsService.getEnabledTools(
+				request,
+				endpoint,
+				tool => tool.name === 'tool_search' || tool.name === 'read_file' || tool.name === 'enabled_deferred_tool',
+			)
 				.map(tool => tool.name)
 				.filter(name => name === 'tool_search' || name === 'read_file' || name === 'enabled_deferred_tool')
 				.sort();

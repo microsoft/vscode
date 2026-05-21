@@ -21,6 +21,8 @@ export interface IToolSearchParams {
 
 const DEFAULT_SEARCH_LIMIT = 5;
 const requestScopedDeferredToolsContextIdKey = '__toolSearchRequestContextId';
+const REQUEST_SCOPED_DEFERRED_TOOLS_CONTEXT_TTL_MS = 5 * 60 * 1000;
+const MAX_REQUEST_SCOPED_DEFERRED_TOOLS_CONTEXTS = 128;
 
 let nextRequestScopedDeferredToolsContextId = 0;
 
@@ -28,8 +30,13 @@ type ResolvedToolSearchParams = IToolSearchParams & {
 	[requestScopedDeferredToolsContextIdKey]?: string;
 };
 
+interface IRequestScopedDeferredToolsContextEntry {
+	readonly createdAt: number;
+	readonly tools: readonly vscode.LanguageModelToolInformation[];
+}
+
 export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchParams> {
-	private readonly _requestScopedDeferredToolsContexts = new Map<string, readonly vscode.LanguageModelToolInformation[]>();
+	private readonly _requestScopedDeferredToolsContexts = new Map<string, IRequestScopedDeferredToolsContextEntry>();
 
 	constructor(
 		@IToolEmbeddingsComputer private readonly _toolEmbeddingsComputer: IToolEmbeddingsComputer,
@@ -46,13 +53,16 @@ export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchPara
 			]);
 		}
 
+		this.cleanupRequestScopedDeferredToolsContexts();
+
 		const requestScopedDeferredToolsContextId = (options.input as ResolvedToolSearchParams)[requestScopedDeferredToolsContextIdKey];
-		const requestScopedDeferredTools = requestScopedDeferredToolsContextId
+		const requestScopedDeferredToolsContext = requestScopedDeferredToolsContextId
 			? this._requestScopedDeferredToolsContexts.get(requestScopedDeferredToolsContextId)
 			: undefined;
-		if (requestScopedDeferredToolsContextId && requestScopedDeferredTools) {
+		if (requestScopedDeferredToolsContextId && requestScopedDeferredToolsContext) {
 			this._requestScopedDeferredToolsContexts.delete(requestScopedDeferredToolsContextId);
 		}
+		const requestScopedDeferredTools = requestScopedDeferredToolsContext?.tools;
 
 		if (!requestScopedDeferredTools) {
 			throw new Error('ToolSearchTool: request-scoped deferred tools are unavailable. Ensure resolveInput is called before invoke.');
@@ -77,13 +87,36 @@ export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchPara
 
 	async resolveInput(input: IToolSearchParams, promptContext: IBuildPromptContext, _mode: CopilotToolMode): Promise<IToolSearchParams> {
 		const manifest = createRequestToolManifest(promptContext.tools?.availableTools ?? [], this._toolDeferralService);
+		this.cleanupRequestScopedDeferredToolsContexts();
 		const requestScopedDeferredToolsContextId = `tool-search-${nextRequestScopedDeferredToolsContextId++}`;
-		this._requestScopedDeferredToolsContexts.set(requestScopedDeferredToolsContextId, Object.freeze([...manifest.deferredTools]));
+		this._requestScopedDeferredToolsContexts.set(requestScopedDeferredToolsContextId, {
+			createdAt: Date.now(),
+			tools: Object.freeze([...manifest.deferredTools]),
+		});
+		this.trimRequestScopedDeferredToolsContexts();
 		const resolvedInput: ResolvedToolSearchParams = {
 			...input,
 			[requestScopedDeferredToolsContextIdKey]: requestScopedDeferredToolsContextId,
 		};
 		return resolvedInput;
+	}
+
+	private cleanupRequestScopedDeferredToolsContexts(now = Date.now()): void {
+		for (const [contextId, context] of this._requestScopedDeferredToolsContexts) {
+			if (now - context.createdAt > REQUEST_SCOPED_DEFERRED_TOOLS_CONTEXT_TTL_MS) {
+				this._requestScopedDeferredToolsContexts.delete(contextId);
+			}
+		}
+	}
+
+	private trimRequestScopedDeferredToolsContexts(): void {
+		while (this._requestScopedDeferredToolsContexts.size > MAX_REQUEST_SCOPED_DEFERRED_TOOLS_CONTEXTS) {
+			const oldestContextId = this._requestScopedDeferredToolsContexts.keys().next().value;
+			if (!oldestContextId) {
+				return;
+			}
+			this._requestScopedDeferredToolsContexts.delete(oldestContextId);
+		}
 	}
 }
 

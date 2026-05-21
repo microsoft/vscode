@@ -19,7 +19,7 @@ import { Lazy } from '../../../util/vs/base/common/lazy';
 import { isDisposable } from '../../../util/vs/base/common/lifecycle';
 import { autorunIterableDelta } from '../../../util/vs/base/common/observableInternal';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { createRequestToolManifest } from '../common/requestToolManifest';
+import { pruneToolSearchWhenNoDeferredTools } from '../common/requestToolManifest';
 import { getContributedToolName, getToolName, mapContributedToolNamesInSchema, mapContributedToolNamesInString, ToolName } from '../common/toolNames';
 import { ICopilotTool, ICopilotToolExtension, modelSpecificToolApplies, ToolRegistry } from '../common/toolsRegistry';
 import { BaseToolsService } from '../common/toolsService';
@@ -358,12 +358,7 @@ export class ToolsService extends BaseToolsService {
 				return resultTool;
 			});
 
-		const requestToolManifest = createRequestToolManifest(enabledTools, this._toolDeferralService);
-		if (requestToolManifest.hasDeferredTools) {
-			return enabledTools;
-		}
-
-		return enabledTools.filter(tool => tool.name !== ToolName.ToolSearch);
+		return pruneToolSearchWhenNoDeferredTools(enabledTools, this._toolDeferralService);
 	}
 
 	private *getToolOverridesForEndpoint(endpoint: IChatEndpoint, tools = this.tools) {

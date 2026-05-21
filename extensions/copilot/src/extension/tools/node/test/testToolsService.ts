@@ -17,7 +17,7 @@ import { isDisposable } from '../../../../util/vs/base/common/lifecycle';
 import { autorunIterableDelta } from '../../../../util/vs/base/common/observable';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { LanguageModelToolInformation, LanguageModelToolResult2 } from '../../../../vscodeTypes';
-import { createRequestToolManifest } from '../../common/requestToolManifest';
+import { pruneToolSearchWhenNoDeferredTools } from '../../common/requestToolManifest';
 import { getContributedToolName, getToolName, mapContributedToolNamesInSchema, mapContributedToolNamesInString, ToolName } from '../../common/toolNames';
 import { ICopilotTool, ICopilotToolCtor, ToolRegistry } from '../../common/toolsRegistry';
 import { BaseToolsService, IToolsService } from '../../common/toolsService';
@@ -220,12 +220,7 @@ export class TestToolsService extends BaseToolsService implements IToolsService 
 				return packageJsonTools.has(tool.name);
 			});
 
-		const requestToolManifest = createRequestToolManifest(enabledTools, this._toolDeferralService);
-		if (requestToolManifest.hasDeferredTools) {
-			return enabledTools;
-		}
-
-		return enabledTools.filter(tool => tool.name !== ToolName.ToolSearch);
+		return pruneToolSearchWhenNoDeferredTools(enabledTools, this._toolDeferralService);
 
 	}
 
