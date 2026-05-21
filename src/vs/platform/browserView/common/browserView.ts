@@ -32,6 +32,7 @@ export enum BrowserViewCommandId {
 	// Chat actions
 	AddElementToChat = `${commandPrefix}.addElementToChat`,
 	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
+	AddScreenshotToChat = `${commandPrefix}.addScreenshotToChat`,
 
 	// Dev Tools
 	ToggleDevTools = `${commandPrefix}.toggleDevTools`,

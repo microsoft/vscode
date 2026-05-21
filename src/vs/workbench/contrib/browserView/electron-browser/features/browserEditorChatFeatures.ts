@@ -6,7 +6,7 @@
 import { localize, localize2 } from '../../../../../nls.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { IContextKey, IContextKeyService, ContextKeyExpr, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { Action2, registerAction2, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -375,6 +375,39 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			this.logService.error('BrowserEditor.addConsoleLogsToChat: Failed to get console logs', error);
 		}
 	}
+
+	// -- Screenshot ----------------------------------------------------
+
+	/**
+	 * Capture a viewport screenshot of the current browser view and attach it to chat.
+	 */
+	async addScreenshotToChat(): Promise<void> {
+		const model = this.editor.model;
+		if (!model) {
+			return;
+		}
+
+		try {
+			if (!await this._confirmContentAttachmentRisk(model.url)) {
+				return;
+			}
+
+			const screenshotBuffer = await model.captureScreenshot({ quality: 80 });
+
+			const toAttach: IChatRequestVariableEntry[] = [{
+				id: 'browser-screenshot-' + Date.now(),
+				name: localize('browserScreenshot', 'Browser Screenshot'),
+				fullName: localize('browserScreenshot', 'Browser Screenshot'),
+				kind: 'image',
+				value: screenshotBuffer.buffer,
+			}];
+
+			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+			widget?.attachmentModel?.addContext(...toAttach);
+		} catch (error) {
+			this.logService.error('BrowserEditor.addScreenshotToChat: Failed to capture screenshot', error);
+		}
+	}
 }
 
 // Register the contribution
@@ -395,7 +428,7 @@ class AddElementToChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
 			menu: {
-				id: MenuId.BrowserActionsToolbar,
+				id: MenuId.BrowserChatActionsMenu,
 				group: 'actions',
 				order: 1,
 				when: ChatContextKeys.enabled
@@ -431,9 +464,9 @@ class AddConsoleLogsToChatAction extends Action2 {
 			f1: true,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			menu: {
-				id: MenuId.BrowserActionsToolbar,
+				id: MenuId.BrowserChatActionsMenu,
 				group: 'actions',
-				order: 2,
+				order: 3,
 				when: ChatContextKeys.enabled
 			}
 		});
@@ -446,8 +479,48 @@ class AddConsoleLogsToChatAction extends Action2 {
 	}
 }
 
+class AddScreenshotToChatAction extends Action2 {
+	static readonly ID = BrowserViewCommandId.AddScreenshotToChat;
+
+	constructor() {
+		super({
+			id: AddScreenshotToChatAction.ID,
+			title: localize2('browser.addScreenshotToChatAction', 'Add Screenshot to Chat'),
+			category: BrowserActionCategory,
+			icon: Codicon.deviceCamera,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
+			menu: {
+				id: MenuId.BrowserChatActionsMenu,
+				group: 'actions',
+				order: 2,
+				when: ChatContextKeys.enabled
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.getContribution(BrowserEditorChatIntegration)?.addScreenshotToChat();
+		}
+	}
+}
+
 registerAction2(AddElementToChatAction);
 registerAction2(AddConsoleLogsToChatAction);
+registerAction2(AddScreenshotToChatAction);
+
+// Expose the chat actions submenu (Add Element to Chat, etc.) as a split button in the browser actions toolbar.
+// The primary action (chevron's left side) is the first item in the submenu.
+MenuRegistry.appendMenuItem(MenuId.BrowserActionsToolbar, {
+	submenu: MenuId.BrowserChatActionsMenu,
+	title: localize2('browser.chatActionsSubmenu', "Add to Chat"),
+	icon: Codicon.inspect,
+	group: 'actions',
+	order: 1,
+	when: ChatContextKeys.enabled,
+	isSplitButton: true
+});
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
