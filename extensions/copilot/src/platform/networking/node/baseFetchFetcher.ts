@@ -12,7 +12,7 @@ import { IFetcher, userAgentLibraryHeader } from '../common/networking';
 import { VSCODE_CACHE_STATUS_HEADER } from './taggedCacheInterceptor';
 
 export type FetchImpl = (
-	input: string | URL | globalThis.Request,
+	input: string | globalThis.Request,
 	init?: RequestInit,
 	useCache?: boolean,
 ) => Promise<globalThis.Response>;
