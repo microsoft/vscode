@@ -26,8 +26,9 @@ export const BrowserActionCategory = localize2('browserCategory', "Browser");
 export enum BrowserActionGroup {
 	Tabs = '1_tabs',
 	Zoom = '2_zoom',
-	Page = '3_page',
-	Settings = '4_settings'
+	Developer = '3_developer',
+	Page = '4_page',
+	Settings = '5_settings'
 }
 
 class GoBackAction extends Action2 {
