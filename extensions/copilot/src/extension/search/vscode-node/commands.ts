@@ -12,7 +12,7 @@ import { SearchFeedbackKind, SemanticSearchTextSearchProvider } from '../../work
 
 export class SearchPanelCommands extends Disposable {
 	constructor(
-		@ITelemetryService readonly telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IFeedbackReporter private readonly feedbackReporter: IFeedbackReporter,
 	) {
 		super();

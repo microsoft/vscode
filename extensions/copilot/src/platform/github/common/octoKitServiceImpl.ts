@@ -9,8 +9,8 @@ import { ICAPIClientService } from '../../endpoint/common/capiClient';
 import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
-import { AssignableActor, getAssignableActorsWithAssignableUsers, getAssignableActorsWithSuggestedActors, PullRequestComment, PullRequestSearchItem, SessionInfo } from './githubAPI';
-import { AuthOptions, BaseOctoKitService, CCAEnabledResult, CustomAgentDetails, CustomAgentListItem, CustomAgentListOptions, ErrorResponseWithStatusCode, IOctoKitService, IOctoKitUser, JobInfo, PermissiveAuthRequiredError, PullRequestFile, RemoteAgentJobResponse } from './githubService';
+import { AssignableActor, getAssignableActorsWithAssignableUsers, getAssignableActorsWithSuggestedActors, getErrorCode, PullRequestComment, PullRequestSearchItem, SessionInfo } from './githubAPI';
+import { AuthOptions, BaseOctoKitService, CCAEnabledResult, CreatedPullRequest, CustomAgentDetails, CustomAgentListItem, CustomAgentListOptions, ErrorResponseWithStatusCode, IOctoKitService, IOctoKitUser, JobInfo, PermissiveAuthRequiredError, PullRequestFile, RemoteAgentJobResponse } from './githubService';
 
 export class OctoKitService extends BaseOctoKitService implements IOctoKitService {
 	declare readonly _serviceBrand: undefined;
@@ -214,6 +214,15 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 		return this.addPullRequestCommentWithToken(pullRequestId, commentBody, authToken);
 	}
 
+	async createPullRequest(owner: string, repo: string, title: string, body: string, head: string, base: string, draft: boolean, authOptions: AuthOptions): Promise<CreatedPullRequest> {
+		const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
+		if (!authToken) {
+			this._logService.trace('No authentication token available for createPullRequest');
+			throw new PermissiveAuthRequiredError();
+		}
+		return this.createPullRequestWithToken(owner, repo, title, body, head, base, draft, authToken);
+	}
+
 	async getAllSessions(nwo: string | undefined, open: boolean, authOptions: AuthOptions): Promise<SessionInfo[]> {
 		try {
 			const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
@@ -231,7 +240,9 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 			this._logService.debug(`[getAllSessions] Got ${Array.isArray(result) ? result.length : 'non-array'} sessions for nwo=${nwo}`);
 			return result;
 		} catch (e) {
-			if (e instanceof Error) {
+			if (e instanceof PermissiveAuthRequiredError) {
+				this._logService.trace(`[getAllSessions] No permissive GitHub session (nwo=${nwo})`);
+			} else if (e instanceof Error) {
 				this._logService.error(e, 'Error in getAllSessions');
 				this._logService.debug(`[getAllSessions] Error for nwo=${nwo}: ${e.message}`);
 			} else {
@@ -283,7 +294,11 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 			}
 			throw new Error('Invalid response format');
 		} catch (e) {
-			this._logService.error(e);
+			if (e instanceof PermissiveAuthRequiredError) {
+				this._logService.trace('[getCustomAgents] No permissive GitHub session');
+			} else {
+				this._logService.error(e);
+			}
 			return [];
 		}
 	}
@@ -454,7 +469,11 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 			}
 			return [];
 		} catch (e) {
-			this._logService.error(e);
+			if (e instanceof PermissiveAuthRequiredError) {
+				this._logService.trace('[getCopilotAgentModels] No permissive GitHub session');
+			} else {
+				this._logService.error(e);
+			}
 			return [];
 		}
 	}
@@ -466,6 +485,7 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 			throw new PermissiveAuthRequiredError();
 		}
 
+		let usedSuggestedActors = true;
 		try {
 			// Try suggestedActors first (preferred API)
 			const actors = await getAssignableActorsWithSuggestedActors(
@@ -484,6 +504,7 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 
 			// Fall back to assignableUsers for older GitHub Enterprise Server instances
 			this._logService.trace('Falling back to assignableUsers API');
+			usedSuggestedActors = false;
 			return await getAssignableActorsWithAssignableUsers(
 				this._fetcherService,
 				this._logService,
@@ -495,6 +516,21 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 			);
 		} catch (e) {
 			this._logService.error(`Error fetching assignable actors: ${e}`);
+			const properties: { errorCode?: string; usedSuggestedActors: string } = {
+				usedSuggestedActors: String(usedSuggestedActors),
+			};
+			const errorCode = getErrorCode(e);
+			if (errorCode) {
+				properties.errorCode = errorCode;
+			}
+
+			/* __GDPR__
+				"pr.getAssignableUsersFailed" : {
+					"errorCode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"usedSuggestedActors": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				}
+			*/
+			this._telemetryService.sendMSFTTelemetryErrorEvent('pr.getAssignableUsersFailed', properties);
 			return [];
 		}
 	}
@@ -538,3 +574,5 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 		}
 	}
 }
+
+

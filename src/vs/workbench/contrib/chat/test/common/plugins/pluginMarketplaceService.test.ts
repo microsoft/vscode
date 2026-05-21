@@ -4,22 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IFileService, IFileSystemWatcher } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
-import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
-import { IMarketplacePlugin, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 
 suite('PluginMarketplaceService', () => {
@@ -357,6 +359,230 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 	});
 });
 
+suite('PluginMarketplaceService - hydration after restart', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const CACHE_ROOT = URI.file('/agent-plugins');
+
+	class TestFileService {
+		readonly files = new Map<string, string>();
+		readonly folders = new Set<string>();
+
+		async exists(resource: URI): Promise<boolean> {
+			const key = resource.toString();
+			return this.files.has(key) || this.folders.has(key);
+		}
+
+		async readFile(resource: URI): Promise<{ value: VSBuffer }> {
+			const key = resource.toString();
+			const value = this.files.get(key);
+			if (value === undefined) {
+				throw new Error(`Missing file: ${key}`);
+			}
+			return { value: VSBuffer.fromString(value) };
+		}
+
+		async writeFile(resource: URI, content: VSBuffer): Promise<unknown> {
+			this.files.set(resource.toString(), content.toString());
+			return {};
+		}
+
+		async createFolder(resource: URI): Promise<unknown> {
+			this.folders.add(resource.toString());
+			return {};
+		}
+
+		createWatcher(): IFileSystemWatcher {
+			return { onDidChange: Event.None, dispose: () => { } };
+		}
+
+		setFile(resource: URI, content: string): void {
+			this.files.set(resource.toString(), content);
+		}
+	}
+
+	function createPluginRepositoryStub(): IAgentPluginRepositoryService {
+		const getRepositoryUri = (marketplace: IMarketplaceReference) => URI.joinPath(CACHE_ROOT, ...marketplace.cacheSegments);
+		const getPluginSourceInstallUri = (descriptor: IPluginSourceDescriptor) => {
+			if (descriptor.kind === PluginSourceKind.GitHub) {
+				const [owner, repo] = descriptor.repo.split('/');
+				const base = URI.joinPath(CACHE_ROOT, 'github.com', owner, repo);
+				return descriptor.path ? URI.joinPath(base, descriptor.path) : base;
+			}
+			if (descriptor.kind === PluginSourceKind.RelativePath) {
+				// Tests using this stub only exercise non-relative descriptors via this entry point.
+				throw new Error('RelativePath should not reach getPluginSourceInstallUri in hydration tests');
+			}
+			throw new Error(`Unhandled source kind in test stub: ${descriptor.kind}`);
+		};
+		return {
+			agentPluginsHome: CACHE_ROOT,
+			getRepositoryUri,
+			getPluginInstallUri: (plugin: IMarketplacePlugin) => {
+				if (plugin.sourceDescriptor.kind !== PluginSourceKind.RelativePath) {
+					return getPluginSourceInstallUri(plugin.sourceDescriptor);
+				}
+				const repoDir = getRepositoryUri(plugin.marketplaceReference);
+				return plugin.source ? URI.joinPath(repoDir, plugin.source) : repoDir;
+			},
+			getPluginSourceInstallUri,
+		} as unknown as IAgentPluginRepositoryService;
+	}
+
+	function makeAzurePlugin(marketplaceReference: IMarketplaceReference): IMarketplacePlugin {
+		return {
+			name: 'azure',
+			description: 'Microsoft Azure MCP Server and skills',
+			version: '1.0.0',
+			source: '',
+			sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'microsoft/azure-skills', path: '.github/plugins/azure-skills' },
+			marketplace: marketplaceReference.displayLabel,
+			marketplaceReference,
+			marketplaceType: MarketplaceType.Copilot,
+		};
+	}
+
+	function storeMarketplaceCache(storageService: InMemoryStorageService, marketplaceReference: IMarketplaceReference, plugin: IMarketplacePlugin): void {
+		storageService.store('chat.plugins.marketplaces.githubCache.v1', JSON.stringify({
+			[marketplaceReference.canonicalId]: {
+				plugins: [plugin],
+				expiresAt: Date.now() + 60_000,
+				referenceRawValue: marketplaceReference.rawValue,
+			},
+		}), StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	test('hydrates a github-sourced plugin from installed.json name and marketplace cache after restart', async () => {
+		// Simulates: user installs the "azure" plugin from the
+		// "github/awesome-copilot" marketplace (fetched via HTTP, never
+		// cloned). After restart, installed.json contains only the durable
+		// identity for that plugin; the full descriptor is recovered from
+		// marketplace data cached from the prior fetch.
+
+		const storageService = store.add(new InMemoryStorageService());
+		const fileService = new TestFileService();
+
+		const awesomeCopilot = parseMarketplaceReference('github/awesome-copilot')!;
+		const azurePlugin = makeAzurePlugin(awesomeCopilot);
+		storeMarketplaceCache(storageService, awesomeCopilot, azurePlugin);
+		const azurePluginUri = URI.joinPath(CACHE_ROOT, 'github.com', 'microsoft', 'azure-skills', '.github', 'plugins', 'azure-skills');
+
+		const installedJson = URI.joinPath(CACHE_ROOT, 'installed.json');
+		fileService.setFile(installedJson, JSON.stringify({
+			version: 1,
+			installed: [{
+				pluginUri: azurePluginUri.toString(),
+				marketplace: awesomeCopilot.rawValue,
+				name: 'azure',
+			}],
+		}));
+
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: ['github/awesome-copilot'],
+			[ChatConfiguration.PluginsEnabled]: true,
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
+		instantiationService.stub(IFileService, fileService as unknown as IFileService);
+		instantiationService.stub(IAgentPluginRepositoryService, createPluginRepositoryStub());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+
+		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
+
+		// FileBackedInstalledPluginsStore initialises asynchronously.
+		for (let i = 0; i < 50; i++) {
+			if (service.installedPlugins.get().length === 1) {
+				break;
+			}
+			await timeout(10);
+		}
+
+		const installed = service.installedPlugins.get();
+		assert.strictEqual(installed.length, 1, 'azure plugin should be hydrated from marketplace data');
+		assert.strictEqual(installed[0].plugin.name, 'azure');
+		assert.strictEqual(installed[0].plugin.sourceDescriptor.kind, PluginSourceKind.GitHub);
+		assert.strictEqual(installed[0].plugin.marketplaceReference.canonicalId, awesomeCopilot.canonicalId);
+	});
+
+	test('persists plugin name when a plugin is added so it survives a restart', async () => {
+		// First service writes installed.json, second service (sharing the
+		// same file system + storage) reads it back and must reconstruct
+		// the plugin from its stored name plus marketplace data.
+		const storageService = store.add(new InMemoryStorageService());
+		const fileService = new TestFileService();
+
+		const awesomeCopilot = parseMarketplaceReference('github/awesome-copilot')!;
+		const azurePluginUri = URI.joinPath(CACHE_ROOT, 'github.com', 'microsoft', 'azure-skills', '.github', 'plugins', 'azure-skills');
+		const azurePlugin = makeAzurePlugin(awesomeCopilot);
+		storeMarketplaceCache(storageService, awesomeCopilot, azurePlugin);
+
+		function makeService(): PluginMarketplaceService {
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({
+				[ChatConfiguration.PluginMarketplaces]: ['github/awesome-copilot'],
+				[ChatConfiguration.PluginsEnabled]: true,
+			}));
+			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
+			instantiationService.stub(IFileService, fileService as unknown as IFileService);
+			instantiationService.stub(IAgentPluginRepositoryService, createPluginRepositoryStub());
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IRequestService, {} as unknown as IRequestService);
+			instantiationService.stub(IStorageService, storageService);
+			instantiationService.stub(IWorkspacePluginSettingsService, {
+				extraMarketplaces: observableValue('test.extraMarketplaces', []),
+				enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+			} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+			instantiationService.stub(IWorkspaceTrustManagementService, {
+				isWorkspaceTrusted: () => true,
+				onDidChangeTrust: Event.None,
+			} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+			return store.add(instantiationService.createInstance(PluginMarketplaceService));
+		}
+
+		// First session: install the plugin.
+		const first = makeService();
+		// Wait for FileBackedInstalledPluginsStore to finish initialisation
+		// so that subsequent writes are flushed to the file service.
+		await timeout(20);
+		first.addInstalledPlugin(azurePluginUri, azurePlugin);
+		// Wait for the throttled write to land.
+		await timeout(200);
+
+		const installedJson = URI.joinPath(CACHE_ROOT, 'installed.json');
+		const persisted = JSON.parse(fileService.files.get(installedJson.toString())!);
+		assert.strictEqual(persisted.installed.length, 1);
+		assert.deepStrictEqual(persisted.installed[0], {
+			pluginUri: azurePluginUri.toString(),
+			marketplace: awesomeCopilot.rawValue,
+			name: 'azure',
+		});
+
+		// Second session: restart with shared storage + file system. The
+		// plugin must be reconstructed from installed.json + marketplace data.
+		const second = makeService();
+		for (let i = 0; i < 50; i++) {
+			if (second.installedPlugins.get().length === 1) {
+				break;
+			}
+			await timeout(10);
+		}
+		const installed = second.installedPlugins.get();
+		assert.strictEqual(installed.length, 1);
+		assert.strictEqual(installed[0].plugin.name, 'azure');
+		assert.strictEqual(installed[0].plugin.sourceDescriptor.kind, PluginSourceKind.GitHub);
+	});
+});
+
 suite('parsePluginSource', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -427,7 +653,7 @@ suite('parsePluginSource', () => {
 
 	test('parses url object source', () => {
 		const result = parsePluginSource({ source: 'url', url: 'https://gitlab.com/team/plugin.git' }, undefined, logContext);
-		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitUrl, url: 'https://gitlab.com/team/plugin.git', ref: undefined, sha: undefined });
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitUrl, url: 'https://gitlab.com/team/plugin.git', ref: undefined, sha: undefined, path: undefined });
 	});
 
 	test('returns undefined for url source missing url field', () => {
@@ -436,6 +662,30 @@ suite('parsePluginSource', () => {
 
 	test('returns undefined for url source not ending in .git', () => {
 		assert.strictEqual(parsePluginSource({ source: 'url', url: 'https://gitlab.com/team/plugin' }, undefined, logContext), undefined);
+	});
+
+	test('parses git-subdir object source', () => {
+		const result = parsePluginSource({ source: 'git-subdir', url: 'https://github.com/acme/monorepo.git', path: 'tools/claude-plugin' }, undefined, logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitUrl, url: 'https://github.com/acme/monorepo.git', ref: undefined, sha: undefined, path: 'tools/claude-plugin' });
+	});
+
+	test('parses git-subdir object source with ref and sha', () => {
+		const result = parsePluginSource({ source: 'git-subdir', url: 'https://example.com/repo.git', path: 'plugins/foo', ref: 'v2.0.0', sha: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0' }, undefined, logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitUrl, url: 'https://example.com/repo.git', ref: 'v2.0.0', sha: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0', path: 'plugins/foo' });
+	});
+
+	test('parses git-subdir source without .git suffix', () => {
+		// git-subdir does not require .git suffix (Azure DevOps / AWS CodeCommit compatibility)
+		const result = parsePluginSource({ source: 'git-subdir', url: 'https://dev.azure.com/org/project/_git/repo', path: 'plugins/foo' }, undefined, logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitUrl, url: 'https://dev.azure.com/org/project/_git/repo', ref: undefined, sha: undefined, path: 'plugins/foo' });
+	});
+
+	test('returns undefined for git-subdir source missing url field', () => {
+		assert.strictEqual(parsePluginSource({ source: 'git-subdir', path: 'plugins/foo' }, undefined, logContext), undefined);
+	});
+
+	test('returns undefined for git-subdir source missing path field', () => {
+		assert.strictEqual(parsePluginSource({ source: 'git-subdir', url: 'https://example.com/repo.git' }, undefined, logContext), undefined);
 	});
 
 	test('parses npm object source', () => {
@@ -504,6 +754,10 @@ suite('getPluginSourceLabel', () => {
 
 	test('formats url source', () => {
 		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.GitUrl, url: 'https://example.com/repo.git' }), 'https://example.com/repo.git');
+	});
+
+	test('formats url source with path', () => {
+		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.GitUrl, url: 'https://example.com/repo.git', path: 'plugins/foo' }), 'https://example.com/repo.git/plugins/foo');
 	});
 
 	test('formats npm source without version', () => {

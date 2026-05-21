@@ -5,7 +5,7 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { derived, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -13,12 +13,14 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IPromptPath, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AICustomizationManagementSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { AICustomizationItemsModel, IAICustomizationItemsModel } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { AICustomizationListWidget } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationListWidget.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
@@ -62,6 +64,9 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 		}
 		override async listAgentInstructions() { return agentInstructionFiles; }
 		override async getCustomAgents() { return []; }
+		override async findAgentSkills() { return []; }
+		override async getPromptSlashCommands() { return []; }
+		override async getHooks() { return undefined; }
 		override async getInstructionFiles() {
 			return instructionFiles.map(f => ({
 				uri: f.promptPath.uri,
@@ -108,16 +113,23 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 		override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 		override getActiveProjectRoot() { return URI.file('/workspace'); }
 		override getStorageSourceFilter() { return defaultFilter; }
+		override getSkillUIIntegrations() { return new Map(); }
 	}();
 }
 
 function createMockHarnessService(): ICustomizationHarnessService {
 	const descriptor = createVSCodeHarnessDescriptor([PromptsStorage.extension]);
+	const activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
+	const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 	return new class extends mock<ICustomizationHarnessService>() {
-		override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
+		override readonly activeSessionResource = activeSessionResource;
+		override readonly activeHarness = activeHarness;
 		override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('harnesses', [descriptor]);
+		override findHarnessById(id: string) { return id === descriptor.id ? descriptor : undefined; }
 		override getStorageSourceFilter() { return defaultFilter; }
 		override getActiveDescriptor() { return descriptor; }
+		override setActiveSession(sessionResource: URI) { activeSessionResource.set(sessionResource, undefined); }
+		override getSessionResourceForHarness() { return activeSessionResource.get(); }
 		override registerExternalHarness() { return { dispose() { } }; }
 	}();
 }
@@ -184,6 +196,10 @@ async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFi
 				override userHome(): Promise<URI>;
 				override userHome(): URI | Promise<URI> { return URI.file('/home/dev'); }
 			}());
+			// AICustomizationItemsModel is the single source of truth for items
+			// in the editor. Register the real implementation — it will resolve
+			// items via the mock prompts service / harness service above.
+			reg.define(IAICustomizationItemsModel, AICustomizationItemsModel);
 		},
 	});
 

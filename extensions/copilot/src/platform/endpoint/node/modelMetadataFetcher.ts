@@ -19,8 +19,8 @@ import { ILogService } from '../../log/common/logService';
 import { getRequest } from '../../networking/common/networking';
 import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
-import { ChatEndpointFamily, IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IModelAPIResponse, isChatModelInformation, isCompletionModelInformation, isEmbeddingModelInformation } from '../common/endpointProvider';
-import { ModelAliasRegistry } from '../common/modelAliasRegistry';
+import { getModelCapabilityOverride } from '../common/chatModelCapabilities';
+import { IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IModelAPIResponse, isChatModelInformation, isCompletionModelInformation, isEmbeddingModelInformation } from '../common/endpointProvider';
 
 export interface IModelMetadataFetcher {
 
@@ -41,10 +41,20 @@ export interface IModelMetadataFetcher {
 	getAllChatModels(): Promise<IChatModelInformation[]>;
 
 	/**
-	 * Retrieves a chat model by its family name
-	 * @param family The family of the model to fetch
+	 * Retrieves the API-marked default Copilot utility model — the model
+	 * the CAPI `/models` response flags with `is_chat_fallback === true`.
+	 * Used to back the `copilot-utility` internal endpoint family.
 	 */
-	getChatModelFromFamily(family: ChatEndpointFamily): Promise<IChatModelInformation>;
+	getCopilotUtilityModel(): Promise<IChatModelInformation>;
+
+	/**
+	 * Retrieves a chat model by its CAPI family identifier (e.g.
+	 * `gpt-4o-mini`, `claude-sonnet-4`). The family must match
+	 * `IChatModelCapabilities.family` of a model returned from the
+	 * `/models` endpoint.
+	 * @param family The CAPI family identifier of the model to fetch
+	 */
+	getChatModelFromCapiFamily(family: string): Promise<IChatModelInformation>;
 
 	/**
 	 * Retrieves a chat model by its id
@@ -71,7 +81,7 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 
 	private _familyMap: Map<string, IModelAPIResponse[]> = new Map();
 	private _completionsFamilyMap: Map<string, IModelAPIResponse[]> = new Map();
-	private _copilotBaseModel: IModelAPIResponse | undefined;
+	private _copilotUtilityModel: IModelAPIResponse | undefined;
 	private _lastFetchTime: number = 0;
 	private readonly _taskSingler = new TaskSingler<IModelAPIResponse | undefined | void>();
 	private _lastFetchError: any;
@@ -93,7 +103,12 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		super();
 		this._register(this._authService.onDidAuthenticationChange(() => {
 			// Auth changed so next fetch should be forced to get a new list
-			this._familyMap.clear();
+
+			// Only clear the family map if the copilot token is undefined, as this means the user has logged out and we should clear the models, otherwise we want to keep the old models around until we get a new list
+			if (this._authService.copilotToken === undefined) {
+				this._familyMap.clear();
+			}
+
 			this._completionsFamilyMap.clear();
 			this._lastFetchTime = 0;
 		}));
@@ -156,30 +171,38 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		return resolvedModel;
 	}
 
-	public async getChatModelFromFamily(family: ChatEndpointFamily): Promise<IChatModelInformation> {
+	public async getCopilotUtilityModel(): Promise<IChatModelInformation> {
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
-		let resolvedModel: IModelAPIResponse | undefined;
-		family = ModelAliasRegistry.resolveAlias(family) as ChatEndpointFamily;
-
-		if (family === 'copilot-base') {
-			resolvedModel = this._copilotBaseModel;
-		} else {
-			resolvedModel = this._familyMap.get(family)?.[0];
-		}
+		const resolvedModel = this._copilotUtilityModel;
 		if (!resolvedModel || !isChatModelInformation(resolvedModel)) {
-			throw new Error(await this._getErrorMessage(`Unable to resolve chat model with family selection: ${family}`));
+			throw new Error(await this._getErrorMessage('Unable to resolve Copilot utility chat model (server did not mark a chat fallback model)'));
+		}
+		return resolvedModel;
+	}
+
+	public async getChatModelFromCapiFamily(family: string): Promise<IChatModelInformation> {
+		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
+		const resolvedModel = this._familyMap.get(family)?.[0];
+		if (!resolvedModel || !isChatModelInformation(resolvedModel)) {
+			throw new Error(await this._getErrorMessage(`Unable to resolve chat model with CAPI family selection: ${family}`));
 		}
 		return resolvedModel;
 	}
 
 	public async getChatModelFromApiModel(apiModel: LanguageModelChat): Promise<IChatModelInformation | undefined> {
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
+		// `apiModel.family` may have been rewritten by a configured capability
+		// override (see `chat.modelCapabilityOverrides`). When an override is
+		// configured for this model id, drop the family check entirely and rely
+		// on id + version to uniquely identify the CAPI model (the picker would
+		// otherwise carry the overridden family and never re-match the real one).
+		const hasOverride = getModelCapabilityOverride(apiModel.id, this._configService)?.family !== undefined;
 		let resolvedModel: IModelAPIResponse | undefined;
 		for (const models of this._familyMap.values()) {
 			resolvedModel = models.find(model =>
 				model.id === apiModel.id &&
 				model.version === apiModel.version &&
-				model.capabilities.family === apiModel.family);
+				(hasOverride || model.capabilities.family === apiModel.family));
 			if (resolvedModel) {
 				break;
 			}
@@ -231,7 +254,16 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		}
 		const requestStartTime = Date.now();
 
-		const copilotToken = (await this._authService.getCopilotToken()).token;
+		let copilotToken: string;
+		try {
+			copilotToken = (await this._authService.getCopilotToken()).token;
+		} catch (e) {
+			// No Copilot auth (e.g. signed-out BYOK-only mode).
+			this._lastFetchTime = Date.now();
+			this._lastFetchError = e;
+			return;
+		}
+
 		const requestId = generateUuid();
 		const requestMetadata: RequestMetadata = { type: RequestType.Models, isModelLab: this._isModelLab };
 
@@ -262,9 +294,9 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 			for (let model of data) {
 				model = await this._hydrateResolvedModel(model);
 				const isCompletionModel = isCompletionModelInformation(model);
-				// The base model is whatever model is deemed "fallback" by the server
+				// The utility model is whatever model is deemed "fallback" by the server
 				if (model.is_chat_fallback && !isCompletionModel) {
-					this._copilotBaseModel = model;
+					this._copilotUtilityModel = model;
 				}
 				const family = model.capabilities.family;
 				const familyMap = isCompletionModel ? this._completionsFamilyMap : this._familyMap;

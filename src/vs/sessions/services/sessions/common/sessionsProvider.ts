@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
+import { IChat, ISession, ISessionAgentRef, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -26,15 +26,6 @@ export interface ISendRequestOptions {
 	readonly query: string;
 	/** Optional attached context entries. */
 	readonly attachedContext?: IChatRequestVariableEntry[];
-}
-
-/**
- * Capabilities declared by a sessions provider.
- * Consumers check these before surfacing provider-specific features in the UI.
- */
-export interface ISessionsProviderCapabilities {
-	/** Whether the provider supports multiple chats within a single session. */
-	readonly multipleChatsPerSession: boolean;
 }
 
 /**
@@ -70,15 +61,6 @@ export interface ISessionsProvider {
 	readonly onDidChangeSessionTypes: Event<void>;
 
 	/**
-	 * Capabilities of the provider, which may affect how sessions from this provider are surfaced in the UI. The provider is expected to update capabilities and fire `onDidChangeCapabilities` when they change.
-	 */
-	readonly capabilities: ISessionsProviderCapabilities;
-	/**
-	 * Event that fires when capabilities change. Consumers should refresh any UI affected by capabilities when this occurs.
-	 */
-	readonly onDidChangeCapabilities: Event<ISessionsProviderCapabilities>;
-
-	/**
 	 * List of all sessions currently known to the provider. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
 	 */
 	getSessions(): ISession[];
@@ -101,24 +83,33 @@ export interface ISessionsProvider {
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
 	/**
-	 * Resolve a workspace for the given repository URI.
-	 * @param repositoryUri The URI of the repository to resolve the workspace for.
+	 * Whether this provider can resolve and run sessions against local file-system workspaces.
+	 * When `true`, the workspace picker includes a "Local" tab with a built-in
+	 * folder browse action that resolves through this provider.
 	 */
-	resolveWorkspace(repositoryUri: URI): ISessionWorkspace;
+	readonly supportsLocalWorkspaces?: boolean;
 
 	/**
-	 * Create a new session for the given repository URI.
+	 * Resolve a workspace for the given repository URI.
+	 * Returns `undefined` when the provider cannot handle the given URI
+	 * (e.g. wrong scheme or authority).
+	 * @param workspaceUri The URI of the repository to resolve the workspace for.
+	 */
+	resolveWorkspace(workspaceUri: URI): ISessionWorkspace | undefined;
+
+	/**
+	 * Create a new session for the given workspace URI.
 	 * The provider should not add this session to its session list until the first request is sent.
-	 * @param repositoryUri The URI of the repository to create the session for.
+	 * @param workspaceUri The URI of the repository to create the session for.
 	 * @param sessionTypeId The ID of the session type to create.
 	 */
-	createNewSession(repositoryUri: URI, sessionTypeId: string): ISession;
+	createNewSession(workspaceUri: URI, sessionTypeId: string): ISession;
 
 	/**
-	 * Get the session types supported for a given repository URI.
-	 * @param repositoryUri The URI of the repository to get session types for.
+	 * Get the session types supported for a given workspace URI.
+	 * @param workspaceUri The URI of the workspace to get session types for.
 	 */
-	getSessionTypes(repositoryUri: URI): ISessionType[];
+	getSessionTypes(workspaceUri: URI): ISessionType[];
 
 	/**
 	 * Rename a chat within a session.
@@ -134,6 +125,15 @@ export interface ISessionsProvider {
 	 * @param modelId The ID of the model to set for the session.
 	 */
 	setModel(sessionId: string, modelId: string): void;
+
+	/**
+	 * Set (or clear) the selected custom agent for a session. Optional so
+	 * providers that don't expose custom agents can omit it.
+	 * @param sessionId The ID of the session.
+	 * @param agent The agent to select, or `undefined` to clear the selection
+	 *              and use the provider's default behavior.
+	 */
+	setAgent?(sessionId: string, agent: ISessionAgentRef | undefined): void;
 
 	/**
 	 * Archive a session.
