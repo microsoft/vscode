@@ -194,7 +194,10 @@ class AgentHostAgentPickerActionItem extends ChatInputPickerActionViewItem {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const actions: IActionWidgetDropdownAction[] = [makeDefaultAction()];
-				for (const agent of this.delegate.currentAgents()) {
+				const agents = [...this.delegate.currentAgents()].sort((a, b) =>
+					a.name.localeCompare(b.name) || a.uri.localeCompare(b.uri),
+				);
+				for (const agent of agents) {
 					actions.push(makeAgentAction(agent));
 				}
 				return actions;
