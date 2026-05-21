@@ -12,8 +12,7 @@
   "activationEvents": [
     "onLanguage:css",
     "onLanguage:less",
-    "onLanguage:scss",
-    "onCommand:_css.applyCodeAction"
+    "onLanguage:scss"
   ],
   "main": "./client/out/node/cssClientMain",
   "browser": "./client/dist/browser/cssClientMain",
@@ -26,7 +25,7 @@
   "scripts": {
     "compile": "npx gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
     "watch": "npx gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
-    "test": "node ../../node_modules/mocha/bin/mocha",
+    "test": "npm run test --prefix server",
     "install-client-next": "npm install vscode-languageclient@next"
   },
   "categories": [

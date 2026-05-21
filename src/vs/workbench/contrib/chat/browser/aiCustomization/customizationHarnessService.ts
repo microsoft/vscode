@@ -5,64 +5,45 @@
 
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import {
-	CustomizationHarness,
 	CustomizationHarnessServiceBase,
 	ICustomizationHarnessService,
-	IHarnessDescriptor,
-	createCliHarnessDescriptor,
-	createClaudeHarnessDescriptor,
 	createVSCodeHarnessDescriptor,
-	getCliUserRoots,
-	getClaudeUserRoots,
+
 } from '../../common/customizationHarnessService.js';
-import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
+import { SessionType } from '../../common/chatSessionsService.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 /**
  * Core implementation of the customization harness service.
  *
- * When `chat.customizations.providerApi.enabled` is true, only the Local
- * harness is registered statically. All other harnesses are contributed by
- * extensions via the provider API, so the hardcoded CLI/Claude harnesses are
- * intentionally omitted.
- *
- * When the setting is false, the full set of built-in harnesses (Local, Copilot
- * CLI, Claude) is registered for backwards compat.
+ * Only the Local harness is registered statically. All other harnesses
+ * (e.g. Copilot CLI) are contributed by extensions via the provider API.
  */
 class CustomizationHarnessService extends CustomizationHarnessServiceBase {
 	constructor(
-		@IPathService pathService: IPathService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IPromptsService promptsService: IPromptsService,
 	) {
-		// The Local harness includes extension-contributed and built-in customizations.
-		// Built-in items come from the default chat extension (productService.defaultChatAgent).
-		const localExtras = [PromptsStorage.extension, BUILTIN_STORAGE];
-
-		const providerApiEnabled = configurationService.getValue<boolean>(ChatConfiguration.CustomizationsProviderApi);
-
-		let allHarnesses: readonly IHarnessDescriptor[];
-		if (providerApiEnabled) {
-			// When the provider API is enabled, only expose the Local harness.
-			// CLI and Claude harnesses don't consume extension contributions.
-			// Additional harnesses are contributed entirely via the provider API.
-			allHarnesses = [createVSCodeHarnessDescriptor(localExtras)];
-		} else {
-			const userHome = pathService.userHome({ preferLocal: true });
-			const restrictedExtras: readonly string[] = [];
-			allHarnesses = [
-				createVSCodeHarnessDescriptor(localExtras),
-				createCliHarnessDescriptor(getCliUserRoots(userHome), restrictedExtras),
-				createClaudeHarnessDescriptor(getClaudeUserRoots(userHome), restrictedExtras),
-			];
-		}
-
+		const localExtras = [AICustomizationSources.extension, AICustomizationSources.builtin];
 		super(
-			allHarnesses,
-			CustomizationHarness.VSCode,
+			[createVSCodeHarnessDescriptor(localExtras)],
+			SessionType.Local,
+			promptsService,
 		);
+	}
+
+	override getSessionResourceForHarness(sessionType: string): URI {
+		// const lastUsedSession = this.agentSessionsService.model.sessions
+		// 	.filter(session => session.providerType === sessionType)
+		// 	.sort((a, b) => (b.timing.lastRequestEnded ?? b.timing.created) - (a.timing.lastRequestEnded ?? a.timing.created))
+		// 	.at(0);
+
+		// if (lastUsedSession) {
+		// 	return lastUsedSession.resource;
+		// }
+
+		return super.getSessionResourceForHarness(sessionType);
 	}
 }
 

@@ -3,6 +3,7 @@
 npm-debug.log
 Thumbs.db
 node_modules/
+.tmp/
 .build/
 .vscode/extensions/**/out/
 extensions/**/dist/
@@ -23,13 +24,16 @@ vscode.db
 product.overrides.json
 *.snap.actual
 *.tsbuildinfo
+.eslintcache
 .vscode-test
+.chat-simulation-data
 vscode-telemetry-docs/
 test-output.json
 test/componentFixtures/.screenshots/*
 !test/componentFixtures/.screenshots/baseline/
 dist
 .playwright-cli
+.playwright-mcp
 .claude/
 .agents/agents/*.local.md
 .github/agents/*.local.md

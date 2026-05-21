@@ -7,37 +7,39 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IAgentCreateSessionConfig, IAgentDescriptor, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../../common/agentService.js';
-import { IResourceReadResult } from '../../common/state/protocol/commands.js';
-import { ActionType, type ISessionAction } from '../../common/state/sessionActions.js';
-import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
-import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IAhpNotification, type IInitializeResult, type IProtocolMessage, type IReconnectResult, type IResourceListResult, type IResourceWriteParams, type IResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
+import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
+import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
+import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
+import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
+import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
+import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
-import { SessionStateManager } from '../../node/sessionStateManager.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
 class MockProtocolTransport implements IProtocolTransport {
-	private readonly _onMessage = new Emitter<IProtocolMessage>();
+	private readonly _onMessage = new Emitter<ProtocolMessage>();
 	readonly onMessage = this._onMessage.event;
-	private readonly _onDidSend = new Emitter<IProtocolMessage>();
+	private readonly _onDidSend = new Emitter<ProtocolMessage>();
 	readonly onDidSend = this._onDidSend.event;
 	private readonly _onClose = new Emitter<void>();
 	readonly onClose = this._onClose.event;
 
-	readonly sent: IProtocolMessage[] = [];
+	readonly sent: ProtocolMessage[] = [];
 
-	send(message: IProtocolMessage): void {
+	send(message: ProtocolMessage): void {
 		this.sent.push(message);
 		this._onDidSend.fire(message);
 	}
 
-	simulateMessage(msg: IProtocolMessage): void {
+	simulateMessage(msg: ProtocolMessage): void {
 		this._onMessage.fire(msg);
 	}
 
@@ -68,45 +70,64 @@ class MockProtocolServer implements IProtocolServer {
 
 class MockAgentService implements IAgentService {
 	declare readonly _serviceBrand: undefined;
-	readonly handledActions: ISessionAction[] = [];
+	readonly handledActions: (SessionAction | TerminalAction | IRootConfigChangedAction)[] = [];
 	readonly browsedUris: URI[] = [];
 	readonly browseErrors = new Map<string, Error>();
+	readonly listedSessions: IAgentSessionMetadata[] = [];
+	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 
-	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').IActionEnvelope>();
+	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
 	private readonly _onDidNotification = new Emitter<import('../../common/state/sessionActions.js').INotification>();
 	readonly onDidNotification = this._onDidNotification.event;
 
-	private _stateManager!: SessionStateManager;
+	private _stateManager!: AgentHostStateManager;
 
 	/** Connect to the state manager so dispatchAction works correctly. */
-	setStateManager(sm: SessionStateManager): void {
+	setStateManager(sm: AgentHostStateManager): void {
 		this._stateManager = sm;
 	}
 
-	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this.handledActions.push(action);
 		const origin = { clientId, clientSeq };
-		this._stateManager.dispatchClientAction(action, origin);
+		this._stateManager.dispatchClientAction(channel, action, origin);
 	}
-	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return URI.parse('copilot:///new-session'); }
+	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
+		this.createSessionConfigs.push(config);
+		const session = config?.session ?? URI.parse('copilot:///new-session');
+		this._stateManager.createSession({
+			resource: session.toString(),
+			provider: config?.provider ?? 'copilot',
+			title: '',
+			status: SessionStatus.Idle,
+			createdAt: Date.now(),
+			modifiedAt: Date.now(),
+			project: { uri: 'file:///created-project', displayName: 'Created Project' },
+			workingDirectory: config?.workingDirectory?.toString(),
+		});
+		return session;
+	}
+
+	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
+	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }
+	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
+	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async disposeSession(_session: URI): Promise<void> { }
-	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
-	async subscribe(resource: URI): Promise<IStateSnapshot> {
+	async listSessions(): Promise<IAgentSessionMetadata[]> { return this.listedSessions; }
+	async subscribe(resource: URI, _clientId: string): Promise<IStateSnapshot> {
 		const snapshot = this._stateManager.getSnapshot(resource.toString());
 		if (!snapshot) {
 			throw new Error(`Cannot subscribe to unknown resource: ${resource.toString()}`);
 		}
 		return snapshot;
 	}
-	unsubscribe(_resource: URI): void { }
+	addSubscriber(_resource: URI, _clientId: string): void { }
+	unsubscribe(_resource: URI, _clientId: string): void { }
 	async shutdown(): Promise<void> { }
-	async getResourceMetadata(): Promise<IResourceMetadata> { return { resources: [] }; }
-	async authenticate(_params: IAuthenticateParams): Promise<IAuthenticateResult> { return { authenticated: true }; }
-	async refreshModels(): Promise<void> { }
-	async listAgents(): Promise<IAgentDescriptor[]> { return []; }
-	async resourceWrite(_params: IResourceWriteParams): Promise<IResourceWriteResult> { return {}; }
-	async resourceList(uri: URI): Promise<IResourceListResult> {
+	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
+	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
+	async resourceList(uri: URI): Promise<ResourceListResult> {
 		this.browsedUris.push(uri);
 		const error = this.browseErrors.get(uri.toString());
 		if (error) {
@@ -119,12 +140,14 @@ class MockAgentService implements IAgentService {
 			],
 		};
 	}
-	async resourceRead(_uri: URI): Promise<IResourceReadResult> {
+	async resourceRead(_uri: URI): Promise<ResourceReadResult> {
 		throw new Error('Not implemented');
 	}
 	async resourceCopy(): Promise<{}> { return {}; }
 	async resourceDelete(): Promise<{}> { return {}; }
 	async resourceMove(): Promise<{}> { return {}; }
+	async createTerminal(): Promise<void> { }
+	async disposeTerminal(): Promise<void> { }
 
 	dispose(): void {
 		this._onDidAction.dispose();
@@ -134,23 +157,23 @@ class MockAgentService implements IAgentService {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function notification(method: string, params?: unknown): IProtocolMessage {
-	return { jsonrpc: '2.0', method, params } as IProtocolMessage;
+function notification(method: string, params?: unknown): ProtocolMessage {
+	return { jsonrpc: '2.0', method, params } as ProtocolMessage;
 }
 
-function request(id: number, method: string, params?: unknown): IProtocolMessage {
-	return { jsonrpc: '2.0', id, method, params } as IProtocolMessage;
+function request(id: number, method: string, params?: unknown): ProtocolMessage {
+	return { jsonrpc: '2.0', id, method, params } as ProtocolMessage;
 }
 
-function findNotifications(sent: IProtocolMessage[], method: string): IAhpNotification[] {
-	return sent.filter(isJsonRpcNotification) as IAhpNotification[];
+function findNotifications(sent: ProtocolMessage[], method: string): AhpNotification[] {
+	return sent.filter(isJsonRpcNotification) as AhpNotification[];
 }
 
-function findResponse(sent: IProtocolMessage[], id: number): IProtocolMessage | undefined {
-	return sent.find(isJsonRpcResponse) as IProtocolMessage | undefined;
+function findResponse(sent: ProtocolMessage[], id: number): ProtocolMessage | undefined {
+	return sent.find(isJsonRpcResponse) as ProtocolMessage | undefined;
 }
 
-function waitForResponse(transport: MockProtocolTransport, id: number): Promise<IProtocolMessage> {
+function waitForResponse(transport: MockProtocolTransport, id: number): Promise<ProtocolMessage> {
 	return Event.toPromise(Event.filter(transport.onDidSend, message => isJsonRpcResponse(message) && message.id === id));
 }
 
@@ -159,14 +182,14 @@ function waitForResponse(transport: MockProtocolTransport, id: number): Promise<
 suite('ProtocolServerHandler', () => {
 
 	let disposables: DisposableStore;
-	let stateManager: SessionStateManager;
+	let stateManager: AgentHostStateManager;
 	let server: MockProtocolServer;
 	let agentService: MockAgentService;
 	let handler: ProtocolServerHandler;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 
-	function makeSessionSummary(resource?: string): ISessionSummary {
+	function makeSessionSummary(resource?: string): SessionSummary {
 		return {
 			resource: resource ?? sessionUri,
 			provider: 'copilot',
@@ -174,6 +197,7 @@ suite('ProtocolServerHandler', () => {
 			status: SessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
+			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		};
 	}
 
@@ -181,7 +205,7 @@ suite('ProtocolServerHandler', () => {
 		const transport = new MockProtocolTransport();
 		server.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', {
-			protocolVersion: PROTOCOL_VERSION,
+			protocolVersions: [PROTOCOL_VERSION],
 			clientId,
 			initialSubscriptions,
 		}));
@@ -190,7 +214,7 @@ suite('ProtocolServerHandler', () => {
 
 	setup(() => {
 		disposables = new DisposableStore();
-		stateManager = disposables.add(new SessionStateManager(new NullLogService()));
+		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		server = disposables.add(new MockProtocolServer());
 		agentService = new MockAgentService();
 		agentService.setStateManager(stateManager);
@@ -216,9 +240,95 @@ suite('ProtocolServerHandler', () => {
 
 		const resp = findResponse(transport.sent, 1);
 		assert.ok(resp, 'should have sent initialize response');
-		const result = (resp as { result: IInitializeResult }).result;
+		const result = (resp as { result: InitializeResult }).result;
 		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
 		assert.strictEqual(result.serverSeq, stateManager.serverSeq);
+	});
+
+	test('handshake rejects unsupported protocol versions', () => {
+		const transport = new MockProtocolTransport();
+		server.simulateConnection(transport);
+		// Offer a single, deliberately-unsupported version. The server should
+		// respond with -32005 and a message naming the offered/supported sets
+		// instead of a result.
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: ['0.0.0'],
+			clientId: 'client-incompat',
+		}));
+
+		const resp = findResponse(transport.sent, 1) as { error?: { code: number; message: string; data?: unknown } } | undefined;
+		assert.ok(resp, 'should have sent error response');
+		assert.strictEqual(resp.error?.code, AHP_UNSUPPORTED_PROTOCOL_VERSION);
+		assert.match(resp.error!.message, /0\.0\.0/);
+		assert.match(resp.error!.message, new RegExp(PROTOCOL_VERSION.replace(/\./g, '\\.')));
+		// Without the upgrade-socket env var, no _meta should be advertised.
+		const data = resp.error!.data as { _meta?: { vscodeUpgradeMethod?: string } } | undefined;
+		assert.strictEqual(data?._meta?.vscodeUpgradeMethod, undefined);
+
+		transport.simulateClose();
+		transport.dispose();
+	});
+
+	test('handshake leniently picks the highest compatible offered version', () => {
+		// Mix an incompatible version with a compatible one — the server
+		// must pick the compatible one rather than rejecting on the first
+		// unknown entry.
+		const transport = new MockProtocolTransport();
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: ['0.0.0', PROTOCOL_VERSION, '9.9.9'],
+			clientId: 'client-lenient',
+		}));
+
+		const resp = findResponse(transport.sent, 1) as { result?: InitializeResult } | undefined;
+		assert.ok(resp?.result, 'should have negotiated successfully');
+		assert.strictEqual(resp.result.protocolVersion, PROTOCOL_VERSION);
+
+		transport.simulateClose();
+		transport.dispose();
+	});
+
+	test('upgrade method advertised when management socket env var is set', () => {
+		const originalEnv = process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
+		process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET = '/tmp/mock-supervisor.sock';
+		try {
+			const transport = new MockProtocolTransport();
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: ['9.9.9'],
+				clientId: 'client-incompat-with-cli',
+			}));
+
+			const resp = findResponse(transport.sent, 1) as { error?: { code: number; data?: unknown } } | undefined;
+			assert.strictEqual(resp?.error?.code, AHP_UNSUPPORTED_PROTOCOL_VERSION);
+			const data = resp.error!.data as { _meta?: { vscodeUpgradeMethod?: string } } | undefined;
+			assert.strictEqual(data?._meta?.vscodeUpgradeMethod, '_vscodeUpgrade');
+
+			transport.simulateClose();
+			transport.dispose();
+		} finally {
+			if (originalEnv === undefined) {
+				delete process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
+			} else {
+				process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET = originalEnv;
+			}
+		}
+	});
+
+	test('_vscodeUpgrade RPC returns MethodNotFound when no supervisor is available', async () => {
+		const transport = new MockProtocolTransport();
+		server.simulateConnection(transport);
+		// Note: NOT going through initialize first — the upgrade method must
+		// also be callable pre-handshake.
+		const responsePromise = waitForResponse(transport, 42);
+		transport.simulateMessage(request(42, '_vscodeUpgrade', {}));
+
+		const resp = await responsePromise as { error?: { code: number; message: string } };
+		assert.ok(resp.error, 'should have responded with an error');
+		assert.strictEqual(resp.error!.code, -32601 /* MethodNotFound */);
+
+		transport.simulateClose();
+		transport.dispose();
 	});
 
 	test('handshake with initialSubscriptions returns snapshots', () => {
@@ -228,9 +338,33 @@ suite('ProtocolServerHandler', () => {
 
 		const resp = findResponse(transport.sent, 1);
 		assert.ok(resp);
-		const result = (resp as { result: IInitializeResult }).result;
+		const result = (resp as { result: InitializeResult }).result;
 		assert.strictEqual(result.snapshots.length, 1);
 		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
+	});
+
+	test('ping responds before initialize', async () => {
+		const transport = new MockProtocolTransport();
+		disposables.add(transport);
+		server.simulateConnection(transport);
+		const responsePromise = waitForResponse(transport, 7);
+		transport.simulateMessage(request(7, 'ping', {}));
+		const resp = await responsePromise as { id: number; result: null };
+
+		assert.strictEqual(resp.id, 7);
+		assert.strictEqual(resp.result, null);
+		transport.simulateClose();
+	});
+
+	test('ping responds after initialize', async () => {
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 9);
+		transport.simulateMessage(request(9, 'ping', {}));
+		const resp = await responsePromise as { id: number; result: null };
+
+		assert.strictEqual(resp.id, 9);
+		assert.strictEqual(resp.result, null);
 	});
 
 	test('subscribe request returns snapshot', async () => {
@@ -240,7 +374,7 @@ suite('ProtocolServerHandler', () => {
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 1);
 
-		transport.simulateMessage(request(1, 'subscribe', { resource: sessionUri }));
+		transport.simulateMessage(request(1, 'subscribe', { channel: sessionUri }));
 		const resp = await responsePromise;
 
 		assert.ok(resp, 'should have sent response');
@@ -250,16 +384,16 @@ suite('ProtocolServerHandler', () => {
 
 	test('client action is dispatched and echoed', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
 		const transport = connectClient('client-1', [sessionUri]);
 		transport.sent.length = 0;
 
 		transport.simulateMessage(notification('dispatchAction', {
+			channel: sessionUri,
 			clientSeq: 1,
 			action: {
 				type: ActionType.SessionTurnStarted,
-				session: sessionUri,
 				turnId: 'turn-1',
 				userMessage: { text: 'hello' },
 			},
@@ -278,7 +412,7 @@ suite('ProtocolServerHandler', () => {
 
 	test('actions are scoped to subscribed sessions', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
 		const transportA = connectClient('client-a', [sessionUri]);
 		const transportB = connectClient('client-b');
@@ -286,14 +420,68 @@ suite('ProtocolServerHandler', () => {
 		transportA.sent.length = 0;
 		transportB.sent.length = 0;
 
-		stateManager.dispatchServerAction({
+		stateManager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionTitleChanged,
-			session: sessionUri,
 			title: 'New Title',
 		});
 
 		assert.strictEqual(findNotifications(transportA.sent, 'action').length, 1);
 		assert.strictEqual(findNotifications(transportB.sent, 'action').length, 0);
+	});
+
+	test('changeset actions are scoped to subscribed changeset URIs', () => {
+		const changesetUri = `${sessionUri}/changeset/session`;
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+		stateManager.registerChangeset(changesetUri);
+
+		const transportA = connectClient('client-a-cs', [changesetUri]);
+		// Session-only subscriber: must NOT receive changeset envelopes.
+		const transportB = connectClient('client-b-cs', [sessionUri]);
+
+		transportA.sent.length = 0;
+		transportB.sent.length = 0;
+
+		stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetFileSet,
+			file: {
+				id: 'file:///test/changed.ts',
+				edit: {
+					after: { uri: 'file:///test/changed.ts', content: { uri: 'file:///test/changed.ts' } },
+					diff: { added: 1, removed: 0 }
+				}
+			},
+		});
+
+		const aActions = findNotifications(transportA.sent, 'action');
+		const bActions = findNotifications(transportB.sent, 'action');
+		assert.strictEqual(aActions.length, 1, 'changeset subscriber should receive 1 envelope');
+		assert.strictEqual(bActions.length, 0, 'session-only subscriber should receive 0 changeset envelopes');
+
+		const params = aActions[0].params as { channel: string; action: { type: string } };
+		assert.deepStrictEqual(
+			{ type: params.action.type, channel: params.channel },
+			{ type: ActionType.ChangesetFileSet, channel: changesetUri },
+		);
+	});
+
+	test('changeset/cleared reaches changeset subscribers', () => {
+		const changesetUri = `${sessionUri}/changeset/session`;
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+		stateManager.registerChangeset(changesetUri);
+
+		const transport = connectClient('client-clear', [changesetUri]);
+		transport.sent.length = 0;
+
+		stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetCleared,
+		});
+
+		const actions = findNotifications(transport.sent, 'action');
+		assert.strictEqual(actions.length, 1);
+		const params = actions[0].params as { action: { type: string } };
+		assert.strictEqual(params.action.type, ActionType.ChangesetCleared);
 	});
 
 	test('notifications are broadcast to all clients', () => {
@@ -305,79 +493,539 @@ suite('ProtocolServerHandler', () => {
 
 		stateManager.createSession(makeSessionSummary());
 
-		assert.strictEqual(findNotifications(transportA.sent, 'notification').length, 1);
-		assert.strictEqual(findNotifications(transportB.sent, 'notification').length, 1);
+		assert.strictEqual(findNotifications(transportA.sent, 'root/sessionAdded').length, 1);
+		assert.strictEqual(findNotifications(transportB.sent, 'root/sessionAdded').length, 1);
 	});
 
-	test('reconnect replays missed actions', () => {
+	test('listSessions includes project metadata', async () => {
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			project: { uri: URI.file('/workspace/project'), displayName: 'Project' },
+			summary: 'Session Summary',
+		});
+
+		const transport = connectClient('client-list');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'listSessions'));
+		const resp = await responsePromise;
+
+		const result = (resp as unknown as { result: ListSessionsResult }).result;
+		assert.deepStrictEqual(result.items.map(item => item.project), [{ uri: URI.file('/workspace/project').toString(), displayName: 'Project' }]);
+	});
+
+	test('listSessions omits project metadata when absent', async () => {
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Session Summary',
+		});
+
+		const transport = connectClient('client-list-no-project');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'listSessions'));
+		const resp = await responsePromise;
+
+		const result = (resp as unknown as { result: ListSessionsResult }).result;
+		assert.deepStrictEqual(result.items.map(item => item.project), [undefined]);
+	});
+
+	test('listSessions surfaces the changeset catalogue from the agent', async () => {
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Session With Changesets',
+			changesets: [
+				{
+					label: 'Branch Changes',
+					uriTemplate: `${sessionUri}/changeset/session`,
+					additions: 5,
+					deletions: 2,
+					files: 3,
+				},
+			],
+		});
+
+		const transport = connectClient('client-list-changesets');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'listSessions'));
+		const resp = await responsePromise;
+
+		const result = (resp as unknown as { result: ListSessionsResult }).result;
+		assert.deepStrictEqual(result.items[0].changesets, [
+			{
+				label: 'Branch Changes',
+				uriTemplate: `${sessionUri}/changeset/session`,
+				additions: 5,
+				deletions: 2,
+				files: 3,
+			},
+		]);
+	});
+
+	test('createSession returns null and broadcasts project in sessionAdded summary', async () => {
+		const transport = connectClient('client-create');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		const newSession = URI.parse('copilot:///created-session').toString();
+		transport.simulateMessage(request(2, 'createSession', { channel: newSession }));
+		const resp = await responsePromise;
+
+		const added = findNotifications(transport.sent, 'root/sessionAdded')[0];
+		assert.deepStrictEqual({
+			result: (resp as { result: null }).result,
+			project: (added!.params as SessionAddedParams).summary.project,
+		}, {
+			result: null,
+			project: { uri: 'file:///created-project', displayName: 'Created Project' },
+		});
+	});
+
+	test('reconnect replays missed actions', async () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
 		const transport1 = connectClient('client-r', [sessionUri]);
 		const resp = findResponse(transport1.sent, 1);
-		const initSeq = (resp as { result: IInitializeResult }).result.serverSeq;
+		const initSeq = (resp as { result: InitializeResult }).result.serverSeq;
 		transport1.simulateClose();
 
-		stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Title A' });
-		stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Title B' });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Title A' });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Title B' });
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
 		transport2.simulateMessage(request(1, 'reconnect', {
 			clientId: 'client-r',
 			lastSeenServerSeq: initSeq,
 			subscriptions: [sessionUri],
 		}));
 
-		const reconnectResp = findResponse(transport2.sent, 1);
-		assert.ok(reconnectResp, 'should have sent reconnect response');
-		const result = (reconnectResp as { result: IReconnectResult }).result;
+		const reconnectResp = await reconnectRespPromise;
+		const result = (reconnectResp as { result: ReconnectResult }).result;
 		assert.strictEqual(result.type, 'replay');
 		if (result.type === 'replay') {
 			assert.strictEqual(result.actions.length, 2);
 		}
 	});
 
-	test('reconnect sends fresh snapshots when gap too large', () => {
+	test('reconnect replays missed changeset actions to changeset subscribers', async () => {
+		const changesetUri = `${sessionUri}/changeset/session`;
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+		// Register the changeset before the first connection so the initial
+		// subscription succeeds.
+		stateManager.registerChangeset(changesetUri);
+
+		const transport1 = connectClient('client-rc', [changesetUri]);
+		const resp = findResponse(transport1.sent, 1);
+		const initSeq = (resp as { result: InitializeResult }).result.serverSeq;
+		transport1.simulateClose();
+
+		// Dispatch two changeset actions while client is disconnected.
+		stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetFileSet,
+			file: {
+				id: 'file:///a.ts',
+				edit: {
+					after: { uri: 'file:///a.ts', content: { uri: 'file:///a.ts' } },
+					diff: { added: 2, removed: 0 }
+				}
+			},
+		});
+		stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetStatusChanged,
+			status: ChangesetStatus.Ready,
+		});
+
+		// Reconnect with same clientId and the changeset URI in subscriptions.
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-rc',
+			lastSeenServerSeq: initSeq,
+			subscriptions: [changesetUri],
+		}));
+
+		const reconnectResp = await reconnectRespPromise;
+		const result = (reconnectResp as { result: ReconnectResult }).result;
+		assert.strictEqual(result.type, 'replay');
+		if (result.type === 'replay') {
+			const replayedTypes = result.actions.map(e => e.action.type);
+			assert.ok(replayedTypes.includes(ActionType.ChangesetFileSet), 'replay should include ChangesetFileSet');
+			assert.ok(replayedTypes.includes(ActionType.ChangesetStatusChanged), 'replay should include ChangesetStatusChanged');
+		}
+	});
+
+	test('reconnect sends fresh snapshots when gap too large', async () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
 		const transport1 = connectClient('client-g', [sessionUri]);
 		transport1.simulateClose();
 
 		for (let i = 0; i < 1100; i++) {
-			stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: `Title ${i}` });
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: `Title ${i}` });
 		}
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
 		transport2.simulateMessage(request(1, 'reconnect', {
 			clientId: 'client-g',
 			lastSeenServerSeq: 0,
 			subscriptions: [sessionUri],
 		}));
 
-		const reconnectResp = findResponse(transport2.sent, 1);
-		assert.ok(reconnectResp, 'should have sent reconnect response');
-		const result = (reconnectResp as { result: IReconnectResult }).result;
+		const reconnectResp = await reconnectRespPromise;
+		const result = (reconnectResp as { result: ReconnectResult }).result;
 		assert.strictEqual(result.type, 'snapshot');
 		if (result.type === 'snapshot') {
 			assert.ok(result.snapshots.length > 0, 'should contain snapshots');
 		}
 	});
 
+	test('reconnect rehydrates server-side state that was evicted while disconnected', async () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+
+		// MockAgentService.subscribe normally just returns the existing snapshot.
+		// Override it so a missing session is restored on subscribe — this is the
+		// behavior the real AgentService provides and that reconnect now relies on.
+		const subscribeCalls: string[] = [];
+		agentService.subscribe = async (resource, _clientId) => {
+			subscribeCalls.push(resource.toString());
+			let snapshot = stateManager.getSnapshot(resource.toString());
+			if (!snapshot) {
+				stateManager.restoreSession(makeSessionSummary(), []);
+				snapshot = stateManager.getSnapshot(resource.toString())!;
+			}
+			return snapshot;
+		};
+
+		const transport1 = connectClient('client-e', [sessionUri]);
+		const initResp = findResponse(transport1.sent, 1);
+		const initSeq = (initResp as { result: InitializeResult }).result.serverSeq;
+		transport1.simulateClose();
+
+		// Simulate the AgentService evicting the idle session while the client
+		// was disconnected (this is what `_maybeEvictIdleSession` does in the
+		// real service).
+		stateManager.removeSession(sessionUri);
+		assert.strictEqual(stateManager.getSnapshot(sessionUri), undefined, 'precondition: state evicted');
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-e',
+			lastSeenServerSeq: initSeq,
+			subscriptions: [sessionUri],
+		}));
+
+		await reconnectRespPromise;
+		assert.deepStrictEqual(subscribeCalls, [sessionUri], 'reconnect should call subscribe to restore evicted state');
+		assert.ok(stateManager.getSnapshot(sessionUri), 'state should have been re-hydrated by reconnect');
+	});
+
 	test('client disconnect cleans up', () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
 		const transport = connectClient('client-d', [sessionUri]);
 		transport.sent.length = 0;
 
 		transport.simulateClose();
 
-		stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'After Disconnect' });
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'After Disconnect' });
 
 		assert.strictEqual(transport.sent.length, 0);
+	});
+
+	test('client disconnect clears active client and fails owned tool calls after grace period', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientChanged,
+				activeClient: {
+					clientId: 'client-tools',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionTurnStarted,
+				turnId: 'turn-1',
+				userMessage: { text: 'run it' },
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				toolClientId: 'client-tools',
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			const transport = connectClient('client-tools', [sessionUri]);
+			transport.simulateClose();
+
+			assert.strictEqual(stateManager.getSessionState(sessionUri)?.activeClient, undefined);
+			let part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind, ResponsePartKind.ToolCall);
+			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Running);
+
+			await new Promise(r => setTimeout(r, 30_001));
+
+			part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind, ResponsePartKind.ToolCall);
+			assert.deepStrictEqual(part?.kind === ResponsePartKind.ToolCall ? {
+				status: part.toolCall.status,
+				success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
+				error: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.error?.message : undefined,
+			} : undefined, {
+				status: ToolCallStatus.Completed,
+				success: false,
+				error: 'Client client-tools disconnected before completing Run Task',
+			});
+		});
+	});
+
+	test('client disconnect fails owned streaming tool calls after grace period', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientChanged,
+				activeClient: {
+					clientId: 'client-tools',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionTurnStarted,
+				turnId: 'turn-1',
+				userMessage: { text: 'run it' },
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				toolClientId: 'client-tools',
+			});
+
+			const transport = connectClient('client-tools', [sessionUri]);
+			transport.simulateClose();
+
+			let part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind, ResponsePartKind.ToolCall);
+			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Streaming);
+
+			await new Promise(r => setTimeout(r, 30_001));
+
+			part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind, ResponsePartKind.ToolCall);
+			assert.deepStrictEqual(part?.kind === ResponsePartKind.ToolCall ? {
+				status: part.toolCall.status,
+				success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
+				error: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.error?.message : undefined,
+			} : undefined, {
+				status: ToolCallStatus.Completed,
+				success: false,
+				error: 'Client client-tools disconnected before completing Run Task',
+			});
+		});
+	});
+
+	test('client reconnect without session subscription does not clear tool call disconnect timeout', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientChanged,
+				activeClient: {
+					clientId: 'client-tools',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionTurnStarted,
+				turnId: 'turn-1',
+				userMessage: { text: 'run it' },
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				toolClientId: 'client-tools',
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			const transport = connectClient('client-tools', [sessionUri]);
+			transport.simulateClose();
+
+			const reconnectTransport = new MockProtocolTransport();
+			server.simulateConnection(reconnectTransport);
+			reconnectTransport.simulateMessage(request(1, 'reconnect', {
+				clientId: 'client-tools',
+				lastSeenServerSeq: stateManager.serverSeq,
+				subscriptions: [],
+			}));
+
+			await new Promise(r => setTimeout(r, 30_001));
+
+			const part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind, ResponsePartKind.ToolCall);
+			assert.deepStrictEqual(part?.kind === ResponsePartKind.ToolCall ? {
+				status: part.toolCall.status,
+				success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
+			} : undefined, {
+				status: ToolCallStatus.Completed,
+				success: false,
+			});
+		});
+	});
+
+	test('client reconnect with session subscription clears tool call disconnect timeout for that session', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientChanged,
+				activeClient: {
+					clientId: 'client-tools',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionTurnStarted,
+				turnId: 'turn-1',
+				userMessage: { text: 'run it' },
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				toolClientId: 'client-tools',
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			const transport = connectClient('client-tools', [sessionUri]);
+			transport.simulateClose();
+
+			const reconnectTransport = new MockProtocolTransport();
+			server.simulateConnection(reconnectTransport);
+			reconnectTransport.simulateMessage(request(1, 'reconnect', {
+				clientId: 'client-tools',
+				lastSeenServerSeq: stateManager.serverSeq,
+				subscriptions: [sessionUri],
+			}));
+
+			await new Promise(r => setTimeout(r, 30_001));
+
+			const part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind, ResponsePartKind.ToolCall);
+			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Running);
+		});
+	});
+
+	test('client tool timeout tells model it may retry when replacement active client provides the tool', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientChanged,
+				activeClient: {
+					clientId: 'client-tools',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionTurnStarted,
+				turnId: 'turn-1',
+				userMessage: { text: 'run it' },
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				toolClientId: 'client-tools',
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			const transport = connectClient('client-tools', [sessionUri]);
+			transport.simulateClose();
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientChanged,
+				activeClient: {
+					clientId: 'client-replacement',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+
+			await new Promise(r => setTimeout(r, 30_001));
+
+			const part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind, ResponsePartKind.ToolCall);
+			assert.deepStrictEqual(part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? {
+				status: part.toolCall.status,
+				success: part.toolCall.success,
+				content: part.toolCall.content,
+			} : undefined, {
+				status: ToolCallStatus.Completed,
+				success: false,
+				content: [{ type: ToolResultContentType.Text, text: 'The client that was running Run Task disconnected, but another active client now provides Run Task. You may try calling the tool again.' }],
+			});
+		});
 	});
 
 	test('handshake includes defaultDirectory from side effects', () => {
@@ -385,7 +1033,7 @@ suite('ProtocolServerHandler', () => {
 
 		const resp = findResponse(transport.sent, 1);
 		assert.ok(resp);
-		const result = (resp as { result: IInitializeResult }).result;
+		const result = (resp as { result: InitializeResult }).result;
 		assert.strictEqual(URI.parse(result.defaultDirectory!).path, '/home/testuser');
 	});
 
@@ -427,28 +1075,16 @@ suite('ProtocolServerHandler', () => {
 
 	// ---- Extension methods: auth ----------------------------------------
 
-	test('getResourceMetadata returns resource metadata via extension request', async () => {
-		const transport = connectClient('client-metadata');
-		transport.sent.length = 0;
-
-		const responsePromise = waitForResponse(transport, 2);
-		transport.simulateMessage(request(2, 'getResourceMetadata'));
-		const resp = await responsePromise as { result?: { resources: unknown[] } };
-
-		assert.ok(resp?.result);
-		assert.ok(Array.isArray(resp.result!.resources));
-	});
-
-	test('authenticate returns result via extension request', async () => {
+	test('authenticate returns result via typed request', async () => {
 		const transport = connectClient('client-auth');
 		transport.sent.length = 0;
 
 		const responsePromise = waitForResponse(transport, 2);
 		transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
-		const resp = await responsePromise as { result?: { authenticated: boolean } };
+		const resp = await responsePromise as { result?: Record<string, unknown>; error?: { code: number; message: string } };
 
-		assert.ok(resp?.result);
-		assert.strictEqual(resp.result!.authenticated, true);
+		assert.ok(!resp.error, `unexpected error: ${resp.error?.message}`);
+		assert.deepStrictEqual(resp.result, {});
 	});
 
 	test('extension request preserves ProtocolError code and data', async () => {
@@ -510,5 +1146,63 @@ suite('ProtocolServerHandler', () => {
 		// New transport closes - should decrement
 		transport2.simulateClose();
 		assert.deepStrictEqual(counts, [1, 1, 0]);
+	});
+
+	// ---- createSession activeClient -------------------------------------
+
+	suite('createSession activeClient', () => {
+
+		test('forwards activeClient to the agent service', async () => {
+			const newSession = URI.parse('copilot:///eager-session').toString();
+
+			const transport = connectClient('client-1');
+			transport.sent.length = 0;
+
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createSession', {
+				session: newSession,
+				provider: 'copilot',
+				activeClient: {
+					clientId: 'client-1',
+					tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
+					customizations: [{ uri: 'file:///plugin-a', displayName: 'A' }],
+				},
+			}));
+			const resp = await responsePromise as { result?: unknown; error?: unknown };
+
+			assert.strictEqual(resp.error, undefined, 'createSession should succeed');
+			const config = agentService.createSessionConfigs.at(-1);
+			assert.deepStrictEqual({
+				clientId: config?.activeClient?.clientId,
+				toolName: config?.activeClient?.tools[0]?.name,
+				customizationUri: config?.activeClient?.customizations?.[0].uri,
+			}, {
+				clientId: 'client-1',
+				toolName: 't1',
+				customizationUri: 'file:///plugin-a',
+			});
+		});
+
+		test('rejects createSession when activeClient.clientId mismatches', async () => {
+			const newSession = URI.parse('copilot:///mismatch-session').toString();
+
+			const transport = connectClient('client-1');
+			transport.sent.length = 0;
+
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createSession', {
+				session: newSession,
+				provider: 'copilot',
+				activeClient: {
+					clientId: 'other-client',
+					tools: [],
+				},
+			}));
+			const resp = await responsePromise as { result?: unknown; error?: { code: number; message: string } };
+
+			assert.ok(resp.error, 'response should be an error');
+			assert.strictEqual(resp.result, undefined);
+			assert.strictEqual(agentService.createSessionConfigs.length, 0, 'agent service should not have been called');
+		});
 	});
 });

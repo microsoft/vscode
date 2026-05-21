@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
+import { type AICustomizationSource, AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
 
 /**
  * Icon for the AI Customization view container (sidebar).
  */
-export const aiCustomizationViewIcon = registerIcon('ai-customization-view-icon', Codicon.sparkle, localize('aiCustomizationViewIcon', "Icon for the Chat Customization view."));
+export const aiCustomizationViewIcon = registerIcon('ai-customization-view-icon', Codicon.sparkle, localize('aiCustomizationViewIcon', "Icon for the Agent Customization view."));
 
 /**
  * Icon for custom agents.
@@ -76,3 +78,17 @@ export const builtinIcon = registerIcon('ai-customization-builtin', Codicon.star
  * Icon for MCP servers.
  */
 export const mcpServerIcon = registerIcon('ai-customization-mcp-server', Codicon.server, localize('aiCustomizationMcpServerIcon', "Icon for MCP servers."));
+
+/**
+ * Returns the icon for a given storage type.
+ */
+export function sourceToIcon(source: AICustomizationSource): ThemeIcon {
+	switch (source) {
+		case AICustomizationSources.local: return workspaceIcon;
+		case AICustomizationSources.user: return userIcon;
+		case AICustomizationSources.extension: return extensionIcon;
+		case AICustomizationSources.plugin: return pluginIcon;
+		case AICustomizationSources.builtin: return builtinIcon;
+		default: return instructionsIcon;
+	}
+}

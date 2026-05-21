@@ -274,7 +274,7 @@ export class CIStatusWidget extends Disposable {
 				},
 			},
 		));
-		this._bodyNode.appendChild(this._list.getHTMLElement());
+		this._bodyNode.appendChild(listContainer);
 	}
 
 	setInput(input: ChecksViewModel): IDisposable {

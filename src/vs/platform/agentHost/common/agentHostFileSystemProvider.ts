@@ -11,7 +11,10 @@ import { URI } from '../../../base/common/uri.js';
 import { createFileSystemProviderError, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileWriteOptions, IStat } from '../../files/common/files.js';
 import { fromAgentHostUri, toAgentHostUri } from './agentHostUri.js';
 import { type IAgentConnection } from './agentService.js';
-import { ContentEncoding, type IDirectoryEntry, type IResourceDeleteParams, type IResourceDeleteResult, type IResourceListResult, type IResourceMoveParams, type IResourceMoveResult, type IResourceReadResult, type IResourceWriteParams, type IResourceWriteResult } from './state/protocol/commands.js';
+import { ContentEncoding, type DirectoryEntry, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
+import { AhpErrorCodes } from './state/protocol/errors.js';
+import { ProtocolError } from './state/sessionProtocol.js';
+import { ROOT_STATE_URI } from './state/sessionState.js';
 
 /**
  * Interface for performing resource operations on a remote endpoint.
@@ -20,11 +23,17 @@ import { ContentEncoding, type IDirectoryEntry, type IResourceDeleteParams, type
  * filesystems (server→client) satisfy this contract.
  */
 export interface IRemoteFilesystemConnection {
-	resourceList(uri: URI): Promise<IResourceListResult>;
-	resourceRead(uri: URI): Promise<IResourceReadResult>;
-	resourceWrite(params: IResourceWriteParams): Promise<IResourceWriteResult>;
-	resourceDelete(params: IResourceDeleteParams): Promise<IResourceDeleteResult>;
-	resourceMove(params: IResourceMoveParams): Promise<IResourceMoveResult>;
+	resourceList(uri: URI): Promise<ResourceListResult>;
+	resourceRead(uri: URI): Promise<ResourceReadResult>;
+	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;
+	resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult>;
+	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult>;
+	/**
+	 * Negotiate access to a resource the receiver mediates. Optional because
+	 * not every connection in the codebase carries one — only the agent-host
+	 * server-to-client direction needs to send `resourceRequest` today.
+	 */
+	resourceRequest?(params: ResourceRequestParams): Promise<ResourceRequestResult>;
 }
 
 /**
@@ -91,7 +100,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			return { type: FileType.Directory, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
 		const decoded = this._decodeUri(resource);
-		if (decoded.scheme === 'session-db') {
+		if (decoded.scheme === 'session-db' || decoded.scheme === 'git-blob') {
 			return { type: FileType.File, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
 
@@ -132,10 +141,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			}
 			return VSBuffer.fromString(result.data).buffer;
 		} catch (err) {
-			throw createFileSystemProviderError(
-				err instanceof Error ? err.message : String(err),
-				FileSystemProviderErrorCode.FileNotFound,
-			);
+			throw this._mapError(err, FileSystemProviderErrorCode.FileNotFound);
 		}
 	}
 
@@ -144,15 +150,13 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		try {
 			const originalUri = this._decodeUri(resource);
 			await connection.resourceWrite({
+				channel: ROOT_STATE_URI,
 				uri: originalUri.toString(),
 				data: VSBuffer.wrap(content).toString(),
 				encoding: ContentEncoding.Utf8,
 			});
 		} catch (err) {
-			throw createFileSystemProviderError(
-				err instanceof Error ? err.message : String(err),
-				FileSystemProviderErrorCode.NoPermissions,
-			);
+			throw this._mapError(err, FileSystemProviderErrorCode.NoPermissions);
 		}
 	}
 
@@ -164,12 +168,9 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		const connection = this._getConnection(resource.authority);
 		try {
 			const originalUri = this._decodeUri(resource);
-			await connection.resourceDelete({ uri: originalUri.toString(), recursive: opts.recursive });
+			await connection.resourceDelete({ channel: ROOT_STATE_URI, uri: originalUri.toString(), recursive: opts.recursive });
 		} catch (err) {
-			throw createFileSystemProviderError(
-				err instanceof Error ? err.message : String(err),
-				FileSystemProviderErrorCode.NoPermissions,
-			);
+			throw this._mapError(err, FileSystemProviderErrorCode.NoPermissions);
 		}
 	}
 
@@ -178,12 +179,38 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		try {
 			const originalFrom = this._decodeUri(from);
 			const originalTo = this._decodeUri(to);
-			await connection.resourceMove({ source: originalFrom.toString(), destination: originalTo.toString(), failIfExists: !opts.overwrite });
+			await connection.resourceMove({ channel: ROOT_STATE_URI, source: originalFrom.toString(), destination: originalTo.toString(), failIfExists: !opts.overwrite });
 		} catch (err) {
+			throw this._mapError(err, FileSystemProviderErrorCode.NoPermissions);
+		}
+	}
+
+	/**
+	 * Negotiate access to {@link resource} with the receiver, asking for the
+	 * granted modes in {@link opts}. Used after a `NoPermissions` failure to
+	 * prompt the receiver to grant access; the caller can then retry.
+	 *
+	 * Resolves on success. Rejects if the receiver denies, the connection
+	 * is missing, or the connection doesn't implement `resourceRequest`.
+	 */
+	async requestResourceAccess(resource: URI, opts: { readonly read?: boolean; readonly write?: boolean }): Promise<void> {
+		const connection = this._getConnection(resource.authority);
+		if (!connection.resourceRequest) {
 			throw createFileSystemProviderError(
-				err instanceof Error ? err.message : String(err),
-				FileSystemProviderErrorCode.NoPermissions,
+				`Connection for ${resource.authority} does not support resourceRequest`,
+				FileSystemProviderErrorCode.Unavailable,
 			);
+		}
+		const originalUri = this._decodeUri(resource);
+		try {
+			await connection.resourceRequest({
+				channel: ROOT_STATE_URI,
+				uri: originalUri.toString(),
+				read: opts.read,
+				write: opts.write,
+			});
+		} catch (err) {
+			throw this._mapError(err, FileSystemProviderErrorCode.NoPermissions);
 		}
 	}
 
@@ -197,17 +224,31 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		return connection;
 	}
 
-	private async _listDirectory(authority: string, resource: URI): Promise<readonly IDirectoryEntry[]> {
+	/**
+	 * Translate a thrown error from a {@link IRemoteFilesystemConnection}
+	 * into a {@link FileSystemProviderError}. Preserves `PermissionDenied`
+	 * (-32009) as `NoPermissions` so callers can distinguish a
+	 * permission failure from `NotFound` and decide whether to negotiate
+	 * via {@link requestResourceAccess}.
+	 */
+	private _mapError(err: unknown, defaultCode: FileSystemProviderErrorCode): Error {
+		if (err instanceof ProtocolError && err.code === AhpErrorCodes.PermissionDenied) {
+			return createFileSystemProviderError(err.message, FileSystemProviderErrorCode.NoPermissions);
+		}
+		return createFileSystemProviderError(
+			err instanceof Error ? err.message : String(err),
+			defaultCode,
+		);
+	}
+
+	private async _listDirectory(authority: string, resource: URI): Promise<readonly DirectoryEntry[]> {
 		const connection = this._getConnection(authority);
 		try {
 			const originalUri = this._decodeUri(resource);
 			const result = await connection.resourceList(originalUri);
 			return result.entries;
 		} catch (err) {
-			throw createFileSystemProviderError(
-				err instanceof Error ? err.message : String(err),
-				FileSystemProviderErrorCode.Unavailable,
-			);
+			throw this._mapError(err, FileSystemProviderErrorCode.Unavailable);
 		}
 	}
 }

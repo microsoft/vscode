@@ -20,7 +20,6 @@ export class MockChatService implements IChatService {
 	_serviceBrand: undefined;
 	editingSessions = [];
 	transferredSessionResource = undefined;
-	whenSessionsRevived = Promise.resolve();
 	readonly onDidSubmitRequest = Event.None;
 
 	private readonly _onDidCreateModel = new Emitter<IChatModel>();
@@ -193,6 +192,6 @@ export class MockChatService implements IChatService {
 	}
 
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
-		throw new Error('Method not implemented.');
+		return Promise.resolve(this.liveSessionItems.find(item => item.sessionResource.toString() === sessionResource.toString()));
 	}
 }

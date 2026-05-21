@@ -9,7 +9,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IAICustomizationWorkspaceService, applyStorageSourceFilter, IStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, IStorageSourceFilter, applyStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IPromptsService, PromptsStorage, IPromptPath } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
@@ -19,7 +19,6 @@ const PROMPT_SECTIONS: { section: AICustomizationManagementSection; type: Prompt
 	{ section: AICustomizationManagementSection.Agents, type: PromptsType.agent },
 	{ section: AICustomizationManagementSection.Skills, type: PromptsType.skill },
 	{ section: AICustomizationManagementSection.Instructions, type: PromptsType.instructions },
-	{ section: AICustomizationManagementSection.Prompts, type: PromptsType.prompt },
 	{ section: AICustomizationManagementSection.Hooks, type: PromptsType.hook },
 ];
 
