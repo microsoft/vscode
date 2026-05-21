@@ -7,13 +7,9 @@ import * as stream from 'stream';
 import * as undici from 'undici';
 import { Lazy } from '../../../util/vs/base/common/lazy';
 import { IEnvService } from '../../env/common/envService';
-import { FetchOptions, HeadersImpl, IHeaders, ReportFetchEvent, WebSocketConnection, WebSocketConnectOptions } from '../common/fetcherService';
-import { BaseFetchFetcher } from './baseFetchFetcher';
+import { HeadersImpl, IHeaders, ReportFetchEvent, WebSocketConnection, WebSocketConnectOptions } from '../common/fetcherService';
+import { BaseFetchFetcher, FetchImpl } from './baseFetchFetcher';
 import { taggedCacheInterceptor } from './taggedCacheInterceptor';
-
-const CACHE_PATCH_MARKER = '__copilotCachePatch';
-
-type RequestInitWithCachePatchMarker = RequestInit & { [CACHE_PATCH_MARKER]?: true };
 
 type CacheInterceptorOptions = NonNullable<Parameters<typeof undici.interceptors.cache>[0]>;
 type CacheStore = NonNullable<CacheInterceptorOptions['store']>;
@@ -33,8 +29,6 @@ export class NodeFetchFetcher extends BaseFetchFetcher {
 
 	static readonly ID = 'node-fetch' as const;
 
-	private readonly _cacheEnabled: boolean;
-
 	constructor(
 		envService: IEnvService,
 		reportEvent: ReportFetchEvent = () => { },
@@ -47,7 +41,6 @@ export class NodeFetchFetcher extends BaseFetchFetcher {
 		const factory = (globalThis as any).__vscodeCreateFetchPatch as FetchPatchFactory | undefined;
 		const interceptor = cacheOptions.mode !== 'off' && factory ? createCacheInterceptor(cacheOptions) : undefined;
 		super(getFetch(interceptor, factory), envService, NodeFetchFetcher.ID, reportEvent, userAgentLibraryUpdate);
-		this._cacheEnabled = !!interceptor;
 	}
 
 	getUserAgentLibrary(): string {
@@ -60,20 +53,6 @@ export class NodeFetchFetcher extends BaseFetchFetcher {
 	isFetcherError(e: any): boolean {
 		const code = e?.code || e?.cause?.code;
 		return code && ['EADDRINUSE', 'ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EPIPE', 'ETIMEDOUT'].includes(code);
-	}
-
-	protected override _buildRequestInit(
-		method: 'GET' | 'POST' | 'PUT' | 'DELETE',
-		headers: { [name: string]: string },
-		body: string | undefined,
-		signal: AbortSignal,
-		options: FetchOptions,
-	): RequestInit {
-		const init: RequestInitWithCachePatchMarker = { method, headers, body, signal };
-		if (options.cache && this._cacheEnabled) {
-			init[CACHE_PATCH_MARKER] = true;
-		}
-		return init;
 	}
 }
 
@@ -106,22 +85,15 @@ function createCacheStore(options: NodeFetchCacheOptions): CacheStore | undefine
 	return new MemoryCacheStore({ maxCount: 1000, maxEntrySize: 5 * 1024 * 1024 });
 }
 
-function getFetch(cacheInterceptor: undici.Dispatcher.DispatcherComposeInterceptor | undefined, createFetchPatch: FetchPatchFactory | undefined): typeof globalThis.fetch {
+function getFetch(cacheInterceptor: undici.Dispatcher.DispatcherComposeInterceptor | undefined, createFetchPatch: FetchPatchFactory | undefined): FetchImpl {
 	const defaultFetch = (globalThis as any).__vscodePatchedFetch || globalThis.fetch;
 	const cachedFetch = cacheInterceptor && createFetchPatch ? createFetchPatch({ interceptors: [cacheInterceptor] }) : undefined;
-	return function (input: string | URL | globalThis.Request, init?: RequestInit) {
-		const rawInit = init as Record<string, unknown> | undefined;
-		const useCachedPatch = !!cachedFetch && rawInit?.[CACHE_PATCH_MARKER] === true;
-		let newInit = init;
-		if (rawInit && CACHE_PATCH_MARKER in rawInit) {
-			const { [CACHE_PATCH_MARKER]: _, ...rest } = rawInit;
-			newInit = rest as RequestInit;
+	return function (input, init, useCache) {
+		if (useCache && cachedFetch) {
+			return cachedFetch(input, init);
 		}
-		if (useCachedPatch) {
-			return cachedFetch!(input, newInit);
-		}
-		const dispatcher = (newInit as { dispatcher?: undici.Dispatcher } | undefined)?.dispatcher ?? agent.value;
-		return defaultFetch(input, { ...newInit, dispatcher });
+		const dispatcher = (init as { dispatcher?: undici.Dispatcher } | undefined)?.dispatcher ?? agent.value;
+		return defaultFetch(input, { ...init, dispatcher });
 	};
 }
 

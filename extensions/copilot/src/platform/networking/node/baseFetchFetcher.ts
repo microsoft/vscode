@@ -11,10 +11,16 @@ import { CacheStatus, FetcherId, FetchOptions, IAbortController, isAbortError, P
 import { IFetcher, userAgentLibraryHeader } from '../common/networking';
 import { VSCODE_CACHE_STATUS_HEADER } from './taggedCacheInterceptor';
 
+export type FetchImpl = (
+	input: string | URL | globalThis.Request,
+	init?: RequestInit,
+	useCache?: boolean,
+) => Promise<globalThis.Response>;
+
 export abstract class BaseFetchFetcher implements IFetcher {
 
 	constructor(
-		private readonly _fetchImpl: typeof fetch | typeof import('electron').net.fetch,
+		private readonly _fetchImpl: FetchImpl,
 		private readonly _envService: IEnvService,
 		private readonly _fetcherId: FetcherId,
 		private readonly _reportEvent: ReportFetchEvent,
@@ -91,7 +97,7 @@ export abstract class BaseFetchFetcher implements IFetcher {
 	}
 
 	private async _fetch(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', headers: { [name: string]: string }, body: string | undefined, signal: AbortSignal, internalId: string, hostname: string, options: FetchOptions): Promise<Response> {
-		const resp = await this._fetchImpl(url, this._buildRequestInit(method, headers, body, signal, options));
+		const resp = await this._fetchImpl(url, { method, headers, body, signal }, !!options.cache);
 		return new Response(
 			resp.status,
 			resp.statusText,
@@ -103,20 +109,6 @@ export abstract class BaseFetchFetcher implements IFetcher {
 			hostname,
 			this._readCacheStatus(resp.headers, options),
 		);
-	}
-
-	/**
-	 * Override to thread fetcher-specific request init extensions (e.g. an
-	 * undici dispatcher or cache interceptor) onto the fetch call.
-	 */
-	protected _buildRequestInit(
-		method: 'GET' | 'POST' | 'PUT' | 'DELETE',
-		headers: { [name: string]: string },
-		body: string | undefined,
-		signal: AbortSignal,
-		_options: FetchOptions,
-	): RequestInit {
-		return { method, headers, body, signal };
 	}
 
 	private _readCacheStatus(headers: { get(name: string): string | null }, options: FetchOptions): CacheStatus | undefined {
