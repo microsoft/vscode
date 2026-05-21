@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { type LanguageModelChatInformation, type LanguageModelConfigurationSchema } from 'vscode';
+import { type LanguageModelChatInformation } from 'vscode';
 import { BYOKKnownModels, BYOKModelCapabilities, byokKnownModelToAPIInfo } from '../common/byokProvider';
 import { buildReasoningEffortSchemaProperty } from '../../conversation/common/languageModelAccess';
 
@@ -19,7 +19,11 @@ export function byokKnownModelToAPIInfoWithEffort(providerName: string, id: stri
 	}
 	return {
 		...model,
-		...buildEffortConfigurationSchema(effortLevels, model.family),
+		configurationSchema: {
+			properties: {
+				reasoningEffort: buildReasoningEffortSchemaProperty(effortLevels, model.family),
+			},
+		},
 	};
 }
 
@@ -33,12 +37,3 @@ export function byokKnownModelsToAPIInfoWithEffort(providerName: string, knownMo
 	return Object.entries(knownModels).map(([id, capabilities]) => byokKnownModelToAPIInfoWithEffort(providerName, id, capabilities));
 }
 
-function buildEffortConfigurationSchema(effortLevels: readonly string[], family: string): { configurationSchema?: LanguageModelConfigurationSchema } {
-	return {
-		configurationSchema: {
-			properties: {
-				reasoningEffort: buildReasoningEffortSchemaProperty(effortLevels, family),
-			}
-		}
-	};
-}
