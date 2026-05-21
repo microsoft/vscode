@@ -578,6 +578,11 @@ function handleRequest(req, res) {
 		if (path.includes('/sessions')) {
 			json(200, { sessions: [], total_count: 0, page_size: 20, page_number: 1 });
 		}
+		// Keep custom-agent discovery quiet during smoke tests. The extension
+		// expects this shape even when there are no custom agents.
+		else if (path.includes('/swe/custom-agents')) {
+			json(200, { agents: [] });
+		}
 		// /agents/swe/models — CCAModelsList
 		else if (path.includes('/swe/models')) {
 			json(200, {
