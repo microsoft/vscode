@@ -202,21 +202,12 @@ export function forEachWithNeighbors<T>(arr: T[], f: (before: T | undefined, ele
 	}
 }
 
-export function concatArrays<T extends ReadonlyArray<unknown>>(...arrays: T[]): T[number][] {
-	const result: T[number][] = [];
-
-	for (const arr of arrays) {
-		const offset = result.length;
-		result.length = offset + arr.length;
-
-		for (let i = 0; i < arr.length; i++) {
-			if (i in arr) {
-				result[offset + i] = arr[i];
-			}
-		}
-	}
-
-	return result;
+export function concatArrays<T extends ReadonlyArray<unknown>>(
+    ...arrays: T[]
+): T[number][] {
+    return ([] as T[number][]).concat(
+        ...(arrays as ReadonlyArray<ConcatArray<T[number]>>)
+    );
 }
 
 interface IMutableSplice<T> extends ISplice<T> {
