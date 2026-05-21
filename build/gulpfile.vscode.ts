@@ -35,6 +35,7 @@ import globCallback from 'glob';
 import rceditCallback from 'rcedit';
 import { spawnTsgo } from './lib/tsgo.ts';
 import { runEsbuildTranspile, runEsbuildBundle } from './lib/esbuild.ts';
+import { dirStr, paths } from './folders.ts';
 
 
 const glob = promisify(globCallback);
@@ -59,65 +60,65 @@ const vscodeEntryPoints = [
 const vscodeResourceIncludes = [
 
 	// NLS
-	'out-build/nls.messages.json',
-	'out-build/nls.keys.json',
+	`${paths.outBuild.rootRelPath}/nls.messages.json`,
+	`${paths.outBuild.rootRelPath}/nls.keys.json`,
 
 	// Workbench
-	'out-build/vs/code/electron-browser/workbench/workbench.html',
-	'out-build/vs/sessions/electron-browser/sessions.html',
+	`${paths.outBuild.rootRelPath}/vs/code/electron-browser/workbench/workbench.html`,
+	`${paths.outBuild.rootRelPath}/vs/sessions/electron-browser/sessions.html`,
 
 	// Electron Preload
-	'out-build/vs/base/parts/sandbox/electron-browser/preload.js',
-	'out-build/vs/base/parts/sandbox/electron-browser/preload-aux.js',
-	'out-build/vs/platform/browserView/electron-browser/preload-browserView.js',
+	`${paths.outBuild.rootRelPath}/vs/base/parts/sandbox/electron-browser/preload.js`,
+	`${paths.outBuild.rootRelPath}/vs/base/parts/sandbox/electron-browser/preload-aux.js`,
+	`${paths.outBuild.rootRelPath}/vs/platform/browserView/electron-browser/preload-browserView.js`,
 
 	// Node Scripts
-	'out-build/vs/base/node/{terminateProcess.sh,cpuUsage.sh,ps.sh}',
+	`${paths.outBuild.rootRelPath}/vs/base/node/{terminateProcess.sh,cpuUsage.sh,ps.sh}`,
 
 	// Touchbar
-	'out-build/vs/workbench/browser/parts/editor/media/*.png',
-	'out-build/vs/workbench/contrib/debug/browser/media/*.png',
+	`${paths.outBuild.rootRelPath}/vs/workbench/browser/parts/editor/media/*.png`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/debug/browser/media/*.png`,
 
 	// External Terminal
-	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/externalTerminal/**/*.scpt`,
 
 	// Terminal shell integration
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.fish',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.ps1',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.psm1',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.sh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.zsh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/terminal/common/scripts/*.fish`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/terminal/common/scripts/*.ps1`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/terminal/common/scripts/*.psm1`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/terminal/common/scripts/*.sh`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/terminal/common/scripts/*.zsh`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/terminal/common/scripts/psreadline/**`,
 
 	// Accessibility Signals
-	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
+	`${paths.outBuild.rootRelPath}/vs/platform/accessibilitySignal/browser/media/*.mp3`,
 
 	// Welcome
-	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
-	'out-build/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg`,
 
 	// Sessions
-	'out-build/vs/sessions/contrib/chat/browser/media/*.svg',
-	'out-build/vs/sessions/contrib/welcome/browser/media/*.svg',
-	'out-build/vs/sessions/contrib/welcome/browser/media/themePreviews/*.svg',
-	'out-build/vs/sessions/prompts/*.prompt.md',
-	'out-build/vs/sessions/skills/**/SKILL.md',
+	`${paths.outBuild.rootRelPath}/vs/sessions/contrib/chat/browser/media/*.svg`,
+	`${paths.outBuild.rootRelPath}/vs/sessions/contrib/welcome/browser/media/*.svg`,
+	`${paths.outBuild.rootRelPath}/vs/sessions/contrib/welcome/browser/media/themePreviews/*.svg`,
+	`${paths.outBuild.rootRelPath}/vs/sessions/prompts/*.prompt.md`,
+	`${paths.outBuild.rootRelPath}/vs/sessions/skills/**/SKILL.md`,
 
 	// Extensions
-	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
-	'out-build/vs/workbench/services/extensionManagement/common/media/*.{svg,png}',
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/services/extensionManagement/common/media/*.{svg,png}`,
 
 	// Webview
-	'out-build/vs/workbench/contrib/webview/browser/pre/*.{js,html}',
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/webview/browser/pre/*.{js,html}`,
 
 	// Extension Host Worker
-	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
+	`${paths.outBuild.rootRelPath}/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html`,
 
 	// Tree Sitter highlights
-	'out-build/vs/editor/common/languages/highlights/*.scm',
+	`${paths.outBuild.rootRelPath}/vs/editor/common/languages/highlights/*.scm`,
 
 	// Tree Sitter injection queries
-	'out-build/vs/editor/common/languages/injections/*.scm'
+	`${paths.outBuild.rootRelPath}/vs/editor/common/languages/injections/*.scm`
 ];
 
 const vscodeResources = [
@@ -126,30 +127,30 @@ const vscodeResources = [
 	...vscodeResourceIncludes,
 
 	// Excludes
-	'!out-build/vs/code/browser/**',
-	'!out-build/vs/editor/standalone/**',
-	'!out-build/vs/code/**/*-dev.html',
-	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
+	`!${paths.outBuild.rootRelPath}/vs/code/browser/**`,
+	`!${paths.outBuild.rootRelPath}/vs/editor/standalone/**`,
+	`!${paths.outBuild.rootRelPath}/vs/code/**/*-dev.html`,
+	`!${paths.outBuild.rootRelPath}/vs/workbench/contrib/issue/**/*-dev.html`,
 	'!**/test/**'
 ];
 
 const bootstrapEntryPoints = [
-	'out-build/main.js',
-	'out-build/cli.js',
-	'out-build/bootstrap-fork.js'
+	`${paths.outBuild.rootRelPath}/main.js`,
+	`${paths.outBuild.rootRelPath}/cli.js`,
+	`${paths.outBuild.rootRelPath}/bootstrap-fork.js`
 ];
 
 const bundleVSCodeTask = task.define('bundle-vscode', task.series(
-	util.rimraf('out-vscode'),
+	util.rimraf(paths.outVscode.rootRelPath),
 	// Optimize: bundles source files automatically based on
 	// import statements based on the passed in entry points.
 	// In addition, concat window related bootstrap files into
 	// a single file.
 	optimize.bundleTask(
 		{
-			out: 'out-vscode',
+			out: paths.outVscode.rootRelPath,
 			esm: {
-				src: 'out-build',
+				src: paths.outBuild.rootRelPath,
 				entryPoints: [
 					...vscodeEntryPoints,
 					...bootstrapEntryPoints
@@ -168,8 +169,8 @@ const useCdnSourceMapsForPackagingTasks = isCI;
 const stripSourceMapsInPackagingTasks = isCI;
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	bundleVSCodeTask,
-	util.rimraf('out-vscode-min'),
-	optimize.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
+	util.rimraf(paths.outVscodeMin.rootRelPath),
+	optimize.minifyTask(paths.outVscode.rootRelPath, `${sourceMappingURLBase}/core`)
 ));
 task.task(minifyVSCodeTask);
 
@@ -186,16 +187,16 @@ task.task(task.define('core-ci', task.series(
 	copyCodiconsTask,
 	compileNonNativeExtensionsBuildTask,
 	compileExtensionMediaBuildTask,
-	writeISODate('out-build'),
+	writeISODate(paths.outBuild.rootRelPath),
 	// Type-check with tsgo (no emit)
-	task.define('tsgo-typecheck', () => spawnTsgo(path.join(root, 'src', 'tsconfig.json'), { taskName: 'tsgo-typecheck', noEmit: true })),
+	task.define('tsgo-typecheck', () => spawnTsgo(paths.src.tsconfig.absPath, { taskName: 'tsgo-typecheck', noEmit: true })),
 	// Transpile individual files to out-build first (for unit tests)
-	task.define('esbuild-out-build', () => runEsbuildTranspile('out-build', false)),
+	task.define('esbuild-out-build', () => runEsbuildTranspile(paths.outBuild.rootRelPathDir, false)),
 	// Then bundle for shipping (bundles also write NLS files to out-build)
 	task.parallel(
-		task.define('esbuild-vscode-min', () => runEsbuildBundle('out-vscode-min', true, true, 'desktop', `${sourceMappingURLBase}/core`)),
-		task.define('esbuild-vscode-reh-min', () => runEsbuildBundle('out-vscode-reh-min', true, true, 'server', `${sourceMappingURLBase}/core`)),
-		task.define('esbuild-vscode-reh-web-min', () => runEsbuildBundle('out-vscode-reh-web-min', true, true, 'server-web', `${sourceMappingURLBase}/core`)),
+		task.define('esbuild-vscode-min', () => runEsbuildBundle(paths.outVscodeMin.rootRelPathDir, true, true, 'desktop', `${sourceMappingURLBase}/core`)),
+		task.define('esbuild-vscode-reh-min', () => runEsbuildBundle(paths.outVscodeRehMin.rootRelPathDir, true, true, 'server', `${sourceMappingURLBase}/core`)),
+		task.define('esbuild-vscode-reh-web-min', () => runEsbuildBundle(paths.outVscodeRehWebMin.rootRelPathDir, true, true, 'server-web', `${sourceMappingURLBase}/core`)),
 	)
 )));
 
@@ -265,9 +266,9 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 			const set = new Set((ext as { platforms?: string[] }).platforms);
 			return !set.has(platform);
-		}).map(ext => `!.build/extensions/${ext.name}/**`);
+		}).map(ext => `!${paths.dotBuild.extensions.rootRelPath}/${ext.name}/**`);
 
-		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true });
+		const extensions = gulp.src([`${paths.dotBuild.extensions.rootRelPath}/**`, ...platformSpecificBuiltInExtensionsExclusions], { base: paths.dotBuild.rootRelPath, dot: true });
 
 		const sourceFilterPattern = stripSourceMapsInPackagingTasks
 			? ['**', '!**/*.{js,css}.map']
@@ -316,7 +317,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		// TODO the API should be copied to `out` during compile, not here
 		const api = gulp.src('src/vscode-dts/vscode.d.ts').pipe(rename('out/vscode-dts/vscode.d.ts'));
 
-		const telemetry = gulp.src('.build/telemetry/**', { base: '.build/telemetry', dot: true });
+		const telemetry = gulp.src(`${paths.dotBuild.telemetry.rootRelPath}/**`, { base: paths.dotBuild.telemetry.rootRelPath, dot: true });
 
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 		const root = path.resolve(path.join(import.meta.dirname, '..'));
@@ -399,7 +400,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'resources/win32/code_150x150.png'
 			], { base: '.' }));
 		} else if (platform === 'linux') {
-			const policyDest = gulp.src('.build/policies/linux/**', { base: '.build/policies/linux' })
+			const policyDest = gulp.src(`${paths.dotBuild.policies.linux.rootRelPath}/**`, { base: paths.dotBuild.policies.linux.rootRelPath })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));
 			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }), policyDest);
 		} else if (platform === 'darwin') {
@@ -407,7 +408,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(replace('@@NAME@@', product.nameShort))
 				.pipe(rename('bin/code'));
-			const policyDest = gulp.src('.build/policies/darwin/**', { base: '.build/policies/darwin' })
+			const policyDest = gulp.src(`${paths.dotBuild.policies.darwin.rootRelPath}/**`, { base: paths.dotBuild.policies.darwin.rootRelPath })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));
 			all = es.merge(all, shortcut, policyDest);
 		}
@@ -481,11 +482,11 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				.pipe(replace('@@VERSIONFOLDER@@', versionedResourcesFolder ? `${versionedResourcesFolder}\\` : ''))
 				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
 
-			result = es.merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
+			result = es.merge(result, gulp.src(`${paths.dotBuild.policies.win32.rootRelPath}/**`, { base: paths.dotBuild.policies.win32.rootRelPath })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`)));
 
 			if (quality === 'stable' || quality === 'insider') {
-				result = es.merge(result, gulp.src('.build/win32/appx/**', { base: '.build/win32' }));
+				result = es.merge(result, gulp.src(`${paths.dotBuild.win32.rootRelPath}/appx/**`, { base: paths.dotBuild.win32.rootRelPath }));
 				const rawVersion = version.replace(/-\w+$/, '').split('.');
 				const appxVersion = `${rawVersion[0]}.0.${rawVersion[1]}.${rawVersion[2]}`;
 				result = es.merge(result, gulp.src('resources/win32/appx/AppxManifest.xml', { base: '.' })
@@ -624,7 +625,8 @@ BUILD_TARGETS.forEach(buildTarget => {
 	const opts = buildTarget.opts;
 
 	const [vscode, vscodeMin] = ['', 'min'].map(minified => {
-		const sourceFolderName = `out-vscode${dashed(minified)}`;
+		const sourceFolderName = `${paths.outVscode.rootRelPath}${dashed(minified)}`;
+		const sourceFolder = dirStr(sourceFolderName, minified ? paths.outVscodeMin : paths.outVscode);
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
 		const packageTasks: task.Task[] = [
@@ -646,7 +648,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 			const esbuildBundleTask = task.define(
 				`esbuild-bundle${dashed(platform)}${dashed(arch)}${dashed(minified)}`,
 				() => runEsbuildBundle(
-					sourceFolderName,
+					sourceFolder,
 					!!minified,
 					true,
 					'desktop',
@@ -659,7 +661,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 				compileNonNativeExtensionsBuildTask,
 				compileCopilotExtensionBuildTask,
 				compileExtensionMediaBuildTask,
-				writeISODate('out-build'),
+				writeISODate(paths.outBuild.rootRelPath),
 				esbuildBundleTask,
 				vscodeTaskCI
 			));
@@ -693,8 +695,8 @@ task.task(task.define(
 		task.task('core-ci') as task.Task,
 		compileAllExtensionsBuildTask,
 		function () {
-			const pathToMetadata = './out-build/nls.metadata.json';
-			const pathToExtensions = '.build/extensions/*';
+			const pathToMetadata = `./${paths.outBuild.rootRelPath}/nls.metadata.json`;
+			const pathToExtensions = `${paths.dotBuild.extensions.rootRelPath}/*`;
 			const pathToSetup = 'build/win32/i18n/messages.en.isl';
 
 			return es.merge(

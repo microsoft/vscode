@@ -12,6 +12,7 @@ import { getProductionDependencies } from '../lib/dependencies.ts';
 import { ClientAssertionCredential } from '@azure/identity';
 import Stream from 'stream';
 import { azureStorage } from '../lib/gulp/facade.ts';
+import { paths } from '../folders.ts';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
 const commit = process.env['BUILD_SOURCEVERSION'];
@@ -33,17 +34,17 @@ function main(): Promise<void> {
 
 	// vscode client maps (default)
 	if (!base) {
-		const vs = src('out-vscode-min'); // client source-maps only
+		const vs = src(paths.outVscodeMin.rootRelPath); // client source-maps only
 		sources.push(vs);
 
 		const productionDependencies = getProductionDependencies(root);
 		const productionDependenciesSrc = productionDependencies.map((d: string) => path.relative(root, d)).map((d: string) => `./${d}/**/*.map`);
 		const nodeModules = vfs.src(productionDependenciesSrc, { base: '.' })
-			.pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
-			.pipe(util.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)));
+			.pipe(util.cleanNodeModules(paths.build.moduleignore.absPath))
+			.pipe(util.cleanNodeModules(`${paths.build.moduleignore.absPath}.${process.platform}`));
 		sources.push(nodeModules);
 
-		const extensionsOut = vfs.src(['.build/extensions/**/*.js.map', '!**/node_modules/**'], { base: '.build' });
+		const extensionsOut = vfs.src([`${paths.dotBuild.extensions.rootRelPath}/**/*.js.map`, '!**/node_modules/**'], { base: paths.dotBuild.rootRelPath });
 		sources.push(extensionsOut);
 	}
 

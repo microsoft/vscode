@@ -5,15 +5,16 @@
 
 import * as cp from 'child_process';
 import * as path from 'path';
+import type { DirString } from '../folders.ts';
 
 const root = path.resolve(import.meta.dirname, '../..');
 
 // esbuild-based bundle tasks (drop-in replacement for bundle-vscode / minify-vscode)
 
-export function runEsbuildTranspile(outDir: string, excludeTests: boolean): Promise<void> {
+export function runEsbuildTranspile(outDir: DirString, excludeTests: boolean): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const scriptPath = path.join(root, 'build/next/index.ts');
-		const args = [scriptPath, 'transpile', '--out', outDir];
+		const args = [scriptPath, 'transpile', '--out', outDir.path];
 		if (excludeTests) {
 			args.push('--exclude-tests');
 		}
@@ -28,16 +29,16 @@ export function runEsbuildTranspile(outDir: string, excludeTests: boolean): Prom
 			if (code === 0) {
 				resolve();
 			} else {
-				reject(new Error(`esbuild transpile failed with exit code ${code} (outDir: ${outDir})`));
+				reject(new Error(`esbuild transpile failed with exit code ${code} (outDir: ${outDir.path})`));
 			}
 		});
 	});
 }
 
-export function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean, target: 'desktop' | 'server' | 'server-web' = 'desktop', sourceMapBaseUrl?: string): Promise<void> {
+export function runEsbuildBundle(outDir: DirString, minify: boolean, nls: boolean, target: 'desktop' | 'server' | 'server-web' = 'desktop', sourceMapBaseUrl?: string): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const scriptPath = path.join(root, 'build/next/index.ts');
-		const args = [scriptPath, 'bundle', '--out', outDir, '--target', target];
+		const args = [scriptPath, 'bundle', '--out', outDir.path, '--target', target];
 		if (minify) {
 			args.push('--minify');
 			args.push('--mangle-privates');
@@ -59,7 +60,7 @@ export function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean, 
 			if (code === 0) {
 				resolve();
 			} else {
-				reject(new Error(`esbuild bundle failed with exit code ${code} (outDir: ${outDir}, minify: ${minify}, nls: ${nls}, target: ${target})`));
+				reject(new Error(`esbuild bundle failed with exit code ${code} (outDir: ${outDir.path}, minify: ${minify}, nls: ${nls}, target: ${target})`));
 			}
 		});
 	});

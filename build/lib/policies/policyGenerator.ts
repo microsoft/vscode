@@ -15,6 +15,7 @@ import { StringEnumPolicy } from './stringEnumPolicy.ts';
 import { StringPolicy } from './stringPolicy.ts';
 import { type Version, type LanguageTranslations, type Policy, type Translations, Languages, type ProductJson } from './types.ts';
 import { renderGP, renderJsonPolicies, renderMacOSPolicy } from './render.ts';
+import { paths } from '../../folders.ts';
 
 const product: ProductJson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../../product.json'), 'utf8'));
 const packageJson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../../package.json'), 'utf8'));
@@ -168,7 +169,7 @@ async function getTranslations(): Promise<Translations> {
 }
 
 async function windowsMain(policies: Policy[], translations: Translations) {
-	const root = '.build/policies/win32';
+	const root = paths.dotBuild.policies.win32.rootRelPath;
 	const { admx, adml } = renderGP(product, policies, translations);
 
 	await fs.promises.rm(root, { recursive: true, force: true });
@@ -188,7 +189,7 @@ async function darwinMain(policies: Policy[], translations: Translations) {
 	if (!bundleIdentifier || !product.darwinProfilePayloadUUID || !product.darwinProfileUUID) {
 		throw new Error(`Missing required product information.`);
 	}
-	const root = '.build/policies/darwin';
+	const root = paths.dotBuild.policies.darwin.rootRelPath;
 	const { profile, manifests } = renderMacOSPolicy(product, policies, translations);
 
 	await fs.promises.rm(root, { recursive: true, force: true });
@@ -203,7 +204,7 @@ async function darwinMain(policies: Policy[], translations: Translations) {
 }
 
 async function linuxMain(policies: Policy[]) {
-	const root = '.build/policies/linux';
+	const root = paths.dotBuild.policies.linux.rootRelPath;
 	const policyFileContents = JSON.stringify(renderJsonPolicies(policies), undefined, 4);
 
 	await fs.promises.rm(root, { recursive: true, force: true });

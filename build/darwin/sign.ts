@@ -7,28 +7,27 @@ import fs from 'fs';
 import path from 'path';
 import { sign, type SignOptions } from '@electron/osx-sign';
 import { spawn } from '@malept/cross-spawn-promise';
+import { paths } from '../folders.ts';
 
-const root = path.dirname(path.dirname(import.meta.dirname));
-const baseDir = path.dirname(import.meta.dirname);
-const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
+const product = JSON.parse(fs.readFileSync(paths.productJson.absPath, 'utf8'));
 
 function getElectronVersion(): string {
-	const npmrc = fs.readFileSync(path.join(root, '.npmrc'), 'utf8');
+	const npmrc = fs.readFileSync(paths.npmrc.absPath, 'utf8');
 	const target = /^target="(.*)"$/m.exec(npmrc)![1];
 	return target;
 }
 
 function getEntitlementsForFile(filePath: string): string {
 	if (filePath.includes(' Helper (GPU).app')) {
-		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist');
+		return paths.build.azurePipelines.darwin.helperGpuEntitlementsPlist.absPath;
 	} else if (filePath.includes(' Helper (Renderer).app')) {
-		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist');
+		return paths.build.azurePipelines.darwin.helperRendererEntitlementsPlist.absPath;
 	} else if (filePath.includes(' Helper (Plugin).app')) {
-		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist');
+		return paths.build.azurePipelines.darwin.helperPluginEntitlementsPlist.absPath;
 	} else if (filePath.includes(' Helper.app')) {
-		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-entitlements.plist');
+		return paths.build.azurePipelines.darwin.helperEntitlementsPlist.absPath;
 	}
-	return path.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist');
+	return paths.build.azurePipelines.darwin.appEntitlementsPlist.absPath;
 }
 
 async function retrySignOnKeychainError<T>(fn: () => Promise<T>, maxRetries: number = 3): Promise<T> {

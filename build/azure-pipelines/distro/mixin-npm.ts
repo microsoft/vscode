@@ -6,6 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { dirs } from '../../npm/dirs.ts';
+import { paths } from '../../folders.ts';
 
 function log(...args: unknown[]): void {
 	console.log(`[${new Date().toLocaleTimeString('en', { hour12: false })}]`, '[distro]', ...args);
@@ -20,7 +21,7 @@ function mixin(mixinPath: string) {
 	log(`Mixing in distro npm dependencies: ${mixinPath}`);
 
 	const distroPackageJson = JSON.parse(fs.readFileSync(`${mixinPath}/package.json`, 'utf8'));
-	const targetPath = path.relative('.build/distro/npm', mixinPath);
+	const targetPath = path.relative(paths.dotBuild.distro.npm.rootRelPath, mixinPath);
 
 	for (const dependency of Object.keys(distroPackageJson.dependencies)) {
 		fs.rmSync(`./${targetPath}/node_modules/${dependency}`, { recursive: true, force: true });

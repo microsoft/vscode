@@ -15,9 +15,9 @@ import * as task from './lib/gulp/task.ts';
 import watcher from './lib/watch/index.ts';
 import { debounce, untar } from './lib/util.ts';
 import { createReporter } from './lib/reporter.ts';
+import { paths } from './folders.ts';
 
 const root = 'cli';
-const rootAbs = path.resolve(import.meta.dirname, '..', root);
 const src = `${root}/src`;
 
 const platformOpensslDirName =
@@ -34,7 +34,7 @@ const platformOpensslDirName =
 				: process.arch === 'arm'
 					? 'arm-linux'
 					: 'x64-linux');
-const platformOpensslDir = path.join(rootAbs, 'openssl', 'package', 'out', platformOpensslDirName);
+const platformOpensslDir = path.join(paths.openssl.packageOut.absPath, platformOpensslDirName);
 
 const hasLocalRust = (() => {
 	let result: boolean | undefined = undefined;
@@ -87,7 +87,7 @@ const acquireBuiltOpenSSL = (callback: (err?: unknown) => void) => {
 	gulp.src('*.tgz', { cwd: dir })
 		.pipe(gunzip())
 		.pipe(untar())
-		.pipe(gulp.dest(`${root}/openssl`))
+		.pipe(gulp.dest(paths.openssl.rootRelPath))
 		.on('error', callback)
 		.on('end', () => {
 			rmSync(dir, { recursive: true, force: true });

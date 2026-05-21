@@ -12,6 +12,7 @@ import xml2js from 'xml2js';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import { type l10nJsonFormat, getL10nXlf, type l10nJsonDetails, getL10nFilesFromXlf, getL10nJson } from '@vscode/l10n-dev';
+import { paths } from '../folders.ts';
 
 const REPO_ROOT_PATH = path.join(import.meta.dirname, '../..');
 
@@ -474,7 +475,7 @@ export function createXlfFilesForCoreBundle(): eventStream.ThroughStream {
 }
 
 function createL10nBundleForExtension(extensionFolderName: string, prefixWithBuildFolder: boolean): NodeJS.ReadWriteStream {
-	const prefix = prefixWithBuildFolder ? '.build/' : '';
+	const prefix = prefixWithBuildFolder ? `${paths.dotBuild.rootRelPath}/` : '';
 	return gulp
 		.src([
 			// For source code of extensions

@@ -8,6 +8,7 @@ import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import fs from 'fs';
 import path from 'path';
+import { paths } from '../folders.ts';
 
 class ErrorLog {
 	public id: string;
@@ -76,7 +77,7 @@ function getErrorLog(id: string = '') {
 	return errorLog;
 }
 
-const buildLogFolder = path.join(path.dirname(path.dirname(import.meta.dirname)), '.build');
+const buildLogFolder = paths.dotBuild.absPath;
 
 try {
 	fs.mkdirSync(buildLogFolder);

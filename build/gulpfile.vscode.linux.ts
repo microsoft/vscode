@@ -17,6 +17,7 @@ import { recommendedDeps as rpmRecommendedDependencies } from './linux/rpm/dep-l
 import * as path from 'path';
 import * as cp from 'child_process';
 import { promisify } from 'util';
+import { paths } from './folders.ts';
 
 const exec = promisify(cp.exec);
 const root = path.dirname(import.meta.dirname);
@@ -36,7 +37,7 @@ function getDebPackageArch(arch: string): string {
 function prepareDebPackage(arch: string) {
 	const binaryDir = '../VSCode-linux-' + arch;
 	const debArch = getDebPackageArch(arch);
-	const destination = '.build/linux/deb/' + debArch + '/' + product.applicationName + '-' + debArch;
+	const destination = `${paths.dotBuild.linux.deb.rootRelPath}/${debArch}/${product.applicationName}-${debArch}`;
 
 	return async function () {
 		const dependencies = await getDependencies('deb', binaryDir, product.applicationName, debArch);
@@ -121,7 +122,7 @@ function prepareDebPackage(arch: string) {
 
 function buildDebPackage(arch: string) {
 	const debArch = getDebPackageArch(arch);
-	const cwd = `.build/linux/deb/${debArch}`;
+	const cwd = `${paths.dotBuild.linux.deb.rootRelPath}/${debArch}`;
 
 	return async () => {
 		await exec(`chmod 755 ${product.applicationName}-${debArch}/DEBIAN/postinst ${product.applicationName}-${debArch}/DEBIAN/prerm ${product.applicationName}-${debArch}/DEBIAN/postrm`, { cwd });
@@ -131,7 +132,7 @@ function buildDebPackage(arch: string) {
 }
 
 function getRpmBuildPath(rpmArch: string): string {
-	return '.build/linux/rpm/' + rpmArch + '/rpmbuild';
+	return `${paths.dotBuild.linux.rpm.rootRelPath}/${rpmArch}/rpmbuild`;
 }
 
 function getRpmPackageArch(arch: string): string {
@@ -218,7 +219,7 @@ function buildRpmPackage(arch: string) {
 	const rpmArch = getRpmPackageArch(arch);
 	const rpmBuildPath = getRpmBuildPath(rpmArch);
 	const rpmOut = `${rpmBuildPath}/RPMS/${rpmArch}`;
-	const destination = `.build/linux/rpm/${rpmArch}`;
+	const destination = `${paths.dotBuild.linux.rpm.rootRelPath}/${rpmArch}`;
 
 	return async () => {
 		await exec(`mkdir -p ${destination}`);
@@ -228,7 +229,7 @@ function buildRpmPackage(arch: string) {
 }
 
 function getSnapBuildPath(arch: string): string {
-	return `.build/linux/snap/${arch}/${product.applicationName}-${arch}`;
+	return `${paths.dotBuild.linux.rootRelPath}/snap/${arch}/${product.applicationName}-${arch}`;
 }
 
 function prepareSnapPackage(arch: string) {

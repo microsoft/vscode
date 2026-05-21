@@ -6,6 +6,7 @@
 import { spawn } from '@malept/cross-spawn-promise';
 import fs from 'fs';
 import path from 'path';
+import { paths } from '../folders.ts';
 
 const MACHO_MAGIC_NUMBERS = new Set([
 	0xFEEDFACE, // MH_MAGIC (32-bit)
@@ -51,8 +52,7 @@ async function main(serverDir: string): Promise<void> {
 	}
 
 	const keychain = path.join(tempDir, 'buildagent.keychain');
-	const baseDir = path.dirname(import.meta.dirname);
-	const entitlementsPath = path.join(baseDir, 'azure-pipelines', 'darwin', 'server-entitlements.plist');
+	const entitlementsPath = paths.build.azurePipelines.darwin.serverEntitlementsPlist.absPath;
 
 	console.log(`Signing Mach-O binaries in: ${serverDir}`);
 	for (const entry of fs.readdirSync(serverDir, { withFileTypes: true, recursive: true })) {

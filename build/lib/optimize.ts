@@ -15,6 +15,7 @@ import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import { getTargetStringFromTsConfig } from './tsconfigUtils.ts';
 import { createRequire } from 'module';
+import { paths } from '../folders.ts';
 
 const require = createRequire(import.meta.url);
 
@@ -278,7 +279,7 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 }
 
 function getBuildTarget() {
-	const tsconfigPath = path.join(REPO_ROOT_PATH, 'src', 'tsconfig.base.json');
+	const tsconfigPath = paths.src.tsconfigBase.absPath;
 	return getTargetStringFromTsConfig(tsconfigPath);
 }
 

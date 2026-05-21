@@ -30,6 +30,7 @@ import log from 'fancy-log';
 import buildfile from './buildfile.ts';
 import { fetchUrls, fetchGithub } from './lib/fetch.ts';
 import { getCopilotExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
+import { paths } from './folders.ts';
 
 
 const rcedit = promisify(rceditCallback);
@@ -37,7 +38,7 @@ const rcedit = promisify(rceditCallback);
 const REPO_ROOT = path.dirname(import.meta.dirname);
 const commit = getVersion(REPO_ROOT);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
-const REMOTE_FOLDER = path.join(REPO_ROOT, 'remote');
+const REMOTE_FOLDER = paths.remote.absPath;
 
 // Targets
 
@@ -58,34 +59,34 @@ const BUILD_TARGETS = [
 const serverResourceIncludes = [
 
 	// NLS
-	'out-build/nls.messages.json',
-	'out-build/nls.keys.json',
+	`${paths.outBuild.rootRelPath}/nls.messages.json`,
+	`${paths.outBuild.rootRelPath}/nls.keys.json`,
 
 	// Process monitor
-	'out-build/vs/base/node/cpuUsage.sh',
-	'out-build/vs/base/node/ps.sh',
+	`${paths.outBuild.rootRelPath}/vs/base/node/cpuUsage.sh`,
+	`${paths.outBuild.rootRelPath}/vs/base/node/ps.sh`,
 
 	// External Terminal
-	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/externalTerminal/**/*.scpt`,
 
 	// Terminal shell integration
-	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/CodeTabExpansion.psm1',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/GitTabExpansion.psm1',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-env.zsh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-profile.zsh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/terminal/common/scripts/CodeTabExpansion.psm1`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/terminal/common/scripts/GitTabExpansion.psm1`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/terminal/common/scripts/shellIntegration-env.zsh`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/terminal/common/scripts/shellIntegration-profile.zsh`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish`,
+	`${paths.outBuild.rootRelPath}/vs/workbench/contrib/terminal/common/scripts/psreadline/**`,
 
 ];
 
 const serverResourceExcludes = [
-	'!out-build/vs/**/{electron-browser,electron-main,electron-utility}/**',
-	'!out-build/vs/editor/standalone/**',
-	'!out-build/vs/workbench/**/*-tb.png',
+	`!${paths.outBuild.rootRelPath}/vs/**/{electron-browser,electron-main,electron-utility}/**`,
+	`!${paths.outBuild.rootRelPath}/vs/editor/standalone/**`,
+	`!${paths.outBuild.rootRelPath}/vs/workbench/**/*-tb.png`,
 	'!**/test/**'
 ];
 
@@ -96,13 +97,13 @@ const serverResources = [
 
 const serverWithWebResourceIncludes = [
 	...serverResourceIncludes,
-	'out-build/vs/code/browser/workbench/*.html',
+	`${paths.outBuild.rootRelPath}/vs/code/browser/workbench/*.html`,
 	...vscodeWebResourceIncludes
 ];
 
 const serverWithWebResourceExcludes = [
 	...serverResourceExcludes,
-	'!out-build/vs/code/**/*-dev.html'
+	`!${paths.outBuild.rootRelPath}/vs/code/**/*-dev.html`
 ];
 
 const serverWithWebResources = [
@@ -133,20 +134,20 @@ const serverWithWebEntryPoints = [
 ].flat();
 
 const bootstrapEntryPoints = [
-	'out-build/server-main.js',
-	'out-build/server-cli.js',
-	'out-build/bootstrap-fork.js'
+	`${paths.outBuild.rootRelPath}/server-main.js`,
+	`${paths.outBuild.rootRelPath}/server-cli.js`,
+	`${paths.outBuild.rootRelPath}/bootstrap-fork.js`
 ];
 
 function getNodeVersion() {
-	const npmrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8');
+	const npmrc = fs.readFileSync(path.join(paths.remote.absPath, '.npmrc'), 'utf8');
 	const nodeVersion = /^target="(.*)"$/m.exec(npmrc)![1];
 	const internalNodeVersion = /^ms_build_id="(.*)"$/m.exec(npmrc)![1];
 	return { nodeVersion, internalNodeVersion };
 }
 
 function getNodeChecksum(expectedName: string): string | undefined {
-	const nodeJsChecksums = fs.readFileSync(path.join(REPO_ROOT, 'build', 'checksums', 'nodejs.txt'), 'utf8');
+	const nodeJsChecksums = fs.readFileSync(paths.build.checksums.nodejsTxt.absPath, 'utf8');
 	for (const line of nodeJsChecksums.split('\n')) {
 		const [checksum, name] = line.split(/\s+/);
 		if (name === expectedName) {
@@ -168,7 +169,7 @@ const { nodeVersion, internalNodeVersion } = getNodeVersion();
 
 BUILD_TARGETS.forEach(({ platform, arch }) => {
 	task.task(task.define(`node-${platform}-${arch}`, () => {
-		const nodePath = path.join('.build', 'node', `v${nodeVersion}`, `${platform}-${arch}`);
+		const nodePath = path.join(paths.dotBuild.node.absPath, `v${nodeVersion}`, `${platform}-${arch}`);
 
 		if (!fs.existsSync(nodePath)) {
 			util.rimraf(nodePath);
@@ -295,10 +296,10 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 			.filter(entry => !entry.clientOnly)
 			.map(entry => entry.name);
 		const extensionPaths = [...localWorkspaceExtensions, ...marketplaceExtensions]
-			.map(name => `.build/extensions/${name}/**`);
+			.map(name => `${paths.dotBuild.extensions.rootRelPath}/${name}/**`);
 
-		const extensions = gulp.src(extensionPaths, { base: '.build', dot: true });
-		const extensionsCommonDependencies = gulp.src('.build/extensions/node_modules/**', { base: '.build', dot: true });
+		const extensions = gulp.src(extensionPaths, { base: paths.dotBuild.rootRelPath, dot: true });
+		const extensionsCommonDependencies = gulp.src(`${paths.dotBuild.extensions.rootRelPath}/node_modules/**`, { base: paths.dotBuild.rootRelPath, dot: true });
 		const sources = es.merge(src, extensions, extensionsCommonDependencies)
 			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }));
 
@@ -344,7 +345,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 			.pipe(util.stripSourceMappingURL())
 			.pipe(jsFilter.restore);
 
-		const nodePath = `.build/node/v${nodeVersion}/${platform}-${arch}`;
+		const nodePath = `${paths.dotBuild.node.rootRelPath}/v${nodeVersion}/${platform}-${arch}`;
 		const node = gulp.src(`${nodePath}/**`, { base: nodePath, dot: true });
 
 		let web: NodeJS.ReadWriteStream[] = [];
@@ -518,13 +519,13 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 			{
 				out: `out-vscode-${type}`,
 				esm: {
-					src: 'out-build',
+					src: paths.outBuild.rootRelPath,
 					entryPoints: [
 						...(type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints),
 						...bootstrapEntryPoints
 					],
 					resources: type === 'reh' ? serverResources : serverWithWebResources,
-					fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
+					fileContentMapper: createVSCodeWebFileContentMapper(paths.dotBuild.extensions.rootRelPath, type === 'reh-web' ? tweakProductForServerWeb(product) : product)
 				}
 			}
 		)

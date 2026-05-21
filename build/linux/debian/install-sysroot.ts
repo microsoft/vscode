@@ -10,6 +10,7 @@ import https from 'https';
 import path from 'path';
 import { createHash } from 'crypto';
 import type { DebianArchString } from './types.ts';
+import { paths } from '../../folders.ts';
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
 const URL_PREFIX = 'https://msftelectronbuild.z5.web.core.windows.net';
@@ -59,7 +60,7 @@ function getSha(filename: fs.PathLike): string {
 }
 
 function getVSCodeSysrootChecksum(expectedName: string) {
-	const checksums = fs.readFileSync(path.join(REPO_ROOT, 'build', 'checksums', 'vscode-sysroot.txt'), 'utf8');
+	const checksums = fs.readFileSync(paths.build.checksums.vscodeSysrootTxt.absPath, 'utf8');
 	for (const line of checksums.split('\n')) {
 		const [checksum, name] = line.split(/\s+/);
 		if (name === expectedName) {

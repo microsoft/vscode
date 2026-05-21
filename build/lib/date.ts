@@ -6,6 +6,7 @@
 import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
+import { paths } from '../folders.ts';
 
 const root = path.join(import.meta.dirname, '..', '..');
 
@@ -47,8 +48,8 @@ export function readISODate(outDir: string): string {
 		return fs.readFileSync(path.join(outDirectory, 'date'), 'utf8');
 	} catch {
 		// Fallback to out-build (old build writes date there, esbuild writes to bundle output dir)
-		if (outDir !== 'out-build') {
-			return fs.readFileSync(path.join(root, 'out-build', 'date'), 'utf8');
+		if (outDir !== paths.outBuild.rootRelPath) {
+			return fs.readFileSync(path.join(paths.outBuild.absPath, 'date'), 'utf8');
 		}
 		throw new Error(`Could not find date file in ${outDir}`);
 	}

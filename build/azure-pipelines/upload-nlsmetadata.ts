@@ -10,6 +10,7 @@ import { mergeJson, gzip, azureStorage } from '../lib/gulp/facade.ts';
 import { ClientAssertionCredential } from '@azure/identity';
 import path from 'path';
 import { readFileSync } from 'fs';
+import { paths } from '../folders.ts';
 
 const commit = process.env['BUILD_SOURCEVERSION'];
 const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
@@ -45,9 +46,9 @@ function main(): Promise<void> {
 				})),
 
 			// extensions
-			vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }),
-			vfs.src('.build/extensions/**/nls.metadata.header.json', { base: '.build/extensions' }),
-			vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' })
+			vfs.src(`${paths.dotBuild.extensions.rootRelPath}/**/nls.metadata.json`, { base: paths.dotBuild.extensions.rootRelPath }),
+			vfs.src(`${paths.dotBuild.extensions.rootRelPath}/**/nls.metadata.header.json`, { base: paths.dotBuild.extensions.rootRelPath }),
+			vfs.src(`${paths.dotBuild.extensions.rootRelPath}/**/package.nls.json`, { base: paths.dotBuild.extensions.rootRelPath })
 		).pipe(mergeJson({
 			fileName: 'combined.nls.metadata.json',
 			jsonSpace: '',

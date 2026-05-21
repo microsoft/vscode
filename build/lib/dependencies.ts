@@ -6,6 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import cp from 'child_process';
+import { paths } from '../folders.ts';
 const root = fs.realpathSync(path.dirname(path.dirname(import.meta.dirname)));
 
 function getNpmProductionDependencies(folder: string): string[] {
@@ -42,7 +43,7 @@ export function getProductionDependencies(folderPath: string): string[] {
 	// Account for distro npm dependencies
 	const realFolderPath = fs.realpathSync(folderPath);
 	const relativeFolderPath = path.relative(root, realFolderPath);
-	const distroFolderPath = `${root}/.build/distro/npm/${relativeFolderPath}`;
+	const distroFolderPath = `${root}/${paths.dotBuild.distro.npm.rootRelPath}/${relativeFolderPath}`;
 
 	if (fs.existsSync(distroFolderPath)) {
 		result.push(...getNpmProductionDependencies(distroFolderPath));
