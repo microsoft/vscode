@@ -1737,6 +1737,7 @@
         "vendor": "anthropic",
         "displayName": "Anthropic",
         "configuration": {
+          "type": "object",
           "properties": {
             "apiKey": {
               "type": "string",
@@ -1754,6 +1755,7 @@
         "vendor": "xai",
         "displayName": "xAI",
         "configuration": {
+          "type": "object",
           "properties": {
             "apiKey": {
               "type": "string",
@@ -1771,6 +1773,7 @@
         "vendor": "gemini",
         "displayName": "Google",
         "configuration": {
+          "type": "object",
           "properties": {
             "apiKey": {
               "type": "string",
@@ -1788,6 +1791,7 @@
         "vendor": "openrouter",
         "displayName": "OpenRouter",
         "configuration": {
+          "type": "object",
           "properties": {
             "apiKey": {
               "type": "string",
@@ -1805,6 +1809,7 @@
         "vendor": "openai",
         "displayName": "OpenAI",
         "configuration": {
+          "type": "object",
           "properties": {
             "apiKey": {
               "type": "string",
