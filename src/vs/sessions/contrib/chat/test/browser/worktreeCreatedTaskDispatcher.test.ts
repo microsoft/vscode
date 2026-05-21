@@ -69,7 +69,7 @@ function makeSession(opts: { id?: string; runsWorktreeCreatedTasks?: boolean; lo
 		lastTurnEnd: observableValue('lastTurnEnd', undefined),
 		description: observableValue('description', undefined),
 		chats: observableValue('chats', [chat]),
-		mainChat: chat,
+		mainChat: constObservable(chat),
 		capabilities: { supportsMultipleChats: false, runsWorktreeCreatedTasks: opts.runsWorktreeCreatedTasks },
 	};
 	return { session, loading, status, workspace };

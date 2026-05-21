@@ -162,7 +162,7 @@ export interface ISessionsManagementService {
 	/**
 	 * Send a request, creating a new chat in the session.
 	 */
-	sendAndCreateChat(session: ISession, options: ISendRequestOptions): Promise<void>;
+	sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void>;
 
 	/**
 	 * Send a request for an existing chat within a session.
@@ -174,7 +174,7 @@ export interface ISessionsManagementService {
 	 * Adds a new chat to the session via the provider, makes it the active chat,
 	 * and shows a rich input for composing a message.
 	 */
-	openNewChatInSession(session: ISession): void;
+	openNewChatInSession(session: ISession): Promise<void>;
 
 	/** Navigate to the previous session in the navigation history. */
 	openPreviousSession(): Promise<void>;

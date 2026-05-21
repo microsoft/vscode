@@ -672,7 +672,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 		if (newTitle) {
 			const trimmedTitle = newTitle.trim();
 			if (trimmedTitle) {
-				await sessionsManagementService.renameChat(session, session.mainChat.resource, trimmedTitle);
+				await sessionsManagementService.renameChat(session, session.mainChat.get().resource, trimmedTitle);
 			}
 		}
 	}
@@ -896,6 +896,6 @@ registerAction2(class AddChatAction extends Action2 {
 			return;
 		}
 
-		sessionsManagementService.openNewChatInSession(activeSession);
+		await sessionsManagementService.openNewChatInSession(activeSession);
 	}
 });

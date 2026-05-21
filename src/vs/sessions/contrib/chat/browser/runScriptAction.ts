@@ -302,12 +302,12 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	private async _generateNewTask(session: ISession): Promise<void> {
 		const query = '/generate-run-commands';
 		// Prefer sending to the already-open chat widget for the session;
-		// fall back to sendAndCreateChat for untitled sessions or when no widget is loaded.
-		const widget = this._chatWidgetService.getWidgetBySessionResource(session.mainChat.resource);
+		// fall back to sendRequest for untitled sessions or when no widget is loaded.
+		const widget = this._chatWidgetService.getWidgetBySessionResource(session.mainChat.get().resource);
 		if (widget) {
 			await widget.acceptInput(query);
 		} else {
-			await this._sessionManagementService.sendAndCreateChat(session, { query });
+			await this._sessionManagementService.sendNewChatRequest(session, { query });
 		}
 	}
 
