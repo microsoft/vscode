@@ -47,6 +47,7 @@ import { type McCommand, type McEvent, type McSessionCreateResult, MissionContro
 import { handleMcpPermission, handleReadPermission, handleShellPermission, handleWritePermission, type PermissionRequest, type PermissionRequestResult, showInteractivePermissionPrompt } from './permissionHelpers';
 import { TodoSqlQuery } from './todoSqlQuery';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from './userInputHelpers';
+import { createSingleCallFunction } from '../../../../util/vs/base/common/functional';
 
 /**
  * Known commands that can be sent to a CopilotCLI session instead of a free-form prompt.
@@ -109,7 +110,7 @@ class CopilotCLIResponseStreamRouter {
 		textEdit: (target: vscode.Uri, editsOrDone: vscode.TextEdit | vscode.TextEdit[] | true): void => { this._call('textEdit', [target, editsOrDone]); },
 		notebookEdit: (target: vscode.Uri, editsOrDone: vscode.NotebookEdit | vscode.NotebookEdit[] | true): void => { this._call('notebookEdit', [target, editsOrDone]); },
 		workspaceEdit: (edits: vscode.ChatWorkspaceFileEdit[]): void => { this._call('workspaceEdit', [edits]); },
-		externalEdit: (target: vscode.Uri | vscode.Uri[], callback: () => Thenable<unknown>): Thenable<string> => this._call('externalEdit', [target, callback]) as Thenable<string>,
+		externalEdit: (target: vscode.Uri | vscode.Uri[], callback: () => Thenable<unknown>): Thenable<string> => this._call('externalEdit', [target, createSingleCallFunction(callback)]) as Thenable<string>,
 		markdownWithVulnerabilities: (value: string | vscode.MarkdownString, vulnerabilities: vscode.ChatVulnerability[]): void => { this._call('markdownWithVulnerabilities', [value, vulnerabilities]); },
 		codeblockUri: (uri: vscode.Uri, isEdit?: boolean): void => { this._call('codeblockUri', [uri, isEdit]); },
 		confirmation: (title: string, message: string | vscode.MarkdownString, data: unknown, buttons?: string[]): void => { this._call('confirmation', [title, message, data, buttons]); },
@@ -123,7 +124,7 @@ class CopilotCLIResponseStreamRouter {
 		clearToPreviousToolInvocation: (reason: vscode.ChatResponseClearToPreviousToolInvocationReason): void => { this._call('clearToPreviousToolInvocation', [reason]); },
 		usage: (usage: vscode.ChatResultUsage): void => { this._call('usage', [usage]); },
 	};
-	private static readonly _closedStreamErrorMessage = 'Response stream has been closed';
+	private static readonly _closedStreamErrorFragment = 'Response stream has been closed'.toLowerCase();
 
 	constructor(
 		private readonly _logService: ILogService,
@@ -141,6 +142,14 @@ class CopilotCLIResponseStreamRouter {
 				this._stream = undefined;
 			}
 		});
+	}
+
+	private static _isClosedStreamError(error: unknown): boolean {
+		if (!error) {
+			return false;
+		}
+		const message = error instanceof Error ? error.message : String(error);
+		return message.toLowerCase().includes(CopilotCLIResponseStreamRouter._closedStreamErrorFragment);
 	}
 
 	private _call(method: string, args: unknown[]): unknown {
@@ -166,7 +175,7 @@ class CopilotCLIResponseStreamRouter {
 	}
 
 	private _handleCallError(error: unknown, method: string, args: unknown[], stream: vscode.ChatResponseStream): unknown {
-		if (error instanceof Error && error.message === CopilotCLIResponseStreamRouter._closedStreamErrorMessage) {
+		if (CopilotCLIResponseStreamRouter._isClosedStreamError(error)) {
 			if (this._stream === stream) {
 				this._stream = undefined;
 			}

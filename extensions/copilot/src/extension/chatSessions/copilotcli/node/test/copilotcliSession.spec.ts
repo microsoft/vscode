@@ -362,6 +362,26 @@ describe('CopilotCLISession', () => {
 		expect(callbackRan).toBe(true);
 	});
 
+	it('does not re-invoke externalEdit callback when the underlying call already started it', async () => {
+		class MidFlightCloseStream extends MockChatResponseStream {
+			override async externalEdit(_target: Uri | Uri[], callback: () => Thenable<unknown>): Promise<string> {
+				await callback();
+				throw new Error('Response stream has been closed');
+			}
+		}
+
+		const session = await createSession();
+		disposables.add(session.attachStream(new MidFlightCloseStream()));
+		const routedStream = (session as unknown as { readonly _stream: ChatResponseStream })._stream;
+		let invocations = 0;
+
+		await expect(routedStream.externalEdit(Uri.file('/workspace/file.ts'), async () => {
+			invocations++;
+		})).resolves.toBe('');
+
+		expect(invocations).toBe(1);
+	});
+
 	it('switches model when different modelId provided', async () => {
 		const session = await createSession();
 		const stream = new MockChatResponseStream();
