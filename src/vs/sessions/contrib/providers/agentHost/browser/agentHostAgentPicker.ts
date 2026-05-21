@@ -29,22 +29,22 @@ import { ChatContextKeyExprs } from '../../../../../workbench/contrib/chat/commo
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import type { CustomizationAgentRef } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { agentHostAgentPickerStorageKey, resolveAgentHostAgent } from '../../../../../platform/agentHost/common/customAgents.js';
 import { type IChatInputPickerOptions, ChatInputPickerActionViewItem } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { ActiveSessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { type ISession, type ISessionAgentRef, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
+import { MenuIdAgentHostAgentPicker } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomAgentPicker.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
 	ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE),
 );
-
-/** Footer menu for the agent picker dropdown. */
-export const MenuIdAgentHostAgentPicker = new MenuId('AgentHostAgentPicker');
 
 // -- Agent Host Agent Picker Action --
 
@@ -60,13 +60,14 @@ registerAction2(class extends Action2 {
 				order: -1,
 				when: ContextKeyExpr.and(IsActiveSessionAgentHost, IsPhoneLayoutContext.negate()),
 			}, {
-				// Running-session input bar — render to the left of the
-				// mode picker (order 2) and model picker (order 3) registered
-				// in `agentHostSessionConfigPicker.ts`.
+				// Running-session input bar — only inside the dedicated
+				// Agents Window. The regular VS Code chat editor uses its
+				// own picker (`agentHostCustomAgentPicker.ts`) gated on
+				// `!isSessionsWindow` so the two surfaces don't double up.
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext, IsPhoneLayoutContext.negate()),
 			}],
 		});
 	}
@@ -93,30 +94,6 @@ registerAction2(class extends Action2 {
 		}
 	}
 });
-
-export function agentHostAgentPickerStorageKey(resourceScheme: string): string {
-	return `workbench.agentsession.agentHostAgentPicker.${resourceScheme}.selectedAgentUri`;
-}
-
-/**
- * Resolves the agent that should be shown for a session:
- * - If the session has an agent and it exists in the effective list, use it.
- * - Else if a stored agent URI matches an entry in the list, use that entry.
- * - Else `undefined` (the default "Agent" placeholder row).
- */
-export function resolveAgentHostAgent(
-	agents: readonly CustomizationAgentRef[],
-	sessionAgent: ISessionAgentRef | undefined,
-	storedAgentUri: string | undefined,
-): CustomizationAgentRef | undefined {
-	if (sessionAgent) {
-		const match = agents.find(a => a.uri === sessionAgent.uri);
-		if (match) {
-			return match;
-		}
-	}
-	return storedAgentUri ? agents.find(a => a.uri === storedAgentUri) : undefined;
-}
 
 interface IAgentPickerDelegate {
 	readonly currentAgent: IObservable<CustomizationAgentRef | undefined>;
@@ -338,7 +315,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 				const storedUri = isUntitled
 					? storageService.get(agentHostAgentPickerStorageKey(session.resource.scheme), StorageScope.PROFILE)
 					: undefined;
-				const resolved = resolveAgentHostAgent(agents, sessionAgent, storedUri);
+				const resolved = resolveAgentHostAgent(agents, sessionAgent?.uri, storedUri);
 				currentAgent.set(resolved, undefined);
 				if (!sessionAgent && isUntitled && resolved) {
 					settingAgentInternally = true;
