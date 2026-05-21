@@ -852,6 +852,104 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(fired, afterFirstCustomization, 'expected event NOT to fire when customizations are unchanged');
 	});
 
+	test('NewSession forwards SessionState into _lastSessionStates so the picker sees customizations before first message', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/proj'), sessionTypeId);
+		await timeout(0); // let eagerCreate complete and the subscription seed
+
+		const rawId = session.resource.path.substring(1);
+
+		let fired = 0;
+		disposables.add(provider.onDidChangeCustomAgents(() => { fired++; }));
+
+		// Push a SessionState carrying customizations as if the host had
+		// resolved them and dispatched a SessionCustomizationsChanged.
+		const customizations = [{
+			customization: { uri: 'plugin://new-session', displayName: 'p' },
+			enabled: true,
+			status: CustomizationStatus.Loaded,
+			agents: [
+				{ uri: 'agent://reviewer', name: 'reviewer' },
+				{ uri: 'agent://triage', name: 'triage' },
+			],
+		}];
+		const state: SessionState = {
+			summary: {
+				resource: AgentSession.uri(sessionTypeId, rawId).toString(),
+				provider: sessionTypeId,
+				title: '',
+				status: ProtocolSessionStatus.Idle,
+				createdAt: 0,
+				modifiedAt: 0,
+			},
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			customizations,
+		};
+		agentHost.setSessionState(rawId, sessionTypeId, state);
+
+		assert.deepStrictEqual(provider.getCustomAgents(session.sessionId), [
+			{ uri: 'agent://reviewer', name: 'reviewer' },
+			{ uri: 'agent://triage', name: 'triage' },
+		]);
+		assert.ok(fired > 0, 'expected onDidChangeCustomAgents to fire when SessionState arrives');
+
+		// A second update with a different customizations identity should
+		// re-fire and update the picker.
+		const after = fired;
+		agentHost.setSessionState(rawId, sessionTypeId, {
+			...state,
+			customizations: [{
+				...customizations[0],
+				agents: [{ uri: 'agent://only', name: 'only' }],
+			}],
+		});
+		assert.deepStrictEqual(provider.getCustomAgents(session.sessionId), [
+			{ uri: 'agent://only', name: 'only' },
+		]);
+		assert.ok(fired > after, 'expected onDidChangeCustomAgents to fire again on a second update');
+	});
+
+	test('NewSession dispose clears _lastSessionStates entry and fires onDidChangeCustomAgents', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const first = provider.createNewSession(URI.parse('file:///home/user/a'), sessionTypeId);
+		await timeout(0);
+
+		const rawId = first.resource.path.substring(1);
+		agentHost.setSessionState(rawId, sessionTypeId, {
+			summary: {
+				resource: AgentSession.uri(sessionTypeId, rawId).toString(),
+				provider: sessionTypeId,
+				title: '',
+				status: ProtocolSessionStatus.Idle,
+				createdAt: 0,
+				modifiedAt: 0,
+			},
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			customizations: [{
+				customization: { uri: 'plugin://x', displayName: 'p' },
+				enabled: true,
+				status: CustomizationStatus.Loaded,
+				agents: [{ uri: 'agent://x', name: 'x' }],
+			}],
+		});
+		assert.strictEqual(provider.getCustomAgents(first.sessionId).length, 1);
+
+		let fired = 0;
+		disposables.add(provider.onDidChangeCustomAgents(() => { fired++; }));
+
+		// Trigger disposal of the first NewSession by creating a second one
+		// (the MutableDisposable holding `_newSession` disposes the previous).
+		provider.createNewSession(URI.parse('file:///home/user/b'), sessionTypeId);
+		await timeout(0);
+
+		assert.deepStrictEqual(provider.getCustomAgents(first.sessionId), []);
+		assert.ok(fired > 0, 'expected onDidChangeCustomAgents to fire on NewSession dispose');
+	});
+
 	// ---- Session lifecycle -------
 
 	test('createNewSession returns session with correct fields', () => {
