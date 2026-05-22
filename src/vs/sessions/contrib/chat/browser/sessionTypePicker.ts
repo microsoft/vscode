@@ -205,18 +205,17 @@ export class SessionTypePicker extends Disposable {
 			const provider = providersService.getProvider(providerId);
 			const groupTitle = provider?.label ?? providerId;
 			const isFirstInGroup = providerId !== lastProviderId;
-			if (hasDuplicateLabels && isFirstInGroup && lastProviderId !== undefined) {
-				groupedItems.push({ kind: ActionListItemKind.Separator, label: '' });
-			}
+
 			lastProviderId = providerId;
 			const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
 			const item: ISessionTypePickerItem = isCurrent
 				? { providerId, sessionTypeId: sessionType.id, label: sessionType.label, checked: true }
 				: { providerId, sessionTypeId: sessionType.id, label: sessionType.label };
+			const isLabelDuplicated = (labelCounts.get(sessionType.label) ?? 0) > 1;
 			groupedItems.push({
 				kind: ActionListItemKind.Action,
 				label: sessionType.label,
-				group: hasDuplicateLabels ? {
+				group: isLabelDuplicated ? {
 					title: isFirstInGroup ? groupTitle : '',
 					icon: sessionType.icon,
 				} : {
