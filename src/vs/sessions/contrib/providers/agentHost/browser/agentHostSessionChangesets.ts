@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedOpts, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -36,7 +35,7 @@ export function createChangesets(
 	}));
 }
 
-export class AgentHostChangeset extends Disposable implements ISessionChangeset {
+export class AgentHostChangeset implements ISessionChangeset {
 	readonly id: string;
 	readonly label: string;
 	readonly description?: string;
@@ -53,9 +52,7 @@ export class AgentHostChangeset extends Disposable implements ISessionChangeset 
 		changesetSummary: ChangesetSummary & { isDefault: boolean },
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
-		super();
-
-		this.id = changesetSummary.uriTemplate;
+		this.id = changesetSummary.label;
 		this.label = changesetSummary.label;
 		this.description = changesetSummary.description;
 
