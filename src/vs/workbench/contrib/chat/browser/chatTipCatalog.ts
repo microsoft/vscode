@@ -6,9 +6,10 @@
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { ChatConfiguration, ChatModeKind, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../common/constants.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
@@ -410,6 +411,24 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		},
 		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
 		excludeWhenToolsInvoked: ['listDebugEvents'],
+	},
+	{
+		id: 'tip.agentsWindow',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize(
+					'tip.agentsWindow',
+					"Work across multiple projects at once in the [Agents window](command:{0} \"Open Agents Window\").",
+					OPEN_AGENTS_WINDOW_COMMAND_ID
+				)
+			);
+		},
+		when: ContextKeyExpr.and(IsWebContext.negate(), OPEN_AGENTS_WINDOW_PRECONDITION),
+		excludeWhenCommandsExecuted: [
+			OPEN_AGENTS_WINDOW_COMMAND_ID,
+			OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID,
+		],
 	},
 	{
 		id: 'tip.copilotCli',
