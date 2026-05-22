@@ -109,6 +109,7 @@ export class IconLabel extends Disposable {
 	private readonly customHovers: Map<HTMLElement, IDisposable> = new Map();
 	private currentBgColorClassName: string | undefined;
 	private currentBgColorElement: HTMLElement | undefined;
+	private cachedDecorationContainer: HTMLElement | null | undefined;
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		super();
@@ -269,9 +270,12 @@ export class IconLabel extends Disposable {
 	}
 
 	private getDecorationContainer(): HTMLElement | undefined {
-		const listRow = this.domNode.element.closest('.monaco-list-row');
-		// eslint-disable-next-line no-restricted-syntax
-		return listRow?.querySelector(':scope > .monaco-tl-decoration-container') ?? undefined;
+		if (this.cachedDecorationContainer === undefined) {
+			const listRow = this.domNode.element.closest('.monaco-list-row');
+			// eslint-disable-next-line no-restricted-syntax
+			this.cachedDecorationContainer = listRow?.querySelector(':scope > .monaco-tl-decoration-container') ?? null;
+		}
+		return this.cachedDecorationContainer ?? undefined;
 	}
 
 	private getOrCreateSuffixNode() {
