@@ -18,7 +18,7 @@ import { IChat } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, IsAgentHostSession, IsAgentHostSessionContextContribution, isAgentHostSkillButtonId } from '../../browser/agentHostSkillButtons.js';
+import { AGENT_HOST_SKILL_BUTTON_COMMIT_ID, AGENT_HOST_SKILL_BUTTON_SYNC_ID, AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, IsAgentHostSession, IsAgentHostSessionContextContribution, isAgentHostSkillButtonId } from '../../browser/agentHostSkillButtons.js';
 import { BaseAgentHostSessionsProvider } from '../../browser/baseAgentHostSessionsProvider.js';
 // Importing this contribution registers the apply submenu on the changes toolbar,
 // which is the slot that hosts our skill buttons as a dropdown.
@@ -163,8 +163,8 @@ suite('agentHostSkillButtons - menu registration', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function skillButtonItems() {
-		const all = MenuRegistry.getMenuItems(MenuId.AgentsChangesPrimaryActionSubMenu);
+	function skillButtonItems(menuId: MenuId = MenuId.AgentsChangesPrimaryActionSubMenu) {
+		const all = MenuRegistry.getMenuItems(menuId);
 		const menuItems: { command: { id: string }; when?: ContextKeyExpression }[] = [];
 		for (const item of all) {
 			if (!isIMenuItem(item)) {
@@ -187,8 +187,16 @@ suite('agentHostSkillButtons - menu registration', () => {
 		]);
 	});
 
+	test('registers commit and sync skill buttons on the changes toolbar', () => {
+		const ids = skillButtonItems(MenuId.AgentsChangesToolbar).map(item => item.command.id).sort();
+		assert.deepStrictEqual(ids, [
+			'workbench.action.agentSessions.runSkill.commit',
+			'workbench.action.agentSessions.runSkill.sync',
+		]);
+	});
+
 	test('every skill button `when` clause includes sessions.isAgentHostSession and isSessionsWindow', () => {
-		for (const item of skillButtonItems()) {
+		for (const item of [...skillButtonItems(), ...skillButtonItems(MenuId.AgentsChangesToolbar)]) {
 			const whenStr = item.when?.serialize() ?? '';
 			assert.ok(
 				whenStr.includes(IsAgentHostSession.key),
@@ -205,6 +213,18 @@ suite('agentHostSkillButtons - menu registration', () => {
 		assert.ok(isAgentHostSkillButtonId(AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID));
 		assert.ok(CommandsRegistry.getCommand(AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID),
 			`expected command ${AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID} to be registered`);
+	});
+
+	test('exported commit id matches the registered command', () => {
+		assert.ok(isAgentHostSkillButtonId(AGENT_HOST_SKILL_BUTTON_COMMIT_ID));
+		assert.ok(CommandsRegistry.getCommand(AGENT_HOST_SKILL_BUTTON_COMMIT_ID),
+			`expected command ${AGENT_HOST_SKILL_BUTTON_COMMIT_ID} to be registered`);
+	});
+
+	test('exported sync id matches the registered command', () => {
+		assert.ok(isAgentHostSkillButtonId(AGENT_HOST_SKILL_BUTTON_SYNC_ID));
+		assert.ok(CommandsRegistry.getCommand(AGENT_HOST_SKILL_BUTTON_SYNC_ID),
+			`expected command ${AGENT_HOST_SKILL_BUTTON_SYNC_ID} to be registered`);
 	});
 
 	test('the apply submenu is contributed to the changes toolbar in the navigation group', () => {

@@ -79,11 +79,43 @@ interface IAgentHostSkillButtonSpec {
 	readonly group: string;
 	readonly order: number;
 	readonly extraWhen: ContextKeyExpression | undefined;
+	/** Menu to register the button on. Defaults to {@link MenuId.AgentsChangesPrimaryActionSubMenu}. */
+	readonly menuId?: MenuId;
 }
 
 const AGENT_HOST_SKILL_BUTTON_ID_PREFIX = 'workbench.action.agentSessions.runSkill.';
 
 const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
+	{
+		id: `${AGENT_HOST_SKILL_BUTTON_ID_PREFIX}commit`,
+		title: localize2('agentSessions.runSkill.commit', "Commit"),
+		skill: 'commit',
+		icon: Codicon.check,
+		group: 'navigation',
+		order: 0,
+		menuId: MenuId.AgentsChangesToolbar,
+		extraWhen: ContextKeyExpr.and(
+			ActiveSessionContextKeys.IsolationMode.isEqualTo(IsolationMode.Worktree),
+			ActiveSessionContextKeys.HasUncommittedChanges,
+		),
+	},
+	{
+		id: `${AGENT_HOST_SKILL_BUTTON_ID_PREFIX}sync`,
+		title: localize2('agentSessions.runSkill.sync', "Sync"),
+		skill: 'sync',
+		icon: Codicon.sync,
+		group: 'navigation',
+		order: 0,
+		menuId: MenuId.AgentsChangesToolbar,
+		extraWhen: ContextKeyExpr.and(
+			ActiveSessionContextKeys.IsolationMode.isEqualTo(IsolationMode.Worktree),
+			ActiveSessionContextKeys.HasUpstream,
+			ContextKeyExpr.or(
+				ActiveSessionContextKeys.HasIncomingChanges,
+				ActiveSessionContextKeys.HasOutgoingChanges,
+			),
+		),
+	},
 	{
 		id: `${AGENT_HOST_SKILL_BUTTON_ID_PREFIX}merge`,
 		title: localize2('agentSessions.runSkill.merge', "Merge Changes"),
@@ -152,6 +184,8 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
  * as the Copilot CLI extension's Sync PR button. Exported so the changes
  * view can pick it out of the toolbar without re-deriving the ID.
  */
+export const AGENT_HOST_SKILL_BUTTON_COMMIT_ID = `${AGENT_HOST_SKILL_BUTTON_ID_PREFIX}commit`;
+export const AGENT_HOST_SKILL_BUTTON_SYNC_ID = `${AGENT_HOST_SKILL_BUTTON_ID_PREFIX}sync`;
 export const AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID = `${AGENT_HOST_SKILL_BUTTON_ID_PREFIX}updatePR`;
 
 /**
@@ -171,7 +205,7 @@ function registerAgentHostSkillButton(spec: IAgentHostSkillButtonSpec): void {
 				icon: spec.icon,
 				f1: false,
 				menu: {
-					id: MenuId.AgentsChangesPrimaryActionSubMenu,
+					id: spec.menuId ?? MenuId.AgentsChangesPrimaryActionSubMenu,
 					group: spec.group,
 					order: spec.order,
 					when: ContextKeyExpr.and(
