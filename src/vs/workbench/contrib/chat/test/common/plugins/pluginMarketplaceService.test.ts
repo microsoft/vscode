@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
-import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -41,6 +42,21 @@ suite('PluginMarketplaceService', () => {
 		assert.strictEqual(parsed.githubRepo, 'microsoft/vscode');
 	});
 
+	test('parses GitHub shorthand marketplace with ref suffix', () => {
+		const parsed = parseMarketplaceReference('microsoft/vscode#marketplace');
+		assert.ok(parsed);
+		if (!parsed) {
+			return;
+		}
+		assert.strictEqual(parsed.kind, MarketplaceReferenceKind.GitHubShorthand);
+		assert.strictEqual(parsed.cloneUrl, 'https://github.com/microsoft/vscode.git');
+		assert.strictEqual(parsed.canonicalId, 'github:microsoft/vscode#marketplace');
+		assert.strictEqual(parsed.displayLabel, 'microsoft/vscode#marketplace');
+		assert.deepStrictEqual(parsed.cacheSegments, ['github.com', 'microsoft', 'vscode', 'ref_marketplace']);
+		assert.strictEqual(parsed.ref, 'marketplace');
+		assert.strictEqual(parsed.githubRepo, 'microsoft/vscode');
+	});
+
 	test('parses direct HTTPS and SSH marketplaces ending in .git', () => {
 		const https = parseMarketplaceReference('https://example.com/org/repo.git');
 		assert.ok(https);
@@ -71,6 +87,22 @@ suite('PluginMarketplaceService', () => {
 		assert.strictEqual(parsed.canonicalId, 'git:example.com/org/repo.git');
 		assert.deepStrictEqual(parsed.cacheSegments, ['example.com', 'org', 'repo']);
 		assert.strictEqual(parsed.githubRepo, undefined);
+	});
+
+	test('parses git URI marketplaces with ref suffix', () => {
+		const https = parseMarketplaceReference('https://example.com/org/repo.git#marketplace');
+		assert.ok(https);
+		assert.strictEqual(https?.cloneUrl, 'https://example.com/org/repo.git');
+		assert.strictEqual(https?.canonicalId, 'git:example.com/org/repo.git#marketplace');
+		assert.deepStrictEqual(https?.cacheSegments, ['example.com', 'org', 'repo', 'ref_marketplace']);
+		assert.strictEqual(https?.ref, 'marketplace');
+
+		const scp = parseMarketplaceReference('git@example.com:org/repo.git#marketplace');
+		assert.ok(scp);
+		assert.strictEqual(scp?.cloneUrl, 'git@example.com:org/repo.git');
+		assert.strictEqual(scp?.canonicalId, 'git:example.com/org/repo.git#marketplace');
+		assert.deepStrictEqual(scp?.cacheSegments, ['example.com', 'org', 'repo', 'ref_marketplace']);
+		assert.strictEqual(scp?.ref, 'marketplace');
 	});
 
 	test('populates githubRepo for GitHub HTTPS URLs', () => {
@@ -174,6 +206,64 @@ suite('PluginMarketplaceService', () => {
 		const parsed = parseMarketplaceReferences([null, 42, {}, 'microsoft/vscode']);
 		assert.strictEqual(parsed.length, 1);
 		assert.strictEqual(parsed[0].canonicalId, 'github:microsoft/vscode');
+	});
+
+	test('treats different marketplace refs as distinct references', () => {
+		const parsed = parseMarketplaceReferences([
+			'microsoft/vscode#main',
+			'microsoft/vscode#marketplace',
+			'https://github.com/microsoft/vscode.git#marketplace',
+		]);
+
+		assert.deepStrictEqual(parsed.map(r => r.canonicalId), [
+			'github:microsoft/vscode#main',
+			'github:microsoft/vscode#marketplace',
+			'git:github.com/microsoft/vscode.git#marketplace',
+		]);
+	});
+});
+
+suite('PluginMarketplaceService - GitHub marketplace refs', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('fetches GitHub marketplace definitions from the configured ref', async () => {
+		const requestUrls: string[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: ['microsoft/vscode#marketplace'],
+			[ChatConfiguration.PluginsEnabled]: true,
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
+		instantiationService.stub(IFileService, {} as unknown as IFileService);
+		instantiationService.stub(IAgentPluginRepositoryService, {
+			agentPluginsHome: URI.file('/agent-plugins'),
+			ensureRepository: async () => {
+				throw new Error('should not clone for 5xx responses');
+			},
+		} as Partial<IAgentPluginRepositoryService> as IAgentPluginRepositoryService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {
+			request: async (options: { url: string }) => {
+				requestUrls.push(options.url);
+				return { res: { headers: {}, statusCode: 500 }, stream: bufferToStream(VSBuffer.fromString('')) };
+			},
+		} as Partial<IRequestService> as IRequestService);
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+
+		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
+		await service.fetchMarketplacePlugins(CancellationToken.None);
+
+		assert.ok(requestUrls.length > 0);
+		assert.ok(requestUrls.every(url => url.includes('/marketplace/')));
+		assert.ok(requestUrls.every(url => !url.includes('/main/')));
 	});
 });
 
@@ -454,7 +544,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 
 	test('hydrates a github-sourced plugin from installed.json name and marketplace cache after restart', async () => {
 		// Simulates: user installs the "azure" plugin from the
-		// "github/awesome-copilot" marketplace (fetched via HTTP, never
+		// "github/awesome-copilot#marketplace" marketplace (fetched via HTTP, never
 		// cloned). After restart, installed.json contains only the durable
 		// identity for that plugin; the full descriptor is recovered from
 		// marketplace data cached from the prior fetch.
@@ -462,7 +552,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		const storageService = store.add(new InMemoryStorageService());
 		const fileService = new TestFileService();
 
-		const awesomeCopilot = parseMarketplaceReference('github/awesome-copilot')!;
+		const awesomeCopilot = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
 		const azurePlugin = makeAzurePlugin(awesomeCopilot);
 		storeMarketplaceCache(storageService, awesomeCopilot, azurePlugin);
 		const azurePluginUri = URI.joinPath(CACHE_ROOT, 'github.com', 'microsoft', 'azure-skills', '.github', 'plugins', 'azure-skills');
@@ -479,7 +569,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({
-			[ChatConfiguration.PluginMarketplaces]: ['github/awesome-copilot'],
+			[ChatConfiguration.PluginMarketplaces]: ['github/awesome-copilot#marketplace'],
 			[ChatConfiguration.PluginsEnabled]: true,
 		}));
 		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
@@ -521,7 +611,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		const storageService = store.add(new InMemoryStorageService());
 		const fileService = new TestFileService();
 
-		const awesomeCopilot = parseMarketplaceReference('github/awesome-copilot')!;
+		const awesomeCopilot = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
 		const azurePluginUri = URI.joinPath(CACHE_ROOT, 'github.com', 'microsoft', 'azure-skills', '.github', 'plugins', 'azure-skills');
 		const azurePlugin = makeAzurePlugin(awesomeCopilot);
 		storeMarketplaceCache(storageService, awesomeCopilot, azurePlugin);
@@ -529,7 +619,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		function makeService(): PluginMarketplaceService {
 			const instantiationService = store.add(new TestInstantiationService());
 			instantiationService.stub(IConfigurationService, new TestConfigurationService({
-				[ChatConfiguration.PluginMarketplaces]: ['github/awesome-copilot'],
+				[ChatConfiguration.PluginMarketplaces]: ['github/awesome-copilot#marketplace'],
 				[ChatConfiguration.PluginsEnabled]: true,
 			}));
 			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);

@@ -18,6 +18,7 @@ export interface IMarketplaceReference {
 	readonly canonicalId: string;
 	readonly cacheSegments: readonly string[];
 	readonly kind: MarketplaceReferenceKind;
+	readonly ref?: string;
 	readonly githubRepo?: string;
 	readonly localRepositoryUri?: URI;
 }
@@ -76,17 +77,19 @@ export function parseMarketplaceReference(value: string): IMarketplaceReference 
 		return scpReference;
 	}
 
-	const shorthandMatch = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/.exec(rawValue);
+	const shorthandMatch = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)(?:#(.+))?$/.exec(rawValue);
 	if (shorthandMatch) {
 		const owner = shorthandMatch[1];
 		const repo = shorthandMatch[2];
+		const ref = shorthandMatch[3];
 		return {
 			rawValue,
-			displayLabel: `${owner}/${repo}`,
+			displayLabel: rawValue,
 			cloneUrl: `https://github.com/${owner}/${repo}.git`,
-			canonicalId: getGitHubCanonicalId(owner, repo),
-			cacheSegments: ['github.com', owner, repo],
+			canonicalId: getGitHubCanonicalId(owner, repo, ref),
+			cacheSegments: ['github.com', owner, repo, ...getRefCacheSegments(ref)],
 			kind: MarketplaceReferenceKind.GitHubShorthand,
+			ref,
 			githubRepo: `${owner}/${repo}`,
 		};
 	}
@@ -104,6 +107,9 @@ function parseUriMarketplaceReference(rawValue: string): IMarketplaceReference |
 
 	const scheme = uri.scheme.toLowerCase();
 	if (scheme === 'file' && /^file:\/\//i.test(rawValue)) {
+		if (uri.fragment) {
+			return undefined;
+		}
 		const localRepositoryUri = URI.file(uri.fsPath);
 		return {
 			rawValue,
@@ -128,6 +134,8 @@ function parseUriMarketplaceReference(rawValue: string): IMarketplaceReference |
 	if (!normalizedPath) {
 		return undefined;
 	}
+	const ref = uri.fragment || undefined;
+	const cloneUri = uri.fragment ? uri.with({ fragment: null }) : uri;
 
 	const gitSuffix = '.git';
 	const sanitizedAuthority = sanitizePathSegment(uri.authority.toLowerCase());
@@ -143,16 +151,17 @@ function parseUriMarketplaceReference(rawValue: string): IMarketplaceReference |
 	return {
 		rawValue,
 		displayLabel: rawValue,
-		cloneUrl: rawValue,
-		canonicalId: `git:${uri.authority.toLowerCase()}/${canonicalPath}`,
-		cacheSegments: [sanitizedAuthority, ...pathSegments],
+		cloneUrl: cloneUri.toString(),
+		canonicalId: appendRefSuffix(`git:${uri.authority.toLowerCase()}/${canonicalPath}`, ref),
+		cacheSegments: [sanitizedAuthority, ...pathSegments, ...getRefCacheSegments(ref)],
 		kind: MarketplaceReferenceKind.GitUri,
+		ref,
 		githubRepo,
 	};
 }
 
 function parseScpMarketplaceReference(rawValue: string): IMarketplaceReference | undefined {
-	const match = /^([^@\s]+)@([^:\s]+):(.+\.git)$/i.exec(rawValue);
+	const match = /^([^@\s]+)@([^:\s]+):(.+?\.git)(?:#(.+))?$/i.exec(rawValue);
 	if (!match) {
 		return undefined;
 	}
@@ -160,6 +169,7 @@ function parseScpMarketplaceReference(rawValue: string): IMarketplaceReference |
 	const gitSuffix = '.git';
 	const authority = match[2];
 	const pathWithGit = match[3].replace(/^\/+/, '');
+	const ref = match[4];
 	if (!pathWithGit.toLowerCase().endsWith(gitSuffix)) {
 		return undefined;
 	}
@@ -171,10 +181,11 @@ function parseScpMarketplaceReference(rawValue: string): IMarketplaceReference |
 	return {
 		rawValue,
 		displayLabel: rawValue,
-		cloneUrl: rawValue,
-		canonicalId: `git:${authority.toLowerCase()}/${pathWithGit.toLowerCase()}`,
-		cacheSegments: [sanitizePathSegment(authority.toLowerCase()), ...pathSegments],
+		cloneUrl: `${match[1]}@${authority}:${pathWithGit}`,
+		canonicalId: appendRefSuffix(`git:${authority.toLowerCase()}/${pathWithGit.toLowerCase()}`, ref),
+		cacheSegments: [sanitizePathSegment(authority.toLowerCase()), ...pathSegments, ...getRefCacheSegments(ref)],
 		kind: MarketplaceReferenceKind.GitUri,
+		ref,
 		githubRepo,
 	};
 }
@@ -212,8 +223,16 @@ function extractGitHubRepo(authority: string, pathWithoutGit: string): string | 
 	return undefined;
 }
 
-function getGitHubCanonicalId(owner: string, repo: string): string {
-	return `github:${owner.toLowerCase()}/${repo.toLowerCase()}`;
+function getGitHubCanonicalId(owner: string, repo: string, ref?: string): string {
+	return appendRefSuffix(`github:${owner.toLowerCase()}/${repo.toLowerCase()}`, ref);
+}
+
+function appendRefSuffix(canonicalId: string, ref: string | undefined): string {
+	return ref ? `${canonicalId}#${encodeURIComponent(ref)}` : canonicalId;
+}
+
+function getRefCacheSegments(ref: string | undefined): string[] {
+	return ref ? [`ref_${encodeURIComponent(ref)}`] : [];
 }
 
 function sanitizePathSegment(value: string): string {
