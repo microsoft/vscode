@@ -321,19 +321,30 @@ export class SessionTypePicker extends Disposable {
 		}
 
 		this._triggerElement.classList.remove('hidden');
-		const currentType = this._folderSessionTypes.find(t =>
-			t.providerId === this._picked?.providerId && t.sessionType.id === this._picked?.sessionTypeId)?.sessionType
-			?? this._folderSessionTypes.find(t => t.sessionType.id === this._picked?.sessionTypeId)?.sessionType;
+		const currentEntry = this._folderSessionTypes.find(t =>
+			t.providerId === this._picked?.providerId && t.sessionType.id === this._picked?.sessionTypeId)
+			?? this._folderSessionTypes.find(t => t.sessionType.id === this._picked?.sessionTypeId);
+		const currentType = currentEntry?.sessionType;
 		const modeIcon = currentType?.icon ?? Codicon.terminal;
 		const modeLabel = currentType?.label ?? this._picked?.sessionTypeId ?? '';
+		const provider = currentEntry ? this.sessionsProvidersService.getProvider(currentEntry.providerId) : undefined;
+		const providerIcon = provider?.icon;
 
 		dom.append(this._triggerElement, renderIcon(modeIcon));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = modeLabel;
 
+		if (providerIcon) {
+			const providerIconEl = dom.append(this._triggerElement, renderIcon(providerIcon));
+			providerIconEl.classList.add('sessions-chat-dropdown-provider-icon');
+			providerIconEl.setAttribute('aria-hidden', 'true');
+		}
+
 		const chevron = dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 		chevron.classList.add('sessions-chat-dropdown-chevron');
 
-		this._triggerElement.ariaLabel = localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
+		this._triggerElement.ariaLabel = providerIcon && provider?.label
+			? localize('sessionTypePicker.triggerAriaLabelWithProvider', "Pick Session Type, {0}, {1}", modeLabel, provider.label)
+			: localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
 	}
 }

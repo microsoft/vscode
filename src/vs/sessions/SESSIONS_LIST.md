@@ -30,6 +30,7 @@ Each session row displays:
 - **Workspace badge** — folder/worktree/cloud icon + label (hidden when redundant with section header)
 - **Diff stats** — `+insertions −deletions` when the session has pending changes
 - **Status description or timestamp** — InProgress/NeedsInput/Error show a status message; otherwise a relative timestamp
+- **Provider icon** - optional icon after the timestamp/status for providers that need disambiguation
 - **Approval row** (optional) — pending agent approvals with an "Allow" button
 
 ### Grouping

@@ -162,6 +162,15 @@
 			}
 		}
 
+		.session-provider-icon {
+			display: flex;
+			align-items: center;
+
+			> .codicon {
+				font-size: 12px;
+			}
+		}
+
 		.session-diff {
 			font-variant-numeric: tabular-nums;
 			overflow: hidden;

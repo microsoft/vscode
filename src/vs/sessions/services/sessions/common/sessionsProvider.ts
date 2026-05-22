@@ -47,9 +47,9 @@ export interface ISessionsProvider {
 	readonly label: string;
 
 	/**
-	 * Icon for the provider, used in the UI.
+	 * Optional icon for the provider, used in the UI.
 	 */
-	readonly icon: ThemeIcon;
+	readonly icon?: ThemeIcon;
 
 	/**
 	 * Session types supported by this provider. The provider is expected to update this list and fire `onDidChangeSessionTypes`

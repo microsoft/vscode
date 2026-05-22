@@ -132,9 +132,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 	readonly id: string;
 	readonly label: string;
-	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
+	protected readonly sessionIconFallback: ThemeIcon = Codicon.remote;
 
 	private _outputChannelId: string | undefined;
 	get outputChannelId(): string | undefined { return this._outputChannelId; }

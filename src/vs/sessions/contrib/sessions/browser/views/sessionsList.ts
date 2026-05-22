@@ -47,6 +47,7 @@ import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/bro
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 
 const $ = DOM.$;
 
@@ -200,6 +201,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly hoverService: IHoverService,
 		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly accessibilityService: IAccessibilityService,
+		private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		this._motionReducedSignal = observableSignalFromEvent('reduceMotion', this.accessibilityService.onDidChangeReducedMotion);
 	}
@@ -458,8 +460,24 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					timeEl.textContent = formatTime();
 				}, 60_000);
 				timeDisposable.value = toDisposable(() => targetWindow.clearInterval(interval));
+				parts.push(timeEl);
 			} else {
 				timeDisposable.clear();
+			}
+
+			// Provider-defined icon for session type disambiguation.
+			const provider = this.sessionsProvidersService.getProvider(element.providerId);
+			const providerIcon = provider?.icon;
+			if (providerIcon) {
+				if (parts.length > 0) {
+					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
+				}
+				const providerIconEl = DOM.append(template.detailsRow, $('span.session-provider-icon'));
+				DOM.append(providerIconEl, $(`span${ThemeIcon.asCSSSelector(providerIcon)}`));
+				const tooltip = provider?.label ?? localize('sessionsList.providerIndicator', "Session type indicator");
+				template.elementDisposables.add(this.hoverService.setupDelayedHover(providerIconEl, {
+					content: tooltip,
+				}));
 			}
 		}));
 
@@ -826,6 +844,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const accessibilityService = instantiationService.invokeFunction(accessor => accessor.get(IAccessibilityService));
+		const sessionsProvidersService = instantiationService.invokeFunction(accessor => accessor.get(ISessionsProvidersService));
 		const sessionRenderer = new SessionItemRenderer(
 			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s) },
 			approvalModel,
@@ -835,6 +854,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			hoverService,
 			agentSessionsService,
 			accessibilityService,
+			sessionsProvidersService,
 		);
 
 		const showMoreRenderer = new SessionShowMoreRenderer();

@@ -163,7 +163,7 @@ Providers may fire `onDidReplaceSession` when a temporary (untitled) session is 
 
 ## Adding a New Provider
 
-1. **Implement `ISessionsProvider`** with a unique `id`, `sessionTypes`, and `browseActions`
+1. **Implement `ISessionsProvider`** with a unique `id`, `sessionTypes`, and `browseActions`; set the optional provider `icon` only when provider-level UI needs to disambiguate that provider from otherwise similar session types
 2. **Create session data classes** implementing `ISession` with observable properties
 3. **Place code under `contrib/providers/<name>/`**
 4. **Register via a workbench contribution** at `WorkbenchPhase.AfterRestored`:
@@ -201,4 +201,3 @@ The **agents window core workbench** is defined as all sessions code *outside* `
 When you add a property or method to `ISession` or `ISessionsProvider`, it **must** be referenced by at least one file in the core workbench, not only within provider implementations.
 
 **Rationale:** If an interface member is only used inside providers, it belongs on the provider's concrete class, not on the shared interface. Interfaces should capture what the orchestration layer (management service, UI) needs from providers — not internal implementation details that leak outward.
-

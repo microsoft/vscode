@@ -931,11 +931,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	abstract readonly id: string;
 	abstract readonly label: string;
-	abstract readonly icon: ThemeIcon;
 	abstract readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
 	get sessionTypes(): readonly ISessionType[] { return this._sessionTypes; }
 	protected _sessionTypes: ISessionType[] = [];
+	protected abstract readonly sessionIconFallback: ThemeIcon;
 
 	protected readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
@@ -1128,7 +1128,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`Agent session URI has no provider scheme: ${meta.session.toString()}`);
 		}
 		return new AgentHostSessionAdapter(meta, this.id, this.resourceSchemeForProvider(provider), provider, {
-			icon: this.iconForAgentProvider(provider) ?? this.icon,
+			icon: this.iconForAgentProvider(provider) ?? this.sessionIconFallback,
 			loading: this.authenticationPending,
 			mapDiffUri: this._diffUriMapper(),
 			gitHubService: this._gitHubService,
@@ -1162,7 +1162,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const next = rootState.agents.map((agent): ISessionType => ({
 			id: agent.provider,
 			label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
-			icon: this.iconForAgentProvider(agent.provider) ?? this.icon,
+			icon: this.iconForAgentProvider(agent.provider) ?? this.sessionIconFallback,
 		}));
 
 		const prev = this._sessionTypes;

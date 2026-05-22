@@ -43,9 +43,10 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
 	readonly label: string;
-	readonly icon: ThemeIcon = Codicon.vm;
+	readonly icon: ThemeIcon = Codicon.serverProcess;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly supportsLocalWorkspaces = true;
+	protected readonly sessionIconFallback: ThemeIcon = Codicon.vm;
 
 	private readonly _localLabel = localize('localAgentHostSessionTypeLocation', "Local");
 	private readonly _localDescription = new MarkdownString(this._localLabel);
