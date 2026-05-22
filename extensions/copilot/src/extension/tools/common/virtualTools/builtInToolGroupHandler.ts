@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { LanguageModelToolInformation } from 'vscode';
+import { IToolDeferralService } from '../../../../platform/networking/common/toolDeferralService';
 import { assertNever } from '../../../../util/vs/base/common/assert';
 import { groupBy } from '../../../../util/vs/base/common/collections';
 import { getToolsForCategory, toolCategories, ToolCategory, ToolName } from '../toolNames';
@@ -40,7 +41,9 @@ function getCategorySummary(category: ToolCategory): string {
 }
 
 export class BuiltInToolGroupHandler {
-	constructor() { }
+	constructor(
+		@IToolDeferralService private readonly _toolDeferralService: IToolDeferralService,
+	) { }
 
 	/** Creates groups for built-in tools based on the type-safe categorization system */
 	createBuiltInToolGroups(tools: LanguageModelToolInformation[]): (VirtualTool | LanguageModelToolInformation)[] {
@@ -52,9 +55,15 @@ export class BuiltInToolGroupHandler {
 		const contributedTools = tools.filter(t => !toolCategories.hasOwnProperty(t.name));
 		const builtInTools = tools.filter(t => toolCategories.hasOwnProperty(t.name));
 
-		// Filter out Core tools from grouping (they should remain individual)
-		const toolsToGroup = builtInTools.filter(t => toolCategories[t.name as ToolName] !== ToolCategory.Core);
-		const coreTools = builtInTools.filter(t => toolCategories[t.name as ToolName] === ToolCategory.Core);
+		// Filter out Core tools and non-deferred tools from grouping (they should remain individual)
+		const toolsToGroup = builtInTools.filter(t => {
+			const category = toolCategories[t.name as ToolName];
+			return category !== ToolCategory.Core && !this._toolDeferralService.isNonDeferredTool(t.name);
+		});
+		const directBuiltInTools = builtInTools.filter(t => {
+			const category = toolCategories[t.name as ToolName];
+			return category === ToolCategory.Core || this._toolDeferralService.isNonDeferredTool(t.name);
+		});
 
 		const categories = groupBy(toolsToGroup, t => toolCategories[t.name as ToolName]);
 		const virtualTools = Object.entries(categories).flatMap<VirtualTool | LanguageModelToolInformation>(([category, tools]) => {
@@ -75,8 +84,8 @@ export class BuiltInToolGroupHandler {
 			);
 		});
 
-		// Return: virtual tool groups + individual core tools + contributed tools
-		return [...virtualTools, ...coreTools, ...contributedTools];
+		// Return: virtual tool groups + direct built-in tools + contributed tools
+		return [...virtualTools, ...directBuiltInTools, ...contributedTools];
 	}
 
 	static get BUILT_IN_GROUP_KEY(): string {

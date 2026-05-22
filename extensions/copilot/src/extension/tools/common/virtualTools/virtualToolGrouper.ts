@@ -43,7 +43,7 @@ export class VirtualToolGrouper implements IToolCategorization {
 		@IToolEmbeddingsComputer private readonly _toolEmbeddingsComputer: IToolEmbeddingsComputer,
 		@IInstantiationService _instantiationService: IInstantiationService,
 	) {
-		this.builtInToolGroupHandler = new BuiltInToolGroupHandler();
+		this.builtInToolGroupHandler = _instantiationService.createInstance(BuiltInToolGroupHandler);
 	}
 
 	/**
