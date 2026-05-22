@@ -122,6 +122,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 	async preferredHome(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
 		const preferLocal = schemeFilter === Schemas.file;
+		const path = preferLocal ? undefined : await this.pathService.path;
+		const normalize = preferLocal ? localPathNormalize : path!.normalize;
+		const isAbsolute = preferLocal ? localPathIsAbsolute : path!.isAbsolute;
+
 		const userHome = await this.pathService.userHome({ preferLocal });
 		const preferredHomeConfig = this.configurationService.inspect<string>('files.dialog.defaultPath');
 		const preferredHomeCandidate = preferLocal ? preferredHomeConfig.userLocalValue : preferredHomeConfig.userRemoteValue;
@@ -133,12 +137,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			if (preferredHomeCandidate.startsWith('~')) {
 				// Handle tilde expansion
 				if (preferredHomeCandidate === '~' || preferredHomeCandidate.startsWith('~/') || preferredHomeCandidate.startsWith('~\\')) {
-					let relativePath = preferredHomeCandidate.slice(2);
-					relativePath = preferLocal
-						? localPathNormalize(relativePath)
-						: (await this.pathService.path).normalize(relativePath);
-					const isRelativePath = preferLocal ? !localPathIsAbsolute(relativePath) : !(await this.pathService.path).isAbsolute(relativePath);
-					if (isRelativePath) {
+					const relativePath = normalize(preferredHomeCandidate.slice(2));
+					if (!isAbsolute(relativePath)) {
 						preferredHomeUri = resources.joinPath(userHome, relativePath);
 					} else {
 						this.logService.debug(`[FileDialogService] Preferred home path after ~ resolved to absolute: ${relativePath}`);
@@ -148,9 +148,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 				}
 			} else {
 				// Handle absolute paths
-				const isPreferredHomeCandidateAbsolute = preferLocal ? localPathIsAbsolute(preferredHomeCandidate) : (await this.pathService.path).isAbsolute(preferredHomeCandidate);
-				if (isPreferredHomeCandidateAbsolute) {
-					const preferredHomeNormalized = preferLocal ? localPathNormalize(preferredHomeCandidate) : (await this.pathService.path).normalize(preferredHomeCandidate);
+				if (isAbsolute(preferredHomeCandidate)) {
+					const preferredHomeNormalized = normalize(preferredHomeCandidate);
 					preferredHomeUri = resources.toLocalResource(await this.pathService.fileURI(preferredHomeNormalized), this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
 				} else {
 					this.logService.debug(`[FileDialogService] Preferred home files.dialog.defaultPath is not absolute: ${preferredHomeCandidate}`);
