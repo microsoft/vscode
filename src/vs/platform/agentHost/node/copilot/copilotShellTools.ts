@@ -630,6 +630,17 @@ interface IShellToolArgs {
 	requestUnsandboxedExecutionReason?: string;
 }
 
+export interface IUnsandboxedCommandConfirmationRequest {
+	readonly toolCallId: string;
+	readonly toolName: string;
+	readonly shellExecutable: string;
+	readonly command: string;
+	readonly reason?: string;
+	readonly blockedDomains?: readonly string[];
+}
+
+export type UnsandboxedCommandConfirmationHandler = (request: IUnsandboxedCommandConfirmationRequest) => Promise<boolean>;
+
 interface IWriteShellArgs {
 	command: string;
 }
@@ -651,6 +662,7 @@ export async function createShellTools(
 	shellManager: ShellManager,
 	terminalManager: IAgentHostTerminalManager,
 	logService: ILogService,
+	confirmUnsandboxedExecution?: UnsandboxedCommandConfirmationHandler,
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<Tool<any>[]> {
 	const executable = await shellManager.getResolvedExecutable();
@@ -694,17 +706,76 @@ export async function createShellTools(
 			try {
 				let commandToRun = args.command;
 				if (sandboxEnabled) {
-					const wrapped = await engine.wrapCommand(
+					if (args.requestUnsandboxedExecution && !engine.areUnsandboxedCommandsAllowed()) {
+						return makeFailureResult(
+							'Unsandboxed execution is disabled by the chat.agent.sandbox.allowUnsandboxedCommands setting.',
+							'unsandboxed_disabled'
+						);
+					}
+
+					const autoApproveUnsandboxed = engine.isAutoApproveUnsandboxedCommands();
+					const requestUnsandboxedConfirmation = async (blockedDomains?: readonly string[]): Promise<boolean | ToolResultObject> => {
+						if (autoApproveUnsandboxed) {
+							return true;
+						}
+						if (!confirmUnsandboxedExecution) {
+							const blocked = blockedDomains?.join(', ') ?? '(unknown)';
+							return makeFailureResult(
+								`Command requires approval to run outside the sandbox. Blocked domains: ${blocked}. Re-run with requestUnsandboxedExecution=true and requestUnsandboxedExecutionReason explaining why unsandboxed access is required.`,
+								'sandbox_blocked'
+							);
+						}
+
+						const approved = await confirmUnsandboxedExecution({
+							toolCallId: invocation.toolCallId,
+							toolName: invocation.toolName,
+							shellExecutable: executable,
+							command: args.command,
+							reason: args.requestUnsandboxedExecutionReason,
+							blockedDomains,
+						});
+						return approved;
+					};
+
+					let wrapped = await engine.wrapCommand(
 						args.command,
 						args.requestUnsandboxedExecution,
 						executable,
 						ref.object.shellType === 'bash' ? shellManager.workingDirectory : undefined,
 					);
+
+					if (args.requestUnsandboxedExecution && !wrapped.isSandboxWrapped) {
+						const decision = await requestUnsandboxedConfirmation(wrapped.blockedDomains);
+						if (typeof decision !== 'boolean') {
+							return decision;
+						}
+						if (!decision) {
+							const blocked = wrapped.blockedDomains?.join(', ') ?? '(none)';
+							return makeFailureResult(
+								`User declined to run command outside the sandbox. Blocked domains: ${blocked}.`,
+								'sandbox_blocked'
+							);
+						}
+					}
+
 					if (wrapped.requiresUnsandboxConfirmation) {
-						const blocked = wrapped.blockedDomains?.join(', ') ?? '(unknown)';
-						return makeFailureResult(
-							`Command would access blocked network domain(s): ${blocked}. Re-run with requestUnsandboxedExecution=true and requestUnsandboxedExecutionReason explaining why unsandboxed access is required.`,
-							'sandbox_blocked'
+						const decision = await requestUnsandboxedConfirmation(wrapped.blockedDomains);
+						if (typeof decision !== 'boolean') {
+							return decision;
+						}
+						if (!decision) {
+							const blocked = wrapped.blockedDomains?.join(', ') ?? '(unknown)';
+							return makeFailureResult(
+								`User declined to run command outside the sandbox. Blocked domains: ${blocked}.`,
+								'sandbox_blocked'
+							);
+						}
+
+						wrapped = await engine.wrapCommand(
+							args.command,
+							true,
+							executable,
+							ref.object.shellType === 'bash' ? shellManager.workingDirectory : undefined,
 						);
 					}
 					commandToRun = wrapped.command;

@@ -24,7 +24,7 @@ import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { TerminalClaimKind, type TerminalClaim, type TerminalInfo } from '../../common/state/protocol/state.js';
 import { formatTerminalText, IAgentHostTerminalManager, type ICommandFinishedEvent, type ISendTextOptions } from '../../node/agentHostTerminalManager.js';
-import { createShellTools, isMultilineCommand, ShellManager, prefixForHistorySuppression, shellTypeForExecutable } from '../../node/copilot/copilotShellTools.js';
+import { createShellTools, type IUnsandboxedCommandConfirmationRequest, isMultilineCommand, ShellManager, prefixForHistorySuppression, shellTypeForExecutable } from '../../node/copilot/copilotShellTools.js';
 
 class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	declare readonly _serviceBrand: undefined;
@@ -684,7 +684,7 @@ suite('CopilotShellTools', () => {
 		assert.ok(sentCommand.includes('echo hello'), `Wrapped command should still contain the user command. Sent: ${sentCommand}`);
 	});
 
-	test('primary shell tool returns a sandbox_blocked failure for blocked network domains', async function () {
+	test('primary shell tool requests confirmation before rerunning outside the sandbox', async function () {
 		if (platform.isWindows) {
 			// Sandbox is not supported on Windows.
 			this.skip();
@@ -693,8 +693,48 @@ suite('CopilotShellTools', () => {
 		// `requiresUnsandboxConfirmation` only fires when unsandboxed commands are allowed AND a
 		// blocked domain is detected — otherwise the engine keeps the command sandboxed.
 		agentConfigurationService.setSandboxValue(AgentHostSandboxConfigKey.AllowUnsandboxedCommands, true);
+		terminalManager.commandDetectionSupported = true;
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
-		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
+		const confirmationRequests: IUnsandboxedCommandConfirmationRequest[] = [];
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService(), async request => {
+			confirmationRequests.push(request);
+			return true;
+		});
+		const bashTool = tools.find(tool => tool.name === 'bash');
+		assert.ok(bashTool);
+
+		const invocation: ToolInvocation = {
+			sessionId: 'session-1',
+			toolCallId: 'tool-1',
+			toolName: 'bash',
+			arguments: { command: 'curl https://example.com' },
+		};
+		const resultPromise = bashTool.handler({ command: 'curl https://example.com' }, invocation);
+		await terminalManager.commandFinishedListenerRegistered.p;
+		terminalManager.fireCommandFinished({
+			commandId: 'cmd-1',
+			exitCode: 0,
+			command: 'curl https://example.com',
+			output: '',
+		});
+		const result = await resultPromise as ToolResultObject;
+
+		assert.strictEqual(confirmationRequests.length, 1);
+		assert.deepStrictEqual(confirmationRequests[0]?.blockedDomains, ['example.com']);
+		assert.ok(terminalManager.sentTexts.length >= 1, 'Approved command should be sent to the terminal unsandboxed');
+		assert.ok(terminalManager.sentTexts.every(entry => !entry.data.includes('sandbox-runtime')), 'No wrapped sandbox-runtime command should be sent after approval');
+		assert.strictEqual(result.resultType, 'success');
+	});
+
+	test('primary shell tool returns sandbox_blocked when user declines unsandboxed rerun', async function () {
+		if (platform.isWindows) {
+			// Sandbox is not supported on Windows.
+			this.skip();
+		}
+		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
+		agentConfigurationService.setSandboxValue(AgentHostSandboxConfigKey.AllowUnsandboxedCommands, true);
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService(), async () => false);
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
 
@@ -708,7 +748,128 @@ suite('CopilotShellTools', () => {
 
 		assert.strictEqual(result.resultType, 'failure');
 		assert.strictEqual(result.error, 'sandbox_blocked');
-		assert.match(result.textResultForLlm ?? '', /example\.com/);
-		assert.strictEqual(terminalManager.sentTexts.length, 0, 'Blocked command should not be sent to the terminal');
+		assert.match(result.textResultForLlm ?? '', /declined/i);
+		assert.strictEqual(terminalManager.sentTexts.length, 0);
+	});
+
+	test('primary shell tool asks for confirmation when requestUnsandboxedExecution is explicitly set', async function () {
+		if (platform.isWindows) {
+			// Sandbox is not supported on Windows.
+			this.skip();
+		}
+		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
+		agentConfigurationService.setSandboxValue(AgentHostSandboxConfigKey.AllowUnsandboxedCommands, true);
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const confirmationRequests: IUnsandboxedCommandConfirmationRequest[] = [];
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService(), async request => {
+			confirmationRequests.push(request);
+			return false;
+		});
+		const bashTool = tools.find(tool => tool.name === 'bash');
+		assert.ok(bashTool);
+
+		const invocation: ToolInvocation = {
+			sessionId: 'session-1',
+			toolCallId: 'tool-1',
+			toolName: 'bash',
+			arguments: {
+				command: 'echo hello',
+				requestUnsandboxedExecution: true,
+				requestUnsandboxedExecutionReason: 'sandbox blocked required syscall',
+			},
+		};
+		const result = await bashTool.handler({
+			command: 'echo hello',
+			requestUnsandboxedExecution: true,
+			requestUnsandboxedExecutionReason: 'sandbox blocked required syscall',
+		}, invocation) as ToolResultObject;
+
+		assert.strictEqual(confirmationRequests.length, 1);
+		assert.strictEqual(confirmationRequests[0]?.reason, 'sandbox blocked required syscall');
+		assert.strictEqual(result.resultType, 'failure');
+		assert.strictEqual(result.error, 'sandbox_blocked');
+		assert.match(result.textResultForLlm ?? '', /declined/i);
+		assert.strictEqual(terminalManager.sentTexts.length, 0);
+	});
+
+	test('primary shell tool returns unsandboxed_disabled when allowUnsandboxedCommands is off', async function () {
+		if (platform.isWindows) {
+			// Sandbox is not supported on Windows.
+			this.skip();
+		}
+		const { instantiationService, terminalManager } = createServices({ sandboxEnabled: true });
+		// `chat.agent.sandbox.allowUnsandboxedCommands` is intentionally not set,
+		// so the engine would silently re-sandbox the command. The shell tool
+		// must surface a dedicated failure instead.
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const confirmationRequests: IUnsandboxedCommandConfirmationRequest[] = [];
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService(), async request => {
+			confirmationRequests.push(request);
+			return true;
+		});
+		const bashTool = tools.find(tool => tool.name === 'bash');
+		assert.ok(bashTool);
+
+		const invocation: ToolInvocation = {
+			sessionId: 'session-1',
+			toolCallId: 'tool-1',
+			toolName: 'bash',
+			arguments: {
+				command: 'echo hello',
+				requestUnsandboxedExecution: true,
+				requestUnsandboxedExecutionReason: 'sandbox blocked required syscall',
+			},
+		};
+		const result = await bashTool.handler({
+			command: 'echo hello',
+			requestUnsandboxedExecution: true,
+			requestUnsandboxedExecutionReason: 'sandbox blocked required syscall',
+		}, invocation) as ToolResultObject;
+
+		assert.strictEqual(result.resultType, 'failure');
+		assert.strictEqual(result.error, 'unsandboxed_disabled');
+		assert.match(result.textResultForLlm ?? '', /allowUnsandboxedCommands/);
+		assert.strictEqual(confirmationRequests.length, 0, 'No confirmation should have been requested');
+		assert.strictEqual(terminalManager.sentTexts.length, 0, 'Disallowed command should not be sent to the terminal');
+	});
+
+	test('primary shell tool skips confirmation when autoApproveUnsandboxedCommands is enabled', async function () {
+		if (platform.isWindows) {
+			// Sandbox is not supported on Windows.
+			this.skip();
+		}
+		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
+		agentConfigurationService.setSandboxValue(AgentHostSandboxConfigKey.AllowUnsandboxedCommands, true);
+		agentConfigurationService.setSandboxValue(AgentHostSandboxConfigKey.AutoApproveUnsandboxedCommands, true);
+		terminalManager.commandDetectionSupported = true;
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const confirmationRequests: IUnsandboxedCommandConfirmationRequest[] = [];
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService(), async request => {
+			confirmationRequests.push(request);
+			return true;
+		});
+		const bashTool = tools.find(tool => tool.name === 'bash');
+		assert.ok(bashTool);
+
+		const invocation: ToolInvocation = {
+			sessionId: 'session-1',
+			toolCallId: 'tool-1',
+			toolName: 'bash',
+			arguments: { command: 'curl https://example.com' },
+		};
+		const resultPromise = bashTool.handler({ command: 'curl https://example.com' }, invocation);
+		await terminalManager.commandFinishedListenerRegistered.p;
+		terminalManager.fireCommandFinished({
+			commandId: 'cmd-1',
+			exitCode: 0,
+			command: 'curl https://example.com',
+			output: '',
+		});
+		const result = await resultPromise as ToolResultObject;
+
+		assert.strictEqual(confirmationRequests.length, 0, 'No confirmation should have been requested when auto-approve is enabled');
+		assert.ok(terminalManager.sentTexts.length >= 1, 'Auto-approved command should be sent to the terminal unsandboxed');
+		assert.ok(terminalManager.sentTexts.every(entry => !entry.data.includes('sandbox-runtime')), 'Auto-approved command should run unsandboxed');
+		assert.strictEqual(result.resultType, 'success');
 	});
 });

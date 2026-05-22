@@ -18,6 +18,7 @@ import { createSchema, schemaProperty } from './agentHostSchema.js';
 export const enum AgentHostSandboxConfigKey {
 	Enabled = 'enabled',
 	AllowUnsandboxedCommands = 'allowUnsandboxedCommands',
+	AutoApproveUnsandboxedCommands = 'autoApproveUnsandboxedCommands',
 	LinuxFileSystem = 'fileSystem.linux',
 	MacFileSystem = 'fileSystem.mac',
 	AdvancedRuntime = 'advanced.runtime',
@@ -50,6 +51,10 @@ export const sandboxConfigSchema = createSchema({
 	[AgentHostSandboxConfigKey.AllowUnsandboxedCommands]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.sandbox.allowUnsandboxedCommands.title', "Allow Unsandboxed Commands"),
+	}),
+	[AgentHostSandboxConfigKey.AutoApproveUnsandboxedCommands]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.sandbox.autoApproveUnsandboxedCommands.title', "Auto-Approve Unsandboxed Commands"),
 	}),
 	[AgentHostSandboxConfigKey.LinuxFileSystem]: schemaProperty<Record<string, unknown>>({
 		type: 'object',
@@ -86,6 +91,7 @@ export const sandboxConfigSchema = createSchema({
 export const sandboxSettingIdToAgentHostKey: Readonly<Record<string, AgentHostSandboxConfigKey>> = {
 	[AgentSandboxSettingId.AgentSandboxEnabled]: AgentHostSandboxConfigKey.Enabled,
 	[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]: AgentHostSandboxConfigKey.AllowUnsandboxedCommands,
+	[AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands]: AgentHostSandboxConfigKey.AutoApproveUnsandboxedCommands,
 	[AgentSandboxSettingId.AgentSandboxLinuxFileSystem]: AgentHostSandboxConfigKey.LinuxFileSystem,
 	[AgentSandboxSettingId.AgentSandboxMacFileSystem]: AgentHostSandboxConfigKey.MacFileSystem,
 	[AgentSandboxSettingId.AgentSandboxAdvancedRuntime]: AgentHostSandboxConfigKey.AdvancedRuntime,

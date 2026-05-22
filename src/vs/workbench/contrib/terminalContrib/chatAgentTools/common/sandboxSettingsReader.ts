@@ -13,6 +13,7 @@ import { sandboxSettingIdToAgentHostKey } from '../../../../../platform/agentHos
 export const SANDBOX_SETTING_KEYS: readonly string[] = [
 	AgentSandboxSettingId.AgentSandboxEnabled,
 	AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
+	AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands,
 	AgentSandboxSettingId.AgentSandboxLinuxFileSystem,
 	AgentSandboxSettingId.AgentSandboxMacFileSystem,
 	AgentSandboxSettingId.AgentSandboxAdvancedRuntime,
