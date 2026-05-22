@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, SequencerByKey } from '../../../base/common/async.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -13,28 +12,30 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
-import { IDiffComputeService } from '../common/diffComputeService.js';
-import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
+import { IAgentHostChangesetService } from './agentHostChangesetService.js';
+import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
+
+import { ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentInfo } from '../common/state/protocol/state.js';
-import { ActionType, isSessionAction, StateAction, type SessionToolCallCompleteAction } from '../common/state/sessionActions.js';
+import { ActionType, StateAction, type SessionToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentSessionUri,
 	getToolFileEdits,
 	PendingMessageKind,
 	ResponsePartKind,
+	ROOT_STATE_URI,
 	SessionStatus,
 	ToolCallStatus,
 	ToolResultContentType,
-	type ISessionFileDiff,
 	type URI as ProtocolURI,
 	type SessionState,
 	type ToolResultContent
 } from '../common/state/sessionState.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from './agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { NodeWorkerDiffComputeService } from './diffComputeService.js';
-import { computeSessionDiffs, type IIncrementalDiffOptions } from './sessionDiffAggregator.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
+import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -74,14 +75,7 @@ export class AgentSideEffects extends Disposable {
 
 	/** Maps tool call IDs to the agent that owns them, for routing confirmations. */
 	private readonly _toolCallAgents = new Map<string, string>();
-	/** Shared diff compute service for calculating line-level diffs in a worker thread. */
-	private readonly _diffComputeService: IDiffComputeService;
-	/** Serializes per-session diff computations to avoid races with stale previousDiffs. */
-	private readonly _diffComputationSequencer = new SequencerByKey<string>();
 	private _lastAgentInfos: readonly AgentInfo[] = [];
-	/** Per-session debounce timers for mid-turn diff computation. */
-	private readonly _debouncedDiffTimers = this._register(new DisposableMap<string>());
-	private static readonly _DIFF_DEBOUNCE_MS = 5000;
 
 	private readonly _permissionManager: SessionPermissionManager;
 
@@ -103,16 +97,19 @@ export class AgentSideEffects extends Disposable {
 	 * Key: `${parentSession}:${parentToolCallId}`.
 	 */
 	private readonly _pendingSubagentSignals = new Map<string, IPendingSubagentSignal[]>();
+	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _options: IAgentSideEffectsOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
-		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
+		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 	) {
 		super();
-		this._diffComputeService = this._register(new NodeWorkerDiffComputeService(this._logService));
+		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager));
 
 		// Whenever the agents observable changes, publish to root state.
@@ -128,8 +125,8 @@ export class AgentSideEffects extends Disposable {
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (!envelope.origin && envelope.action.type === ActionType.SessionToolCallComplete) {
 				const action = envelope.action;
-				const agent = this._options.getAgent(action.session);
-				agent?.onClientToolCallComplete(URI.parse(action.session), action.toolCallId, action.result);
+				const agent = this._options.getAgent(envelope.channel);
+				agent?.onClientToolCallComplete(URI.parse(envelope.channel), action.toolCallId, action.result);
 			}
 		}));
 	}
@@ -162,7 +159,7 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		this._lastAgentInfos = infos;
-		this._stateManager.dispatchServerAction({ type: ActionType.RootAgentsChanged, agents: infos });
+		this._stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: infos });
 	}
 
 	private async _publishSessionCustomizations(agent: IAgent, session: ProtocolURI): Promise<void> {
@@ -171,9 +168,8 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		const customizations = await agent.getSessionCustomizations(URI.parse(session));
-		this._stateManager.dispatchServerAction({
+		this._stateManager.dispatchServerAction(session, {
 			type: ActionType.SessionCustomizationsChanged,
-			session,
 			customizations: [...customizations],
 		});
 	}
@@ -264,10 +260,14 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 
+		if (signal.kind === 'subagent_completed') {
+			this.completeSubagentSession(sessionKey, signal.toolCallId);
+			return;
+		}
+
 		if (signal.kind === 'steering_consumed') {
-			this._stateManager.dispatchServerAction({
+			this._stateManager.dispatchServerAction(sessionKey, {
 				type: ActionType.SessionPendingMessageRemoved,
-				session: sessionKey,
 				kind: PendingMessageKind.Steering,
 				id: signal.id,
 			});
@@ -332,14 +332,16 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 
-		// No active turn on the session. Most signals are silently dropped,
-		// but a `SessionTurnComplete` (idle) still needs to drive its
-		// post-turn side effects — flushing pending diff computation,
-		// recomputing diffs, and notifying the host. Tests routinely fire
-		// `idle` without first dispatching the matching `SessionTurnStarted`
-		// through the state manager.
-		if (signal.kind === 'action' && signal.action.type === ActionType.SessionTurnComplete) {
-			this._runTurnCompleteSideEffects(sessionKey, undefined);
+		// No active turn on the session. Non-action signals are silently
+		// dropped, but action signals can still target session-level state
+		// such as customizations, title, or configuration. A turnComplete
+		// action also drives post-turn side effects even when the matching
+		// turnStarted was not observed by this side-effects instance.
+		if (signal.kind === 'action') {
+			this._stateManager.dispatchServerAction(sessionKey, signal.action);
+			if (signal.action.type === ActionType.SessionTurnComplete) {
+				this._runTurnCompleteSideEffects(sessionKey, undefined);
+			}
 		}
 	}
 
@@ -359,15 +361,13 @@ export class AgentSideEffects extends Disposable {
 		}
 		// The agent emits actions with its own view of the active turnId
 		// targeting the top-level session. The state manager is the source
-		// of truth — rewrite `session` and `turnId` so the action lands in
-		// the right reducer (subagent session for routed signals, queued
-		// turn ID when the agent hasn't yet seen `sendMessage`, etc.).
+		// of truth — rewrite `turnId` so the action lands in the right
+		// reducer (queued turn ID when the agent hasn't yet seen
+		// `sendMessage`, etc.). Routing to subagent sessions is handled by
+		// the caller via the channel argument.
 		// Actions without a `turnId` field (`SessionTitleChanged`,
-		// `SessionInputRequested`) only get their `session` rewritten.
+		// `SessionInputRequested`) only get their channel rewritten.
 		let action = signal.action;
-		if (isSessionAction(action) && action.session !== sessionKey) {
-			action = { ...action, session: sessionKey };
-		}
 		if (hasKey(action, { turnId: true }) && action.turnId !== turnId) {
 			action = { ...action, turnId };
 		}
@@ -392,12 +392,18 @@ export class AgentSideEffects extends Disposable {
 			}
 		}
 
-		this._stateManager.dispatchServerAction(action);
+		this._stateManager.dispatchServerAction(sessionKey, action);
 
 		if (action.type === ActionType.SessionToolCallComplete) {
-			this.completeSubagentSession(sessionKey, action.toolCallId);
+			// Drop any events that were buffered for a subagent whose
+			// `subagent_started` never arrived (e.g. the parent tool failed
+			// before the subagent was created). The actual subagent session
+			// teardown is driven by the `subagent_completed` signal because
+			// background subagents (`mode: background`) continue running
+			// after the parent tool call returns.
+			this._pendingSubagentSignals.delete(`${sessionKey}:${action.toolCallId}`);
 			if (getToolFileEdits(action.result).length > 0) {
-				this._scheduleDebouncedDiffComputation(sessionKey, turnId);
+				this._changesets.onToolCallEditsApplied(sessionKey, turnId);
 			}
 		}
 
@@ -412,8 +418,25 @@ export class AgentSideEffects extends Disposable {
 	 * notify the host so it can refresh git state.
 	 */
 	private _runTurnCompleteSideEffects(sessionKey: ProtocolURI, turnId: string | undefined): void {
-		this._cancelDebouncedDiffComputation(sessionKey);
-		this._computeSessionDiffs(sessionKey, turnId);
+		// Capture the end-of-turn git checkpoint BEFORE notifying the
+		// changeset service so the per-turn changeset recompute can take
+		// the authoritative git-diff fast path (which includes terminal-tool
+		// edits the FileEditTracker misses). The capture is best-effort —
+		// any failure logs and the changeset pipeline falls back to the
+		// `file_edits`-based path. We don't block subsequent side effects
+		// (queued message drain, host notification) on the changeset
+		// completion since those have always been fire-and-forget; the
+		// ordering guarantee we care about is checkpoint-then-changeset.
+		if (turnId !== undefined) {
+			this._checkpointService.captureTurnCheckpoint(URI.parse(sessionKey), turnId).then(() => {
+				this._changesets.onTurnComplete(sessionKey, turnId);
+			}, err => {
+				this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${sessionKey}/${turnId}: ${err instanceof Error ? err.message : String(err)}`);
+				this._changesets.onTurnComplete(sessionKey, turnId);
+			});
+		} else {
+			this._changesets.onTurnComplete(sessionKey, turnId);
+		}
 		this._tryConsumeNextQueuedMessage(sessionKey);
 		this._options.onTurnComplete(sessionKey);
 	}
@@ -481,9 +504,8 @@ export class AgentSideEffects extends Disposable {
 
 		// Start a turn on the subagent session
 		const turnId = generateUuid();
-		this._stateManager.dispatchServerAction({
+		this._stateManager.dispatchServerAction(subagentSessionUri, {
 			type: ActionType.SessionTurnStarted,
-			session: subagentSessionUri,
 			turnId,
 			userMessage: { text: '' },
 		});
@@ -506,9 +528,8 @@ export class AgentSideEffects extends Disposable {
 					description: agentDescription,
 				},
 			];
-			this._stateManager.dispatchServerAction({
+			this._stateManager.dispatchServerAction(parentSession, {
 				type: ActionType.SessionToolCallContentChanged,
-				session: parentSession,
 				turnId: parentTurnId,
 				toolCallId,
 				content: mergedContent,
@@ -543,9 +564,8 @@ export class AgentSideEffects extends Disposable {
 			if (key.startsWith(`${parentSession}:`)) {
 				const turnId = this._stateManager.getActiveTurnId(subagentUri);
 				if (turnId) {
-					this._stateManager.dispatchServerAction({
+					this._stateManager.dispatchServerAction(subagentUri, {
 						type: ActionType.SessionTurnCancelled,
-						session: subagentUri,
 						turnId,
 					});
 				}
@@ -561,8 +581,11 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
-	 * Completes all active subagent sessions for a given parent session.
-	 * Called when a parent tool call completes.
+	 * Completes the subagent session associated with a parent tool call.
+	 * Driven by the `subagent_completed` signal from the agent (which the
+	 * SDK fires on both `subagent.completed` and `subagent.failed`), not by
+	 * parent tool call completion — background subagents keep running after
+	 * their parent tool returns.
 	 */
 	completeSubagentSession(parentSession: ProtocolURI, toolCallId: string): void {
 		const key = `${parentSession}:${toolCallId}`;
@@ -580,9 +603,8 @@ export class AgentSideEffects extends Disposable {
 
 		const turnId = this._stateManager.getActiveTurnId(subagentUri);
 		if (turnId) {
-			this._stateManager.dispatchServerAction({
+			this._stateManager.dispatchServerAction(subagentUri, {
 				type: ActionType.SessionTurnComplete,
-				session: subagentUri,
 				turnId,
 			});
 		}
@@ -597,6 +619,7 @@ export class AgentSideEffects extends Disposable {
 		const toRemove: string[] = [];
 		for (const [key, subagentUri] of this._subagentSessions) {
 			if (key.startsWith(`${parentSession}:`)) {
+				this._stateManager.disposeSessionChangesets(subagentUri);
 				this._stateManager.removeSession(subagentUri);
 				toRemove.push(key);
 			}
@@ -609,6 +632,7 @@ export class AgentSideEffects extends Disposable {
 		// but not tracked (e.g. restored sessions)
 		const prefix = `${parentSession}/subagent/`;
 		for (const uri of this._stateManager.getSessionUrisWithPrefix(prefix)) {
+			this._stateManager.disposeSessionChangesets(uri);
 			this._stateManager.removeSession(uri);
 		}
 
@@ -662,11 +686,12 @@ export class AgentSideEffects extends Disposable {
 			effective = { ...e, state: { ...e.state, confirmationTitle: undefined } };
 		}
 		this._stateManager.dispatchServerAction(
+			sessionKey,
 			this._permissionManager.createToolReadyAction(effective, sessionKey, turnId)
 		);
 	}
 
-	handleAction(action: StateAction): void {
+	handleAction(channel: ProtocolURI, action: StateAction): void {
 		switch (action.type) {
 			case ActionType.SessionTurnStarted: {
 				// Per-turn streaming part tracking is owned by the agent
@@ -677,33 +702,31 @@ export class AgentSideEffects extends Disposable {
 				// while waiting for the AI-generated title. Only apply when the
 				// title is still the default placeholder to avoid clobbering a
 				// title set by the user or provider before the first turn.
-				const state = this._stateManager.getSessionState(action.session);
+				const state = this._stateManager.getSessionState(channel);
 				const fallbackTitle = action.userMessage.text.trim().replace(/\s+/g, ' ').slice(0, 200);
 				if (state && state.turns.length === 0 && !state.summary.title && fallbackTitle.length > 0) {
-					this._stateManager.dispatchServerAction({
+					this._stateManager.dispatchServerAction(channel, {
 						type: ActionType.SessionTitleChanged,
-						session: action.session,
 						title: fallbackTitle,
 					});
 				}
 
-				const agent = this._options.getAgent(action.session);
+				const agent = this._options.getAgent(channel);
 				if (!agent) {
-					this._stateManager.dispatchServerAction({
+					this._stateManager.dispatchServerAction(channel, {
 						type: ActionType.SessionError,
-						session: action.session,
 						turnId: action.turnId,
 						error: { errorType: 'noAgent', message: 'No agent found for session' },
 					});
 					return;
 				}
 				const attachments = action.userMessage.attachments;
-				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments, action.turnId).catch(err => {
+				this._telemetryReporter.userMessageSent(agent.id, channel, state, 'direct', attachments);
+				agent.sendMessage(URI.parse(channel), action.userMessage.text, attachments, action.turnId).catch(err => {
 					const errCode = (err as { code?: number })?.code;
-					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${action.session}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
-					this._stateManager.dispatchServerAction({
+					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${channel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
+					this._stateManager.dispatchServerAction(channel, {
 						type: ActionType.SessionError,
-						session: action.session,
 						turnId: action.turnId,
 						error: { errorType: 'sendFailed', message: String(err) },
 					});
@@ -711,7 +734,7 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionToolCallConfirmed: {
-				const toolCallKey = `${action.session}:${action.toolCallId}`;
+				const toolCallKey = `${channel}:${action.toolCallId}`;
 				const agentId = this._toolCallAgents.get(toolCallKey);
 				if (agentId) {
 					this._toolCallAgents.delete(toolCallKey);
@@ -724,74 +747,73 @@ export class AgentSideEffects extends Disposable {
 				// When the user chose "Allow in this Session", add the tool
 				// to the session's permissions so future calls are auto-approved.
 				if (action.approved) {
-					this._permissionManager.handleToolCallConfirmed(action.session, action.toolCallId, action.selectedOptionId);
+					this._permissionManager.handleToolCallConfirmed(channel, action.toolCallId, action.selectedOptionId);
 				}
 				break;
 			}
 			case ActionType.SessionInputCompleted: {
-				const agent = this._options.getAgent(action.session);
+				const agent = this._options.getAgent(channel);
 				agent?.respondToUserInputRequest(action.requestId, action.response, action.answers);
 				break;
 			}
 			case ActionType.SessionTurnCancelled: {
 				// Cancel all subagent sessions for this parent
-				this.cancelSubagentSessions(action.session);
-				const agent = this._options.getAgent(action.session);
-				agent?.abortSession(URI.parse(action.session)).catch(err => {
+				this.cancelSubagentSessions(channel);
+				const agent = this._options.getAgent(channel);
+				agent?.abortSession(URI.parse(channel)).catch(err => {
 					this._logService.error('[AgentSideEffects] abortSession failed', err);
 				});
 				break;
 			}
 			case ActionType.SessionModelChanged: {
-				const agent = this._options.getAgent(action.session);
-				agent?.changeModel?.(URI.parse(action.session), action.model).catch(err => {
+				const agent = this._options.getAgent(channel);
+				agent?.changeModel?.(URI.parse(channel), action.model).catch(err => {
 					this._logService.error('[AgentSideEffects] changeModel failed', err);
 				});
 				break;
 			}
+			case ActionType.SessionAgentChanged: {
+				const agent = this._options.getAgent(channel);
+				agent?.changeAgent?.(URI.parse(channel), action.agent).catch(err => {
+					this._logService.error('[AgentSideEffects] changeAgent failed', err);
+				});
+				break;
+			}
 			case ActionType.SessionTitleChanged: {
-				this._persistSessionFlag(action.session, 'customTitle', action.title);
+				this._persistSessionFlag(channel, 'customTitle', action.title);
 				break;
 			}
 			case ActionType.SessionPendingMessageSet:
 			case ActionType.SessionPendingMessageRemoved:
 			case ActionType.SessionQueuedMessagesReordered: {
-				this._syncPendingMessages(action.session);
+				this._syncPendingMessages(channel);
 				break;
 			}
 			case ActionType.SessionTruncated: {
-				const agent = this._options.getAgent(action.session);
-				agent?.truncateSession?.(URI.parse(action.session), action.turnId).catch(err => {
+				const agent = this._options.getAgent(channel);
+				agent?.truncateSession?.(URI.parse(channel), action.turnId).catch(err => {
 					this._logService.error('[AgentSideEffects] truncateSession failed', err);
 				});
-				// Turns were removed — recompute diffs from scratch (no changedTurnId)
-				this._computeSessionDiffs(action.session);
+				this._changesets.onSessionTruncated(channel);
 				break;
 			}
 			case ActionType.SessionActiveClientChanged: {
-				const agent = this._options.getAgent(action.session);
+				const agent = this._options.getAgent(channel);
 				if (!agent) {
 					break;
 				}
 				// Always forward client tools, even if empty, to clear previous client's tools
 				const clientId = action.activeClient?.clientId ?? '';
-				agent.setClientTools(URI.parse(action.session), clientId, action.activeClient?.tools ?? []);
+				agent.setClientTools(URI.parse(channel), clientId, action.activeClient?.tools ?? []);
 
 				const refs = action.activeClient?.customizations ?? [];
-				agent.setClientCustomizations(
-					clientId,
-					refs,
-					() => {
-						this._publishSessionCustomizationsSoon(agent, action.session);
-					},
-				).then(() => {
-					this._publishSessionCustomizationsSoon(agent, action.session);
-				}).catch(err => {
+				agent.setClientCustomizations(URI.parse(channel), clientId, refs).catch(err => {
 					this._logService.error('[AgentSideEffects] setClientCustomizations failed', err);
 				});
 				break;
 			}
 			case ActionType.RootConfigChanged: {
+				updateAgentHostTelemetryLevelFromConfig(this._telemetryService, action.config);
 				// Host customizations are self-managed by each agent's
 				// PluginController via IAgentConfigurationService.onDidRootConfigChange.
 				// Republish agent infos for non-customization schema changes
@@ -801,46 +823,46 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionActiveClientToolsChanged: {
-				const agent = this._options.getAgent(action.session);
+				const agent = this._options.getAgent(channel);
 				if (agent) {
-					const sessionState = this._stateManager.getSessionState(action.session);
+					const sessionState = this._stateManager.getSessionState(channel);
 					const toolClientId = sessionState?.activeClient?.clientId;
 					if (toolClientId) {
-						agent.setClientTools(URI.parse(action.session), toolClientId, action.tools);
+						agent.setClientTools(URI.parse(channel), toolClientId, action.tools);
 					}
 				}
 				break;
 			}
 			case ActionType.SessionCustomizationToggled: {
-				const agent = this._options.getAgent(action.session);
+				const agent = this._options.getAgent(channel);
 				agent?.setCustomizationEnabled?.(action.uri, action.enabled);
 				break;
 			}
 			case ActionType.SessionIsReadChanged: {
-				this._persistSessionFlag(action.session, 'isRead', action.isRead ? 'true' : '');
+				this._persistSessionFlag(channel, 'isRead', action.isRead ? 'true' : '');
 				break;
 			}
 			case ActionType.SessionIsArchivedChanged: {
-				this._persistSessionFlag(action.session, 'isArchived', action.isArchived ? 'true' : '');
-				const agent = this._options.getAgent(action.session);
-				agent?.onArchivedChanged?.(URI.parse(action.session), action.isArchived).catch(err => {
-					this._logService.warn(`[AgentSideEffects] onArchivedChanged failed for ${action.session}`, err);
+				this._persistSessionFlag(channel, 'isArchived', action.isArchived ? 'true' : '');
+				const agent = this._options.getAgent(channel);
+				agent?.onArchivedChanged?.(URI.parse(channel), action.isArchived).catch(err => {
+					this._logService.warn(`[AgentSideEffects] onArchivedChanged failed for ${channel}`, err);
 				});
 				break;
 			}
 			case ActionType.SessionConfigChanged: {
 				// Persist merged values so a future `restoreSession` can re-hydrate
 				// the user's previous selections (e.g. autoApprove).
-				const sessionState = this._stateManager.getSessionState(action.session);
+				const sessionState = this._stateManager.getSessionState(channel);
 				const values = sessionState?.config?.values;
 				if (values) {
-					this._persistSessionFlag(action.session, 'configValues', JSON.stringify(values));
+					this._persistSessionFlag(channel, 'configValues', JSON.stringify(values));
 				}
 				break;
 			}
 			case ActionType.SessionToolCallComplete: {
-				const agent = this._options.getAgent(action.session);
-				agent?.onClientToolCallComplete(URI.parse(action.session), action.toolCallId, action.result);
+				const agent = this._options.getAgent(channel);
+				agent?.onClientToolCallComplete(URI.parse(channel), action.toolCallId, action.result);
 				break;
 			}
 		}
@@ -850,6 +872,12 @@ export class AgentSideEffects extends Disposable {
 	 * Persists a session metadata key/value pair to the session database.
 	 * Used for fields the host needs to remember across restarts (custom
 	 * title, isRead/isArchived flags, merged config values).
+	 *
+	 * Counterpart in `agentHostChangesetService.ts` (`AgentHostChangesetService._persistSessionFlag`):
+	 * keep both copies in sync if the signature changes. Duplicated rather
+	 * than lifted because the two consumers persist disjoint metadata
+	 * (changeset diffs there vs. customTitle / isRead / isArchived /
+	 * configValues here) and a shared util would only have two callers.
 	 */
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
 		const ref = this._options.sessionDataService.openDatabase(URI.parse(session));
@@ -909,9 +937,8 @@ export class AgentSideEffects extends Disposable {
 		// inside its `send()` call), so no host-side reset is needed.
 
 		// Dispatch server-initiated turn start; the reducer removes the queued message atomically
-		this._stateManager.dispatchServerAction({
+		this._stateManager.dispatchServerAction(session, {
 			type: ActionType.SessionTurnStarted,
-			session,
 			turnId,
 			userMessage: msg.userMessage,
 			queuedMessageId: msg.id,
@@ -920,134 +947,25 @@ export class AgentSideEffects extends Disposable {
 		// Send the message to the agent backend
 		const agent = this._options.getAgent(session);
 		if (!agent) {
-			this._stateManager.dispatchServerAction({
+			this._stateManager.dispatchServerAction(session, {
 				type: ActionType.SessionError,
-				session,
 				turnId,
 				error: { errorType: 'noAgent', message: 'No agent found for session' },
 			});
 			return;
 		}
 		const attachments = msg.userMessage.attachments;
+		this._telemetryReporter.userMessageSent(agent.id, session, this._stateManager.getSessionState(session), 'queued', attachments);
 		agent.sendMessage(URI.parse(session), msg.userMessage.text, attachments, turnId).catch(err => {
 			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
-			this._stateManager.dispatchServerAction({
+			this._stateManager.dispatchServerAction(session, {
 				type: ActionType.SessionError,
-				session,
 				turnId,
 				error: { errorType: 'sendFailed', message: String(err) },
 			});
 		});
 	}
 
-	// ---- Session diff computation ----------------------------------------------
-
-	/**
-	 * Schedules a debounced diff computation for a session. If a timer is
-	 * already pending for this session, it is replaced (restarting the delay).
-	 * The computation fires after {@link _DIFF_DEBOUNCE_MS} unless cancelled
-	 * or flushed by the turn-complete handler.
-	 */
-	private _scheduleDebouncedDiffComputation(session: ProtocolURI, turnId: string): void {
-		// DisposableMap.set() auto-disposes any previous timer for this session
-		this._debouncedDiffTimers.set(session, disposableTimeout(() => {
-			this._debouncedDiffTimers.deleteAndDispose(session);
-			this._computeSessionDiffs(session, turnId);
-		}, AgentSideEffects._DIFF_DEBOUNCE_MS));
-	}
-
-	/**
-	 * Cancels any pending debounced diff computation for a session.
-	 * Called at turn end before the final (non-debounced) computation.
-	 */
-	private _cancelDebouncedDiffComputation(session: ProtocolURI): void {
-		this._debouncedDiffTimers.deleteAndDispose(session);
-	}
-
-	/**
-	 * Asynchronously (re)computes aggregated diff statistics for a session
-	 * and dispatches {@link ActionType.SessionDiffsChanged} to update the
-	 * session summary. Fire-and-forget: errors are logged but do not fail
-	 * the turn.
-	 */
-	private _computeSessionDiffs(session: ProtocolURI, changedTurnId?: string): void {
-		// Chain onto any pending computation for this session to ensure
-		// sequential access to previousDiffs (avoids stale-read races).
-		this._diffComputationSequencer.queue(session, () => this._doComputeSessionDiffs(session, changedTurnId));
-	}
-
-	private async _doComputeSessionDiffs(session: ProtocolURI, changedTurnId?: string): Promise<void> {
-		let ref: ReturnType<ISessionDataService['openDatabase']>;
-		try {
-			ref = this._options.sessionDataService.openDatabase(URI.parse(session));
-		} catch (err) {
-			this._logService.warn(`[AgentSideEffects] Failed to open session database for diff computation: ${session}`, err);
-			return;
-		}
-		try {
-			// Prefer a git-driven diff so terminal-driven file changes show up
-			// alongside SDK-tracked tool edits. The git path is the source of
-			// truth whenever the working directory is a real work tree; we
-			// only fall back to the edit-tracker aggregator when it isn't
-			// (e.g. agents running in non-git scratch directories or under
-			// test harnesses without git).
-			let diffs = await this._tryComputeGitDiffs(session, ref.object);
-			if (!diffs) {
-				// Build incremental options when a specific turn triggered the recomputation
-				let incremental: IIncrementalDiffOptions | undefined;
-				if (changedTurnId) {
-					const previousDiffs = this._stateManager.getSessionState(session)?.summary.diffs;
-					if (previousDiffs) {
-						incremental = { changedTurnId, previousDiffs };
-					}
-				}
-				diffs = await computeSessionDiffs(session, ref.object, this._diffComputeService, incremental);
-			}
-
-			this._stateManager.dispatchServerAction({
-				type: ActionType.SessionDiffsChanged,
-				session,
-				diffs: [...diffs],
-			});
-			// Persist diffs to the session database so they survive restarts
-			ref.object.setMetadata('diffs', JSON.stringify(diffs)).catch(err => {
-				this._logService.warn('[AgentSideEffects] Failed to persist session diffs', err);
-			});
-		} catch (err) {
-			this._logService.warn('[AgentSideEffects] Failed to compute session diffs', err);
-		} finally {
-			ref.dispose();
-		}
-	}
-
-	/**
-	 * Computes session diffs by shelling out to git. Returns the diff list
-	 * when the session has a working directory and that directory is a git
-	 * work tree; returns `undefined` otherwise so the caller can fall back
-	 * to the edit-tracker aggregator. The base branch (anchor for the
-	 * `merge-base` baseline) is read from the provider-agnostic
-	 * {@link META_DIFF_BASE_BRANCH} metadata key — agents that create
-	 * worktrees write it at session-creation time.
-	 */
-	private async _tryComputeGitDiffs(session: ProtocolURI, db: ISessionDatabase): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.summary.workingDirectory;
-		if (!workingDirectory) {
-			return undefined;
-		}
-		let workingDirectoryUri: URI;
-		try {
-			workingDirectoryUri = URI.parse(workingDirectory);
-		} catch {
-			return undefined;
-		}
-		const baseBranch = (await db.getMetadata(META_DIFF_BASE_BRANCH)) ?? undefined;
-		try {
-			return await this._gitService.computeSessionFileDiffs(workingDirectoryUri, { sessionUri: session, baseBranch });
-		} catch (err) {
-			this._logService.warn('[AgentSideEffects] git-driven diff computation failed; falling back to edit-tracker', err);
-			return undefined;
-		}
-	}
 
 	override dispose(): void {
 		this._toolCallAgents.clear();

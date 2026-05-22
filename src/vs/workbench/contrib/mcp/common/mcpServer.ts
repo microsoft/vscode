@@ -44,7 +44,7 @@ import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, 
 import { ContributionEnablementState, IEnablementModel } from '../../chat/common/enablement.js';
 import { MCP } from './modelContextProtocol.js';
 import { McpApps } from './modelContextProtocolApps.js';
-import { UriTemplate } from './uriTemplate.js';
+import { UriTemplate } from '../../../../base/common/uriTemplate.js';
 
 type ServerBootData = {
 	supportsLogging: boolean;

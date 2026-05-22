@@ -501,10 +501,11 @@ export class ToolSetForModel {
 	constructor(
 		private readonly _toolSet: IToolSet,
 		private readonly model: ILanguageModelChatMetadata | undefined,
+		private readonly toolFilter?: (toolData: IToolData) => boolean,
 	) { }
 
 	public getTools(r?: IReader): Iterable<IToolData> {
-		return Iterable.filter(this._toolSet.getTools(r), toolData => toolMatchesModel(toolData, this.model));
+		return Iterable.filter(this._toolSet.getTools(r), toolData => toolMatchesModel(toolData, this.model) && (!this.toolFilter || this.toolFilter(toolData)));
 	}
 }
 

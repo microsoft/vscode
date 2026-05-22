@@ -5,12 +5,13 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived } from '../../../../base/common/observable.js';
+import { autorun, derived, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
@@ -21,7 +22,7 @@ import { Menus } from '../../../browser/menus.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { SessionsWelcomeVisibleContext, IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { isWorkspaceAgentSessionType, ISession } from '../../../services/sessions/common/session.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -30,6 +31,8 @@ import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ITerminalProfileService, TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { ISessionTaskRunnerRegistry } from '../../chat/browser/sessionTaskRunner.js';
+import { AgentHostSessionTaskRunner } from './agentHostSessionTaskRunner.js';
 
 const SessionsTerminalViewVisibleContext = new RawContextKey<boolean>('sessionsTerminalViewVisible', false);
 
@@ -45,12 +48,16 @@ interface ISessionTerminalInfo {
  * workspace-backed agent sessions. Returns `undefined` for sessions without a
  * workspace (e.g. Cloud), or when no path is available.
  */
-function getSessionTerminalInfo(session: ISession | undefined): ISessionTerminalInfo | undefined {
-	if (!session || !isWorkspaceAgentSessionType(session.sessionType)) {
+function getSessionTerminalInfo(session: ISession | undefined, reader?: IReader): ISessionTerminalInfo | undefined {
+	if (!session) {
 		return undefined;
 	}
-	const repo = session.workspace.get()?.repositories[0];
-	const cwd = repo?.workingDirectory ?? repo?.uri;
+	const workspace = reader ? session.workspace.read(reader) : session.workspace.get();
+	if (workspace?.isVirtualWorkspace !== false) {
+		return undefined;
+	}
+	const folder = workspace.folders[0];
+	const cwd = folder?.workingDirectory;
 	if (!cwd) {
 		return undefined;
 	}
@@ -116,7 +123,11 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// This is a little hacky but I don't see any better approach.
 		this._register(autorun(reader => {
 			const session = this._sessionsManagementService.activeSession.read(reader);
-			const info = getSessionTerminalInfo(session);
+			if (session?.loading.read(reader)) {
+				this._agentHostTerminalService.setDefaultCwd(undefined);
+				return;
+			}
+			const info = getSessionTerminalInfo(session, reader);
 			this._agentHostTerminalService.setDefaultCwd(info?.cwd);
 		}));
 
@@ -133,6 +144,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// React to active session changes — use worktree/repo for background sessions, home dir otherwise
 		this._register(autorun(reader => {
 			const session = this._sessionsManagementService.activeSession.read(reader);
+			if (session?.loading.read(reader)) {
+				this._activeKey = undefined;
+				return;
+			}
 			this._onActiveSessionChanged(session);
 		}));
 
@@ -421,6 +436,28 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 }
 
 registerWorkbenchContribution2(SessionsTerminalContribution.ID, SessionsTerminalContribution, WorkbenchPhase.AfterRestored);
+
+/**
+ * Registers an {@link AgentHostSessionTaskRunner} with the
+ * {@link ISessionTaskRunnerRegistry}. Lives next to the other agent-host
+ * terminal wiring so that the runner is removed together with the rest of
+ * the sessions terminal contribution if the agents app shuts down.
+ */
+class RegisterAgentHostSessionTaskRunnerContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessions.registerAgentHostTaskRunner';
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ISessionTaskRunnerRegistry registry: ISessionTaskRunnerRegistry,
+	) {
+		super();
+		const runner = instantiationService.createInstance(AgentHostSessionTaskRunner);
+		this._register(registry.register(runner));
+	}
+}
+
+registerWorkbenchContribution2(RegisterAgentHostSessionTaskRunnerContribution.ID, RegisterAgentHostSessionTaskRunnerContribution, WorkbenchPhase.BlockStartup);
 
 class OpenSessionInTerminalAction extends Action2 {
 

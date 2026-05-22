@@ -13,7 +13,9 @@ import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollba
 import { wrapTablesWithScrollable } from './chatMarkdownTableScrolling.js';
 import { coalesce } from '../../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../../base/common/arraysFind.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -52,6 +54,7 @@ import { IChatContentInlineReference, IChatMarkdownContent, IChatService, IChatU
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
+import { IChatOutputRendererService, type RenderedOutputPart } from '../../chatOutputItemRenderer.js';
 import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
 import { IMarkdownDiffBlockData, MarkdownDiffBlockPart, parseUnifiedDiff } from './chatDiffBlockPart.js';
 import { ChatEditingActionContext } from '../../chatEditing/chatEditingActions.js';
@@ -62,7 +65,9 @@ import { IDisposableReference } from './chatCollections.js';
 import { EditorPool } from './chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
+import { ChatProgressSubPart } from './chatProgressContentPart.js';
 import { IncrementalDOMMorpher } from './chatIncrementalRendering/chatIncrementalRendering.js';
+import { IChatOutputPartStateCache, IOutputPartState } from './chatOutputPartStateCache.js';
 import './media/chatMarkdownPart.css';
 
 const $ = dom.$;
@@ -102,7 +107,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	 */
 	readonly onDidChangeDiff: Event<IEditSessionDiffStats> = this._onDidChangeDiff.event;
 
-	private readonly allRefs: IDisposableReference<CodeBlockPart | CollapsedCodeBlock | MarkdownDiffBlockPart>[] = [];
+	private readonly allRefs: IDisposableReference<CodeBlockPart | ChatOutputCodeBlockPart | CollapsedCodeBlock | MarkdownDiffBlockPart>[] = [];
 
 	private readonly _codeblocks: IMarkdownPartCodeBlockInfo[] = [];
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -128,6 +133,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
+		@IChatOutputRendererService private readonly chatOutputRendererService: IChatOutputRendererService,
 	) {
 		super();
 
@@ -186,11 +192,21 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				return;
 			}
 
-			// Dispose previous render and reset state for re-render
+			const previousRenderStore = renderStore.clearAndLeak();
+			const reusableOutputCodeBlockRefs = new Map<string, IDisposableReference<ChatOutputCodeBlockPart>>();
+			for (const ref of this.allRefs) {
+				if (ref.object instanceof ChatOutputCodeBlockPart) {
+					const outputRef = ref as IDisposableReference<ChatOutputCodeBlockPart>;
+					previousRenderStore?.deleteAndLeak(outputRef);
+					reusableOutputCodeBlockRefs.set(outputRef.object.reuseKey, outputRef);
+				}
+			}
+			previousRenderStore?.dispose();
+
+			// Reset state for re-render
 			const store = new DisposableStore();
 			renderStore.value = store;
 			dom.clearNode(this.domNode);
-			dispose(this.allRefs);
 			this.allRefs.length = 0;
 			this._codeblocks.length = 0;
 			this.mathLayoutParticipants.clear();
@@ -218,7 +234,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				fillInIncompleteTokens,
 				codeBlockRendererSync: (languageId, text, raw) => {
 					const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || codeblockHasClosingBackticks(raw);
-					if ((!text || (text.startsWith('<vscode_codeblock_uri') && !text.includes('\n'))) && !isCodeBlockComplete) {
+					const hasChatOutputRenderer = !!languageId
+						&& this.chatOutputRendererService.hasCodeBlockRenderer(languageId);
+					if ((!text || (text.startsWith('<vscode_codeblock_uri') && !text.includes('\n')))
+						&& !isCodeBlockComplete
+						&& !hasChatOutputRenderer) {
 						const hideEmptyCodeblock = $('div');
 						hideEmptyCodeblock.style.display = 'none';
 						return hideEmptyCodeblock;
@@ -287,6 +307,23 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					};
 
 					if (element.isCompleteAddedRequest || !codemapperUri || !isEdit) {
+						if (hasChatOutputRenderer) {
+							const ref = this.renderChatOutputCodeBlock(languageId, codeBlockText, globalIndex, context, isCodeBlockComplete, reusableOutputCodeBlockRefs);
+							this._codeblocks.push({
+								...baseCodeBlockInfo,
+								codemapperUri: codeBlockInfo.codemapperUri,
+								isStreamingEdit: false,
+								get uri() {
+									return undefined;
+								},
+								focus() {
+									ref.object.focus();
+								},
+							});
+							store.add(ref);
+							return ref.object.element;
+						}
+
 						const ref = this.renderCodeBlock(codeBlockInfo, currentWidth);
 						this._codeblocks.push({
 							...baseCodeBlockInfo,
@@ -371,6 +408,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			}
 
 			store.add(wrapTablesWithScrollable(this.domNode, layoutParticipants));
+			dispose(reusableOutputCodeBlockRefs.values());
 		};
 
 		// Always render immediately
@@ -420,6 +458,40 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this.allRefs.push(ref);
 		diffListenerStore.add(codeBlock.onDidChangeDiff(() => this.fireAggregatedDiff()));
 		codeBlock.render(codemapperUri);
+		return ref;
+	}
+
+	private renderChatOutputCodeBlock(
+		identifier: string,
+		text: string,
+		codeBlockIndex: number,
+		context: IChatContentPartRenderContext,
+		isComplete: boolean,
+		reusableOutputCodeBlockRefs: Map<string, IDisposableReference<ChatOutputCodeBlockPart>>,
+	): IDisposableReference<ChatOutputCodeBlockPart> {
+		const reuseKey = ChatOutputCodeBlockPart.reuseKey(context.element.id, codeBlockIndex, identifier);
+		const reusableRef = reusableOutputCodeBlockRefs.get(reuseKey);
+		if (reusableRef?.object.hasSameContent(identifier, text, isComplete)) {
+			reusableOutputCodeBlockRefs.delete(reuseKey);
+			this.allRefs.push(reusableRef);
+			return reusableRef;
+		}
+
+		const codeBlock = this.instantiationService.createInstance(
+			ChatOutputCodeBlockPart,
+			identifier,
+			text,
+			codeBlockIndex,
+			context,
+			isComplete,
+			() => this._onDidChangeHeight.fire()
+		);
+		const ref: IDisposableReference<ChatOutputCodeBlockPart> = {
+			object: codeBlock,
+			isStale: () => false,
+			dispose: () => codeBlock.dispose()
+		};
+		this.allRefs.push(ref);
 		return ref;
 	}
 
@@ -516,6 +588,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this.allRefs.forEach((ref, index) => {
 			if (ref.object instanceof CodeBlockPart) {
 				ref.object.layout(width);
+			} else if (ref.object instanceof ChatOutputCodeBlockPart) {
+				ref.object.layout(width);
 			} else if (ref.object instanceof MarkdownDiffBlockPart) {
 				ref.object.layout(width);
 			} else if (ref.object instanceof CollapsedCodeBlock) {
@@ -531,7 +605,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	onDidRemount(): void {
 		for (const ref of this.allRefs) {
-			if (ref.object instanceof CodeBlockPart) {
+			if (ref.object instanceof CodeBlockPart || ref.object instanceof ChatOutputCodeBlockPart) {
 				ref.object.onDidRemount();
 			}
 		}
@@ -611,6 +685,148 @@ function equalsSymbolTags(a: readonly SymbolTag[] | undefined, b: readonly Symbo
 export function codeblockHasClosingBackticks(str: string): boolean {
 	str = str.trim();
 	return !!str.match(/\n```+$/);
+}
+
+class ChatOutputCodeBlockPart extends Disposable {
+
+	static reuseKey(elementId: string, codeBlockIndex: number, identifier: string): string {
+		return `${elementId}/${codeBlockIndex}/${identifier.toLowerCase()}`;
+	}
+
+	readonly element: HTMLElement;
+	readonly reuseKey: string;
+
+	private readonly _disposeCts = this._register(new CancellationTokenSource());
+	private readonly _renderedOutputPart = this._register(new MutableDisposable<RenderedOutputPart>());
+
+	constructor(
+		private readonly identifier: string,
+		private readonly text: string,
+		codeBlockIndex: number,
+		private readonly context: IChatContentPartRenderContext,
+		private readonly isComplete: boolean,
+		private readonly onDidChangeHeight: () => void,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatOutputRendererService private readonly chatOutputRendererService: IChatOutputRendererService,
+		@IChatOutputPartStateCache private readonly stateCache: IChatOutputPartStateCache,
+	) {
+		super();
+		this.reuseKey = ChatOutputCodeBlockPart.reuseKey(context.element.id, codeBlockIndex, identifier);
+
+		const title = localize('chat.renderedCodeBlockLabel', "Rendered code block {0}", codeBlockIndex + 1);
+		this.element = $('.interactive-result-code-block.chat-output-code-block.tool-output-part');
+		this.element.tabIndex = -1;
+		this.element.ariaLabel = title;
+
+		const parent = $('.webview-output');
+		parent.style.maxHeight = '80vh';
+		parent.style.minHeight = '38px';
+		this.element.appendChild(parent);
+
+		const stateCacheKey = `codeBlock/${context.element.sessionResource.toString()}/${context.element.id}/${codeBlockIndex}/${identifier.toLowerCase()}`;
+		const partState: IOutputPartState = this.stateCache.get(stateCacheKey) ?? { height: 0 };
+		this.stateCache.set(stateCacheKey, partState);
+		if (partState.height) {
+			parent.style.height = `${partState.height}px`;
+		}
+
+		const progressMessage = $('span');
+		progressMessage.textContent = localize('chat.codeBlockOutputRendering', "Rendering code block...");
+		const progressPart = this._register(this.instantiationService.createInstance(ChatProgressSubPart, progressMessage, ThemeIcon.modify(Codicon.loading, 'spin'), undefined));
+		parent.appendChild(progressPart.domNode);
+		if (!isComplete) {
+			this.onDidChangeHeight();
+			return;
+		}
+
+		this.chatOutputRendererService.renderCodeBlock(identifier, new TextEncoder().encode(text), parent, {
+			webviewState: partState.webviewState,
+			title,
+			chatSessionResource: this.context.element.sessionResource,
+		}, this._disposeCts.token).then(renderedItem => {
+			if (this._disposeCts.token.isCancellationRequested) {
+				renderedItem.dispose();
+				return;
+			}
+
+			this._renderedOutputPart.value = renderedItem;
+			progressPart.domNode.remove();
+			parent.style.minHeight = '';
+			this.onDidChangeHeight();
+
+			this._register(renderedItem.webview.onDidUpdateState(e => {
+				partState.webviewState = e;
+			}));
+
+			this._register(renderedItem.onDidChangeHeight(newHeight => {
+				partState.height = newHeight;
+				this.onDidChangeHeight();
+			}));
+			this._register(this.context.onDidChangeVisibility(visible => {
+				if (visible) {
+					renderedItem.reinitialize();
+				}
+			}));
+		}, error => {
+			if (isCancellationError(error)) {
+				return;
+			}
+
+			console.error('Error rendering chat code block:', error);
+			progressPart.domNode.replaceWith(this.renderError(error));
+			parent.style.minHeight = '';
+			this.onDidChangeHeight();
+		});
+	}
+
+	hasSameContent(identifier: string, text: string, isComplete: boolean): boolean {
+		return identifier.toLowerCase() === this.identifier.toLowerCase()
+			&& text === this.text
+			&& isComplete === this.isComplete;
+	}
+
+	override dispose(): void {
+		this._disposeCts.dispose(true);
+		super.dispose();
+	}
+
+	layout(width: number): void {
+		this.element.style.maxWidth = `${width}px`;
+	}
+
+	onDidRemount(): void {
+		this._renderedOutputPart.value?.reinitialize();
+	}
+
+	focus(): void {
+		const webview = this._renderedOutputPart.value?.webview;
+		if (webview) {
+			webview.focus();
+		} else {
+			this.element.focus();
+		}
+	}
+
+	private renderError(error: Error): HTMLElement {
+		const errorNode = $('.output-error');
+
+		const errorHeaderNode = $('.output-error-header');
+		dom.append(errorNode, errorHeaderNode);
+
+		const iconElement = $('div');
+		iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.error));
+		errorHeaderNode.append(iconElement);
+
+		const errorTitleNode = $('.output-error-title');
+		errorTitleNode.textContent = localize('chat.codeBlockOutputError', "Error rendering the code block");
+		errorHeaderNode.append(errorTitleNode);
+
+		const errorMessageNode = $('.output-error-details');
+		errorMessageNode.textContent = error?.message || String(error);
+		errorNode.append(errorMessageNode);
+
+		return errorNode;
+	}
 }
 
 export class CollapsedCodeBlock extends Disposable {

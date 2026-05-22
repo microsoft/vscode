@@ -1145,6 +1145,10 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 		return { id: 'default', name: 'Default', enterprise: false };
 	}
 
+	resolveGitHubUrl(path: string): string {
+		return `https://github.com/${path}`;
+	}
+
 	async signIn(): Promise<IDefaultAccount | null> {
 		return null;
 	}

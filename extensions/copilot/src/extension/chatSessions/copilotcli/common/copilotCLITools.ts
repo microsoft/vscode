@@ -23,6 +23,7 @@ import { ICopilotTool } from '../../../tools/common/toolsRegistry';
 import { IOnWillInvokeToolEvent, IToolsService, IToolValidationResult } from '../../../tools/common/toolsService';
 import { formatUriForFileWidget } from '../../../tools/common/toolUtils';
 import { StoredModeInstructions } from '../../common/chatSessionMetadataStore';
+import { formatModelDetails, ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { extractChatPromptReferences, getFolderAttachmentPath } from './copilotCLIPrompt';
 import { IChatDelegationSummaryService } from './delegationSummaryService';
 
@@ -519,13 +520,14 @@ export interface RequestIdDetails {
 	readonly toolIdEditMap: Record<string, string>;
 	readonly modeInstructions?: StoredModeInstructions;
 	readonly responseModelId?: string;
+	readonly creditsUsed?: number;
 }
 
 /**
  * Build chat history from SDK events for VS Code chat session
  * Converts SDKEvents into ChatRequestTurn2 and ChatResponseTurn2 objects
  */
-export function buildChatHistoryFromEvents(sessionId: string, modelId: string | undefined, events: readonly SessionEvent[], getVSCodeRequestId: (sdkRequestId: string) => RequestIdDetails | undefined, delegationSummaryService: IChatDelegationSummaryService, logger: ILogger, workingDirectory?: URI, defaultModeInstructionsForLastRequest?: StoredModeInstructions, modelDetailsById?: ReadonlyMap<string, string>): (ChatRequestTurn2 | ChatResponseTurn2)[] {
+export function buildChatHistoryFromEvents(sessionId: string, modelId: string | undefined, events: readonly SessionEvent[], getVSCodeRequestId: (sdkRequestId: string) => RequestIdDetails | undefined, delegationSummaryService: IChatDelegationSummaryService, logger: ILogger, workingDirectory?: URI, defaultModeInstructionsForLastRequest?: StoredModeInstructions, modelDetailsById?: ReadonlyMap<string, ModelDetailsInfo>): (ChatRequestTurn2 | ChatResponseTurn2)[] {
 	const turns: (ChatRequestTurn2 | ChatResponseTurn2)[] = [];
 	let currentResponseParts: ExtendedChatResponsePart[] = [];
 	const pendingToolInvocations = new Map<string, [ChatToolInvocationPart | ChatResponseMarkdownPart | ChatResponseThinkingProgressPart, toolData: ToolCall, parentToolCallId: string | undefined]>();
@@ -534,28 +536,33 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 	let isFirstUserMessage = true;
 	let currentModelId = modelId;
 	let currentResponseModelId: string | undefined;
+	let currentCreditsUsed: number | undefined;
 	let currentRequestTurnIndex: number | undefined;
 	const currentAssistantMessage: { chunks: string[] } = { chunks: [] };
 	const processedMessages = new Set<string>();
 
-	function getModelDetails(modelId: string | undefined): string | undefined {
+	function getModelInfo(modelId: string | undefined): ModelDetailsInfo | undefined {
 		if (!modelId || !modelDetailsById) {
 			return undefined;
 		}
 		return modelDetailsById.get(modelId.trim().toLowerCase());
 	}
 
-	function createResultForModel(modelId: string | undefined) {
-		const details = getModelDetails(modelId);
-		return details ? { details } : {};
+	function createResultForModel(modelId: string | undefined, creditsUsed: number | undefined) {
+		const modelInfo = getModelInfo(modelId);
+		if (modelInfo) {
+			return { details: formatModelDetails(modelInfo.name, modelInfo.multiplier, creditsUsed) };
+		}
+		return {};
 	}
 
 	function flushResponseParts() {
 		if (currentResponseParts.length > 0) {
-			turns.push(new ChatResponseTurn2(currentResponseParts, createResultForModel(currentResponseModelId ?? currentModelId), ''));
+			turns.push(new ChatResponseTurn2(currentResponseParts, createResultForModel(currentResponseModelId ?? currentModelId, currentCreditsUsed), ''));
 			currentResponseParts = [];
 		}
 		currentResponseModelId = undefined;
+		currentCreditsUsed = undefined;
 		currentRequestTurnIndex = undefined;
 	}
 
@@ -732,6 +739,7 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 				// the currently tracked model id (from `session.start`/`session.model_change`).
 				const resolvedRequestModelId = details?.responseModelId ?? currentModelId;
 				currentResponseModelId = resolvedRequestModelId;
+				currentCreditsUsed = details?.creditsUsed;
 				turns.push(new ChatRequestTurn2(`${commandPrefix}${prompt}`, undefined, references, '', [], undefined, details?.requestId ?? event.id, resolvedRequestModelId, modeInstructions2));
 				currentRequestTurnIndex = turns.length - 1;
 				break;
