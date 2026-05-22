@@ -12,6 +12,27 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { ISession } from '../../../services/sessions/common/session.js';
 
 /**
+ * Aggregated insertions/deletions across all of a session's changes,
+ * or `undefined` when the session has no pending changes.
+ */
+export function getSessionDiffStats(session: ISession): { files: number; insertions: number; deletions: number } | undefined {
+	const changes = session.changes.get();
+	if (changes.length === 0) {
+		return undefined;
+	}
+	let insertions = 0;
+	let deletions = 0;
+	for (const change of changes) {
+		insertions += change.insertions;
+		deletions += change.deletions;
+	}
+	if (insertions === 0 && deletions === 0) {
+		return undefined;
+	}
+	return { files: changes.length, insertions, deletions };
+}
+
+/**
  * Build a compact, reusable hover markdown describing a session.
  *
  * Layout:
@@ -24,7 +45,11 @@ export function buildSessionHoverContent(
 	session: ISession,
 	sessionsProvidersService: ISessionsProvidersService,
 ): IMarkdownString {
-	const md = new MarkdownString('', { isTrusted: true, supportThemeIcons: true, supportHtml: true });
+	// Note: `isTrusted` is intentionally left undefined. The hover renders
+	// untrusted, workspace-derived values (folder paths, branch names, session
+	// titles), so it must not enable command-link execution. User-controlled
+	// text is always appended via `appendText` so markdown characters are escaped.
+	const md = new MarkdownString('', { supportThemeIcons: true, supportHtml: true });
 
 	// Line 1: session icon + bold title
 	const title = session.title.get() || localize('agentSessions.newSession', "New Session");
@@ -36,43 +61,41 @@ export function buildSessionHoverContent(
 	md.appendMarkdown(`**`);
 	md.appendText('\n');
 
-	// Line 2: folder path · branch
+	// Line 2: folder icon + folder path · git branch
 	const workspace = session.workspace.get();
 	const folder = workspace?.folders[0];
-	const detailParts: string[] = [];
+	const branch = folder?.gitRepository?.branchName?.trim();
+	let appendedDetails = false;
 
 	if (folder && workspace) {
 		const isWorkspaceSession = workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined;
 		const folderIcon = workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceSession ? Codicon.folder : Codicon.worktree;
-		detailParts.push(`$(${folderIcon.id}) ${folder.root.fsPath}`);
+		md.appendMarkdown(`$(${folderIcon.id}) `);
+		md.appendText(folder.root.fsPath);
+		appendedDetails = true;
 	}
 
-	const branch = folder?.gitRepository?.branchName?.trim();
 	if (branch) {
-		detailParts.push(`$(git-branch) ${branch}`);
+		if (appendedDetails) {
+			md.appendMarkdown(' · ');
+		}
+		md.appendMarkdown('$(git-branch) ');
+		md.appendText(branch);
+		appendedDetails = true;
 	}
 
-	if (detailParts.length > 0) {
-		md.appendMarkdown(detailParts.join(' · '));
+	if (appendedDetails) {
 		md.appendText('\n');
 	}
 
 	// Line 3: file count · diff stats
-	const changes = session.changes.get();
-	if (changes.length > 0) {
-		let insertions = 0;
-		let deletions = 0;
-		for (const change of changes) {
-			insertions += change.insertions;
-			deletions += change.deletions;
-		}
-		if (insertions > 0 || deletions > 0) {
-			const fileText = changes.length === 1
-				? localize('agentSessions.fileChanged', "1 file changed")
-				: localize('agentSessions.filesChanged', "{0} files changed", changes.length);
-			md.appendMarkdown(`${fileText} · <span style="color:${asCssVariable(chatLinesAddedForeground)};">+${insertions}</span> <span style="color:${asCssVariable(chatLinesRemovedForeground)};">-${deletions}</span>`);
-			md.appendText('\n');
-		}
+	const diffStats = getSessionDiffStats(session);
+	if (diffStats) {
+		const fileText = diffStats.files === 1
+			? localize('agentSessions.fileChanged', "1 file changed")
+			: localize('agentSessions.filesChanged', "{0} files changed", diffStats.files);
+		md.appendMarkdown(`${fileText} · <span style="color:${asCssVariable(chatLinesAddedForeground)};">+${diffStats.insertions}</span> <span style="color:${asCssVariable(chatLinesRemovedForeground)};">-${diffStats.deletions}</span>`);
+		md.appendText('\n');
 	}
 
 	// Line 4: provider name

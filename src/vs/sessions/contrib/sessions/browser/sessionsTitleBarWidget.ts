@@ -32,7 +32,7 @@ import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext,
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { buildSessionHoverContent } from './sessionHoverContent.js';
+import { buildSessionHoverContent, getSessionDiffStats } from './sessionHoverContent.js';
 
 const titleBarContextKeys = new Set([IsNewChatSessionContext.key]);
 
@@ -328,23 +328,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 */
 	private _getDiffStats(): { insertions: number; deletions: number } | undefined {
 		const sessionData = this.sessionsManagementService.activeSession.get();
-		if (!sessionData) {
-			return undefined;
-		}
-		const changes = sessionData.changes.get();
-		if (changes.length === 0) {
-			return undefined;
-		}
-		let insertions = 0;
-		let deletions = 0;
-		for (const change of changes) {
-			insertions += change.insertions;
-			deletions += change.deletions;
-		}
-		if (insertions === 0 && deletions === 0) {
-			return undefined;
-		}
-		return { insertions, deletions };
+		return sessionData ? getSessionDiffStats(sessionData) : undefined;
 	}
 
 	private _showContextMenu(e: MouseEvent): void {
