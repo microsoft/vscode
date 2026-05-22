@@ -79,6 +79,7 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(ContextKeysContribution),
 	asContributionFactory(ChatInputNotificationContribution),
 	asContributionFactory(ByokUtilityModelNotificationContribution),
+	asContributionFactory(ChatBillingBannerContribution),
 	asContributionFactory(CopilotDebugCommandContribution),
 	asContributionFactory(DebugCommandsContribution),
 	asContributionFactory(LanguageModelAccess),

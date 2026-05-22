@@ -43,6 +43,7 @@ import { IChatContextPickService } from '../../../../contrib/chat/browser/attach
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
 import { IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { IChatBillingBannerService } from '../../../../contrib/chat/browser/widget/input/chatBillingBannerService.js';
 import { IChatMarkdownAnchorService } from '../../../../contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IChatModeService } from '../../../../contrib/chat/common/chatModes.js';
@@ -196,6 +197,13 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
 		override readonly onDidChange = Event.None;
 		override getActiveNotification() { return undefined; }
+	}());
+	reg.defineInstance(IChatBillingBannerService, new class extends mock<IChatBillingBannerService>() {
+		override readonly onDidChange = Event.None;
+		override readonly shouldShow = false;
+		override setEnabled() { }
+		override devForceShow() { }
+		override markCompleted() { }
 	}());
 	reg.defineInstance(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { override readonly model = new class extends mock<IAgentSessionsService['model']>() { override readonly onDidChangeSessions = Event.None; }(); }());
 	reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() { }());
