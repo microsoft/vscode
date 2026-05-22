@@ -145,7 +145,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 						this.logService.debug(`[FileDialogService] Preferred home path after ~ resolved to absolute: ${relativePath}`);
 					}
 				} else {
-					this.logService.debug(`[FileDialogService] Preferred home files.dialog.defaultPath does not support tilde expansion: ${preferredHomeCandidate}`);
+					this.logService.debug(`[FileDialogService] Preferred home files.dialog.defaultPath does not support tilde prefixes: ${preferredHomeCandidate}`);
 				}
 			} else {
 				// Handle absolute paths
