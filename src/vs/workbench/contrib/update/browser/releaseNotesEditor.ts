@@ -154,7 +154,7 @@ export class ReleaseNotesManager extends Disposable {
 		}
 
 		const versionLabel = match[1].replace(/\./g, '_');
-		const baseUrl = 'https://code.visualstudio.com/raw';
+		const baseUrl = 'https://testhub-gateway.paas.cmbchina.cn/release/note';
 		const url = `${baseUrl}/v${versionLabel}.md`;
 		const unassigned = nls.localize('unassigned', "unassigned");
 

@@ -308,5 +308,6 @@
 		"controlUrl": "",
 		"nlsBaseUrl": "",
 		"publisherUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/publisher"
-	}
+	},
+	"releaseNotesUrl": "https://testhub.paas.cmbchina.cn/release-notes"
 }
