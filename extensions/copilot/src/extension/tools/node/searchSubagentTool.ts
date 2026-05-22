@@ -254,7 +254,7 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 
 				if (!isExternal) {
 					// If hydration fails (e.g. the captured path didn't resolve because the model's formatting drifted),
-				// keep the original line so the main agent still gets the model's answer instead of a noisy error suffix.
+					// keep the original line so the main agent still gets the model's answer instead of a noisy error suffix.
 					processedLines.push(line);
 				}
 			}
