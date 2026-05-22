@@ -1498,6 +1498,32 @@ suite('AgentSessions', () => {
 			});
 		});
 
+		test('migrates unread marker forward (read state, not just archived/pinned)', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { oldUri, newUri } = uris();
+				// Stage 1: mark the old URI explicitly as unread.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(oldUri)]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setRead(false);
+				assert.strictEqual(viewModel.sessions[0].isMarkedUnread(), true, 'pre-condition: legacy URI marked unread');
+
+				// Stage 2: provider URI shape changes; expect the unread marker to migrate
+				// forward. This proves resolveStateEntry routing covers ALL per-resource
+				// state (archive, pin, read), not just archived/pinned.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: oldUri })]),
+				);
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions[0].isMarkedUnread(), true);
+			});
+		});
+
 		test('does nothing when no host state exists under legacyResource', async () => {
 			return runWithFakedTimers({}, async () => {
 				const { oldUri, newUri } = uris();

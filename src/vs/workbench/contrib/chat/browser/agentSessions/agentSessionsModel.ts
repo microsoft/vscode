@@ -759,7 +759,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return; // no change
 		}
 
-		const state = this.sessionStates.get(session.resource) ?? {};
+		const state = this.resolveStateEntry(session) ?? {};
 		this.sessionStates.set(session.resource, { ...state, archived });
 
 		const agentSession = this._sessions.get(session.resource);
@@ -779,14 +779,14 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return; // no change
 		}
 
-		const state = this.sessionStates.get(session.resource) ?? {};
+		const state = this.resolveStateEntry(session) ?? {};
 		this.sessionStates.set(session.resource, { ...state, pinned });
 
 		this._onDidChangeSessions.fire();
 	}
 
 	private isMarkedUnread(session: IInternalAgentSessionData): boolean {
-		return this.sessionStates.get(session.resource)?.read === AgentSessionsModel.UNREAD_MARKER;
+		return this.resolveStateEntry(session)?.read === AgentSessionsModel.UNREAD_MARKER;
 	}
 
 	private isRead(session: IInternalAgentSessionData): boolean {
@@ -794,7 +794,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return true; // archived sessions are always read
 		}
 
-		const storedReadDate = this.sessionStates.get(session.resource)?.read;
+		const storedReadDate = this.resolveStateEntry(session)?.read;
 		if (storedReadDate === AgentSessionsModel.UNREAD_MARKER) {
 			return false;
 		}
@@ -818,7 +818,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private setRead(session: IInternalAgentSessionData, read: boolean, skipEvent?: boolean): void {
-		const state = this.sessionStates.get(session.resource) ?? {};
+		// Adopt any legacy state forward first so we don't establish an own entry
+		// under the current resource and orphan the legacy one.
+		const state = this.resolveStateEntry(session) ?? {};
 
 		let newRead: number;
 		if (read) {
