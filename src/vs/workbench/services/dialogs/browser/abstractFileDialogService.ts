@@ -123,7 +123,9 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	async preferredHome(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
 		const preferLocal = schemeFilter === Schemas.file;
 
-		const userHome = await this.pathService.userHome({ preferLocal });
+		let _userHome: Promise<URI> | undefined;
+		const getUserHome = () => _userHome ??= this.pathService.userHome({ preferLocal });
+
 		const preferredHomeConfig = this.configurationService.inspect<string>('files.dialog.defaultPath');
 		const preferredHomeCandidate = preferLocal ? preferredHomeConfig.userLocalValue : preferredHomeConfig.userRemoteValue;
 		this.logService.debug(`[FileDialogService] Preferred home: preferLocal=${preferLocal}, userLocalValue=${preferredHomeConfig.userLocalValue}, userRemoteValue=${preferredHomeConfig.userRemoteValue}`);
@@ -140,7 +142,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 				if (preferredHomeCandidate === '~' || preferredHomeCandidate.startsWith('~/') || preferredHomeCandidate.startsWith('~\\')) {
 					const relativePath = normalize(preferredHomeCandidate.slice(2));
 					if (!isAbsolute(relativePath)) {
-						preferredHomeUri = resources.joinPath(userHome, relativePath);
+						preferredHomeUri = resources.joinPath(await getUserHome(), relativePath);
 					} else {
 						this.logService.debug(`[FileDialogService] Preferred home path after ~ resolved to absolute: ${relativePath}`);
 					}
@@ -166,6 +168,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			}
 		}
 
+		const userHome = await getUserHome();
 		this.logService.debug(`[FileDialogService] Preferred home using user home: ${userHome}`);
 		return userHome;
 	}
