@@ -3351,6 +3351,56 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
+.chat-collapsible-io-resource-group {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+}
+
+.chat-collapsible-io-resource-items .chat-attached-context {
+	gap: 8px;
+	padding-bottom: 0;
+}
+
+.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment {
+	box-sizing: border-box;
+	width: 88px;
+	height: 88px;
+	border-radius: 8px;
+	padding: 0;
+	background-color: var(--vscode-input-background);
+	border-color: var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
+	overflow: hidden;
+	justify-content: center;
+}
+
+.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill {
+	width: 100%;
+	height: 100%;
+	padding: 0;
+	margin: 0;
+}
+
+.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill-image {
+	width: 100%;
+	height: 100%;
+	border-radius: 7px;
+	margin: 0;
+	object-fit: cover;
+}
+
+.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-custom-text {
+	display: none;
+}
+
+.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-download-button {
+	display: none !important;
+}
+
+.chat-collapsible-io-resource-actions {
+	align-self: center;
+}
+
 .interactive-session .chat-scroll-down {
 	display: none;
 	position: absolute;
