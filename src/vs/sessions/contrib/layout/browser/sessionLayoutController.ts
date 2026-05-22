@@ -83,9 +83,6 @@ export class LayoutController extends Disposable {
 		this._loadState();
 
 		this._register(this._storageService.onWillSaveState(() => this._saveState()));
-		if (!isWeb) { // Remove this!
-			return;
-		}
 
 		const activeSessionResourceObs = derivedOpts<URI | undefined>({
 			equalsFn: isEqual
