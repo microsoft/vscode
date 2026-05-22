@@ -262,7 +262,7 @@ export class ModalEditorPart {
 		const actionBarContainer = append(headerElement, $('div.modal-editor-action-container'));
 
 		// Sidebar
-		const sidebarResult = this.createSidebar(editorPartContainer, options?.sidebar, disposables);
+		const sidebarResult = this.createSidebar(editorPartContainer, headerElement, options?.sidebar, disposables);
 		if (sidebarResult) {
 			if (sidebarResult.isVisible()) {
 				editorPartContainer.classList.add('has-sidebar');
@@ -379,14 +379,6 @@ export class ModalEditorPart {
 		};
 		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, updateLabel));
 
-		// Reflect modal-options from the active editor (e.g. compact header)
-		// as classes on the modal block.
-		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => {
-			const activeEditor = editorPart.activeGroup.activeEditor;
-			const editorModalOptions = activeEditor?.getModalEditorOptions?.();
-			modalElement.classList.toggle('compact-header', !!editorModalOptions?.compactHeader);
-		}));
-
 		// Handle double-click on header to toggle maximize
 		disposables.add(addDisposableListener(headerElement, EventType.DBLCLICK, e => {
 			EventHelper.stop(e);
@@ -431,16 +423,17 @@ export class ModalEditorPart {
 			const { width: modalWidth, height: modalHeight } = resizableElement.size;
 			const { top: topPx, left: leftPx } = resizableElement.domNode.style;
 			const sidebarWidth = sidebarResult?.getWidth() ?? 0;
+			const headerHeight = headerElement.offsetHeight;
 
 			editorPart.layout(
 				Math.max(0, modalWidth - MODAL_BORDER_SIZE - sidebarWidth),
-				modalHeight - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT,
-				parseFloat(topPx) + MODAL_BORDER_WIDTH + MODAL_HEADER_HEIGHT,
+				modalHeight - MODAL_BORDER_SIZE - headerHeight,
+				parseFloat(topPx) + MODAL_BORDER_WIDTH + headerHeight,
 				parseFloat(leftPx) + MODAL_BORDER_WIDTH + sidebarWidth,
 			);
 
 			if (sizeChanged) {
-				sidebarResult?.layout(modalHeight - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT);
+				sidebarResult?.layout(modalHeight - MODAL_BORDER_SIZE - headerHeight);
 			}
 		};
 
@@ -710,6 +703,16 @@ export class ModalEditorPart {
 		disposables.add(editorPart.onDidChangeMaximized(() => layoutModal()));
 		disposables.add(editorPart.onDidRequestLayout(() => layoutModal()));
 
+		// Reflect modal-options from the active editor (e.g. compact header)
+		// as classes on the modal block, and re-layout so dimensions account
+		// for any header size change.
+		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => {
+			const activeEditor = editorPart.activeGroup.activeEditor;
+			const editorModalOptions = activeEditor?.getModalEditorOptions?.();
+			modalElement.classList.toggle('compact-header', !!editorModalOptions?.compactHeader);
+			layoutModal();
+		}));
+
 		// Dim window controls to match the modal overlay
 		this.hostService.setWindowDimmed(mainWindow, true);
 		disposables.add(toDisposable(() => this.hostService.setWindowDimmed(mainWindow, false)));
@@ -724,7 +727,7 @@ export class ModalEditorPart {
 		};
 	}
 
-	private createSidebar(container: HTMLElement, content: IModalEditorSidebar | undefined, disposables: DisposableStore): IModalEditorSidebarController | undefined {
+	private createSidebar(container: HTMLElement, headerElement: HTMLElement, content: IModalEditorSidebar | undefined, disposables: DisposableStore): IModalEditorSidebarController | undefined {
 		if (!content) {
 			return undefined;
 		}
@@ -743,10 +746,11 @@ export class ModalEditorPart {
 		contentDisposable.value = content.render(sidebarContainer, onDidLayoutEmitter.event);
 
 		// Sash for resizing sidebar
+		const getHeaderHeight = () => (headerElement.offsetHeight || MODAL_HEADER_HEIGHT);
 		const sash = disposables.add(new Sash(container, {
 			getVerticalSashLeft: () => sidebarWidth,
-			getVerticalSashTop: () => MODAL_HEADER_HEIGHT,
-			getVerticalSashHeight: () => (container.clientHeight - MODAL_HEADER_HEIGHT),
+			getVerticalSashTop: () => getHeaderHeight(),
+			getVerticalSashHeight: () => (container.clientHeight - getHeaderHeight()),
 		}, { orientation: Orientation.VERTICAL }));
 		if (!visible) {
 			sash.state = SashState.Disabled;

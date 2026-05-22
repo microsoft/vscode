@@ -19,7 +19,7 @@
 
 .ai-customization-management-editor .sidebar-content {
 	height: 100%;
-	padding: 4px;
+	padding: 0 4px 4px;
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
@@ -30,7 +30,6 @@
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	padding: 2px 0 6px;
 }
 
 .ai-customization-management-editor .sidebar-home-button {
@@ -123,12 +122,12 @@
 
 .ai-customization-management-editor .section-list-item .section-count {
 	flex-shrink: 0;
-	font-size: 10px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-label2);
+	font-weight: var(--vscode-agents-fontWeight-medium);
 	color: var(--vscode-descriptionForeground);
 	border-radius: 8px;
 	min-width: 14px;
-	text-align: center;
+	text-align: right;
 	line-height: 16px;
 }
 
@@ -141,7 +140,20 @@
 
 .ai-customization-management-editor .content-inner {
 	height: 100%;
-	padding: 10px;
+	box-sizing: border-box;
+	padding-right: 16px;
+	padding-bottom: 16px;
+	display: flex;
+	flex-direction: column;
+}
+
+.ai-customization-management-editor .content-inner .welcome-page-host {
+	flex: 1 1 auto;
+	min-height: 0;
+	padding: 40px 40px 16px;
+	background: var(--vscode-agentsPanel-background);
+	border: 1px solid var(--vscode-agentsPanel-border);
+	border-radius: 6px;
 	box-sizing: border-box;
 }
 

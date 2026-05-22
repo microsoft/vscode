@@ -198,6 +198,8 @@
 .monaco-modal-editor-block.compact-header .modal-editor-header {
 	background-color: var(--vscode-editor-background);
 	border-bottom: none;
+	height: 40px;
+	min-height: 40px;
 }
 
 .monaco-modal-editor-block.compact-header .modal-editor-title .monaco-icon-label::before {
