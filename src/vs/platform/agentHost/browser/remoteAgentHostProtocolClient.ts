@@ -881,14 +881,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			} catch {
 				continue;
 			}
-			const key = uri.toString();
+			const grantUri = dirname(uri);
+			const key = grantUri.toString();
 			if (this._grantedCustomizationUris.has(key)) {
 				continue;
 			}
 			this._grantedCustomizationUris.add(key);
 			// Disposable is owned by the permission service; cleared on
 			// connectionClosed.
-			this._permissionService.grantImplicitRead(this._address, dirname(uri));
+			this._permissionService.grantImplicitRead(this._address, grantUri);
 		}
 	}
 

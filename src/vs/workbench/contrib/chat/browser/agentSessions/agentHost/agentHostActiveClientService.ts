@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { derived, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -85,12 +86,21 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		const syncProvider = store.add(new AgentCustomizationSyncProvider(sessionType, this._storageService));
 		const bundler = store.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
 		const customizations = observableValue<readonly CustomizationRef[]>('agentCustomizations', []);
+		let updateSeq = 0;
 		const updateCustomizations = async () => {
-			const refs = await resolveCustomizationRefs(this._promptsService, syncProvider, this._agentPluginService, bundler, sessionType);
-			if (equals(customizations.get(), refs)) {
-				return;
+			const seq = ++updateSeq;
+			try {
+				const refs = await resolveCustomizationRefs(this._promptsService, syncProvider, this._agentPluginService, bundler, sessionType);
+				if (seq !== updateSeq) {
+					return;
+				}
+				if (equals(customizations.get(), refs)) {
+					return;
+				}
+				customizations.set(refs, undefined);
+			} catch (err) {
+				onUnexpectedError(err);
 			}
-			customizations.set(refs, undefined);
 		};
 		store.add(syncProvider.onDidChange(() => updateCustomizations()));
 		store.add(Event.any(

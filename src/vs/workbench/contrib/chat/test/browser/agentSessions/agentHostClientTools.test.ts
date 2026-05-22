@@ -48,6 +48,7 @@ import { IAgentPluginService } from '../../../common/plugins/agentPluginService.
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 
 // =============================================================================
 // Unit tests for toolDataToDefinition and toolResultToProtocol
@@ -439,6 +440,16 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IAgentPluginService, {
 				plugins: observableValue('plugins', []),
 			});
+			instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
+				override readonly onDidChangeCustomAgents = Event.None;
+				override readonly onDidChangeSlashCommands = Event.None;
+				override readonly onDidChangeSkills = Event.None;
+				override readonly onDidChangeInstructions = Event.None;
+
+				override async listPromptFilesForStorage() {
+					return [];
+				}
+			}());
 			instantiationService.stub(ITerminalChatService, {
 				onDidContinueInBackground: Event.None,
 				registerTerminalInstanceWithToolSession: () => { },

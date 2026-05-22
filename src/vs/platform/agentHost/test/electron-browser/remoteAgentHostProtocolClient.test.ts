@@ -643,7 +643,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 					tools: [],
 					customizations: [
 						{ uri: 'file:///plugins/foo', displayName: 'Foo' },
-						{ uri: 'file:///plugins/bar', displayName: 'Bar' },
+						{ uri: 'file:///other/bar', displayName: 'Bar' },
 					]
 				},
 			});
@@ -652,8 +652,31 @@ suite('RemoteAgentHostProtocolClient', () => {
 				calls.map(c => ({ address: c.address, uri: c.uri.toString() })),
 				[
 					{ address: 'test.example:1234', uri: 'file:///plugins' },
-					{ address: 'test.example:1234', uri: 'file:///plugins' },
+					{ address: 'test.example:1234', uri: 'file:///other' },
 				],
+			);
+		});
+
+		test('multiple customizations in the same directory dedupe to one grant', () => {
+			const { service, calls } = createCapturingPermissionService();
+			const { client } = createClient(undefined, service);
+			const sessionUri = URI.parse('ahp-session:/test');
+
+			client.dispatch(sessionUri.toString(), {
+				type: ActionType.SessionActiveClientChanged,
+				activeClient: {
+					clientId: 'c1',
+					tools: [],
+					customizations: [
+						{ uri: 'file:///plugins/foo', displayName: 'Foo' },
+						{ uri: 'file:///plugins/bar', displayName: 'Bar' },
+					]
+				},
+			});
+
+			assert.deepStrictEqual(
+				calls.map(c => c.uri.toString()),
+				['file:///plugins'],
 			);
 		});
 
