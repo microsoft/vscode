@@ -5,12 +5,13 @@
 
 import { describe, expect, test } from 'vitest';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
+import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
+import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import type { IChatEndpoint } from '../../../networking/common/networking';
-import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
-import { modelSupportsPDFDocuments, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
+import { getModelCapabilityOverride, modelSupportsContextEditing, modelSupportsPDFDocuments, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
-function fakeModel(family: string) {
-	return { family } as unknown as IChatEndpoint;
+function fakeModel(family: string, model: string = family) {
+	return { family, model } as unknown as IChatEndpoint;
 }
 
 describe('modelSupportsPDFDocuments', () => {
@@ -66,33 +67,96 @@ describe('modelSupportsToolSearch', () => {
 		expect(modelSupportsToolSearch('claude-3-opus')).toBe(false);
 	});
 
-	test('supports OpenAI gpt-5.4 and gpt-5.5 models when the setting is enabled', () => {
-		const configurationService = {
-			getExperimentBasedConfig: (key: unknown) => key === ConfigKey.ResponsesApiToolSearchEnabled,
-		} as unknown as IConfigurationService;
-		const experimentationService = {} as IExperimentationService;
-
-		expect(modelSupportsToolSearch('gpt-5.4', configurationService, experimentationService)).toBe(true);
-		expect(modelSupportsToolSearch('gpt-5.5', configurationService, experimentationService)).toBe(true);
-		expect(modelSupportsToolSearch('gpt-5.4')).toBe(false);
-		expect(modelSupportsToolSearch('gpt-5.5')).toBe(false);
+	test('supports OpenAI gpt-5.4 and gpt-5.5 models', () => {
+		expect(modelSupportsToolSearch('gpt-5.4')).toBe(true);
+		expect(modelSupportsToolSearch('gpt-5.5')).toBe(true);
 	});
 
 	test('rejects suffixed gpt-5.4/5.5 variants (exact match only)', () => {
-		const configurationService = {
-			getExperimentBasedConfig: (key: unknown) => key === ConfigKey.ResponsesApiToolSearchEnabled,
-		} as unknown as IConfigurationService;
-		const experimentationService = {} as IExperimentationService;
-
-		expect(modelSupportsToolSearch('gpt-5.4-mini', configurationService, experimentationService)).toBe(false);
-		expect(modelSupportsToolSearch('gpt-5.4-preview', configurationService, experimentationService)).toBe(false);
-		expect(modelSupportsToolSearch('gpt-5.5-preview', configurationService, experimentationService)).toBe(false);
-		expect(modelSupportsToolSearch('gpt5.5-preview', configurationService, experimentationService)).toBe(false);
+		expect(modelSupportsToolSearch('gpt-5.4-mini')).toBe(false);
+		expect(modelSupportsToolSearch('gpt-5.4-preview')).toBe(false);
+		expect(modelSupportsToolSearch('gpt-5.5-preview')).toBe(false);
+		expect(modelSupportsToolSearch('gpt5.5-preview')).toBe(false);
 	});
 
 	test('rejects other non-Claude models', () => {
 		expect(modelSupportsToolSearch('gpt-5')).toBe(false);
 		expect(modelSupportsToolSearch('gemini-2.5-pro')).toBe(false);
 		expect(modelSupportsToolSearch('o4-mini')).toBe(false);
+	});
+
+	test('matches via endpoint.family when the model id is unknown', () => {
+		// An unknown preview id whose family has been aliased to a supported production family.
+		expect({
+			'preview-id + family=claude-opus-4.7': modelSupportsToolSearch(fakeModel('claude-opus-4.7', 'preview-anthropic')),
+			'preview-id + family=claude-sonnet-4.6': modelSupportsToolSearch(fakeModel('claude-sonnet-4.6', 'preview-sonnet-internal')),
+			'preview-id + family=claude-opus-4 (pre-4.5)': modelSupportsToolSearch(fakeModel('claude-opus-4', 'preview-opus-old')),
+			'known id + family=unknown': modelSupportsToolSearch(fakeModel('mystery-family', 'claude-opus-4.7')),
+		}).toEqual({
+			'preview-id + family=claude-opus-4.7': true,
+			'preview-id + family=claude-sonnet-4.6': true,
+			'preview-id + family=claude-opus-4 (pre-4.5)': false,
+			'known id + family=unknown': true,
+		});
+	});
+});
+
+describe('modelSupportsContextEditing', () => {
+	test('matches Claude id strings', () => {
+		expect({
+			'claude-opus-4.6': modelSupportsContextEditing('claude-opus-4.6'),
+			'claude-sonnet-4.5': modelSupportsContextEditing('claude-sonnet-4.5'),
+			'claude-haiku-4-5': modelSupportsContextEditing('claude-haiku-4-5'),
+			'claude-opus-4.6-1m': modelSupportsContextEditing('claude-opus-4.6-1m'),
+			'gpt-5': modelSupportsContextEditing('gpt-5'),
+		}).toEqual({
+			'claude-opus-4.6': true,
+			'claude-sonnet-4.5': true,
+			'claude-haiku-4-5': true,
+			'claude-opus-4.6-1m': false, // 1M variant excluded
+			'gpt-5': false,
+		});
+	});
+
+	test('matches via endpoint.family when the model id is unknown', () => {
+		expect({
+			'preview-id + family=claude-opus-4.6': modelSupportsContextEditing(fakeModel('claude-opus-4.6', 'preview-anthropic')),
+			'preview-id + family=claude-haiku-4-5': modelSupportsContextEditing(fakeModel('claude-haiku-4-5', 'preview-haiku-internal')),
+			'preview-id + family=mystery': modelSupportsContextEditing(fakeModel('mystery-family', 'preview-anything')),
+		}).toEqual({
+			'preview-id + family=claude-opus-4.6': true,
+			'preview-id + family=claude-haiku-4-5': true,
+			'preview-id + family=mystery': false,
+		});
+	});
+});
+
+describe('getModelCapabilityOverride', () => {
+	function makeConfig(map: Record<string, unknown>): IConfigurationService {
+		const service = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
+		service.setConfig(ConfigKey.Advanced.ModelCapabilityOverrides, map as never);
+		return service;
+	}
+
+	test('returns the entry for a known model id', () => {
+		const config = makeConfig({
+			'preview-anthropic': { family: 'claude-opus-4.7' },
+		});
+		expect(getModelCapabilityOverride('preview-anthropic', config)).toEqual({
+			family: 'claude-opus-4.7',
+		});
+	});
+
+	test('returns undefined for unknown model ids and when nothing is configured', () => {
+		const config = makeConfig({
+			'preview-anthropic': { family: 'claude-opus-4.7' },
+		});
+		expect({
+			unknown: getModelCapabilityOverride('something-else', config),
+			emptyMap: getModelCapabilityOverride('preview-anthropic', makeConfig({})),
+		}).toEqual({
+			unknown: undefined,
+			emptyMap: undefined,
+		});
 	});
 });

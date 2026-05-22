@@ -418,33 +418,48 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	private async tryActivateProvider(providerId: string, activateImmediate: boolean): Promise<IAuthenticationProvider> {
-		await this._extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId), activateImmediate ? ActivationKind.Immediate : ActivationKind.Normal);
-		let provider = this._authenticationProviders.get(providerId);
-		if (provider) {
-			return provider;
-		}
-		if (this._disposedSource.token.isCancellationRequested) {
-			throw new Error('Authentication service is disposed.');
-		}
-
 		const store = new DisposableStore();
 		try {
-			// TODO: Remove this timeout and figure out a better way to ensure auth providers
-			// are registered _during_ extension activation.
-			const result = await raceTimeout(
-				raceCancellation(
-					Event.toPromise(
-						Event.filter(
-							this.onDidRegisterAuthenticationProvider,
-							e => e.id === providerId,
-							store
-						),
+			// Don't await activateByEvent exclusively — one or more extension
+			// hosts may be blocked (e.g. webworker waiting on remote authority),
+			// causing a deadlock. Instead, race with the provider being
+			// registered so we can proceed as soon as any host delivers it. (#315841)
+			const activationPromise = this._extensionService.activateByEvent(
+				getAuthenticationProviderActivationEvent(providerId),
+				activateImmediate ? ActivationKind.Immediate : ActivationKind.Normal
+			);
+
+			let provider = this._authenticationProviders.get(providerId);
+			if (provider) {
+				return provider;
+			}
+			if (this._disposedSource.token.isCancellationRequested) {
+				throw new Error('Authentication service is disposed.');
+			}
+
+			const providerRegistered = raceCancellation(
+				Event.toPromise(
+					Event.filter(
+						this.onDidRegisterAuthenticationProvider,
+						e => e.id === providerId,
 						store
 					),
-					this._disposedSource.token
+					store
 				),
-				5000
+				this._disposedSource.token
 			);
+
+			// Wait for either activation to complete or the provider to register.
+			await Promise.race([activationPromise, providerRegistered]);
+
+			provider = this._authenticationProviders.get(providerId);
+			if (provider) {
+				return provider;
+			}
+
+			// TODO: Remove this timeout and figure out a better way to ensure auth providers
+			// are registered _during_ extension activation.
+			const result = await raceTimeout(providerRegistered, 5000);
 			provider = this._authenticationProviders.get(providerId);
 			if (provider) {
 				return provider;

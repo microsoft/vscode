@@ -9,14 +9,14 @@ import { URI } from '../../../../base/common/uri.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { TextDiffEditor } from './textDiffEditor.js';
 import { ActiveCompareEditorCanSwapContext, ActiveCustomEditorDiffCanToggleLayoutContext, TextCompareEditorActiveContext, TextCompareEditorVisibleContext } from '../../../common/contextkeys.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IUntypedEditorInput, isDiffEditorInput } from '../../../common/editor.js';
+import { EditorResourceAccessor, IUntypedEditorInput, isDiffEditorInput, SideBySideEditor } from '../../../common/editor.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -117,7 +117,15 @@ export function registerDiffEditorCommands(): void {
 		}
 
 		const editorService = accessor.get(IEditorService);
+		const contextKeyService = accessor.get(IContextKeyService);
 		const resource = args.length > 0 && args[0] instanceof URI ? args[0] : undefined;
+		if (ActiveCustomEditorDiffCanToggleLayoutContext.getValue(contextKeyService)) {
+			const activeCustomDiffModifiedResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+			if (activeCustomDiffModifiedResource && (!resource || isEqual(activeCustomDiffModifiedResource, resource))) {
+				return activeCustomDiffModifiedResource;
+			}
+		}
+
 		for (const editor of [editorService.activeEditor, ...editorService.visibleEditors]) {
 			if (isDiffEditorInput(editor) && editor.modified.resource && (!resource || isEqual(editor.modified.resource, resource))) {
 				return editor.modified.resource;

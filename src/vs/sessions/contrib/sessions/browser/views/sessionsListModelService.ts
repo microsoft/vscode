@@ -56,6 +56,14 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	private static readonly PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
 	private static readonly READ_SESSIONS_KEY = 'sessionsListControl.readSessions';
 
+	/**
+	 * Sessions created on or after this date start as unread by default.
+	 * Sessions created before this date are treated as read even if absent from
+	 * the read set, preserving the behaviour that existed before the unread
+	 * indicator was introduced.
+	 */
+	private static readonly UNREAD_DEFAULT_CUTOFF = new Date('2026-05-12T00:00:00.000Z');
+
 	private readonly _onDidChange = this._register(new Emitter<ISessionListModelChangeEvent>());
 	readonly onDidChange: Event<ISessionListModelChangeEvent> = this._onDidChange.event;
 
@@ -147,7 +155,15 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	}
 
 	isSessionRead(session: ISession): boolean {
-		return this._readSessionIds.has(session.sessionId);
+		if (this._readSessionIds.has(session.sessionId)) {
+			return true;
+		}
+		// Sessions last updated before the cutoff date pre-date the unread
+		// indicator feature and are treated as read to avoid a flood of unread
+		// badges on upgrade. Once a session receives new activity (its updatedAt
+		// advances past the cutoff) it becomes unread again so the indicator
+		// works correctly.
+		return session.updatedAt.get() < SessionsListModelService.UNREAD_DEFAULT_CUTOFF;
 	}
 
 	markAllRead(sessions: ISession[]): void {

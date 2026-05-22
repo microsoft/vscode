@@ -72,3 +72,7 @@ extensions/vscode-api-tests/src/singlefolder-tests/browser*.test.ts @kycutler @j
 
 # Testing
 test/sanity/** @dmitrivMS
+
+# Agents Workbench
+# Ensure the Agents workbench team is aware of changes to the sessions model and services
+src/vs/sessions/services/sessions/** @sandy081 @lszomoru

@@ -15,6 +15,10 @@ import './browser/workbench.zenMode.contribution.js';
 // global color registry and appear in the color-theme JSON schema.
 import '../sessions/common/theme.js';
 
+// Agent-sessions size tokens (font ramp) — side-effect import so they register
+// in the global size registry and appear in the workbench-sizes JSON schema.
+import '../sessions/common/sizes.js';
+
 //#endregion
 
 
@@ -217,6 +221,7 @@ import './contrib/notebook/browser/notebook.contribution.js';
 import './contrib/speech/browser/speech.contribution.js';
 
 // Chat
+import './contrib/chat/browser/chat.shared.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
 import './contrib/chat/browser/chat.view.contribution.js';
 import './contrib/inlineChat/browser/inlineChat.contribution.js';

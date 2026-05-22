@@ -8,8 +8,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
-import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
-import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { IResponseDelta, OpenAiFunctionTool } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
@@ -24,6 +22,7 @@ function createMockEndpoint(model: string): IChatEndpoint {
 		family: model,
 		modelProvider: 'openai',
 		supportsToolCalls: true,
+		supportsToolSearch: model === 'gpt-5.4' || model === 'gpt-5.5',
 		supportsVision: false,
 		supportsPrediction: false,
 		showInModelPicker: true,
@@ -93,8 +92,6 @@ describe('createResponsesRequestBody tools', () => {
 
 	function createToolSearchScenario(messages: Raw.ChatMessage[]) {
 		const endpoint = createMockEndpoint('gpt-5.4');
-		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
-		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
 
 		const options = createMockOptions({
 			messages,
@@ -113,10 +110,8 @@ describe('createResponsesRequestBody tools', () => {
 		);
 	}
 
-	it('passes tools through without defer_loading when tool search disabled', () => {
-		const endpoint = createMockEndpoint('gpt-5.4');
-		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
-		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, false);
+	it('passes tools through without defer_loading for unsupported models', () => {
+		const endpoint = createMockEndpoint('gpt-4o');
 
 		const body = accessor.get(IInstantiationService).invokeFunction(
 			createResponsesRequestBody, createMockOptions(), endpoint.model, endpoint
@@ -128,10 +123,8 @@ describe('createResponsesRequestBody tools', () => {
 		expect(tools.every(t => !t.defer_loading)).toBe(true);
 	});
 
-	it('adds client tool_search and defer_loading when enabled', () => {
+	it('adds client tool_search and defer_loading for supported models', () => {
 		const endpoint = createMockEndpoint('gpt-5.4');
-		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
-		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
 
 		const body = accessor.get(IInstantiationService).invokeFunction(
 			createResponsesRequestBody, createMockOptions(), endpoint.model, endpoint
@@ -156,8 +149,6 @@ describe('createResponsesRequestBody tools', () => {
 
 	it('does not defer tools for unsupported models', () => {
 		const endpoint = createMockEndpoint('gpt-4o');
-		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
-		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
 
 		const body = accessor.get(IInstantiationService).invokeFunction(
 			createResponsesRequestBody, createMockOptions(), endpoint.model, endpoint
@@ -170,8 +161,6 @@ describe('createResponsesRequestBody tools', () => {
 
 	it('does not defer tools for non-Agent locations', () => {
 		const endpoint = createMockEndpoint('gpt-5.4');
-		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
-		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
 
 		const options = createMockOptions({ location: ChatLocation.Panel });
 		const body = accessor.get(IInstantiationService).invokeFunction(
@@ -189,8 +178,6 @@ describe('createResponsesRequestBody tools', () => {
 		// MCP tool would be marked deferred and stripped from the request, leaving the
 		// agent with nothing to call.
 		const endpoint = createMockEndpoint('gpt-5.4');
-		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
-		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
 
 		const options = createMockOptions({
 			requestOptions: {
@@ -213,9 +200,7 @@ describe('createResponsesRequestBody tools', () => {
 	});
 
 	it('always filters tool_search function tool from tools array', () => {
-		const endpoint = createMockEndpoint('gpt-5.4');
-		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
-		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, false);
+		const endpoint = createMockEndpoint('gpt-4o');
 
 		const options = createMockOptions({
 			requestOptions: {
@@ -234,10 +219,8 @@ describe('createResponsesRequestBody tools', () => {
 		expect(tools.find(t => t.name === 'read_file')).toBeDefined();
 	});
 
-	it('converts tool_search history even when feature flag is off', () => {
-		const endpoint = createMockEndpoint('gpt-5.4');
-		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
-		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, false);
+	it('converts tool_search history for unsupported models', () => {
+		const endpoint = createMockEndpoint('gpt-4o');
 
 		const messages: Raw.ChatMessage[] = [
 			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }] },
@@ -437,6 +420,91 @@ describe('createResponsesRequestBody tools', () => {
 			},
 			badFunctionCallOutput: undefined,
 			mcpToolNamespace: 'some_mcp_tool',
+		});
+	});
+
+	it('preserves rich JSON Schema keywords and emits strict: false on both the inline and deferred paths (issue #315526)', () => {
+		// Extension-contributed tools (e.g. agent-helper-kit's `run_in_shell`) use JSON Schema
+		// keywords outside OpenAI's strict-mode subset — `allOf`, `not`, `anyOf`, `if`/`then`,
+		// numeric bounds — to express mutually-exclusive arguments. The Responses API defaults
+		// `strict` to `true` when omitted, which silently strips those keywords. Both the
+		// inline (non-deferred) and the tool_search_output (deferred) paths must explicitly
+		// emit `strict: false` and round-trip the schema verbatim, otherwise the model invokes
+		// the tool with all the mutually-exclusive fields populated at once.
+		const richSchema = {
+			type: 'object',
+			required: ['command'],
+			properties: {
+				command: { type: 'string' },
+				full_output: { type: 'boolean' },
+				last_lines: { type: 'number', minimum: 0 },
+				regex: { type: 'string' },
+			},
+			allOf: [
+				{ not: { required: ['last_lines', 'regex'] } },
+				{ not: { required: ['full_output', 'last_lines'] } },
+				{ not: { required: ['full_output', 'regex'] } },
+			],
+		};
+		const endpoint = createMockEndpoint('gpt-5.4');
+
+		// Inline path: non-deferred tools are sent in the initial request body.
+		const inlineBody = accessor.get(IInstantiationService).invokeFunction(
+			createResponsesRequestBody,
+			createMockOptions({
+				requestOptions: {
+					tools: [
+						{ type: 'function', function: { name: 'read_file', description: 'Read a file', parameters: richSchema } },
+						{ type: 'function', function: { name: 'tool_search', description: 'Search tools', parameters: { type: 'object', properties: {} } } },
+					]
+				}
+			}),
+			endpoint.model,
+			endpoint,
+		);
+
+		// Deferred path: the same schema must come back via tool_search_output unchanged.
+		const deferredBody = accessor.get(IInstantiationService).invokeFunction(
+			createResponsesRequestBody,
+			createMockOptions({
+				messages: [
+					{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Run a shell command' }] },
+					{
+						role: Raw.ChatRole.Assistant,
+						content: [],
+						toolCalls: [{ id: 'call_ts_strict', type: 'function', function: { name: 'tool_search', arguments: '{"query":"shell"}' } }],
+					},
+					{
+						role: Raw.ChatRole.Tool,
+						toolCallId: 'call_ts_strict',
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: '["run_in_shell"]' }],
+					},
+				],
+				requestOptions: {
+					tools: [
+						{ type: 'function', function: { name: 'run_in_shell', description: 'Run a shell command', parameters: richSchema } },
+						{ type: 'function', function: { name: 'tool_search', description: 'Search tools', parameters: { type: 'object', properties: {} } } },
+					]
+				},
+			}),
+			endpoint.model,
+			endpoint,
+		);
+
+		const inlineReadFile = (inlineBody.tools as Array<{ name?: string; strict?: unknown; parameters?: unknown }>).find(t => t.name === 'read_file');
+		const deferredToolSearchOutput = (deferredBody.input as Array<{ type?: string; tools?: Array<{ name: string; strict?: unknown; defer_loading?: unknown; parameters?: unknown }> }>).find(i => i.type === 'tool_search_output');
+		const deferredRunInShell = deferredToolSearchOutput?.tools?.find(t => t.name === 'run_in_shell');
+
+		expect({
+			inline: { strict: inlineReadFile?.strict, parameters: inlineReadFile?.parameters },
+			deferred: {
+				strict: deferredRunInShell?.strict,
+				defer_loading: deferredRunInShell?.defer_loading,
+				parameters: deferredRunInShell?.parameters,
+			},
+		}).toEqual({
+			inline: { strict: false, parameters: richSchema },
+			deferred: { strict: false, defer_loading: true, parameters: richSchema },
 		});
 	});
 });

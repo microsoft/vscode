@@ -3,7 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.agent-sessions-workbench .part.editor:not(.modal-editor-part) {
+/* Border for editor part in aux window */
+.agent-sessions-workbench > .part.editor:not(.modal-editor-part) {
+	border-top: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+}
+
+.agent-sessions-workbench .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	margin: 0 0 0 0;
 	background: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
@@ -16,7 +21,7 @@
 	overflow: hidden;
 }
 
-.agent-sessions-workbench.nosidebar.nochatbar .part.editor:not(.modal-editor-part) {
+.agent-sessions-workbench.nosidebar.nochatbar .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	margin-left: 10px;
 }
 
