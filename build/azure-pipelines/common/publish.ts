@@ -615,7 +615,7 @@ export async function requestAZDOAPI<T>(path: string): Promise<T> {
 			throw new Error(`Unexpected status code: ${res.status}`);
 		}
 
-		return await res.json();
+		return await res.json() as T;
 	} finally {
 		clearTimeout(timeout);
 	}
