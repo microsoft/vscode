@@ -186,6 +186,15 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
+		// Determine whether any session type label is duplicated across
+		// providers. When all labels are unique the provider header is
+		// redundant — skip it for a cleaner dropdown.
+		const labelCounts = new Map<string, number>();
+		for (const { sessionType } of folderTypes) {
+			labelCounts.set(sessionType.label, (labelCounts.get(sessionType.label) ?? 0) + 1);
+		}
+		const hasDuplicateLabels = Array.from(labelCounts.values()).some(c => c > 1);
+
 		// Group items by provider so the dropdown shows a provider header
 		// followed by that provider's types. Insert a separator between
 		// adjacent providers' types so the grouping is visually clear.
@@ -196,7 +205,7 @@ export class SessionTypePicker extends Disposable {
 			const provider = providersService.getProvider(providerId);
 			const groupTitle = provider?.label ?? providerId;
 			const isFirstInGroup = providerId !== lastProviderId;
-			if (isFirstInGroup && lastProviderId !== undefined) {
+			if (hasDuplicateLabels && isFirstInGroup && lastProviderId !== undefined) {
 				groupedItems.push({ kind: ActionListItemKind.Separator, label: '' });
 			}
 			lastProviderId = providerId;
@@ -207,8 +216,11 @@ export class SessionTypePicker extends Disposable {
 			groupedItems.push({
 				kind: ActionListItemKind.Action,
 				label: sessionType.label,
-				group: {
+				group: hasDuplicateLabels ? {
 					title: isFirstInGroup ? groupTitle : '',
+					icon: sessionType.icon,
+				} : {
+					title: '',
 					icon: sessionType.icon,
 				},
 				item,
@@ -236,7 +248,7 @@ export class SessionTypePicker extends Disposable {
 				getAriaLabel: (item) => item.label ?? '',
 				getWidgetAriaLabel: () => localize('sessionTypePicker.ariaLabel', "Session Type"),
 			},
-			{ showGroupTitleOnFirstItem: true },
+			{ showGroupTitleOnFirstItem: hasDuplicateLabels },
 		);
 	}
 
