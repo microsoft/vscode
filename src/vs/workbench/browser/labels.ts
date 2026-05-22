@@ -705,9 +705,7 @@ class ResourceLabelWidget extends IconLabel {
 				}
 
 				if (this.options.fileDecorations.colors) {
-					if (decoration.labelClassName) {
-						iconLabelOptions.extraClasses.push(decoration.labelClassName);
-					}
+					iconLabelOptions.extraClasses.push(decoration.labelClassName);
 
 					if (decoration.bgColorClassName) {
 						iconLabelOptions.bgColorClassName = decoration.bgColorClassName;
