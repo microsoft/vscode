@@ -298,20 +298,8 @@ export class ChatBillingBannerWidget extends Disposable {
 
 		this._animator = this._renderDisposables.add(new BillingBannerCanvasAnimator(canvas, banner, this._accessibilityService.isMotionReduced()));
 
-		// Primary CTA floats top-left and close (×) floats top-right over the
-		// hero canvas so the body text below stays uncluttered.
-		const ctaBtn = this._renderDisposables.add(new Button(card, {
-			...defaultButtonStyles,
-			supportIcons: true,
-		}));
-		ctaBtn.element.classList.add('chat-billing-banner-cta');
-		if (this._variant === ChatBillingBannerVariant.Panel) {
-			ctaBtn.label = `$(${Codicon.copilot.id}) ${localize('billingBanner.cta.dashboard', "Open Copilot Dashboard")}`;
-		} else {
-			ctaBtn.label = `$(${Codicon.account.id}) ${localize('billingBanner.cta.viewAccount', "Open Account")}`;
-		}
-		this._renderDisposables.add(ctaBtn.onDidClick(() => this._handleCta()));
-
+		// Close (×) floats top-right over the hero canvas; the primary CTA
+		// sits below the body text in the card body.
 		const closeBtn = dom.append(card, $('button.chat-billing-banner-close')) as HTMLButtonElement;
 		closeBtn.type = 'button';
 		closeBtn.setAttribute('aria-label', localize('billingBanner.close', "Close"));
@@ -332,6 +320,18 @@ export class ChatBillingBannerWidget extends Disposable {
 			e.preventDefault();
 			this._openerService.open(URI.parse(GITHUB_DOCS_URL));
 		}));
+
+		const ctaBtn = this._renderDisposables.add(new Button(body, {
+			...defaultButtonStyles,
+			supportIcons: true,
+		}));
+		ctaBtn.element.classList.add('chat-billing-banner-cta');
+		if (this._variant === ChatBillingBannerVariant.Panel) {
+			ctaBtn.label = `$(${Codicon.copilot.id}) ${localize('billingBanner.cta.dashboard', "Open Copilot Dashboard")}`;
+		} else {
+			ctaBtn.label = `$(${Codicon.account.id}) ${localize('billingBanner.cta.viewAccount', "Open Account")}`;
+		}
+		this._renderDisposables.add(ctaBtn.onDidClick(() => this._handleCta()));
 	}
 
 	private _handleCta(): void {

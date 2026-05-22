@@ -108,7 +108,10 @@
 
 /* Body text */
 .chat-billing-banner-widget .chat-billing-banner-body {
-	padding: 12px 16px 4px;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	padding: 12px 16px 12px;
 }
 
 .chat-billing-banner-widget .chat-billing-banner-title {
@@ -179,14 +182,12 @@
 	outline-offset: 2px;
 }
 
-/* Primary CTA floats top-left over the hero. Uses standard `monaco-button`
+/* Primary CTA sits below the body text. Uses standard `monaco-button`
  * styles from defaultButtonStyles; override the default `width: 100%` so
  * the button hugs its label. */
 .chat-billing-banner-widget .monaco-text-button.chat-billing-banner-cta {
-	position: absolute;
-	top: 6px;
-	left: 6px;
-	z-index: 1;
+	align-self: flex-start;
+	margin-top: 10px;
 	width: auto;
 	flex: 0 0 auto;
 	min-width: auto;
