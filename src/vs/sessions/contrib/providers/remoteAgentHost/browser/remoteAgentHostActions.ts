@@ -33,6 +33,7 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
+import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
 
 /** Action / command IDs registered by this file. */
 export const RemoteAgentHostCommandIds = {
@@ -572,6 +573,7 @@ async function promptForRemoteFolder(
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	// The provider is created synchronously during addManagedConnection's
 	// onDidChangeConnections event, so it should exist by now.
@@ -596,14 +598,7 @@ async function promptForRemoteFolder(
 	}
 
 	sessionsManagementService.openNewSessionView();
-	// TODO: open the new-chat view and call selectWorkspace once the sessions
-	// part has a content area wired up. The previous call opened the
-	// `NewChatViewPane` view which was hosted in the removed
-	// ViewContainerLocation.ChatBar.
-	// const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
-	// view?.selectWorkspace(folderUri);
-	void provider;
-	void workspace;
+	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri);
 }
 
 registerAction2(class extends Action2 {
@@ -925,6 +920,7 @@ async function promptForTunnelFolder(
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	const tunnelAddress = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
 
@@ -951,14 +947,7 @@ async function promptForTunnelFolder(
 	}
 
 	sessionsManagementService.openNewSessionView();
-	// TODO: open the new-chat view and call selectWorkspace once the sessions
-	// part has a content area wired up. The previous call opened the
-	// `NewChatViewPane` view which was hosted in the removed
-	// ViewContainerLocation.ChatBar.
-	// const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
-	// view?.selectWorkspace(folderUri);
-	void provider;
-	void workspace;
+	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
 }
 
 registerAction2(class extends Action2 {

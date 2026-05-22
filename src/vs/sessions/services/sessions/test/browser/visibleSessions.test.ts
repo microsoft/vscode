@@ -55,7 +55,7 @@ function stubSession(sessionId: string): ISession {
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable([stubChat]),
-		mainChat: stubChat,
+		mainChat: constObservable(stubChat),
 		capabilities: { supportsMultipleChats: false },
 	};
 }
@@ -85,19 +85,19 @@ suite('VisibleSessions', () => {
 		};
 		const agentSessions = new TestAgentSessionsService();
 		const model = disposables.add(new VisibleSessions(
-			session => session.mainChat,
+			session => session.mainChat.get(),
 			uriIdentity,
 			agentSessions,
 		));
 		return model;
 	}
 
-	function snapshot(model: VisibleSessions): { visible: string[]; active: string | undefined; sticky: string[] } {
+	function snapshot(model: VisibleSessions): { visible: (string | undefined)[]; active: string | undefined; sticky: string[] } {
 		const visible = model.visibleSessions.get();
 		return {
-			visible: visible.map(s => s.sessionId),
+			visible: visible.map(s => s?.sessionId),
 			active: model.activeSession.get()?.sessionId,
-			sticky: visible.filter(s => s.sticky.get()).map(s => s.sessionId),
+			sticky: visible.filter((s): s is NonNullable<typeof s> => !!s && s.sticky.get()).map(s => s.sessionId),
 		};
 	}
 
@@ -211,7 +211,7 @@ suite('VisibleSessions', () => {
 			});
 		});
 
-		test('setActive(undefined) only clears active; non-sticky sessions stay visible', () => {
+		test('setActive(undefined) replaces the active non-sticky slot with the empty slot', () => {
 			const model = createModel();
 			const A = stubSession('A');
 			const B = stubSession('B');
@@ -219,11 +219,63 @@ suite('VisibleSessions', () => {
 			model.setActive(A);
 			model.toggleStickiness(A);
 			model.setActive(B);            // [A, B] active:B, sticky:[A]
-			model.setActive(undefined);
+			model.setActive(undefined);    // active B is non-sticky → replaced by empty slot
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', undefined],
+				active: undefined,
+				sticky: ['A'],
+			});
+		});
+
+		test('setActive(undefined) is idempotent when the empty slot is already active', () => {
+			const model = createModel();
+			const A = stubSession('A');
+
+			model.setActive(A);
+			model.toggleStickiness(A);     // [A] sticky:[A]
+			model.setActive(undefined);    // [A, undefined] active:undefined
+			model.setActive(undefined);    // no second empty slot is created
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', undefined],
+				active: undefined,
+				sticky: ['A'],
+			});
+		});
+
+		test('setActive(undefined) when an empty slot already exists keeps it (no duplicate)', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);
+			model.toggleStickiness(A);     // [A] sticky:[A]
+			model.setActive(undefined);    // [A, undefined] active:undefined (empty slot)
+			model.setActive(B);            // active empty slot is non-sticky → replaced by B
+			model.setActive(undefined);    // active B is non-sticky → replaced by empty slot
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', undefined],
+				active: undefined,
+				sticky: ['A'],
+			});
+		});
+
+		test('opening a real session while the empty slot is the only most-recent non-sticky replaces it', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);
+			model.toggleStickiness(A);     // [A] sticky:[A]
+			model.setActive(undefined);    // [A, undefined] active:undefined
+			model.setActive(A);            // active flips to A (sticky); empty slot remains
+			model.setActive(B);            // active A is sticky → replace most-recent non-sticky (empty)
 
 			assert.deepStrictEqual(snapshot(model), {
 				visible: ['A', 'B'],
-				active: undefined,
+				active: 'B',
 				sticky: ['A'],
 			});
 		});
@@ -462,6 +514,140 @@ suite('VisibleSessions', () => {
 				visible: ['A', 'D', 'B'],
 				active: 'D',
 				sticky: ['A', 'B'],
+			});
+		});
+
+		test('insertAt(undefined, ...) adds an empty slot at the requested position', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);     // [A, B] sticky:[A, B]
+			model.insertAt(undefined, 'A', 'right');
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', undefined, 'B'],
+				active: 'B',
+				sticky: ['A', 'B'],
+			});
+		});
+
+		test('insertAt(undefined, ...) is a no-op when the empty slot already exists', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);     // [A, B] sticky:[A, B]
+			model.insertAt(undefined, 'A', 'right'); // [A, undefined, B]
+			model.insertAt(undefined, 'B', 'right'); // no-op — empty slot already exists
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', undefined, 'B'],
+				active: 'B',
+				sticky: ['A', 'B'],
+			});
+		});
+	});
+
+	suite('updateSession', () => {
+
+		test('is a no-op when the session is not visible', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const Bv2 = stubSession('B');
+
+			model.setActive(A);
+			model.toggleStickiness(A);     // [A] sticky:[A]
+			model.updateSession(B, Bv2);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A'],
+				active: 'A',
+				sticky: ['A'],
+			});
+		});
+
+		test('replaces a visible session with one having a new id, preserving slot and sticky state', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+			const Bnew = stubSession('Bnew');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);
+			model.setActive(C);            // [A, B, C] sticky:[A, B] active:C
+			model.updateSession(B, Bnew);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'Bnew', 'C'],
+				active: 'C',
+				sticky: ['A', 'Bnew'],
+			});
+		});
+
+		test('updates the active observable when the replaced session was active', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const Anew = stubSession('Anew');
+
+			model.setActive(A);            // [A] active:A
+			model.updateSession(A, Anew);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['Anew'],
+				active: 'Anew',
+				sticky: [],
+			});
+		});
+
+		test('replaces the wrapper even when the session id is unchanged', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const Av2 = stubSession('A');
+
+			model.setActive(A);
+			const originalWrapper = model.activeSession.get();
+
+			model.updateSession(A, Av2);
+
+			const newWrapper = model.activeSession.get();
+			assert.strictEqual(newWrapper?.sessionId, 'A');
+			assert.notStrictEqual(newWrapper, originalWrapper);
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A'],
+				active: 'A',
+				sticky: [],
+			});
+		});
+
+		test('preserves most-recent-non-sticky tracking so subsequent setActive replaces the updated slot', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const Bnew = stubSession('Bnew');
+			const C = stubSession('C');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);            // [A, B] sticky:[A] active:B (non-sticky, most-recent)
+			model.setActive(A);            // active flips to A (sticky); B remains most-recent non-sticky
+			model.updateSession(B, Bnew);  // [A, Bnew] sticky:[A]
+			model.setActive(C);            // active A sticky → replace most-recent non-sticky Bnew
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'C'],
+				active: 'C',
+				sticky: ['A'],
 			});
 		});
 	});

@@ -7,6 +7,7 @@ import { $, size } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -16,6 +17,7 @@ import { AbstractChatView, ChatViewKind } from './chatView.js';
 import { ChatCompositeBar } from './chatCompositeBar.js';
 import { autorun } from '../../../base/common/observable.js';
 import { SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext } from '../../common/contextkeys.js';
+import { SessionStatus } from '../../services/sessions/common/session.js';
 
 /**
  * A stable single-slot grid leaf that handles switching between concrete
@@ -87,13 +89,21 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._handleContextKeys(session);
 
 		this._openSessionDisposables.add(autorun(reader => {
-			const desiredKind: ChatViewKind = session?.isCreated?.read(reader) ? 'chat' : 'new';
+			let desiredKind: ChatViewKind;
+			if (session === undefined || session.isCreated.read(reader) === false) {
+				desiredKind = 'newSession';
+			} else if (session.activeChat.read(reader).status.read(reader) === SessionStatus.Untitled) {
+				desiredKind = 'newChatInSession';
+			} else {
+				desiredKind = 'chat';
+			}
+
 			let view = this._currentView.value;
 
 			if (!view || view.kind !== desiredKind) {
 				view = desiredKind === 'chat'
 					? this.chatViewFactory.createChatView()
-					: this.chatViewFactory.createNewChatView();
+					: this.chatViewFactory.createNewChatView(desiredKind === 'newChatInSession');
 				this._contentContainer.replaceChildren(view.element);
 				this._currentView.value = view;
 			}
@@ -147,6 +157,10 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	focus(): void {
 		this._currentView.value?.focus();
+	}
+
+	selectWorkspace(folderUri: URI, providerId?: string): void {
+		this._currentView.value?.selectWorkspace(folderUri, providerId);
 	}
 
 	/**

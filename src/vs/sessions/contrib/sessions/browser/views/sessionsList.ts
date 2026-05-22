@@ -196,7 +196,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	private readonly _motionReducedSignal;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly IActiveSession[]> },
+		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
@@ -282,7 +282,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 		// Sticky styling — reactive on the wrapper's sticky observable
 		template.elementDisposables.add(autorun(reader => {
-			const wrapper = this.options.visibleSessions.read(reader).find(s => s.sessionId === element.sessionId);
+			const wrapper = this.options.visibleSessions.read(reader).find(s => s?.sessionId === element.sessionId);
 			const isSticky = wrapper ? wrapper.sticky.read(reader) : false;
 			template.container.classList.toggle('sticky', isSticky);
 		}));

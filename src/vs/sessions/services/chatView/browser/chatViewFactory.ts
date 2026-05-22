@@ -22,7 +22,7 @@ export interface IChatViewFactory {
 	 * Creates a "new chat" view that lets the user pick a workspace and
 	 * start a new chat. This is the view the grid is seeded with on startup.
 	 */
-	createNewChatView(): AbstractChatView;
+	createNewChatView(isNewChatInSession: boolean): AbstractChatView;
 
 	/**
 	 * Creates a chat view that hosts a chat widget for an active session.

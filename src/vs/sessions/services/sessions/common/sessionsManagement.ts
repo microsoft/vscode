@@ -123,13 +123,14 @@ export interface ISessionsManagementService {
 	readonly activeSession: IObservable<IActiveSession | undefined>;
 
 	/**
-	 * Observable list of sessions currently displayed in the sessions part's
-	 * grid, in their grid order (left-to-right). Contains the active session
-	 * (if any) plus any other sessions previously opened or pinned. Sessions
+	 * Observable list of slots currently displayed in the sessions part's
+	 * grid, in their grid order (left-to-right). Each entry is either an
+	 * {@link IActiveSession} or `undefined` for the empty (new-session)
+	 * placeholder. At most one entry is `undefined` at a time. Sessions
 	 * pinned via {@link toggleSessionStickiness} are sticky; the remaining
-	 * non-sticky sessions get replaced when new sessions are opened.
+	 * non-sticky entries get replaced when new sessions are opened.
 	 */
-	readonly visibleSessions: IObservable<readonly IActiveSession[]>;
+	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
 
 	/**
 	 * Toggle a session's stickiness in the grid. The session keeps its grid

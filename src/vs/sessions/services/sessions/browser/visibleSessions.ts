@@ -5,10 +5,11 @@
 
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, ISettableObservable, autorun, observableValue } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
-import { IChat, ISession } from '../common/session.js';
+import { IChat, ISession, SessionStatus } from '../common/session.js';
 
 /**
  * Wraps an {@link ISession} with an active chat observable to form an
@@ -21,10 +22,10 @@ import { IChat, ISession } from '../common/session.js';
  * observable so visible-but-not-active sessions retain their per-session
  * chat selection.
  */
-export class ActiveSession extends Disposable implements IActiveSession {
+export class VisibleSession extends Disposable implements IActiveSession {
 
-	private readonly _isCreated = observableValue<boolean>('activeSessionIsCreated', true);
-	readonly isCreated: IObservable<boolean> = this._isCreated;
+	private readonly _isCreated;
+	readonly isCreated: IObservable<boolean>;
 
 	private readonly _sticky = observableValue<boolean>('activeSessionSticky', false);
 	readonly sticky: IObservable<boolean> = this._sticky;
@@ -39,14 +40,13 @@ export class ActiveSession extends Disposable implements IActiveSession {
 		super();
 		this._activeChat = observableValue<IChat>(`activeChat-${_session.sessionId}`, initialChat);
 		this.activeChat = this._activeChat;
+
+		this._isCreated = _session.status.map(status => status !== SessionStatus.Untitled);
+		this.isCreated = this._isCreated;
 	}
 
 	setActiveChat(chat: IChat): void {
 		this._activeChat.set(chat, undefined);
-	}
-
-	setIsCreated(value: boolean): void {
-		this._isCreated.set(value, undefined);
 	}
 
 	setSticky(value: boolean): void {
@@ -80,8 +80,51 @@ export class ActiveSession extends Disposable implements IActiveSession {
 	get chats() { return this._session.chats; }
 	get mainChat() { return this._session.mainChat; }
 	get capabilities() { return this._session.capabilities; }
-	get deduplicationKey() { return this._session.deduplicationKey; }
 }
+
+/**
+ * Lightweight {@link ISession} adapter that delegates every property to a
+ * wrapped session but exposes a different {@link ISession.resource} value.
+ *
+ * Used as a transient session instance during the create-chat / send-request
+ * transition, so the visibility model can reflect the new chat resource on
+ * the same grid slot before the provider has produced a final session.
+ */
+class ResourceOverrideSession implements ISession {
+
+	constructor(
+		private readonly _session: ISession,
+		readonly resource: URI,
+	) { }
+
+	get sessionId() { return this._session.sessionId; }
+	get providerId() { return this._session.providerId; }
+	get sessionType() { return this._session.sessionType; }
+	get icon() { return this._session.icon; }
+	get createdAt() { return this._session.createdAt; }
+	get workspace() { return this._session.workspace; }
+	get title() { return this._session.title; }
+	get updatedAt() { return this._session.updatedAt; }
+	get status() { return this._session.status; }
+	get changes() { return this._session.changes; }
+	get changesets() { return this._session.changesets; }
+	get modelId() { return this._session.modelId; }
+	get mode() { return this._session.mode; }
+	get loading() { return this._session.loading; }
+	get isArchived() { return this._session.isArchived; }
+	get isRead() { return this._session.isRead; }
+	get description() { return this._session.description; }
+	get lastTurnEnd() { return this._session.lastTurnEnd; }
+	get chats() { return this._session.chats; }
+	get mainChat() { return this._session.mainChat; }
+	get capabilities() { return this._session.capabilities; }
+}
+
+/**
+ * Sentinel used to distinguish "no slot tracked" from the empty slot
+ * (which is itself represented by `undefined` in the visible list).
+ */
+const NO_RECENT = Symbol('no-recent');
 
 /**
  * Encapsulates the visibility model used by the
@@ -89,11 +132,14 @@ export class ActiveSession extends Disposable implements IActiveSession {
  *
  * The model tracks:
  * - The currently active session.
- * - An ordered list of sessions to display in the sessions part's grid.
+ * - An ordered list of slots to display in the sessions part's grid. A slot
+ *   is either a session id (string) or `undefined` (the "empty" / new-session
+ *   placeholder). At most one slot may be `undefined` at a time.
  * - A "sticky" set: sessions the user has explicitly pinned. Non-sticky
  *   sessions also live in the grid but get replaced when new sessions open.
+ *   The empty slot is always non-sticky.
  *
- * Each tracked session has a single {@link ActiveSession} wrapper owned by
+ * Each tracked session has a single {@link VisibleSession} wrapper owned by
  * this class. Wrappers are disposed automatically when their session leaves
  * the visibility model.
  */
@@ -102,20 +148,27 @@ export class VisibleSessions extends Disposable {
 	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
 
-	private readonly _visibleSessions = observableValue<readonly IActiveSession[]>(this, []);
-	readonly visibleSessions: IObservable<readonly IActiveSession[]> = this._visibleSessions;
+	private readonly _visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>(this, []);
+	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = this._visibleSessions;
 
-	private readonly _wrappers = this._register(new DisposableMap<string, ActiveSession>());
-	/** Ordered session ids in the grid (left-to-right). */
-	private _visibleList: string[] = [];
+	private readonly _wrappers = this._register(new DisposableMap<string, VisibleSession>());
+	/**
+	 * Ordered slot ids in the grid (left-to-right). Each entry is either a
+	 * session id or `undefined` (the empty slot). The invariant is that at
+	 * most one entry is `undefined` at any time.
+	 */
+	private _visibleList: (string | undefined)[] = [];
 	/** Subset of {@link _visibleList} the user has marked sticky. */
 	private readonly _stickyIds = new Set<string>();
 	/**
-	 * Id of the most recently opened (or toggled-to-non-sticky) session in the
-	 * grid. Used to choose which non-sticky slot to replace when opening a new
-	 * session while the active one is sticky.
+	 * Slot id of the most recently opened (or toggled-to-non-sticky) entry in
+	 * the grid. Used to choose which non-sticky slot to replace when opening a
+	 * new session while the active one is sticky.
+	 * - `NO_RECENT` means none is tracked.
+	 * - `undefined` refers to the empty slot.
+	 * - A string refers to that session id.
 	 */
-	private _mostRecentNonStickyId: string | undefined;
+	private _mostRecentNonStickySlot: string | undefined | typeof NO_RECENT = NO_RECENT;
 
 	constructor(
 		private readonly _resolveInitialChat: (session: ISession) => IChat,
@@ -128,75 +181,79 @@ export class VisibleSessions extends Disposable {
 	/**
 	 * Set the active session, updating the visibility model accordingly.
 	 *
-	 * - Passing `undefined` only clears the active observable; the grid is
-	 *   left intact so non-sticky sessions remain visible.
+	 * - Passing `undefined` places (or keeps) the single empty slot in the
+	 *   grid and makes it active. The empty slot is always non-sticky.
 	 * - If the session is already in the grid, its slot is preserved and only
 	 *   the active observable is updated.
 	 * - Otherwise the session is placed as non-sticky:
-	 *   - If the active session is non-sticky, the new one replaces it in
+	 *   - If the active slot is non-sticky, the new one replaces it in
 	 *     place.
-	 *   - Else if a non-sticky session exists, the most-recently opened
+	 *   - Else if a non-sticky slot exists, the most-recently opened
 	 *     non-sticky is replaced.
 	 *   - Else the session is appended at the end of the grid.
 	 *
-	 * Returns the wrapper for the active session, or `undefined` if cleared.
+	 * Returns the wrapper for the active session, or `undefined` when the
+	 * active slot is the empty slot.
 	 */
-	setActive(session: ISession | undefined): ActiveSession | undefined {
-		if (!session) {
-			this._activeSession.set(undefined, undefined);
-			return undefined;
-		}
+	setActive(session: ISession | undefined): VisibleSession | undefined {
+		const targetId: string | undefined = session?.sessionId;
 
-		const id = session.sessionId;
-		if (!this._visibleList.includes(id)) {
-			const activeId = this._activeSession.get()?.sessionId;
-			const activeIsNonSticky = activeId !== undefined
-				&& this._visibleList.includes(activeId)
-				&& !this._stickyIds.has(activeId);
+		if (!this._visibleList.includes(targetId)) {
+			const activeSlot = this._currentActiveSlot();
+			const activeIsNonSticky = activeSlot !== NO_RECENT && !this._isStickySlot(activeSlot);
 
-			let replaceId: string | undefined;
+			let replaceSlot: string | undefined | typeof NO_RECENT;
 			if (activeIsNonSticky) {
-				replaceId = activeId;
-			} else if (this._mostRecentNonStickyId !== undefined
-				&& this._visibleList.includes(this._mostRecentNonStickyId)
-				&& !this._stickyIds.has(this._mostRecentNonStickyId)) {
-				replaceId = this._mostRecentNonStickyId;
+				replaceSlot = activeSlot;
+			} else if (this._mostRecentNonStickySlot !== NO_RECENT
+				&& this._visibleList.includes(this._mostRecentNonStickySlot)
+				&& !this._isStickySlot(this._mostRecentNonStickySlot)) {
+				replaceSlot = this._mostRecentNonStickySlot;
 			} else {
-				replaceId = this._findLastNonSticky();
+				replaceSlot = this._findLastNonSticky();
 			}
 
-			if (replaceId !== undefined) {
-				const idx = this._visibleList.indexOf(replaceId);
-				this._visibleList.splice(idx, 1, id);
-				this._wrappers.deleteAndDispose(replaceId);
+			if (replaceSlot !== NO_RECENT) {
+				const idx = this._visibleList.indexOf(replaceSlot);
+				this._visibleList.splice(idx, 1, targetId);
+				if (replaceSlot !== undefined) {
+					this._wrappers.deleteAndDispose(replaceSlot);
+				}
 			} else {
-				this._visibleList.push(id);
+				this._visibleList.push(targetId);
 			}
-			this._mostRecentNonStickyId = id;
+			this._mostRecentNonStickySlot = targetId;
 		}
 
-		const wrapper = this._getOrCreateWrapper(session);
-		this._activeSession.set(wrapper, undefined);
+		const visibleSession = session ? this._getOrCreateVisibleSession(session) : undefined;
+		this._activeSession.set(visibleSession, undefined);
 		this._refresh();
-		return wrapper;
+		return visibleSession;
 	}
 
 	/**
-	 * Insert (or move) a session into the grid positioned next to a target
+	 * Insert (or move) a slot into the grid positioned next to a target
 	 * session that is already visible. Used by drag-and-drop and by
 	 * "open at position" entry points.
 	 *
-	 * - If the session is not yet visible, a new non-sticky entry is created
-	 *   at the computed position.
-	 * - If the session is already visible, it is moved to the computed
+	 * - If the slot is not yet visible, a new non-sticky entry is created
+	 *   at the computed position. For an `undefined` session (empty slot),
+	 *   this is a no-op when an empty slot already exists in the grid.
+	 * - If the slot is already visible, it is moved to the computed
 	 *   position; its sticky / non-sticky state is preserved.
 	 *
 	 * No-op if `targetSessionId` is not currently visible.
 	 */
-	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right'): void {
-		const id = session.sessionId;
+	insertAt(session: ISession | undefined, targetSessionId: string, side: 'left' | 'right'): void {
+		const id: string | undefined = session?.sessionId;
 		const targetIdx = this._visibleList.indexOf(targetSessionId);
 		if (targetIdx < 0) {
+			return;
+		}
+
+		// Invariant: at most one empty slot. If inserting the empty slot and
+		// one already exists, do not add or move another.
+		if (id === undefined && this._visibleList.includes(undefined)) {
 			return;
 		}
 
@@ -214,13 +271,15 @@ export class VisibleSessions extends Disposable {
 				}
 				this._visibleList.splice(destIdx, 0, id);
 			}
-			if (!this._stickyIds.has(id)) {
-				this._mostRecentNonStickyId = id;
+			if (!this._isStickySlot(id)) {
+				this._mostRecentNonStickySlot = id;
 			}
 		} else {
-			this._getOrCreateWrapper(session);
+			if (session) {
+				this._getOrCreateVisibleSession(session);
+			}
 			this._visibleList.splice(destIdx, 0, id);
-			this._mostRecentNonStickyId = id;
+			this._mostRecentNonStickySlot = id;
 		}
 
 		this._refresh();
@@ -236,15 +295,15 @@ export class VisibleSessions extends Disposable {
 		const id = session.sessionId;
 		if (!this._visibleList.includes(id)) {
 			this._stickyIds.add(id);
-			this._getOrCreateWrapper(session);
+			this._getOrCreateVisibleSession(session);
 			this._visibleList.push(id);
 		} else if (this._stickyIds.has(id)) {
 			this._stickyIds.delete(id);
-			this._mostRecentNonStickyId = id;
+			this._mostRecentNonStickySlot = id;
 		} else {
 			this._stickyIds.add(id);
-			if (this._mostRecentNonStickyId === id) {
-				this._mostRecentNonStickyId = this._findLastNonSticky();
+			if (this._mostRecentNonStickySlot === id) {
+				this._mostRecentNonStickySlot = this._findLastNonSticky();
 			}
 		}
 		this._refresh();
@@ -276,6 +335,58 @@ export class VisibleSessions extends Disposable {
 	}
 
 	/**
+	 * Set the active chat for the given session's wrapper. No-op if the
+	 * session is not currently tracked in the visibility model.
+	 */
+	setActiveChat(session: ISession, chat: IChat): void {
+		this._wrappers.get(session.sessionId)?.setActiveChat(chat);
+	}
+
+	/**
+	 * Replace the given session in the visibility model with `updatedSession`,
+	 * preserving the grid slot, sticky state, and active state. The wrapper
+	 * for the old session is disposed; a fresh wrapper is created for the
+	 * updated session. No-op if `session` is not currently in the grid.
+	 */
+	updateSession(session: ISession, updatedSession: ISession): void {
+		const fromId = session.sessionId;
+		if (!this._visibleList.includes(fromId)) {
+			return;
+		}
+
+		const wasActive = this._activeSession.get()?.sessionId === fromId;
+		this.replaceId(fromId, updatedSession.sessionId);
+		// `replaceId` is a no-op when ids match — dispose the old wrapper
+		// directly so a fresh one is created against `updatedSession`.
+		if (fromId === updatedSession.sessionId && this._wrappers.has(fromId)) {
+			this._wrappers.deleteAndDispose(fromId);
+		}
+
+		const visibleSession = this._getOrCreateVisibleSession(updatedSession);
+		if (wasActive) {
+			this._activeSession.set(visibleSession, undefined);
+		}
+		this._refresh();
+	}
+
+	/**
+	 * Create a transient {@link ISession} that mirrors the given session but
+	 * exposes a different {@link ISession.resource}. The visibility model's
+	 * wrapper for the same session id is rebuilt against this transient
+	 * session so consumers observe the new resource. Returns the transient
+	 * session so callers can pass it to a subsequent {@link updateSession}
+	 * once the provider produces the final session.
+	 *
+	 * No-op (but still returns the transient session) if the session is not
+	 * currently in the grid.
+	 */
+	updateResourceOfSession(session: ISession, resource: URI): ISession {
+		const tmpSession = new ResourceOverrideSession(session, resource);
+		this.updateSession(session, tmpSession);
+		return tmpSession;
+	}
+
+	/**
 	 * Rename a session id in the visibility model so the same grid slot is
 	 * reused for the replacement. The old wrapper is disposed; a fresh one is
 	 * created lazily on next access. Does not auto-refresh — callers should
@@ -292,8 +403,8 @@ export class VisibleSessions extends Disposable {
 		if (this._stickyIds.delete(fromId)) {
 			this._stickyIds.add(toId);
 		}
-		if (this._mostRecentNonStickyId === fromId) {
-			this._mostRecentNonStickyId = toId;
+		if (this._mostRecentNonStickySlot === fromId) {
+			this._mostRecentNonStickySlot = toId;
 		}
 		if (this._wrappers.has(fromId)) {
 			this._wrappers.deleteAndDispose(fromId);
@@ -305,14 +416,31 @@ export class VisibleSessions extends Disposable {
 		this._refresh();
 	}
 
-	private _findLastNonSticky(): string | undefined {
+	private _findLastNonSticky(): string | undefined | typeof NO_RECENT {
 		for (let i = this._visibleList.length - 1; i >= 0; i--) {
 			const sid = this._visibleList[i];
-			if (!this._stickyIds.has(sid)) {
+			if (!this._isStickySlot(sid)) {
 				return sid;
 			}
 		}
-		return undefined;
+		return NO_RECENT;
+	}
+
+	/** True if the given slot id refers to a sticky session. The empty slot is never sticky. */
+	private _isStickySlot(id: string | undefined): boolean {
+		return id !== undefined && this._stickyIds.has(id);
+	}
+
+	/**
+	 * Returns the slot id of the currently active entry in the grid, or
+	 * {@link NO_RECENT} if no entry in the grid is active.
+	 */
+	private _currentActiveSlot(): string | undefined | typeof NO_RECENT {
+		const activeId = this._activeSession.get()?.sessionId;
+		if (activeId !== undefined) {
+			return this._visibleList.includes(activeId) ? activeId : NO_RECENT;
+		}
+		return this._visibleList.includes(undefined) ? undefined : NO_RECENT;
 	}
 
 	private _removeFromModel(sessionId: string): boolean {
@@ -325,8 +453,8 @@ export class VisibleSessions extends Disposable {
 		if (this._stickyIds.delete(sessionId)) {
 			changed = true;
 		}
-		if (this._mostRecentNonStickyId === sessionId) {
-			this._mostRecentNonStickyId = this._findLastNonSticky();
+		if (this._mostRecentNonStickySlot === sessionId) {
+			this._mostRecentNonStickySlot = this._findLastNonSticky();
 			changed = true;
 		}
 		if (this._wrappers.has(sessionId)) {
@@ -337,32 +465,36 @@ export class VisibleSessions extends Disposable {
 	}
 
 	private _refresh(): void {
-		const wrappers: IActiveSession[] = [];
+		const wrappers: (IActiveSession | undefined)[] = [];
 		for (const id of this._visibleList) {
-			const wrapper = this._wrappers.get(id);
-			if (wrapper) {
-				wrapper.setSticky(this._stickyIds.has(id));
-				wrappers.push(wrapper);
+			if (id === undefined) {
+				wrappers.push(undefined);
+				continue;
+			}
+			const visibleSession = this._wrappers.get(id);
+			if (visibleSession) {
+				visibleSession.setSticky(this._stickyIds.has(id));
+				wrappers.push(visibleSession);
 			}
 		}
 		this._visibleSessions.set(wrappers, undefined);
 	}
 
-	private _getOrCreateWrapper(session: ISession): ActiveSession {
-		let wrapper = this._wrappers.get(session.sessionId);
-		if (wrapper) {
-			return wrapper;
+	private _getOrCreateVisibleSession(session: ISession): VisibleSession {
+		let visibleSession = this._wrappers.get(session.sessionId);
+		if (visibleSession) {
+			return visibleSession;
 		}
 
 		const initialChat = this._resolveInitialChat(session);
-		wrapper = new ActiveSession(session, initialChat);
+		visibleSession = new VisibleSession(session, initialChat);
 
 		// Trigger lazy resolve for expensive session properties (e.g. changes,
 		// badge). Per-wrapper so visible-but-not-active sessions also have their
 		// data populated for rendering in the grid.
 		let observedSession = false;
-		const wrapperRef = wrapper;
-		wrapper.addDisposable(autorun(reader => {
+		const visibleSessionRef = visibleSession;
+		visibleSession.addDisposable(autorun(reader => {
 			if (observedSession || session.loading.read(reader)) {
 				return;
 			}
@@ -371,18 +503,18 @@ export class VisibleSessions extends Disposable {
 		}));
 
 		// Track chat list changes — if the active chat is removed, fall back to last.
-		wrapper.addDisposable(autorun(reader => {
+		visibleSession.addDisposable(autorun(reader => {
 			const chats = session.chats.read(reader);
-			const activeChat = wrapperRef.activeChat.read(reader);
+			const activeChat = visibleSessionRef.activeChat.read(reader);
 			if (activeChat && !chats.some(c => this._uriIdentityService.extUri.isEqual(c.resource, activeChat.resource))) {
 				const fallback = chats[chats.length - 1] ?? session.mainChat;
 				if (fallback) {
-					wrapperRef.setActiveChat(fallback);
+					visibleSessionRef.setActiveChat(fallback);
 				}
 			}
 		}));
 
-		this._wrappers.set(session.sessionId, wrapper);
-		return wrapper;
+		this._wrappers.set(session.sessionId, visibleSession);
+		return visibleSession;
 	}
 }

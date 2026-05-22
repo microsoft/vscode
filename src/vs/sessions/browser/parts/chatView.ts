@@ -7,13 +7,14 @@ import { $, size } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { IChat } from '../../services/sessions/common/session.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
  * requiring core code (`sessions/browser/`) to import them from contrib.
  */
-export type ChatViewKind = 'new' | 'chat';
+export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
 
 /**
  * Base class for a view that lives inside the {@link SessionsPart} internal grid.
@@ -50,6 +51,15 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * this to load the chat model and feed it into the widget.
 	 */
 	setChat(_chat: IChat): void {
+		// no-op by default
+	}
+
+	/**
+	 * Select a workspace folder in this view's workspace picker. The default
+	 * implementation is a no-op; subclasses that host a workspace picker
+	 * (e.g. `NewChatView`) override this to forward the selection.
+	 */
+	selectWorkspace(_folderUri: URI, _providerId?: string): void {
 		// no-op by default
 	}
 

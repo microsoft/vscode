@@ -26,13 +26,13 @@ import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChat
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
-import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
+import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
 
 //  Constants
 
@@ -349,16 +349,18 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 			return;
 		}
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const viewsService = accessor.get(IViewsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
 		const commandService = accessor.get(ICommandService);
+
 		sessionsManagementService.openNewSessionView();
-		const view = await viewsService.openView<NewChatViewPane>(NewChatViewId, true);
+
 		const session = context.sessions[0];
 		const workspace = session.workspace.get();
 		const folderUri = workspace?.folders[0]?.root;
 		const providerId = session.providerId;
-		if (view && folderUri) {
-			view.selectWorkspace(folderUri, providerId);
+
+		if (folderUri) {
+			sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, providerId);
 		}
 		// On mobile web, the sidebar drawer covers the viewport; close it so
 		// the new session view becomes visible after creation. Routes through

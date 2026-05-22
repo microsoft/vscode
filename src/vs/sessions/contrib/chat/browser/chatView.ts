@@ -5,6 +5,7 @@
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -18,6 +19,7 @@ import { AbstractChatView, ChatViewKind } from '../../../browser/parts/chatView.
 import { IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatViewPane.js';
+import { NewChatInSessionWidget } from './newChatInSessionViewPane.js';
 import { agentsPanelBackground, agentsPanelForeground } from '../../../common/theme.js';
 
 /**
@@ -29,17 +31,19 @@ export class NewChatView extends AbstractChatView {
 
 	static readonly TYPE = 'sessions.newSession';
 
-	override readonly kind: ChatViewKind = 'new';
+	override readonly kind: ChatViewKind;
 
-	private readonly _widget: NewChatWidget;
+	private readonly _widget: NewChatWidget | NewChatInSessionWidget;
 
 	constructor(
+		isNewChatInSession: boolean,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
 
 		this.element.classList.add('chat-view-new');
-		this._widget = this._register(instantiationService.createInstance(NewChatWidget));
+		this.kind = isNewChatInSession ? 'newChatInSession' : 'newSession';
+		this._widget = this._register(instantiationService.createInstance(isNewChatInSession ? NewChatInSessionWidget : NewChatWidget));
 		this._widget.render(this.element);
 	}
 
@@ -53,6 +57,12 @@ export class NewChatView extends AbstractChatView {
 
 	override focus(): void {
 		this._widget.focusInput();
+	}
+
+	override selectWorkspace(folderUri: URI, providerId?: string): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.selectWorkspace(folderUri, providerId);
+		}
 	}
 }
 
@@ -73,6 +83,9 @@ export class ChatView extends AbstractChatView {
 
 	/** Cancels any in-flight model load when a new session is set or the view disposes. */
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
+
+	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
+	private _currentChatResource: URI | undefined;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -123,12 +136,20 @@ export class ChatView extends AbstractChatView {
 	}
 
 	override setChat(chat: IChat): void {
+		const resource = chat.resource;
+
+		// Skip loading if we're already showing this chat
+		if (this._currentChatResource?.toString() === resource.toString()) {
+			return;
+		}
+
+		this._currentChatResource = resource;
+
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
 
-		const resource = chat.resource;
 		this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
 			if (token.isCancellationRequested || !ref) {
 				ref?.dispose();
@@ -139,6 +160,9 @@ export class ChatView extends AbstractChatView {
 		}, err => {
 			if (!token.isCancellationRequested) {
 				this.logService.error('[ChatView] Failed to load chat model for chat', err);
+			}
+			if (resource === this._currentChatResource) { // might have changed while we were waiting, only reset if it is still the same
+				this._currentChatResource = undefined;
 			}
 		});
 	}
@@ -169,8 +193,8 @@ export class ChatViewFactory implements IChatViewFactory {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
-	createNewChatView(): AbstractChatView {
-		return this.instantiationService.createInstance(NewChatView);
+	createNewChatView(isNewChatInSession: boolean): AbstractChatView {
+		return this.instantiationService.createInstance(NewChatView, isNewChatInSession);
 	}
 
 	createChatView(): AbstractChatView {

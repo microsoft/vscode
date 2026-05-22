@@ -23,6 +23,10 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Color } from '../../../base/common/color.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import { SessionDropTarget, ISessionDropTargetDelegate } from './sessionDropTarget.js';
+import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
+import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
+import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
+import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 
 /** Sentinel key used in {@link SessionsPart._views} when no session is active. */
 const PLACEHOLDER_KEY = '__placeholder__';
@@ -51,6 +55,10 @@ export class SessionsPart extends Part {
 
 	/** Internal grid that hosts the part's session views. */
 	private _gridWidget: SerializableGrid<SessionView> | undefined;
+
+	/** Lazily-created progress bar shown at the top of the content area. */
+	private _progressBar: ProgressBar | undefined;
+	private _progressIndicator: IProgressIndicator | undefined;
 
 	/**
 	 * Views currently mounted in the grid, in display order (left-to-right).
@@ -107,6 +115,11 @@ export class SessionsPart extends Part {
 		const contentArea = $('.content');
 		parent.appendChild(contentArea);
 
+		// Progress bar pinned to the top of the content area (see sessionsPart.css
+		// rule `.part.sessionspart > .content > .monaco-progress-container`).
+		this._progressBar = this._register(new ProgressBar(contentArea, defaultProgressBarStyles));
+		this._progressBar.hide();
+
 		// Seed the grid with a placeholder view so SerializableGrid always has
 		// at least one leaf. Replaced when visible sessions become available.
 		const placeholder = this._createSlot(PLACEHOLDER_KEY);
@@ -146,13 +159,13 @@ export class SessionsPart extends Part {
 	 * list, reorders remaining views to match `visible`, and rebinds each view
 	 * to its session.
 	 */
-	updateVisibleSessions(visible: readonly IActiveSession[], active: IActiveSession | undefined): void {
+	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined): void {
 		if (!this._gridWidget) {
 			return;
 		}
 
 		const desiredKeys: string[] = visible.length > 0
-			? visible.map(s => s.sessionId)
+			? visible.map(s => s ? s.sessionId : PLACEHOLDER_KEY)
 			: [PLACEHOLDER_KEY];
 		const desiredKeySet = new Set(desiredKeys);
 
@@ -210,7 +223,11 @@ export class SessionsPart extends Part {
 		// Bind each remaining view to its session (or to undefined for placeholder).
 		for (let i = 0; i < visible.length; i++) {
 			const session = visible[i];
-			this._views.get(session.sessionId)?.view.openSession(session);
+			if (session) {
+				this._views.get(session.sessionId)?.view.openSession(session);
+			} else {
+				this._views.get(PLACEHOLDER_KEY)?.view.openSession(undefined);
+			}
 		}
 		if (visible.length === 0) {
 			this._views.get(PLACEHOLDER_KEY)?.view.openSession(undefined);
@@ -225,7 +242,7 @@ export class SessionsPart extends Part {
 		this._updateContextKeys(visible);
 	}
 
-	private _updateContextKeys(visible: readonly IActiveSession[]): void {
+	private _updateContextKeys(visible: readonly (IActiveSession | undefined)[]): void {
 		this._multipleSessionsVisibleKey.set(visible.length > 1);
 	}
 
@@ -262,6 +279,38 @@ export class SessionsPart extends Part {
 			this._gridWidget.maximizeView(slot.view);
 			slot.view.focus();
 		}
+	}
+
+	/**
+	 * Returns the {@link SessionView} currently hosting the given session id, or
+	 * the placeholder (new-session) view when `sessionId` is `undefined`. Returns
+	 * `undefined` if no matching slot exists in the grid.
+	 */
+	getSessionView(sessionId: string | undefined): SessionView | undefined {
+		const key = sessionId ?? PLACEHOLDER_KEY;
+		return this._views.get(key)?.view;
+	}
+
+	/**
+	 * Returns the progress indicator for the part. Drives the progress bar shown
+	 * at the top of the content area. Indicator state is scoped to the part's
+	 * visibility, mirroring how view panes manage their own progress indicators.
+	 */
+	getProgressIndicator(): IProgressIndicator {
+		if (!this._progressIndicator) {
+			const progressBar = assertReturnsDefined(this._progressBar);
+			const scopeId = Parts.SESSIONS_PART;
+			const isVisible = this.layoutService.isVisible(scopeId);
+			const onDidVisibilityChange = this.onDidVisibilityChange;
+			const scope = this._register(new class extends AbstractProgressScope {
+				constructor() {
+					super(scopeId, isVisible);
+					this._register(onDidVisibilityChange(visible => visible ? this.onScopeOpened(scopeId) : this.onScopeClosed(scopeId)));
+				}
+			}());
+			this._progressIndicator = this._register(new ScopedProgressIndicator(progressBar, scope));
+		}
+		return this._progressIndicator;
 	}
 
 	private _createSlot(key: string): IGridSlot {

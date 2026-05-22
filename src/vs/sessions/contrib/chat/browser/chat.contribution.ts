@@ -61,10 +61,6 @@ class NewChatInSessionsWindowAction extends Action2 {
 
 registerAction2(NewChatInSessionsWindowAction);
 
-// TODO: register the chat / new-chat view container once the SessionsPart
-// has a content area wired up. The previous registration targeted the
-// removed ViewContainerLocation.ChatBar.
-
 
 // register actions
 registerAction2(BranchChatSessionAction);

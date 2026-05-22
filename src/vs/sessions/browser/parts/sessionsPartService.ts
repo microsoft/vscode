@@ -10,8 +10,10 @@ import { getClientArea } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { SessionsPart } from './sessionsPart.js';
 import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
+import { SessionView } from './sessionView.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { autorun } from '../../../base/common/observable.js';
+import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 
 export const ISessionsPartService = createDecorator<ISessionsPartService>('sessionsPartService');
 
@@ -30,6 +32,19 @@ export interface ISessionsPartService {
 	 * in the sessions part's grid.
 	 */
 	toggleMaximizeSession(session: IActiveSession): void;
+
+	/**
+	 * Returns the {@link SessionView} hosting the given session id, or the
+	 * placeholder (new-session) view when `sessionId` is `undefined`. Returns
+	 * `undefined` if no matching slot is currently mounted in the grid.
+	 */
+	getSessionView(sessionId: string | undefined): SessionView | undefined;
+
+	/**
+	 * Returns the progress indicator for the sessions part, which drives the
+	 * progress bar shown at the top of the part's content area.
+	 */
+	getProgressIndicator(): IProgressIndicator;
 }
 
 /**
@@ -70,7 +85,7 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		// the active session. The id is guaranteed to correspond to a session in
 		// the visibility model (the part only fires for non-placeholder slots).
 		this._register(this._mainPart.onDidFocusSession(sessionId => {
-			const session = this.sessionsManagementService.visibleSessions.get().find(s => s.sessionId === sessionId);
+			const session = this.sessionsManagementService.visibleSessions.get().find(s => s?.sessionId === sessionId);
 			if (session) {
 				this.sessionsManagementService.setActive(session);
 			}
@@ -79,6 +94,14 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 
 	toggleMaximizeSession(session: IActiveSession): void {
 		this._mainPart.toggleMaximizeSession(session.sessionId);
+	}
+
+	getSessionView(sessionId: string | undefined): SessionView | undefined {
+		return this._mainPart.getSessionView(sessionId);
+	}
+
+	getProgressIndicator(): IProgressIndicator {
+		return this._mainPart.getProgressIndicator();
 	}
 }
 

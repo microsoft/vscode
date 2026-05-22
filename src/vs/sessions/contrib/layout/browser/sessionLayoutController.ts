@@ -129,6 +129,9 @@ export class LayoutController extends Disposable {
 				return;
 			}
 			for (const session of visibleSessions) {
+				if (!session) {
+					continue;
+				}
 				this._viewStateBySession.delete(session.resource);
 				this._panelVisibilityBySession.delete(session.resource);
 				this._pendingTurnStateByResource.delete(session.resource);

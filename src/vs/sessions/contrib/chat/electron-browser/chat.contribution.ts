@@ -13,6 +13,8 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
+import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -24,6 +26,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		@IViewsService private readonly viewsService: IViewsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ISessionsSetUpService private readonly sessionsSetUpService: ISessionsSetUpService,
+		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 	) {
 		super();
 		ipcRenderer.on('vscode:selectAgentsFolder', (_: unknown, ...args: unknown[]) => {
@@ -62,10 +65,10 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		if (!resolved) {
 			return false;
 		}
-		// TODO: open the new-chat view and call selectWorkspace once the sessions
-		// part has a content area wired up. The previous call opened the
-		// `NewChatViewPane` view (SessionsViewId) which was hosted in the removed
-		// ViewContainerLocation.ChatBar.
+		const activeSession = this.sessionsManagementService.activeSession.get();
+		if (activeSession === undefined || activeSession.status.get() === SessionStatus.Untitled) {
+			this.sessionsPartService.getSessionView(activeSession?.sessionId)?.selectWorkspace(folderUri, resolved.providerId);
+		}
 		return true;
 	}
 }
