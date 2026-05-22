@@ -148,7 +148,7 @@ suite('Workbench - Test Service', () => {
 			assert.deepStrictEqual(found, [new TestId(['ctrlId', 'test1']).toString()]);
 		});
 
-		test('finds live diff-added tests after collection-side canonicalization', async () => {
+		test('indexes live diff-added tests by canonical URI and still finds them from raw URI input', async () => {
 			const canonicalUri = URI.from({ scheme: 'vscode-remote', authority: 'wsl+Ubuntu', path: '/home/user/test.py' });
 			const rawUri = URI.file('/home/user/test.py');
 			const extUri = new ExtUri(() => false);
@@ -162,6 +162,7 @@ suite('Workbench - Test Service', () => {
 				{
 					op: TestDiffOpType.Add,
 					item: {
+						controllerId: 'ctrlId',
 						expand: TestItemExpandState.NotExpandable,
 						item: {
 							extId: new TestId(['ctrlId']).toString(),
@@ -179,6 +180,7 @@ suite('Workbench - Test Service', () => {
 				{
 					op: TestDiffOpType.Add,
 					item: {
+						controllerId: 'ctrlId',
 						expand: TestItemExpandState.NotExpandable,
 						item: {
 							extId: testId,
@@ -194,6 +196,11 @@ suite('Workbench - Test Service', () => {
 					}
 				}
 			]);
+
+			const added = collection.getNodeById(testId)!;
+			assert.ok(extUri.isEqual(added.item.uri, canonicalUri), 'added test URI should be canonicalized on apply');
+			assert.deepStrictEqual([...collection.getNodeByUrl(canonicalUri)].map(t => t.item.extId), [testId]);
+			assert.deepStrictEqual([...collection.getNodeByUrl(rawUri)].map(t => t.item.extId), []);
 
 			const ident = upcastPartial<IUriIdentityService>({
 				asCanonicalUri: (u: URI) => u.toString() === rawUri.toString() ? canonicalUri : u,
