@@ -133,16 +133,18 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		if (preferredHomeCandidate) {
 			let _path: Promise<{ isAbsolute: (p: string) => boolean; normalize: (p: string) => string }> | undefined;
 			const getPath = async () => {
+				if (_path) {
+					return _path;
+				}
+
 				if (preferLocal) {
-					_path = Promise.resolve({
+					return _path = Promise.resolve({
 						isAbsolute: localPathIsAbsolute,
 						normalize: localPathNormalize,
 					});
-				} else {
-					_path = this.pathService.path;
 				}
 
-				return _path!;
+				return _path = this.pathService.path;
 			};
 
 			let preferredHomeUri: URI | undefined;
