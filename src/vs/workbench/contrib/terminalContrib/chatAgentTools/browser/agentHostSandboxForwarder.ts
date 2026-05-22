@@ -99,6 +99,9 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 			return;
 		}
 		const desired = readAgentHostSandboxValues(this._configurationService, this._logService);
+		if (typeof desired.enabled === 'object') {
+			delete desired.enabled; // Work around nested enabled.windows setting.
+		}
 		const current = (rootState.config?.values?.[AgentHostSandboxConfigKey.Sandbox] as Record<string, unknown> | undefined) ?? {};
 		if (equals(current, desired)) {
 			return;
