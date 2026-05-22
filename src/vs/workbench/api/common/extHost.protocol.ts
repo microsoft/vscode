@@ -213,6 +213,12 @@ export interface IRegisterDynamicAuthenticationProviderDetails extends IRegister
 	authorizationServer: UriComponents;
 }
 
+export interface IXaaProviderDiscovery {
+	issuer: UriComponents;
+	serverMetadata: IAuthorizationServerMetadata;
+	clientId?: string;
+}
+
 export interface MainThreadAuthenticationShape extends IDisposable {
 	$registerAuthenticationProvider(details: IRegisterAuthenticationProviderDetails): Promise<void>;
 	$unregisterAuthenticationProvider(id: string): Promise<void>;
@@ -225,6 +231,7 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$showContinueNotification(message: string): Promise<boolean>;
 	$showDeviceCodeModal(userCode: string, verificationUri: string): Promise<boolean>;
 	$promptForClientRegistration(authorizationServerUrl: string): Promise<{ clientId: string; clientSecret?: string } | undefined>;
+	$promptForResourceClientSecret(resourceClientId: string, resource: string): Promise<string | undefined>;
 	$registerDynamicAuthenticationProvider(details: IRegisterDynamicAuthenticationProviderDetails): Promise<void>;
 	$setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void>;
 	$sendDidChangeDynamicProviderInfo({ providerId, clientId, authorizationServer, label, clientSecret }: { providerId: string; clientId?: string; authorizationServer?: UriComponents; label?: string; clientSecret?: string }): Promise<void>;
@@ -2486,6 +2493,7 @@ export interface ExtHostAuthenticationShape {
 	$onDidChangeAuthenticationSessions(id: string, label: string, extensionIdFilter?: string[]): Promise<void>;
 	$onDidUnregisterAuthenticationProvider(id: string): Promise<void>;
 	$registerDynamicAuthProvider(authorizationServer: UriComponents, serverMetadata: IAuthorizationServerMetadata, resource?: IAuthorizationProtectedResourceMetadata, clientId?: string, clientSecret?: string, initialTokens?: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<string>;
+	$registerXaaAuthProvider(issuer: UriComponents, serverMetadata: IAuthorizationServerMetadata, clientId?: string, clientSecret?: string, initialTokens?: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<string>;
 	$onDidChangeDynamicAuthProviderTokens(authProviderId: string, clientId: string, tokens?: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void>;
 }
 
@@ -3593,6 +3601,13 @@ export interface IMcpAuthenticationDetails {
 	resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined;
 	scopes: string[] | undefined;
 	clientId?: string;
+	/**
+	 * When true, the MCP server has opted into enterprise-managed authentication
+	 * (OAuth Identity Assertion Authorization Grant). The main thread is expected
+	 * to route token acquisition through the XAA authentication provider for the
+	 * configured issuer rather than the per-resource dynamic auth provider.
+	 */
+	enterpriseManaged?: boolean;
 }
 
 export interface IMcpAuthenticationOptions {
