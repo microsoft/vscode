@@ -100,7 +100,7 @@ export class BrowserViewEmulator extends Disposable {
 	}
 
 	private isSafeToApplyEmulation(): boolean {
-		return !!this.browser.webContents.getURL() && !this.browser.webContents.isDestroyed();
+		return !this.browser.webContents.isDestroyed() && !!this.browser.webContents.getURL();
 	}
 
 	private async _applyTouchAndMedia(): Promise<void> {
