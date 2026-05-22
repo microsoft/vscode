@@ -887,13 +887,57 @@ suite('CopilotAgentSession', () => {
 
 	suite('sendSteering', () => {
 
-		test('fires steering_consumed after send resolves', async () => {
-			const { session, signals } = await createAgentSession(disposables);
+		test('fires steering_consumed after send resolves and the next tool starts', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
 
 			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
 
+			let consumed = signals.find(s => s.kind === 'steering_consumed');
+			assert.strictEqual(consumed, undefined, 'should keep steering visible after the SDK send resolves');
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-steer',
+				toolName: 'bash',
+				arguments: { command: 'echo hi' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			consumed = signals.find(s => s.kind === 'steering_consumed');
+			assert.ok(consumed, 'should fire steering_consumed signal after the next tool starts');
+			assert.strictEqual((consumed as { id: string }).id, 'steer-1');
+		});
+
+		test('fires steering_consumed after send resolves and the turn ends without a tool', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
+
+			let consumed = signals.find(s => s.kind === 'steering_consumed');
+			assert.strictEqual(consumed, undefined, 'should keep steering visible after the SDK send resolves');
+
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			consumed = signals.find(s => s.kind === 'steering_consumed');
+			assert.ok(consumed, 'should fire steering_consumed signal after the turn ends');
+			assert.strictEqual((consumed as { id: string }).id, 'steer-1');
+		});
+
+		test('does not send the same steering message again before it is flushed', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
+			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
+
+			assert.strictEqual(mockSession.sendRequests.length, 1);
+		});
+
+		test('fires steering_consumed on abort after send resolves', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
+			await session.abort();
+
 			const consumed = signals.find(s => s.kind === 'steering_consumed');
-			assert.ok(consumed, 'should fire steering_consumed signal');
+			assert.ok(consumed, 'should fire steering_consumed signal when the turn is aborted');
 			assert.strictEqual((consumed as { id: string }).id, 'steer-1');
 		});
 
