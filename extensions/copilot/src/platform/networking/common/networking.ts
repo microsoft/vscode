@@ -306,6 +306,15 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly isExtensionContributed?: boolean;
 	readonly maxPromptImages?: number;
 	/**
+	 * When true, this endpoint owns its own credentials via {@link IEndpoint.getExtraHeaders}
+	 * (e.g. a BYOK target with a user-supplied `api-key`, `x-api-key`, or `Authorization`) and
+	 * the chat fetcher must not fall back to the CAPI Copilot token for the `Authorization`
+	 * header. Prevents leaking the user's CAPI bearer token to third-party endpoints, and
+	 * avoids over-sending an unintended `Authorization: Bearer …` to gateways (strict
+	 * APIM policies, etc.) that validate the header.
+	 */
+	readonly ownsAuthorization?: boolean;
+	/**
 	 * Handles processing of responses from a chat endpoint. Each endpoint can have different response formats.
 	 * @param telemetryService The telemetry service
 	 * @param logService The log service
