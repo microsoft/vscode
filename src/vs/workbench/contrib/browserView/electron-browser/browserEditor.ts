@@ -14,15 +14,14 @@ import { RawContextKey, IContextKey, IContextKeyService } from '../../../../plat
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService, IConstructorSignature, BrandedService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
-import { IBrowserEditorViewState, IBrowserViewModel } from '../../browserView/common/browserView.js';
+import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, IBrowserViewCertificateError, BrowserNewPageLocation } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, IBrowserViewCertificateError } from '../../../../platform/browserView/common/browserView.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -39,8 +38,6 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { SiteInfoWidget } from './siteInfoWidget.js';
-import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
-import { URI } from '../../../../base/common/uri.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 
@@ -69,10 +66,10 @@ export abstract class BrowserEditorContribution extends Disposable {
 
 	constructor(protected readonly editor: BrowserEditor) {
 		super();
-		this._register(editor.onDidChangeModel(model => {
+		this._register(editor.onDidChangeModel(({ model, isNew }) => {
 			this._modelStore.clear();
 			if (model) {
-				this.subscribeToModel(model, this._modelStore);
+				this.subscribeToModel(model, this._modelStore, isNew);
 			} else {
 				this.clear();
 			}
@@ -82,7 +79,7 @@ export abstract class BrowserEditorContribution extends Disposable {
 	/**
 	 * Called whenever the editor model changes to update state.
 	 */
-	protected subscribeToModel(_model: IBrowserViewModel, _store: DisposableStore): void { }
+	protected subscribeToModel(_model: IBrowserViewModel, _store: DisposableStore, _isNew: boolean): void { }
 
 	/**
 	 * Called when the model is cleared to reset state.
@@ -106,11 +103,50 @@ export abstract class BrowserEditorContribution extends Disposable {
 	 * Called when the editor is laid out with a new dimension.
 	 */
 	layout(_width: number): void { }
+
+	/**
+	 * Called once after the editor's browser container DOM has been created.
+	 * Use to do setup that needs to attach to `editor.browserContainer`.
+	 */
+	onContainerReady(_container: HTMLElement): void { }
+
+	/**
+	 * Return an override to customize how the editor sizes the browser
+	 * container. Returning `undefined` falls through to the next contribution
+	 * (and finally to the default: container fills the wrapper's content area).
+	 * The first contribution to return a non-undefined override wins.
+	 */
+	getContainerLayoutOverride(): IContainerLayoutOverride | undefined { return undefined; }
 }
 
-/**
- * A widget that can be contributed to the browser editor URL bar.
- */
+/** Customization returned by {@link BrowserEditorContribution.getContainerLayoutOverride}. */
+export interface IContainerLayoutOverride {
+	/**
+	 * Wrapper padding (CSS px) — typically used to reserve space for widgets
+	 * that sit outside the container (e.g. resize sashes). Applied as inline
+	 * style before the pane is measured for {@link compute}.
+	 */
+	readonly padding: {
+		top?: number;
+		right?: number;
+		bottom?: number;
+		left?: number;
+	};
+	/** Compute the container layout given the measured pane size. */
+	compute(paneWidth: number, paneHeight: number): IContainerLayout;
+}
+
+export interface IContainerLayout {
+	readonly width: number;
+	readonly height: number;
+	readonly emulation?: {
+		readonly viewportWidth: number;
+		readonly viewportHeight: number;
+		readonly scale: number;
+	};
+}
+
+/** A widget that can be contributed to the browser editor URL bar. */
 export interface IBrowserEditorWidgetContribution {
 	readonly element: HTMLElement;
 	/** Ordering value — lower numbers appear first (left). */
@@ -341,7 +377,10 @@ export class BrowserEditor extends EditorPane {
 
 	private _model: IBrowserViewModel | undefined;
 	get model(): IBrowserViewModel | undefined { return this._model; }
-	private readonly _onDidChangeModel = this._register(new Emitter<IBrowserViewModel | undefined>());
+	private readonly _onDidChangeModel = this._register(new Emitter<{
+		model: IBrowserViewModel | undefined;
+		isNew: boolean;
+	}>());
 	readonly onDidChangeModel = this._onDidChangeModel.event;
 
 	// -- State ----------------------------------------------------------
@@ -355,8 +394,6 @@ export class BrowserEditor extends EditorPane {
 	get browserContainer(): HTMLElement { return this._browserContainer; }
 	private _placeholderScreenshot!: HTMLElement;
 	private _overlayPauseContainer!: HTMLElement;
-	private _overlayPauseHeading!: HTMLElement;
-	private _overlayPauseDetail!: HTMLElement;
 	private _errorContainer!: HTMLElement;
 	private _welcomeContainer!: HTMLElement;
 	private _canGoBackContext!: IContextKey<boolean>;
@@ -368,6 +405,7 @@ export class BrowserEditor extends EditorPane {
 	private overlayManager: BrowserOverlayManager | undefined;
 	private _screenshotTimeout: ReturnType<typeof setTimeout> | undefined;
 	private readonly _certActionButton = this._register(new MutableDisposable<ButtonBar>());
+	private _currentPadding: { top: number; right: number; bottom: number; left: number } = { top: 0, right: 3, bottom: 3, left: 3 };
 
 	constructor(
 		group: IEditorGroup,
@@ -378,7 +416,6 @@ export class BrowserEditor extends EditorPane {
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IEditorService private readonly editorService: IEditorService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 	) {
 		super(BrowserEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
@@ -413,6 +450,7 @@ export class BrowserEditor extends EditorPane {
 
 		// Create root container
 		const root = $('.browser-root');
+		root.tabIndex = -1; // Click focusable (for kb shortcuts), but not in tab order
 		parent.appendChild(root);
 
 		// Create navbar with navigation buttons and URL input
@@ -447,6 +485,12 @@ export class BrowserEditor extends EditorPane {
 		this._browserContainer.tabIndex = 0; // make focusable
 		this._browserContainerWrapper.appendChild(this._browserContainer);
 
+		// Notify contributions that the container DOM is ready (used e.g. by
+		// the device feature to attach resize sashes to the container).
+		for (const contribution of this._contributionInstances.values()) {
+			contribution.onContainerReady(this._browserContainer);
+		}
+
 		// Create additional wrapper around placeholder contents for applying border radius clipping.
 		const placeholderContents = $('.browser-placeholder-contents');
 		this._browserContainer.appendChild(placeholderContents);
@@ -458,10 +502,12 @@ export class BrowserEditor extends EditorPane {
 		// Create overlay pause container (hidden by default via CSS)
 		this._overlayPauseContainer = $('.browser-overlay-paused');
 		const overlayPauseMessage = $('.browser-overlay-paused-message');
-		this._overlayPauseHeading = $('.browser-overlay-paused-heading');
-		this._overlayPauseDetail = $('.browser-overlay-paused-detail');
-		overlayPauseMessage.appendChild(this._overlayPauseHeading);
-		overlayPauseMessage.appendChild(this._overlayPauseDetail);
+		const overlayPauseHeading = $('.browser-overlay-paused-heading');
+		const overlayPauseDetail = $('.browser-overlay-paused-detail');
+		overlayPauseHeading.textContent = localize('browser.overlayPauseHeading.notification', "Paused due to Notification");
+		overlayPauseDetail.textContent = localize('browser.overlayPauseDetail.notification', "Dismiss the notification to continue using the browser.");
+		overlayPauseMessage.appendChild(overlayPauseHeading);
+		overlayPauseMessage.appendChild(overlayPauseDetail);
 		this._overlayPauseContainer.appendChild(overlayPauseMessage);
 		placeholderContents.appendChild(this._overlayPauseContainer);
 
@@ -534,15 +580,28 @@ export class BrowserEditor extends EditorPane {
 
 		this._inputDisposables.clear();
 
-		// Resolve the browser view model from the input
-		const model = await input.resolve();
+		let model = input.model;
+		const isNew = !model;
+		if (!model) {
+			// Set initial navigation state from the input so that the UI is populated while the model is loading.
+			this.updateNavigationState({
+				url: input.url || '',
+				title: input.title || '',
+				canGoBack: false,
+				canGoForward: false,
+				certificateError: undefined
+			});
+
+			// Resolve the browser view model from the input
+			model = await input.resolve();
+		}
 
 		if (token.isCancellationRequested || this.input !== input) {
 			return;
 		}
 
 		this._model = model;
-		this._onDidChangeModel.fire(model);
+		this._onDidChangeModel.fire({ model, isNew });
 
 		// Initialize UI state and context keys from model
 		this.updateNavigationState({
@@ -553,6 +612,12 @@ export class BrowserEditor extends EditorPane {
 			certificateError: this._model.certificateError
 		});
 		this.setBackgroundImage(this._model.screenshot);
+
+		// When closing a tab, the model gets disposed before the editor input is cleared.
+		// So we make sure we don't keep a reference to the disposed model.
+		this._inputDisposables.add(this._model.onWillDispose(() => {
+			this._model = undefined;
+		}));
 
 		// Start / stop screenshots when the model visibility changes
 		this._inputDisposables.add(this._model.onDidChangeVisibility(() => this.doScreenshot()));
@@ -583,31 +648,6 @@ export class BrowserEditor extends EditorPane {
 			}
 		}));
 
-		this._inputDisposables.add(this._model.onDidRequestNewPage(({ resource, url, location, position }) => {
-			logBrowserOpen(this.telemetryService, (() => {
-				switch (location) {
-					case BrowserNewPageLocation.Background: return 'browserLinkBackground';
-					case BrowserNewPageLocation.Foreground: return 'browserLinkForeground';
-					case BrowserNewPageLocation.NewWindow: return 'browserLinkNewWindow';
-				}
-			})());
-
-			const targetGroup = location === BrowserNewPageLocation.NewWindow ? AUX_WINDOW_GROUP : this.group;
-			const viewState: IBrowserEditorViewState = { url };
-			this.editorService.openEditor({
-				resource: URI.revive(resource),
-				options: {
-					pinned: true,
-					inactive: location === BrowserNewPageLocation.Background,
-					auxiliary: {
-						bounds: position,
-						compact: true
-					},
-					viewState
-				}
-			}, targetGroup);
-		}));
-
 		this._inputDisposables.add(this.overlayManager!.onDidChangeOverlayState(() => {
 			this.checkOverlays();
 		}));
@@ -617,6 +657,10 @@ export class BrowserEditor extends EditorPane {
 			if (targetWindowId === this.window.vscodeWindowId) {
 				// Update CSS variable for size calculations
 				this._browserContainerWrapper.style.setProperty('--zoom-factor', String(getZoomFactor(this.window)));
+				// Re-push container bounds and emulation: zoom-factor affects
+				// both the screen-px conversion in main and the Chromium
+				// emulation scale (so the emulated viewport fills the WCV).
+				this.layoutBrowserContainer();
 			}
 		}));
 
@@ -703,14 +747,6 @@ export class BrowserEditor extends EditorPane {
 		// Only show the pause message for notification overlays
 		const hasNotificationOverlay = overlappingOverlays.some(overlay => overlay.type === BrowserOverlayType.Notification);
 		this._overlayPauseContainer.classList.toggle('show-message', hasNotificationOverlay);
-
-		if (hasNotificationOverlay) {
-			this._overlayPauseHeading.textContent = localize('browser.overlayPauseHeading.notification', "Paused due to Notification");
-			this._overlayPauseDetail.textContent = localize('browser.overlayPauseDetail.notification', "Dismiss the notification to continue using the browser.");
-		} else {
-			this._overlayPauseHeading.textContent = '';
-			this._overlayPauseDetail.textContent = '';
-		}
 	}
 
 	private updateErrorDisplay(): void {
@@ -1017,26 +1053,90 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	/**
-	 * Recompute the layout of the browser container and update the model with the new bounds.
-	 * This should generally only be called via layout() to ensure that the container is ready and all necessary styles are loaded.
+	 * Recompute the layout of the browser container and push the resulting
+	 * bounds + emulation to the WebContentsView. Should generally only be
+	 * called via {@link layout} so the container is fully styled first.
 	 */
-	layoutBrowserContainer(): void {
-		if (this._model) {
-			this.checkOverlays();
-
-			const containerRect = this._browserContainer.getBoundingClientRect();
-			const cornerRadius = this.window.getComputedStyle(this._browserContainer).borderTopLeftRadius ?? '0';
-
-			void this._model.layout({
-				windowId: this.group.windowId,
-				x: containerRect.left,
-				y: containerRect.top,
-				width: containerRect.width,
-				height: containerRect.height,
-				zoomFactor: getZoomFactor(this.window),
-				cornerRadius: parseFloat(cornerRadius)
-			});
+	layoutBrowserContainer(retries = 2): void {
+		if (!this._model) {
+			return;
 		}
+		this.checkOverlays();
+
+		// Pick the first contribution that wants to override sizing.
+		let override: IContainerLayoutOverride | undefined;
+		for (const c of this._contributionInstances.values()) {
+			const o = c.getContainerLayoutOverride();
+			if (o) {
+				override = o;
+				break;
+			}
+		}
+
+		// Apply the wrapper padding the editor will assume below. Inline style
+		// is the single source of truth — the wrapper's CSS has no padding.
+		// Right/bottom/left are clamped so the container always has breathing
+		// room (and resize sashes that sit on those edges remain reachable).
+		const raw = override?.padding;
+		const padding = {
+			top: raw?.top ?? 0,
+			right: Math.max(3, raw?.right ?? 0),
+			bottom: Math.max(3, raw?.bottom ?? 0),
+			left: Math.max(3, raw?.left ?? 0),
+		};
+		this._currentPadding = padding;
+		this._browserContainerWrapper.style.padding = `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`;
+
+		const wrapperRect = this._browserContainerWrapper.getBoundingClientRect();
+		if ((wrapperRect.width === 0 || wrapperRect.height === 0) && retries > 0) {
+			// Wrapper not measured yet; retry on the next frame.
+			this.window.requestAnimationFrame(() => this.layoutBrowserContainer(retries - 1));
+			return;
+		}
+
+		const paneWidth = Math.max(0, wrapperRect.width - padding.left - padding.right);
+		const paneHeight = Math.max(0, wrapperRect.height - padding.top - padding.bottom);
+		let layout: IContainerLayout;
+		if (override) {
+			layout = override.compute(paneWidth, paneHeight);
+		} else {
+			const z = getZoomFactor(this.window);
+			const snap = (v: number) => Math.floor(v * z) / z;
+			layout = { width: snap(paneWidth), height: snap(paneHeight) };
+		}
+
+		// Size the container, then derive its absolute screen rect analytically:
+		// the wrapper's flex rules center the container within the pane.
+		this._browserContainer.style.width = `${layout.width}px`;
+		this._browserContainer.style.height = `${layout.height}px`;
+		const containerLeft = wrapperRect.left + padding.left + (paneWidth - layout.width) / 2;
+		const containerTop = wrapperRect.top + padding.top + (paneHeight - layout.height) / 2;
+		const cornerRadius = parseFloat(this.window.getComputedStyle(this._browserContainer).borderTopLeftRadius ?? '0');
+		void this._model.layout({
+			windowId: this.group.windowId,
+			x: containerLeft,
+			y: containerTop,
+			width: layout.width,
+			height: layout.height,
+			zoomFactor: getZoomFactor(this.window),
+			cornerRadius,
+			emulation: layout.emulation,
+		});
+	}
+
+	/**
+	 * Wrapper content-area size in CSS px — the maximum room the container
+	 * can occupy after the active padding is applied. Derived from the last
+	 * padding we wrote to the wrapper, so it stays in sync without re-reading
+	 * the computed style.
+	 */
+	get paneSize(): { width: number; height: number } {
+		const r = this._browserContainerWrapper.getBoundingClientRect();
+		const p = this._currentPadding;
+		return {
+			width: Math.max(0, r.width - p.left - p.right),
+			height: Math.max(0, r.height - p.top - p.bottom),
+		};
 	}
 
 	override clearInput(): void {
@@ -1048,7 +1148,7 @@ export class BrowserEditor extends EditorPane {
 
 		void this._model?.setVisible(false);
 		this._model = undefined;
-		this._onDidChangeModel.fire(undefined);
+		this._onDidChangeModel.fire({ model: undefined, isNew: false });
 
 		this._canGoBackContext.reset();
 		this._canGoForwardContext.reset();

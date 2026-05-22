@@ -23,7 +23,7 @@ import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { formatEventDetail } from './chatDebugEventDetailRenderer.js';
-import { renderCustomizationDiscoveryContent, fileListToPlainText } from './chatCustomizationDiscoveryRenderer.js';
+import { renderCustomizationDiscoveryContent, fileListToPlainText, renderCustomizationSummaryContent, customizationSummaryToPlainText } from './chatCustomizationDiscoveryRenderer.js';
 import { renderUserMessageContent, renderAgentResponseContent, messageEventToPlainText, renderResolvedMessageContent, resolvedMessageToPlainText } from './chatDebugMessageContentRenderer.js';
 import { renderToolCallContent, toolCallContentToPlainText } from './chatDebugToolCallContentRenderer.js';
 import { renderModelTurnContent, modelTurnContentToPlainText } from './chatDebugModelTurnContentRenderer.js';
@@ -177,6 +177,13 @@ export class ChatDebugDetailPanel extends Disposable {
 			);
 			this.detailDisposables.add(contentDisposables);
 			this.contentContainer.appendChild(contentEl);
+		} else if (resolved && resolved.kind === 'customizationSummary') {
+			this.currentDetailText = customizationSummaryToPlainText(resolved);
+			const { element: contentEl, disposables: contentDisposables } = this.instantiationService.invokeFunction(accessor =>
+				renderCustomizationSummaryContent(resolved, this.openerService, accessor.get(IModelService), this.languageService, this.hoverService, accessor.get(ILabelService), this.scrollable)
+			);
+			this.detailDisposables.add(contentDisposables);
+			this.contentContainer.appendChild(contentEl);
 		} else if (resolved && resolved.kind === 'toolCall') {
 			this.currentDetailText = toolCallContentToPlainText(resolved);
 			const { element: contentEl, disposables: contentDisposables } = await renderToolCallContent(resolved, this.languageService, this.clipboardService, this.scrollable);
@@ -271,8 +278,12 @@ export class ChatDebugDetailPanel extends Disposable {
 	layout(height: number): void {
 		const headerHeight = this.headerElement?.offsetHeight ?? 0;
 		const scrollableHeight = Math.max(0, height - headerHeight);
+		// Preserve scroll position across layout changes (e.g. when opening
+		// an editor causes the workbench to re-layout this panel).
+		const scrollPos = this.scrollable.getScrollPosition();
 		this.contentContainer.style.height = `${scrollableHeight}px`;
 		this.scrollable.scanDomNode();
+		this.scrollable.setScrollPosition({ scrollTop: scrollPos.scrollTop });
 		this.sash.layout();
 	}
 

@@ -25,6 +25,8 @@ declare module 'vscode' {
 		static readonly Prompt: ChatSessionCustomizationType;
 		/** Hook customization (event-driven automation). */
 		static readonly Hook: ChatSessionCustomizationType;
+		/** Plugin customization (agent runtime plugins). */
+		static readonly Plugins: ChatSessionCustomizationType;
 
 		/**
 		 * The string identifier for this customization type.
@@ -56,12 +58,14 @@ declare module 'vscode' {
 		readonly iconId?: string;
 
 		/**
-		 * Customization types that this provider does **not** support.
-		 * The corresponding sections will be hidden in the management UI
-		 * when this provider is active.
+		 * Customization types that this provider supports.
+		 * Only the corresponding sections will be shown in the management UI
+		 * when this provider is active. When omitted, all sections are shown.
 		 */
-		readonly unsupportedTypes?: readonly ChatSessionCustomizationType[];
+		readonly supportedTypes?: readonly ChatSessionCustomizationType[];
 	}
+
+	export type ChatSessionCustomizationSource = 'local' | 'user' | 'extension' | 'plugin' | 'builtin';
 
 	/**
 	 * Represents a single customization item reported by a provider.
@@ -88,6 +92,21 @@ declare module 'vscode' {
 		readonly description?: string;
 
 		/**
+		 * The source/origin of this customization, which drives UI grouping and filtering
+		 */
+		readonly source: ChatSessionCustomizationSource;
+
+		/**
+		 * The extension identifier that contributed this customization. Should be set if the source is 'extension'.
+		 */
+		readonly extensionId?: string;
+
+		/**
+		 * The URI of the plugin that contributed this customization, if any. Should be set if the source is 'plugin'.
+		 */
+		readonly pluginUri?: Uri;
+
+		/**
 		 * Optional group key for display grouping. Items sharing the same
 		 * `groupKey` are placed under a shared collapsible header in the
 		 * management UI.
@@ -107,6 +126,12 @@ declare module 'vscode' {
 		 * Optional tooltip text shown when hovering over the badge.
 		 */
 		readonly badgeTooltip?: string;
+
+		/**
+		 * Whether this item should be shown to users as invocable.
+		 * Applies to agents, skills, and prompts. When `false`, the item is hidden from the UI and cannot be invoked by users,
+		 */
+		readonly userInvocable?: boolean;
 	}
 
 	/**
@@ -139,10 +164,11 @@ declare module 'vscode' {
 		 *
 		 * The result is cached by the UI until {@link onDidChange} fires.
 		 *
+		 * @param sessionResource URI of the chat session whose customizations should be considered.
 		 * @param token A cancellation token.
 		 * @returns The list of customization items, or `undefined` if unavailable.
 		 */
-		provideChatSessionCustomizations(token: CancellationToken): ProviderResult<ChatSessionCustomizationItem[]>;
+		provideChatSessionCustomizations(sessionResource: Uri, token: CancellationToken): ProviderResult<ChatSessionCustomizationItem[]>;
 	}
 
 	// #endregion

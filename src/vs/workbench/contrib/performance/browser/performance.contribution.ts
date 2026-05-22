@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize2 } from '../../../../nls.js';
-import { registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Extensions, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { EditorExtensions, IEditorSerializer, IEditorFactoryRegistry } from '../../../common/editor.js';
-import { PerfviewContrib, PerfviewInput } from './perfviewEditor.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { InstantiationService, Trace } from '../../../../platform/instantiation/common/instantiationService.js';
 import { EventProfiling } from '../../../../base/common/event.js';
-import { InputLatencyContrib } from './inputLatencyContrib.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { GCBasedDisposableTracker, setDisposableTracker } from '../../../../base/common/lifecycle.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Extensions as ConfigExt, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationService, Trace } from '../../../../platform/instantiation/common/instantiationService.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { InputLatencyContrib } from './inputLatencyContrib.js';
+import { PerfviewContrib, PerfviewInput } from './perfviewEditor.js';
 
 // -- startup performance view
 
@@ -139,6 +140,26 @@ Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkb
 	LifecyclePhase.Eventually
 );
 
+
+Registry.as<IConfigurationRegistry>(ConfigExt.Configuration).registerConfiguration({
+	id: 'performance',
+	order: 101,
+	title: localize('performanceConfigurationTitle', "Performance"),
+	type: 'object',
+	properties: {
+		'telemetry.performance.inputLatencySamplingProbability': {
+			type: 'number',
+			default: 0,
+			minimum: 0,
+			maximum: 1,
+			tags: ['experimental'],
+			markdownDescription: localize('telemetry.performance.inputLatencySamplingProbability', "Probability (0 to 1) that input latency telemetry is reported for this session. Set to 0 to disable, 1 to always report."),
+			experiment: {
+				mode: 'auto'
+			}
+		}
+	}
+});
 
 // -- track leaking disposables, those that get GC'ed before having been disposed
 

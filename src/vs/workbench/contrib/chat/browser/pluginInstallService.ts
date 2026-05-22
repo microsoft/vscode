@@ -6,6 +6,7 @@
 import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -39,7 +40,7 @@ export class PluginInstallService implements IPluginInstallService {
 
 	async installPlugin(plugin: IMarketplacePlugin): Promise<void> {
 		if (!await this._ensureMarketplaceTrusted(plugin)) {
-			return;
+			throw new CancellationError();
 		}
 
 		const kind = plugin.sourceDescriptor.kind;
@@ -163,6 +164,25 @@ export class PluginInstallService implements IPluginInstallService {
 		const discoveredPlugins = await this._pluginMarketplaceService.readPluginsFromDirectory(repoDir, reference);
 
 		if (discoveredPlugins.length === 0) {
+			// Fall back to a single-plugin manifest at the repo root
+			// (e.g. `.claude-plugin/plugin.json`). Such repos are not
+			// marketplaces, so we do NOT register the reference under the
+			// `chat.plugins.marketplaces` config — updates flow through
+			// `updatePluginSource` via the plugin's git source descriptor.
+			const singlePlugin = await this._pluginMarketplaceService.readSinglePluginManifest(repoDir, reference);
+			if (singlePlugin) {
+				if (options?.plugin && options.plugin !== singlePlugin.name) {
+					return {
+						success: false,
+						message: localize('pluginNotFound', "Plugin '{0}' not found in '{1}'.", options.plugin, reference.displayLabel),
+					};
+				}
+				await this.installPlugin(singlePlugin);
+				return options?.plugin
+					? { success: true, matchedPlugin: singlePlugin }
+					: { success: true };
+			}
+
 			void this._pluginRepositoryService.cleanupPluginSource(tempPlugin);
 			return {
 				success: false,
@@ -393,10 +413,7 @@ export class PluginInstallService implements IPluginInstallService {
 	}
 
 	getPluginInstallUri(plugin: IMarketplacePlugin): URI {
-		if (plugin.sourceDescriptor.kind === PluginSourceKind.RelativePath) {
-			return this._pluginRepositoryService.getPluginInstallUri(plugin);
-		}
-		return this._pluginRepositoryService.getPluginSourceInstallUri(plugin.sourceDescriptor);
+		return this._pluginRepositoryService.getPluginInstallUri(plugin);
 	}
 
 	// --- Trust gate -------------------------------------------------------------

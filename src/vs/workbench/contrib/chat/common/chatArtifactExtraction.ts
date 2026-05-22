@@ -13,6 +13,30 @@ import { ChatResponseResource, IResponse } from './model/chatModel.js';
 import { IArtifactGroupConfig, IChatArtifact } from './tools/chatArtifactsService.js';
 import { isToolResultInputOutputDetails } from './tools/languageModelToolsService.js';
 
+const CHAT_MEMORY_FILE_SCHEME = 'chat-memory-file';
+const MEMORY_TOOL_ID = 'copilot_memory';
+
+export namespace ChatMemoryFileResource {
+	export function createUri(memoryPath: string, sessionResource: URI): URI {
+		return URI.from({
+			scheme: CHAT_MEMORY_FILE_SCHEME,
+			path: memoryPath,
+			query: sessionResource.toString(),
+		});
+	}
+
+	export function isChatMemoryFileUri(uri: URI): boolean {
+		return uri.scheme === CHAT_MEMORY_FILE_SCHEME;
+	}
+
+	export function parse(uri: URI): { memoryPath: string; sessionResource: string } {
+		return {
+			memoryPath: uri.path,
+			sessionResource: uri.query,
+		};
+	}
+}
+
 /**
  * Matches a MIME type against a pattern supporting wildcards.
  * E.g. `image/*` matches `image/png`, `image/jpeg`, etc.
@@ -64,6 +88,24 @@ function isToolResultOutputDetailsSerialized(obj: unknown): obj is IToolResultOu
 		&& typeof (obj as IToolResultOutputDetailsSerialized).output?.mimeType === 'string';
 }
 
+function getMemoryPathFromParams(params: unknown): string | undefined {
+	if (typeof params !== 'object' || params === null) {
+		return undefined;
+	}
+	const path = (params as Record<string, unknown>)['path'];
+	return typeof path === 'string' ? path : undefined;
+}
+
+const memoryWriteCommands = new Set(['create', 'str_replace', 'insert']);
+
+function isMemoryWriteCommand(params: unknown): boolean {
+	if (typeof params !== 'object' || params === null) {
+		return false;
+	}
+	const command = (params as Record<string, unknown>)['command'];
+	return typeof command === 'string' && memoryWriteCommands.has(command);
+}
+
 /**
  * Extracts artifacts from a single response's content parts, applying the given rules.
  * Pure function, no side effects.
@@ -73,6 +115,7 @@ export function extractArtifactsFromResponse(
 	sessionResource: URI,
 	byMimeType: Record<string, IArtifactGroupConfig>,
 	byFilePath: Record<string, IArtifactGroupConfig>,
+	byMemoryFilePath: Record<string, IArtifactGroupConfig> = {},
 ): IChatArtifact[] {
 	const artifacts: IChatArtifact[] = [];
 	const seenUris = new Set<string>();
@@ -139,6 +182,28 @@ export function extractArtifactsFromResponse(
 						groupName: rule.groupName,
 						onlyShowGroup: rule.onlyShowGroup,
 					});
+				}
+			}
+		}
+
+		// Memory tool invocations
+		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolId === MEMORY_TOOL_ID) {
+			const params = IChatToolInvocation.getParameters(part);
+			const memoryPath = getMemoryPathFromParams(params);
+			if (memoryPath && isMemoryWriteCommand(params)) {
+				const rule = findFilePathRule(memoryPath, byMemoryFilePath);
+				if (rule) {
+					const key = `memory:${part.toolCallId}:${memoryPath}`;
+					if (!seenUris.has(key)) {
+						seenUris.add(key);
+						artifacts.push({
+							label: pathBasename(memoryPath),
+							uri: ChatMemoryFileResource.createUri(memoryPath, sessionResource).toString(),
+							type: 'plan',
+							groupName: rule.groupName,
+							onlyShowGroup: rule.onlyShowGroup,
+						});
+					}
 				}
 			}
 		}

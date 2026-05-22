@@ -9,7 +9,7 @@ import { app, dialog } from 'electron';
 import { unlinkSync, promises } from 'fs';
 import { URI } from '../../base/common/uri.js';
 import { coalesce, distinct } from '../../base/common/arrays.js';
-import { Promises } from '../../base/common/async.js';
+import { Promises, retry } from '../../base/common/async.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { ExpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
 import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanitizeFilePath } from '../../base/common/extpath.js';
@@ -45,7 +45,7 @@ import { ServiceCollection } from '../../platform/instantiation/common/serviceCo
 import { ILaunchMainService } from '../../platform/launch/electron-main/launchMainService.js';
 import { ILifecycleMainService, LifecycleMainService } from '../../platform/lifecycle/electron-main/lifecycleMainService.js';
 import { BufferLogger } from '../../platform/log/common/bufferLog.js';
-import { ConsoleMainLogger, getLogLevel, ILoggerService, ILogService } from '../../platform/log/common/log.js';
+import { ConsoleMainLogger, getLogLevel, ILoggerService, ILogService, isDevConsoleLogForwardingEnabled, registerDevConsoleLogForwarder } from '../../platform/log/common/log.js';
 import product from '../../platform/product/common/product.js';
 import { IProductService } from '../../platform/product/common/productService.js';
 import { IProtocolMainService } from '../../platform/protocol/electron-main/protocol.js';
@@ -144,8 +144,8 @@ class CodeMain {
 					evt.join('instanceLockfile', promises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
 				});
 
-				// Check if Inno Setup is running
-				const innoSetupActive = await this.checkInnoSetupMutex(productService);
+				// Check if Inno Setup is running. Briefly wait for the updating mutex to be released before refusing to launch.
+				const innoSetupActive = await this.checkInnoSetupMutex(productService, logService);
 				if (innoSetupActive) {
 					const message = `${productService.nameShort} is currently being updated. Please wait for the update to complete before launching.`;
 					instantiationService.invokeFunction(this.quit, new Error(message));
@@ -182,6 +182,9 @@ class CodeMain {
 		// log file access on Windows (https://github.com/microsoft/vscode/issues/41218)
 		const bufferLogger = new BufferLogger(loggerService.getLogLevel());
 		const logService = disposables.add(new LogService(bufferLogger, [new ConsoleMainLogger(loggerService.getLogLevel())]));
+		if (!environmentMainService.isBuilt && isDevConsoleLogForwardingEnabled) {
+			disposables.add(registerDevConsoleLogForwarder(logService));
+		}
 		services.set(ILogService, logService);
 
 		// Files
@@ -200,7 +203,7 @@ class CodeMain {
 		services.set(IStateService, stateService);
 
 		// User Data Profiles
-		const userDataProfilesMainService = new UserDataProfilesMainService(stateService, uriIdentityService, environmentMainService, fileService, logService);
+		const userDataProfilesMainService = new UserDataProfilesMainService(stateService, uriIdentityService, environmentMainService, fileService, logService, productService);
 		services.set(IUserDataProfilesMainService, userDataProfilesMainService);
 
 		// Use FileUserDataProvider for user data to
@@ -209,10 +212,13 @@ class CodeMain {
 
 		// Policy
 		let policyService: IPolicyService | undefined;
-		if (isWindows && productService.win32RegValueName) {
-			policyService = disposables.add(new NativePolicyService(logService, productService.win32RegValueName));
-		} else if (isMacintosh && productService.darwinBundleIdentifier) {
-			policyService = disposables.add(new NativePolicyService(logService, productService.darwinBundleIdentifier));
+		const policyProductName = isWindows
+			? (productService.parentPolicyConfig?.win32RegValueName ?? productService.win32RegValueName)
+			: (productService.parentPolicyConfig?.darwinBundleIdentifier ?? productService.darwinBundleIdentifier);
+		if (isWindows && policyProductName) {
+			policyService = disposables.add(new NativePolicyService(logService, policyProductName));
+		} else if (isMacintosh && policyProductName) {
+			policyService = disposables.add(new NativePolicyService(logService, policyProductName));
 		} else if (isLinux) {
 			policyService = disposables.add(new FilePolicyService(URI.file(LINUX_SYSTEM_POLICY_FILE_PATH), fileService, logService));
 		} else if (environmentMainService.policyFile) {
@@ -495,7 +501,7 @@ class CodeMain {
 		lifecycleMainService.kill(exitCode);
 	}
 
-	private async checkInnoSetupMutex(productService: IProductService): Promise<boolean> {
+	private async checkInnoSetupMutex(productService: IProductService, logService: ILogService): Promise<boolean> {
 		if (!(isWindows && productService.win32MutexName && productService.win32VersionedUpdate)) {
 			return false;
 		}
@@ -503,9 +509,29 @@ class CodeMain {
 		try {
 			const updatingMutexName = `${productService.win32MutexName}-updating`;
 			const mutex = await import('@vscode/windows-mutex');
-			return mutex.isActive(updatingMutexName);
+
+			if (!mutex.isActive(updatingMutexName)) {
+				return false;
+			}
+
+			// Wait briefly for setup teardown to release the mutex; Inno's `nowait postinstall` runcode can race the setup process exit.
+			const pollIntervalMs = 250, retries = 120; // 30s total
+			logService.info(`checkInnoSetupMutex: ${updatingMutexName} is held, waiting up to ${(pollIntervalMs * retries) / 1000}s for setup to finish...`);
+			const start = Date.now();
+			try {
+				await retry(async () => {
+					if (mutex.isActive(updatingMutexName)) {
+						throw new Error('mutex still held');
+					}
+				}, pollIntervalMs, retries);
+				logService.info(`checkInnoSetupMutex: ${updatingMutexName} released after ${Date.now() - start}ms`);
+				return false;
+			} catch {
+				logService.warn(`checkInnoSetupMutex: ${updatingMutexName} still held after ${Date.now() - start}ms, giving up`);
+				return true;
+			}
 		} catch (error) {
-			console.error('Failed to check Inno Setup mutex:', error);
+			logService.error('Failed to check Inno Setup mutex:', error);
 			return false;
 		}
 	}

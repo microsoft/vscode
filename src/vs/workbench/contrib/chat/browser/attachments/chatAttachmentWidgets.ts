@@ -60,10 +60,12 @@ import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { toHistoryItemHoverContent } from '../../../scm/browser/scmHistory.js';
 import { getHistoryItemEditorTitle } from '../../../scm/browser/util.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
+import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, MAX_IMAGES_PER_REQUEST, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
@@ -267,6 +269,14 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 				fileKind: FileKind.FOLDER,
 				icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
 			});
+
+			// If this is a folder whose contents would exceed the model's per-request image limit, surface a warning.
+			if (attachment.kind === 'directory' && typeof attachment.imageCount === 'number') {
+				const maxImagesPerRequest = getImageAttachmentLimit(currentLanguageModel?.metadata);
+				if (maxImagesPerRequest !== undefined && attachment.imageCount > maxImagesPerRequest) {
+					this.renderFolderImageLimitWarning(attachment.imageCount, maxImagesPerRequest);
+				}
+			}
 		}
 
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
@@ -288,6 +298,22 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		this.element.classList.add('warning');
 
 		hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this file type.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name : this.currentLanguageModel ?? 'This model');
+		this._register(this.hoverService.setupDelayedHover(this.element, {
+			...commonHoverOptions,
+			content: hoverElement,
+		}, commonHoverLifecycleOptions));
+	}
+
+	private renderFolderImageLimitWarning(imageCount: number, limit: number) {
+		this.element.classList.add('warning');
+
+		const hoverElement = dom.$('div.chat-attached-context-hover');
+		hoverElement.textContent = localize(
+			'chat.folderImageLimitExceededHover',
+			"This folder contains {0} images, which exceeds the maximum of {1} images per request. Older images will not be sent.",
+			imageCount,
+			limit,
+		);
 		this._register(this.hoverService.setupDelayedHover(this.element, {
 			...commonHoverOptions,
 			content: hoverElement,
@@ -443,7 +469,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const imageData = coerceImageBuffer(attachment.value);
 		const clickHandler = async () => {
 			if ((resource || imageData) && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
-				await this.openInCarousel(attachment.name, imageData, resource);
+				await this.openInCarousel(attachment.id, attachment.name, imageData, resource);
 			} else if (resource) {
 				await this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
 			}
@@ -471,8 +497,8 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 	}
 
-	private async openInCarousel(name: string, data: Uint8Array | undefined, referenceUri: URI | undefined): Promise<void> {
-		const resource = referenceUri ?? URI.from({ scheme: 'data', path: name });
+	private async openInCarousel(id: string, name: string, data: Uint8Array | undefined, referenceUri: URI | undefined): Promise<void> {
+		const resource = referenceUri ?? URI.from({ scheme: 'data', path: `${id}/${encodeURIComponent(name)}` });
 		await this.chatImageCarouselService.openCarouselAtResource(resource, data);
 	}
 }
@@ -523,7 +549,10 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		}));
 	} else if (omittedState === OmittedState.ImageLimitExceeded) {
 		element.classList.add('warning');
-		hoverElement.textContent = localize('chat.imageLimitExceededHover', "This image was not sent because the maximum of {0} images per request was exceeded.", MAX_IMAGES_PER_REQUEST);
+		const maxImagesPerRequest = getImageAttachmentLimit(currentLanguageModel?.metadata);
+		hoverElement.textContent = maxImagesPerRequest !== undefined
+			? localize('chat.imageLimitExceededHover', "This image was not sent because the maximum of {0} images per request was exceeded.", maxImagesPerRequest)
+			: localize('chat.imageLimitExceededHoverUnknownLimit', "This image was not sent because this model's image limit was exceeded.");
 		disposable.add(hoverService.setupDelayedHover(element, {
 			content: hoverElement,
 			style: HoverStyle.Pointer,
@@ -1424,6 +1453,115 @@ export class SCMHistoryItemChangeRangeAttachmentWidget extends AbstractChatAttac
 			label: `${originalUriTitle} ↔ ${modifiedUriTitle}`,
 			options: { ...options.editorOptions }
 		}, options.openToSide ? SIDE_GROUP : undefined);
+	}
+}
+
+export class BrowserViewAttachmentWidget extends AbstractChatAttachmentWidget {
+
+	private readonly _inputListeners = this._register(new DisposableStore());
+	private _input: BrowserEditorInput | undefined;
+
+	constructor(
+		private readonly _attachment: IBrowserViewVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		private readonly _options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		@ICommandService commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	) {
+		super(_attachment, _options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
+
+		this._resolveInput();
+		this._register(this._browserViewService.onDidChangeBrowserViews(() => this._resolveInput()));
+		this._register(this._browserViewService.onDidChangeSharingAvailable(() => this._updateLabel()));
+
+		this._register(this._hoverService.setupDelayedHover(this.element, () => ({
+			...commonHoverOptions,
+			content: this._input
+				? {
+					[BrowserViewSharingState.Shared]: this._input.getTitle() ?? '',
+					[BrowserViewSharingState.NotShared]: localize('chat.browserViewNotShared', "This browser page is not shared with the agent."),
+					[BrowserViewSharingState.Unavailable]: localize('chat.browserToolsDisabled', "Browser tools are not enabled."),
+				}[this._input.model?.sharingState ?? BrowserViewSharingState.Shared]
+				: localize('chat.browserViewClosed', "This browser page is no longer open."),
+		}), commonHoverLifecycleOptions));
+
+		this._instantiationService.invokeFunction(accessor => {
+			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, _attachment.value));
+		});
+		this.addResourceOpenHandlers(_attachment.value, undefined);
+	}
+
+	/**
+	 * Look up the current BrowserEditorInput for this attachment's browser ID, bind listeners, and refresh the UI.
+	 */
+	private _resolveInput(): void {
+		const input = this._browserViewService.getKnownBrowserViews().get(this._attachment.browserId);
+		if (this._input === input) {
+			return;
+		}
+
+		this._inputListeners.clear();
+		this._input = input;
+
+		if (input) {
+			this._inputListeners.add(input.onWillDispose(() => {
+				this._input = undefined;
+				this._inputListeners.clear();
+				this._updateLabel();
+			}));
+
+			// Live name updates while the attachment is still in the input area
+			if (this._options.supportsDeletion) {
+				this._inputListeners.add(input.onDidChangeLabel(() => this._updateLabel()));
+			}
+
+			if (input.model) {
+				this._inputListeners.add(input.model.onDidChangeSharingState(() => this._updateLabel()));
+			} else {
+				this._inputListeners.add(input.onDidResolveModel(() => {
+					this._inputListeners.add(input.model!.onDidChangeSharingState(() => this._updateLabel()));
+					this._updateLabel();
+				}));
+			}
+		}
+
+		this._updateLabel();
+	}
+
+	private _updateLabel(): void {
+		const name = this._input?.getName() ?? this._attachment.name;
+		const sharingState = this._input?.model?.sharingState ?? BrowserViewSharingState.Shared;
+		const isAvailable = !!this._input && sharingState === BrowserViewSharingState.Shared;
+
+		this.element.classList.toggle('warning', !isAvailable);
+		this.label.setLabel(name, undefined, {
+			iconPath: Codicon.globe,
+			strikethrough: !isAvailable,
+		});
+		this.element.ariaLabel = this.appendDeletionHint(
+			this._input
+				? {
+					[BrowserViewSharingState.Shared]: localize('chat.browserViewAttachment.aria', "Attached browser page, {0}", name),
+					[BrowserViewSharingState.NotShared]: localize('chat.browserViewNotShared.aria', "Browser page not shared with agent, {0}", name),
+					[BrowserViewSharingState.Unavailable]: localize('chat.browserToolsDisabled.aria', "Browser tools are not enabled, {0}", name),
+				}[sharingState]
+				: localize('chat.browserViewClosed.aria', "Browser page unavailable, {0}", name)
+		);
+	}
+
+	protected override async openResource(resource: URI, options: IOpenEditorOptions, isDirectory: true): Promise<void>;
+	protected override async openResource(resource: URI, options: IOpenEditorOptions, isDirectory: false, range: IRange | undefined): Promise<void>;
+	protected override async openResource(_resource: URI, options: IOpenEditorOptions, _isDirectory?: boolean, _range?: IRange): Promise<void> {
+		if (this._input) {
+			await this._editorService.openEditor(this._input, options.editorOptions, options.openToSide ? SIDE_GROUP : undefined);
+		}
 	}
 }
 

@@ -775,28 +775,32 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			try {
 				galleryExtension = await this.getLatestGalleryExtension(extensionInfo, options, resourceApi, extensionGalleryManifest, token);
 				if (isString(galleryExtension)) {
-					// fallback to query
-					this.telemetryService.publicLog2<
-						{
-							extension: string;
-							preRelease: boolean;
-							compatible: boolean;
-							errorCode: string;
-						},
-						{
-							owner: 'sandy081';
-							comment: 'Report the fallback to the Marketplace query for fetching extensions';
-							extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension id' };
-							preRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get pre-release version' };
-							compatible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get compatible version' };
-							errorCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error code or reason' };
-						}>('galleryService:fallbacktoquery', {
-							extension: extensionInfo.id,
-							preRelease: !!extensionInfo.preRelease,
-							compatible: !!options.compatible,
-							errorCode: galleryExtension
-						});
-					toQuery.push(extensionInfo);
+					if (galleryExtension === 'LATEST_IS_OUTDATED') {
+						this.logService.debug(`Skipping query API fallback for extension ${extensionInfo.id} because the latest gallery version is older than the current version`);
+					} else {
+						// fallback to query
+						this.telemetryService.publicLog2<
+							{
+								extension: string;
+								preRelease: boolean;
+								compatible: boolean;
+								errorCode: string;
+							},
+							{
+								owner: 'sandy081';
+								comment: 'Report the fallback to the Marketplace query for fetching extensions';
+								extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension id' };
+								preRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get pre-release version' };
+								compatible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get compatible version' };
+								errorCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error code or reason' };
+							}>('galleryService:fallbacktoquery', {
+								extension: extensionInfo.id,
+								preRelease: !!extensionInfo.preRelease,
+								compatible: !!options.compatible,
+								errorCode: galleryExtension
+							});
+						toQuery.push(extensionInfo);
+					}
 				} else {
 					result.push(galleryExtension);
 				}
@@ -856,6 +860,12 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const rawGalleryExtensionVersion = await this.getValidRawGalleryExtensionVersionFromLatestVersions(rawGalleryExtension, rawGalleryExtension.versions, extensionInfo, options, allTargetPlatforms);
 
 		if (!rawGalleryExtensionVersion) {
+			if (extensionInfo.currentVersion) {
+				const latestVersion = rawGalleryExtension.versions.length > 0 ? rawGalleryExtension.versions[0].version : undefined;
+				if (latestVersion && semver.lt(latestVersion, extensionInfo.currentVersion)) {
+					return 'LATEST_IS_OUTDATED';
+				}
+			}
 			return 'NOT_COMPATIBLE';
 		}
 

@@ -20,7 +20,7 @@ import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IChatDebugEventFileListContent } from '../../common/chatDebugService.js';
+import { IChatDebugCustomizationLogEntry, IChatDebugEventCustomizationSummaryContent, IChatDebugEventFileListContent } from '../../common/chatDebugService.js';
 import { InlineAnchorWidget } from '../widget/chatContentParts/chatInlineAnchorWidget.js';
 import { setupCollapsibleToggle } from './chatDebugCollapsible.js';
 
@@ -74,7 +74,7 @@ function createInlineFileLink(uri: URI, displayText: string, fileKind: FileKind,
 	disposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, (e) => {
 		e.preventDefault();
 		e.stopPropagation();
-		openerService.open(uri);
+		openerService.open(uri, { editorOptions: { preserveFocus: true } });
 	}));
 
 	return link;
@@ -194,7 +194,7 @@ export function renderCustomizationDiscoveryContent(content: IChatDebugEventFile
 				const relativeLabel = labelService.getUriLabel(file.uri, { relative: true });
 				row.setAttribute('aria-label', relativeLabel);
 				const uri = file.uri;
-				rows.push({ element: row, activate: () => openerService.open(uri) });
+				rows.push({ element: row, activate: () => openerService.open(uri, { editorOptions: { preserveFocus: true } }) });
 			}
 		}
 		setupFileListNavigation(listEl, rows, disposables);
@@ -252,7 +252,7 @@ export function renderCustomizationDiscoveryContent(content: IChatDebugEventFile
 				const relativeLabel = labelService.getUriLabel(file.uri, { relative: true });
 				row.setAttribute('aria-label', relativeLabel);
 				const uri = file.uri;
-				rows.push({ element: row, activate: () => openerService.open(uri) });
+				rows.push({ element: row, activate: () => openerService.open(uri, { editorOptions: { preserveFocus: true } }) });
 			}
 		}
 		setupFileListNavigation(listEl, rows, disposables);
@@ -390,6 +390,158 @@ export function fileListToPlainText(content: IChatDebugEventFileListContent): st
 		for (const folder of content.sourceFolders) {
 			lines.push(`  ${folder.uri.path}`);
 		}
+	}
+
+	return lines.join('\n');
+}
+
+/**
+ * Get a human-readable section title for a resolution log category.
+ */
+function getCategorySectionTitle(category: IChatDebugCustomizationLogEntry['category'], count: number): string {
+	switch (category) {
+		case 'applying': return localize('chatDebug.customization.instructions', "Instructions ({0})", count);
+		case 'referenced': return localize('chatDebug.customization.referenced', "Referenced ({0})", count);
+		case 'skill': return localize('chatDebug.customization.skill', "Skills ({0})", count);
+		case 'custom-agent': return localize('chatDebug.customization.customAgent', "Agents ({0})", count);
+		case 'hook': return localize('chatDebug.customization.hook', "Hooks ({0})", count);
+		case 'skipped': return localize('chatDebug.customization.skipped', "Skipped ({0})", count);
+	}
+}
+
+/**
+ * Render a customization summary showing per-file resolution logs
+ * from the instructions context computer.
+ */
+export function renderCustomizationSummaryContent(content: IChatDebugEventCustomizationSummaryContent, openerService: IOpenerService, modelService: IModelService, languageService: ILanguageService, hoverService: IHoverService, labelService: ILabelService, scrollable?: { scanDomNode(): void }): { element: HTMLElement; disposables: DisposableStore } {
+	const disposables = new DisposableStore();
+	const container = $('div.chat-debug-customization-summary');
+	container.tabIndex = 0;
+
+	// Title with counts and duration
+	const mainSection = DOM.append(container, $('div.chat-debug-file-list'));
+	DOM.append(mainSection, $('div.chat-debug-file-list-title', undefined,
+		localize('chatDebug.customizationTitle', "Customization Resolution Results")));
+	DOM.append(mainSection, $('div.chat-debug-file-list-summary', undefined,
+		localize('chatDebug.customizationSummary', "{0} instructions, {1} skills, {2} agents, {3} hooks, {4} skipped in {5}ms",
+			content.counts.instructions, content.counts.skills, content.counts.agents, content.counts.hooks, content.counts.skipped, content.durationInMillis.toFixed(1))));
+
+	// Group entries by display section: instructions (applying+referenced), skills, agents, skipped
+	// Instructions section merges applying + referenced
+	const instructionEntries = content.resolutionLogs.filter(e => e.category === 'applying' || e.category === 'referenced');
+	const skillEntries = content.resolutionLogs.filter(e => e.category === 'skill');
+	const agentEntries = content.resolutionLogs.filter(e => e.category === 'custom-agent');
+	const hookEntries = content.resolutionLogs.filter(e => e.category === 'hook');
+	const skippedEntries = content.resolutionLogs.filter(e => e.category === 'skipped');
+
+	const sections: { title: string; icon: ThemeIcon; entries: readonly IChatDebugCustomizationLogEntry[] }[] = [
+		{ title: getCategorySectionTitle('applying', instructionEntries.length), icon: Codicon.book, entries: instructionEntries },
+		{ title: getCategorySectionTitle('skill', skillEntries.length), icon: Codicon.lightbulb, entries: skillEntries },
+		{ title: getCategorySectionTitle('custom-agent', agentEntries.length), icon: Codicon.agent, entries: agentEntries },
+		{ title: getCategorySectionTitle('hook', hookEntries.length), icon: Codicon.zap, entries: hookEntries },
+		{ title: getCategorySectionTitle('skipped', skippedEntries.length), icon: Codicon.close, entries: skippedEntries },
+	];
+
+	for (const { title, icon, entries } of sections) {
+		if (entries.length === 0) {
+			continue;
+		}
+
+		const section = DOM.append(mainSection, $('div.chat-debug-file-list-section'));
+		DOM.append(section, $('div.chat-debug-file-list-section-title', undefined, title));
+
+		const listEl = DOM.append(section, $('div.chat-debug-file-list-rows'));
+		listEl.setAttribute('role', 'list');
+		listEl.setAttribute('aria-label', title);
+
+		const rows: { element: HTMLElement; activate: () => void }[] = [];
+
+		// For hooks, group entries by lifecycle event (stored in reason).
+		const isHookSection = entries.length > 0 && entries[0].category === 'hook';
+		if (isHookSection) {
+			// Collect entries by hook type, preserving insertion order.
+			const groupedByType = new Map<string, IChatDebugCustomizationLogEntry[]>();
+			for (const entry of entries) {
+				const hookType = entry.reason ?? '';
+				let group = groupedByType.get(hookType);
+				if (!group) {
+					group = [];
+					groupedByType.set(hookType, group);
+				}
+				group.push(entry);
+			}
+
+			for (const [hookType, groupEntries] of groupedByType) {
+				if (hookType) {
+					DOM.append(listEl, $('div.chat-debug-file-list-group-header', undefined, hookType));
+				}
+				for (const entry of groupEntries) {
+					const row = DOM.append(listEl, $('div.chat-debug-file-list-row'));
+					DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(icon)}`));
+
+					if (entry.uri) {
+						row.appendChild(createInlineFileLink(
+							entry.uri, entry.name, FileKind.FILE,
+							openerService, modelService, languageService, hoverService, labelService, disposables,
+						));
+						const uri = entry.uri;
+						rows.push({ element: row, activate: () => openerService.open(uri, { editorOptions: { preserveFocus: true } }) });
+					} else {
+						DOM.append(row, $('span', undefined, entry.name));
+					}
+					row.setAttribute('aria-label', entry.reason ? `${entry.name} — ${entry.reason}` : entry.name);
+				}
+			}
+		} else {
+			for (const entry of entries) {
+				const row = DOM.append(listEl, $('div.chat-debug-file-list-row'));
+				DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(icon)}`));
+
+				// Hide the reason for skills (e.g. "local") and custom-agents — it's noise in the UI.
+				const showReason = entry.category !== 'skill' && entry.category !== 'custom-agent';
+
+				if (entry.uri) {
+					row.appendChild(createInlineFileLink(
+						entry.uri, entry.name, FileKind.FILE,
+						openerService, modelService, languageService, hoverService, labelService, disposables,
+						showReason ? entry.reason : undefined
+					));
+					const uri = entry.uri;
+					rows.push({ element: row, activate: () => openerService.open(uri, { editorOptions: { preserveFocus: true } }) });
+				} else {
+					DOM.append(row, $('span', undefined, entry.name));
+				}
+
+				if (showReason && entry.reason) {
+					DOM.append(row, $('span.chat-debug-file-list-detail', undefined, ` — ${entry.reason}`));
+				}
+				row.setAttribute('aria-label', entry.reason ? `${entry.name} — ${entry.reason}` : entry.name);
+			}
+		}
+		setupFileListNavigation(listEl, rows, disposables);
+	}
+
+	if (content.resolutionLogs.length === 0) {
+		DOM.append(mainSection, $('div.chat-debug-file-list-summary', undefined,
+			localize('chatDebug.noResolutionLogs', "No resolution logs")));
+	}
+
+	return { element: container, disposables };
+}
+
+/**
+ * Serialize a customization summary to plain text for clipboard / full-screen.
+ */
+export function customizationSummaryToPlainText(content: IChatDebugEventCustomizationSummaryContent): string {
+	const lines: string[] = [];
+
+	lines.push(localize('chatDebug.plainText.customizationTitle', "Customization Resolution Results"));
+	lines.push(localize('chatDebug.plainText.customizationSummary', "{0} instructions, {1} skills, {2} agents, {3} hooks, {4} skipped in {5}ms",
+		content.counts.instructions, content.counts.skills, content.counts.agents, content.counts.hooks, content.counts.skipped, content.durationInMillis.toFixed(1)));
+	lines.push('');
+	for (const entry of content.resolutionLogs) {
+		const detail = entry.reason ? `${entry.name} — ${entry.reason}` : entry.name;
+		lines.push(`  [${entry.category}] ${detail}`);
 	}
 
 	return lines.join('\n');

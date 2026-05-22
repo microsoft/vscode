@@ -262,7 +262,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		const appRoot = await this._getAppRoot(remoteAuthority);
 		const execPath = await this._getExecPath(os, appRoot, remoteAuthority);
 		const tempDir = await this._getTempDir(remoteAuthority);
-		const srtPath = this._pathJoin(os, appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
+		const srtPath = this._pathJoin(os, appRoot, 'node_modules', '@vscode', 'sandbox-runtime', 'dist', 'cli.js');
 		const rgPath = this._pathJoin(os, appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg');
 		const sandboxConfigPath = tempDir ? await this._updateSandboxConfig(tempDir, configTarget, sandboxConfig, launchCwd) : undefined;
 		this._logService.debug(`McpSandboxService: Updated sandbox config path: ${sandboxConfigPath}`);

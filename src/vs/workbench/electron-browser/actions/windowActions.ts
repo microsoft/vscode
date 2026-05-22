@@ -29,7 +29,7 @@ import { isMacintosh } from '../../../base/common/platform.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from '../../../platform/window/common/window.js';
 import { IsAuxiliaryWindowContext, IsAuxiliaryWindowFocusedContext, IsWindowAlwaysOnTopContext } from '../../common/contextkeys.js';
-import { isAuxiliaryWindow } from '../../../base/browser/window.js';
+import { isAuxiliaryWindow, mainWindow } from '../../../base/browser/window.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 
 export class CloseWindowAction extends Action2 {
@@ -389,6 +389,23 @@ export class QuickSwitchWindowAction extends BaseSwitchWindow {
 	}
 }
 
+export class SwitchToMainWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.switchToMainWindow',
+			title: localize2('switchToMainWindow', "Switch to Main Window"),
+			f1: true,
+			precondition: IsAuxiliaryWindowContext
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+		return nativeHostService.focusWindow({ targetWindowId: mainWindow.vscodeWindowId });
+	}
+}
+
 function canRunNativeTabsHandler(accessor: ServicesAccessor): boolean {
 	if (!isMacintosh) {
 		return false;
@@ -483,7 +500,8 @@ export class EnableWindowAlwaysOnTopAction extends Action2 {
 			menu: {
 				id: MenuId.LayoutControlMenu,
 				when: ContextKeyExpr.and(IsWindowAlwaysOnTopContext.toNegated(), IsAuxiliaryWindowContext),
-				order: 1
+				order: 1,
+				group: 'navigation'
 			}
 		});
 	}
@@ -512,7 +530,8 @@ export class DisableWindowAlwaysOnTopAction extends Action2 {
 			menu: {
 				id: MenuId.LayoutControlMenu,
 				when: ContextKeyExpr.and(IsWindowAlwaysOnTopContext, IsAuxiliaryWindowContext),
-				order: 1
+				order: 1,
+				group: 'navigation'
 			}
 		});
 	}

@@ -100,6 +100,7 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
     - script: |
         set -e
+        export COPILOT_CLI_UI_SMOKE=1
         APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
         APP_NAME="`ls $APP_ROOT | head -n 1`"
         npm run smoketest-no-compile -- --tracing --build "$APP_ROOT/$APP_NAME"
@@ -129,6 +130,11 @@ steps:
     displayName: Diagnostics after smoke test run
     continueOnError: true
     condition: succeededOrFailed()
+
+  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+    - template: ../../copilot/test-integration-steps.yml@self
+      parameters:
+        OS: darwin
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results

@@ -58,6 +58,10 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			this._logCreateInstance(instance, isInAuxWindow);
 			this._store.delete(store);
 		}));
+
+		this._register(terminalService.onAnyInstanceShellTypeChanged(instance => {
+			this._logShellTypeChanged(instance);
+		}));
 	}
 
 	private _logCreateInstance(instance: ITerminalInstance, isInAuxWindow: boolean): void {
@@ -130,6 +134,24 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			terminalSessionId: instance.sessionId,
 		});
 	}
+
+	private _logShellTypeChanged(instance: ITerminalInstance): void {
+		type TerminalShellTypeChangedTelemetryData = {
+			shellType: TelemetryTrustedValue<string>;
+			terminalSessionId: string;
+		};
+		type TerminalShellTypeChangedTelemetryClassification = {
+			owner: 'anthonykim1';
+			comment: 'Track when the detected shell type for a terminal changes, including detection of agent CLIs (e.g. claude, copilot, gemini)';
+
+			shellType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new detected shell type for the terminal.' };
+			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
+		};
+		this._telemetryService.publicLog2<TerminalShellTypeChangedTelemetryData, TerminalShellTypeChangedTelemetryClassification>('terminal/shellTypeChanged', {
+			shellType: new TelemetryTrustedValue(instance.shellType ?? 'unknown'),
+			terminalSessionId: instance.sessionId,
+		});
+	}
 }
 
 // #region Shell Type
@@ -172,6 +194,12 @@ const enum AllowedShellType {
 	Tcsh = 'tcsh',
 	Termux = 'termux',
 	Xonsh = 'xonsh',
+
+	// AI CLIs
+	Claude = 'claude',
+	Codex = 'codex',
+	Copilot = 'copilot',
+	Gemini = 'gemini',
 
 	// Lanugage REPLs
 	// These are expected to be very low since they are not typically the default shell

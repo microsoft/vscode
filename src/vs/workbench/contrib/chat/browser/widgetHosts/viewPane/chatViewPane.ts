@@ -64,7 +64,7 @@ import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
-import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
@@ -100,7 +100,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private restoringSession: Promise<void> | undefined;
 	private readonly loadSessionCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
-	private readonly _previousModelRef = this._register(new MutableDisposable<IChatModelReference>());
 
 	private readonly activityBadge = this._register(new MutableDisposable());
 
@@ -232,6 +231,20 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Agent changes
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.onDidChangeAgents()));
 
+		// Session changes
+		this._register(this.chatSessionsService.onDidCommitSession(async (e) => {
+			if (!this.modelRef.value) {
+				return;
+			}
+
+			if (!isEqual(e.original, this.modelRef.value.object.sessionResource)) {
+				return;
+			}
+
+			const modelRef = await this.chatService.acquireOrLoadSession(e.committed, ChatAgentLocation.Chat, CancellationToken.None, 'ChatViewPane#onDidCommitSession');
+			await this.showModel(CancellationToken.None, modelRef);
+		}));
+
 		// Layout changes
 		this._register(Event.any(
 			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sideBar.location')),
@@ -338,6 +351,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsNewButtonContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
+
+	get agentSessionsControl(): AgentSessionsControl | undefined { return this.sessionsControl; }
+
 	private sessionsViewerVisible: boolean;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 	private sessionsViewerOrientationConfiguration: 'stacked' | 'sideBySide' = 'sideBySide';
@@ -463,7 +479,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// Sessions control: stacked
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				newSessionsContainerVisible =
-					!!this.chatEntitlementService.sentiment.completed &&																// chat is setup (otherwise make room for terms and welcome)
+					(!!this.chatEntitlementService.sentiment.completed || this.chatEntitlementService.hasByokModels) &&					// chat is setup (otherwise make room for terms and welcome)
 					(!this._widget || (this._widget.isEmpty() && !!this._widget.viewModel && !this._widget.viewModel.model.title)) &&	// chat widget empty (but not when model is loading or has a title)
 					!this.welcomeController?.isShowingWelcome.get();																	// welcome not showing
 			}
@@ -582,10 +598,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// - chat widget being in empty state or showing a chat
 		// - extensions provided welcome view showing or not
 		// - configuration setting
+		// - `hasByokModels` flipping (BYOK models becoming available or going away)
+		const hasByokModelsContextKeys = new Set([ChatEntitlementContextKeys.hasByokModels.key]);
 		this._register(Event.any(
 			chatWidget.onDidChangeEmptyState,
 			Event.fromObservable(welcomeController.isShowingWelcome),
-			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled))
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled)),
+			Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(hasByokModelsContextKeys))
 		)(() => {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				sessionsControl.clearFocus(); // improve visual appearance when switching visibility by clearing focus
@@ -598,6 +617,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Track the active chat model and reveal it in the sessions control if side-by-side
 		this._register(chatWidget.onDidChangeViewModel(() => {
+			const model = chatWidget.viewModel?.model;
+			this.titleControl?.update(model);
+
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				return; // only reveal in side-by-side mode
 			}
@@ -705,10 +727,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true): Promise<IChatModel | undefined> {
 		const oldModelResource = this.modelRef.value?.object.sessionResource;
-
-		// Keep the previous model reference alive so its InputModel state (permission level, etc.)
-		// survives until the next session switch. Only the most recent previous session is kept.
-		this._previousModelRef.value = this.modelRef.value;
 		this.modelRef.value = undefined;
 
 		let ref: IChatModelReference | undefined;
@@ -728,11 +746,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		this.modelRef.value = ref;
 		const model = ref?.object;
-
-		// If we're switching back to the previously cached model, clear the cache
-		if (model && this._previousModelRef.value?.object.sessionResource.toString() === model.sessionResource.toString()) {
-			this._previousModelRef.value = undefined;
-		}
 
 		if (model) {
 			await this.updateWidgetLockState(getChatSessionType(model.sessionResource)); // Update widget lock state based on session type
@@ -754,12 +767,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Update the toolbar context with new sessionId
 		this.updateActions();
 
-		// Mark the old model as read when closing unless explicitly marked unread
+		// Mark the old model as read when closing unless explicitly marked unread.
+		// Deferred because setRead fires _onDidChangeSessions which synchronously
+		// re-renders the sessions list (~250ms), and that doesn't need to block
+		// the new chat from displaying.
 		if (oldModelResource) {
-			const oldSession = this.agentSessionsService.model.getSession(oldModelResource);
-			if (oldSession && !oldSession.isMarkedUnread()) {
-				oldSession.setRead(true);
-			}
+			const capturedOldResource = oldModelResource;
+			this._register(disposableTimeout(() => {
+				const oldSession = this.agentSessionsService.model.getSession(capturedOldResource);
+				if (oldSession && !oldSession.isMarkedUnread()) {
+					oldSession.setRead(true);
+				}
+			}, 0));
 		}
 
 		return model;
@@ -805,6 +824,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	async loadSession(sessionResource: URI): Promise<IChatModel | undefined> {
+		const t0 = Date.now();
+		this.logService.trace(`[ChatViewPane] loadSession start uri=${sessionResource.toString()}`);
+
 		// Cancel any in-flight loadSession call so the last one always wins
 		this.loadSessionCts.value?.cancel();
 		const cts = this.loadSessionCts.value = new CancellationTokenSource();
@@ -817,6 +839,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		if (token.isCancellationRequested) {
+			this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=preAcquire`);
 			return undefined;
 		}
 
@@ -842,15 +865,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 				if (token.isCancellationRequested) {
 					newModelRef?.dispose();
+					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=postAcquire`);
 					return undefined;
 				}
 
-				return this.showModel(token, newModelRef);
+				const result = await this.showModel(token, newModelRef);
+				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
+				return result;
 			} catch (err) {
 				clearWidget.dispose();
 				await queue;
 
 				if (token.isCancellationRequested) {
+					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=error`);
 					return undefined;
 				}
 
@@ -858,7 +885,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				// is not left in a broken state without title or back button.
 				this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
 				this.notificationService.error(localize('chat.loadSessionFailed', "Failed to open chat session: {0}", toErrorMessage(err)));
-				return this.showModel(token, undefined);
+				const result = await this.showModel(token, undefined);
+				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} error=true`);
+				return result;
 			} finally {
 				clearWidgetCancellationListener.dispose();
 			}

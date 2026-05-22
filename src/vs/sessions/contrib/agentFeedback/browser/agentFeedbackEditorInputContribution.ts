@@ -16,7 +16,7 @@ import { addStandardDisposableListener, getWindow, ModifierKeyEmitter } from '..
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { createAgentFeedbackContext, getSessionForResource } from './agentFeedbackEditorUtils.js';
 import { localize } from '../../../../nls.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -25,7 +25,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 
-class AgentFeedbackInputWidget implements IOverlayWidget {
+class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 
 	private static readonly _ID = 'agentFeedback.inputWidget';
 	private static readonly _MIN_WIDTH = 150;
@@ -42,15 +42,16 @@ class AgentFeedbackInputWidget implements IOverlayWidget {
 	private _position: IOverlayWidgetPosition | null = null;
 	private _lineHeight = 0;
 
-	private readonly _onDidTriggerAdd = new Emitter<void>();
+	private readonly _onDidTriggerAdd = this._register(new Emitter<void>());
 	readonly onDidTriggerAdd: Event<void> = this._onDidTriggerAdd.event;
 
-	private readonly _onDidTriggerAddAndSubmit = new Emitter<void>();
+	private readonly _onDidTriggerAddAndSubmit = this._register(new Emitter<void>());
 	readonly onDidTriggerAddAndSubmit: Event<void> = this._onDidTriggerAddAndSubmit.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 	) {
+		super();
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('agent-feedback-input-widget');
 		this._domNode.style.display = 'none';
@@ -70,30 +71,44 @@ class AgentFeedbackInputWidget implements IOverlayWidget {
 		actionsContainer.classList.add('agent-feedback-input-actions');
 		this._domNode.appendChild(actionsContainer);
 
-		this._addAction = new Action(
+		this._addAction = this._register(new Action(
 			'agentFeedback.add',
-			localize('agentFeedback.add', "Add Feedback (Enter)"),
+			localize('agentFeedback.add', "Add Feedback"),
 			ThemeIcon.asClassName(Codicon.plus),
 			false,
 			() => { this._onDidTriggerAdd.fire(); return Promise.resolve(); }
-		);
+		));
 
-		this._addAndSubmitAction = new Action(
+		this._addAndSubmitAction = this._register(new Action(
 			'agentFeedback.addAndSubmit',
-			localize('agentFeedback.addAndSubmit', "Add Feedback and Submit (Alt+Enter)"),
+			localize('agentFeedback.addAndSubmit', "Add Feedback and Submit"),
 			ThemeIcon.asClassName(Codicon.send),
 			false,
 			() => { this._onDidTriggerAddAndSubmit.fire(); return Promise.resolve(); }
-		);
+		));
 
-		this._actionBar = new ActionBar(actionsContainer);
+		this._actionBar = this._register(new ActionBar(actionsContainer));
 		this._actionBar.push(this._addAction, { icon: true, label: false, keybinding: localize('enter', "Enter") });
 
 		// Toggle to alt action when Alt key is held
 		const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
-		modifierKeyEmitter.event(status => {
+		this._register(modifierKeyEmitter.event(status => {
 			this._updateActionForAlt(status.altKey);
-		});
+		}));
+
+		// Focus the input when clicking anywhere on the widget that isn't the
+		// textarea itself or the action bar (e.g. padding around the textarea).
+		this._register(addStandardDisposableListener(this._domNode, 'mousedown', e => {
+			const target = e.target as Node | null;
+			if (target === this._inputElement) {
+				return;
+			}
+			if (actionsContainer.contains(target)) {
+				return;
+			}
+			e.preventDefault();
+			this._inputElement.focus();
+		}));
 
 		this._lineHeight = 22;
 		this._inputElement.style.lineHeight = `${this._lineHeight}px`;
@@ -179,13 +194,6 @@ class AgentFeedbackInputWidget implements IOverlayWidget {
 		this._inputElement.style.height = `${newHeight}px`;
 	}
 
-	dispose(): void {
-		this._actionBar.dispose();
-		this._addAction.dispose();
-		this._addAndSubmitAction.dispose();
-		this._onDidTriggerAdd.dispose();
-		this._onDidTriggerAddAndSubmit.dispose();
-	}
 }
 
 export class AgentFeedbackEditorInputContribution extends Disposable implements IEditorContribution {

@@ -10,15 +10,16 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { isAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
 
 export enum AgentSessionProviders {
-	Local = 'local',
-	Background = 'copilotcli',
-	Cloud = 'copilot-cloud-agent',
-	Claude = 'claude-code',
-	Codex = 'openai-codex',
-	Growth = 'copilot-growth',
-	AgentHostCopilot = 'agent-host-copilot',
+	Local = SessionType.Local,
+	Background = SessionType.CopilotCLI,
+	Cloud = SessionType.CopilotCloud,
+	Claude = SessionType.ClaudeCode,
+	Codex = SessionType.Codex,
+	Growth = SessionType.Growth,
+	AgentHostCopilot = SessionType.AgentHostCopilot,
 }
 
 /**
@@ -66,7 +67,7 @@ export function getAgentSessionProviderName(provider: AgentSessionTarget): strin
 		case AgentSessionProviders.Growth:
 			return 'Growth';
 		case AgentSessionProviders.AgentHostCopilot:
-			return 'Agent Host - Copilot';
+			return 'Copilot CLI [Local]';
 		default:
 			return provider;
 	}
@@ -77,7 +78,7 @@ export function getAgentSessionProviderIcon(provider: AgentSessionTarget): Theme
 		case AgentSessionProviders.Local:
 			return Codicon.vm;
 		case AgentSessionProviders.Background:
-			return Codicon.worktree;
+			return Codicon.copilot;
 		case AgentSessionProviders.Cloud:
 			return Codicon.cloud;
 		case AgentSessionProviders.Codex:
@@ -117,19 +118,10 @@ export function isFirstPartyAgentSessionProvider(provider: AgentSessionTarget): 
 }
 
 /**
- * Returns whether the given session type is an agent host target.
- * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
- *
- * Note: The `remote-` prefix convention is established by
- * {@link RemoteAgentHostContribution} which generates session types as
- * `remote-{sanitizedAddress}-{provider}`. If future remote providers that
- * are NOT agent hosts need a different prefix, this function must be updated.
+ * Re-exported from `common/chatSessionsService.ts` so existing browser-layer
+ * callers keep working without changing imports.
  */
-export function isAgentHostTarget(target: string): boolean {
-	return target === AgentSessionProviders.AgentHostCopilot ||
-		target.startsWith('agent-host-') ||
-		target.startsWith('remote-');
-}
+export { isAgentHostTarget };
 
 export function getAgentCanContinueIn(provider: AgentSessionTarget): boolean {
 	switch (provider) {

@@ -40,8 +40,16 @@ export interface GitDiffChange extends GitChange {
 	readonly deletions: number;
 }
 
+export interface GitRemote {
+	readonly name: string;
+	readonly fetchUrl?: string;
+	readonly pushUrl?: string;
+	readonly isReadOnly: boolean;
+}
+
 export interface GitRepositoryState {
 	readonly HEAD?: GitBranch;
+	readonly remotes: readonly GitRemote[];
 	readonly mergeChanges: readonly GitChange[];
 	readonly indexChanges: readonly GitChange[];
 	readonly workingTreeChanges: readonly GitChange[];
@@ -49,7 +57,6 @@ export interface GitRepositoryState {
 }
 
 export interface GitBranch extends GitRef {
-	readonly base?: GitBaseRef;
 	readonly upstream?: GitUpstreamRef;
 	readonly ahead?: number;
 	readonly behind?: number;

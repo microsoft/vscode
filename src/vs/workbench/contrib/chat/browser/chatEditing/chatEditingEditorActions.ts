@@ -24,7 +24,6 @@ import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '.
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
-import { CTX_HOVER_MODE } from '../../../inlineChat/common/inlineChat.js';
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { IDocumentDiffItemWithMultiDiffEditorItem, MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
@@ -332,11 +331,6 @@ class ToggleDiffAction extends ChatEditingEditorAction {
 				group: 'a_resolve',
 				order: 2,
 				when: ContextKeyExpr.and(ctxReviewModeEnabled)
-			}, {
-				id: MenuId.ChatEditorInlineExecute,
-				group: 'a_resolve',
-				order: 2,
-				when: ContextKeyExpr.and(ctxReviewModeEnabled, CTX_HOVER_MODE)
 			}]
 		});
 	}

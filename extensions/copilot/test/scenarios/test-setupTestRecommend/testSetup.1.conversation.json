@@ -1,0 +1,19 @@
+[
+  {
+    "name": "webAppWithWebpack",
+    "question": "/setupTests",
+    "keywords": {
+      "anyOf": [
+        "playwright",
+        "puppeteer"
+      ]
+    },
+    "files": [
+      "src/app.ts",
+      "webpack.config.js",
+      "package.json",
+      "package-lock.json",
+      "tsconfig.json"
+    ]
+  }
+]

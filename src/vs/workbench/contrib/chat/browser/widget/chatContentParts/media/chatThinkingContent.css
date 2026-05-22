@@ -13,6 +13,8 @@
 	position: relative;
 	color: var(--vscode-descriptionForeground);
 
+	contain: layout style;
+
 	.chat-thinking-external-resources {
 		margin-top: 4px;
 		margin-left: 5px;
@@ -90,6 +92,7 @@
 			-webkit-background-clip: text;
 			-webkit-text-fill-color: transparent;
 			animation: chat-thinking-shimmer 2s linear infinite;
+			will-change: background-position;
 		}
 	}
 
@@ -106,6 +109,7 @@
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		animation: chat-thinking-shimmer 2s linear infinite;
+		will-change: background-position;
 	}
 
 	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible {
@@ -241,6 +245,10 @@
 			}
 		}
 
+		.chat-confirmation-widget2 .chat-confirmation-message-terminal-disclaimer .chat-markdown-part.rendered-markdown {
+			padding: 2px 0px;
+		}
+
 		.chat-thinking-tool-wrapper .chat-terminal-thinking-content .chat-markdown-part.rendered-markdown {
 			padding: 0;
 		}
@@ -365,6 +373,10 @@
 	/* Hide the header/collapse button while streaming — it reappears when chat-thinking-streaming is removed */
 	&:has(.chat-thinking-streaming) > .chat-used-context-label {
 		display: none;
+	}
+
+	&.chat-thinking-persistent-streaming {
+		margin-bottom: 3px;
 	}
 
 	> .monaco-scrollable-element > .shadow {

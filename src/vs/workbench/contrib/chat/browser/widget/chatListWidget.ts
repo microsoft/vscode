@@ -450,6 +450,9 @@ export class ChatListWidget extends Disposable {
 			this.updateScrollDownButtonVisibility();
 		}));
 
+		// Set initial at-bottom state (scrollLock defaults to true)
+		this.updateScrollDownButtonVisibility();
+
 		// Handle context menu internally
 		this._register(this._tree.onContextMenu(e => {
 			this.handleContextMenu(e);
@@ -469,8 +472,9 @@ export class ChatListWidget extends Disposable {
 	 * Update scroll-down button visibility based on scroll position and scroll lock.
 	 */
 	private updateScrollDownButtonVisibility(): void {
-		const show = !this.isScrolledToBottom && !this._scrollLock;
-		this._scrollDownButton.element.style.display = show ? '' : 'none';
+		const atBottom = this.isScrolledToBottom || this._scrollLock;
+		this._scrollDownButton.element.style.display = atBottom ? 'none' : '';
+		this._container.classList.toggle('chat-list-at-bottom', atBottom);
 	}
 
 	/**

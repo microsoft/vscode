@@ -52,7 +52,7 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return localize('aiCustomizationManagementEditorName', "Chat Customizations");
+		return localize('aiCustomizationManagementEditorName', "Agent Customizations");
 	}
 
 	override getIcon(): ThemeIcon {
