@@ -599,6 +599,21 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('copyPathSeparator', "The path separation character used when copying file paths."),
 			'default': 'auto'
 		},
+		'explorer.copyPathQuoteStyle': {
+			'type': 'string',
+			'enum': [
+				'none',
+				'double',
+				'single'
+			],
+			'enumDescriptions': [
+				nls.localize('copyPathQuoteStyle.none', "Do not wrap the copied path with quotes."),
+				nls.localize('copyPathQuoteStyle.double', "Wrap the copied path with double quotes."),
+				nls.localize('copyPathQuoteStyle.single', "Wrap the copied path with single quotes."),
+			],
+			'description': nls.localize('copyPathQuoteStyle', "Controls whether copied file paths are wrapped with quotes. Useful for paths containing spaces."),
+			'default': 'none'
+		},
 		'explorer.excludeGitIgnore': {
 			type: 'boolean',
 			markdownDescription: nls.localize('excludeGitignore', "Controls whether entries in .gitignore should be parsed and excluded from the Explorer. Similar to {0}.", '`#files.exclude#`'),
