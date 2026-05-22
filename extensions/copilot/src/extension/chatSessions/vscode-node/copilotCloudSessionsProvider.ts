@@ -262,6 +262,14 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	private readonly _onDidChangeChatSessionOptions = this._register(new vscode.EventEmitter<vscode.ChatSessionOptionChangeEvent>());
 	public readonly onDidChangeChatSessionOptions = this._onDidChangeChatSessionOptions.event;
 	private chatSessions: Map<number, PullRequestSearchItem> = new Map();
+	/**
+	 * Reverse map from PR number to the most recently observed task id. Populated by
+	 * `_listSessions` for Task API (v2) entries whose PR is resolvable so the provider can
+	 * keep emitting `/<prNumber>` URIs (stable across the v1→v2 backend flip — preserves
+	 * archive state) while still routing content/follow-up/openInBrowser through task
+	 * endpoints. On cache miss, `resolveTaskIdForPrNumber` falls back to a backend lookup.
+	 */
+	private readonly _taskIdByPrNumber = new Map<number, string>();
 	private chatSessionItemsPromise: Promise<vscode.ChatSessionItem[]> | undefined;
 	private readonly sessionCustomAgentMap = new ResourceMap<string>();
 	private readonly sessionModelMap = new ResourceMap<string>();
@@ -1225,9 +1233,12 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					pullRequestState: derivePullRequestState(pr),
 				} satisfies { readonly [key: string]: unknown };
 
-				const resource = entry.pullArtifact
-					? vscode.Uri.from({ scheme: CopilotCloudSessionsProvider.TYPE, path: '/' + SessionIdForTask.getId(entry.latestSession.id) })
-					: vscode.Uri.from({ scheme: CopilotCloudSessionsProvider.TYPE, path: '/' + pr.number });
+				const resource = vscode.Uri.from({ scheme: CopilotCloudSessionsProvider.TYPE, path: '/' + pr.number });
+				// Record the PR→task mapping so v2 consumers can reverse-resolve a
+				// PR-shaped URI back to the underlying task without a network round trip.
+				if (entry.pullArtifact) {
+					this._taskIdByPrNumber.set(pr.number, entry.latestSession.id);
+				}
 
 				const session = {
 					resource,
@@ -1296,6 +1307,17 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		// PR resolution is decorative only.
 		if (identity?.type === 'task') {
 			return this.provideTaskChatSessionContent(resource, identity.taskId, token);
+		}
+
+		// PR-keyed URI on v2: reverse-resolve to the underlying task and route to the task
+		// content path. Keeps `/<prNumber>` URIs stable across the v1→v2 flip.
+		if (this._backend.kind === 'task' && identity?.type === 'pr') {
+			const taskId = await this.resolveTaskIdForPrNumber(identity.prNumber);
+			if (taskId) {
+				return this.provideTaskChatSessionContent(resource, taskId, token);
+			}
+			this.logService.warn(`PR-keyed session ${resource} on Task backend has no resolvable task; returning empty session.`);
+			return this.createEmptySession(resource);
 		}
 
 		// PR-keyed flow requires the Jobs backend. If we're on v2, a legacy PR URI is unreachable
@@ -1485,6 +1507,24 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			return;
 		}
 
+		// PR-keyed URI on v2: reverse-resolve to the underlying task and open its html_url.
+		// Falls through to the PR-flavored path if no task mapping exists.
+		if (this._backend.kind === 'task') {
+			// Accept both URI shapes: `/<n>` and the legacy `/pull-session-by-index-<n>-<idx>`.
+			const prNum = SessionIdForPr.parse(chatSessionItem.resource)?.prNumber ?? SessionIdForPr.parsePullRequestNumber(chatSessionItem.resource);
+			if (!isNaN(prNum)) {
+				const taskId = await this.resolveTaskIdForPrNumber(prNum);
+				if (taskId) {
+					const taskContent = await this._backend.fetchTaskContent(taskId);
+					const url = taskContent?.task.html_url;
+					if (url) {
+						await vscode.env.openExternal(vscode.Uri.parse(url));
+						return;
+					}
+				}
+			}
+		}
+
 		const session = SessionIdForPr.parse(chatSessionItem.resource);
 		let prNumber = session?.prNumber;
 		if (typeof prNumber === 'undefined' || isNaN(prNumber)) {
@@ -1574,6 +1614,35 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				: {}),
 			requestHandler: undefined
 		};
+	}
+
+	/**
+	 * Reverse-resolve a PR number to its underlying task id on the v2 (Task API) backend.
+	 * Hits the in-memory `_taskIdByPrNumber` cache populated at list time, falling back to
+	 * a `listTasksForRepo` query keyed by PR artifact id. Returns undefined when not on the
+	 * task backend or no association can be found.
+	 *
+	 * Temporary compatibility shim for PR-shaped URIs on the Task API; removed in the
+	 * controller-API migration once URIs flip to `/task/<id>` natively (see migration plan).
+	 */
+	private async resolveTaskIdForPrNumber(prNumber: number): Promise<string | undefined> {
+		const cached = this._taskIdByPrNumber.get(prNumber);
+		if (cached) {
+			return cached;
+		}
+		const backend = this._backend;
+		if (backend.kind !== 'task') {
+			return undefined;
+		}
+		const repoIds = await getRepoId(this._gitService);
+		for (const repoId of repoIds ?? []) {
+			const taskId = await backend.findTaskIdForPullRequest(repoId.org, repoId.repo, prNumber);
+			if (taskId) {
+				this._taskIdByPrNumber.set(prNumber, taskId);
+				return taskId;
+			}
+		}
+		return undefined;
 	}
 
 	private async findPR(prNumber: number, options: { retries?: number; repository?: string } = {}) {
@@ -2264,6 +2333,18 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		const taskParsed = SessionIdForTask.parse(resource);
 		if (taskParsed) {
 			return this.handleTaskFollowUp(taskParsed.taskId, prompt, stream, token);
+		}
+
+		// PR-keyed URI on v2: reverse-resolve to the underlying task and steer it.
+		if (this._backend.kind === 'task') {
+			// Accept both URI shapes: `/<n>` and the legacy `/pull-session-by-index-<n>-<idx>`.
+			const prNum = SessionIdForPr.parse(resource)?.prNumber ?? SessionIdForPr.parsePullRequestNumber(resource);
+			if (!isNaN(prNum)) {
+				const taskId = await this.resolveTaskIdForPrNumber(prNum);
+				if (taskId) {
+					return this.handleTaskFollowUp(taskId, prompt, stream, token);
+				}
+			}
 		}
 
 		const session = SessionIdForPr.parse(resource);

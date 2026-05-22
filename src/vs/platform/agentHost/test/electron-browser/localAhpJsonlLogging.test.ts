@@ -12,7 +12,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
 import { AgentHostClientResourceChannel } from '../../common/agentHostClientResourceChannel.js';
 import { wrapAgentServiceWithAhpLogging } from '../../electron-browser/localAhpJsonlLogging.js';
-import type { IAgentService } from '../../common/agentService.js';
+import type { IAgentCreateSessionConfig, IAgentService } from '../../common/agentService.js';
 import { ContentEncoding } from '../../common/state/protocol/commands.js';
 
 suite('localAhpJsonlLogging', () => {
@@ -42,7 +42,7 @@ suite('localAhpJsonlLogging', () => {
 		const target = {
 			async authenticate(params: { resource: string; token: string }) { return { authenticated: params.token.length > 0 }; },
 			async listSessions() { return ['a', 'b']; },
-			async createSession(config: unknown) { return URI.parse(`agent-host://session/1?cfg=${JSON.stringify(config)}`); },
+			async createSession(_config: IAgentCreateSessionConfig) { return URI.parse('agent-host://session/1'); },
 			async disposeTerminal() { return undefined; },
 			async resourceRead(uri: URI) { throw new Error('boom: ' + uri.toString()); },
 			dispatchAction(channel: URI, action: unknown, clientId: string, clientSeq: number) { void channel; void action; void clientId; void clientSeq; },
@@ -53,7 +53,16 @@ suite('localAhpJsonlLogging', () => {
 
 		await wrapped.authenticate({ resource: 'https://example.com', token: 'secret' });
 		await wrapped.listSessions();
-		await wrapped.createSession({ kind: 'demo' } as never);
+		const session = URI.parse('agent-host://session/1');
+		const workingDirectory = URI.file('/workspace');
+		const forkSession = URI.parse('agent-host://session/source');
+		await wrapped.createSession({
+			provider: 'copilot',
+			session,
+			workingDirectory,
+			fork: { session: forkSession, turnIndex: 3, turnId: 'turn-1' },
+			config: { autoApprove: 'autoApprove' },
+		});
 		await wrapped.disposeTerminal(URI.parse('agent-host://terminal/1'));
 		await assert.rejects(() => wrapped.resourceRead(URI.parse('agent-host://x/y')));
 		wrapped.dispatchAction('agent-host://session/1', { type: 'noop' } as never, 'client-1', 7);
@@ -86,6 +95,14 @@ suite('localAhpJsonlLogging', () => {
 		]);
 
 		assert.deepStrictEqual(entries[0].params, [{ resource: 'https://example.com', token: '<redacted>' }]);
+		assert.deepStrictEqual(entries[4].params, [{
+			provider: 'copilot',
+			session: session.toString(),
+			workingDirectory: workingDirectory.toString(),
+			fork: { session: forkSession.toString(), turnIndex: 3, turnId: 'turn-1' },
+			config: { autoApprove: 'autoApprove' },
+		}]);
+		assert.strictEqual(entries[5].result, session.toString());
 		assert.strictEqual(entries[7].result, null);
 	});
 
