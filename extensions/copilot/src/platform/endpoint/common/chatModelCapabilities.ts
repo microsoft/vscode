@@ -360,6 +360,21 @@ export function isAnthropicFamily(model: LanguageModelChat | IChatEndpoint): boo
 	return model.family.startsWith('claude') || model.family.startsWith('Anthropic');
 }
 
+/**
+ * Endpoint families that opt into the "minimal harness": a stripped-back system prompt
+ * plus a small allowlist of tools (terminal / read / edit / search). Designed for
+ * evaluating capable agentic models without VS Code's full prompt + tool scaffolding.
+ *
+ * Set via `chat.modelCapabilityOverrides`, e.g.:
+ *     { "<model-id>": { "family": "experimental" } }
+ */
+const MINIMAL_HARNESS_FAMILIES: ReadonlySet<string> = new Set(['experimental']);
+
+export function isMinimalHarnessFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const family = typeof model === 'string' ? model : model.family;
+	return MINIMAL_HARNESS_FAMILIES.has(family.toLowerCase());
+}
+
 export function isGeminiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
 	const family = typeof model === 'string' ? model : model.family;
 	return family.toLowerCase().startsWith('gemini') || getCachedSha256Hash(family) === HIDDEN_MODEL_K_HASH;

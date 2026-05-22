@@ -182,7 +182,7 @@ suite('SearchSubagentTool', () => {
 				'- /workspace/other.ts (lines 30-40): test2',
 			].join('\n');
 
-			const result = await tool['parseFinalAnswerAndHydrate'](response, '/workspace', notCancelled);
+				const result = await tool['parseFinalAnswerAndHydrate'](response, '/workspace', undefined, notCancelled);
 
 			expect(result).toBe(response);
 		});
@@ -193,7 +193,7 @@ suite('SearchSubagentTool', () => {
 				'- /workspace/file.ts:10-20'
 			].join('\n');
 
-			const result = await tool['parseFinalAnswerAndHydrate'](response, '/workspace', notCancelled);
+				const result = await tool['parseFinalAnswerAndHydrate'](response, '/workspace', undefined, notCancelled);
 
 			expect(result).toBe(response);
 			expect(result).not.toContain('unable to read file');
