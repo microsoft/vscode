@@ -27,6 +27,7 @@
 #   --repo                  $PWD if it looks like a vscode checkout; otherwise pass it explicitly
 
 set -euo pipefail
+umask 077
 
 AGENTS=0
 SOURCE_UDD="${CODE_OSS_DEV_AUTHED_USER_DATA_DIR:-$HOME/.vscode-oss-dev}"
@@ -124,6 +125,11 @@ fi
 unset ELECTRON_RUN_AS_NODE
 
 CODE_SH="$REPO/scripts/code.sh"
+if [[ ! -x "$CODE_SH" ]]; then
+	echo "Could not find an executable Code OSS launcher at $CODE_SH. Pass --repo <vscode-repo-root>." >&2
+	exit 2
+fi
+
 ARGS=(
 	"--user-data-dir=$DEST_UDD"
 	"--extensions-dir=$EXT_DIR"
