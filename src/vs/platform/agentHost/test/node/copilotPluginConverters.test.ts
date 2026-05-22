@@ -15,7 +15,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
-import { toSdkMcpServers, toSdkCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks } from '../../node/copilot/copilotPluginConverters.js';
+import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks } from '../../node/copilot/copilotPluginConverters.js';
 import type { IMcpServerDefinition, INamedPluginResource, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 
 suite('copilotPluginConverters', () => {
@@ -242,6 +242,35 @@ suite('copilotPluginConverters', () => {
 
 	// ---- toSdkHooks -------------------------------------------------------
 
+	suite('toSdkInstructionDirectories', () => {
+
+		test('extracts parent directories of instruction files', () => {
+			const instructions: INamedPluginResource[] = [
+				{ uri: URI.file('/plugins/rules/project.mdc'), name: 'project' },
+				{ uri: URI.file('/plugins/rules/review.instructions.md'), name: 'review' },
+			];
+			const result = toSdkInstructionDirectories(instructions);
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0], '/plugins/rules');
+		});
+
+		test('deduplicates directories', () => {
+			const instructions: INamedPluginResource[] = [
+				{ uri: URI.file('/plugins/rules/a.mdc'), name: 'a' },
+				{ uri: URI.file('/plugins/rules/b.mdc'), name: 'b' },
+			];
+			const result = toSdkInstructionDirectories(instructions);
+			assert.strictEqual(result.length, 1);
+		});
+
+		test('handles empty input', () => {
+			const result = toSdkInstructionDirectories([]);
+			assert.deepStrictEqual(result, []);
+		});
+	});
+
+	// ---- toSdkHooks -------------------------------------------------------
+
 	suite('toSdkHooks', () => {
 
 		function makeHookGroup(type: string, command: string): IParsedHookGroup {
@@ -355,6 +384,7 @@ suite('copilotPluginConverters', () => {
 				mcpServers: [],
 				skills: [],
 				agents: [],
+				instructions: [],
 				...overrides,
 			};
 		}
