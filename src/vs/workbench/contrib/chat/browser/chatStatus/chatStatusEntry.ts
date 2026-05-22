@@ -104,7 +104,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		while (el && !el.classList?.contains('statusbar-item')) {
 			el = el.parentElement;
 		}
-		const label = el?.querySelector<HTMLElement>('a.statusbar-item-label');
+		const label = el?.querySelector<HTMLElement>('a.statusbar-item-label'); // eslint-disable-line no-restricted-syntax
 		label?.click();
 	}
 

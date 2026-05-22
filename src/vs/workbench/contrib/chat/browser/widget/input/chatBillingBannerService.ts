@@ -9,7 +9,9 @@ import { localize2 } from '../../../../../../nls.js';
 import { Categories } from '../../../../../../platform/action/common/actionCommonCategories.js';
 import { MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IsDevelopmentContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
+import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -109,5 +111,5 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: localize2('billingBanner.dev.show', "Show Copilot Billing Banner"),
 		category: Categories.Developer,
 	},
-	when: IsDevelopmentContext,
+	when: ContextKeyExpr.and(IsDevelopmentContext, ChatContextKeys.enabled),
 });
