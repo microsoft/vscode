@@ -64,7 +64,7 @@ export abstract class BaseTestService extends Disposable {
 	/**
 	 * Track a method call for verification in tests
 	 */
-	protected trackCall(method: string, ...args: any[]): void {
+	protected trackCall(method: string, ...args: unknown[]): void {
 		this._methodCalls.push({
 			method,
 			args: [...args],

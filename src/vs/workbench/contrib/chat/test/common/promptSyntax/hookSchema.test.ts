@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { resolveHookCommand, resolveEffectiveCommand, formatHookCommandLabel, IHookCommand } from '../../../common/promptSyntax/hookSchema.js';
+import { resolveHookCommand, resolveEffectiveCommand, formatHookCommandLabel, IHookCommand, parseSubagentHooksFromYaml } from '../../../common/promptSyntax/hookSchema.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { HookType } from '../../../common/promptSyntax/hookTypes.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
 
 suite('HookSchema', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -461,7 +463,7 @@ suite('HookSchema', () => {
 			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Windows), '');
 		});
 
-		test('applies platform override for display with platform badge', () => {
+		test('applies platform override for display', () => {
 			const hook: IHookCommand = {
 				type: 'command',
 				command: 'default-command',
@@ -469,10 +471,10 @@ suite('HookSchema', () => {
 				linux: 'linux-command',
 				osx: 'osx-command'
 			};
-			// Should include platform badge when using platform-specific override
-			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Windows), '[Windows] win-command');
-			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Macintosh), '[macOS] osx-command');
-			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Linux), '[Linux] linux-command');
+			// Should resolve to platform-specific command
+			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Windows), 'win-command');
+			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Macintosh), 'osx-command');
+			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Linux), 'linux-command');
 		});
 
 		test('no platform badge when falling back to default command', () => {
@@ -483,6 +485,164 @@ suite('HookSchema', () => {
 			};
 			// Should not include badge when using default command
 			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Windows), 'default-command');
+		});
+	});
+
+	suite('parseSubagentHooksFromYaml', () => {
+
+		const workspaceRoot = URI.file('/workspace');
+		const userHome = '/home/user';
+
+		const dummyRange = new Range(1, 1, 1, 1);
+
+		function makeScalar(value: string): import('../../../common/promptSyntax/promptFileParser.js').IScalarValue {
+			return { type: 'scalar', value, range: dummyRange, format: 'none' };
+		}
+
+		function makeMap(entries: Record<string, import('../../../common/promptSyntax/promptFileParser.js').IValue>): import('../../../common/promptSyntax/promptFileParser.js').IMapValue {
+			const properties = Object.entries(entries).map(([key, value]) => ({
+				key: makeScalar(key),
+				value,
+			}));
+			return { type: 'map', properties, range: dummyRange };
+		}
+
+		function makeSequence(items: import('../../../common/promptSyntax/promptFileParser.js').IValue[]): import('../../../common/promptSyntax/promptFileParser.js').ISequenceValue {
+			return { type: 'sequence', items, range: dummyRange };
+		}
+
+		test('parses direct command format (without matcher)', () => {
+			// hooks:
+			//   PreToolUse:
+			//     - type: command
+			//       command: "./scripts/validate.sh"
+			const hooksMap = makeMap({
+				'PreToolUse': makeSequence([
+					makeMap({
+						'type': makeScalar('command'),
+						'command': makeScalar('./scripts/validate.sh'),
+					}),
+				]),
+			});
+
+			const result = parseSubagentHooksFromYaml(hooksMap, workspaceRoot, userHome);
+
+			assert.strictEqual(result[HookType.PreToolUse]?.length, 1);
+			assert.strictEqual(result[HookType.PreToolUse]![0].command, './scripts/validate.sh');
+		});
+
+		test('parses Claude format (with matcher)', () => {
+			// hooks:
+			//   PreToolUse:
+			//     - matcher: "Bash"
+			//       hooks:
+			//         - type: command
+			//           command: "./scripts/validate-readonly.sh"
+			const hooksMap = makeMap({
+				'PreToolUse': makeSequence([
+					makeMap({
+						'matcher': makeScalar('Bash'),
+						'hooks': makeSequence([
+							makeMap({
+								'type': makeScalar('command'),
+								'command': makeScalar('./scripts/validate-readonly.sh'),
+							}),
+						]),
+					}),
+				]),
+			});
+
+			const result = parseSubagentHooksFromYaml(hooksMap, workspaceRoot, userHome);
+
+			assert.strictEqual(result[HookType.PreToolUse]?.length, 1);
+			assert.strictEqual(result[HookType.PreToolUse]![0].command, './scripts/validate-readonly.sh');
+		});
+
+		test('parses multiple hook types', () => {
+			const hooksMap = makeMap({
+				'PreToolUse': makeSequence([
+					makeMap({
+						'type': makeScalar('command'),
+						'command': makeScalar('./scripts/pre.sh'),
+					}),
+				]),
+				'PostToolUse': makeSequence([
+					makeMap({
+						'matcher': makeScalar('Edit|Write'),
+						'hooks': makeSequence([
+							makeMap({
+								'type': makeScalar('command'),
+								'command': makeScalar('./scripts/lint.sh'),
+							}),
+						]),
+					}),
+				]),
+			});
+
+			const result = parseSubagentHooksFromYaml(hooksMap, workspaceRoot, userHome);
+
+			assert.strictEqual(result[HookType.PreToolUse]?.length, 1);
+			assert.strictEqual(result[HookType.PreToolUse]![0].command, './scripts/pre.sh');
+			assert.strictEqual(result[HookType.PostToolUse]?.length, 1);
+			assert.strictEqual(result[HookType.PostToolUse]![0].command, './scripts/lint.sh');
+		});
+
+		test('skips unknown hook types', () => {
+			const hooksMap = makeMap({
+				'UnknownHook': makeSequence([
+					makeMap({
+						'type': makeScalar('command'),
+						'command': makeScalar('echo "ignored"'),
+					}),
+				]),
+			});
+
+			const result = parseSubagentHooksFromYaml(hooksMap, workspaceRoot, userHome);
+
+			assert.strictEqual(result[HookType.PreToolUse], undefined);
+			assert.strictEqual(result[HookType.PostToolUse], undefined);
+		});
+
+		test('handles command without type field', () => {
+			const hooksMap = makeMap({
+				'PreToolUse': makeSequence([
+					makeMap({
+						'command': makeScalar('./scripts/validate.sh'),
+					}),
+				]),
+			});
+
+			const result = parseSubagentHooksFromYaml(hooksMap, workspaceRoot, userHome);
+
+			assert.strictEqual(result[HookType.PreToolUse]?.length, 1);
+			assert.strictEqual(result[HookType.PreToolUse]![0].command, './scripts/validate.sh');
+		});
+
+		test('resolves cwd relative to workspace', () => {
+			const hooksMap = makeMap({
+				'SessionStart': makeSequence([
+					makeMap({
+						'type': makeScalar('command'),
+						'command': makeScalar('echo "start"'),
+						'cwd': makeScalar('src'),
+					}),
+				]),
+			});
+
+			const result = parseSubagentHooksFromYaml(hooksMap, workspaceRoot, userHome);
+
+			assert.strictEqual(result[HookType.SessionStart]?.length, 1);
+			assert.deepStrictEqual(result[HookType.SessionStart]![0].cwd, URI.file('/workspace/src'));
+		});
+
+		test('skips non-sequence hook values', () => {
+			const hooksMap = makeMap({
+				'PreToolUse': makeScalar('not-a-sequence'),
+			});
+
+			const result = parseSubagentHooksFromYaml(hooksMap, workspaceRoot, userHome);
+
+			assert.strictEqual(result[HookType.PreToolUse], undefined);
 		});
 	});
 });

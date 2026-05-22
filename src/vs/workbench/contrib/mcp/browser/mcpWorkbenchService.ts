@@ -37,11 +37,12 @@ import { IRemoteAgentService } from '../../../services/remote/common/remoteAgent
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { McpServerInstallData, McpServerInstallClassification } from '../common/mcpServer.js';
 import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpServerEnablementState, McpServerInstallState, McpServerEnablementStatus, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
+import { ContributionEnablementState } from '../../chat/common/enablement.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IIterativePager, IIterativePage } from '../../../../base/common/paging.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { runOnChange } from '../../../../base/common/observable.js';
+import { autorun, runOnChange } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
 import { Queue } from '../../../../base/common/async.js';
 
@@ -219,6 +220,14 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}));
 		this._register(runOnChange(mcpService.servers, () => {
 			this._local = this.sort(this._local);
+			this._onChange.fire(undefined);
+		}));
+
+		// React to enablement changes on individual servers
+		this._register(autorun(reader => {
+			for (const server of mcpService.servers.read(reader)) {
+				server.enablement.read(reader);
+			}
 			this._onChange.fire(undefined);
 		}));
 	}
@@ -716,8 +725,8 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		return true;
 	}
 
-	async openSearch(searchValue: string, preserveFoucs?: boolean): Promise<void> {
-		await this.extensionsWorkbenchService.openSearch(`@mcp ${searchValue}`, preserveFoucs);
+	async openSearch(searchValue: string, preserveFocus?: boolean): Promise<void> {
+		await this.extensionsWorkbenchService.openSearch(`@mcp ${searchValue}`, preserveFocus);
 	}
 
 	async open(extension: IWorkbenchMcpServer, options?: IEditorOptions): Promise<void> {
@@ -743,8 +752,29 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			return enablementStatus;
 		}
 
-		if (!this.mcpService.servers.get().find(s => s.definition.id === mcpServer.id)) {
+		const server = this.mcpService.servers.get().find(s => s.definition.id === mcpServer.id);
+		if (!server) {
 			return { state: McpServerEnablementState.Disabled };
+		}
+
+		const enablement = server.enablement.get();
+		if (enablement === ContributionEnablementState.DisabledProfile) {
+			return {
+				state: McpServerEnablementState.DisabledProfile,
+				message: {
+					severity: Severity.Info,
+					text: new MarkdownString(localize('disabled globally', "This MCP server is disabled."))
+				}
+			};
+		}
+		if (enablement === ContributionEnablementState.DisabledWorkspace) {
+			return {
+				state: McpServerEnablementState.DisabledWorkspace,
+				message: {
+					severity: Severity.Info,
+					text: new MarkdownString(localize('disabled in workspace', "This MCP server is disabled for this workspace."))
+				}
+			};
 		}
 
 		return undefined;

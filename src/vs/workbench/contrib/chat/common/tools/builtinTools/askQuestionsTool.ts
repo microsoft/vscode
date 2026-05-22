@@ -8,11 +8,14 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
-import { IChatQuestion, IChatService } from '../../chatService/chatService.js';
+import { IChatQuestion, IChatQuestionAnswers, IChatQuestionAnswerValue, IChatMultiSelectAnswer, IChatService, IChatSingleSelectAnswer, IChatToolInvocation } from '../../chatService/chatService.js';
 import { ChatQuestionCarouselData } from '../../model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatRequestModel } from '../../model/chatModel.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../constants.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -21,6 +24,13 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { raceCancellation } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { TerminalToolId } from '../terminalToolIds.js';
+
+/**
+ * Response returned to the model when the user is not available (autopilot mode).
+ */
+export const AUTOPILOT_ASK_USER_RESPONSE =
+	'The user is not available to respond and will review your work later. Work autonomously and make good decisions.';
 
 // Use a distinct id to avoid clashing with extension-provided tools
 export const AskQuestionsToolId = 'vscode_askQuestions';
@@ -32,7 +42,6 @@ export const AskQuestionsToolId = 'vscode_askQuestions';
 // - header soft (50 chars):        "Which database engine do you want to use for this?"
 // - header hard (75 chars):        "Which database engine and connection pooling strategy do you want to use here?"
 // - question soft (200 chars):     "What testing framework would you like to use for this project? Consider factors like your team's familiarity, community support, and integration with your existing CI/CD pipeline when making a choice."
-// - question hard (300 chars):     "What testing framework would you like to use for this project? Consider factors like your team's familiarity with the framework, community support and documentation quality, integration with your existing CI/CD pipeline, and the specific testing needs of your application architecture when deciding."
 const SoftLimits = {
 	header: 50,
 	question: 200
@@ -40,7 +49,6 @@ const SoftLimits = {
 
 const HardLimits = {
 	header: 75,
-	question: 300
 } as const;
 
 function truncateToLimit(value: string | undefined, limit: number): string | undefined {
@@ -62,6 +70,7 @@ export interface IQuestionOption {
 export interface IQuestion {
 	readonly header: string;
 	readonly question: string;
+	readonly message?: string;
 	readonly multiSelect?: boolean;
 	readonly options?: IQuestionOption[];
 	readonly allowFreeformInput?: boolean;
@@ -87,12 +96,12 @@ export function createAskQuestionsToolData(): IToolData {
 		properties: {
 			header: {
 				type: 'string',
-				description: 'Short identifier for the question. Must be unique so answers can be mapped back to the question.',
+				description: `Short identifier for the question. Must be unique so answers can be mapped back to the question. Maximum ${SoftLimits.header} characters.`,
 				maxLength: SoftLimits.header
 			},
 			question: {
 				type: 'string',
-				description: 'The question text to display to the user. Keep it concise, ideally one sentence.',
+				description: `The question text to display to the user. Keep it concise, ideally one sentence. Maximum ${SoftLimits.question} characters.`,
 				maxLength: SoftLimits.question
 			},
 			multiSelect: {
@@ -101,7 +110,11 @@ export function createAskQuestionsToolData(): IToolData {
 			},
 			allowFreeformInput: {
 				type: 'boolean',
-				description: 'Allow freeform text answers in addition to option selection.'
+				description: 'Allow freeform text answers in addition to option selection. Defaults to true; set to false to restrict to predefined options only.'
+			},
+			message: {
+				type: 'string',
+				description: 'Optional markdown message to display below the question text, providing additional context or details.'
 			},
 			options: {
 				type: 'array',
@@ -145,11 +158,12 @@ export function createAskQuestionsToolData(): IToolData {
 	return {
 		id: AskQuestionsToolId,
 		toolReferenceName: 'askQuestions',
-		canBeReferencedInPrompt: true,
+		legacyToolReferenceFullNames: [AskQuestionsToolId, 'vscode/askQuestions'],
+		canBeReferencedInPrompt: false,
 		icon: ThemeIcon.fromId(Codicon.question.id),
 		displayName: localize('tool.askQuestions.displayName', 'Ask Clarifying Questions'),
 		userDescription: localize('tool.askQuestions.userDescription', 'Ask structured clarifying questions using single select, multi-select, or freeform inputs to collect task requirements before proceeding.'),
-		modelDescription: 'Use this tool to ask the user a small number of clarifying questions before proceeding. Provide the questions array with concise headers and prompts. Use options for fixed choices, set multiSelect when multiple selections are allowed, and set allowFreeformInput to let users supply their own answer.',
+		modelDescription: 'Use this tool to ask the user a small number of clarifying questions before proceeding. Provide the questions array with concise headers and prompts. Use options for fixed choices, set multiSelect when multiple selections are allowed. Users can always provide a freeform text answer alongside options unless you set allowFreeformInput to false.',
 		source: ToolDataSource.Internal,
 		inputSchema
 	};
@@ -163,6 +177,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		@IChatService private readonly chatService: IChatService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
 		super();
 	}
@@ -186,12 +201,61 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 			return this.createSkippedResult(questions);
 		}
 
-		const { carousel, idToHeaderMap } = this.toQuestionCarousel(questions);
-		this.chatService.appendProgress(request, carousel);
+		// In autopilot mode or when auto-reply is enabled, the user is not available —
+		// auto-respond instead of blocking. Still append a completed carousel so the
+		// user can see what was skipped.
+		const resolveId = invocation.chatStreamToolCallId ?? invocation.callId;
+		if (request.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot || this.configService.getValue<boolean>(ChatConfiguration.AutoReply)) {
+			const reason = request.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot ? 'Autopilot mode' : 'Auto-reply enabled';
+			this.logService.info(`[AskQuestionsTool] ${reason}: auto-responding to questions`);
+			const { carousel, idToHeaderMap } = this.toQuestionCarousel(questions, resolveId);
+			carousel.terminalId = this.extractTerminalId(request);
+			carousel.data = this.buildAutopilotCarouselAnswers(questions, carousel, idToHeaderMap);
+			carousel.isUsed = true;
+			this.chatService.appendProgress(request, carousel);
+			return this.createAutopilotResult(questions);
+		}
 
-		const answerResult = await raceCancellation(carousel.completion.p, token);
+		const { carousel, idToHeaderMap } = this.toQuestionCarousel(questions, resolveId);
+		carousel.terminalId = this.extractTerminalId(request);
+		this.logService.trace(`[AskQuestionsTool] request=${request.id} terminalExecutionId=${request.terminalExecutionId ?? 'undefined'} carousel.terminalId=${carousel.terminalId ?? 'undefined'}`);
+		this.chatService.appendProgress(request, carousel);
+		const externalAnswerListener = this.chatService.onDidReceiveQuestionCarouselAnswer(event => {
+			if (event.resolveId !== carousel.resolveId || carousel.isUsed) {
+				return;
+			}
+			carousel.dismiss(event.answers);
+		});
+
+		let answerResult: { answers: IChatQuestionAnswers | undefined } | undefined;
+		try {
+			answerResult = await raceCancellation(carousel.completion.p, token);
+		} catch (error) {
+			if (error instanceof CancellationError) {
+				carousel.dismiss(undefined);
+			}
+			throw error;
+		} finally {
+			externalAnswerListener.dispose();
+		}
+		if (!answerResult) {
+			carousel.dismiss(undefined);
+			throw new CancellationError();
+		}
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
+		}
+
+		// When the user typed directly in the terminal (bypassing the carousel),
+		// tell the agent to stop asking questions and wait for the command to finish.
+		if (carousel.dismissedByTerminalInput && carousel.terminalId) {
+			this.logService.info(`[AskQuestionsTool] Carousel dismissed because user typed directly in terminal ${carousel.terminalId}`);
+			return {
+				content: [{
+					kind: 'text',
+					value: `The user is replying to the terminal prompts directly. Do not ask more questions or send input to the terminal. You will be automatically notified when the command in terminal ${carousel.terminalId} completes.`
+				}]
+			};
 		}
 
 		progress.report({ message: localize('askQuestionsTool.progress', 'Analyzing your answers...') });
@@ -220,11 +284,6 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 			if (question.options && question.options.length === 1) {
 				throw new Error(localize('askQuestionsTool.invalidOptions', 'Question "{0}" must have at least two options, or none for free text input.', question.header));
 			}
-
-			// Apply hard limits to truncate display values that exceed the more lenient hard limit
-			// Note: The original header is preserved and used as the answer key in convertCarouselAnswers
-			// to avoid collisions when distinct headers become identical after truncation
-			(question as { question: string }).question = truncateToLimit(question.question, HardLimits.question) ?? question.question;
 		}
 
 		const questionCount = questions.length;
@@ -267,16 +326,66 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		return { request, sessionResource: chatSessionResource };
 	}
 
-	private toQuestionCarousel(questions: IQuestion[]): { carousel: ChatQuestionCarouselData; idToHeaderMap: Map<string, string> } {
+	/**
+	 * Resolves the terminal execution ID for the request.
+	 * Prefer structured metadata and fall back to legacy message parsing for
+	 * old sessions that may not carry the metadata yet.
+	 * As a final fallback, search completed runInTerminal tool invocations in
+	 * the response for the terminal ID, but only when the tool output indicates
+	 * the terminal is still running and waiting for input (foreground/timeout
+	 * path where the model calls ask_questions from the same turn as
+	 * runInTerminal).
+	 */
+	private extractTerminalId(request: IChatRequestModel): string | undefined {
+		if (request.terminalExecutionId) {
+			return request.terminalExecutionId;
+		}
+
+		const match = request.message.text.match(/\[Terminal (?<termId>\S+) notification:/);
+		if (match?.groups?.termId) {
+			return match.groups.termId;
+		}
+
+		// Search completed runInTerminal tool invocations in the response
+		// for the terminal execution ID (covers foreground/timeout path).
+		// Only match output that explicitly indicates the terminal is still
+		// running and waiting for input; otherwise the question is unrelated
+		// to the prior terminal command.
+		const response = request.response;
+		if (response) {
+			const parts = response.response.value;
+			for (let i = parts.length - 1; i >= 0; i--) {
+				const part = parts[i];
+				if (part.kind === 'toolInvocation' && part.toolId === TerminalToolId.RunInTerminal) {
+					const state = part.state.get();
+					if (state.type === IChatToolInvocation.StateKind.Completed && state.contentForModel) {
+						for (const item of state.contentForModel) {
+							if (item.kind === 'text') {
+								const idMatch = item.value.match(/(?:running in terminal ID|may still be running in terminal ID) ([0-9a-fA-F-]+)/);
+								if (idMatch) {
+									return idMatch[1];
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return undefined;
+	}
+
+	private toQuestionCarousel(questions: IQuestion[], resolveId?: string): { carousel: ChatQuestionCarouselData; idToHeaderMap: Map<string, string> } {
 		const idToHeaderMap = new Map<string, string>();
-		const mappedQuestions = questions.map(question => this.toChatQuestion(question, idToHeaderMap));
+		const carouselResolveId = resolveId ?? generateUuid();
+		const mappedQuestions = questions.map((question, index) => this.toChatQuestion(question, idToHeaderMap, carouselResolveId, index));
 		return {
-			carousel: new ChatQuestionCarouselData(mappedQuestions, true, generateUuid()),
+			carousel: new ChatQuestionCarouselData(mappedQuestions, true, carouselResolveId),
 			idToHeaderMap
 		};
 	}
 
-	private toChatQuestion(question: IQuestion, idToHeaderMap: Map<string, string>): IChatQuestion {
+	private toChatQuestion(question: IQuestion, idToHeaderMap: Map<string, string>, resolveId: string, index: number): IChatQuestion {
 		let type: IChatQuestion['type'];
 		if (!question.options || question.options.length === 0) {
 			type = 'text';
@@ -296,7 +405,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 
 		// Use a stable UUID as the internal ID to avoid collisions when truncating headers
 		// The original header is preserved in idToHeaderMap for answer correlation
-		const internalId = generateUuid();
+		const internalId = `${resolveId}:${index}`;
 		idToHeaderMap.set(internalId, question.header);
 
 		// Truncate header for display only
@@ -307,17 +416,18 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 			type,
 			title: displayTitle,
 			message: question.question,
+			detailedMessage: question.message,
 			options: question.options?.map(opt => ({
 				id: opt.label,
 				label: opt.description ? `${opt.label} - ${opt.description}` : opt.label,
 				value: opt.label
 			})),
 			defaultValue,
-			allowFreeformInput: question.allowFreeformInput ?? false
+			allowFreeformInput: question.allowFreeformInput ?? true
 		};
 	}
 
-	protected convertCarouselAnswers(questions: IQuestion[], carouselAnswers: Record<string, unknown> | undefined, idToHeaderMap: Map<string, string>): IAnswerResult {
+	protected convertCarouselAnswers(questions: IQuestion[], carouselAnswers: IChatQuestionAnswers | undefined, idToHeaderMap: Map<string, string>): IAnswerResult {
 		const result: IAnswerResult = { answers: {} };
 
 		if (carouselAnswers) {
@@ -343,7 +453,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 
 			// Look up the answer using the internal ID that was used in the carousel
 			const internalId = headerToIdMap.get(question.header);
-			const answer = internalId ? carouselAnswers[internalId] : undefined;
+			const answer: IChatQuestionAnswerValue | undefined = internalId ? carouselAnswers[internalId] : undefined;
 			this.logService.trace(`[AskQuestionsTool] Processing question "${question.header}" (internal ID: ${internalId}), raw answer: ${JSON.stringify(answer)}, type: ${typeof answer}`);
 
 			if (answer === undefined) {
@@ -372,67 +482,36 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 					freeText: null,
 					skipped: false
 				};
-			} else if (typeof answer === 'object' && answer !== null) {
-				const answerObj = answer as Record<string, unknown>;
-				const freeformValue = typeof answerObj.freeformValue === 'string' && answerObj.freeformValue ? answerObj.freeformValue : null;
-				const selectedValues = Array.isArray(answerObj.selectedValues) ? answerObj.selectedValues.map(v => String(v)) : undefined;
-				const selectedValue = answerObj.selectedValue;
-				const label = typeof answerObj.label === 'string' ? answerObj.label : undefined;
-
-				if (selectedValues) {
-					result.answers[question.header] = {
-						selected: selectedValues,
-						freeText: freeformValue,
-						skipped: false
-					};
-				} else if (typeof selectedValue === 'string') {
-					if (question.options?.some(opt => opt.label === selectedValue)) {
-						result.answers[question.header] = {
-							selected: [selectedValue],
-							freeText: freeformValue,
-							skipped: false
-						};
-					} else {
-						result.answers[question.header] = {
-							selected: [],
-							freeText: freeformValue ?? selectedValue,
-							skipped: false
-						};
-					}
-				} else if (Array.isArray(selectedValue)) {
-					result.answers[question.header] = {
-						selected: selectedValue.map(v => String(v)),
-						freeText: freeformValue,
-						skipped: false
-					};
-				} else if (selectedValue === undefined || selectedValue === null) {
-					if (freeformValue) {
-						result.answers[question.header] = {
-							selected: [],
-							freeText: freeformValue,
-							skipped: false
-						};
-					} else {
-						result.answers[question.header] = {
-							selected: [],
-							freeText: null,
-							skipped: true
-						};
-					}
-				} else if (freeformValue) {
+			} else if (typeof answer === 'object' && hasKey(answer, { selectedValues: true })) {
+				const { selectedValues, freeformValue } = answer as IChatMultiSelectAnswer;
+				result.answers[question.header] = {
+					selected: selectedValues,
+					freeText: freeformValue ?? null,
+					skipped: false
+				};
+			} else if (typeof answer === 'object' && (hasKey(answer, { selectedValue: true }) || hasKey(answer, { freeformValue: true }))) {
+				const { selectedValue, freeformValue } = answer as IChatSingleSelectAnswer;
+				if (freeformValue) {
 					result.answers[question.header] = {
 						selected: [],
 						freeText: freeformValue,
 						skipped: false
 					};
-				} else if (label) {
-					result.answers[question.header] = {
-						selected: [label],
-						freeText: null,
-						skipped: false
-					};
+				} else if (selectedValue !== undefined) {
+					if (question.options?.some(opt => opt.label === selectedValue)) {
+						result.answers[question.header] = {
+							selected: [selectedValue],
+							freeText: null,
+							skipped: false
+						};
+					} else {
+						result.answers[question.header] = {
+							selected: [],
+							freeText: selectedValue,
+							skipped: false
+						};
+					}
 				} else {
-					this.logService.warn(`[AskQuestionsTool] Unknown answer object format for "${question.header}": ${JSON.stringify(answer)}`);
 					result.answers[question.header] = {
 						selected: [],
 						freeText: null,
@@ -440,7 +519,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 					};
 				}
 			} else {
-				this.logService.warn(`[AskQuestionsTool] Unknown answer format for "${question.header}": ${typeof answer}`);
+				this.logService.warn(`[AskQuestionsTool] Unknown answer format for "${question.header}": ${JSON.stringify(answer)}`);
 				result.answers[question.header] = {
 					selected: [],
 					freeText: null,
@@ -474,6 +553,60 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		return {
 			content: [{ kind: 'text', value: JSON.stringify({ answers: skippedAnswers }) }]
 		};
+	}
+
+	private createAutopilotResult(questions: IQuestion[]): IToolResult {
+		const answers: Record<string, IQuestionAnswer> = {};
+		for (const question of questions) {
+			// In autopilot mode the user is not available to respond. Do not
+			// auto-select any option — instead instruct the model to make its own
+			// decision regardless of the question type.
+			answers[question.header] = {
+				selected: [],
+				freeText: AUTOPILOT_ASK_USER_RESPONSE,
+				skipped: false,
+			};
+		}
+		return {
+			content: [{ kind: 'text', value: JSON.stringify({ answers } satisfies IAnswerResult) }]
+		};
+	}
+
+	/**
+	 * Build carousel answer data keyed by carousel question IDs for rendering
+	 * the completed summary in the UI during autopilot mode.
+	 */
+	private buildAutopilotCarouselAnswers(questions: IQuestion[], carousel: ChatQuestionCarouselData, idToHeaderMap: Map<string, string>): IChatQuestionAnswers {
+		const data: IChatQuestionAnswers = {};
+		// Build reverse map: original header -> internal carousel question ID
+		const headerToIdMap = new Map<string, string>();
+		for (const [internalId, originalHeader] of idToHeaderMap) {
+			headerToIdMap.set(originalHeader, internalId);
+		}
+
+		for (const question of questions) {
+			const internalId = headerToIdMap.get(question.header);
+			if (!internalId) {
+				continue;
+			}
+
+			const chatQuestion = carousel.questions.find(q => q.id === internalId);
+			if (!chatQuestion) {
+				continue;
+			}
+
+			// Do not auto-select any option in autopilot mode — show the
+			// "user is not available" response as the answer for all question types.
+			if (chatQuestion.type === 'multiSelect') {
+				data[internalId] = { selectedValues: [], freeformValue: AUTOPILOT_ASK_USER_RESPONSE };
+			} else if (chatQuestion.type === 'singleSelect') {
+				data[internalId] = { freeformValue: AUTOPILOT_ASK_USER_RESPONSE };
+			} else {
+				data[internalId] = AUTOPILOT_ASK_USER_RESPONSE;
+			}
+		}
+
+		return data;
 	}
 
 	private sendTelemetry(requestId: string | undefined, questionCount: number, answeredCount: number, skippedCount: number, freeTextCount: number, recommendedAvailableCount: number, recommendedSelectedCount: number, duration: number): void {

@@ -1,0 +1,575 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Shared base for full-screen mobile overlay views (terminal, diff). */
+
+.mobile-overlay-view {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	display: flex;
+	flex-direction: column;
+	background: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground, var(--vscode-foreground));
+	touch-action: manipulation;
+	-webkit-touch-callout: none;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+/* -- Header ------------------------------------------------------------------------------------- */
+
+.mobile-overlay-header {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	height: 56px;
+	min-height: 56px;
+	padding: 0 8px;
+	padding-top: env(safe-area-inset-top);
+	border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-editorWidget-border, transparent));
+	flex-shrink: 0;
+	box-sizing: content-box;
+}
+
+.mobile-overlay-back-btn {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	height: 44px;
+	min-width: 44px;
+	padding: 0 8px;
+	border: none;
+	background: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	border-radius: 4px;
+	font-size: 14px;
+	white-space: nowrap;
+	touch-action: manipulation;
+}
+
+.mobile-overlay-back-btn:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.mobile-overlay-back-btn .back-btn-label {
+	font-size: 14px;
+	color: var(--vscode-foreground);
+}
+
+.mobile-overlay-header-info {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+}
+
+.mobile-overlay-header-title {
+	font-size: 14px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mobile-overlay-header-subtitle {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mobile-overlay-header-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	padding: 1px 6px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 500;
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.mobile-overlay-header-badge.success {
+	background-color: color-mix(in srgb, var(--vscode-testing-iconPassed) 20%, transparent);
+	color: var(--vscode-testing-iconPassed);
+}
+
+.mobile-overlay-header-badge.error {
+	background-color: color-mix(in srgb, var(--vscode-errorForeground) 20%, transparent);
+	color: var(--vscode-errorForeground);
+}
+
+.mobile-overlay-header-badge.running {
+	background-color: color-mix(in srgb, var(--vscode-textLink-foreground) 20%, transparent);
+	color: var(--vscode-textLink-foreground);
+}
+
+/* -- Body --------------------------------------------------------------------------------------- */
+
+.mobile-overlay-body {
+	flex: 1;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
+
+.mobile-overlay-scroll {
+	flex: 1;
+	overflow-y: auto;
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+	overscroll-behavior: contain;
+	padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* -- Footer toolbar --------------------------------------------------------------------- */
+
+.mobile-overlay-footer {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	padding-bottom: calc(8px + env(safe-area-inset-bottom));
+	border-top: 1px solid var(--vscode-panel-border, transparent);
+	background: var(--vscode-editor-background);
+	flex-shrink: 0;
+}
+
+.mobile-overlay-footer-btn {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 36px;
+	padding: 0 14px;
+	border-radius: 6px;
+	border: 1px solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 15%, transparent));
+	background: transparent;
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	cursor: pointer;
+	touch-action: manipulation;
+	white-space: nowrap;
+}
+
+.mobile-overlay-footer-btn:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+/* -- Terminal-specific ---------------------------------------------------------------- */
+
+.mobile-terminal-output {
+	font-family: var(--monaco-monospace-font, 'SF Mono', Menlo, Monaco, Consolas, monospace);
+	font-size: 13px;
+	line-height: 1.5;
+	white-space: pre;          /* preserve columns; horizontal scroll for long lines */
+	color: var(--vscode-editor-foreground, var(--vscode-foreground));
+	padding: 12px 16px;
+	min-height: 100%;
+	box-sizing: border-box;
+}
+
+.mobile-terminal-output.truncated::after {
+	content: '\A[output truncated]';
+	display: block;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
+.mobile-terminal-jump-btn {
+	position: absolute;
+	bottom: 64px;
+	right: 16px;
+	right: calc(16px + env(safe-area-inset-right));
+	height: 36px;
+	padding: 0 14px;
+	border-radius: 18px;
+	border: 1px solid var(--vscode-widget-border, transparent);
+	background: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+	cursor: pointer;
+	touch-action: manipulation;
+	transition: opacity 0.15s ease;
+}
+
+.mobile-terminal-jump-btn.hidden {
+	opacity: 0;
+	pointer-events: none;
+}
+
+/* -- Diff-specific ------------------------------------------------------------------------ */
+
+.mobile-diff-output {
+	font-family: var(--monaco-monospace-font, 'SF Mono', Menlo, Monaco, Consolas, monospace);
+	font-size: 12px;
+	line-height: 1.6;
+	white-space: pre;
+	padding: 8px 0;
+	min-height: 100%;
+	box-sizing: border-box;
+	/*
+	 * Force the output to expand to the widest hunk so the parent's
+	 * `overflow-x: auto` can engage. Without this the flex children
+	 * (.mobile-diff-line) collapse to the viewport width and the long
+	 * lines clip silently instead of becoming horizontally scrollable.
+	 */
+	min-width: max-content;
+}
+
+/*
+ * Regex-fallback syntax-highlighting token styles. Used when the
+ * sessions workbench has no real Monaco tokenizer for the language
+ * (TextMate grammars aren't loaded in this layer). Per-theme palettes
+ * mirror VS Code's Light+ / Dark+ defaults so the diff blends in with
+ * the rest of the workbench. These classes are emitted by
+ * `regexTokenizeLine` in `mobileDiffView.ts`.
+ *
+ * The base values (defined on `.mobile-overlay-view`) target the
+ * Dark+ palette — overridden below for `.vs` (Light+),
+ * `.hc-black` (high-contrast dark) and `.hc-light` (high-contrast light).
+ */
+.mobile-overlay-view {
+	--mobile-diff-tok-comment: #6a9955;
+	--mobile-diff-tok-string: #ce9178;
+	--mobile-diff-tok-keyword: #569cd6;
+	--mobile-diff-tok-number: #b5cea8;
+}
+
+.vs .mobile-overlay-view {
+	--mobile-diff-tok-comment: #008000;
+	--mobile-diff-tok-string: #a31515;
+	--mobile-diff-tok-keyword: #0000ff;
+	--mobile-diff-tok-number: #098658;
+}
+
+.hc-black .mobile-overlay-view {
+	--mobile-diff-tok-comment: #7ca668;
+	--mobile-diff-tok-string: #ce9178;
+	--mobile-diff-tok-keyword: #569cd6;
+	--mobile-diff-tok-number: #b5cea8;
+}
+
+.hc-light .mobile-overlay-view {
+	--mobile-diff-tok-comment: #515c6a;
+	--mobile-diff-tok-string: #a31515;
+	--mobile-diff-tok-keyword: #0000ff;
+	--mobile-diff-tok-number: #098658;
+}
+
+.mobile-diff-tok-comment { color: var(--mobile-diff-tok-comment); font-style: italic; }
+.mobile-diff-tok-string { color: var(--mobile-diff-tok-string); }
+.mobile-diff-tok-keyword { color: var(--mobile-diff-tok-keyword); }
+.mobile-diff-tok-number { color: var(--mobile-diff-tok-number); }
+
+.mobile-diff-hunk-header {
+	display: block;
+	color: var(--vscode-descriptionForeground);
+	background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+	padding: 4px 16px;
+	font-size: 11px;
+	user-select: none;
+	-webkit-user-select: none;
+	/*
+	 * Sticky so the @@ -..,.. +..,.. @@ indicator stays anchored as the
+	 * user scrolls a hunk. `min-width: 100%` keeps it spanning the full
+	 * scroll width even when long lines push the diff body wider.
+	 */
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	min-width: 100%;
+	box-sizing: border-box;
+}
+
+.mobile-diff-line {
+	display: flex;
+	gap: 0;
+	/*
+	 * Pair with `.mobile-diff-output { min-width: max-content }` — each
+	 * row reports its true width so horizontal scroll engages naturally.
+	 */
+	min-width: max-content;
+}
+
+.mobile-diff-line-num {
+	flex-shrink: 0;
+	width: 40px;
+	padding: 0 8px;
+	color: var(--vscode-editorLineNumber-foreground);
+	text-align: right;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.mobile-diff-gutter {
+	flex-shrink: 0;
+	width: 16px;
+	text-align: center;
+	padding: 0 2px;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.mobile-diff-content {
+	/*
+	 * `flex: 0 0 auto` keeps the row's natural width visible to the
+	 * scroll container. With `flex: 1` the row tries to fit the
+	 * viewport instead of reporting its real width.
+	 *
+	 * `white-space: pre` keeps indentation when we replace innerHTML
+	 * with the tokenized markup from `tokenizeToString`. The wrapping
+	 * `<span class="mtkN">` elements pick up the workbench-injected
+	 * token color CSS automatically.
+	 */
+	flex: 0 0 auto;
+	padding: 0 16px 0 4px;
+	user-select: text;
+	-webkit-user-select: text;
+	white-space: pre;
+}
+
+/* Added lines — use the diff editor's purpose-built inserted-line
+ * background variable (already alpha-pre-mixed for legibility) and
+ * stack a 3px coloured left-edge bar via box-shadow that uses the
+ * solid gitDecoration foreground colour for at-a-glance scanning.
+ *
+ * Both `--vscode-diffEditor-insertedLineBackground` and
+ * `--vscode-gitDecoration-addedResourceForeground` are registered in
+ * core / built-in extensions and resolve in the sessions workbench
+ * (verified: line-number colour resolves correctly, see
+ * `.mobile-diff-line.added .mobile-diff-line-num`). */
+.mobile-diff-line.added {
+	background-color: var(--vscode-diffEditor-insertedLineBackground, rgba(155, 185, 85, 0.2));
+	box-shadow: inset 3px 0 0 var(--vscode-agentsMobileDiff-addedForeground);
+}
+
+.mobile-diff-line.added .mobile-diff-line-num,
+.mobile-diff-line.added .mobile-diff-gutter {
+	color: var(--vscode-agentsMobileDiff-addedForeground);
+}
+
+/* Removed lines — same treatment with the deletion color. */
+.mobile-diff-line.removed {
+	background-color: var(--vscode-diffEditor-removedLineBackground, rgba(255, 0, 0, 0.2));
+	box-shadow: inset 3px 0 0 var(--vscode-agentsMobileDiff-deletedForeground);
+}
+
+.mobile-diff-line.removed .mobile-diff-line-num,
+.mobile-diff-line.removed .mobile-diff-gutter {
+	color: var(--vscode-agentsMobileDiff-deletedForeground);
+}
+
+.mobile-diff-empty-state {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 1;
+	color: var(--vscode-descriptionForeground);
+	font-size: 14px;
+	padding: 32px;
+	text-align: center;
+}
+
+/* -- Diff header: prev/next navigation ------------------------------------- */
+
+.mobile-diff-nav {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	flex-shrink: 0;
+	padding-right: 4px;
+}
+
+.mobile-diff-nav-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	padding: 0;
+	border: none;
+	background: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	border-radius: 4px;
+	touch-action: manipulation;
+}
+
+.mobile-diff-nav-btn:active:not([disabled]) {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.mobile-diff-nav-btn[disabled] {
+	opacity: 0.35;
+	cursor: default;
+}
+
+.mobile-diff-nav-position {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	min-width: 36px;
+	text-align: center;
+	padding: 0 4px;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+/* -- Changes list (master overlay) ---------------------------------------- */
+
+.mobile-overlay-empty-state {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-descriptionForeground);
+	font-size: 14px;
+	padding: 32px;
+	text-align: center;
+}
+
+.mobile-changes-list {
+	display: flex;
+	flex-direction: column;
+	min-height: 100%;
+	box-sizing: border-box;
+	padding: 4px 0 8px;
+}
+
+.mobile-changes-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	min-height: 56px;
+	padding: 8px 16px;
+	border: none;
+	border-bottom: 1px solid color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+	background: transparent;
+	color: var(--vscode-foreground);
+	text-align: left;
+	cursor: pointer;
+	touch-action: manipulation;
+	box-sizing: border-box;
+}
+
+.mobile-changes-row:last-child {
+	border-bottom: none;
+}
+
+.mobile-changes-row:active {
+	background: var(--vscode-list-activeSelectionBackground, var(--vscode-toolbar-hoverBackground));
+}
+
+.mobile-changes-row-label {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	overflow: hidden;
+}
+
+/* Direct DOM label rendering (codicon icon + filename + dir) */
+
+.mobile-changes-row-icon {
+	flex-shrink: 0;
+	font-size: 16px;
+	color: var(--vscode-icon-foreground);
+}
+
+.mobile-changes-row.change-added .mobile-changes-row-icon {
+	color: var(--vscode-agentsMobileDiff-addedForeground);
+}
+
+.mobile-changes-row.change-modified .mobile-changes-row-icon {
+	color: var(--vscode-agentsMobileDiff-modifiedForeground);
+}
+
+.mobile-changes-row.change-deleted .mobile-changes-row-icon {
+	color: var(--vscode-agentsMobileDiff-deletedForeground);
+}
+
+.mobile-changes-row-text {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	min-width: 0;
+}
+
+.mobile-changes-row-filename {
+	font-size: 14px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
+}
+
+.mobile-changes-row-dir {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
+}
+
+.mobile-changes-row-meta {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-shrink: 0;
+}
+
+.mobile-changes-row-pill {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border-radius: 11px;
+	font-size: 11px;
+	font-weight: 600;
+	font-family: var(--monaco-monospace-font, 'SF Mono', Menlo, Monaco, Consolas, monospace);
+	flex-shrink: 0;
+}
+
+.mobile-changes-row-pill.change-added {
+	background: color-mix(in srgb, var(--vscode-agentsMobileDiff-addedForeground) 18%, transparent);
+	color: var(--vscode-agentsMobileDiff-addedForeground);
+}
+
+.mobile-changes-row-pill.change-modified {
+	background: color-mix(in srgb, var(--vscode-agentsMobileDiff-modifiedForeground) 18%, transparent);
+	color: var(--vscode-agentsMobileDiff-modifiedForeground);
+}
+
+.mobile-changes-row-pill.change-deleted {
+	background: color-mix(in srgb, var(--vscode-agentsMobileDiff-deletedForeground) 18%, transparent);
+	color: var(--vscode-agentsMobileDiff-deletedForeground);
+}
+
+.mobile-changes-row-counts {
+	display: inline-flex;
+	gap: 6px;
+	font-size: 12px;
+	font-family: var(--monaco-monospace-font, 'SF Mono', Menlo, Monaco, Consolas, monospace);
+}
+
+.mobile-changes-row-added {
+	color: var(--vscode-agentsMobileDiff-addedForeground);
+}
+
+.mobile-changes-row-removed {
+	color: var(--vscode-agentsMobileDiff-deletedForeground);
+}

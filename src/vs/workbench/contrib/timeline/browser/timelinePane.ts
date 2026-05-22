@@ -883,6 +883,7 @@ export class TimelinePane extends ViewPane {
 	override setVisible(visible: boolean): void {
 		if (visible) {
 			this.extensionService.activateByEvent('onView:timeline');
+			this.visibilityDisposables?.dispose();
 			this.visibilityDisposables = new DisposableStore();
 
 			this.editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this.visibilityDisposables);

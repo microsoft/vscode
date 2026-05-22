@@ -15,7 +15,6 @@ import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/h
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IAction, Action, Separator } from '../../../../base/common/actions.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -43,13 +42,13 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { MenuRegistry, MenuId, isIMenuItem } from '../../../../platform/actions/common/actions.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { WORKBENCH_BACKGROUND } from '../../../common/theme.js';
-import { IKeybindingItemEntry, IKeybindingsEditorPane, IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { IKeybindingItemEntry, IKeybindingsEditorPane } from '../../../services/preferences/common/preferences.js';
 import { keybindingsRecordKeysIcon, keybindingsSortIcon, keybindingsAddIcon, preferencesClearInputIcon, keybindingsEditIcon } from './preferencesIcons.js';
 import { ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/ui/table/table.js';
 import { KeybindingsEditorInput } from '../../../services/preferences/browser/keybindingsEditorInput.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
-import { defaultButtonStyles, defaultKeybindingLabelStyles, defaultToggleStyles, getInputBoxStyle } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultKeybindingLabelStyles, defaultToggleStyles, getInputBoxStyle } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { isString } from '../../../../base/common/types.js';
@@ -131,8 +130,7 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super(KeybindingsEditor.ID, group, telemetryService, themeService, storageService);
 		this.delayedFiltering = this._register(new Delayer<void>(300));
@@ -339,6 +337,13 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		this.ariaLabelElement = DOM.append(parent, DOM.$(''));
 		this.ariaLabelElement.setAttribute('id', 'keybindings-editor-aria-label-element');
 		this.ariaLabelElement.setAttribute('aria-live', 'assertive');
+		this.ariaLabelElement.style.position = 'absolute';
+		this.ariaLabelElement.style.width = '1px';
+		this.ariaLabelElement.style.height = '1px';
+		this.ariaLabelElement.style.overflow = 'hidden';
+		this.ariaLabelElement.style.clip = 'rect(1px, 1px, 1px, 1px)';
+		this.ariaLabelElement.style.clipPath = 'inset(50%)';
+		this.ariaLabelElement.style.whiteSpace = 'nowrap';
 	}
 
 	private createOverlayContainer(parent: HTMLElement): void {
@@ -366,8 +371,7 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 
 		const clearInputAction = this._register(new Action(KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Keybindings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, async () => this.clearSearchResults()));
 
-		const searchRowContainer = DOM.append(this.headerContainer, $('.search-row-container'));
-		const searchContainer = DOM.append(searchRowContainer, $('.search-container'));
+		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, searchContainer, {
 			ariaLabel: fullTextSearchPlaceholder,
 			placeholder: fullTextSearchPlaceholder,
@@ -429,11 +433,6 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		}));
 		toolBar.setActions(actions);
 		this._register(this.keybindingsService.onDidUpdateKeybindings(() => toolBar.setActions(actions)));
-
-		const openKeybindingsJsonContainer = DOM.append(searchRowContainer, $('.open-keybindings-json'));
-		const openKeybindingsJsonButton = this._register(new Button(openKeybindingsJsonContainer, { secondary: true, title: true, ...defaultButtonStyles }));
-		openKeybindingsJsonButton.label = localize('openKeybindingsJson', "Edit as JSON");
-		this._register(openKeybindingsJsonButton.onDidClick(() => this.preferencesService.openGlobalKeybindingSettings(true, { groupId: this.group.id })));
 	}
 
 	private updateSearchOptions(): void {
@@ -610,8 +609,9 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		if (this.keybindingsEditorModel) {
 			const filter = this.searchWidget.getValue();
 			const keybindingsEntries: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(filter, this.sortByPrecedenceAction.checked);
-			this.accessibilityService.alert(localize('foundResults', "{0} results", keybindingsEntries.length));
-			this.ariaLabelElement.setAttribute('aria-label', this.getAriaLabel(keybindingsEntries));
+			const ariaLabel = this.getAriaLabel(keybindingsEntries);
+			this.accessibilityService.alert(ariaLabel);
+			this.ariaLabelElement.textContent = ariaLabel;
 
 			if (keybindingsEntries.length === 0) {
 				this.latestEmptyFilters.push(filter);
@@ -642,11 +642,19 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 	}
 
 	private getAriaLabel(keybindingsEntries: IKeybindingItemEntry[]): string {
+		let label: string;
 		if (this.sortByPrecedenceAction.checked) {
-			return localize('show sorted keybindings', "Showing {0} Keybindings in precedence order", keybindingsEntries.length);
+			label = localize('show sorted keybindings', "Showing {0} Keybindings in precedence order", keybindingsEntries.length);
 		} else {
-			return localize('show keybindings', "Showing {0} Keybindings in alphabetical order", keybindingsEntries.length);
+			label = localize('show keybindings', "Showing {0} Keybindings in alphabetical order", keybindingsEntries.length);
 		}
+		if (this.configurationService.getValue(AccessibilityVerbositySettingId.KeybindingsEditor)) {
+			const kb = this.keybindingsService.lookupKeybinding('widgetNavigation.focusNext')?.getAriaLabel();
+			if (kb) {
+				label += '. ' + localize('navigateToResults', "Use {0} to navigate to the results table.", kb);
+			}
+		}
+		return label;
 	}
 
 	private layoutKeybindingsTable(): void {

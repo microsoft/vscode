@@ -903,7 +903,7 @@ async function processArtifact(
 			await stagingContainerClient.createIfNotExists();
 
 			const now = new Date().valueOf();
-			const oneHour = 60 * 60 * 1000;
+			const oneHour = 120 * 60 * 1000;
 			const oneHourAgo = new Date(now - oneHour);
 			const oneHourFromNow = new Date(now + oneHour);
 			const userDelegationKey = await blobServiceClient.getUserDelegationKey(oneHourAgo, oneHourFromNow);
@@ -970,15 +970,7 @@ async function main() {
 		console.log(`\u2705 ${name}`);
 	}
 
-	const stages = new Set<string>(['Compile']);
-
-	if (
-		e('VSCODE_BUILD_STAGE_LINUX') === 'True' ||
-		e('VSCODE_BUILD_STAGE_MACOS') === 'True' ||
-		e('VSCODE_BUILD_STAGE_WINDOWS') === 'True'
-	) {
-		stages.add('CompileCLI');
-	}
+	const stages = new Set<string>(['Quality']);
 
 	if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') { stages.add('Windows'); }
 	if (e('VSCODE_BUILD_STAGE_LINUX') === 'True') { stages.add('Linux'); }

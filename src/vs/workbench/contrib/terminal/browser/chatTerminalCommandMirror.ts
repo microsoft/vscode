@@ -308,12 +308,10 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			// if we blindly append.
 			const canAppend = !!this._lastVT && vt.text.length >= this._lastVT.length && this._vtBoundaryMatches(vt.text, this._lastVT.length);
 			if (!canAppend) {
-				// Reset the terminal if we had previous content (can't append, need full rewrite)
-				if (this._lastVT) {
-					detached.xterm.reset();
-				}
-				if (vt.text) {
-					detached.xterm.write(vt.text, resolve);
+				// Use \x1bc (RIS) + new content in one write to avoid a blank frame
+				const payload = this._lastVT ? `\x1bc${vt.text}` : vt.text;
+				if (payload) {
+					detached.xterm.write(payload, resolve);
 				} else {
 					resolve();
 				}
@@ -542,12 +540,10 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		const canAppend = !!this._lastVT && startLine >= previousCursor && vt.text.length >= this._lastVT.length && this._vtBoundaryMatches(vt.text, this._lastVT.length);
 		await new Promise<void>(resolve => {
 			if (!canAppend) {
-				// Reset the terminal if we had previous content (can't append, need full rewrite)
-				if (this._lastVT) {
-					detachedRaw.reset();
-				}
-				if (vt.text) {
-					detachedRaw.write(vt.text, resolve);
+				// Use \x1bc (RIS) + new content in one write to avoid a blank frame
+				const payload = this._lastVT ? `\x1bc${vt.text}` : vt.text;
+				if (payload) {
+					detachedRaw.write(payload, resolve);
 				} else {
 					resolve();
 				}

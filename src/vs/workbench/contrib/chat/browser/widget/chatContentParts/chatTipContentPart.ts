@@ -74,13 +74,7 @@ export class ChatTipContentPart extends Disposable {
 		this._renderTip(tip);
 
 		this._register(this._chatTipService.onDidDismissTip(() => {
-			const nextTip = this._chatTipService.navigateToNextTip();
-			if (nextTip) {
-				this._renderTip(nextTip);
-				dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => this.focus());
-			} else {
-				this._onDidHide.fire();
-			}
+			this._onDidHide.fire();
 		}));
 
 		this._register(this._chatTipService.onDidNavigateTip(tip => {
@@ -157,8 +151,12 @@ export class ChatTipContentPart extends Disposable {
 	}
 
 	private _shouldTriggerSetup(): boolean {
+		if (this._chatEntitlementService.hasByokModels) {
+			return false;
+		}
+
 		const sentiment = this._chatEntitlementService.sentiment;
-		if (!sentiment?.installed) {
+		if (!sentiment?.completed) {
 			return true;
 		}
 
@@ -228,7 +226,7 @@ registerAction2(class DismissTipToolbarAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		accessor.get(IChatTipService).dismissTip();
+		accessor.get(IChatTipService).dismissTipForSession();
 	}
 });
 
@@ -251,7 +249,7 @@ registerAction2(class DismissTipAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		accessor.get(IChatTipService).dismissTip();
+		accessor.get(IChatTipService).dismissTipForSession();
 	}
 });
 

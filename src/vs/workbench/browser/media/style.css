@@ -53,6 +53,39 @@ body {
 	z-index: 1;
 	overflow: hidden;
 	color: var(--vscode-foreground);
+
+	/* Elevation shadows */
+	--vscode-shadow-sm: 0 0 4px rgba(0, 0, 0, 0.08);
+	--vscode-shadow-md: 0 0 6px rgba(0, 0, 0, 0.08);
+	--vscode-shadow-lg: 0 0 12px rgba(0, 0, 0, 0.14);
+	--vscode-shadow-xl: 0 0 20px rgba(0, 0, 0, 0.15);
+	--vscode-shadow-hover: 0 0 8px rgba(0, 0, 0, 0.12);
+	--vscode-shadow-active-tab: 0 8px 12px rgba(0, 0, 0, 0.02);
+
+	/* Panel depth shadows cast onto the editor surface */
+	--vscode-shadow-depth-x: 5px 0 10px -4px rgba(0, 0, 0, 0.05);
+	--vscode-shadow-depth-y: 0 5px 10px -4px rgba(0, 0, 0, 0.04);
+}
+
+/* Disable panel/part shadows when the setting is off (preserves floating modals, notifications, etc.) */
+.monaco-workbench.no-shadows .part.titlebar,
+.monaco-workbench.no-shadows .part.activitybar,
+.monaco-workbench.no-shadows.nosidebar .part.activitybar,
+.monaco-workbench.no-shadows.activitybar-right .part.activitybar,
+.monaco-workbench.no-shadows .part.editor .tabs-container > .tab {
+	box-shadow: none;
+}
+.monaco-workbench.no-shadows .part.editor .tabs-container > .tab:hover:not(.active),
+.monaco-workbench.no-shadows .part.editor .tabs-container > .tab.active {
+	box-shadow: none;
+}
+.monaco-workbench.no-shadows {
+	/* Use zero-offset transparent shadows instead of 'none' because these
+	 * variables are interpolated into multi-value box-shadow declarations. */
+	--vscode-shadow-active-tab: 0 0 0 0 transparent;
+	--vscode-shadow-depth-x: 0 0 0 0 transparent;
+	--vscode-shadow-depth-y: 0 0 0 0 transparent;
+	--vscode-shadow-sm: 0 0 0 0 transparent;
 }
 
 .monaco-workbench.web {

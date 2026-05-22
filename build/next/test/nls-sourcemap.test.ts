@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { suite, test } from 'node:test';
 import * as esbuild from 'esbuild';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { type RawSourceMap, SourceMapConsumer } from 'source-map';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from '../nls-plugin.ts';
+import { adjustSourceMap } from '../private-to-property.ts';
 
 // analyzeLocalizeCalls requires the import path to end with `/nls`
 const NLS_STUB = [
@@ -36,7 +38,7 @@ interface BundleResult {
 async function bundleWithNLS(
 	files: Record<string, string>,
 	entryPoint: string,
-	opts?: { postProcess?: boolean }
+	opts?: { postProcess?: boolean; minify?: boolean }
 ): Promise<BundleResult> {
 	const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'nls-sm-test-'));
 	const srcDir = path.join(tmpDir, 'src');
@@ -64,6 +66,7 @@ async function bundleWithNLS(
 		packages: 'external',
 		sourcemap: 'linked',
 		sourcesContent: true,
+		minify: opts?.minify ?? false,
 		write: false,
 		plugins: [
 			nlsPlugin({ baseDir: srcDir, collector }),
@@ -91,7 +94,16 @@ async function bundleWithNLS(
 	// Optionally apply NLS post-processing (replaces placeholders with indices)
 	if (opts?.postProcess) {
 		const nlsResult = await finalizeNLS(collector, outDir);
-		jsContent = postProcessNLS(jsContent, nlsResult.indexMap, false);
+		const preNLSCode = jsContent;
+		const nlsProcessed = postProcessNLS(jsContent, nlsResult.indexMap, false);
+		jsContent = nlsProcessed.code;
+
+		// Adjust source map for NLS edits
+		if (nlsProcessed.edits.length > 0) {
+			const mapJson = JSON.parse(mapContent);
+			const adjusted = adjustSourceMap(mapJson, preNLSCode, nlsProcessed.edits);
+			mapContent = JSON.stringify(adjusted);
+		}
 	}
 
 	assert.ok(jsContent, 'Expected JS output');
@@ -204,6 +216,28 @@ suite('NLS plugin source maps', () => {
 				'sourcesContent should NOT contain NLS placeholder.\nActual:\n' + greetingContent);
 			assert.ok(greetingContent.includes('localize("myKey", "Hello World")'),
 				'sourcesContent should contain the exact original localize call.\nActual:\n' + greetingContent);
+		} finally {
+			cleanup();
+		}
+	});
+
+	test('NLS-affected nested file keeps a non-duplicated source path', async () => {
+		const source = [
+			'import { localize } from "../../vs/nls";',
+			'export const msg = localize("myKey", "Hello World");',
+		].join('\n');
+
+		const { mapJson, cleanup } = await bundleWithNLS(
+			{ 'nested/deep/file.ts': source },
+			'nested/deep/file.ts',
+		);
+
+		try {
+			const sources: string[] = mapJson.sources ?? [];
+			const nestedSource = sources.find((s: string) => s.endsWith('/nested/deep/file.ts'));
+			assert.ok(nestedSource, 'Should find nested/deep/file.ts in sources');
+			assert.ok(!nestedSource.includes('/nested/deep/nested/deep/file.ts'),
+				`Source path should not duplicate directory segments. Actual: ${nestedSource}`);
 		} finally {
 			cleanup();
 		}
@@ -366,6 +400,84 @@ suite('NLS plugin source maps', () => {
 				'sourcesContent should still contain original localize("greeting") call');
 			assert.ok(!postContent.includes('%%NLS:'),
 				'sourcesContent should not contain NLS placeholders');
+		} finally {
+			cleanup();
+		}
+	});
+
+	test('post-processed NLS - column mappings correct after placeholder replacement', async () => {
+		// NLS placeholders like "%%NLS:test/drift#k%%" are much longer than their
+		// replacements (e.g. "0"). Without source map adjustment the columns for
+		// tokens AFTER the replacement drift by the cumulative length delta.
+		const source = [
+			'import { localize } from "../vs/nls";',                                   // 1
+			'export const a = localize("k1", "Alpha"); export const MARKER = "FINDME";',   // 2
+		].join('\n');
+
+		const { js, map, cleanup } = await bundleWithNLS(
+			{ 'test/drift.ts': source },
+			'test/drift.ts',
+			{ postProcess: true }
+		);
+
+		try {
+			assert.ok(!js.includes('%%NLS:'), 'Placeholders should be replaced');
+
+			const bundleLine = findLine(js, 'FINDME');
+			const bundleCol = findColumn(js, '"FINDME"');
+			const pos = map.originalPositionFor({ line: bundleLine, column: bundleCol });
+
+			assert.ok(pos.source, 'Should have source');
+			assert.strictEqual(pos.line, 2, 'Should map to line 2');
+
+			const originalCol = findColumn(source, '"FINDME"');
+			const columnDrift = Math.abs(pos.column! - originalCol);
+			assert.ok(columnDrift <= 20,
+				`Column drift after NLS post-processing should be small. ` +
+				`Expected ~${originalCol}, got ${pos.column} (drift: ${columnDrift}). ` +
+				`Large drift means postProcessNLS edits were not applied to the source map.`);
+		} finally {
+			cleanup();
+		}
+	});
+
+	test('minified bundle with NLS - end-to-end column mapping', async () => {
+		// With minification, the entire output is (roughly) on one line.
+		// Multiple NLS replacements compound their column shifts. A function
+		// defined after several localize() calls must still map correctly.
+		const source = [
+			'import { localize } from "../vs/nls";',                               // 1
+			'',                                                                     // 2
+			'export const a = localize("k1", "Alpha message");',                   // 3
+			'export const b = localize("k2", "Bravo message that is quite long");', // 4
+			'export const c = localize("k3", "Charlie");',                         // 5
+			'export const d = localize("k4", "Delta is the fourth letter");',      // 6
+			'',                                                                     // 7
+			'export function computeResult(x: number): number {',                  // 8
+			'\treturn x * 42;',                                                     // 9
+			'}',                                                                    // 10
+		].join('\n');
+
+		const { js, map, cleanup } = await bundleWithNLS(
+			{ 'test/minified.ts': source },
+			'test/minified.ts',
+			{ postProcess: true, minify: true }
+		);
+
+		try {
+			assert.ok(!js.includes('%%NLS:'), 'Placeholders should be replaced');
+
+			// Find the computeResult function in the minified output.
+			// esbuild minifies `x * 42` and may rename the parameter, so
+			// search for `*42` which survives both minification and renaming.
+			const needle = '*42';
+			const bundleLine = findLine(js, needle);
+			const bundleCol = findColumn(js, needle);
+			const pos = map.originalPositionFor({ line: bundleLine, column: bundleCol });
+
+			assert.ok(pos.source, 'Should have source for minified mapping');
+			assert.strictEqual(pos.line, 9,
+				`Should map "*42" back to line 9. Got line ${pos.line}.`);
 		} finally {
 			cleanup();
 		}

@@ -13,6 +13,8 @@ import { AgentFeedbackService, IAgentFeedbackService } from '../../browser/agent
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 function r(startLine: number, endLine: number = startLine): Range {
 	return new Range(startLine, 1, endLine, 1);
@@ -36,6 +38,7 @@ suite('AgentFeedbackService - Ordering', () => {
 
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
 		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { });
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
 		session = URI.parse('test://session/1');
@@ -196,5 +199,15 @@ suite('AgentFeedbackService - Ordering', () => {
 		const items = service.getFeedback(session);
 		assert.strictEqual(items[0].id, f1.id);
 		assert.strictEqual(items[1].id, f2.id);
+	});
+
+	test('preserves optional feedback context fields', () => {
+		const feedback = service.addFeedback(session, fileA, r(10), 'with context', undefined, {
+			codeSelection: 'const value = 1;',
+			diffHunks: '@@ -1,1 +1,1 @@\n-const value = 0;\n+const value = 1;',
+		});
+
+		assert.strictEqual(feedback.codeSelection, 'const value = 1;');
+		assert.strictEqual(feedback.diffHunks, '@@ -1,1 +1,1 @@\n-const value = 0;\n+const value = 1;');
 	});
 });

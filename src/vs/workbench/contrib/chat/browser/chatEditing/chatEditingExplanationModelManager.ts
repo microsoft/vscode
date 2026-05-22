@@ -14,7 +14,6 @@ import { DetailedLineRangeMapping, LineRangeMapping } from '../../../../../edito
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import * as nls from '../../../../../nls.js';
 
 /**
@@ -238,7 +237,7 @@ export class ChatEditingExplanationModelManager extends Disposable implements IC
 
 		try {
 			// Select a model for understanding all changes together
-			const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
+			const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
 			if (!models.length) {
 				for (const fileData of fileChanges) {
 					this._updateUriStatePartial(fileData.uri, {
@@ -284,7 +283,7 @@ Example response format:
 
 			const response = await this._languageModelsService.sendChatRequest(
 				models[0],
-				new ExtensionIdentifier('core'),
+				undefined,
 				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
 				{},
 				cancellationToken

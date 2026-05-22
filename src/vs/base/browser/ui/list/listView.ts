@@ -152,8 +152,8 @@ export class ExternalElementsDragAndDropData<T> implements IDragAndDropData {
 
 export class NativeDragAndDropData implements IDragAndDropData {
 
-	readonly types: any[];
-	readonly files: any[];
+	readonly types: unknown[];
+	readonly files: unknown[];
 
 	constructor() {
 		this.types = [];

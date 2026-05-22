@@ -5,7 +5,8 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, SourceControlHistoryItemDetailsProvider, GitErrorCodes, CloneOptions, CommitShortStat, DiffChange, Worktree, RepositoryKind, RepositoryAccessDetails } from './git';
+import type { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, LogOptions, APIState, CommitOptions, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, SourceControlHistoryItemDetailsProvider, CloneOptions, CommitShortStat, DiffChange, Worktree, RepositoryKind, RepositoryAccessDetails } from './git';
+import { ForcePushMode, GitErrorCodes, RefType, Status } from './git.constants';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
 import { combinedDisposable, filterEvent, mapEvent } from '../util';
 import { toGitUri } from '../uri';
@@ -79,6 +80,7 @@ export class ApiRepository implements Repository {
 	readonly kind: RepositoryKind;
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
+	readonly isUsingVirtualFileSystem: boolean;
 
 	readonly onDidCommit: Event<void>;
 	readonly onDidCheckout: Event<void>;
@@ -91,6 +93,7 @@ export class ApiRepository implements Repository {
 		this.inputBox = new ApiInputBox(this.#repository.inputBox);
 		this.state = new ApiRepositoryState(this.#repository);
 		this.ui = new ApiRepositoryUIState(this.#repository.sourceControl);
+		this.isUsingVirtualFileSystem = this.#repository.isUsingVirtualFileSystem;
 
 		this.onDidCommit = mapEvent<OperationResult, void>(
 			filterEvent(this.#repository.onDidRunOperation, e => e.operation.kind === OperationKind.Commit), () => null);
@@ -157,6 +160,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.clean(paths.map(p => Uri.file(p)));
 	}
 
+	restore(paths: string[], options?: { staged?: boolean; ref?: string }) {
+		return this.#repository.restore(paths.map(p => Uri.file(p)), options);
+	}
+
 	diff(cached?: boolean) {
 		return this.#repository.diff(cached);
 	}
@@ -209,6 +216,10 @@ export class ApiRepository implements Repository {
 
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]> {
 		return this.#repository.diffBetweenWithStats(ref1, ref2, path);
+	}
+
+	diffBetweenWithStats2(ref: string, path?: string): Promise<DiffChange[]> {
+		return this.#repository.diffBetweenWithStats2(ref, path);
 	}
 
 	hashObject(data: string): Promise<string> {
@@ -319,6 +330,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.mergeAbort();
 	}
 
+	rebase(branch: string): Promise<void> {
+		return this.#repository.rebase(branch);
+	}
+
 	createStash(options?: { message?: string; includeUntracked?: boolean; staged?: boolean }): Promise<void> {
 		return this.#repository.createStash(options?.message, options?.includeUntracked, options?.staged);
 	}
@@ -335,7 +350,7 @@ export class ApiRepository implements Repository {
 		return this.#repository.dropStash(index);
 	}
 
-	createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string> {
+	createWorktree(options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string> {
 		return this.#repository.createWorktree(options);
 	}
 
@@ -345,6 +360,14 @@ export class ApiRepository implements Repository {
 
 	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void> {
 		return this.#repository.migrateChanges(sourceRepositoryPath, options);
+	}
+
+	generateRandomBranchName(): Promise<string | undefined> {
+		return this.#repository.generateRandomBranchName();
+	}
+
+	isBranchProtected(branch?: Branch): boolean {
+		return this.#repository.isBranchProtected(branch);
 	}
 }
 

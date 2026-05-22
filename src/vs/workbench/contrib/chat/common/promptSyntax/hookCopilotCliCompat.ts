@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { COPILOT_CLI_HOOK_TYPE_MAP, HookType } from './hookSchema.js';
+import { HOOKS_BY_TARGET, HookType } from './hookTypes.js';
+import { Target } from './promptTypes.js';
+
+const COPILOT_CLI_HOOK_TYPE_MAP: Record<string, HookType> = HOOKS_BY_TARGET[Target.GitHubCopilot];
 
 /**
  * Cached inverse mapping from HookType to Copilot CLI hook type name.

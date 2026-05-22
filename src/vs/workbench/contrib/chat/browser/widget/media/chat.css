@@ -9,7 +9,8 @@
 	max-width: 950px;
 	height: 100%;
 	margin: auto;
-	position: relative; /* Enable absolute positioning for child elements */
+	position: relative;
+	/* Enable absolute positioning for child elements */
 
 	/* 11px when base font is 13px */
 	--vscode-chat-font-size-body-xs: 0.846em;
@@ -216,6 +217,51 @@
 	gap: 4px;
 }
 
+.interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action .action-label,
+.interactive-result-code-block .interactive-result-code-block-toolbar .menu-entry.chat-copy-action .action-label {
+	position: relative;
+	overflow: hidden;
+}
+
+.interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action .chat-copy-action-icons,
+.interactive-result-code-block .interactive-result-code-block-toolbar .menu-entry.chat-copy-action .chat-copy-action-icons {
+	display: grid;
+	place-items: center;
+	width: 16px;
+	height: 16px;
+}
+
+.interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action .chat-copy-action-icon,
+.interactive-result-code-block .interactive-result-code-block-toolbar .menu-entry.chat-copy-action .chat-copy-action-icon {
+	grid-area: 1 / 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 1;
+	opacity: 0;
+	transform: scale(0.92);
+	transition:
+		opacity 140ms cubic-bezier(0.2, 0, 0, 1),
+		transform 140ms cubic-bezier(0.2, 0, 0, 1);
+	will-change: opacity, transform;
+}
+
+.interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action:not(.copied) .chat-copy-action-icon-copy,
+.interactive-result-code-block .interactive-result-code-block-toolbar .menu-entry.chat-copy-action:not(.copied) .chat-copy-action-icon-copy,
+.interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action.copied .chat-copy-action-icon-copied,
+.interactive-result-code-block .interactive-result-code-block-toolbar .menu-entry.chat-copy-action.copied .chat-copy-action-icon-copied {
+	opacity: 1;
+	transform: scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.interactive-result-code-block .interactive-result-code-block-toolbar .menu-entry.chat-copy-action .chat-copy-action-icon,
+	.interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action .chat-copy-action-icon {
+		transform: none;
+		transition: none;
+	}
+}
+
 .interactive-item-container .chat-footer-toolbar .checked.action-label,
 .interactive-item-container .chat-footer-toolbar .checked.action-label:hover {
 	color: var(--vscode-inputOption-activeForeground) !important;
@@ -282,7 +328,7 @@
 }
 
 .interactive-item-container > .value .chat-used-context {
-	margin-bottom: 16px;
+	margin-bottom: 14px;
 }
 
 .interactive-item-container > .value .chat-used-context .chat-used-context-list {
@@ -313,10 +359,13 @@
 	font-weight: 600;
 }
 
-.interactive-item-container .value .rendered-markdown table {
+.interactive-item-container .value .rendered-markdown .rendered-markdown-table-scroll-wrapper {
 	width: 100%;
-	text-align: left;
 	margin-bottom: 16px;
+}
+
+.interactive-item-container .value .rendered-markdown table {
+	text-align: left;
 	border-radius: var(--vscode-cornerRadius-medium);
 	overflow: hidden;
 	border-collapse: separate;
@@ -330,6 +379,11 @@
 	border-top: none;
 	border-left: none;
 	padding: 4px 6px;
+}
+
+.interactive-item-container .value .rendered-markdown table th {
+	white-space: normal;
+	overflow-wrap: break-word;
 }
 
 .interactive-item-container .value .rendered-markdown table td:last-child,
@@ -380,6 +434,10 @@
 .interactive-item-container .value {
 	white-space: normal;
 	overflow-wrap: anywhere;
+}
+
+.chat-list-at-bottom .chat-progress-reservable > .value:has(> .rendered-markdown:last-child) {
+	padding-bottom: 37px;
 }
 
 .interactive-item-container .value > :last-child,
@@ -507,7 +565,7 @@
 		display: none;
 		position: absolute;
 		right: 0;
-		top: 20px;
+		bottom: 0;
 
 		a {
 			color: var(--vscode-textLink-foreground);
@@ -520,12 +578,11 @@
 		position: relative;
 
 		.message-wrapper {
-			/* This mask fades out the end of the second line of text so the "see more" message can be displayed over it. */
-			mask-image:
-				linear-gradient(to right, rgba(0, 0, 0, 1) calc(100% - 95px), rgba(0, 0, 0, 0) calc(100% - 72px)), linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 20px, rgba(0, 0, 0, 1) 2px, rgba(0, 0, 0, 1) 100%);
-			mask-repeat: no-repeat, no-repeat;
+			/* Fade out the bottom edge so the "see more" link can overlay cleanly. */
+			mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) calc(100% - 24px), rgba(0, 0, 0, 0) 100%);
 			pointer-events: none;
-			max-height: 40px;
+			max-height: 96px;
+			overflow: hidden;
 		}
 
 		.see-more {
@@ -616,7 +673,7 @@
 	}
 
 	&:not(:last-child) {
-		margin-bottom: 12px;
+		margin-bottom: 14px;
 	}
 }
 
@@ -810,13 +867,174 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* top padding is inside the editor widget */
 	width: 100%;
 	position: relative;
+	transition: box-shadow 350ms ease;
+	/* Duration of the working/progress border comet animation. Set
+		dynamically by `ChatInputPart#layout` to keep the comet's linear
+		travel speed roughly constant regardless of input width — wider
+		inputs would otherwise feel sluggish at a fixed duration. */
+	--chat-input-anim-duration: 4s;
 }
 
-/* Context usage widget container - positioned in the bottom toolbar */
-.interactive-session .chat-input-toolbars .chat-context-usage-container {
+/* Prevent contents from covering border corners. Not applied in compact mode
+	because overflow:hidden creates a BFC that causes a ResizeObserver ↔ layout
+	feedback loop when toolbars share width with the editor. */
+.interactive-session .interactive-input-part:not(.compact) .chat-input-container {
+	/* Prevent contents from covering border corner */
+	overflow: hidden;
+}
+
+/* Animated "border beam" shown around the chat input while the agent is
+	working or thinking. Toggled by the `chat.progressBorder.enabled`
+	setting and the chat widget's request-in-progress state.
+
+	Inspired by https://github.com/Jakubantalik/border-beam — a small bright
+	comet travels around the perimeter, leaving a short fading trail. The
+	ring is rendered as a `::before` pseudo-element so it can fade in/out
+	via `opacity` when the `.working` class is toggled, without disturbing
+	the input's own background. The pseudo uses a 1px padding + inverted
+	mask trick so the conic gradient is clipped to a hairline that follows
+	the input's corner radius. */
+@property --chat-input-anim-angle {
+	syntax: '<angle>';
+	inherits: false;
+	initial-value: 135deg;
+}
+
+@keyframes chat-input-working-border-spin {
+	from {
+		--chat-input-anim-angle: 135deg;
+	}
+
+	to {
+		--chat-input-anim-angle: 495deg;
+	}
+}
+
+/* The beam (`::before`) and its glow (`::after`) are two stacked rings
+	occupying the same outer edge: the glow is wider and blurred, the beam is
+	hairline and sharp. Both share `--chat-input-anim-angle` so the glow
+	travels with the comet head with no gap. */
+
+.monaco-workbench .interactive-session .chat-input-container::before {
+	content: '';
+	position: absolute;
+	inset: -1px;
+	/* Inherit so the ring matches whatever corner radius the container is
+		currently using (large by default, small in compact mode). */
+	border-radius: inherit;
+	padding: 1px;
+	/* The beam: a tight bright arc (~40deg) with a short fade, on an otherwise
+		transparent ring. As `--chat-input-anim-angle` rotates, the bright spot
+		travels around the perimeter like a comet. Stops are mostly transparent
+		so the rest of the border stays invisible. */
+	background: conic-gradient(from var(--chat-input-anim-angle),
+			transparent 0deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 90%, transparent) 20deg,
+			var(--vscode-chat-inputWorkingBorderColor1) 30deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, transparent) 50deg,
+			transparent 90deg,
+			transparent 360deg);
+	-webkit-mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor;
+	mask-composite: exclude;
+	opacity: 0;
+	transition: opacity 350ms ease;
+	pointer-events: none;
+	z-index: 2;
+}
+
+/* Glow ring: a 2px blurred conic that shares the beam's angle, so it forms
+	a soft halo that overlaps the beam line directly — no gap. */
+.monaco-workbench .interactive-session .chat-input-container::after {
+	content: '';
+	position: absolute;
+	inset: -1px;
+	border-radius: inherit;
+	padding: 2px;
+	background: conic-gradient(from var(--chat-input-anim-angle),
+			transparent 0deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, transparent) 25deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 35%, transparent) 50deg,
+			transparent 90deg,
+			transparent 360deg);
+	-webkit-mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor;
+	mask-composite: exclude;
+	filter: blur(1.5px);
+	opacity: 0;
+	transition: opacity 350ms ease;
+	pointer-events: none;
+	z-index: 1;
+}
+
+.monaco-workbench .interactive-session .chat-input-container.working {
+	/* Keep a faint, persistent ring around the input while the comet
+		animates around it. This preserves a visible boundary for the
+		input throughout the animation (including the dim portion of the
+		perimeter behind the comet) and improves contrast for users who
+		rely on a visible focus/container outline for accessibility. */
+	border-color: var(--vscode-input-border, transparent);
+	overflow: visible;
+}
+
+.monaco-workbench .interactive-session .chat-input-container.working.focused {
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
+}
+
+.monaco-workbench .interactive-session .chat-input-container.working .interactive-input-editor .monaco-editor,
+.monaco-workbench .interactive-session .chat-input-container.working .interactive-input-editor .monaco-editor .monaco-editor-background {
+	background-color: transparent;
+}
+
+.monaco-workbench .interactive-session .chat-input-container.working::before {
+	opacity: 1;
+	animation: chat-input-working-border-spin var(--chat-input-anim-duration) linear infinite;
+}
+
+.monaco-workbench .interactive-session .chat-input-container.working::after {
+	opacity: 1;
+	animation: chat-input-working-border-spin var(--chat-input-anim-duration) linear infinite;
+}
+
+/* Marker class toggled briefly by `ChatInputPart#_updateWorkingProgressAnimationDuration`
+	to force a restart of the comet animations so a new
+	`--chat-input-anim-duration` takes effect mid-flight (browsers cache
+	animation-duration at start time when sourced from a custom property). */
+.monaco-workbench .interactive-session .chat-input-container.working.chat-input-anim-restart::before,
+.monaco-workbench .interactive-session .chat-input-container.working.chat-input-anim-restart::after {
+	animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-workbench .interactive-session .chat-input-container.working,
+	.monaco-workbench .interactive-session .chat-input-container.working::before,
+	.monaco-workbench .interactive-session .chat-input-container.working::after {
+		animation: none;
+	}
+}
+
+/* Context usage widget container - positioned in the secondary toolbar below input */
+.interactive-session .chat-input-toolbars .chat-context-usage-container,
+.interactive-session .chat-secondary-toolbar .chat-context-usage-container {
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
+	margin-left: auto;
+	order: 1;
+}
+
+/* When context usage is inside the toolbars (compact mode), keep the ordering */
+.interactive-session .chat-input-toolbars .chat-context-usage-container {
 	order: 1;
 }
 
@@ -824,8 +1042,52 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	order: 2;
 }
 
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) {
+	position: relative;
+	border-radius: 5px;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up {
+	box-sizing: border-box;
+	width: 22px;
+	height: 22px;
+	transition: background-color 250ms ease, color 250ms ease;
+}
+
+/* Optical alignment: nudge arrow glyph 1px left to visually center it. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-arrow-up::before {
+	display: inline-block;
+}
+
+/* Focus indicator drawn on the action-item wrapper so it sits cleanly around
+	the button surface with a small offset. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:focus-visible) {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+	border-radius: 5px;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up:focus,
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up:focus-visible {
+	outline: none;
+}
+
+/* Idle: solid primary button background. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground) !important;
+	border-radius: 5px;
+	transition: background-color 120ms ease;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:hover,
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:focus-visible {
+	background: var(--vscode-button-hoverBackground);
+}
+
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
 .interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container,
+.interactive-input-part:has(.chat-artifacts-widget-container > .chat-artifacts-widget:not([style*="display: none"])) .chat-input-container,
 .interactive-input-part:has(.chat-input-widgets-container > .chat-status-widget:not([style*="display: none"])) .chat-input-container,
 .interactive-input-part:has(.chat-getting-started-tip-container > .chat-tip-widget) .chat-input-container {
 	/* Remove top border radius when editing session, todo list, or status widget is present */
@@ -854,10 +1116,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 }
 
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container:has(.chat-todo-list-widget.has-todos) + .chat-editing-session .chat-editing-session-container {
+/* Remove top radius from widgets that follow another visible widget */
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container:has(.chat-todo-list-widget.has-todos) + .chat-artifacts-widget-container .chat-artifacts-widget,
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container:has(.chat-todo-list-widget.has-todos) + .chat-editing-session .chat-editing-session-container,
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container:has(.chat-todo-list-widget.has-todos) + .chat-artifacts-widget-container + .chat-editing-session .chat-editing-session-container,
+.interactive-session .interactive-input-part > .chat-artifacts-widget-container:has(.chat-artifacts-widget:not([style*="display: none"])) + .chat-editing-session .chat-editing-session-container {
 	border-top-left-radius: 0;
 	border-top-right-radius: 0;
 }
+
 
 .interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
 	padding-left: 5px;
@@ -1082,6 +1349,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: relative;
 }
 
+
+.interactive-session .interactive-input-part > .chat-artifacts-widget-container {
+	margin-bottom: -4px;
+	width: 100%;
+	position: relative;
+}
+
+
 /* Chat Todo List Widget Container - mirrors chat-editing-session styling */
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container {
 	margin-bottom: -4px;
@@ -1257,6 +1532,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	justify-content: space-between;
 	padding-bottom: 0;
+	/* no scrollbar */
+	padding-right: 6px;
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
@@ -1272,11 +1549,45 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-editor-container {
-	padding: 0 4px;
+	padding: 0 0 0 4px;
+}
+
+/* Enable container query units for placeholder truncation. Scoped to
+	non-compact inputs (panel chat) because applying `container-type` in
+	compact contexts (inline chat, quick chat) interferes with Monaco's
+	view-line layout and causes the placeholder decoration to render
+	with zero width. */
+.interactive-session .interactive-input-part:not(.compact) .chat-editor-container {
+	container-type: inline-size;
+}
+
+.interactive-session .interactive-input-part.compact .chat-editor-container {
+	/* No scrollbar */
+	padding-right: 4px;
 }
 
 .chat-editor-container .monaco-editor .mtk1 {
 	color: var(--vscode-input-foreground);
+}
+
+/* Truncate the chat input placeholder with an ellipsis in narrow views
+	instead of letting it overflow off the right edge of the input.
+	The placeholder is rendered as a Monaco contentText decoration with
+	class prefix "ced-chat-session-detail" inside the view-line spans;
+	style the decoration element directly so we don't pay :has() cost
+	across every view-line on each typed character. Scoped to non-compact
+	inputs because the inline-block + container query sizing breaks the
+	placeholder rendering in compact contexts (inline chat, quick chat). */
+.interactive-session .interactive-input-part:not(.compact) .chat-editor-container .monaco-editor [class^="ced-chat-session-detail"] {
+	display: inline-block;
+	max-width: 100%;
+	/* fallback for environments without container query units */
+	max-width: 100cqi;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	vertical-align: bottom;
+	color: var(--vscode-input-placeholderForeground);
 }
 
 .interactive-session .chat-editor-container .monaco-editor .chat-prompt-spinner {
@@ -1313,8 +1624,125 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-top: 4px;
 }
 
+/* Secondary toolbar below the input box */
+.interactive-session .chat-secondary-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 8px 0 5px;
+}
+
+.interactive-session .chat-secondary-toolbar:empty {
+	display: none;
+}
+
+/* Dividers between adjacent items in the secondary toolbar. */
+.interactive-session .chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item.chat-input-picker-item {
+	overflow: visible;
+}
+
+.interactive-session .chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item {
+	position: relative;
+}
+
+.interactive-session .chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item::before {
+	content: '';
+	position: absolute;
+	left: -5px;
+	top: 25%;
+	bottom: 25%;
+	width: 1px;
+	background-color: var(--vscode-editorWidget-border);
+	pointer-events: none;
+}
+
+.interactive-session .chat-secondary-toolbar .chat-sessionPicker-container > .chat-sessionPicker-item + .chat-sessionPicker-item {
+	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
+}
+
+.interactive-session .chat-secondary-toolbar .chat-secondary-generic-chips {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: 6px;
+}
+
+.interactive-session .chat-secondary-toolbar .chat-secondary-input-toolbar {
+	overflow: hidden;
+	min-width: 0px;
+	flex: 1 1 0;
+	color: var(--vscode-icon-foreground);
+
+	.monaco-action-bar .action-item .codicon {
+		color: var(--vscode-icon-foreground);
+	}
+
+	.chat-input-picker-item {
+		min-width: 0px;
+		overflow: hidden;
+
+		.action-label {
+			min-width: 0px;
+			overflow: hidden;
+			position: relative;
+
+			.chat-input-picker-label {
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+
+			span + .chat-input-picker-label {
+				margin-left: 2px;
+			}
+
+			.codicon {
+				font-size: 12px;
+			}
+		}
+
+		.codicon {
+			flex-shrink: 0;
+		}
+	}
+}
+
+.interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label {
+	height: 16px;
+	padding: 3px 8px;
+	border-radius: 4px;
+	display: flex;
+	align-items: center;
+	color: var(--vscode-icon-foreground);
+}
+
+.interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label.warning {
+	color: var(--vscode-problemsWarningIcon-foreground);
+}
+
+.interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label.warning .codicon {
+	color: var(--vscode-problemsWarningIcon-foreground) !important;
+}
+
+.interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label.info {
+	color: var(--vscode-problemsInfoIcon-foreground);
+}
+
+.interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label.info .codicon {
+	color: var(--vscode-problemsInfoIcon-foreground) !important;
+}
+
+.monaco-workbench .interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label .codicon-chevron-down {
+	font-size: 10px;
+	margin-left: 4px;
+	opacity: 0.75;
+}
+
 .interactive-session .chat-input-toolbars :not(.responsive.chat-input-toolbar) .actions-container:first-child {
 	margin-right: auto;
+}
+
+.interactive-session .chat-input-toolbars > .chat-input-toolbar .actions-container:first-child {
+	margin-right: 0;
 }
 
 .interactive-session .chat-input-toolbars .tool-warning-indicator {
@@ -1394,26 +1822,187 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
-	padding: 3px 0px 3px 6px;
+	padding: 3px 6px;
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
 }
 
-.monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
-.monaco-workbench .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down {
+/* Split model picker layout */
+.chat-input-picker-item:has(.model-picker-split) {
+	overflow: visible;
+}
+
+.chat-input-picker-item .action-label.model-picker-split {
+	padding: 0 6px;
+	gap: 2px;
+	overflow: visible;
+	height: auto;
+	border-radius: 0;
+	position: relative;
+	cursor: default;
+}
+
+/* Dividers between adjacent items in the workbench chat input toolbar. */
+.interactive-session .chat-input-toolbar .monaco-action-bar .actions-container > .action-item.chat-input-picker-item {
+	overflow: visible;
+}
+
+.interactive-session .chat-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item {
+	position: relative;
+}
+
+.interactive-session .chat-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item::before {
+	content: '';
+	position: absolute;
+	left: -2px;
+	top: 25%;
+	bottom: 25%;
+	width: 1px;
+	background-color: var(--vscode-editorWidget-border);
+	pointer-events: none;
+}
+
+.interactive-session .chat-input-toolbar .chat-sessionPicker-container > .chat-sessionPicker-item + .chat-sessionPicker-item {
+	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section {
+	display: flex;
+	align-items: center;
+	height: 16px;
+	padding: 3px 5px;
+	border-radius: 4px;
+	cursor: pointer;
+	text-decoration: none;
+	color: inherit;
+	white-space: nowrap;
+}
+
+/* Prevent double hover: disable the outer container hover so only individual sections highlight */
+.chat-input-picker-item .action-label.model-picker-split:hover,
+.chat-input-picker-item .action-label.model-picker-split[aria-expanded="true"] {
+	background-color: transparent !important;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section[aria-expanded="true"] {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-name {
+	min-width: 0;
+	flex-shrink: 1;
+	overflow: hidden;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-effort,
+.chat-input-picker-item .action-label.model-picker-split .model-picker-tokens {
+	flex-shrink: 0;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon {
 	font-size: 12px;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section span + .chat-input-picker-label {
 	margin-left: 2px;
 }
 
-.interactive-session .chat-input-toolbars .monaco-action-bar .actions-container {
+.chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-section {
+	cursor: default;
+}
+
+.chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-section:hover {
+	background-color: transparent;
+}
+
+.chat-input-picker-item .action-label.model-picker-split.disabled .codicon {
+	color: var(--vscode-disabledForeground);
+}
+
+.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label {
+	height: 16px;
+	padding: 3px 8px;
+	border-radius: 4px;
+	display: flex;
+	align-items: center;
+	color: var(--vscode-icon-foreground);
+}
+
+/* Keep hover background while picker dropdown is open */
+.interactive-session .chat-input-toolbar .action-label[aria-expanded="true"],
+.interactive-session .chat-secondary-toolbar .action-label[aria-expanded="true"] {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* When chevrons are hidden and only showing an icon (no label), size to 22x22 with centered icon */
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.compact:not(:has(.chat-input-picker-label)),
+.interactive-session .chat-input-toolbar .chat-input-picker-item.compact .action-label:not(:has(.chat-input-picker-label)),
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.compact:not(:has(.chat-input-picker-label)),
+.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label.compact:not(:has(.chat-input-picker-label)) {
+	width: 22px;
+	min-width: 22px;
+	height: 22px;
+	padding: 0;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	.codicon {
+		justify-content: center;
+	}
+}
+
+
+/* Add context button icon sizing */
+.interactive-session .chat-input-toolbar .action-item:has(.codicon-add) .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.interactive-session .chat-input-toolbar .action-item:has(.codicon-add) .codicon-add {
+	font-size: 14px;
+}
+
+.monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
+.monaco-workbench .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down,
+.monaco-workbench .interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down {
+	font-size: 10px;
+	margin-left: 4px;
+	opacity: 0.75;
+}
+
+.interactive-session .chat-input-toolbars .monaco-action-bar .actions-container,
+.interactive-session .chat-secondary-toolbar .monaco-action-bar .actions-container {
 	display: flex;
 	gap: 4px;
 }
 
-.interactive-session .chat-input-toolbars .chat-sessionPicker-container {
+.interactive-session .chat-secondary-input-toolbar .monaco-action-bar .actions-container {
+	gap: 10px;
+}
+
+.interactive-session .chat-input-toolbars .chat-sessionPicker-container,
+.interactive-session .chat-secondary-toolbar .chat-sessionPicker-container {
 	display: flex;
+	gap: 4px;
 	max-width: 100%;
+}
+
+.interactive-session .chat-input-toolbar .chat-sessionPicker-container,
+.interactive-session .chat-secondary-toolbar .chat-sessionPicker-container {
+	gap: 10px;
 }
 
 .monaco-workbench .interactive-session .chat-input-toolbars .monaco-action-bar .action-item .codicon,
@@ -1434,6 +2023,41 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .action-widget .monaco-list-row.chat-model-picker-unavailable .description a:hover,
 .action-widget .monaco-list-row.chat-model-picker-unavailable .description a:active {
 	color: var(--vscode-textLink-activeForeground);
+}
+
+.action-widget .action-list-filter-input.chat-model-picker-filter-input,
+.action-widget .action-list-filter-input.chat-model-picker-filter-input:focus {
+	outline: none;
+	box-shadow: none;
+	border-color: transparent;
+	background-color: transparent;
+}
+
+.action-widget .action-list-filter:has(.chat-model-picker-filter-input) {
+	margin-bottom: 4px;
+}
+
+.action-widget .monaco-list-row.chat-model-picker-section-toggle.has-toolbar .action-list-item-toolbar {
+	display: flex;
+}
+
+/* Promoted model items: show source inline next to the model name and keep cost aligned right. */
+.action-widget .monaco-list-row.chat-model-picker-inline-source .title {
+	flex: 0 1 auto;
+}
+
+.action-widget .monaco-list-row.chat-model-picker-inline-source .action-item-badge {
+	padding: 0;
+	border-radius: 0;
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	line-height: normal;
+}
+
+.action-widget .monaco-list-row.chat-model-picker-inline-source .description {
+	margin-left: auto;
+	flex-shrink: 0;
 }
 
 .interactive-session .chat-input-toolbars .codicon-debug-stop {
@@ -1606,7 +2230,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part {
 	margin: 0px 12px;
-	padding: 4px 0 12px 0px;
+	padding: 4px 0 4px 0px;
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
@@ -1709,6 +2333,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+	text-decoration: inherit;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close,
@@ -1763,7 +2388,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled .monaco-icon-label .label-name {
-	text-decoration: line-through;
 	font-style: italic;
 	opacity: 0.8;
 }
@@ -1979,6 +2603,134 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-item-container .chat-agent-widget .monaco-text-button {
 	display: inline;
 	border: none;
+}
+
+/* Chat artifacts widget — collapsible list of session artifacts */
+.chat-artifacts-widget {
+	padding: 4px 3px 4px 3px;
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background-color: var(--vscode-editor-background);
+	border-bottom: none;
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	overflow: hidden;
+}
+
+.chat-artifacts-widget .chat-artifacts-expand {
+	width: 100%;
+}
+
+.chat-artifacts-widget .chat-artifacts-expand .monaco-button {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+	justify-content: space-between;
+	width: 100%;
+	background-color: transparent;
+	border-color: transparent;
+	color: var(--vscode-foreground);
+	padding: 0;
+	min-width: unset;
+}
+
+.chat-artifacts-widget .chat-artifacts-expand .monaco-button:focus:not(:focus-visible) {
+	outline: none;
+}
+
+.chat-artifacts-widget .chat-artifacts-expand .chat-artifacts-title-section {
+	padding-left: 3px;
+	display: flex;
+	align-items: center;
+	flex: 1;
+	font-size: 12px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: 22px;
+}
+
+.chat-artifacts-widget .chat-artifacts-expand .chat-artifacts-title-section .codicon {
+	font-size: 16px;
+	line-height: 22px;
+	flex-shrink: 0;
+	margin-right: 3px;
+}
+
+.chat-artifacts-widget .chat-artifacts-list {
+	width: 100%;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+.chat-artifacts-widget .chat-artifacts-list .monaco-list .monaco-list-row {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-artifacts-widget .chat-artifacts-list .monaco-list .monaco-list-row:hover {
+	background-color: var(--vscode-list-hoverBackground) !important;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 6px;
+	height: 100%;
+	cursor: pointer;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-icon {
+	font-size: 14px;
+	display: flex;
+	align-items: center;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 13px;
+	flex-shrink: 1;
+	min-width: 0;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-description {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 12px;
+	opacity: 0.7;
+	margin-left: 6px;
+	flex-shrink: 0;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-actions {
+	display: none;
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-actions .monaco-action-bar .actions-container {
+	gap: 4px;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-row:hover .chat-artifacts-list-actions,
+.chat-artifacts-widget .chat-artifacts-list-row.force-hover .chat-artifacts-list-actions {
+	display: flex;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-actions .action-item .action-label {
+	padding: 2px;
+	border-radius: 2px;
+	cursor: pointer;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-actions .action-item .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .interactive-session .checkpoint-file-changes-summary {
@@ -2243,7 +2995,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	margin: 0 0 6px 0;
+	margin: 0 0 14px 0;
 	font-size: 13px;
 
 	/* Tool calls transition from a progress to a collapsible list part, which needs to have this top padding.
@@ -2276,6 +3028,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.rendered-markdown.progress-step {
 		white-space: normal;
 
+		&.chat-working-progress-step {
+			display: flex;
+			align-items: baseline;
+			gap: 0.3em;
+			font-variant-numeric: tabular-nums;
+			font-feature-settings: "tnum";
+
+			& > span {
+				color: var(--vscode-descriptionForeground);
+				font-size: var(--vscode-chat-font-size-body-s);
+			}
+		}
+
 		& > p {
 			color: var(--vscode-descriptionForeground);
 			font-size: var(--vscode-chat-font-size-body-s);
@@ -2298,19 +3063,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	/* shimmer animation for shimmer progress */
 	&.shimmer-progress .rendered-markdown.progress-step > p {
-		background: linear-gradient(
-			90deg,
-			var(--vscode-descriptionForeground) 0%,
-			var(--vscode-descriptionForeground) 30%,
-			var(--vscode-chat-thinkingShimmer) 50%,
-			var(--vscode-descriptionForeground) 70%,
-			var(--vscode-descriptionForeground) 100%
-		);
+		background: linear-gradient(90deg,
+				var(--vscode-descriptionForeground) 0%,
+				var(--vscode-descriptionForeground) 30%,
+				var(--vscode-chat-thinkingShimmer) 50%,
+				var(--vscode-descriptionForeground) 70%,
+				var(--vscode-descriptionForeground) 100%);
 		background-size: 400% 100%;
 		background-clip: text;
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		animation: chat-thinking-shimmer 2s linear infinite;
+		will-change: background-position;
 	}
 }
 
@@ -2541,7 +3305,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline: none;
 	border: none;
 
-	.codicon.codicon-file-media, .codicon.codicon-warning {
+	.codicon.codicon-file-media,
+	.codicon.codicon-warning {
 		font-size: 12px;
 		margin-right: 2px;
 	}
@@ -2716,6 +3481,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.request-hover.hidden,
 	.request-hover.checkpoints-enabled.has-no-actions,
 	.checkpoint-container.hidden,
+	.checkpoint-container.has-no-actions,
 	.checkpoint-restore-container.hidden {
 		display: none;
 	}
@@ -2726,14 +3492,38 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.interactive-request .header.partially-disabled .detail-container {
-		margin-left: 4px;
+		margin-left: 0px;
 	}
 
 	.interactive-item-container .header .detail .codicon-check {
 		margin-right: 7px;
 		vertical-align: middle;
 		font-size: 11px;
+		display: none;
 	}
+
+	.interactive-item-container.show-checkmarks .header.partially-disabled .detail {
+		margin-left: 4px;
+
+		.codicon-check {
+			display: inline;
+		}
+	}
+
+	/* System-initiated requests render as compact progress-style messages, not bubbles */
+	.interactive-item-container.interactive-request.system-initiated-request {
+		align-items: flex-start;
+	}
+
+	.interactive-item-container.interactive-request.system-initiated-request .value .rendered-markdown {
+		background-color: transparent;
+		border-radius: 0;
+		padding: 0;
+		max-width: 100%;
+		margin-left: 0;
+		width: auto;
+	}
+
 
 	.request-hover {
 		position: absolute;
@@ -2902,10 +3692,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		.request-hover {
 			top: 0px;
 		}
-
-		.checkpoint-container {
-			display: none;
-		}
 	}
 
 	.interactive-list > .monaco-list:focus > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.request {
@@ -3036,7 +3822,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	justify-content: center;
 	height: 100%;
-	margin: -1px -8px -1px 0; /* Extend to button edge, accounting for button padding */
+	margin: -1px -8px -1px 0;
+	/* Extend to button edge, accounting for button padding */
 	padding: 0 4px 0 2px;
 	gap: 4px;
 	cursor: pointer;
@@ -3121,7 +3908,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	opacity: 0;
 	transition: opacity 0.15s;
 	color: var(--vscode-descriptionForeground);
-	margin-top: -4px; /* visually center with overlaid top controls */
+	margin-top: -4px;
+	/* visually center with overlaid top controls */
 }
 
 .interactive-item-container.pending-request:hover .chat-pending-drag-handle {
@@ -3172,4 +3960,99 @@ have to be updated for changes to the rules above, or to support more deeply nes
 /* Outline removal except for HC themes */
 .monaco-workbench:not(.hc-black):not(.hc-light) .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.response {
 	outline: none !important;
+}
+
+/* --- Chat Model Hover --- */
+.chat-model-hover {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.chat-model-hover-name {
+	font-weight: bold;
+	font-size: 13px;
+}
+
+.chat-model-hover-separator {
+	border-top: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-editorWidget-border));
+	margin: 2px 0;
+}
+
+.chat-model-hover-description {
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.monaco-workbench .chat-model-hover-description .codicon[class*='codicon-'] {
+	vertical-align: middle;
+	font-size: 12px;
+}
+
+.chat-model-hover-description > div p {
+	margin: 0;
+}
+
+.chat-model-hover-cost {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-model-hover-cost-title-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-bottom: 2px;
+}
+
+.chat-model-hover-cost-title {
+	font-weight: 600;
+}
+
+.chat-model-hover-cost-tag {
+	padding: 2px 8px;
+	border-radius: 10px;
+	border: 1px solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
+	background: transparent;
+	font-size: 11px;
+}
+
+.chat-model-hover-cost-line-label {
+	color: var(--vscode-foreground);
+	opacity: 0.85;
+}
+
+.chat-model-hover-context {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-model-hover-context-label {
+	font-weight: 600;
+}
+
+.chat-model-hover-configurable {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+}
+
+.chat-model-hover-configurable-label {
+	font-weight: 600;
+}
+
+.chat-model-hover-configurable-tag {
+	padding: 2px 8px;
+	border-radius: 10px;
+	border: 1px solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
+	background: transparent;
+	font-size: 11px;
 }

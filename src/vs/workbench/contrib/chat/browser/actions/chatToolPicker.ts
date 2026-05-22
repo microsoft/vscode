@@ -22,6 +22,7 @@ import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, McpConnectionState, McpServerCacheState, McpServerEditorTab } from '../../../mcp/common/mcpTypes.js';
 import { startServerAndWaitForLiveTools } from '../../../mcp/common/mcpTypesUtils.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
+import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
 
@@ -31,7 +32,7 @@ const enum BucketOrdinal { User, BuiltIn, Mcp, Extension }
 type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; toolset?: ToolSet; children: (ToolPick | ToolSetPick)[] };
 type ToolSetPick = IQuickPickItem & { picked: boolean; toolset: ToolSet; parent: BucketPick };
 type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
-type ActionableButton = IQuickInputButton & { action: () => void };
+type ActionableButton = IQuickInputButton & { action: () => void; keepOpen?: boolean };
 
 // New QuickTree types for tree-based implementation
 
@@ -77,6 +78,7 @@ interface IToolSetTreeItem extends IToolTreeItem {
 interface IToolTreeItemData extends IToolTreeItem {
 	readonly itemType: 'tool';
 	readonly tool: IToolData;
+	buttons?: ActionableButton[];
 	checked: boolean;
 }
 
@@ -205,6 +207,7 @@ export async function showToolsPicker(
 	const editorService = accessor.get(IEditorService);
 	const mcpWorkbenchService = accessor.get(IMcpWorkbenchService);
 	const toolsService = accessor.get(ILanguageModelToolsService);
+	const confirmationService = accessor.get(ILanguageModelToolsConfirmationService);
 	const telemetryService = accessor.get(ITelemetryService);
 
 	const mcpServerByTool = new Map<string, IMcpServer>();
@@ -451,6 +454,38 @@ export async function showToolsPicker(
 				}
 			}
 		}
+		// Add approval management buttons to tool items that support confirmation
+		for (const bucket of sortedBuckets) {
+			const isMcpBucket = bucket.ordinal === BucketOrdinal.Mcp;
+			const addConfirmationButton = (toolItem: IToolTreeItemData) => {
+				if (!confirmationService.toolCanManageConfirmation(toolItem.tool)) {
+					return;
+				}
+				const tool = toolItem.tool;
+				const manageTools = isMcpBucket ? bucket.children.flatMap(c => isToolTreeItem(c) ? [c.tool] : isToolSetTreeItem(c) && c.children ? c.children.filter(isToolTreeItem).map(gc => gc.tool) : []) : [tool];
+				const buttons: ActionableButton[] = toolItem.buttons ? [...toolItem.buttons] : [];
+				buttons.push({
+					iconClass: ThemeIcon.asClassName(Codicon.pass),
+					tooltip: localize('manageToolApproval', "Manage Approval"),
+					keepOpen: true,
+					action: () => confirmationService.manageConfirmationPreferences(manageTools, { focusToolId: tool.id })
+				});
+				toolItem.buttons = buttons;
+			};
+
+			for (const child of bucket.children) {
+				if (isToolTreeItem(child)) {
+					addConfirmationButton(child);
+				} else if (isToolSetTreeItem(child) && child.children) {
+					for (const grandchild of child.children) {
+						if (isToolTreeItem(grandchild)) {
+							addConfirmationButton(grandchild);
+						}
+					}
+				}
+			}
+		}
+
 		if (treeItems.length === 0) {
 			treePicker.placeholder = localize('noTools', "Add tools to chat");
 		} else {
@@ -474,7 +509,8 @@ export async function showToolsPicker(
 	// Handle button triggers
 	store.add(treePicker.onDidTriggerItemButton(e => {
 		if (e.button && typeof (e.button as ActionableButton).action === 'function') {
-			(e.button as ActionableButton).action();
+			const actionableButton = e.button as ActionableButton;
+			actionableButton.action();
 			store.dispose();
 		}
 	}));

@@ -7,6 +7,7 @@ import './media/chatSessionPickerActionItem.css';
 import { IAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import * as dom from '../../../../../base/browser/dom.js';
+import { getActiveWindow } from '../../../../../base/browser/dom.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -16,9 +17,11 @@ import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from 
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { renderLabelWithIcons, renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IChatInputPickerOptions } from '../widget/input/chatInputPickerActionItem.js';
+import { autorun } from '../../../../../base/common/observable.js';
 
 
 export interface IChatSessionPickerDelegate {
@@ -41,6 +44,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		action: IAction,
 		initialState: { group: IChatSessionProviderOptionGroup; item: IChatSessionProviderOptionItem | undefined },
 		protected readonly delegate: IChatSessionPickerDelegate,
+		protected readonly _pickerOptions: IChatInputPickerOptions | undefined,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -61,6 +65,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 			},
 			actionBarActionProvider: undefined,
 			reporter: { id: group.id, name: `ChatSession:${group.name}`, includeOptions: false },
+			getAnchor: () => this._getAnchorElement(),
 		};
 
 		super(actionWithLabel, sessionPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
@@ -73,6 +78,16 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 			}
 			this.updateEnabled();
 		}));
+
+		const pickerOptions = this._pickerOptions;
+		if (pickerOptions) {
+			this._register(autorun(reader => {
+				pickerOptions.compact.read(reader);
+				if (this.element) {
+					this.renderLabel(this.element);
+				}
+			}));
+		}
 	}
 
 	/**
@@ -153,6 +168,17 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		};
 	}
 
+	/**
+	 * Returns the anchor element for the dropdown.
+	 * Falls back to the overflow anchor if this element is not in the DOM.
+	 */
+	private _getAnchorElement(): HTMLElement {
+		if (this.element && getActiveWindow().document.contains(this.element)) {
+			return this.element;
+		}
+		return this._pickerOptions?.getOverflowAnchor?.() ?? this.element!;
+	}
+
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const domChildren = [];
 		element.classList.add('chat-session-option-picker');
@@ -167,8 +193,6 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		if (!isDefaultWithIcon) {
 			domChildren.push(dom.$('span.chat-session-option-label', undefined, this.currentOption?.name ?? group?.description ?? localize('chat.sessionPicker.label', "Pick Option")));
 		}
-
-		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...domChildren);
 		this.setAriaLabelAttributes(element);

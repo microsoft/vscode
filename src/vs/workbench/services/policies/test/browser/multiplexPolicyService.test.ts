@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
-import { AccountPolicyService } from '../../common/accountPolicyService.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
-import { MultiplexPolicyService } from '../../common/multiplexPolicyService.js';
-import { FilePolicyService } from '../../../../../platform/policy/common/filePolicyService.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../../../base/common/defaultAccount.js';
+import { Event } from '../../../../../base/common/event.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
+import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { FilePolicyService } from '../../../../../platform/policy/common/filePolicyService.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
+import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
+import { AccountPolicyService } from '../../common/accountPolicyService.js';
+import { MultiplexPolicyService } from '../../common/multiplexPolicyService.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: {
@@ -39,6 +39,8 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 
 	readonly onDidChangeDefaultAccount = Event.None;
 	readonly onDidChangePolicyData = Event.None;
+	readonly copilotTokenInfo = null;
+	readonly onDidChangeCopilotTokenInfo = Event.None;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,
@@ -47,6 +49,10 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
 		return this.defaultAccount.authenticationProvider;
+	}
+
+	resolveGitHubUrl(path: string): string {
+		return `https://github.com/${path}`;
 	}
 
 	async refresh(): Promise<IDefaultAccount | null> {
@@ -123,7 +129,18 @@ suite('MultiplexPolicyService', () => {
 			'setting.E': {
 				'type': 'boolean',
 				'default': true,
-			}
+			},
+			'setting.F': {
+				'type': 'boolean',
+				'default': true,
+				policy: {
+					name: 'PolicySettingF',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' } },
+					value: policyData => policyData.cloud_session_storage_enabled === false ? false : undefined,
+				}
+			},
 		}
 	};
 
@@ -309,5 +326,44 @@ suite('MultiplexPolicyService', () => {
 			assert.deepStrictEqual(C, ['policyValueC1', 'policyValueC2']);
 			assert.strictEqual(D, false);
 		}
+	});
+
+	test('cloud_session_storage_enabled policy disabled overrides setting', async () => {
+		await clear();
+
+		const policyData: IPolicyData = { cloud_session_storage_enabled: false };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), false);
+		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.F'), false);
+	});
+
+	test('cloud_session_storage_enabled policy enabled does not override setting', async () => {
+		await clear();
+
+		const policyData: IPolicyData = { cloud_session_storage_enabled: true };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), undefined);
+		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.F'), undefined);
+	});
+
+	test('cloud_session_storage_enabled policy unset does not override setting', async () => {
+		await clear();
+
+		const policyData: IPolicyData = {};
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), undefined);
+		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.F'), undefined);
 	});
 });

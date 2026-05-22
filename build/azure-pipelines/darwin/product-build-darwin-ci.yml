@@ -10,6 +10,7 @@ jobs:
     timeoutInMinutes: 90
     variables:
       VSCODE_ARCH: arm64
+      BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
     templateContext:
       outputs:
         - output: pipelineArtifact

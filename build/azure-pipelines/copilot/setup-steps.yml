@@ -1,0 +1,73 @@
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "22.21.x"
+
+  - task: AzureKeyVault@2
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: vscode
+      KeyVaultName: vscode-build-secrets
+      SecretsFilter: "github-distro-mixin-password"
+
+  - pwsh: |
+      "machine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$Home/_netrc" -Encoding ASCII
+    condition: and(succeeded(), contains(variables['Agent.OS'], 'windows'))
+    displayName: Setup distro auth (Windows)
+
+  - script: |
+      mkdir -p .build
+      cat << EOF | tee ~/.netrc .build/.netrc > /dev/null
+      machine github.com
+      login vscode
+      password $(github-distro-mixin-password)
+      EOF
+    condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
+    displayName: Setup distro auth (non-Windows)
+
+  - task: Cache@2
+    inputs:
+      key: '"copilot_build_cache" | $(Build.SourcesDirectory)/extensions/copilot/build/.cachesalt | $(Build.SourcesDirectory)/extensions/copilot/build/setup-emsdk.sh | $(Build.SourcesDirectory)/extensions/copilot/package-lock.json'
+      path: $(Build.SourcesDirectory)/extensions/copilot/.build/build_cache
+      cacheHitVar: BUILD_CACHE_RESTORED
+    displayName: Restore copilot build cache
+
+  - script: $(Build.SourcesDirectory)/extensions/copilot/build/setup-emsdk.sh
+    displayName: Setup emsdk
+    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+  - script: echo '##vso[task.prependpath]/opt/dev/emsdk/upstream/emscripten'
+    displayName: Setup emsdk path 1
+    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+  - script: echo '##vso[task.prependpath]/opt/dev/emsdk'
+    displayName: Setup emsdk path 2
+    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+
+  - script: tar -xzf .build/build_cache/cache.tgz
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    condition: and(succeeded(), eq(variables.BUILD_CACHE_RESTORED, 'true'))
+    displayName: Extract copilot build cache
+
+  - script: npm ci
+    workingDirectory: build
+    displayName: Install build dependencies
+    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+
+  - script: npm ci --ignore-scripts --no-workspaces
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: Install vscode dependencies
+    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+
+  - script: npm ci
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Install copilot dependencies
+    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+
+  - script: |
+      set -e
+      mkdir -p .build
+      node build/listBuildCacheFiles.js .build/build_cache_list.txt
+      mkdir -p .build/build_cache
+      tar -czf .build/build_cache/cache.tgz --files-from .build/build_cache_list.txt
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+    displayName: Create copilot build cache archive

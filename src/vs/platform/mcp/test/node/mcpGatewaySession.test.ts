@@ -11,7 +11,7 @@ import { IJsonRpcErrorResponse, IJsonRpcSuccessResponse } from '../../../../base
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { MCP } from '../../common/modelContextProtocol.js';
-import { decodeGatewayResourceUri, encodeGatewayResourceUri, McpGatewaySession } from '../../node/mcpGatewaySession.js';
+import { McpGatewaySession } from '../../node/mcpGatewaySession.js';
 
 class TestServerResponse extends EventEmitter {
 	public statusCode: number | undefined;
@@ -73,16 +73,13 @@ suite('McpGatewaySession', () => {
 				onDidChangeResources: onDidChangeResources.event,
 				listTools: async () => tools,
 				callTool: async (_name: string, args: Record<string, unknown>) => ({
-					result: {
-						content: [{ type: 'text' as const, text: `Hello, ${typeof args.name === 'string' ? args.name : 'World'}!` }]
-					},
-					serverIndex: 0,
+					content: [{ type: 'text' as const, text: `Hello, ${typeof args.name === 'string' ? args.name : 'World'}!` }]
 				}),
-				listResources: async () => [{ serverIndex: 0, resources }],
-				readResource: async (_serverIndex: number, _uri: string) => ({
+				listResources: async () => resources,
+				readResource: async (_uri: string) => ({
 					contents: [{ uri: 'file:///test/resource.txt', text: 'hello world', mimeType: 'text/plain' }],
 				}),
-				listResourceTemplates: async () => [{ serverIndex: 0, resourceTemplates: [{ uriTemplate: 'file:///test/{name}', name: 'Test Template' }] }],
+				listResourceTemplates: async () => [{ uriTemplate: 'file:///test/{name}', name: 'Test Template' }],
 			}
 		};
 	}
@@ -107,6 +104,145 @@ suite('McpGatewaySession', () => {
 		assert.strictEqual(response.jsonrpc, '2.0');
 		assert.strictEqual(response.id, 1);
 		assert.strictEqual((response.result as { protocolVersion: string }).protocolVersion, '2025-11-25');
+		session.dispose();
+		onDidChangeTools.dispose();
+		onDidChangeResources.dispose();
+	});
+
+	test('negotiates to older protocol version when client requests it', async () => {
+		const { invoker, onDidChangeTools, onDidChangeResources } = createInvoker();
+		const session = new McpGatewaySession('session-negotiate-1', new NullLogService(), () => { }, invoker);
+
+		const responses = await session.handleIncoming({
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+			params: {
+				protocolVersion: '2025-03-26',
+				capabilities: {},
+				clientInfo: { name: 'test-client', version: '1.0.0' },
+			},
+		});
+
+		assert.strictEqual(responses.length, 1);
+		const response = responses[0] as IJsonRpcSuccessResponse;
+		assert.strictEqual((response.result as { protocolVersion: string }).protocolVersion, '2025-03-26');
+		session.dispose();
+		onDidChangeTools.dispose();
+		onDidChangeResources.dispose();
+	});
+
+	test('negotiates to each supported protocol version', async () => {
+		const supportedVersions = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05', '2024-10-07'];
+		for (const version of supportedVersions) {
+			const { invoker, onDidChangeTools, onDidChangeResources } = createInvoker();
+			const session = new McpGatewaySession(`session-ver-${version}`, new NullLogService(), () => { }, invoker);
+
+			const responses = await session.handleIncoming({
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'initialize',
+				params: { protocolVersion: version, capabilities: {} },
+			});
+
+			const response = responses[0] as IJsonRpcSuccessResponse;
+			assert.strictEqual(
+				(response.result as { protocolVersion: string }).protocolVersion,
+				version,
+				`Expected server to negotiate to ${version}`
+			);
+			session.dispose();
+			onDidChangeTools.dispose();
+			onDidChangeResources.dispose();
+		}
+	});
+
+	test('falls back to latest version for unsupported client version', async () => {
+		const { invoker, onDidChangeTools, onDidChangeResources } = createInvoker();
+		const session = new McpGatewaySession('session-negotiate-2', new NullLogService(), () => { }, invoker);
+
+		const responses = await session.handleIncoming({
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+			params: {
+				protocolVersion: '2099-01-01',
+				capabilities: {},
+				clientInfo: { name: 'test-client', version: '1.0.0' },
+			},
+		});
+
+		assert.strictEqual(responses.length, 1);
+		const response = responses[0] as IJsonRpcSuccessResponse;
+		assert.strictEqual((response.result as { protocolVersion: string }).protocolVersion, '2025-11-25');
+		session.dispose();
+		onDidChangeTools.dispose();
+		onDidChangeResources.dispose();
+	});
+
+	test('falls back to latest version when no params provided', async () => {
+		const { invoker, onDidChangeTools, onDidChangeResources } = createInvoker();
+		const session = new McpGatewaySession('session-negotiate-3', new NullLogService(), () => { }, invoker);
+
+		const responses = await session.handleIncoming({
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+		});
+
+		assert.strictEqual(responses.length, 1);
+		const response = responses[0] as IJsonRpcSuccessResponse;
+		assert.strictEqual((response.result as { protocolVersion: string }).protocolVersion, '2025-11-25');
+		session.dispose();
+		onDidChangeTools.dispose();
+		onDidChangeResources.dispose();
+	});
+
+	test('falls back to latest version when protocolVersion is not a string', async () => {
+		const { invoker, onDidChangeTools, onDidChangeResources } = createInvoker();
+		const session = new McpGatewaySession('session-negotiate-4', new NullLogService(), () => { }, invoker);
+
+		const responses = await session.handleIncoming({
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+			params: {
+				protocolVersion: 42,
+				capabilities: {},
+			},
+		});
+
+		assert.strictEqual(responses.length, 1);
+		const response = responses[0] as IJsonRpcSuccessResponse;
+		assert.strictEqual((response.result as { protocolVersion: string }).protocolVersion, '2025-11-25');
+		session.dispose();
+		onDidChangeTools.dispose();
+		onDidChangeResources.dispose();
+	});
+
+	test('initialize response includes server info and capabilities', async () => {
+		const { invoker, onDidChangeTools, onDidChangeResources } = createInvoker();
+		const session = new McpGatewaySession('session-init-caps', new NullLogService(), () => { }, invoker);
+
+		const responses = await session.handleIncoming({
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+			params: { protocolVersion: '2025-03-26', capabilities: {} },
+		});
+
+		const result = (responses[0] as IJsonRpcSuccessResponse).result as MCP.InitializeResult;
+		assert.deepStrictEqual(result, {
+			protocolVersion: '2025-03-26',
+			capabilities: {
+				tools: { listChanged: true },
+				resources: { listChanged: true },
+			},
+			serverInfo: {
+				name: 'VS Code MCP Gateway',
+				version: '1.0.0',
+			},
+		});
 		session.dispose();
 		onDidChangeTools.dispose();
 		onDidChangeResources.dispose();
@@ -241,7 +377,7 @@ suite('McpGatewaySession', () => {
 		onDidChangeResources.dispose();
 	});
 
-	test('serves resources/list with encoded URIs', async () => {
+	test('serves resources/list with raw URIs', async () => {
 		const { invoker, onDidChangeTools, onDidChangeResources } = createInvoker();
 		const session = new McpGatewaySession('session-8', new NullLogService(), () => { }, invoker);
 
@@ -252,14 +388,14 @@ suite('McpGatewaySession', () => {
 		const response = responses[0] as IJsonRpcSuccessResponse;
 		const resources = (response.result as { resources: Array<{ uri: string; name: string }> }).resources;
 		assert.strictEqual(resources.length, 1);
-		assert.strictEqual(resources[0].uri, 'file://-0/test/resource.txt');
+		assert.strictEqual(resources[0].uri, 'file:///test/resource.txt');
 		assert.strictEqual(resources[0].name, 'resource.txt');
 		session.dispose();
 		onDidChangeTools.dispose();
 		onDidChangeResources.dispose();
 	});
 
-	test('serves resources/read with URI decoding and re-encoding', async () => {
+	test('serves resources/read with raw URIs', async () => {
 		const { invoker, onDidChangeTools, onDidChangeResources } = createInvoker();
 		const session = new McpGatewaySession('session-9', new NullLogService(), () => { }, invoker);
 
@@ -270,19 +406,19 @@ suite('McpGatewaySession', () => {
 			jsonrpc: '2.0',
 			id: 2,
 			method: 'resources/read',
-			params: { uri: 'file://-0/test/resource.txt' },
+			params: { uri: 'file:///test/resource.txt' },
 		});
 		const response = responses[0] as IJsonRpcSuccessResponse;
 		const contents = (response.result as { contents: Array<{ uri: string; text: string }> }).contents;
 		assert.strictEqual(contents.length, 1);
-		assert.strictEqual(contents[0].uri, 'file://-0/test/resource.txt');
+		assert.strictEqual(contents[0].uri, 'file:///test/resource.txt');
 		assert.strictEqual(contents[0].text, 'hello world');
 		session.dispose();
 		onDidChangeTools.dispose();
 		onDidChangeResources.dispose();
 	});
 
-	test('serves resources/templates/list with encoded URI templates', async () => {
+	test('serves resources/templates/list with raw URI templates', async () => {
 		const { invoker, onDidChangeTools, onDidChangeResources } = createInvoker();
 		const session = new McpGatewaySession('session-10', new NullLogService(), () => { }, invoker);
 
@@ -293,71 +429,10 @@ suite('McpGatewaySession', () => {
 		const response = responses[0] as IJsonRpcSuccessResponse;
 		const templates = (response.result as { resourceTemplates: Array<{ uriTemplate: string; name: string }> }).resourceTemplates;
 		assert.strictEqual(templates.length, 1);
-		assert.strictEqual(templates[0].uriTemplate, 'file://-0/test/{name}');
+		assert.strictEqual(templates[0].uriTemplate, 'file:///test/{name}');
 		assert.strictEqual(templates[0].name, 'Test Template');
 		session.dispose();
 		onDidChangeTools.dispose();
 		onDidChangeResources.dispose();
-	});
-});
-
-suite('Gateway Resource URI encoding', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('encodes and decodes URI with authority', () => {
-		const encoded = encodeGatewayResourceUri('https://example.com/resource', 3);
-		assert.strictEqual(encoded, 'https://example.com-3/resource');
-		const decoded = decodeGatewayResourceUri(encoded);
-		assert.strictEqual(decoded.serverIndex, 3);
-		assert.strictEqual(decoded.originalUri, 'https://example.com/resource');
-	});
-
-	test('encodes and decodes URI with empty authority', () => {
-		const encoded = encodeGatewayResourceUri('file:///path/to/file', 0);
-		assert.strictEqual(encoded, 'file://-0/path/to/file');
-		const decoded = decodeGatewayResourceUri(encoded);
-		assert.strictEqual(decoded.serverIndex, 0);
-		assert.strictEqual(decoded.originalUri, 'file:///path/to/file');
-	});
-
-	test('encodes and decodes URI with authority containing hyphens', () => {
-		const encoded = encodeGatewayResourceUri('https://my-server.example.com/res', 12);
-		assert.strictEqual(encoded, 'https://my-server.example.com-12/res');
-		const decoded = decodeGatewayResourceUri(encoded);
-		assert.strictEqual(decoded.serverIndex, 12);
-		assert.strictEqual(decoded.originalUri, 'https://my-server.example.com/res');
-	});
-
-	test('encodes and decodes URI with port', () => {
-		const encoded = encodeGatewayResourceUri('http://localhost:8080/api', 5);
-		assert.strictEqual(encoded, 'http://localhost:8080-5/api');
-		const decoded = decodeGatewayResourceUri(encoded);
-		assert.strictEqual(decoded.serverIndex, 5);
-		assert.strictEqual(decoded.originalUri, 'http://localhost:8080/api');
-	});
-
-	test('encodes and decodes URI with query and fragment', () => {
-		const encoded = encodeGatewayResourceUri('https://example.com/resource?q=1#section', 2);
-		assert.strictEqual(encoded, 'https://example.com-2/resource?q=1#section');
-		const decoded = decodeGatewayResourceUri(encoded);
-		assert.strictEqual(decoded.serverIndex, 2);
-		assert.strictEqual(decoded.originalUri, 'https://example.com/resource?q=1#section');
-	});
-
-	test('encodes and decodes custom scheme URIs', () => {
-		const encoded = encodeGatewayResourceUri('custom://myhost/path', 7);
-		assert.strictEqual(encoded, 'custom://myhost-7/path');
-		const decoded = decodeGatewayResourceUri(encoded);
-		assert.strictEqual(decoded.serverIndex, 7);
-		assert.strictEqual(decoded.originalUri, 'custom://myhost/path');
-	});
-
-	test('returns URI unchanged if no scheme match', () => {
-		const encoded = encodeGatewayResourceUri('not-a-uri', 1);
-		assert.strictEqual(encoded, 'not-a-uri');
-	});
-
-	test('throws on decode of URI without server index suffix', () => {
-		assert.throws(() => decodeGatewayResourceUri('https://example.com/resource'));
 	});
 });

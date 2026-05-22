@@ -11,8 +11,29 @@ import { IRequestService, asJson } from '../../../../platform/request/common/req
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../services/sessions/common/session.js';
 
-export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
+/**
+ * Derives a display name from a github-remote-file URI.
+ * Returns "repo (branch)" or just "repo" when on HEAD.
+ */
+export function getGitHubRemoteFileDisplayName(uri: URI): string | undefined {
+	if (uri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
+		return undefined;
+	}
+	const parts = uri.path.split('/').filter(Boolean);
+	// path = /{owner}/{repo}/{ref}/...
+	if (parts.length >= 3) {
+		const [, repo, ref] = parts;
+		const decodedRepo = decodeURIComponent(repo);
+		const decodedRef = decodeURIComponent(ref);
+		if (decodedRef === 'HEAD') {
+			return decodedRepo;
+		}
+		return `${decodedRepo} (${decodedRef})`;
+	}
+	return undefined;
+}
 
 /**
  * GitHub REST API response for the Trees endpoint.
@@ -67,8 +88,17 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 	/** Cache keyed by "owner/repo/ref" */
 	private readonly treeCache = new Map<string, ITreeCacheEntry>();
 
+	/** Negative cache for refs that returned 404, keyed by "owner/repo/ref" */
+	private readonly notFoundCache = new Map<string, number>();
+
+	/** In-flight fetch promises keyed by "owner/repo/ref" to deduplicate concurrent requests */
+	private readonly pendingFetches = new Map<string, Promise<ITreeCacheEntry>>();
+
 	/** Cache TTL - 5 minutes */
 	private static readonly CACHE_TTL_MS = 5 * 60 * 1000;
+
+	/** Negative cache TTL - 1 minute */
+	private static readonly NOT_FOUND_CACHE_TTL_MS = 60 * 1000;
 
 	constructor(
 		@IRequestService private readonly requestService: IRequestService,
@@ -92,10 +122,10 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 			throw createFileSystemProviderError('Invalid github-remote-file URI: expected /{owner}/{repo}/{ref}/...', FileSystemProviderErrorCode.FileNotFound);
 		}
 
-		const owner = parts[0];
-		const repo = parts[1];
-		const ref = parts[2];
-		const path = parts.slice(3).join('/');
+		const owner = decodeURIComponent(parts[0]);
+		const repo = decodeURIComponent(parts[1]);
+		const ref = decodeURIComponent(parts[2]);
+		const path = parts.slice(3).map(decodeURIComponent).join('/');
 
 		return { owner, repo, ref, path };
 	}
@@ -107,23 +137,45 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 	// --- GitHub API
 
 	private async getAuthToken(): Promise<string> {
-		const sessions = await this.authenticationService.getSessions('github', ['repo']);
-		if (sessions.length > 0) {
-			return sessions[0].accessToken;
+		let sessions = await this.authenticationService.getSessions('github', [], { silent: true });
+		if (!sessions || sessions.length === 0) {
+			sessions = await this.authenticationService.getSessions('github', [], { createIfNone: true });
 		}
-
-		// Try to create a session if none exists
-		const session = await this.authenticationService.createSession('github', ['repo']);
-		return session.accessToken;
+		if (!sessions || sessions.length === 0) {
+			throw createFileSystemProviderError('No GitHub authentication sessions available', FileSystemProviderErrorCode.Unavailable);
+		}
+		return sessions[0].accessToken ?? '';
 	}
 
-	private async fetchTree(owner: string, repo: string, ref: string): Promise<ITreeCacheEntry> {
+	private fetchTree(owner: string, repo: string, ref: string): Promise<ITreeCacheEntry> {
 		const cacheKey = this.getCacheKey(owner, repo, ref);
+
+		// Check positive cache
 		const cached = this.treeCache.get(cacheKey);
 		if (cached && (Date.now() - cached.fetchedAt) < GitHubFileSystemProvider.CACHE_TTL_MS) {
-			return cached;
+			return Promise.resolve(cached);
 		}
 
+		// Check negative cache (recently returned 404)
+		const notFoundAt = this.notFoundCache.get(cacheKey);
+		if (notFoundAt !== undefined && (Date.now() - notFoundAt) < GitHubFileSystemProvider.NOT_FOUND_CACHE_TTL_MS) {
+			return Promise.reject(createFileSystemProviderError(`Tree not found for ${owner}/${repo}@${ref}`, FileSystemProviderErrorCode.FileNotFound));
+		}
+
+		// Deduplicate concurrent requests for the same tree
+		const pending = this.pendingFetches.get(cacheKey);
+		if (pending) {
+			return pending;
+		}
+
+		const promise = this.doFetchTree(owner, repo, ref, cacheKey).finally(() => {
+			this.pendingFetches.delete(cacheKey);
+		});
+		this.pendingFetches.set(cacheKey, promise);
+		return promise;
+	}
+
+	private async doFetchTree(owner: string, repo: string, ref: string, cacheKey: string): Promise<ITreeCacheEntry> {
 		this.logService.info(`[SessionRepoFS] Fetching tree for ${owner}/${repo}@${ref}`);
 		const token = await this.getAuthToken();
 
@@ -136,9 +188,17 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 				'Accept': 'application/vnd.github.v3+json',
 				'User-Agent': 'VSCode-SessionRepoFS',
 			},
+			callSite: 'githubFileSystemProvider.fetchTree'
 		}, CancellationToken.None);
 
+		// Cache 404s so we don't keep re-fetching missing trees
+		if (response.res.statusCode === 404) {
+			this.notFoundCache.set(cacheKey, Date.now());
+			throw createFileSystemProviderError(`Tree not found for ${owner}/${repo}@${ref}`, FileSystemProviderErrorCode.FileNotFound);
+		}
+
 		const data = await asJson<IGitHubTreeResponse>(response);
+
 		if (!data) {
 			throw createFileSystemProviderError(`Failed to fetch tree for ${owner}/${repo}@${ref}`, FileSystemProviderErrorCode.Unavailable);
 		}
@@ -239,6 +299,7 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 				'Accept': 'application/vnd.github.v3+json',
 				'User-Agent': 'VSCode-SessionRepoFS',
 			},
+			callSite: 'githubFileSystemProvider.readFile'
 		}, CancellationToken.None);
 
 		const data = await asJson<{ content: string; encoding: string }>(response);
@@ -283,11 +344,15 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 	// --- Cache management
 
 	invalidateCache(owner: string, repo: string, ref: string): void {
-		this.treeCache.delete(this.getCacheKey(owner, repo, ref));
+		const cacheKey = this.getCacheKey(owner, repo, ref);
+		this.treeCache.delete(cacheKey);
+		this.notFoundCache.delete(cacheKey);
 	}
 
 	override dispose(): void {
 		this.treeCache.clear();
+		this.notFoundCache.clear();
+		this.pendingFetches.clear();
 		super.dispose();
 	}
 }

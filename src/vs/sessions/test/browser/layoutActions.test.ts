@@ -16,7 +16,7 @@ suite('Sessions - Layout Actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('always-on-top toggle action is contributed to TitleBarRight', () => {
-		const items = MenuRegistry.getMenuItems(Menus.TitleBarRight);
+		const items = MenuRegistry.getMenuItems(Menus.TitleBarRightLayout);
 		const menuItems = items.filter(isIMenuItem);
 
 		const toggleAlwaysOnTop = menuItems.find(item => item.command.id === 'workbench.action.toggleWindowAlwaysOnTop');

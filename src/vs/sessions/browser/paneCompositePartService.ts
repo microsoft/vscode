@@ -18,6 +18,12 @@ import { PanelPart } from './parts/panelPart.js';
 import { SidebarPart } from './parts/sidebarPart.js';
 import { AuxiliaryBarPart } from './parts/auxiliaryBarPart.js';
 import { ChatBarPart } from './parts/chatBarPart.js';
+import { MobilePanelPart } from './parts/mobile/mobilePanelPart.js';
+import { MobileSidebarPart } from './parts/mobile/mobileSidebarPart.js';
+import { MobileAuxiliaryBarPart } from './parts/mobile/mobileAuxiliaryBarPart.js';
+import { MobileChatBarPart } from './parts/mobile/mobileChatBarPart.js';
+import { getClientArea } from '../../base/browser/dom.js';
+import { mainWindow } from '../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../platform/instantiation/common/extensions.js';
 
 export class AgenticPaneCompositePartService extends Disposable implements IPaneCompositePartService {
@@ -37,10 +43,13 @@ export class AgenticPaneCompositePartService extends Disposable implements IPane
 	) {
 		super();
 
-		this.registerPart(ViewContainerLocation.Panel, instantiationService.createInstance(PanelPart));
-		this.registerPart(ViewContainerLocation.Sidebar, instantiationService.createInstance(SidebarPart));
-		this.registerPart(ViewContainerLocation.AuxiliaryBar, instantiationService.createInstance(AuxiliaryBarPart));
-		this.registerPart(ViewContainerLocation.ChatBar, instantiationService.createInstance(ChatBarPart));
+		const { width } = getClientArea(mainWindow.document.body);
+		const isPhoneLayout = width < 640;
+
+		this.registerPart(ViewContainerLocation.Panel, instantiationService.createInstance(isPhoneLayout ? MobilePanelPart : PanelPart));
+		this.registerPart(ViewContainerLocation.Sidebar, instantiationService.createInstance(isPhoneLayout ? MobileSidebarPart : SidebarPart));
+		this.registerPart(ViewContainerLocation.AuxiliaryBar, instantiationService.createInstance(isPhoneLayout ? MobileAuxiliaryBarPart : AuxiliaryBarPart));
+		this.registerPart(ViewContainerLocation.ChatBar, instantiationService.createInstance(isPhoneLayout ? MobileChatBarPart : ChatBarPart));
 	}
 
 	private registerPart(location: ViewContainerLocation, part: IPaneCompositePart): void {

@@ -28,7 +28,6 @@ import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../comm
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
-import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
@@ -86,12 +85,6 @@ export interface IChatListWidgetOptions {
 	 * Optional filter for the tree.
 	 */
 	readonly filter?: ITreeFilter<ChatTreeItem, FuzzyScore>;
-
-	/**
-	 * Optional code block model collection to use.
-	 * If not provided, one will be created.
-	 */
-	readonly codeBlockModelCollection?: CodeBlockModelCollection;
 
 	/**
 	 * Initial view model.
@@ -184,7 +177,6 @@ export class ChatListWidget extends Disposable {
 
 	private readonly _tree: WorkbenchObjectTree<ChatTreeItem, FuzzyScore>;
 	private readonly _renderer: ChatListItemRenderer;
-	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
 
 	private _viewModel: IChatViewModel | undefined;
 	private _visible = true;
@@ -264,12 +256,23 @@ export class ChatListWidget extends Disposable {
 		super();
 
 		this._viewModel = options.viewModel;
-		this._codeBlockModelCollection = options.codeBlockModelCollection ?? this._register(this.instantiationService.createInstance(CodeBlockModelCollection, 'chatListWidget'));
 		this._location = options.location;
 		this._getCurrentLanguageModelId = options.getCurrentLanguageModelId;
 		this._getCurrentModeInfo = options.getCurrentModeInfo;
 		this._lastItemIdContextKey = ChatContextKeys.lastItemId.bindTo(this.contextKeyService);
 		this._container = container;
+
+		// Toggle link-style for inline reference widgets based on configuration (single listener for all widgets)
+		const updateInlineReferencesStyle = () => {
+			const style = this.configurationService.getValue<string>(ChatConfiguration.InlineReferencesStyle);
+			this._container.classList.toggle('chat-inline-references-link-style', style === 'link');
+		};
+		updateInlineReferencesStyle();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.InlineReferencesStyle)) {
+				updateInlineReferencesStyle();
+			}
+		}));
 
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService])
@@ -313,7 +316,6 @@ export class ChatListWidget extends Disposable {
 			editorOptions,
 			options.rendererOptions ?? {},
 			rendererDelegate,
-			this._codeBlockModelCollection,
 			overflowWidgetsContainer,
 			this._viewModel,
 		));
@@ -448,6 +450,9 @@ export class ChatListWidget extends Disposable {
 			this.updateScrollDownButtonVisibility();
 		}));
 
+		// Set initial at-bottom state (scrollLock defaults to true)
+		this.updateScrollDownButtonVisibility();
+
 		// Handle context menu internally
 		this._register(this._tree.onContextMenu(e => {
 			this.handleContextMenu(e);
@@ -467,8 +472,9 @@ export class ChatListWidget extends Disposable {
 	 * Update scroll-down button visibility based on scroll position and scroll lock.
 	 */
 	private updateScrollDownButtonVisibility(): void {
-		const show = !this.isScrolledToBottom && !this._scrollLock;
-		this._scrollDownButton.element.style.display = show ? '' : 'none';
+		const atBottom = this.isScrolledToBottom || this._scrollLock;
+		this._scrollDownButton.element.style.display = atBottom ? 'none' : '';
+		this._container.classList.toggle('chat-list-at-bottom', atBottom);
 	}
 
 	/**
@@ -485,6 +491,7 @@ export class ChatListWidget extends Disposable {
 		const isKatexElement = target.closest(`.${katexContainerClassName}`) !== null;
 
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
+			[ChatContextKeys.isResponse.key, isResponseVM(selected)],
 			[ChatContextKeys.responseIsFiltered.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered],
 			[ChatContextKeys.isKatexMathElement.key, isKatexElement]
 		]);
