@@ -21,13 +21,20 @@ function resolveBaseOptions(config: ExtensionRunConfig): esbuild.BuildOptions {
 		treeShaking: true,
 		sourcemap: true,
 		target: ['es2024'],
-		// Shared production dependencies are kept external so a single copy can be
-		// resolved from `extensions/node_modules/` in the product, instead of each
-		// extension bundling its own copy. See `extensions/package.json` for the
-		// authoritative list and the gulp `getProductionDependencies('extensions/')`
-		// path in `build/lib/extensions.ts` that copies them into the product.
-		external: [
-			'vscode',
+		external: ['vscode'],
+		format: config.format ?? 'cjs',
+		logOverride: {
+			'import-is-undefined': 'error',
+		},
+	};
+
+	if (config.platform === 'node') {
+		options.mainFields = ['module', 'main'];
+		// Resolved at runtime from the shared `extensions/node_modules/` (see
+		// `extensions/package.json` + the `getProductionDependencies('extensions/')`
+		// copy in `build/lib/extensions.ts`). Web builds inline these — the web
+		// packaging path doesn't ship `extensions/node_modules/`.
+		options.external = [...options.external!,
 			'@octokit/rest',
 			'@microsoft/1ds-core-js',
 			'@microsoft/1ds-post-js',
@@ -43,15 +50,7 @@ function resolveBaseOptions(config: ExtensionRunConfig): esbuild.BuildOptions {
 			'vscode-tas-client',
 			'vscode-uri',
 			'which',
-		],
-		format: config.format ?? 'cjs',
-		logOverride: {
-			'import-is-undefined': 'error',
-		},
-	};
-
-	if (config.platform === 'node') {
-		options.mainFields = ['module', 'main'];
+		];
 	} else if (config.platform === 'browser') {
 		options.mainFields = ['browser', 'module', 'main'];
 		options.alias = {
