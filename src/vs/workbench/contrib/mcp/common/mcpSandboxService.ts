@@ -265,9 +265,9 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		const tempDir = await this._getTempDir(remoteAuthority);
 		const srtPath = this._pathJoin(os, appRoot, 'node_modules', '@vscode', 'sandbox-runtime', 'dist', 'cli.js');
 		// @vscode/ripgrep-universal ships per-platform-arch binaries under bin/{platform}-{arch}/{rg|rg.exe}
-		const rgPlatform = os === OperatingSystem.Windows ? 'win32' : os === OperatingSystem.Macintosh ? 'darwin' : 'linux';
-		const rgBinary = os === OperatingSystem.Windows ? 'rg.exe' : 'rg';
-		const rgPath = this._pathJoin(os, appRoot, 'node_modules', '@vscode', 'ripgrep-universal', 'bin', `${rgPlatform}-${arch}`, rgBinary);
+		// Windows is handled by the early return above, so os is narrowed to Mac/Linux here.
+		const rgPlatform = os === OperatingSystem.Macintosh ? 'darwin' : 'linux';
+		const rgPath = this._pathJoin(os, appRoot, 'node_modules', '@vscode', 'ripgrep-universal', 'bin', `${rgPlatform}-${arch}`, 'rg');
 		const sandboxConfigPath = tempDir ? await this._updateSandboxConfig(tempDir, configTarget, sandboxConfig, launchCwd) : undefined;
 		this._logService.debug(`McpSandboxService: Updated sandbox config path: ${sandboxConfigPath}`);
 		return { execPath, srtPath, rgPath, sandboxConfigPath, tempDir };
