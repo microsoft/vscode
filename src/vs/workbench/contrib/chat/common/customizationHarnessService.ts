@@ -191,6 +191,14 @@ export interface ICustomizationItem {
 	readonly actions?: readonly ICustomizationItemAction[];
 }
 
+export interface ICustomizationAgentRef {
+	readonly uri: URI;
+	/** Agent name (from frontmatter `name`, or file-derived) */
+	readonly name: string;
+	/** Optional short description for UI preview (from frontmatter `description`) */
+	readonly description?: string;
+}
+
 export function isPluginCustomizationItem(item: { readonly type: string }): boolean {
 	return item.type === 'plugin' || item.type === AICustomizationManagementSection.Plugins;
 }
@@ -213,6 +221,16 @@ export interface ICustomizationItemProvider {
 	 *   this session.
 	 */
 	provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[] | undefined>;
+
+	/**
+	 * Provide the custom agents this harness supports.
+	 *
+	 * @param sessionResource URI of the chat session whose
+	 *   customizations should be included. Providers that surface
+	 *   session-scoped state (e.g. an agent host) should read from
+	 *   this session.
+	 */
+	provideCustomAgents?(sessionResource: URI, token: CancellationToken): Promise<readonly ICustomizationAgentRef[] | undefined>;
 }
 
 /**
@@ -694,6 +712,28 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 			const allAgents = await this.promptsService.getCustomAgents(token);
 			return allAgents.filter(agent => matchesSessionType(agent.sessionTypes, sessionType));
 		}
+
+		if (harness.itemProvider.provideCustomAgents) {
+			const items = await harness.itemProvider.provideCustomAgents(sessionResource, token);
+			if (items) {
+				const result: ICustomAgent[] = [];
+				for (const item of items) {
+					const promptFile = await this.promptsService.parseNew(item.uri, token);
+					const extra = {
+						name: item.name,
+						description: item.description,
+						sessionTypes: [sessionType],
+						hooks: undefined,
+						source: { storage: PromptsStorage.local } satisfies IAgentSource,
+						type: PromptsType.agent,
+						enabled: true,
+					};
+					result.push(CustomAgent.fromParsedPromptFile(promptFile, extra));
+				}
+				return result;
+			}
+		}
+
 
 		const items = await harness.itemProvider.provideChatSessionCustomizations(sessionResource, token);
 		if (!items) {

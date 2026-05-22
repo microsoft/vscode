@@ -1706,16 +1706,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['preview'],
 			description: nls.localize('chat.customizations.structuredPreview.enabled', "Controls whether the Chat Customizations editor shows a structured preview for markdown customization files (agents, skills, instructions, prompts). When disabled, the editor always opens the raw markdown in the embedded code editor."),
 			default: false,
-		},
-		[ChatConfiguration.UseChatSessionCustomizationsForCustomAgents]: {
-			type: 'boolean',
-			description: nls.localize('chat.customizations.useChatSessionCustomizationsForCustomAgents', "When enabled, custom agents shown in the chat mode picker are sourced from the customization harness service (scoped per session type) instead of the prompts service."),
-			default: false,
-			tags: ['experimental', 'advanced'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
+		}
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
