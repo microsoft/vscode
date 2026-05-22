@@ -256,6 +256,19 @@
 
 .agent-sessions-workbench .part.editor .diff-hidden-lines .center {
 	box-shadow: none;
+	overflow: hidden;
+}
+
+/* The hidden-lines bar is split into two halves (original / modified) sitting
+ * side by side. Round only the outer corners so the pair forms a single pill. */
+.agent-sessions-workbench .part.editor .editor.original .diff-hidden-lines .center {
+	border-top-left-radius: 6px;
+	border-bottom-left-radius: 6px;
+}
+
+.agent-sessions-workbench .part.editor .editor.modified .diff-hidden-lines .center {
+	border-top-right-radius: 6px;
+	border-bottom-right-radius: 6px;
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .header-content .status {
