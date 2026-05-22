@@ -29,6 +29,17 @@ function createMockHeaders(entries: Record<string, string> = {}): { get(name: st
 	return { get: (name: string) => lower[name.toLowerCase()] ?? null };
 }
 
+const pngSignaturePrefix = [0x89, 0x50, 0x4E, 0x47];
+
+function createPngBytes(width: number, height: number): Uint8Array {
+	const bytes = new Uint8Array(24);
+	bytes.set(pngSignaturePrefix, 0);
+	const dataView = new DataView(bytes.buffer);
+	dataView.setUint32(16, width, false);
+	dataView.setUint32(20, height, false);
+	return bytes;
+}
+
 /**
  * Creates a mock response with a real stream-backed body so that middleware
  * cloning (tee) works correctly. Token responses go through the middleware
@@ -1099,7 +1110,7 @@ describe('AutomodeService', () => {
 				location: ChatLocation.Panel,
 				prompt: 'describe this image',
 				sessionId: 'session-telemetry-vision',
-				references: [{ id: 'img', value: { mimeType: 'image/png', data: new Uint8Array([1, 2, 3]), isPasted: true } }] as any
+				references: [{ id: 'img', value: { mimeType: 'image/png', data: createPngBytes(7, 11), isPasted: true } }] as any
 			};
 
 			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint, claudeEndpoint]);
@@ -1114,8 +1125,12 @@ describe('AutomodeService', () => {
 			});
 			expect(selectionEvent![2]).toMatchObject({
 				imageCount: 1,
-				totalImageBytes: 3,
-				maxImageBytes: 3,
+				totalImageBytes: 24,
+				maxImageBytes: 24,
+				maxImageWidth: 7,
+				maxImageHeight: 11,
+				maxImagePixels: 77,
+				totalImagePixels: 77,
 				imagePngCount: 1,
 				imageClipboardCount: 1,
 			});
