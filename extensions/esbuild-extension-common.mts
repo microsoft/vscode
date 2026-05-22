@@ -21,7 +21,30 @@ function resolveBaseOptions(config: ExtensionRunConfig): esbuild.BuildOptions {
 		treeShaking: true,
 		sourcemap: true,
 		target: ['es2024'],
-		external: ['vscode'],
+		// Shared production dependencies are kept external so a single copy can be
+		// resolved from `extensions/node_modules/` in the product, instead of each
+		// extension bundling its own copy. See `extensions/package.json` for the
+		// authoritative list and the gulp `getProductionDependencies('extensions/')`
+		// path in `build/lib/extensions.ts` that copies them into the product.
+		external: [
+			'vscode',
+			'@octokit/rest',
+			'@microsoft/1ds-core-js',
+			'@microsoft/1ds-post-js',
+			'@vscode/extension-telemetry',
+			'dompurify',
+			'jsonc-parser',
+			'markdown-it',
+			'minimatch',
+			'picomatch',
+			'request-light',
+			'tunnel',
+			'vscode-languageclient',
+			'vscode-languageserver-textdocument',
+			'vscode-tas-client',
+			'vscode-uri',
+			'which',
+		],
 		format: config.format ?? 'cjs',
 		logOverride: {
 			'import-is-undefined': 'error',

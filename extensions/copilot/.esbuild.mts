@@ -42,6 +42,16 @@ const baseNodeBuildOptions = {
 		'sqlite3',
 		'node-pty', // Required by @github/copilot
 		'@github/copilot',
+		// Resolved from the shared `extensions/node_modules/` in the product.
+		// Keep in sync with the `external` list in `extensions/esbuild-extension-common.mts`.
+		'@vscode/extension-telemetry',
+		'@microsoft/1ds-core-js',
+		'@microsoft/1ds-post-js',
+		'dompurify',
+		'jsonc-parser',
+		'markdown-it',
+		'minimatch',
+		'vscode-tas-client',
 		...(isDev ? [] : ['dotenv', 'source-map-support'])
 	],
 	platform: 'node',

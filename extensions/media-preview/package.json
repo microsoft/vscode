@@ -164,7 +164,6 @@
     "watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.9.8",
     "vscode-uri": "^3.0.6"
   },
   "devDependencies": {

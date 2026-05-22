@@ -77,9 +77,6 @@
     "watch-bundle-web": "node ./esbuild.browser.mts --watch",
     "watch-typecheck-web": "tsgo --project ./tsconfig.json --noEmit --watch"
   },
-  "dependencies": {
-    "@vscode/extension-telemetry": "^0.9.8"
-  },
   "devDependencies": {
     "@types/node": "22.x",
     "@types/vscode-webview": "^1.57.0",
