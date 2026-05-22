@@ -132,7 +132,11 @@ async function appendProviderData(lines: string[], itemSource: IAICustomizationI
 
 	const allItems = await itemSource.fetchProviderItems();
 
-	lines.push(`  Total items from provider: ${allItems.length}`);
+	if (allItems.length === 0) {
+		lines.push(`  Total items from provider: 0 (or provider returned undefined and the item source normalized it to an empty array)`);
+	} else {
+		lines.push(`  Total items from provider: ${allItems.length}`);
+	}
 
 	// Group by type for summary
 	const byType = new Map<string, ICustomizationItem[]>();
