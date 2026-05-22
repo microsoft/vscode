@@ -51,10 +51,24 @@ export interface ITelemetryService {
 	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void;
 
 	setExperimentProperty(name: string, value: string): void;
+
+	/**
+	 * Sets a common property that will be attached to all telemetry events.
+	 * Common properties are added after PII cleaning and cannot be overridden by event data.
+	 */
+	setCommonProperty(name: string, value: string): void;
 }
 
 export function telemetryLevelEnabled(service: ITelemetryService, level: TelemetryLevel): boolean {
 	return service.telemetryLevel >= level;
+}
+
+/**
+ * Replaces `/` and `\` with `|` in model identifiers to prevent the
+ * telemetry pipeline from redacting them as file paths.
+ */
+export function escapeModelIdForTelemetry(modelId: string | undefined): string | undefined {
+	return modelId?.replace(/[\/\\]/g, '|');
 }
 
 export interface ITelemetryEndpoint {

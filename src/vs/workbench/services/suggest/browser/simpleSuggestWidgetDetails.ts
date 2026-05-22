@@ -142,7 +142,7 @@ export class SimpleSuggestDetailsWidget {
 			md += `score: ${item.score[0]}\n`;
 			md += `prefix: ${item.word ?? '(no prefix)'}\n`;
 			const vs = item.completion.replacementRange;
-			md += `valueSelection: ${vs ? `[${vs[0]}, ${vs[1]}]` : 'undefined'}\\n`;
+			md += `valueSelection: ${vs ? `[${vs[0]}, ${vs[1]}]` : 'undefined'}\n`;
 			md += `index: ${item.idx}\n`;
 			if (this._getAdvancedExplainModeDetails) {
 				const advancedDetails = this._getAdvancedExplainModeDetails();

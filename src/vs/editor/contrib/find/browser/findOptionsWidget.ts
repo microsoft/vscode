@@ -120,11 +120,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _keybindingLabelFor(actionId: string): string {
-		const kb = this._keybindingService.lookupKeybinding(actionId);
-		if (!kb) {
-			return '';
-		}
-		return ` (${kb.getLabel()})`;
+		return this._keybindingService.appendKeybinding('', actionId);
 	}
 
 	public override dispose(): void {

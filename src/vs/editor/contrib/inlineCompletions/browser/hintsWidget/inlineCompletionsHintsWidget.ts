@@ -143,12 +143,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 			true,
 			() => this._commandService.executeCommand(commandId),
 		);
-		const kb = this.keybindingService.lookupKeybinding(commandId, this._contextKeyService);
-		let tooltip = label;
-		if (kb) {
-			tooltip = localize({ key: 'content', comment: ['A label', 'A keybinding'] }, '{0} ({1})', label, kb.getLabel());
-		}
-		action.tooltip = tooltip;
+		action.tooltip = this.keybindingService.appendKeybinding(label, commandId, this._contextKeyService);
 		return action;
 	}
 

@@ -9,6 +9,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -16,7 +17,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import { AllowedMcpServer } from '../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IAuthenticationQueryService, IAccountQuery } from '../../../../services/authentication/common/authenticationQuery.js';
-import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 
 export class ManageTrustedMcpServersForAccountAction extends Action2 {
@@ -26,7 +27,7 @@ export class ManageTrustedMcpServersForAccountAction extends Action2 {
 			title: localize2('manageTrustedMcpServersForAccount', "Manage Trusted MCP Servers For Account"),
 			category: localize2('accounts', "Accounts"),
 			f1: true,
-			precondition: ChatContextKeys.Setup.hidden.negate()
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate())
 		});
 	}
 

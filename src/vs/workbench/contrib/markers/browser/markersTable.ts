@@ -37,6 +37,7 @@ const $ = DOM.$;
 interface IMarkerIconColumnTemplateData {
 	readonly icon: HTMLElement;
 	readonly actionBar: ActionBar;
+	readonly elementDisposables: DisposableStore;
 }
 
 interface IMarkerCodeColumnTemplateData {
@@ -79,10 +80,12 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 			actionViewItemProvider: (action: IAction, options) => action.id === QuickFixAction.ID ? this.instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action, options) : undefined
 		});
 
-		return { actionBar, icon };
+		return { actionBar, icon, elementDisposables: new DisposableStore() };
 	}
 
 	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerIconColumnTemplateData): void {
+		templateData.elementDisposables.clear();
+
 		const toggleQuickFix = (enabled?: boolean) => {
 			if (!isUndefinedOrNull(enabled)) {
 				const container = DOM.findParentWithClass(templateData.icon, 'monaco-table-td')!;
@@ -100,17 +103,20 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 			templateData.actionBar.push([quickFixAction], { icon: true, label: false });
 			toggleQuickFix(viewModel.quickFixAction.enabled);
 
-			quickFixAction.onDidChange(({ enabled }) => toggleQuickFix(enabled));
-			quickFixAction.onShowQuickFixes(() => {
+			templateData.elementDisposables.add(quickFixAction.onDidChange(({ enabled }) => toggleQuickFix(enabled)));
+			templateData.elementDisposables.add(quickFixAction.onShowQuickFixes(() => {
 				const quickFixActionViewItem = <QuickFixActionViewItem>templateData.actionBar.viewItems[0];
 				if (quickFixActionViewItem) {
 					quickFixActionViewItem.showQuickFixes();
 				}
-			});
+			}));
 		}
 	}
 
-	disposeTemplate(templateData: IMarkerIconColumnTemplateData): void { }
+	disposeTemplate(templateData: IMarkerIconColumnTemplateData): void {
+		templateData.elementDisposables.dispose();
+		templateData.actionBar.dispose();
+	}
 }
 
 class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerCodeColumnTemplateData> {

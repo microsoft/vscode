@@ -46,6 +46,8 @@ export interface IExtensionHostInitData {
 		readonly firstSessionDate: string;
 		readonly msftInternal?: boolean;
 	};
+	remoteExtensionTips?: { readonly [remoteName: string]: unknown };
+	virtualWorkspaceExtensionTips?: { readonly [remoteName: string]: unknown };
 	logLevel: LogLevel;
 	loggers: UriDto<ILoggerResource>[];
 	logsLocation: URI;
@@ -65,6 +67,7 @@ export interface IEnvironment {
 	appLanguage: string;
 	isExtensionTelemetryLoggingOnly: boolean;
 	appUriScheme: string;
+	isPortable?: boolean;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
 	globalStorageHome: URI;
@@ -72,6 +75,7 @@ export interface IEnvironment {
 	useHostProxy?: boolean;
 	skipWorkspaceStorageLock?: boolean;
 	extensionLogLevel?: [string, LogLevel][];
+	isSessionsWindow?: boolean;
 }
 
 export interface IStaticWorkspaceData {

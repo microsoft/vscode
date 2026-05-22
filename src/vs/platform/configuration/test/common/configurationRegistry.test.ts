@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../common/configurationRegistry.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry, isConfigurationDefaultSourceEquals } from '../../common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
 
@@ -193,5 +193,102 @@ suite('ConfigurationRegistry', () => {
 		configurationRegistry.deregisterDefaultConfigurations(overrides1);
 
 		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['[lang]'], undefined);
+	});
+
+	test('configuration defaults - string source', async () => {
+		configurationRegistry.registerConfiguration({
+			'id': '_test_default',
+			'type': 'object',
+			'properties': {
+				'config': {
+					'type': 'object',
+				}
+			}
+		});
+
+		const overrides1 = [{ overrides: { 'config': { a: 1, b: 2 } }, source: 'source1' }];
+		const overrides2 = [{ overrides: { 'config': { a: 2, c: 3 } }, source: 'source2' }];
+
+		configurationRegistry.registerDefaultConfigurations(overrides1);
+		configurationRegistry.registerDefaultConfigurations(overrides2);
+
+		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['config'].default, { a: 2, b: 2, c: 3 });
+		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['config'].defaultValueSource instanceof Map, true);
+
+		configurationRegistry.deregisterDefaultConfigurations(overrides2);
+
+		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['config'].default, { a: 1, b: 2 });
+
+		configurationRegistry.deregisterDefaultConfigurations(overrides1);
+
+		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['config'].default, {});
+	});
+
+	test('configuration defaults - deregister with string source and extension source', async () => {
+		configurationRegistry.registerConfiguration({
+			'id': '_test_default',
+			'type': 'object',
+			'properties': {
+				'config': {
+					'type': 'object',
+				}
+			}
+		});
+
+		const overrides1 = [{ overrides: { 'config': { a: 1, b: 2 } }, source: 'stringSource' }];
+		const overrides2 = [{ overrides: { 'config': { a: 2, c: 3 } }, source: { id: 'extSource', displayName: 'Extension Source' } }];
+
+		configurationRegistry.registerDefaultConfigurations(overrides1);
+		configurationRegistry.registerDefaultConfigurations(overrides2);
+
+		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['config'].default, { a: 2, b: 2, c: 3 });
+
+		configurationRegistry.deregisterDefaultConfigurations(overrides1);
+
+		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['config'].default, { a: 2, c: 3 });
+
+		configurationRegistry.deregisterDefaultConfigurations(overrides2);
+
+		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['config'].default, {});
+	});
+
+	suite('isConfigurationDefaultSourceEquals', () => {
+
+		test('both undefined', () => {
+			assert.strictEqual(isConfigurationDefaultSourceEquals(undefined, undefined), true);
+		});
+
+		test('one undefined', () => {
+			assert.strictEqual(isConfigurationDefaultSourceEquals('source', undefined), false);
+			assert.strictEqual(isConfigurationDefaultSourceEquals(undefined, 'source'), false);
+			assert.strictEqual(isConfigurationDefaultSourceEquals({ id: 'ext' }, undefined), false);
+			assert.strictEqual(isConfigurationDefaultSourceEquals(undefined, { id: 'ext' }), false);
+		});
+
+		test('same string source', () => {
+			assert.strictEqual(isConfigurationDefaultSourceEquals('source', 'source'), true);
+		});
+
+		test('different string sources', () => {
+			assert.strictEqual(isConfigurationDefaultSourceEquals('source1', 'source2'), false);
+		});
+
+		test('same extension source', () => {
+			assert.strictEqual(isConfigurationDefaultSourceEquals({ id: 'ext' }, { id: 'ext' }), true);
+		});
+
+		test('different extension sources', () => {
+			assert.strictEqual(isConfigurationDefaultSourceEquals({ id: 'ext1' }, { id: 'ext2' }), false);
+		});
+
+		test('string vs extension source', () => {
+			assert.strictEqual(isConfigurationDefaultSourceEquals('ext', { id: 'ext' }), false);
+			assert.strictEqual(isConfigurationDefaultSourceEquals({ id: 'ext' }, 'ext'), false);
+		});
+
+		test('same reference', () => {
+			const source = { id: 'ext', displayName: 'Extension' };
+			assert.strictEqual(isConfigurationDefaultSourceEquals(source, source), true);
+		});
 	});
 });

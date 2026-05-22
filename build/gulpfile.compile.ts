@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import gulp from 'gulp';
 import * as util from './lib/util.ts';
 import * as date from './lib/date.ts';
-import * as task from './lib/task.ts';
+import * as task from './lib/gulp/task.ts';
 import * as compilation from './lib/compilation.ts';
 
 function makeCompileBuildTask(disableMangle: boolean) {
@@ -19,9 +18,9 @@ function makeCompileBuildTask(disableMangle: boolean) {
 }
 
 // Local/PR compile, including nls and inline sources in sourcemaps, minification, no mangling
-export const compileBuildWithoutManglingTask = task.define('compile-build-without-mangling', makeCompileBuildTask(true));
-gulp.task(compileBuildWithoutManglingTask);
+export const compileBuildWithoutManglingTask = task.define('compile-build-without-mangling', task.series(compilation.copyCodiconsTask, makeCompileBuildTask(true)));
+task.task(compileBuildWithoutManglingTask);
 
 // CI compile, including nls and inline sources in sourcemaps, mangling, minification, for build
-export const compileBuildWithManglingTask = task.define('compile-build-with-mangling', makeCompileBuildTask(false));
-gulp.task(compileBuildWithManglingTask);
+export const compileBuildWithManglingTask = task.define('compile-build-with-mangling', task.series(compilation.copyCodiconsTask, makeCompileBuildTask(false)));
+task.task(compileBuildWithManglingTask);

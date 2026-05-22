@@ -39,6 +39,7 @@ interface CustomEditorInputInitInfo {
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly webviewTitle: string | undefined;
+	readonly preferredName: string | undefined;
 	readonly iconPath: WebviewIconPath | undefined;
 }
 
@@ -52,8 +53,11 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	): EditorInput {
 		return instantiationService.invokeFunction(accessor => {
 			// If it's an untitled file we must populate the untitledDocumentData
-			const untitledString = accessor.get(IUntitledTextEditorService).getValue(init.resource);
+			const untitledTextEditorService = accessor.get(IUntitledTextEditorService);
+			const untitledTextModel = untitledTextEditorService.get(init.resource);
+			const untitledString = untitledTextModel?.textEditorModel?.getValue();
 			const untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
+
 			const webview = accessor.get(IWebviewService).createWebviewOverlay({
 				providedViewType: init.viewType,
 				title: init.webviewTitle,
@@ -102,7 +106,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICustomEditorLabelService private readonly customEditorLabelService: ICustomEditorLabelService,
 	) {
-		super({ providedId: init.viewType, viewType: init.viewType, name: '', iconPath: init.iconPath }, webview, themeService, webviewWorkbenchService);
+		super({ providedId: init.viewType, viewType: init.viewType, name: init.preferredName ?? '', iconPath: init.iconPath }, webview, themeService, webviewWorkbenchService);
 		this._editorResource = init.resource;
 		this.oldResource = options.oldResource;
 		this._defaultDirtyState = options.startsDirty;
@@ -159,14 +163,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			capabilities |= EditorInputCapabilities.Singleton;
 		}
 
-		if (this._modelRef) {
-			if (this._modelRef.object.isReadonly()) {
-				capabilities |= EditorInputCapabilities.Readonly;
-			}
-		} else {
-			if (this.filesConfigurationService.isReadonly(this.resource)) {
-				capabilities |= EditorInputCapabilities.Readonly;
-			}
+		if (this.isReadonly()) {
+			capabilities |= EditorInputCapabilities.Readonly;
 		}
 
 		if (this.resource.scheme === Schemas.untitled) {
@@ -262,7 +260,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public override copy(): EditorInput {
 		return CustomEditorInput.create(this.instantiationService,
-			{ resource: this.resource, viewType: this.viewType, webviewTitle: this.getWebviewTitle(), iconPath: this.iconPath, },
+			{ resource: this.resource, viewType: this.viewType, webviewTitle: this.getWebviewTitle(), preferredName: undefined, iconPath: this.iconPath, },
 			this.group,
 			this.webview.options);
 	}

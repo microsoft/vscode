@@ -41,7 +41,7 @@ suite('Window', () => {
 			function createWindow(id: number, slow?: boolean) {
 				// eslint-disable-next-line local/code-no-any-casts
 				const res = {
-					setTimeout: function (callback: Function, delay: number, ...args: any[]): number {
+					setTimeout: function (callback: Function, delay: number, ...args: unknown[]): number {
 						setTimeoutCalls.push(id);
 
 						return mainWindow.setTimeout(() => callback(id), slow ? delay * 2 : delay, ...args);

@@ -363,14 +363,14 @@ suite('TerminalProfileService', () => {
 
 		test('createInstance', async () => {
 			mockTerminalProfileService.setDefaultProfileName(powershellProfile.profileName);
-			const pick = { ...powershellPick, keyMods: { alt: true, ctrlCmd: false } };
+			const pick = { ...powershellPick, keyMods: { alt: true, ctrlCmd: false, shift: false } };
 			quickInputService.setPick(pick);
 			const result = await terminalProfileQuickpick.showAndGetResult('createInstance');
-			deepStrictEqual(result, { config: powershellProfile, keyMods: { alt: true, ctrlCmd: false } });
+			deepStrictEqual(result, { config: powershellProfile, keyMods: { alt: true, ctrlCmd: false, shift: false } });
 		});
 
 		test('createInstance with contributed', async () => {
-			const pick = { ...jsdebugPick, keyMods: { alt: true, ctrlCmd: false } };
+			const pick = { ...jsdebugPick, keyMods: { alt: true, ctrlCmd: false, shift: true } };
 			quickInputService.setPick(pick);
 			const result = await terminalProfileQuickpick.showAndGetResult('createInstance');
 			const expected = {
@@ -380,7 +380,7 @@ suite('TerminalProfileService', () => {
 					options: { color: undefined, icon: 'debug' },
 					title: jsdebugProfile.title,
 				},
-				keyMods: { alt: true, ctrlCmd: false }
+				keyMods: { alt: true, ctrlCmd: false, shift: true }
 			};
 			deepStrictEqual(result, expected);
 		});

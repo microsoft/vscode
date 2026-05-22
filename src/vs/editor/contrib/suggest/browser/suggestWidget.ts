@@ -270,7 +270,7 @@ export class SuggestWidget implements IDisposable {
 			listInactiveFocusOutline: activeContrastBorder
 		}));
 
-		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, suggestWidgetStatusbarMenu);
+		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, suggestWidgetStatusbarMenu, undefined);
 		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).showStatusBar);
 		applyStatusBarStyle();
 
@@ -319,6 +319,11 @@ export class SuggestWidget implements IDisposable {
 		this._showTimeout.dispose();
 		this._contentWidget.dispose();
 		this.element.dispose();
+		this._onDidSelect.dispose();
+		this._onDidFocus.dispose();
+		this._onDidHide.dispose();
+		this._onDidShow.dispose();
+		this._onDetailsKeydown.dispose();
 	}
 
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {

@@ -133,14 +133,14 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super(KeybindingsEditor.ID, group, telemetryService, themeService, storageService);
-		this.delayedFiltering = new Delayer<void>(300);
+		this.delayedFiltering = this._register(new Delayer<void>(300));
 		this._register(keybindingsService.onDidUpdateKeybindings(() => this.render(!!this.keybindingFocusContextKey.get())));
 
 		this.keybindingsEditorContextKey = CONTEXT_KEYBINDINGS_EDITOR.bindTo(this.contextKeyService);
 		this.searchFocusContextKey = CONTEXT_KEYBINDINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.keybindingFocusContextKey = CONTEXT_KEYBINDING_FOCUS.bindTo(this.contextKeyService);
 		this.searchHasValueContextKey = CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE.bindTo(this.contextKeyService);
-		this.searchHistoryDelayer = new Delayer<void>(500);
+		this.searchHistoryDelayer = this._register(new Delayer<void>(500));
 
 		this.recordKeysAction = this._register(new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, localize('recordKeysLabel', "Record Keys"), ThemeIcon.asClassName(keybindingsRecordKeysIcon)));
 		this.recordKeysAction.checked = false;
@@ -337,6 +337,13 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		this.ariaLabelElement = DOM.append(parent, DOM.$(''));
 		this.ariaLabelElement.setAttribute('id', 'keybindings-editor-aria-label-element');
 		this.ariaLabelElement.setAttribute('aria-live', 'assertive');
+		this.ariaLabelElement.style.position = 'absolute';
+		this.ariaLabelElement.style.width = '1px';
+		this.ariaLabelElement.style.height = '1px';
+		this.ariaLabelElement.style.overflow = 'hidden';
+		this.ariaLabelElement.style.clip = 'rect(1px, 1px, 1px, 1px)';
+		this.ariaLabelElement.style.clipPath = 'inset(50%)';
+		this.ariaLabelElement.style.whiteSpace = 'nowrap';
 	}
 
 	private createOverlayContainer(parent: HTMLElement): void {
@@ -602,8 +609,9 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		if (this.keybindingsEditorModel) {
 			const filter = this.searchWidget.getValue();
 			const keybindingsEntries: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(filter, this.sortByPrecedenceAction.checked);
-			this.accessibilityService.alert(localize('foundResults', "{0} results", keybindingsEntries.length));
-			this.ariaLabelElement.setAttribute('aria-label', this.getAriaLabel(keybindingsEntries));
+			const ariaLabel = this.getAriaLabel(keybindingsEntries);
+			this.accessibilityService.alert(ariaLabel);
+			this.ariaLabelElement.textContent = ariaLabel;
 
 			if (keybindingsEntries.length === 0) {
 				this.latestEmptyFilters.push(filter);
@@ -634,11 +642,19 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 	}
 
 	private getAriaLabel(keybindingsEntries: IKeybindingItemEntry[]): string {
+		let label: string;
 		if (this.sortByPrecedenceAction.checked) {
-			return localize('show sorted keybindings', "Showing {0} Keybindings in precedence order", keybindingsEntries.length);
+			label = localize('show sorted keybindings', "Showing {0} Keybindings in precedence order", keybindingsEntries.length);
 		} else {
-			return localize('show keybindings', "Showing {0} Keybindings in alphabetical order", keybindingsEntries.length);
+			label = localize('show keybindings', "Showing {0} Keybindings in alphabetical order", keybindingsEntries.length);
 		}
+		if (this.configurationService.getValue(AccessibilityVerbositySettingId.KeybindingsEditor)) {
+			const kb = this.keybindingsService.lookupKeybinding('widgetNavigation.focusNext')?.getAriaLabel();
+			if (kb) {
+				label += '. ' + localize('navigateToResults', "Use {0} to navigate to the results table.", kb);
+			}
+		}
+		return label;
 	}
 
 	private layoutKeybindingsTable(): void {
@@ -886,23 +902,21 @@ class ActionsColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IAct
 	}
 
 	private createEditAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
-		const keybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_DEFINE);
 		return <IAction>{
 			class: ThemeIcon.asClassName(keybindingsEditIcon),
 			enabled: true,
 			id: 'editKeybinding',
-			tooltip: keybinding ? localize('editKeybindingLabelWithKey', "Change Keybinding {0}", `(${keybinding.getLabel()})`) : localize('editKeybindingLabel', "Change Keybinding"),
+			tooltip: this.keybindingsService.appendKeybinding(localize('editKeybindingLabel', "Change Keybinding"), KEYBINDINGS_EDITOR_COMMAND_DEFINE),
 			run: () => this.keybindingsEditor.defineKeybinding(keybindingItemEntry, false)
 		};
 	}
 
 	private createAddAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
-		const keybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_DEFINE);
 		return <IAction>{
 			class: ThemeIcon.asClassName(keybindingsAddIcon),
 			enabled: true,
 			id: 'addKeybinding',
-			tooltip: keybinding ? localize('addKeybindingLabelWithKey', "Add Keybinding {0}", `(${keybinding.getLabel()})`) : localize('addKeybindingLabel', "Add Keybinding"),
+			tooltip: this.keybindingsService.appendKeybinding(localize('addKeybindingLabel', "Add Keybinding"), KEYBINDINGS_EDITOR_COMMAND_DEFINE),
 			run: () => this.keybindingsEditor.defineKeybinding(keybindingItemEntry, false)
 		};
 	}

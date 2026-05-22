@@ -8,6 +8,8 @@ jobs:
     pool:
       name: AcesShared
       os: macOS
+      demands:
+        - ImageOverride -equals ACES_VM_SharedPool_Sequoia
     timeoutInMinutes: 60
     variables:
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}

@@ -167,10 +167,19 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 			const results = await this.installGalleryExtensions([{ extension, options }]);
 			const result = results.find(({ identifier }) => areSameExtensions(identifier, extension.identifier));
 			if (result?.local) {
-				return result?.local;
+				return result.local;
 			}
 			if (result?.error) {
 				throw result.error;
+			}
+			// Extension might have been redirected due to deprecation (e.g., github.copilot -> github.copilot-chat)
+			// In this case, the result will have the redirected extension's identifier
+			const redirectedResult = results[0];
+			if (redirectedResult?.local) {
+				return redirectedResult.local;
+			}
+			if (redirectedResult?.error) {
+				throw redirectedResult.error;
 			}
 			throw new ExtensionManagementError(`Unknown error while installing extension ${extension.identifier.id}`, ExtensionManagementErrorCode.Unknown);
 		} catch (error) {
@@ -293,18 +302,23 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 						this.logService.info('Waiting for already requested installing extension', identifier.id, root.identifier.id, options.profileLocation.toString());
 						existingInstallingExtension.waitingTasks.push(root);
 						// add promise that waits until the extension is completely installed, ie., onDidInstallExtensions event is triggered for this extension
-						alreadyRequestedInstallations.push(
-							Event.toPromise(
-								Event.filter(this.onDidInstallExtensions, results => results.some(result => areSameExtensions(result.identifier, identifier)))
-							).then(results => {
-								this.logService.info('Finished waiting for already requested installing extension', identifier.id, root.identifier.id, options.profileLocation.toString());
-								const result = results.find(result => areSameExtensions(result.identifier, identifier));
-								if (!result?.local) {
-									// Extension failed to install
-									throw new Error(`Extension ${identifier.id} is not installed`);
-								}
-								return result.local;
-							}));
+						const waitForInstallation = Event.toPromise(
+							Event.filter(this.onDidInstallExtensions, results => results.some(result => areSameExtensions(result.identifier, identifier)))
+						).then(results => {
+							this.logService.info('Finished waiting for already requested installing extension', identifier.id, root.identifier.id, options.profileLocation.toString());
+							const result = results.find(result => areSameExtensions(result.identifier, identifier));
+							if (!result?.local) {
+								// Extension failed to install
+								throw new Error(`Extension ${identifier.id} is not installed`);
+							}
+							return result.local;
+						});
+						alreadyRequestedInstallations.push(waitForInstallation);
+						// Attach a no-op rejection handler to prevent an unhandledRejection if the
+						// outer try throws before `alreadyRequestedInstallations` is awaited below.
+						// The original promise is still observed via `joinAllSettled` on the happy path,
+						// and the underlying install failure is already reported by the primary task.
+						waitForInstallation.catch(() => { });
 					}
 					return;
 				}
@@ -322,11 +336,16 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		};
 
 		try {
+			const systemExtensions = await this.getInstalled(ExtensionType.System);
 			// Start installing extensions
 			for (const { manifest, extension, options } of extensions) {
-				const isApplicationScoped = options.isApplicationScoped || options.isBuiltin || isApplicationScopedExtension(manifest);
+				const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
+				const isSystemExtension = systemExtensions.some(e => areSameExtensions(e.identifier, { id: extensionId }));
+				const isBuiltin = options.isBuiltin || isSystemExtension;
+				const isApplicationScoped = options.isApplicationScoped || isBuiltin || isApplicationScopedExtension(manifest);
 				const installExtensionTaskOptions: InstallExtensionTaskOptions = {
 					...options,
+					isBuiltin,
 					isApplicationScoped,
 					profileLocation: isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation ?? this.getCurrentExtensionsManifestLocation(),
 					productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date }
@@ -334,8 +353,39 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 
 				const existingInstallExtensionTask = !URI.isUri(extension) ? this.installingExtensions.get(getInstallExtensionTaskKey(extension, installExtensionTaskOptions.profileLocation)) : undefined;
 				if (existingInstallExtensionTask) {
-					this.logService.info('Extension is already requested to install', existingInstallExtensionTask.task.identifier.id, installExtensionTaskOptions.profileLocation.toString());
-					alreadyRequestedInstallations.push(existingInstallExtensionTask.task.waitUntilTaskIsFinished());
+					const existingTask = existingInstallExtensionTask.task;
+					this.logService.info('Extension is already requested to install', existingTask.identifier.id, installExtensionTaskOptions.profileLocation.toString());
+					// Record the result of the in-flight install into our results map so callers
+					// (e.g. installFromGallery) can find the actual local extension or real error
+					// instead of falling through to a generic "Unknown error".
+					const resultKey = `${existingTask.identifier.id.toLowerCase()}-${installExtensionTaskOptions.profileLocation.toString()}`;
+					const waitForInstallation = existingTask.waitUntilTaskIsFinished().then(local => {
+						installExtensionResultsMap.set(resultKey, {
+							local,
+							identifier: existingTask.identifier,
+							operation: existingTask.operation,
+							source: existingTask.source,
+							context: installExtensionTaskOptions.context,
+							profileLocation: installExtensionTaskOptions.profileLocation,
+							applicationScoped: local.isApplicationScoped,
+						});
+						return local;
+					}, error => {
+						installExtensionResultsMap.set(resultKey, {
+							error: toExtensionManagementError(error),
+							identifier: existingTask.identifier,
+							operation: existingTask.operation,
+							source: existingTask.source,
+							context: installExtensionTaskOptions.context,
+							profileLocation: installExtensionTaskOptions.profileLocation,
+						});
+						throw error;
+					});
+					alreadyRequestedInstallations.push(waitForInstallation);
+					// Attach a no-op rejection handler to prevent an unhandledRejection if the
+					// outer try throws before `alreadyRequestedInstallations` is awaited below.
+					// The original promise is still observed via `joinAllSettled` on the happy path.
+					waitForInstallation.catch(() => { });
 				} else {
 					createInstallExtensionTask(manifest, extension, installExtensionTaskOptions, undefined);
 				}
@@ -428,12 +478,6 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 						durationSinceUpdate,
 						source: task.options.context?.[EXTENSION_INSTALL_SOURCE_CONTEXT] as string | undefined
 					});
-					// In web, report extension install statistics explicitly. In Desktop, statistics are automatically updated while downloading the VSIX.
-					if (isWeb && task.operation !== InstallOperation.Update) {
-						try {
-							await this.galleryService.reportStatistic(local.manifest.publisher, local.manifest.name, local.manifest.version, StatisticType.Install);
-						} catch (error) { /* ignore */ }
-					}
 				}
 				installExtensionResultsMap.set(key, { local, identifier: task.identifier, operation: task.operation, source: task.source, context: task.options.context, profileLocation: task.options.profileLocation, applicationScoped: local.isApplicationScoped });
 			}));
@@ -854,8 +898,8 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 
 					await task.run();
 					await this.joinAllSettled(this.participants.map(participant => participant.postUninstall(task.extension, task.options, CancellationToken.None)));
-					// only report if extension has a mapped gallery extension. UUID identifies the gallery extension.
-					if (task.extension.identifier.uuid) {
+					// only report if extension has a mapped gallery extension and not in web. UUID identifies the gallery extension.
+					if (task.extension.identifier.uuid && !isWeb) {
 						try {
 							await this.galleryService.reportStatistic(task.extension.manifest.publisher, task.extension.manifest.name, task.extension.manifest.version, StatisticType.Uninstall);
 						} catch (error) { /* ignore */ }
@@ -943,6 +987,9 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 
 	private getAllPackExtensionsToUninstall(extension: ILocalExtension, installed: ILocalExtension[], checked: ILocalExtension[] = []): ILocalExtension[] {
 		if (checked.indexOf(extension) !== -1) {
+			return [];
+		}
+		if (areSameExtensions(extension.identifier, { id: this.productService.defaultChatAgent.extensionId })) {
 			return [];
 		}
 		checked.push(extension);

@@ -9,14 +9,18 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey, isNumber, isObject, isString } from '../../../../../base/common/types.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { ITerminalLogService, ITerminalProfile, TerminalSettingId, type IShellLaunchConfig } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { getShellIntegrationTimeout } from '../../../terminal/common/terminalEnvironment.js';
+import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
+import { isBash, isFish, isPowerShell, isZsh } from './runInTerminalHelpers.js';
 
 const enum ShellLaunchType {
 	Unknown = 0,
@@ -34,6 +38,7 @@ export interface IToolTerminal {
 	instance: ITerminalInstance;
 	shellIntegrationQuality: ShellIntegrationQuality;
 	receivedUserInput?: boolean;
+	isBackground?: boolean;
 }
 
 export class ToolTerminalCreator {
@@ -44,14 +49,15 @@ export class ToolTerminalCreator {
 	private static _lastSuccessfulShell: ShellLaunchType = ShellLaunchType.Unknown;
 
 	constructor(
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 	}
 
-	async createTerminal(shellOrProfile: string | ITerminalProfile, token: CancellationToken): Promise<IToolTerminal> {
-		const instance = await this._createCopilotTerminal(shellOrProfile);
+	async createTerminal(shellOrProfile: string | ITerminalProfile, os: OperatingSystem, token: CancellationToken): Promise<IToolTerminal> {
+		const instance = await this._createCopilotTerminal(shellOrProfile, os);
 		const toolTerminal: IToolTerminal = {
 			instance,
 			shellIntegrationQuality: ShellIntegrationQuality.None,
@@ -138,15 +144,50 @@ export class ToolTerminalCreator {
 		}
 	}
 
-	private _createCopilotTerminal(shellOrProfile: string | ITerminalProfile) {
+	private _createCopilotTerminal(shellOrProfile: string | ITerminalProfile, os: OperatingSystem) {
+		const shellPath = isString(shellOrProfile) ? shellOrProfile : shellOrProfile.path;
+
+		const env: Record<string, string> = {
+			// Let CLI tools detect that they are running inside an AI agent.
+			// This allows programs to adapt their output (e.g. JSON instead of
+			// ANSI, disable interactive prompts, skip animations).
+			// See https://github.com/microsoft/vscode/issues/311734
+			COPILOT_AGENT: '1',
+			// Avoid making `git diff` interactive when called from copilot
+			GIT_PAGER: 'cat',
+			// Prevent git from opening an editor for merge commits
+			GIT_MERGE_AUTOEDIT: 'no',
+			// Prevent git from opening an editor (e.g. for commit --amend, rebase -i).
+			// `:` is a POSIX shell built-in no-op (returns 0), works cross-platform
+			// since git always invokes the editor via `sh -c`.
+			GIT_EDITOR: ':',
+		};
+
+		const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
+		if (preventShellHistory) {
+			// Check if the shell supports history exclusion via shell integration scripts
+			if (
+				isBash(shellPath, os) ||
+				isZsh(shellPath, os) ||
+				isFish(shellPath, os) ||
+				isPowerShell(shellPath, os)
+			) {
+				env['VSCODE_PREVENT_SHELL_HISTORY'] = '1';
+			}
+		}
+
+		// Zsh-specific fixups for agent terminals: disable bang history
+		// expansion (prevents ! in double quotes from hanging on dquote>)
+		// and enable inline # comments (lets the agent annotate commands).
+		if (isZsh(shellPath, os)) {
+			env['VSCODE_AGENT_ZSH_FIXUPS'] = '1';
+		}
+
 		const config: IShellLaunchConfig = {
 			icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
 			hideFromUser: true,
 			forcePersist: true,
-			env: {
-				// Avoid making `git diff` interactive when called from copilot
-				GIT_PAGER: 'cat',
-			}
+			env,
 		};
 
 		if (isString(shellOrProfile)) {
@@ -172,11 +213,22 @@ export class ToolTerminalCreator {
 		const store = new DisposableStore();
 		const result = new DeferredPromise<ShellIntegrationQuality>();
 
+		// When screen reader mode is on, allow extra time before giving up on shell integration.
+		// Cold-loading PSReadLine on Windows PowerShell 5.1 with accessibility mode enabled can
+		// push the `HasRichCommandDetection` sequence past the default window, which otherwise
+		// causes `shellIntegrationQuality` to be stuck at `None` and the "Enable shell integration"
+		// banner to show up incorrectly. Only extend non-zero timeouts so tests using 0 remain 0.
+		const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
+		const effectiveTimeoutMs = timeoutMs > 0 && isScreenReaderOptimized
+			? timeoutMs + 3000
+			: timeoutMs;
+		this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: base ${timeoutMs}ms, effective ${effectiveTimeoutMs}ms, screenReaderOptimized=${isScreenReaderOptimized}`);
+
 		const siNoneTimer = store.add(new MutableDisposable());
 		siNoneTimer.value = disposableTimeout(() => {
-			this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Timed out ${timeoutMs}ms, using no SI`);
+			this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Timed out ${effectiveTimeoutMs}ms, using no SI`);
 			result.complete(ShellIntegrationQuality.None);
-		}, timeoutMs);
+		}, effectiveTimeoutMs);
 
 		if (instance.capabilities.get(TerminalCapability.CommandDetection)?.hasRichCommandDetection) {
 			// Rich command detection is available immediately.

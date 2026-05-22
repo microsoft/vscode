@@ -7,6 +7,7 @@
 	z-index: 100;
 	color: inherit;
 	border-radius: 4px;
+	box-shadow: var(--vscode-shadow-hover);
 }
 
 .monaco-editor .rename-box.preview {
@@ -15,7 +16,7 @@
 
 .monaco-editor .rename-box .rename-input-with-button {
 	padding: 3px;
-	border-radius: 2px;
+	border-radius: 4px;
 	width: calc(100% - 8px); /* 4px padding on each side */
 }
 

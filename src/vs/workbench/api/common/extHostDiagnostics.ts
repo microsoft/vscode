@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { localize } from '../../../nls.js';
 import { IMarkerData, MarkerSeverity } from '../../../platform/markers/common/markers.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';

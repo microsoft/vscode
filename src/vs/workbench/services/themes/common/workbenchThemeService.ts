@@ -38,17 +38,35 @@ export enum ThemeSettings {
 	SYSTEM_COLOR_THEME = 'window.systemColorTheme'
 }
 
-export enum ThemeSettingDefaults {
-	COLOR_THEME_DARK = 'Default Dark Modern',
-	COLOR_THEME_LIGHT = 'Default Light Modern',
-	COLOR_THEME_HC_DARK = 'Default High Contrast',
-	COLOR_THEME_HC_LIGHT = 'Default High Contrast Light',
+export namespace ThemeSettingDefaults {
+	export const COLOR_THEME_DARK = 'Dark 2026';
+	export const COLOR_THEME_LIGHT = 'Light 2026';
+	export const COLOR_THEME_HC_DARK = 'Default High Contrast';
+	export const COLOR_THEME_HC_LIGHT = 'Default High Contrast Light';
 
-	COLOR_THEME_DARK_OLD = 'Default Dark+',
-	COLOR_THEME_LIGHT_OLD = 'Default Light+',
+	export const FILE_ICON_THEME = 'vs-seti';
+	export const PRODUCT_ICON_THEME = 'Default';
+}
 
-	FILE_ICON_THEME = 'vs-seti',
-	PRODUCT_ICON_THEME = 'Default',
+/**
+ * Migrates legacy theme settings IDs to their current equivalents.
+ * Theme IDs were simplified: "Default" prefix was removed from built-in themes,
+ * and "Experimental" prefix was replaced when VS Code themes became GA.
+ */
+export function migrateThemeSettingsId(settingsId: string): string {
+	switch (settingsId) {
+		case 'Default Dark Modern': return 'Dark Modern';
+		case 'Default Light Modern': return 'Light Modern';
+		case 'Default Dark+': return 'Dark+';
+		case 'Default Light+': return 'Light+';
+		case 'Experimental Dark':
+		case 'VS Code Dark':
+			return ThemeSettingDefaults.COLOR_THEME_DARK;
+		case 'Experimental Light':
+		case 'VS Code Light':
+			return ThemeSettingDefaults.COLOR_THEME_LIGHT;
+	}
+	return settingsId;
 }
 
 export const COLOR_THEME_DARK_INITIAL_COLORS = {
@@ -478,7 +496,7 @@ export interface ITokenColorizationSetting {
 	background?: string;
 	fontStyle?: string; /* [italic|bold|underline|strikethrough] */
 	fontFamily?: string;
-	fontSize?: string;
+	fontSize?: number;
 	lineHeight?: number;
 }
 

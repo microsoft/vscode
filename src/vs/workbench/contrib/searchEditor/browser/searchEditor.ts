@@ -86,7 +86,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	private toggleQueryDetailsButton!: HTMLElement;
 	private messageBox!: HTMLElement;
 
-	private runSearchDelayer = new Delayer(0);
+	private runSearchDelayer = this._register(new Delayer(0));
 	private pauseSearching: boolean = false;
 	private showingIncludesExcludes: boolean = false;
 	private searchOperation: LongRunningOperation;
@@ -125,7 +125,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		this.searchOperation = this._register(new LongRunningOperation(progressService));
 		this._register(this.messageDisposables = new DisposableStore());
 
-		this.searchHistoryDelayer = new Delayer<void>(2000);
+		this.searchHistoryDelayer = this._register(new Delayer<void>(2000));
 
 		this.searchModel = this._register(this.instantiationService.createInstance(SearchModelImpl));
 	}

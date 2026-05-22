@@ -25,7 +25,7 @@
 	background: var(--vscode-minimapSlider-activeBackground);
 }
 .monaco-editor .minimap-shadow-visible {
-	box-shadow: var(--vscode-scrollbar-shadow) -6px 0 6px -6px inset;
+	box-shadow: var(--vscode-shadow-md);
 }
 .monaco-editor .minimap-shadow-hidden {
 	position: absolute;
@@ -60,4 +60,8 @@
 
 .monaco-editor .minimap {
 	z-index: 5;
+}
+
+.monaco-editor .minimap canvas {
+	opacity: 0.9;
 }

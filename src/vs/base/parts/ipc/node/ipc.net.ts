@@ -318,6 +318,10 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 		return this._flowManager.recordedInflateBytes;
 	}
 
+	public setRecordInflateBytes(record: boolean): void {
+		this._flowManager.setRecordInflateBytes(record);
+	}
+
 	public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | unknown): void {
 		this.socket.traceSocketEvent(type, data);
 	}
@@ -598,6 +602,10 @@ class WebSocketFlowManager extends Disposable {
 		return VSBuffer.alloc(0);
 	}
 
+	public setRecordInflateBytes(record: boolean): void {
+		this._zlibInflateStream?.setRecordInflateBytes(record);
+	}
+
 	constructor(
 		private readonly _tracer: ISocketTracer,
 		permessageDeflate: boolean,
@@ -714,6 +722,7 @@ class ZlibInflateStream extends Disposable {
 	private readonly _zlibInflate: InflateRaw;
 	private readonly _recordedInflateBytes: VSBuffer[] = [];
 	private readonly _pendingInflateData: VSBuffer[] = [];
+	private _recordInflateBytes: boolean;
 
 	public get recordedInflateBytes(): VSBuffer {
 		if (this._recordInflateBytes) {
@@ -724,11 +733,12 @@ class ZlibInflateStream extends Disposable {
 
 	constructor(
 		private readonly _tracer: ISocketTracer,
-		private readonly _recordInflateBytes: boolean,
+		recordInflateBytes: boolean,
 		inflateBytes: VSBuffer | null,
 		options: ZlibOptions
 	) {
 		super();
+		this._recordInflateBytes = recordInflateBytes;
 		this._zlibInflate = createInflateRaw(options);
 		this._zlibInflate.on('error', (err: Error) => {
 			this._tracer.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateError, { message: err?.message, code: (err as NodeJS.ErrnoException)?.code });
@@ -756,6 +766,13 @@ class ZlibInflateStream extends Disposable {
 		this._zlibInflate.write(buffer.buffer);
 	}
 
+	public setRecordInflateBytes(record: boolean): void {
+		this._recordInflateBytes = record;
+		if (!record) {
+			this._recordedInflateBytes.length = 0;
+		}
+	}
+
 	public flush(callback: (data: VSBuffer) => void): void {
 		this._zlibInflate.flush(() => {
 			this._tracer.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateFlushFired);
@@ -763,6 +780,17 @@ class ZlibInflateStream extends Disposable {
 			this._pendingInflateData.length = 0;
 			callback(data);
 		});
+	}
+
+	public override dispose(): void {
+		this._recordedInflateBytes.length = 0;
+		this._pendingInflateData.length = 0;
+		try {
+			this._zlibInflate.close();
+		} catch {
+			// ignore errors while disposing
+		}
+		super.dispose();
 	}
 }
 
@@ -811,6 +839,16 @@ class ZlibDeflateStream extends Disposable {
 
 			callback(data);
 		});
+	}
+
+	public override dispose(): void {
+		this._pendingDeflateData.length = 0;
+		try {
+			this._zlibDeflate.close();
+		} catch {
+			// ignore errors while disposing
+		}
+		super.dispose();
 	}
 }
 

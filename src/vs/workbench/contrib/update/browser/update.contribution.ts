@@ -9,7 +9,11 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
-import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, RELEASE_NOTES_URL, showReleaseNotesInEditor, DOWNLOAD_URL } from './update.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, showReleaseNotesInEditor, DefaultAccountUpdateContribution } from './update.js';
+import { UpdateTitleBarContribution } from './updateTitleBarEntry.js';
+import { PostUpdateWidgetContribution } from './postUpdateWidget.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import product from '../../../../platform/product/common/product.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
@@ -22,17 +26,21 @@ import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 
 const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 
 workbench.registerWorkbenchContribution(ProductContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(UpdateContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(SwitchProductQualityContribution, LifecyclePhase.Restored);
+workbench.registerWorkbenchContribution(DefaultAccountUpdateContribution, LifecyclePhase.Eventually);
+workbench.registerWorkbenchContribution(UpdateTitleBarContribution, LifecyclePhase.Restored);
+workbench.registerWorkbenchContribution(PostUpdateWidgetContribution, LifecyclePhase.Restored);
 
 // Release notes
 
-export class ShowCurrentReleaseNotesAction extends Action2 {
+export class ShowReleaseNotesAction extends Action2 {
+
+	static readonly AVAILABLE = !!product.releaseNotesUrl;
 
 	constructor() {
 		super({
@@ -43,23 +51,22 @@ export class ShowCurrentReleaseNotesAction extends Action2 {
 			},
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
-			precondition: RELEASE_NOTES_URL,
 			menu: [{
 				id: MenuId.MenubarHelpMenu,
 				group: '1_welcome',
 				order: 5,
-				when: RELEASE_NOTES_URL,
 			}]
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, version?: string): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 		const productService = accessor.get(IProductService);
 		const openerService = accessor.get(IOpenerService);
+		const targetVersion = version ?? productService.version;
 
 		try {
-			await showReleaseNotesInEditor(instantiationService, productService.version, false);
+			await showReleaseNotesInEditor(instantiationService, targetVersion, false);
 		} catch (err) {
 			if (productService.releaseNotesUrl) {
 				await openerService.open(URI.parse(productService.releaseNotesUrl));
@@ -96,7 +103,9 @@ export class ShowCurrentReleaseNotesFromCurrentFileAction extends Action2 {
 	}
 }
 
-registerAction2(ShowCurrentReleaseNotesAction);
+if (ShowReleaseNotesAction.AVAILABLE) {
+	registerAction2(ShowReleaseNotesAction);
+}
 registerAction2(ShowCurrentReleaseNotesFromCurrentFileAction);
 
 // Update
@@ -131,7 +140,7 @@ class DownloadUpdateAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(IUpdateService).downloadUpdate();
+		await accessor.get(IUpdateService).downloadUpdate(true);
 	}
 }
 
@@ -170,16 +179,17 @@ class RestartToUpdateAction extends Action2 {
 class DownloadAction extends Action2 {
 
 	static readonly ID = 'workbench.action.download';
+	static readonly AVAILABLE = !!product.downloadUrl;
 
 	constructor() {
 		super({
 			id: DownloadAction.ID,
 			title: localize2('openDownloadPage', "Download {0}", product.nameLong),
-			precondition: ContextKeyExpr.and(IsWebContext, DOWNLOAD_URL), // Only show when running in a web browser and a download url is available
+			precondition: IsWebContext, // Only show when running in a web browser
 			f1: true,
 			menu: [{
 				id: MenuId.StatusBarWindowIndicatorMenu,
-				when: ContextKeyExpr.and(IsWebContext, DOWNLOAD_URL)
+				when: IsWebContext
 			}]
 		});
 	}
@@ -194,7 +204,9 @@ class DownloadAction extends Action2 {
 	}
 }
 
-registerAction2(DownloadAction);
+if (DownloadAction.AVAILABLE) {
+	registerAction2(DownloadAction);
+}
 registerAction2(CheckForUpdateAction);
 registerAction2(DownloadUpdateAction);
 registerAction2(InstallUpdateAction);
@@ -233,3 +245,25 @@ if (isWindows) {
 
 	registerAction2(DeveloperApplyUpdateAction);
 }
+
+registerAction2(class ShowUpdateInfoAction extends Action2 {
+	constructor() {
+		super({
+			id: 'update.showUpdateInfo',
+			title: localize2('showUpdateInfo', "Show Update Info"),
+			category: Categories.Developer,
+			f1: true,
+			precondition: IsWebContext.negate(),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const markdown = await quickInputService.input({ prompt: localize('showUpdateInfo.prompt', "Enter markdown to render, or JSON with markdown/buttons (leave empty to load from URL)") });
+		if (markdown === undefined) {
+			return; // cancelled
+		}
+		await commandService.executeCommand('_update.showUpdateInfo', markdown || undefined);
+	}
+});

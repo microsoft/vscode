@@ -5,17 +5,17 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 import { dirname, join, posix, resolve, win32 } from '../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { AddFirstParameterToFunctions } from '../../../base/common/types.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { virtualMachineHint } from '../../../base/node/id.js';
 import { Promises, SymlinkSupport } from '../../../base/node/pfs.js';
 import { findFreePort, isPortFree } from '../../../base/node/ports.js';
@@ -27,7 +27,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics } from '../common/native.js';
+import { FocusMode, ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
@@ -43,10 +43,12 @@ import { IV8Profile } from '../../profiling/common/profiling.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { zip } from '../../../base/node/zip.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -116,7 +118,33 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => this.auxiliaryWindowsMainService.getWindowByWebContents(window.webContents)), window => !!window), window => window!.id)
 			);
 
+			this.onDidSuspendOS = Event.fromNodeEventEmitter(powerMonitor, 'suspend');
 			this.onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
+
+			// Battery power events (macOS and Windows only)
+			this.onDidChangeOnBatteryPower = Event.any(
+				Event.map(Event.fromNodeEventEmitter(powerMonitor, 'on-ac'), () => false),
+				Event.map(Event.fromNodeEventEmitter(powerMonitor, 'on-battery'), () => true)
+			);
+
+			// Thermal state events (macOS only)
+			this.onDidChangeThermalState = Event.map(
+				Event.fromNodeEventEmitter<{ state: ThermalState }>(powerMonitor, 'thermal-state-change'),
+				e => e.state
+			);
+
+			// Speed limit events (macOS and Windows only)
+			this.onDidChangeSpeedLimit = Event.map(
+				Event.fromNodeEventEmitter<{ limit: number }>(powerMonitor, 'speed-limit-change'),
+				e => e.limit
+			);
+
+			// Shutdown event (Linux and macOS only)
+			this.onWillShutdownOS = Event.fromNodeEventEmitter(powerMonitor, 'shutdown');
+
+			// Screen lock events (macOS and Windows only)
+			this.onDidLockScreen = Event.fromNodeEventEmitter(powerMonitor, 'lock-screen');
+			this.onDidUnlockScreen = Event.fromNodeEventEmitter(powerMonitor, 'unlock-screen');
 
 			this.onDidChangeColorScheme = this.themeMainService.onDidChangeColorScheme;
 
@@ -160,7 +188,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	readonly onDidChangeWindowAlwaysOnTop: Event<{ readonly windowId: number; readonly alwaysOnTop: boolean }>;
 
+	readonly onDidSuspendOS: Event<void>;
 	readonly onDidResumeOS: Event<void>;
+
+	readonly onDidChangeOnBatteryPower: Event<boolean>;
+	readonly onDidChangeThermalState: Event<ThermalState>;
+	readonly onDidChangeSpeedLimit: Event<number>;
+	readonly onWillShutdownOS: Event<void>;
+	readonly onDidLockScreen: Event<void>;
+	readonly onDidUnlockScreen: Event<void>;
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
@@ -268,6 +304,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
+	async openAgentsWindow(windowId: number | undefined, options?: { folderUri?: UriComponents }): Promise<void> {
+		const windows = await this.windowsMainService.openAgentsWindow({
+			context: OpenContext.API,
+			contextWindowId: windowId,
+			cli: this.environmentMainService.args,
+		}, options?.folderUri ? URI.revive(options.folderUri) : undefined);
+		if (windows.length > 0) {
+			windows[0].focus();
+		}
+	}
+
 	async isFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		return window?.isFullScreen ?? false;
@@ -338,7 +385,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
+	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.updateWindowControls(options);
 	}
@@ -685,6 +732,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return shell.trashItem(fullPath);
 	}
 
+	async getMediaAccessStatus(windowId: number | undefined, mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'> {
+		// systemPreferences.getMediaAccessStatus is implemented on macOS only.
+		// On Linux and Windows there's no per-app screen-recording permission
+		// concept; the OS handles capture without an app-level gate, so report
+		// 'granted' so the renderer can proceed straight to getDisplayMedia.
+		if (isMacintosh) {
+			return systemPreferences.getMediaAccessStatus(mediaType);
+		}
+		return 'granted';
+	}
+
 	async isAdmin(): Promise<boolean> {
 		let isAdmin: boolean;
 		if (isWindows) {
@@ -818,6 +876,82 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		const buf = captured?.toJPEG(95);
 		return buf && VSBuffer.wrap(buf);
+	}
+
+	//#endregion
+
+
+	//#region GitHub mobile upload API
+
+	async uploadFileViaMobileApi(_windowId: number | undefined, token: string, repoId: string, fileName: string, fileBytes: VSBuffer, contentType: string): Promise<{ fileName: string; assetUrl: string; contentType: string }> {
+		const { net } = await import('electron');
+
+		// Step 1: Get upload policy
+		const policyResponse = await net.fetch('https://api.github.com/mobile/upload/policy', {
+			method: 'POST',
+			headers: {
+				'Authorization': `Bearer ${token}`,
+				'Content-Type': 'application/json',
+				'Accept': 'application/json',
+			},
+			body: JSON.stringify({
+				name: fileName,
+				size: fileBytes.byteLength,
+				content_type: contentType,
+				repository_id: parseInt(repoId, 10),
+			}),
+		});
+		if (!policyResponse.ok) {
+			const text = await policyResponse.text();
+			throw new Error(`Policy request failed ${policyResponse.status}: ${text.substring(0, 300)}`);
+		}
+		const policy = await policyResponse.json();
+		const asset = policy.asset as Record<string, unknown>;
+
+		// Step 2: Upload to S3 (uses net.fetch which bypasses CORS)
+		const formFields = policy.form as Record<string, string>;
+		const boundary = `----VSCodeUpload${Date.now()}`;
+		let multipartBody = '';
+		for (const [key, value] of Object.entries(formFields)) {
+			multipartBody += `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`;
+		}
+		// Sanitize the filename for multipart header safety: strip CR/LF (which would
+		// terminate the header / inject extra fields) and escape backslashes and double
+		// quotes (RFC 2616 quoted-string semantics).
+		const safeName = String(asset.name).replace(/[\r\n]+/g, ' ').replace(/[\\"]/g, '_');
+		multipartBody += `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${safeName}"\r\nContent-Type: ${contentType}\r\n\r\n`;
+		const epilogue = `\r\n--${boundary}--\r\n`;
+
+		const preambleBytes = Buffer.from(multipartBody, 'utf-8');
+		const epilogueBytes = Buffer.from(epilogue, 'utf-8');
+		// Pass fileBytes.buffer (Uint8Array) directly to Buffer.concat instead of wrapping
+		// in Buffer.from(...) which would force an extra full-size copy of the payload.
+		const bodyBuffer = Buffer.concat([preambleBytes, fileBytes.buffer, epilogueBytes]);
+
+		const s3Response = await net.fetch(policy.upload_url as string, {
+			method: 'POST',
+			headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+			body: bodyBuffer,
+		});
+		if (s3Response.status !== 204 && s3Response.status !== 201) {
+			const text = await s3Response.text();
+			throw new Error(`S3 upload failed ${s3Response.status}: ${text.substring(0, 300)}`);
+		}
+
+		// Step 3: Confirm upload
+		const confirmResponse = await net.fetch(`https://api.github.com${policy.asset_upload_url}`, {
+			method: 'PUT',
+			headers: {
+				'Authorization': `Bearer ${token}`,
+				'Accept': 'application/json',
+			},
+		});
+		if (!confirmResponse.ok) {
+			const text = await confirmResponse.text();
+			throw new Error(`Asset upload confirmation failed ${confirmResponse.status}: ${text.substring(0, 300)}`);
+		}
+
+		return { fileName, assetUrl: asset.href as string, contentType };
 	}
 
 	//#endregion
@@ -1115,10 +1249,28 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async stopTracing(windowId: number | undefined): Promise<void> {
-		if (!this.environmentMainService.args.trace) {
-			return; // requires tracing to be on
+	private _isTracing = false;
+
+	async startTracing(windowId: number | undefined, categories: string): Promise<void> {
+		if (this._isTracing) {
+			throw new Error(localize('tracing.alreadyInProgress', 'A tracing session is already in progress. Use command `"{0}"` to stop it first.', 'workbench.action.stopTracing'));
 		}
+
+		const traceOptions = ['record-until-full', 'enable-sampling'];
+
+		await contentTracing.startRecording({
+			categoryFilter: categories,
+			traceOptions: traceOptions.join(',')
+		});
+		this._isTracing = true;
+	}
+
+	async stopTracing(windowId: number | undefined): Promise<void> {
+		if (!this._isTracing && !this.environmentMainService.args.trace) {
+			return; // no tracing in progress
+		}
+
+		this._isTracing = false;
 
 		const path = await contentTracing.stopRecording(`${randomPath(this.environmentMainService.userHome.fsPath, this.productService.applicationName)}.trace.txt`);
 
@@ -1151,6 +1303,64 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	// #endregion
 
+	//#region Toast Notifications
+
+	private readonly activeToasts = this._register(new DisposableMap<string>());
+
+	async showToast(windowId: number | undefined, options: IToastOptions): Promise<IToastResult> {
+		if (!Notification.isSupported()) {
+			return { supported: false, clicked: false };
+		}
+
+		const toast = new Notification({
+			title: options.title,
+			body: options.body,
+			silent: options.silent,
+			actions: options.actions?.map(action => ({
+				type: 'button',
+				text: action
+			}))
+		});
+
+		const disposables = new DisposableStore();
+		this.activeToasts.set(options.id, disposables);
+
+		const cts = new CancellationTokenSource();
+
+		disposables.add(toDisposable(() => {
+			this.activeToasts.deleteAndDispose(options.id);
+			toast.removeAllListeners();
+			toast.close();
+			cts.dispose(true);
+		}));
+
+		return new Promise<IToastResult>(r => {
+			const resolve = (result: IToastResult) => {
+				r(result);				// first return the result before...
+				disposables.dispose();	// ...disposing which would invalidate the result object
+			};
+
+			disposables.add(cts.token.onCancellationRequested(() => resolve({ supported: true, clicked: false })));
+
+			toast.on('click', () => resolve({ supported: true, clicked: true }));
+			toast.on('action', (_event, actionIndex) => resolve({ supported: true, clicked: true, actionIndex }));
+			toast.on('close', () => resolve({ supported: true, clicked: false }));
+			toast.on('failed', () => resolve({ supported: false, clicked: false }));
+
+			toast.show();
+		});
+	}
+
+	async clearToast(windowId: number | undefined, toastId: string): Promise<void> {
+		this.activeToasts.deleteAndDispose(toastId);
+	}
+
+	async clearToasts(): Promise<void> {
+		this.activeToasts.clearAndDisposeAll();
+	}
+
+	//#endregion
+
 	//#region Registry (windows)
 
 	async windowsGetStringRegKey(windowId: number | undefined, hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> {
@@ -1164,6 +1374,47 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		} catch {
 			return undefined;
 		}
+	}
+
+	//#endregion
+
+	//#region Zip
+
+	async createZipFile(windowId: number | undefined, zipPath: URI, files: { path: string; contents: string }[]): Promise<void> {
+		await zip(zipPath.fsPath, files);
+	}
+
+	//#endregion
+
+
+	//#region Power
+
+	async getSystemIdleState(windowId: number | undefined, idleThreshold: number): Promise<SystemIdleState> {
+		return powerMonitor.getSystemIdleState(idleThreshold);
+	}
+
+	async getSystemIdleTime(windowId: number | undefined): Promise<number> {
+		return powerMonitor.getSystemIdleTime();
+	}
+
+	async getCurrentThermalState(windowId: number | undefined): Promise<ThermalState> {
+		return powerMonitor.getCurrentThermalState();
+	}
+
+	async isOnBatteryPower(windowId: number | undefined): Promise<boolean> {
+		return powerMonitor.isOnBatteryPower();
+	}
+
+	async startPowerSaveBlocker(windowId: number | undefined, type: PowerSaveBlockerType): Promise<number> {
+		return powerSaveBlocker.start(type);
+	}
+
+	async stopPowerSaveBlocker(windowId: number | undefined, id: number): Promise<boolean> {
+		return powerSaveBlocker.stop(id);
+	}
+
+	async isPowerSaveBlockerStarted(windowId: number | undefined, id: number): Promise<boolean> {
+		return powerSaveBlocker.isStarted(id);
 	}
 
 	//#endregion

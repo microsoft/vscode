@@ -7,8 +7,8 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
+import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
+import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 
 export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInput?: ChatEditorInput): Promise<void> {
 	const editorService = accessor.get(IEditorService);

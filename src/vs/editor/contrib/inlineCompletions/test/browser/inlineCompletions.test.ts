@@ -166,10 +166,10 @@ suite('Inline Completions', () => {
 		const provider = new MockInlineCompletionsProvider();
 		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
 			{ fakeClock: true, provider },
-			async ({ editor, editorViewModel, model, context }) => {
+			async ({ editor, editorViewModel, model, context, logger }) => {
 				context.keyboardType('foo');
 				provider.setReturnValue({ insertText: 'foobar1', range: new Range(1, 1, 1, 4) });
-				model.trigger();
+				logger.logRun(() => model.trigger());
 				await timeout(1000);
 
 				assert.deepStrictEqual(
@@ -183,27 +183,27 @@ suite('Inline Completions', () => {
 					{ insertText: 'foobuzz3', range: new Range(1, 1, 1, 4) }
 				]);
 
-				model.next();
+				logger.logRun(() => model.next());
 				await timeout(1000);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['foo[bizz2]']);
 
-				model.next();
+				logger.logRun(() => model.next());
 				await timeout(1000);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['foo[buzz3]']);
 
-				model.next();
+				logger.logRun(() => model.next());
 				await timeout(1000);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['foo[bar1]']);
 
-				model.previous();
+				logger.logRun(() => model.previous());
 				await timeout(1000);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['foo[buzz3]']);
 
-				model.previous();
+				logger.logRun(() => model.previous());
 				await timeout(1000);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['foo[bizz2]']);
 
-				model.previous();
+				logger.logRun(() => model.previous());
 				await timeout(1000);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['foo[bar1]']);
 
@@ -757,6 +757,82 @@ suite('Multi Cursor Support', () => {
 						`console.warnnnn`,
 						``
 					].join('\n')
+				);
+			}
+		);
+	});
+
+	test('Change hint is passed from onDidChange to provideInlineCompletions', async function () {
+		const provider = new MockInlineCompletionsProvider();
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider, inlineSuggest: { enabled: true } },
+			async ({ editor, editorViewModel, model, context }) => {
+				context.keyboardType('foo');
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
+				model.triggerExplicitly();
+				await timeout(1000);
+
+				const firstCallHistory = provider.getAndClearCallHistory();
+				assert.strictEqual(firstCallHistory.length, 1);
+				assert.strictEqual((firstCallHistory[0] as { changeHint?: unknown }).changeHint, undefined);
+
+				// Change cursor position to avoid cache hit
+				editor.setPosition({ lineNumber: 1, column: 3 });
+
+
+				const changeHintData = { reason: 'modelUpdated', version: 42 };
+				provider.setReturnValue({ insertText: 'foobaz', range: new Range(1, 1, 1, 4) });
+				provider.fireOnDidChange({ data: changeHintData });
+				await timeout(1000);
+
+				const secondCallHistory = provider.getAndClearCallHistory();
+
+				assert.deepStrictEqual(
+					secondCallHistory,
+					[{
+						changeHint: {
+							data: {
+								reason: 'modelUpdated',
+								version: 42,
+							}
+						},
+						position: '(1,3)',
+						text: 'foo',
+						triggerKind: 0
+					}]
+				);
+			}
+		);
+	});
+
+	test('Change hint is undefined when onDidChange fires without hint', async function () {
+		const provider = new MockInlineCompletionsProvider();
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider, inlineSuggest: { enabled: true } },
+			async ({ editor, editorViewModel, model, context }) => {
+				context.keyboardType('foo');
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
+				model.triggerExplicitly();
+				await timeout(1000);
+
+				provider.getAndClearCallHistory();
+
+				// Change cursor position to avoid cache hit
+				editor.setPosition({ lineNumber: 1, column: 3 });
+
+				provider.setReturnValue({ insertText: 'foobaz', range: new Range(1, 1, 1, 4) });
+				provider.fireOnDidChange();
+				await timeout(1000);
+
+				const callHistory = provider.getAndClearCallHistory();
+
+				assert.deepStrictEqual(
+					callHistory,
+					[{
+						position: '(1,3)',
+						text: 'foo',
+						triggerKind: 0
+					}]
 				);
 			}
 		);

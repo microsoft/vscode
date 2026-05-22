@@ -2,7 +2,7 @@
   "name": "extension-editing",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -66,7 +66,7 @@
     ]
   },
   "devDependencies": {
-    "@types/markdown-it": "0.0.2",
+    "@types/markdown-it": "^14",
     "@types/node": "22.x"
   },
   "repository": {

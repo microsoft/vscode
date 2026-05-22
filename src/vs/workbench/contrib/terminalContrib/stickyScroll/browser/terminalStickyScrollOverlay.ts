@@ -50,7 +50,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 	private readonly _xtermAddonLoader = new XtermAddonImporter();
 	private _serializeAddon?: SerializeAddonType;
-	private _webglAddon?: WebglAddonType;
+	private readonly _webglAddon: MutableDisposable<WebglAddonType> = this._register(new MutableDisposable());
+	private _webglAddonCustomGlyphs?: boolean;
 	private _ligaturesAddon?: LigaturesAddonType;
 
 	private _element?: HTMLElement;
@@ -63,6 +64,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _state: OverlayState = OverlayState.Off;
 	private _isRefreshQueued = false;
 	private _rawMaxLineCount: number = 5;
+	private _ignoredCommands: string[] = [];
 	private _pendingShowOperation = false;
 
 	constructor(
@@ -92,6 +94,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(TerminalStickyScrollSettingId.MaxLineCount)) {
 				this._rawMaxLineCount = configurationService.getValue(TerminalStickyScrollSettingId.MaxLineCount);
+			}
+			if (!e || e.affectsConfiguration(TerminalStickyScrollSettingId.IgnoredCommands)) {
+				this._ignoredCommands = configurationService.getValue(TerminalStickyScrollSettingId.IgnoredCommands);
 			}
 		}));
 
@@ -228,8 +233,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// scroll.
 		this._currentStickyCommand = undefined;
 
-		// No command or clear command
-		if (!command || this._isClearCommand(command)) {
+		// No command or ignored command
+		if (!command || this._isIgnoredCommand(command)) {
 			this._setVisible(false);
 			return;
 		}
@@ -491,22 +496,24 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			drawBoldTextInBrightColors: o.drawBoldTextInBrightColors,
 			minimumContrastRatio: o.minimumContrastRatio,
 			tabStopWidth: o.tabStopWidth,
-			customGlyphs: o.customGlyphs,
 		};
 	}
 
 	@throttle(0)
 	private async _refreshGpuAcceleration() {
-		if (this._shouldLoadWebgl() && !this._webglAddon) {
+		if (this._shouldLoadWebgl() && (!this._webglAddon.value || this._webglAddonCustomGlyphs !== this._terminalConfigurationService.config.customGlyphs)) {
 			const WebglAddon = await this._xtermAddonLoader.importAddon('webgl');
 			if (this._store.isDisposed) {
 				return;
 			}
-			this._webglAddon = this._register(new WebglAddon());
-			this._stickyScrollOverlay?.loadAddon(this._webglAddon);
-		} else if (!this._shouldLoadWebgl() && this._webglAddon) {
-			this._webglAddon.dispose();
-			this._webglAddon = undefined;
+			// Dispose of existing addon before creating a new one to avoid leaking WebGL contexts
+			this._webglAddon.value = new WebglAddon({
+				customGlyphs: this._terminalConfigurationService.config.customGlyphs
+			});
+			this._webglAddonCustomGlyphs = this._terminalConfigurationService.config.customGlyphs;
+			this._stickyScrollOverlay?.loadAddon(this._webglAddon.value);
+		} else if (!this._shouldLoadWebgl() && this._webglAddon.value) {
+			this._webglAddon.clear();
 		}
 	}
 
@@ -526,18 +533,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		};
 	}
 
-	private _isClearCommand(command: ITerminalCommand | ICurrentPartialCommand): boolean {
+	private _isIgnoredCommand(command: ITerminalCommand | ICurrentPartialCommand): boolean {
 		if (!command.command) {
 			return false;
 		}
 		const trimmedCommand = command.command.trim().toLowerCase();
-		const clearCommands = [
-			'clear',
-			'cls',
-			'clear-host',
-		];
-
-		return clearCommands.includes(trimmedCommand);
+		return this._ignoredCommands.some(cmd => cmd.toLowerCase() === trimmedCommand);
 	}
 }
 

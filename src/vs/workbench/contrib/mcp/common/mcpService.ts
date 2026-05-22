@@ -6,12 +6,15 @@
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, ISettableObservable, ITransaction, observableValue, transaction } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
-import { StorageScope } from '../../../../platform/storage/common/storage.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { ContributionEnablementState, EnablementModel, IEnablementModel, isContributionEnabled } from '../../chat/common/enablement.js';
+import { McpCollisionBehavior, mcpServerCollisionBehaviorSection } from './mcpConfiguration.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
 import { IAutostartResult, IMcpServer, IMcpService, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, McpServerCacheState, McpServerDefinition, McpStartServerInteraction, McpToolName, UserInteractionRequiredError } from './mcpTypes.js';
@@ -29,6 +32,8 @@ export class McpService extends Disposable implements IMcpService {
 
 	public get lazyCollectionState() { return this._mcpRegistry.lazyCollectionState; }
 
+	public readonly enablementModel: McpCollisionEnablementModel;
+
 	protected readonly userCache: McpServerMetadataCache;
 	protected readonly workspaceCache: McpServerMetadataCache;
 
@@ -36,9 +41,14 @@ export class McpService extends Disposable implements IMcpService {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@ILogService private readonly _logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
+
+		const baseEnablement = this._register(new EnablementModel('mcp.enablement', storageService));
+		const collisionBehavior = observableConfigValue(mcpServerCollisionBehaviorSection, McpCollisionBehavior.Disable, configurationService);
+		this.enablementModel = new McpCollisionEnablementModel(baseEnablement, this._mcpRegistry, collisionBehavior);
 
 		this.userCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.PROFILE));
 		this.workspaceCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.WORKSPACE));
@@ -96,8 +106,11 @@ export class McpService extends Disposable implements IMcpService {
 			return;
 		}
 
-		// don't try re-running errored servers, let the user choose if they want that
-		const candidates = this.servers.get().filter(s => s.connectionState.get().state !== McpConnectionState.Kind.Error);
+		// don't try re-running errored servers or disabled servers
+		const candidates = this.servers.get().filter(s =>
+			s.connectionState.get().state !== McpConnectionState.Kind.Error
+			&& isContributionEnabled(s.enablement.get())
+		);
 
 		let todo = new Set<IMcpServer>();
 		if (autoStartConfig === McpAutoStartValue.OnlyNew) {
@@ -203,6 +216,7 @@ export class McpService extends Disposable implements IMcpService {
 				!!def.collectionDefinition.lazy,
 				def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache,
 				def.toolPrefix,
+				this.enablementModel,
 			);
 
 			nextServers.push({ object, toolPrefix: def.toolPrefix });
@@ -235,5 +249,121 @@ class McpPrefixGenerator {
 		}
 		this.seenPrefixes.add(toolPrefix);
 		return toolPrefix;
+	}
+}
+
+/**
+ * Wraps an {@link EnablementModel} with collision-aware defaults and
+ * mutual-exclusion logic for MCP servers with the same label.
+ *
+ * When collision behavior is `disable`:
+ * - Servers whose label collides with a higher-priority server are disabled
+ *   by default (unless the user has explicitly toggled them).
+ * - Enabling a colliding server disables all other servers with the same label.
+ *
+ * When collision behavior is `suffix`, delegates everything unchanged.
+ */
+export class McpCollisionEnablementModel implements IEnablementModel {
+
+	/**
+	 * For each server definition ID, the list of all definition IDs that share
+	 * the same (case-insensitive) label, in priority order (lowest collection
+	 * order first). Empty when collision behavior is `suffix`.
+	 */
+	private readonly _collisionGroups: IObservable<ReadonlyMap<string, readonly string[]>>;
+
+	constructor(
+		private readonly _base: EnablementModel,
+		registry: IMcpRegistry,
+		collisionBehavior: IObservable<McpCollisionBehavior>,
+	) {
+		this._collisionGroups = derived(reader => {
+			if (collisionBehavior.read(reader) !== McpCollisionBehavior.Disable) {
+				return new Map<string, string[]>();
+			}
+
+			const collections = registry.collections.read(reader);
+			// label → list of server definition IDs, in priority order
+			const labelToIds = new Map<string, string[]>();
+			for (const collection of collections) {
+				for (const server of collection.serverDefinitions.read(reader)) {
+					const key = server.label.toLowerCase();
+					let ids = labelToIds.get(key);
+					if (!ids) {
+						ids = [];
+						labelToIds.set(key, ids);
+					}
+					ids.push(server.id);
+				}
+			}
+
+			const groups = new Map<string, string[]>();
+			for (const ids of labelToIds.values()) {
+				if (ids.length < 2) {
+					continue;
+				}
+				for (const id of ids) {
+					groups.set(id, ids);
+				}
+			}
+
+			return groups;
+		});
+	}
+
+	readEnabled(key: string, reader?: IReader): ContributionEnablementState {
+		const baseState = this._base.readEnabled(key, reader);
+
+		if (!isContributionEnabled(baseState)) {
+			return baseState;
+		}
+
+		const group = this._collisionGroups.read(reader).get(key);
+		if (!group) {
+			return baseState;
+		}
+
+		// This server is enabled and in a collision group. Only allow it
+		// to stay enabled if no higher-priority server in the group is
+		// also enabled.
+		for (const otherId of group) {
+			if (otherId === key) {
+				return baseState;
+			}
+			if (isContributionEnabled(this._base.readEnabled(otherId, reader))) {
+				return ContributionEnablementState.DisabledProfile;
+			}
+		}
+		return baseState;
+	}
+
+	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
+		const isEnabling = state === ContributionEnablementState.EnabledProfile || state === ContributionEnablementState.EnabledWorkspace;
+		const group = isEnabling ? this._collisionGroups.get().get(key) : undefined;
+
+		if (!group) {
+			this._base.setEnabled(key, state, tx);
+			return;
+		}
+
+		// Enabling a colliding server: disable all others in the group atomically
+		const updateGroup = (innerTx: ITransaction) => {
+			this._base.setEnabled(key, state, innerTx);
+			for (const otherId of group) {
+				if (otherId !== key) {
+					this._base.setEnabled(otherId, ContributionEnablementState.DisabledWorkspace, innerTx);
+				}
+			}
+		};
+
+		if (tx) {
+			updateGroup(tx);
+		} else {
+			transaction(innerTx => updateGroup(innerTx));
+		}
+	}
+
+	remove(key: string): void {
+		this._base.remove(key);
 	}
 }

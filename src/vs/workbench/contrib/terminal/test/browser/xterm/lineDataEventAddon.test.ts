@@ -9,6 +9,7 @@ import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { writeP } from '../../../browser/terminalTestHelpers.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 import { LineDataEventAddon } from '../../../browser/xterm/lineDataEventAddon.js';
 
 suite('LineDataEventAddon', () => {
@@ -22,7 +23,7 @@ suite('LineDataEventAddon', () => {
 
 		setup(async () => {
 			const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
-			xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 4 }));
+			xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 4, logger: TestXtermLogger }));
 			lineDataEventAddon = store.add(new LineDataEventAddon());
 			xterm.loadAddon(lineDataEventAddon);
 
