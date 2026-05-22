@@ -127,7 +127,7 @@ class DecorationRule {
 	private _appendColorCSSRule(element: HTMLStyleElement, color: string | undefined, backgroundColor: string | undefined): void {
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(color)};`, element);
 
-		if (backgroundColor) {
+		if (backgroundColor !== undefined) {
 			createCSSRule(`.${this.itemBgColorClassName}`, `background-color: ${getColor(backgroundColor)};`, element);
 		}
 	}
