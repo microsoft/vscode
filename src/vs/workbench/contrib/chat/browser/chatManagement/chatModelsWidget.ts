@@ -906,7 +906,12 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 		const configActions = this.languageModelsService.getModelConfigurationActions(entry.model.identifier);
 		const secondaryActions: IAction[] = [...configActions];
 
-		if (configActions.length > 0 || entry.model.metadata.configurationSchema) {
+		// Only offer the JSON-based "Configure..." entry for non-default vendors that are
+		// configured via the language models JSON file. The default vendor (Copilot) and
+		// vendors with a `managementCommand` are configured elsewhere, so this entry would
+		// do nothing useful for their models.
+		const vendor = entry.model.provider.vendor;
+		if (!vendor.isDefault && !vendor.managementCommand && (configActions.length > 0 || entry.model.metadata.configurationSchema)) {
 			secondaryActions.push(toAction({
 				id: 'configureModel',
 				label: localize('models.configureModel', 'Configure...'),

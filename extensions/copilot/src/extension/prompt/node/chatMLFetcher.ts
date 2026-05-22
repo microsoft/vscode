@@ -1020,9 +1020,14 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			this._logService.debug(`modelMaxResponseTokens ${request.max_tokens ?? 2048}`);
 			this._logService.debug(`chat model ${chatEndpointInfo.model}`);
 
-			secretKey ??= copilotToken?.token;
-			// BYOK endpoints may not need a secret key (e.g., Ollama local), they use getExtraHeaders instead.
-			if (!secretKey && !chatEndpointInfo.getExtraHeaders) {
+			// BYOK endpoints that own their `Authorization` (see IChatEndpoint.ownsAuthorization)
+			// opt out of the CAPI Copilot-token fallback to avoid leaking the user's bearer to a
+			// third-party URL and to keep the wire request from carrying an unintended
+			// `Authorization: Bearer …` alongside their own auth header.
+			if (!chatEndpointInfo.ownsAuthorization) {
+				secretKey ??= copilotToken?.token;
+			}
+			if (!secretKey && !chatEndpointInfo.ownsAuthorization) {
 				const urlOrRequestMetadata = stringifyUrlOrRequestMetadata(chatEndpointInfo.urlOrRequestMetadata);
 				this._logService.error(`Failed to send request to ${urlOrRequestMetadata} due to missing key`);
 				sendCommunicationErrorTelemetry(this._telemetryService, `Failed to send request to ${urlOrRequestMetadata} due to missing key`);

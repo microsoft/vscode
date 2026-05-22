@@ -10,7 +10,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CustomizationStatus, StateComponents, type SessionCustomization, type AgentInfo, type CustomizationRef, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
+import { ICustomizationAgentRef, ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -83,8 +83,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return rootState.agents.find(agent => agent.provider === this._agentInfo.provider)?.customizations;
 	}
 
-	private toRemoteUri(customization: CustomizationRef): URI {
-		const original = URI.parse(customization.uri);
+	private toRemoteUri(customizationUri: string): URI {
+		const original = URI.parse(customizationUri);
 		// The synthetic synced-customization bundle lives in the client's
 		// in-memory filesystem. Don't wrap it as an agent-host:// URI —
 		// the server doesn't have this scheme registered, so wrapping it
@@ -110,7 +110,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	private toItem(customization: CustomizationRef, source: AICustomizationSource, sessionCustomization?: SessionCustomization): ICustomizationItem {
 		const clientId = sessionCustomization?.clientId; // set if the configuration came from the client
 		const badge = this.toBadge(customization, clientId !== undefined);
-		const uri = this.toRemoteUri(customization);
+		const uri = this.toRemoteUri(customization.uri);
 		return {
 			itemKey: customizationItemKey(customization, clientId),
 			uri: uri,
@@ -135,6 +135,22 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return AgentSession.uri(this._agentInfo.provider, rawId);
 	}
 
+	private getSessionCustomizations(sessionResource: URI): readonly SessionCustomization[] {
+		const sessionUri = this._resolveSessionUri(sessionResource);
+		const sessionState = this._connection.getSubscriptionUnmanaged(StateComponents.Session, sessionUri)?.value;
+		return sessionState && !(sessionState instanceof Error) ? sessionState.customizations ?? [] : [];
+	}
+
+	async provideCustomAgents(sessionResource: URI): Promise<readonly ICustomizationAgentRef[]> {
+		const sessionCustomizations = this.getSessionCustomizations(sessionResource);
+		const agents = sessionCustomizations.flatMap(c => c.agents ?? []);
+		return agents.map(agent => ({
+			uri: this.toRemoteUri(agent.uri),
+			name: agent.name,
+			description: agent.description,
+		}));
+	}
+
 	async provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[]> {
 		const items = new Map<string, ICustomizationItem>();
 
@@ -157,10 +173,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			plugins.push(pluginMeta);
 			expandPromises.push(this._expandPluginContents(pluginMeta, token));
 		}
-		const sessionUri = this._resolveSessionUri(sessionResource);
-		const sessionState = this._connection.getSubscriptionUnmanaged(StateComponents.Session, sessionUri)?.value;
-		const sessionCustomizations = sessionState && !(sessionState instanceof Error) ? sessionState.customizations ?? [] : [];
-		for (const sessionCustomization of sessionCustomizations) {
+		for (const sessionCustomization of this.getSessionCustomizations(sessionResource)) {
 			const isBundleItem = isSyntheticBundle(sessionCustomization.customization);
 			const isClientSynced = sessionCustomization.clientId !== undefined;
 			const childGroupKey = isClientSynced ? REMOTE_CLIENT_GROUP : REMOTE_HOST_GROUP;
@@ -176,7 +189,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				items.set(customizationItemKey(sessionCustomization.customization, sessionCustomization.clientId), item);
 			} else {
 				// create a dummy parent item for the synthetic bundle, it does not go into the items map, just need it to expand.
-				item = { uri: this.toRemoteUri(sessionCustomization.customization), type: 'plugin', source: AICustomizationSources.plugin, name: '', groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined } satisfies ICustomizationItem;
+				item = { uri: this.toRemoteUri(sessionCustomization.customization.uri), type: 'plugin', source: AICustomizationSources.plugin, name: '', groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined } satisfies ICustomizationItem;
 			}
 			const pluginMeta = {
 				item,

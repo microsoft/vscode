@@ -67,7 +67,7 @@ import { NativeMenubarControl } from '../../workbench/electron-browser/parts/tit
 import { IWorkspaceEditingService } from '../../workbench/services/workspaces/common/workspaceEditing.js';
 import { ConfigurationService } from '../services/configuration/browser/configurationService.js';
 import { SessionsWorkspaceContextService } from '../services/workspace/browser/workspaceContextService.js';
-import { getWorkspaceIdentifier } from '../../workbench/services/workspaces/browser/workspaces.js';
+import { getWorkspaceIdentifier } from '../../platform/workspaces/common/workspaceIdentifier.js';
 
 export class SessionsMain extends Disposable {
 
