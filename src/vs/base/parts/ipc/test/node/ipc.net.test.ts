@@ -579,6 +579,61 @@ suite('PersistentProtocol reconnection', () => {
 		);
 	});
 
+	test('resetSessionStateForFreshHandshake clears state and preserves replay order against a fresh partner', async () => {
+		await runWithFakedTimers(
+			{
+				useFakeTimers: true,
+				useSetImmediate: true,
+				maxTaskCount: 1000
+			},
+			async () => {
+
+				const loadEstimator: ILoadEstimator = {
+					hasHighLoad: () => false
+				};
+				const ether = new Ether();
+				const aSocket = new NodeSocket(ether.a);
+				const a = new PersistentProtocol({ socket: aSocket, loadEstimator });
+				const bSocket = new NodeSocket(ether.b);
+				const b = new PersistentProtocol({ socket: bSocket, loadEstimator });
+				const bMessages = new MessageStream(b);
+
+				// give A some outgoing state with the original partner
+				a.send(VSBuffer.fromString('m1'));
+				await bMessages.waitForOne();
+				assert.ok(a.unacknowledgedCount > 0);
+
+				// simulate the server being replaced: attach A to a new socket,
+				// reset session state, then queue two messages before endAcceptReconnection
+				b.dispose();
+				bMessages.dispose();
+				const ether2 = new Ether();
+				const aSocket2 = new NodeSocket(ether2.a);
+				a.beginAcceptReconnection(aSocket2, null);
+				a.resetSessionStateForFreshHandshake();
+				assert.strictEqual(a.unacknowledgedCount, 0);
+
+				a.send(VSBuffer.fromString('context'));
+				a.send(VSBuffer.fromString('after-context'));
+
+				const bSocket2 = new NodeSocket(ether2.b);
+				const freshB = new PersistentProtocol({ socket: bSocket2, loadEstimator });
+				const freshBMessages = new MessageStream(freshB);
+				a.endAcceptReconnection();
+
+				// the fresh partner sees both queued messages in the order they were sent
+				const first = await freshBMessages.waitForOne();
+				const second = await freshBMessages.waitForOne();
+				assert.strictEqual(first.toString(), 'context');
+				assert.strictEqual(second.toString(), 'after-context');
+
+				freshBMessages.dispose();
+				a.dispose();
+				freshB.dispose();
+			}
+		);
+	});
+
 	test('writing can be paused', async () => {
 		await runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
 			const loadEstimator: ILoadEstimator = {
