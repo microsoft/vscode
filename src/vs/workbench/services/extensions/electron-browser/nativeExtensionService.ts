@@ -538,17 +538,13 @@ class NativeExtensionHostFactory implements IExtensionHostFactory {
 	public createExtensionHost(runningLocations: ExtensionRunningLocationTracker, runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null {
 		switch (runningLocation.kind) {
 			case ExtensionHostKind.LocalProcess: {
-				if (runningLocations.isWorkerIsolatedLocalProcessAffinity(runningLocation.affinity)) {
-					// TODO: instantiate WorkerIsolatedExtensionHost here
-					this._logService.info(`Worker-isolated extension host for affinity ${runningLocation.affinity} is not yet implemented.`);
-					return null;
-				}
+				const workerIsolated = runningLocations.isWorkerIsolatedLocalProcessAffinity(runningLocation.affinity);
 				const startup = (
 					isInitialStart
 						? ExtensionHostStartup.EagerManualStart
 						: ExtensionHostStartup.EagerAutoStart
 				);
-				return this._instantiationService.createInstance(NativeLocalProcessExtensionHost, runningLocation, startup, this._createLocalProcessExtensionHostDataProvider(runningLocations, isInitialStart, runningLocation));
+				return this._instantiationService.createInstance(NativeLocalProcessExtensionHost, runningLocation, startup, this._createLocalProcessExtensionHostDataProvider(runningLocations, isInitialStart, runningLocation), workerIsolated);
 			}
 			case ExtensionHostKind.LocalWebWorker: {
 				if (this._webWorkerExtHostEnablement !== LocalWebWorkerExtHostEnablement.Disabled) {

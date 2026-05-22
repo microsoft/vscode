@@ -122,6 +122,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 		public readonly runningLocation: LocalProcessRunningLocation,
 		public readonly startup: ExtensionHostStartup.EagerAutoStart | ExtensionHostStartup.EagerManualStart,
 		private readonly _initDataProvider: ILocalProcessExtensionHostDataProvider,
+		private readonly _isWorkerIsolated: boolean,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
@@ -559,7 +560,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 			logsLocation: this._environmentService.extHostLogsPath,
 			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart),
 			uiKind: UIKind.Desktop,
-			handle: this._environmentService.window.handle ? encodeBase64(this._environmentService.window.handle) : undefined
+			handle: this._environmentService.window.handle ? encodeBase64(this._environmentService.window.handle) : undefined,
+			workerIsolated: this._isWorkerIsolated || undefined,
 		};
 	}
 

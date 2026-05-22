@@ -293,92 +293,51 @@ This means:
 
 ---
 
-## Phase 2: Supervisor Process Skeleton
+## Phase 2: Worker-Isolated Extension Host Flag ✅ COMPLETE (2026-05-22)
 
 ### Goal
 
-Create the supervisor process that will manage worker threads. It starts as a child process, establishes the `IMessagePassingProtocol` with the main thread, and responds to basic lifecycle commands — but spawns no workers yet. From the main thread's perspective, it looks like a valid (but empty) extension host.
+Wire the extension host infrastructure so that extensions configured for worker-isolated mode start in a dedicated `LocalProcess` extension host that carries a `workerIsolated` flag. The flag flows through init data to the extension host process, where `ExtensionHostMain` starts normally. No behavioral difference yet — the flag is the hook for Phase 3.
 
 ### Detailed Design
 
-#### 2.1 — Supervisor Entry Point
+#### 2.1 — `workerIsolated` Init Data Field
 
-Create the supervisor process entry point, analogous to `src/vs/workbench/api/node/extensionHostProcess.ts`:
+Add `workerIsolated?: boolean` to `IExtensionHostInitData` (in `extensionHostProtocol.ts`). When the main thread creates a worker-isolated extension host, this field is set to `true` in the init data sent during the handshake.
 
-```
-File: src/vs/workbench/services/extensions/node/workerIsolated/supervisorProcess.ts
-```
+#### 2.2 — `_isWorkerIsolated` Parameter on `NativeLocalProcessExtensionHost`
 
-This process:
-1. Reads IPC configuration from `process.env` (parent PID, IPC handle, nonce) — same mechanism as the existing extension host process.
-2. Creates a `Protocol` over the IPC socket to the main thread.
-3. Performs the existing extension host handshake (`RPCProtocol` setup).
-4. Instantiates `SupervisorMain` which handles activation requests.
-5. Responds to `$test_up()` heartbeats.
+Add a `_isWorkerIsolated: boolean` constructor parameter (before the service parameters). The factory in `NativeExtensionHostFactory.createExtensionHost()` computes this from `runningLocations.isWorkerIsolatedLocalProcessAffinity()` and passes it. The parameter is used in `_createExtHostInitData()` to set `workerIsolated: true` on the init data.
 
-#### 2.2 — `SupervisorMain`
+#### 2.3 — No Separate Entry Point, Host Class, or Supervisor
 
-The core orchestrator inside the supervisor process:
+The extension host process starts via `ExtensionHostMain` as usual. `AbstractExtHostExtensionService` handles all RPC (`$test_up`, `$deltaExtensions`, `$activateByEvent`, `$startExtensionHost`). The `workerIsolated` flag in init data is available via `this._initData.workerIsolated` for Phase 3 to act on.
 
-```
-File: src/vs/workbench/services/extensions/node/workerIsolated/supervisorMain.ts
+### Files Modified
 
-class SupervisorMain implements IDisposable {
-    constructor(
-        rpcProtocol: RPCProtocol,
-        workerRegistry: WorkerRegistry,
-        initData: IExtensionHostInitData,
-    )
-
-    // Called by main thread via RPC
-    $activate(extensionId: ExtensionIdentifier): Promise<ActivatedExtension>
-    $activateByEvent(event: string): Promise<void>
-    $deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>
-    $test_up(): Promise<number>
-
-    // Internal
-    private _getOrCreateWorker(ext: IExtensionDescription): Promise<WorkerConnection>
-}
-```
-
-#### 2.3 — Wire `WorkerIsolatedExtensionHost` to Actually Start
-
-Create the real `WorkerIsolatedExtensionHost` class implementing `IExtensionHost` with a `LocalProcessRunningLocation`. The `NativeExtensionHostFactory.createExtensionHost()` (modified in Phase 1) already checks `isWorkerIsolatedLocalProcessAffinity()` — replace the `return null` stub with the real instantiation:
-
-1. Spawns the supervisor child process (using `child_process.fork()`)
-2. Establishes the `IMessagePassingProtocol` over the IPC channel
-3. Returns the protocol from `start()`
-
-This follows the same pattern as `NativeLocalProcessExtensionHost`. The class uses `LocalProcessRunningLocation` (not a new kind) because the supervisor *is* a local process from the main thread's perspective.
-
-### Files to Create/Modify
-
-| File | Action | Purpose |
-|---|---|---|
-| `src/vs/workbench/services/extensions/node/workerIsolated/supervisorProcess.ts` | Create | Supervisor process entry point |
-| `src/vs/workbench/services/extensions/node/workerIsolated/supervisorMain.ts` | Create | Core orchestrator |
-| `src/vs/workbench/services/extensions/node/workerIsolated/workerIsolatedExtensionHost.ts` | Create | `IExtensionHost` implementation using `LocalProcessRunningLocation` |
-| `src/vs/workbench/services/extensions/electron-browser/nativeExtensionService.ts` | Modify | Wire factory to instantiate `WorkerIsolatedExtensionHost` for isolated affinities |
-| `src/vs/workbench/services/extensions/node/workerIsolated/test/supervisorMain.test.ts` | Create | Tests |
-
-### Unit Tests
-
-1. **Supervisor starts**: `SupervisorMain` constructs without error and responds to `$test_up()`.
-2. **Heartbeat**: `$test_up()` returns valid timestamp; repeated calls succeed.
-3. **Empty activation**: `$activateByEvent('*')` with no extensions registered resolves without error.
-4. **Delta extensions**: `$deltaExtensions([extA], [])` registers extension A; `$deltaExtensions([], [extA.id])` unregisters it.
-5. **Protocol handshake**: The supervisor process entry point successfully completes the RPC handshake with a mock main thread (integration-style test using actual `child_process.fork()`).
-6. **Graceful shutdown**: `dispose()` terminates all workers and closes the IPC channel.
+| File | Change |
+|---|---|
+| `src/vs/workbench/services/extensions/common/extensionHostProtocol.ts` | Add `workerIsolated?: boolean` to `IExtensionHostInitData` |
+| `src/vs/workbench/services/extensions/electron-browser/localProcessExtensionHost.ts` | Add `_isWorkerIsolated` param; set `workerIsolated` in init data |
+| `src/vs/workbench/services/extensions/electron-browser/nativeExtensionService.ts` | Pass `workerIsolated` flag from affinity check |
 
 ### Acceptance Criteria
 
-- [ ] `WorkerIsolatedExtensionHost.start()` successfully spawns the supervisor process and returns an `IMessagePassingProtocol`.
-- [ ] Main thread can send `$test_up()` and receive a response (supervisor is alive).
-- [ ] Main thread can send `$deltaExtensions()` to register extension descriptions.
-- [ ] Supervisor process exits cleanly when `dispose()` is called.
-- [ ] No orphaned child processes remain after VS Code shutdown.
-- [ ] TypeScript compiles; existing tests pass; `valid-layers-check` passes.
-- [ ] Supervisor correctly reads and validates `IExtensionHostInitData`.
+- [x] `workerIsolated?: boolean` field exists on `IExtensionHostInitData`.
+- [x] Worker-isolated extensions get a dedicated extension host process with `workerIsolated: true` in init data.
+- [x] The extension host starts normally via `ExtensionHostMain` — all RPC works ($test_up, $deltaExtensions, etc.).
+- [x] TypeScript compiles with zero errors; all existing tests pass.
+- [x] No new files created — purely additive changes to 3 existing files.
+
+### Implementation Notes & Learnings
+
+**SupervisorMain was a wrong abstraction.** Early iterations created a `SupervisorMain` class that reimplemented `$deltaExtensions`, `$test_up`, `$activateByEvent`, and extension registry management. This was completely redundant with `AbstractExtHostExtensionService`, which already handles all of this via `RPCProtocol`. The supervisor was deleted.
+
+**No separate entry point needed.** Early iterations used a different `VSCODE_ESM_ENTRYPOINT` to run `supervisorProcess.ts` instead of `extensionHostProcess.ts`. This was unnecessary — the init data carries the `workerIsolated` flag, and the same `ExtensionHostMain` can start normally. The behavioral change (spawning workers) belongs inside the extension service, not at the process entry point level.
+
+**No separate `IExtensionHost` class needed.** Early iterations created `WorkerIsolatedExtensionHost` (~300 lines) that duplicated `NativeLocalProcessExtensionHost`. Since the supervisor is a local process with identical spawning, protocol, handshake, and lifecycle, a single boolean parameter is sufficient.
+
+**The right integration point for Phase 3 is `AbstractExtHostExtensionService`.** The extension service's `_doActivateExtension` → `_loadCommonJSModule`/`_loadESMModule` pipeline is where the behavioral change belongs. When `workerIsolated` is true, activation should spawn a worker thread (via `WorkerRegistry`) and load the extension there, instead of loading it in-process. All the RPC plumbing (`RPCProtocol`, proxy/stub pattern) continues to work unchanged.
 
 ---
 
@@ -386,11 +345,64 @@ This follows the same pattern as `NativeLocalProcessExtensionHost`. The class us
 
 ### Goal
 
-Load and activate **one** extension in a `worker_thread` inside the supervisor. The extension can call `vscode.commands.registerCommand()` and `vscode.window.showInformationMessage()`. This is the first end-to-end vertical slice proving the architecture works.
+Load and activate **one** extension in a `worker_thread` instead of in-process. The extension can call `vscode.commands.registerCommand()` and `vscode.window.showInformationMessage()`. This is the first end-to-end vertical slice proving the architecture works.
+
+### Architecture Summary
+
+The worker-isolated extension host is a **normal extension host process** (`ExtensionHostMain` + `AbstractExtHostExtensionService`) with `initData.workerIsolated === true`. The behavioral change happens inside the Node.js extension service subclass (`ExtHostExtensionService` in `src/vs/workbench/api/node/extHostExtensionService.ts`): when `workerIsolated` is true, `_doActivateExtension()` spawns a `worker_thread` via `WorkerRegistry` (Phase 0) instead of calling `_loadCommonJSModule()`/`_loadESMModule()` in-process.
+
+```
+Main Thread (Renderer)
+    │  RPCProtocol (unchanged)
+    ▼
+Extension Host Process (ExtensionHostMain, unchanged)
+    │
+    ├── AbstractExtHostExtensionService
+    │     handles $test_up, $deltaExtensions, $activateByEvent, etc.
+    │
+    │     _doActivateExtension(ext, reason):
+    │       if (this._initData.workerIsolated) {
+    │         → spawn worker_thread via WorkerRegistry
+    │         → load extension in worker via WorkerConnection RPC
+    │       } else {
+    │         → _loadCommonJSModule / _loadESMModule (existing path)
+    │       }
+    │
+    ├── Worker A (worker_thread)
+    │     runs extensionWorkerBootstrap.ts
+    │     has WorkerConnectionClient → talks to supervisor
+    │     loads extension module, calls activate()
+    │     proxies vscode API calls back to supervisor
+    │
+    └── Worker B, C, ... (future phases)
+```
 
 ### Detailed Design
 
-#### 3.1 — Worker Bootstrap Script
+#### 3.1 — Override Activation in `ExtHostExtensionService` (Node)
+
+The Node.js-specific subclass at `src/vs/workbench/api/node/extHostExtensionService.ts` already overrides `_loadCommonJSModule` and `_loadESMModule`. For worker isolation, we override the activation pipeline:
+
+```ts
+// In the Node ExtHostExtensionService
+protected override _doActivateExtension(extensionDescription, reason) {
+    if (this._initData.workerIsolated) {
+        return this._activateInWorker(extensionDescription, reason);
+    }
+    return super._doActivateExtension(extensionDescription, reason);
+}
+
+private async _activateInWorker(ext, reason): Promise<ActivatedExtension> {
+    // 1. Spawn worker via WorkerRegistry
+    // 2. Send extension description + init data to worker
+    // 3. Worker loads and activates the extension
+    // 4. Return an ActivatedExtension with proxied exports
+}
+```
+
+This is the **only behavioral change**. All RPC plumbing (`RPCProtocol`, `$test_up`, `$deltaExtensions`, etc.) continues to work unchanged through `AbstractExtHostExtensionService`.
+
+#### 3.2 — Worker Bootstrap Script
 
 Create the script that runs inside each `worker_thread`:
 
@@ -399,78 +411,84 @@ File: src/vs/workbench/services/extensions/node/workerIsolated/extensionWorkerBo
 ```
 
 This script:
-1. Receives the `MessagePort` from the supervisor via `workerData` or `parentPort`.
-2. Creates a `WorkerConnectionClient` to talk to the supervisor.
-3. Instantiates a stripped-down `ExtHostExtensionService` that knows about exactly one extension.
-4. Creates the `vscode` API namespace using a modified version of `createApiFactoryAndRegisterActors()`.
+1. Receives the `MessagePort` from the supervisor via `worker_threads.parentPort`.
+2. Creates a `WorkerConnectionClient` (Phase 0) to talk to the extension host process.
+3. Receives extension description and activation context via RPC.
+4. Intercepts `require('vscode')` using Node's `Module._resolveFilename` hook (same pattern as `extensionHostProcess.ts`).
 5. Loads the extension's main module using Node's `require()`.
 6. Calls `activate(context)` on the extension.
-7. Reports activation success/failure back to the supervisor.
+7. Reports activation success/failure back to the extension host process.
 
-#### 3.2 — Proxied ExtHost Services (Minimal Set)
+#### 3.3 — Proxied vscode API (Minimal Set)
 
-For this phase, only a minimal set of ExtHost services need to work inside the worker:
+The worker needs a `vscode` API object. For Phase 3, only a minimal set needs to work:
 
-| Service | Implementation in worker |
+| API | Implementation in worker |
 |---|---|
-| `ExtHostCommands` | Thin proxy: `registerCommand` sends registration to supervisor; `executeCommand` sends request to supervisor |
-| `ExtHostMessageService` | Thin proxy: `showInformationMessage` etc. forward to supervisor → main thread |
-| `ExtHostExtensionService` | Single-extension version: knows only about this extension |
-| `ExtHostLogService` | Forwards log calls to supervisor |
+| `vscode.commands.registerCommand()` | RPC to ext host process → main thread |
+| `vscode.commands.executeCommand()` | RPC to ext host process → main thread |
+| `vscode.window.showInformationMessage()` | RPC to ext host process → main thread |
+| `vscode.ExtensionContext` | Built from extension description, storage paths |
 
-All other API namespaces (`workspace`, `languages`, `debug`, etc.) are stubbed with informative error messages: "This API is not yet available in isolated mode."
+All other API namespaces (`workspace`, `languages`, `debug`, etc.) throw informative errors: "This API is not yet available in worker-isolated mode."
 
-#### 3.3 — Supervisor Routing for Commands
+The key insight: the vscode API calls are proxied **through the extension host process** (which has full `RPCProtocol` to the main thread), not directly to the main thread. The flow is:
 
-The supervisor maintains:
-- A map of `commandId → extensionId` for locally registered commands
-- For commands not registered locally: forwards to main thread via the existing RPC
+```
+Worker → WorkerConnection RPC → Extension Host Process → RPCProtocol → Main Thread
+```
 
-When the main thread calls `$executeCommand('ext.cmd')`, the supervisor routes to the correct worker.
+This means we don't need to set up a second `RPCProtocol` from the worker to the main thread. The extension host process acts as the proxy.
 
-#### 3.4 — Worker-Side `vscode` Module Injection
+#### 3.4 — Activation Result
 
-The worker needs to intercept `require('vscode')` and return the proxied API. Two approaches:
-
-**Option A**: Use Node's `Module._resolveFilename` hook to intercept `require('vscode')` — this is what the current extension host does.
-
-**Option B**: Use `worker_threads` `workerData` with a pre-loaded module map.
-
-**Recommendation**: Option A for consistency with the existing extension host.
+When a worker-activated extension is activated, the extension host process creates an `ActivatedExtension` with:
+- `module`: a proxy object whose methods RPC to the worker (for `deactivate()`)
+- `exports`: a membrane proxy (basic version — Phase 9 does the full membrane)
+- `activationTimes`: measured from spawn to activate() completion
 
 ### Files to Create/Modify
 
 | File | Action | Purpose |
 |---|---|---|
-| `src/vs/workbench/services/extensions/node/workerIsolated/extensionWorkerBootstrap.ts` | Create | Worker entry point |
-| `src/vs/workbench/services/extensions/node/workerIsolated/workerExtHostCommands.ts` | Create | Proxied commands for worker |
-| `src/vs/workbench/services/extensions/node/workerIsolated/workerExtHostMessageService.ts` | Create | Proxied messages for worker |
-| `src/vs/workbench/services/extensions/node/workerIsolated/workerApiFactory.ts` | Create | vscode API factory for workers |
-| `src/vs/workbench/services/extensions/node/workerIsolated/supervisorMain.ts` | Modify | Add worker spawning and command routing |
-| `src/vs/workbench/services/extensions/node/workerIsolated/test/singleExtension.test.ts` | Create | End-to-end tests |
+| `src/vs/workbench/services/extensions/node/workerIsolated/extensionWorkerBootstrap.ts` | Create | Worker entry point script |
+| `src/vs/workbench/services/extensions/node/workerIsolated/workerExtensionHost.ts` | Create | Manages one extension in a worker: spawn, activate, proxy API |
+| `src/vs/workbench/api/node/extHostExtensionService.ts` | Modify | Override `_doActivateExtension` when `workerIsolated` |
+| `src/vs/workbench/services/extensions/test/node/workerIsolated/workerExtensionHost.test.ts` | Create | Tests |
 
 ### Unit Tests
 
 1. **Worker bootstrap**: Worker starts, receives `MessagePort`, establishes `WorkerConnectionClient`.
-2. **`require('vscode')` interception**: Inside the worker, `require('vscode')` returns the proxied API object with expected namespaces.
-3. **Command registration**: Extension calls `vscode.commands.registerCommand('test.hello', ...)`. Supervisor's command map contains `'test.hello'`.
+2. **`require('vscode')` interception**: Inside the worker, `require('vscode')` returns the proxied API object.
+3. **Command registration**: Extension calls `vscode.commands.registerCommand('test.hello', ...)`. The command is registered with the main thread.
 4. **Command execution from main thread**: Main thread calls `$executeCommand('test.hello')`; the command handler in the worker runs and returns a result.
-5. **Show message**: Extension calls `vscode.window.showInformationMessage('Hello')`. The call reaches the main thread's `MainThreadMessageService`.
-6. **Activation lifecycle**: Worker calls `activate()` on the extension; activation result is reported to supervisor; supervisor reports to main thread.
+5. **Show message**: Extension calls `vscode.window.showInformationMessage('Hello')`. The call reaches the main thread.
+6. **Activation lifecycle**: Worker calls `activate()` on the extension; activation result is reported to the main thread via the existing `$onDidActivateExtension` path.
 7. **Deactivation**: `deactivate()` is called when the worker is terminated.
-8. **Extension context**: The `ExtensionContext` passed to `activate()` has correct `extensionPath`, `extensionUri`, `subscriptions`, `globalState`, and `workspaceState`.
-9. **Error in activation**: Extension's `activate()` throws; the error is reported to supervisor and main thread with extension ID context.
-10. **Stubbed API errors**: Calling `vscode.workspace.openTextDocument()` (not yet implemented) throws an informative error.
+8. **Error in activation**: Extension's `activate()` throws; error is reported to the main thread.
+9. **Stubbed API errors**: Calling `vscode.workspace.openTextDocument()` throws an informative error.
+10. **Worker crash containment**: Worker crashes; the extension host process and other workers are unaffected.
 
 ### Acceptance Criteria
 
-- [ ] A trivial test extension (`registerCommand` + `showInformationMessage`) activates in a worker and functions correctly when triggered from the command palette.
+- [ ] A trivial test extension (`registerCommand` + `showInformationMessage`) activates in a worker and functions correctly.
 - [ ] The extension appears in the Running Extensions view with correct status.
 - [ ] The extension's commands appear in the command palette.
-- [ ] Terminating the worker (simulated crash) does not crash the supervisor or the main thread.
+- [ ] Terminating the worker does not crash the extension host process.
 - [ ] All 10 unit test categories pass.
-- [ ] Latency overhead of command execution through the worker is < 5ms compared to the shared host.
 - [ ] TypeScript compiles; existing tests pass.
+
+### Starting Point for Implementation
+
+1. **Read the existing Node.js ext host extension service**: `src/vs/workbench/api/node/extHostExtensionService.ts`. Find `_doActivateExtension` (inherited from `AbstractExtHostExtensionService`) and understand the activation flow: `_doActivateExtension` → `_loadCommonJSModule` → `_callActivate`.
+
+2. **Read the Phase 0 primitives**: `WorkerRegistry` creates workers, `WorkerConnection` does RPC to them, `WorkerConnectionClient` is the worker-side counterpart. These are ready to use.
+
+3. **The override point**: In the Node.js `ExtHostExtensionService`, override `_doActivateExtension`. When `this._initData.workerIsolated`, instead of loading the module in-process, call `this._workerRegistry.createWorker(ext.identifier, bootstrapScriptPath)` and use `WorkerConnection.request()` to send activation commands.
+
+4. **The worker script**: `extensionWorkerBootstrap.ts` uses `WorkerConnectionClient` (Phase 0) to receive commands from the extension host process. It loads the extension module, calls `activate()`, and proxies vscode API calls back via `WorkerConnectionClient.request()`.
+
+5. **Proxy the vscode API**: The worker creates a minimal `vscode` namespace object where `commands.registerCommand()` calls `connection.request('$registerCommand', [id])` which the extension host process handles by delegating to the real `ExtHostCommands`.
 
 ---
 
@@ -2419,10 +2437,10 @@ Comprehensive documentation for extension authors, VS Code administrators, and V
 | Phase | New Files | Modified Files |
 |---|---|---|
 | 0 | `workerProtocol.ts`, `workerConnection.ts`, `workerConnectionClient.ts`, `workerRegistry.ts` + tests | — |
-| 1 | `workerIsolatedExtensionHost.ts` (stub) | `extensionHostKind.ts`, `extensionRunningLocation.ts`, `extensionRunningLocationTracker.ts`, `extensionHostKindPicker.ts`, `extensionService.ts`, `abstractExtensionService.ts` |
-| 2 | `supervisorProcess.ts`, `supervisorMain.ts` + tests | `workerIsolatedExtensionHost.ts` |
-| 3 | `extensionWorkerBootstrap.ts`, `workerExtHostCommands.ts`, `workerExtHostMessageService.ts`, `workerApiFactory.ts` + tests | `supervisorMain.ts` |
-| 4 | `supervisorCommandRouter.ts` + tests | `supervisorMain.ts`, `extensionWorkerBootstrap.ts` |
+| 1 | — (tests only) | `extensionRunningLocationTracker.ts`, `nativeExtensionService.ts`, `extensions.contribution.ts` |
+| 2 | — | `extensionHostProtocol.ts`, `localProcessExtensionHost.ts`, `nativeExtensionService.ts` |
+| 3 | `extensionWorkerBootstrap.ts`, `workerExtensionHost.ts` + tests | `extHostExtensionService.ts` (node) |
+| 4 | — + tests | `extHostExtensionService.ts` (node), `extensionWorkerBootstrap.ts` |
 | 5 | `eventMulticaster.ts` + tests | `supervisorMain.ts`, `extensionWorkerBootstrap.ts` |
 | 6 | `documentMirrorDistributor.ts` + tests | `supervisorMain.ts`, `extensionWorkerBootstrap.ts` |
 | 7 | `workerExtHostLanguageFeatures.ts` + tests | `supervisorMain.ts` |
