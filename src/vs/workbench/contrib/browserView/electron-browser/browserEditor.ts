@@ -450,6 +450,7 @@ export class BrowserEditor extends EditorPane {
 
 		// Create root container
 		const root = $('.browser-root');
+		root.tabIndex = -1; // Click focusable (for kb shortcuts), but not in tab order
 		parent.appendChild(root);
 
 		// Create navbar with navigation buttons and URL input

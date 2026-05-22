@@ -62,7 +62,7 @@ export class BrowserViewEmulator extends Disposable {
 		}
 
 		this._lastApplied = undefined;
-		if (!device) {
+		if (!device && this.isSafeToApplyEmulation()) {
 			this.browser.webContents.disableDeviceEmulation();
 		}
 
@@ -76,7 +76,7 @@ export class BrowserViewEmulator extends Disposable {
 	 * the WebContentsView when the workbench is zoomed.
 	 */
 	applyScreenEmulation(viewportWidth: number, viewportHeight: number, scale: number, hostZoom: number): void {
-		if (!this._device) {
+		if (!this._device || !this.isSafeToApplyEmulation()) {
 			return;
 		}
 		const w = Math.max(1, Math.round(viewportWidth));
@@ -99,7 +99,14 @@ export class BrowserViewEmulator extends Disposable {
 		});
 	}
 
+	private isSafeToApplyEmulation(): boolean {
+		return !!this.browser.webContents.getURL() && !this.browser.webContents.isDestroyed();
+	}
+
 	private async _applyTouchAndMedia(): Promise<void> {
+		if (!this.isSafeToApplyEmulation()) {
+			return;
+		}
 		const mobile = !!this._device?.mobile;
 		try {
 			await this.browser.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 1 });
