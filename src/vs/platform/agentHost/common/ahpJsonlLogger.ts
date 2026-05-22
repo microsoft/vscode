@@ -66,7 +66,7 @@ export class AhpJsonlLogger extends Disposable {
 				...(typeof byteLength === 'number' ? { byteLength } : {}),
 			}
 		};
-		const line = `${JSON.stringify(entry)}\n`;
+		const line = `${stringifyAhpLogEntry(entry)}\n`;
 		const buffer = VSBuffer.fromString(line);
 		this._queue = this._queue.then(() => this._appendLine(buffer)).catch(error => {
 			this._logService.error('[AHPLog] Failed to write transport log', error);
@@ -124,6 +124,34 @@ export class AhpJsonlLogger extends Disposable {
 
 export function getAhpLogByteLength(text: string): number {
 	return VSBuffer.fromString(text).byteLength;
+}
+
+export function stringifyAhpLogEntry(value: unknown): string {
+	return JSON.stringify(_replaceUris(value));
+}
+
+/**
+ * Recursively replaces {@link URI} instances with their string form before
+ * handing the value to JSON.stringify. A replacer function is NOT sufficient
+ * because JSON.stringify calls toJSON() on an object *before* invoking the
+ * replacer, so the replacer would receive a plain UriComponents object rather
+ * than the original URI instance, and URI.isUri() would return false for it.
+ */
+function _replaceUris(value: unknown): unknown {
+	if (URI.isUri(value)) {
+		return value.toString();
+	}
+	if (Array.isArray(value)) {
+		return value.map(_replaceUris);
+	}
+	if (value !== null && typeof value === 'object') {
+		const result: Record<string, unknown> = {};
+		for (const key of Object.keys(value)) {
+			result[key] = _replaceUris((value as Record<string, unknown>)[key]);
+		}
+		return result;
+	}
+	return value;
 }
 
 function toFileTimestamp(date: Date): string {
