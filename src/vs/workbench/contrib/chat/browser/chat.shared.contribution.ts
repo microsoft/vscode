@@ -1641,6 +1641,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.allowAnonymousAccess', "Controls whether anonymous access is allowed in chat."),
 			default: false,
+			included: false,
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
