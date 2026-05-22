@@ -462,9 +462,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		this._toolbar.refresh();
 		this._syncContextKeys(model.device, this._screen);
 		this._updateSashState();
-		if (model.device) {
-			this._setToolbarVisible(true);
-		}
+		this._setToolbarVisible(!!model.device);
 		store.add(model.onDidChangeDevice(device => {
 			this._updateSashState();
 			// Turning emulation off discards any in-progress screen overrides so
@@ -477,11 +475,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 			}
 			this._toolbar.refresh();
 			this._syncContextKeys(device, this._screen);
-			if (device && !this._toolbar.isVisible) {
-				this._setToolbarVisible(true);
-			} else if (!device && this._toolbar.isVisible) {
-				this._setToolbarVisible(false);
-			}
+			this._setToolbarVisible(!!device);
 			this.editor.layoutBrowserContainer();
 		}));
 	}
@@ -493,6 +487,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		this._screenInflight = undefined;
 		this._toolbar.refresh();
 		this._syncContextKeys(undefined, undefined);
+		this._setToolbarVisible(false);
 	}
 
 	// -- Public API consumed by toolbar + actions --------------------------
