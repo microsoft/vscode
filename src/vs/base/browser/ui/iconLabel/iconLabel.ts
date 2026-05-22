@@ -281,10 +281,17 @@ export class IconLabel extends Disposable {
 			} else {
 				const host = listRow ?? (this.domNode.element.closest('.tab') as HTMLElement | null);
 				if (host) {
-					const el = document.createElement('div');
-					el.className = 'monaco-icon-label-decoration-container';
-					host.prepend(el);
-					this.cachedDecorationContainer = el;
+					// eslint-disable-next-line no-restricted-syntax
+					const existing = host.querySelector(':scope > .monaco-icon-label-decoration-container') as HTMLElement | null;
+					if (existing) {
+						this.cachedDecorationContainer = existing;
+					} else {
+						const el = document.createElement('div');
+						el.className = 'monaco-icon-label-decoration-container';
+						el.setAttribute('aria-hidden', 'true');
+						host.prepend(el);
+						this.cachedDecorationContainer = el;
+					}
 				} else {
 					this.cachedDecorationContainer = null;
 				}
