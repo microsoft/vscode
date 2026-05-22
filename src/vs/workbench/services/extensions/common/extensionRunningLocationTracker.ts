@@ -16,11 +16,14 @@ import { IExtensionManifestPropertiesService } from './extensionManifestProperti
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, RemoteRunningLocation } from './extensionRunningLocation.js';
 import { isProposedApiEnabled } from './extensions.js';
 
+export const EXTENSIONS_WORKER_ISOLATED_CONFIGURATION_KEY = 'extensions.experimental.workerIsolated';
+
 export class ExtensionRunningLocationTracker {
 
 	private _runningLocation = new ExtensionIdentifierMap<ExtensionRunningLocation | null>();
 	private _maxLocalProcessAffinity: number = 0;
 	private _maxLocalWebWorkerAffinity: number = 0;
+	private _workerIsolatedLocalProcessAffinities = new Set<number>();
 
 	public get maxLocalProcessAffinity(): number {
 		return this._maxLocalProcessAffinity;
@@ -28,6 +31,14 @@ export class ExtensionRunningLocationTracker {
 
 	public get maxLocalWebWorkerAffinity(): number {
 		return this._maxLocalWebWorkerAffinity;
+	}
+
+	/**
+	 * Returns true if the given local-process affinity should be backed
+	 * by a worker-isolated extension host instead of the standard one.
+	 */
+	public isWorkerIsolatedLocalProcessAffinity(affinity: number): boolean {
+		return this._workerIsolatedLocalProcessAffinities.has(affinity);
 	}
 
 	constructor(
@@ -67,7 +78,7 @@ export class ExtensionRunningLocationTracker {
 		return filterExtensionDescriptions(extensions, this._runningLocation, extRunningLocation => extensionHostManager.representsRunningLocation(extRunningLocation));
 	}
 
-	private _computeAffinity(inputExtensions: IExtensionDescription[], extensionHostKind: ExtensionHostKind, isInitialAllocation: boolean): { affinities: ExtensionIdentifierMap<number>; maxAffinity: number } {
+	private _computeAffinity(inputExtensions: IExtensionDescription[], extensionHostKind: ExtensionHostKind, isInitialAllocation: boolean): { affinities: ExtensionIdentifierMap<number>; maxAffinity: number; workerIsolatedAffinities: Set<number> } {
 		// Only analyze extensions that can execute
 		const extensions = new ExtensionIdentifierMap<IExtensionDescription>();
 		for (const extension of inputExtensions) {
@@ -204,6 +215,28 @@ export class ExtensionRunningLocationTracker {
 			}
 		}
 
+		// Handle worker-isolated extensions: assign to a dedicated affinity
+		const workerIsolatedAffinities = new Set<number>();
+		if (extensionHostKind === ExtensionHostKind.LocalProcess) {
+			const workerIsolatedIds = this._configurationService.getValue<string[]>(EXTENSIONS_WORKER_ISOLATED_CONFIGURATION_KEY) || [];
+			let isolatedAffinity: number | undefined;
+			for (const extensionId of workerIsolatedIds) {
+				const group = groups.get(extensionId);
+				if (!group) {
+					continue;
+				}
+				if (!isInitialAllocation) {
+					this._logService.info(`Ignoring configured worker isolation for '${extensionId}' because extension host(s) are already running. Reload window.`);
+					continue;
+				}
+				if (isolatedAffinity === undefined) {
+					isolatedAffinity = ++lastAffinity;
+					workerIsolatedAffinities.add(isolatedAffinity);
+				}
+				resultingAffinities.set(group, isolatedAffinity);
+			}
+		}
+
 		const result = new ExtensionIdentifierMap<number>();
 		for (const extension of inputExtensions) {
 			const group = groups.get(extension.identifier) || 0;
@@ -223,14 +256,14 @@ export class ExtensionRunningLocationTracker {
 			}
 		}
 
-		return { affinities: result, maxAffinity: lastAffinity };
+		return { affinities: result, maxAffinity: lastAffinity, workerIsolatedAffinities };
 	}
 
 	public computeRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], isInitialAllocation: boolean): ExtensionIdentifierMap<ExtensionRunningLocation | null> {
 		return this._doComputeRunningLocation(this._runningLocation, localExtensions, remoteExtensions, isInitialAllocation).runningLocation;
 	}
 
-	private _doComputeRunningLocation(existingRunningLocation: ExtensionIdentifierMap<ExtensionRunningLocation | null>, localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], isInitialAllocation: boolean): { runningLocation: ExtensionIdentifierMap<ExtensionRunningLocation | null>; maxLocalProcessAffinity: number; maxLocalWebWorkerAffinity: number } {
+	private _doComputeRunningLocation(existingRunningLocation: ExtensionIdentifierMap<ExtensionRunningLocation | null>, localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], isInitialAllocation: boolean): { runningLocation: ExtensionIdentifierMap<ExtensionRunningLocation | null>; maxLocalProcessAffinity: number; maxLocalWebWorkerAffinity: number; workerIsolatedLocalProcessAffinities: Set<number> } {
 		// Skip extensions that have an existing running location
 		localExtensions = localExtensions.filter(extension => !existingRunningLocation.has(extension.identifier));
 		remoteExtensions = remoteExtensions.filter(extension => !existingRunningLocation.has(extension.identifier));
@@ -271,7 +304,7 @@ export class ExtensionRunningLocationTracker {
 			result.set(extensionIdKey, runningLocation);
 		}
 
-		const { affinities, maxAffinity } = this._computeAffinity(localProcessExtensions, ExtensionHostKind.LocalProcess, isInitialAllocation);
+		const { affinities, maxAffinity, workerIsolatedAffinities } = this._computeAffinity(localProcessExtensions, ExtensionHostKind.LocalProcess, isInitialAllocation);
 		for (const extension of localProcessExtensions) {
 			const affinity = affinities.get(extension.identifier) || 0;
 			result.set(extension.identifier, new LocalProcessRunningLocation(affinity));
@@ -289,14 +322,15 @@ export class ExtensionRunningLocationTracker {
 			}
 		}
 
-		return { runningLocation: result, maxLocalProcessAffinity: maxAffinity, maxLocalWebWorkerAffinity: maxLocalWebWorkerAffinity };
+		return { runningLocation: result, maxLocalProcessAffinity: maxAffinity, maxLocalWebWorkerAffinity: maxLocalWebWorkerAffinity, workerIsolatedLocalProcessAffinities: workerIsolatedAffinities };
 	}
 
 	public initializeRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[]): void {
-		const { runningLocation, maxLocalProcessAffinity, maxLocalWebWorkerAffinity } = this._doComputeRunningLocation(this._runningLocation, localExtensions, remoteExtensions, true);
+		const { runningLocation, maxLocalProcessAffinity, maxLocalWebWorkerAffinity, workerIsolatedLocalProcessAffinities } = this._doComputeRunningLocation(this._runningLocation, localExtensions, remoteExtensions, true);
 		this._runningLocation = runningLocation;
 		this._maxLocalProcessAffinity = maxLocalProcessAffinity;
 		this._maxLocalWebWorkerAffinity = maxLocalWebWorkerAffinity;
+		this._workerIsolatedLocalProcessAffinities = workerIsolatedLocalProcessAffinities;
 	}
 
 	/**

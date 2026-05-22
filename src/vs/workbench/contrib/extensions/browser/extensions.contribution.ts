@@ -57,6 +57,7 @@ import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWo
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkspaceExtensionsConfigService } from '../../../services/extensionRecommendations/common/workspaceExtensionsConfig.js';
 import { EXTENSIONS_SUPPORT_AGENTS_WINDOW } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
+import { EXTENSIONS_WORKER_ISOLATED_CONFIGURATION_KEY } from '../../../services/extensions/common/extensionRunningLocationTracker.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -247,6 +248,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					'body': {
 						'pub.name': 1
 					}
+				}]
+			},
+			[EXTENSIONS_WORKER_ISOLATED_CONFIGURATION_KEY]: {
+				type: 'array',
+				markdownDescription: localize('extensions.workerIsolated', "A list of extension IDs that should run in a worker-isolated extension host, where each extension gets its own worker thread for crash containment and resource isolation."),
+				items: {
+					type: 'string',
+					pattern: '([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$'
+				},
+				default: [],
+				defaultSnippets: [{
+					'body': ['pub.name']
 				}]
 			},
 			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
