@@ -719,6 +719,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						name: c.name,
 						description: c.description,
 						sessionTypes: c.sessionTypes,
+						when: c.when,
 						uri: URI.revive(c.uri),
 					};
 				});
