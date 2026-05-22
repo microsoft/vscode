@@ -82,7 +82,7 @@
 .chat-billing-banner-widget .chat-billing-banner-hero {
 	position: relative;
 	width: 100%;
-	height: 130px;
+	height: 84px;
 	overflow: hidden;
 	background: var(--chat-billing-banner-hero-tint);
 }

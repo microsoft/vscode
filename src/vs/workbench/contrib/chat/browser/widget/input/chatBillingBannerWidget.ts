@@ -31,7 +31,7 @@ export const enum ChatBillingBannerVariant {
 }
 
 /** External docs link shown alongside the banner copy. */
-const GITHUB_DOCS_URL = 'https://docs.github.com/en/copilot/how-tos/manage-your-account';
+const GITHUB_DOCS_URL = 'https://github.com/microsoft/vscode/pull/317233';
 /** Workbench command that opens the Copilot status dashboard (the popover anchored on the Copilot status bar entry). */
 const PANEL_CTA_COMMAND_ID = 'workbench.action.chat.openStatusDashboard';
 /** Agents-window command that opens the title-bar account & Copilot status panel. Registered in `sessions/contrib/accountMenu/browser/account.contribution.ts`. */
