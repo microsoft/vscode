@@ -13,7 +13,6 @@
 
 /* Sidebar */
 .ai-customization-management-editor .management-sidebar {
-	background-color: var(--vscode-sideBar-background);
 	height: 100%;
 	overflow: hidden;
 }

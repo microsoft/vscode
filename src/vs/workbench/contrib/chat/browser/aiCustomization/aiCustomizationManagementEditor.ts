@@ -16,6 +16,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
+import { Color } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -1322,10 +1323,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	override updateStyles(): void {
-		const borderColor = this.theme.getColor(aiCustomizationManagementSashBorder);
-		if (borderColor) {
-			this.splitView?.style({ separatorBorder: borderColor });
-		}
+		this.splitView?.style({ separatorBorder: Color.transparent });
 	}
 
 	override async setInput(input: AICustomizationManagementEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
