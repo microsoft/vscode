@@ -23,7 +23,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
-import { AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -288,6 +288,31 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id, {
 			hasHistory: (sessionId) => !this._provisionalSessions.has(sessionId) && this._sessions.has(sessionId),
 		})));
+
+		// Restart the CLI client when session sync setting changes (only if idle)
+		this._register(this._configurationService.onDidRootConfigChange(() => {
+			this._restartClientIfSessionSyncChanged().catch(err =>
+				this._logService.error('[Copilot] Failed to restart client after session sync change', err)
+			);
+		}));
+	}
+
+	private _lastSessionSyncEnabled: boolean = this._isSessionSyncEnabled();
+
+	private _isSessionSyncEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true;
+	}
+
+	private async _restartClientIfSessionSyncChanged(): Promise<void> {
+		const current = this._isSessionSyncEnabled();
+		if (this._lastSessionSyncEnabled === current) {
+			return;
+		}
+		this._lastSessionSyncEnabled = current;
+		if (this._client && this._sessions.size === 0) {
+			this._logService.info(`[Copilot] Session sync changed to ${current}, restarting CopilotClient`);
+			await this._stopClient();
+		}
 	}
 
 	protected _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -474,7 +499,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			const telemetry = await this._otelService.getSdkTelemetryConfig();
 
-			const client = this._createCopilotClient({
+			const clientOptions: CopilotClientOptions & { remote?: boolean } = {
 				gitHubToken: tokenAtStartup,
 				useLoggedInUser: false,
 				useStdio: true,
@@ -482,7 +507,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				env,
 				cliPath,
 				telemetry,
-			});
+				remote: this._isSessionSyncEnabled(),
+			};
+			const client = this._createCopilotClient(clientOptions);
 			await client.start();
 			if (this._githubToken !== tokenAtStartup) {
 				await client.stop();
