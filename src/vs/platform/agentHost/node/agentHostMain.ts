@@ -50,6 +50,9 @@ import { InstantiationService } from '../../instantiation/common/instantiationSe
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { SessionDataService } from './sessionDataService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../sandbox/common/terminalSandboxMxcRuntime.js';
+import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService.js';
+import { SandboxHelperService } from '../../sandbox/node/sandboxHelper.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
@@ -131,6 +134,8 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IProductService, productService);
 		diServices.set(ITelemetryService, telemetryService);
 		instantiationService = new InstantiationService(diServices);
+		diServices.set(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
+		diServices.set(ISandboxHelperService, new SandboxHelperService());
 		const gitService = instantiationService.createInstance(AgentHostGitService);
 		diServices.set(IAgentHostGitService, gitService);
 		// Checkpoint service depends on session data + git services, so
