@@ -5,8 +5,9 @@
 
 import { localize, localize2 } from '../../../../../nls.js';
 import { $ } from '../../../../../base/browser/dom.js';
+import { Event } from '../../../../../base/common/event.js';
 import { IContextKey, IContextKeyService, ContextKeyExpr, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { Action2, registerAction2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -320,6 +321,14 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}
 
 		const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+		if (widget && !widget.viewModel) {
+			// Wait for its viewModel to be bound BEFORE attaching.
+			// When the chat panel is opened for the first time the session
+			// model loads asynchronously, and once it loads ChatInputPart._syncFromModel
+			// clears any attachments that were added before the model was bound.
+			// Attaching before this point would leave us with a silently-discarded attachment.
+			await Event.toPromise(widget.onDidChangeViewModel);
+		}
 		widget?.attachmentModel?.addContext(...toAttach);
 
 		type IntegratedBrowserAddElementToChatAddedEvent = {
@@ -370,6 +379,14 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			});
 
 			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+			if (widget && !widget.viewModel) {
+				// Wait for its viewModel to be bound BEFORE attaching.
+				// When the chat panel is opened for the first time the session
+				// model loads asynchronously, and once it loads ChatInputPart._syncFromModel
+				// clears any attachments that were added before the model was bound.
+				// Attaching before this point would leave us with a silently-discarded attachment.
+				await Event.toPromise(widget.onDidChangeViewModel);
+			}
 			widget?.attachmentModel?.addContext(...toAttach);
 		} catch (error) {
 			this.logService.error('BrowserEditor.addConsoleLogsToChat: Failed to get console logs', error);
@@ -392,8 +409,10 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				return;
 			}
 
+			// Capture the screenshot BEFORE revealing the chat panel so the
+			// image reflects what the user saw when they pressed the button,
+			// not a reflowed version of the page after the panel opens.
 			const screenshotBuffer = await model.captureScreenshot({ quality: 80 });
-
 			const toAttach: IChatRequestVariableEntry[] = [{
 				id: 'browser-screenshot-' + Date.now(),
 				name: localize('browserScreenshot', 'Browser Screenshot'),
@@ -404,6 +423,15 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			}];
 
 			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+			if (widget && !widget.viewModel) {
+				// Wait for its viewModel to be bound BEFORE attaching.
+				// When the chat panel is opened for the first time the session
+				// model loads asynchronously, and once it loads ChatInputPart._syncFromModel
+				// clears any attachments that were added before the model was bound.
+				// Attaching before this point would leave us with a silently-discarded attachment.
+				await Event.toPromise(widget.onDidChangeViewModel);
+			}
+
 			widget?.attachmentModel?.addContext(...toAttach);
 
 			type IntegratedBrowserAddScreenshotToChatAddedEvent = {
@@ -443,7 +471,7 @@ class AddElementToChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
 			menu: {
-				id: MenuId.BrowserChatActionsMenu,
+				id: MenuId.BrowserActionsToolbar,
 				group: 'actions',
 				order: 1,
 				when: ChatContextKeys.enabled
@@ -479,9 +507,9 @@ class AddConsoleLogsToChatAction extends Action2 {
 			f1: true,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			menu: {
-				id: MenuId.BrowserChatActionsMenu,
+				id: MenuId.BrowserActionsToolbar,
 				group: 'actions',
-				order: 2,
+				order: 3,
 				when: ChatContextKeys.enabled
 			}
 		});
@@ -524,18 +552,6 @@ class AddScreenshotToChatAction extends Action2 {
 registerAction2(AddElementToChatAction);
 registerAction2(AddConsoleLogsToChatAction);
 registerAction2(AddScreenshotToChatAction);
-
-// Expose the chat actions submenu (Add Element to Chat, etc.) as a split button in the browser actions toolbar.
-// The primary action (chevron's left side) is the first item in the submenu.
-MenuRegistry.appendMenuItem(MenuId.BrowserActionsToolbar, {
-	submenu: MenuId.BrowserChatActionsMenu,
-	title: localize2('browser.chatActionsSubmenu', "Add to Chat"),
-	icon: Codicon.inspect,
-	group: 'actions',
-	order: 1,
-	when: ChatContextKeys.enabled,
-	isSplitButton: true
-});
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
