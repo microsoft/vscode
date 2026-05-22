@@ -3182,7 +3182,7 @@ export interface DecorationRequest {
 	readonly uri: UriComponents;
 }
 
-export type DecorationData = [boolean, string, string | ThemeIcon, ThemeColor | undefined, ThemeColor | undefined];
+export type DecorationData = [boolean, string, string | ThemeIcon, ThemeColor, ThemeColor | undefined];
 export type DecorationReply = { [id: number]: DecorationData };
 
 export interface ExtHostDecorationsShape {
