@@ -885,8 +885,15 @@ class AgentSessionsCache {
 
 	//#region Sessions
 
+	private static readonly MAX_CACHED_SESSIONS = 25;
+	private static readonly MAX_CACHED_CHANGES_PER_SESSION = 100;
+
 	saveCachedSessions(sessions: IInternalAgentSessionData[]): void {
-		const serialized: ISerializedAgentSession[] = sessions.map(session => ({
+		// Limit sessions to avoid expensive serialization blocking the main thread (perf regression)
+		const sorted = sessions.slice().sort((a, b) => (b.timing.created ?? 0) - (a.timing.created ?? 0));
+		const capped = sorted.slice(0, AgentSessionsCache.MAX_CACHED_SESSIONS);
+
+		const serialized: ISerializedAgentSession[] = capped.map(session => ({
 			providerType: session.providerType,
 			providerLabel: session.providerLabel,
 
@@ -903,7 +910,7 @@ class AgentSessionsCache {
 
 			timing: session.timing,
 
-			changes: session.changes,
+			changes: Array.isArray(session.changes) ? session.changes.slice(0, AgentSessionsCache.MAX_CACHED_CHANGES_PER_SESSION) : session.changes,
 			metadata: session.metadata
 		} satisfies ISerializedAgentSession));
 
