@@ -410,6 +410,21 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	/**
+	 * Externally signal that the transport has closed. Used by services
+	 * managing a passive transport (SSH / dev-tunnels) when they observe
+	 * a connection-loss IPC event independent of the transport's own
+	 * onClose — without this, a single dropped IPC delivery on the
+	 * transport's close channel leaves the client stranded in
+	 * `Connected` until its watchdog fires (which can take hours when
+	 * the renderer is backgrounded and `setTimeout` is throttled).
+	 *
+	 * Idempotent — no-op if already closed or mid-reconnect.
+	 */
+	notifyTransportClosed(): void {
+		this._handleTransportClose();
+	}
+
+	/**
 	 * Called from the transport's `onClose` event. When a {@link _transportFactory}
 	 * is configured we attempt to soft-reconnect rather than fire `onDidClose` —
 	 * the protocol-level `reconnect` request lets the server replay missed
