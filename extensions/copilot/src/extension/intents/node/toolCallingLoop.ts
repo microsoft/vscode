@@ -22,7 +22,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { isOpenAIContextManagementResponse, OpenAiFunctionDef } from '../../../platform/networking/common/fetch';
 import { IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
 import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
-import { CopilotChatAttr, emitAgentTurnEvent, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, resolveWorkspaceOTelMetadata, StdAttr, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, emitAgentTurnEvent, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, resolveWorkspaceOTelMetadata, StdAttr, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
@@ -738,6 +738,9 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		// Extract custom mode name for debug logging (kept separate from agentName to avoid metric cardinality)
 		const modeInstructions = (this.options.request as { modeInstructions2?: { name?: string; isBuiltin?: boolean } }).modeInstructions2;
 		const customModeName = modeInstructions?.name && !modeInstructions.isBuiltin ? modeInstructions.name : undefined;
+		// `builtin` for default/built-in modes, `custom` for user/workspace-contributed modes.
+		// `plugin` is reserved for extension-contributed modes once that lands in the registry.
+		const agentType: 'builtin' | 'custom' = modeInstructions && modeInstructions.isBuiltin === false ? 'custom' : 'builtin';
 
 		// If this is a subagent request, look up the parent trace context stored by the parent agent's execute_tool span
 		// Try subAgentInvocationId first (unique per subagent, supports parallel), then request-level key
@@ -773,6 +776,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					...(parentChatSessionId ? { [CopilotChatAttr.PARENT_CHAT_SESSION_ID]: parentChatSessionId } : {}),
 					...(debugLogLabel ? { [CopilotChatAttr.DEBUG_LOG_LABEL]: debugLogLabel } : {}),
 					...(customModeName ? { [CopilotChatAttr.MODE_NAME]: customModeName } : {}),
+					[GitHubCopilotAttr.AGENT_TYPE]: agentType,
 					...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 				},
 				parentTraceContext,
