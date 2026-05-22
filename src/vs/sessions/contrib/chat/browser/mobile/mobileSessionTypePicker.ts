@@ -62,26 +62,30 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		}
 
 		// Build sheet items — composite id is `providerId\u0000sessionTypeId`
-		// so we can map back to the right provider on selection. Use the
-		// provider's label as a section title on the first item of each
-		// group so the sheet visually separates providers, but only when
-		// the session type label is duplicated across providers.
+		// so we can map back to the right provider on selection. Show the
+		// provider's label as a section title only for provider groups
+		// that contain at least one duplicated session type label.
 		const labelCounts = new Map<string, number>();
 		for (const { sessionType } of this._folderSessionTypes) {
 			labelCounts.set(sessionType.label, (labelCounts.get(sessionType.label) ?? 0) + 1);
+		}
+		const providersWithDuplicates = new Set<string>();
+		for (const { providerId, sessionType } of this._folderSessionTypes) {
+			if ((labelCounts.get(sessionType.label) ?? 0) > 1) {
+				providersWithDuplicates.add(providerId);
+			}
 		}
 		const sheetItems: IMobilePickerSheetItem[] = [];
 		let lastProviderId: string | undefined;
 		for (const { providerId, sessionType } of this._folderSessionTypes) {
 			const isFirstInGroup = providerId !== lastProviderId;
 			lastProviderId = providerId;
-			const isLabelDuplicated = (labelCounts.get(sessionType.label) ?? 0) > 1;
 			sheetItems.push({
 				id: `${providerId}\u0000${sessionType.id}`,
 				label: sessionType.label,
 				icon: sessionType.icon,
 				checked: providerId === this._picked?.providerId && sessionType.id === this._picked?.sessionTypeId,
-				sectionTitle: isLabelDuplicated && isFirstInGroup ? (this._sessionsProvidersService.getProvider(providerId)?.label ?? providerId) : undefined,
+				sectionTitle: providersWithDuplicates.has(providerId) && isFirstInGroup ? (this._sessionsProvidersService.getProvider(providerId)?.label ?? providerId) : undefined,
 			});
 		}
 
