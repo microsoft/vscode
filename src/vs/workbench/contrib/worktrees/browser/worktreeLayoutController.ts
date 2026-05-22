@@ -10,6 +10,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { autorun, derivedObservableWithCache, derivedOpts, observableFromEvent, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorIdentifier } from '../../../common/editor.js';
@@ -78,6 +79,7 @@ export class WorktreeLayoutController extends Disposable {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -144,15 +146,19 @@ export class WorktreeLayoutController extends Disposable {
 
 		this._register(runOnChange(activeWorktreeForWorkingSet, (worktree, previous) => {
 			void this._workingSetSequencer.queue(async () => {
-				if (previous) {
-					await this._closeUnrestorableEditors();
-					this._saveWorkingSet(previous.uri);
-				}
-				// On initial load (no previous), only apply if we have a saved
-				// working set — skip applying 'empty' to avoid closing editors
-				// being restored.
-				if (previous || (worktree && this._workingSets.has(worktree.uri))) {
-					await this._applyWorkingSetInner(worktree?.uri);
+				try {
+					if (previous) {
+						await this._closeUnrestorableEditors();
+						this._saveWorkingSet(previous.uri);
+					}
+					// On initial load (no previous), only apply if we have a saved
+					// working set — skip applying 'empty' to avoid closing editors
+					// being restored.
+					if (previous || (worktree && this._workingSets.has(worktree.uri))) {
+						await this._applyWorkingSetInner(worktree?.uri);
+					}
+				} catch (err) {
+					this._logService.warn('[Worktrees] layout transition failed', err);
 				}
 			});
 		}));
@@ -318,7 +324,8 @@ export class WorktreeLayoutController extends Disposable {
 					this._panelVisibilityByWorktree.set(uri, entry.panelVisible);
 				}
 			}
-		} catch {
+		} catch (err) {
+			this._logService.warn('[Worktrees] failed to parse layout state, discarding', err);
 			this._storageService.remove(WORKTREE_LAYOUT_STATE_KEY, StorageScope.WORKSPACE);
 		}
 	}

@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IObservable, ISettableObservable, derived, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { IFileService, IFileStatWithPartialMetadata } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -61,9 +61,7 @@ class Worktree implements IWorktree {
  * and returns the branch name when present, otherwise `undefined`.
  */
 function parseHeadFile(content: string): string | undefined {
-	const trimmed = content.trim();
-	const match = /^ref:\s*refs\/heads\/(.+)$/.exec(trimmed);
-	return match ? match[1] : undefined;
+	return /^ref:\s*refs\/heads\/(?<branch>.+)$/.exec(content.trim())?.groups?.branch;
 }
 
 async function tryReadFile(fileService: IFileService, uri: URI): Promise<string | undefined> {
@@ -238,9 +236,8 @@ export class WorktreeGroupService extends Disposable implements IWorktreeGroupSe
 				// worktree add` writes absolute paths, but be defensive:
 				// resolve relative values against the worktree root.
 				const content = await tryReadFile(this.fileService, dotGit);
-				const match = content && /^gitdir:\s*(.+)$/m.exec(content);
-				if (match) {
-					const gitDirPath = match[1].trim();
+				const gitDirPath = content && /^gitdir:\s*(?<path>.+)$/m.exec(content)?.groups?.path.trim();
+				if (gitDirPath) {
 					const gitDirUri = isAbsolute(gitDirPath)
 						? URI.file(gitDirPath)
 						: joinPath(dirname(dotGit), gitDirPath);
@@ -337,7 +334,7 @@ export class WorktreeGroupService extends Disposable implements IWorktreeGroupSe
 		};
 	}
 
-	private async _tryStat(uri: URI) {
+	private async _tryStat(uri: URI): Promise<IFileStatWithPartialMetadata | undefined> {
 		try {
 			return await this.fileService.stat(uri);
 		} catch {
@@ -373,12 +370,8 @@ export class WorktreeGroupService extends Disposable implements IWorktreeGroupSe
 			return;
 		}
 
-		const list: IWorktree[] = [];
-		for (const wt of this._byUri.values()) {
-			list.push(wt);
-		}
 		// Stable ordering: main first, then alphabetical by label.
-		list.sort((a, b) => {
+		const list = Array.from(this._byUri.values()).sort((a, b) => {
 			if (a.isMain !== b.isMain) {
 				return a.isMain ? -1 : 1;
 			}
@@ -397,15 +390,8 @@ export class WorktreeGroupService extends Disposable implements IWorktreeGroupSe
 		try {
 			const worktreesDir = joinPath(commonDir, 'worktrees');
 			const watcher = this.fileService.createWatcher(worktreesDir, { recursive: false, excludes: [] });
-			const sub = watcher.onDidChange(() => {
-				void this.refresh();
-			});
-			this._watcher.value = {
-				dispose: () => {
-					sub.dispose();
-					watcher.dispose();
-				}
-			};
+			const sub = watcher.onDidChange(() => this.refresh());
+			this._watcher.value = combinedDisposable(sub, watcher);
 		} catch (err) {
 			this.logService.warn(`[Worktrees] failed to watch worktrees dir: ${err}`);
 		}
