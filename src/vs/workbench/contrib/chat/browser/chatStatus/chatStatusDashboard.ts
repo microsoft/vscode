@@ -108,6 +108,7 @@ export class ChatStatusDashboard extends DomWidget {
 	private readonly timeFormatter = safeIntl.DateTimeFormat(language, { hour: 'numeric', minute: 'numeric' });
 	private readonly quotaPercentageFormatter = safeIntl.NumberFormat(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 });
 	private readonly quotaCreditsFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 2, minimumFractionDigits: 0 });
+	private readonly quotaCreditsCompactFormatter = safeIntl.NumberFormat(language, { notation: 'compact', maximumFractionDigits: 1, minimumFractionDigits: 0 });
 
 	constructor(
 		private readonly options: IChatStatusDashboardOptions | undefined,
@@ -753,8 +754,13 @@ export class ChatStatusDashboard extends DomWidget {
 				const used = currentQuota.quotaRemaining !== undefined
 					? total - currentQuota.quotaRemaining
 					: total * (100 - currentQuota.percentRemaining) / 100;
-				const usedFormatted = this.quotaCreditsFormatter.value.format(used);
-				const totalFormatted = this.quotaCreditsFormatter.value.format(total);
+				const compactThreshold = 100_000;
+				const usedFormatted = used >= compactThreshold
+					? this.quotaCreditsCompactFormatter.value.format(used)
+					: this.quotaCreditsFormatter.value.format(used);
+				const totalFormatted = total >= compactThreshold
+					? this.quotaCreditsCompactFormatter.value.format(total)
+					: this.quotaCreditsFormatter.value.format(total);
 				quotaValueText.textContent = localize('quotaCreditsDisplay', "{0} / {1}", usedFormatted, totalFormatted);
 				quotaValueSuffix.textContent = isCompact
 					? localize('quotaLabelUsed', "{0} used", label)
