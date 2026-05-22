@@ -85,4 +85,19 @@ suite('resolveProjectFileUri', () => {
 		const fileUri = resolveProjectFileUri(workspaceUri, 'myrepo', 'myrepo/../package.json');
 		expect(isUriContained(workspaceUri, fileUri)).toBe(false);
 	});
+
+	test('source preview URI built from the unmodified `file` resolves to the expected preview path', () => {
+		// `createWorkspace` reads preview content via `Uri.joinPath(baseUri, file)`
+		// using the *unmodified* `file` emitted by `listFilesInResponseFileTree`.
+		// `Uri.joinPath` is backed by `paths.posix.join`, which treats arguments
+		// as path segments (it does NOT drop `baseUri.path` when the next segment
+		// starts with `/`). Asserting this here so the source/destination URI
+		// shapes do not drift in the future.
+		const baseUri = Uri.parse('vscode-copilot-github-workspace://req/myrepo');
+		// GitHub repo-template flow: emitted file = `/src/index.ts`.
+		expect(Uri.joinPath(baseUri, '/src/index.ts').path).toBe('/myrepo/src/index.ts');
+		// Copilot new-workspace flow: emitted file = `myproject/src/index.ts`.
+		const copilotBase = Uri.parse('vscode-copilot-workspace://req/myproject');
+		expect(Uri.joinPath(copilotBase, 'myproject/src/index.ts').path).toBe('/myproject/myproject/src/index.ts');
+	});
 });
