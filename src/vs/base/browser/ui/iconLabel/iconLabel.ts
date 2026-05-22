@@ -197,11 +197,13 @@ export class IconLabel extends Disposable {
 		if (options?.bgColorClassName) {
 			this.currentBgColorClassName = options.bgColorClassName;
 			this.currentBgColorElement = this.getDecorationContainer() ?? this.labelContainer;
-			this.currentBgColorElement.classList.add(this.currentBgColorClassName);
 		}
 		this.domNode.element.setAttribute('aria-label', ariaLabel);
 		this.labelContainer.classList.value = '';
 		this.labelContainer.classList.add(...containerClasses);
+		if (this.currentBgColorClassName && this.currentBgColorElement) {
+			this.currentBgColorElement.classList.add(this.currentBgColorClassName);
+		}
 		this.setupHover(options?.descriptionTitle ? this.labelContainer : this.element, options?.title);
 
 		this.nameNode.setLabel(label, options);
