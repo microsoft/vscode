@@ -245,11 +245,15 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 		// ── Lifecycle ──────────────────────────────────────────────────────────
 
 		case ActionType.SessionReady:
-			return {
-				...state,
-				lifecycle: SessionLifecycle.Ready,
-				summary: { ...state.summary, status: SessionStatus.Idle },
-			};
+			// `SessionReady` is purely a lifecycle transition (Creating ->
+			// Ready). It must not touch `summary.status`: for provisional
+			// sessions the first turn can start before materialization
+			// completes, so an `activeTurn` may already be set when this
+			// action is dispatched (e.g. from a materialize-session handler).
+			// Other reducers keep `summary.status` in sync with the activity
+			// state via `summaryStatus`/`refreshSummaryStatus`, so leaving it
+			// alone here is correct.
+			return { ...state, lifecycle: SessionLifecycle.Ready };
 
 		case ActionType.SessionCreationFailed:
 			return {
@@ -520,6 +524,12 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 				summary: { ...state.summary, model: action.model, modifiedAt: Date.now() },
 			};
 
+		case ActionType.SessionAgentChanged:
+			return {
+				...state,
+				summary: { ...state.summary, agent: action.agent, modifiedAt: Date.now() },
+			};
+
 		case ActionType.SessionIsReadChanged:
 			return {
 				...state,
@@ -616,6 +626,9 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 				if (action.statusMessage !== undefined) {
 					inserted.statusMessage = action.statusMessage;
 				}
+				if (action.agents !== undefined) {
+					inserted.agents = action.agents;
+				}
 				return { ...state, customizations: [...list, inserted] };
 			}
 			const updated = [...list];
@@ -628,6 +641,9 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 			}
 			if (action.statusMessage !== undefined) {
 				next.statusMessage = action.statusMessage;
+			}
+			if (action.agents !== undefined) {
+				next.agents = action.agents;
 			}
 			updated[idx] = next;
 			return { ...state, customizations: updated };

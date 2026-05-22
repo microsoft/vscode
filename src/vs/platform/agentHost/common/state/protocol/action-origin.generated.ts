@@ -9,7 +9,7 @@
 // Generated from types/actions.ts — do not edit
 // Run `npm run generate` to regenerate.
 
-import { ActionType, type StateAction, type RootAgentsChangedAction, type RootActiveSessionsChangedAction, type RootTerminalsChangedAction, type RootConfigChangedAction, type SessionReadyAction, type SessionCreationFailedAction, type SessionTurnStartedAction, type SessionDeltaAction, type SessionResponsePartAction, type SessionToolCallStartAction, type SessionToolCallDeltaAction, type SessionToolCallReadyAction, type SessionToolCallConfirmedAction, type SessionToolCallCompleteAction, type SessionToolCallResultConfirmedAction, type SessionToolCallContentChangedAction, type SessionTurnCompleteAction, type SessionTurnCancelledAction, type SessionErrorAction, type SessionTitleChangedAction, type SessionUsageAction, type SessionReasoningAction, type SessionModelChangedAction, type SessionServerToolsChangedAction, type SessionActiveClientChangedAction, type SessionActiveClientToolsChangedAction, type SessionPendingMessageSetAction, type SessionPendingMessageRemovedAction, type SessionQueuedMessagesReorderedAction, type SessionInputRequestedAction, type SessionInputAnswerChangedAction, type SessionInputCompletedAction, type SessionCustomizationsChangedAction, type SessionCustomizationToggledAction, type SessionCustomizationUpdatedAction, type SessionTruncatedAction, type SessionIsReadChangedAction, type SessionIsArchivedChangedAction, type SessionActivityChangedAction, type SessionChangesetsChangedAction, type SessionConfigChangedAction, type SessionMetaChangedAction, type ChangesetStatusChangedAction, type ChangesetFileSetAction, type ChangesetFileRemovedAction, type ChangesetOperationsChangedAction, type ChangesetClearedAction, type TerminalDataAction, type TerminalInputAction, type TerminalResizedAction, type TerminalClaimedAction, type TerminalTitleChangedAction, type TerminalCwdChangedAction, type TerminalExitedAction, type TerminalClearedAction, type TerminalCommandDetectionAvailableAction, type TerminalCommandExecutedAction, type TerminalCommandFinishedAction } from './actions.js';
+import { ActionType, type StateAction, type RootAgentsChangedAction, type RootActiveSessionsChangedAction, type RootTerminalsChangedAction, type RootConfigChangedAction, type SessionReadyAction, type SessionCreationFailedAction, type SessionTurnStartedAction, type SessionDeltaAction, type SessionResponsePartAction, type SessionToolCallStartAction, type SessionToolCallDeltaAction, type SessionToolCallReadyAction, type SessionToolCallConfirmedAction, type SessionToolCallCompleteAction, type SessionToolCallResultConfirmedAction, type SessionToolCallContentChangedAction, type SessionTurnCompleteAction, type SessionTurnCancelledAction, type SessionErrorAction, type SessionTitleChangedAction, type SessionUsageAction, type SessionReasoningAction, type SessionModelChangedAction, type SessionAgentChangedAction, type SessionServerToolsChangedAction, type SessionActiveClientChangedAction, type SessionActiveClientToolsChangedAction, type SessionPendingMessageSetAction, type SessionPendingMessageRemovedAction, type SessionQueuedMessagesReorderedAction, type SessionInputRequestedAction, type SessionInputAnswerChangedAction, type SessionInputCompletedAction, type SessionCustomizationsChangedAction, type SessionCustomizationToggledAction, type SessionCustomizationUpdatedAction, type SessionTruncatedAction, type SessionIsReadChangedAction, type SessionIsArchivedChangedAction, type SessionActivityChangedAction, type SessionChangesetsChangedAction, type SessionConfigChangedAction, type SessionMetaChangedAction, type ChangesetStatusChangedAction, type ChangesetFileSetAction, type ChangesetFileRemovedAction, type ChangesetOperationsChangedAction, type ChangesetClearedAction, type TerminalDataAction, type TerminalInputAction, type TerminalResizedAction, type TerminalClaimedAction, type TerminalTitleChangedAction, type TerminalCwdChangedAction, type TerminalExitedAction, type TerminalClearedAction, type TerminalCommandDetectionAvailableAction, type TerminalCommandExecutedAction, type TerminalCommandFinishedAction } from './actions.js';
 
 
 // ─── Root vs Session vs Terminal vs Changeset Action Unions ─────────────────
@@ -55,6 +55,7 @@ export type SessionAction =
 	| SessionUsageAction
 	| SessionReasoningAction
 	| SessionModelChangedAction
+	| SessionAgentChangedAction
 	| SessionServerToolsChangedAction
 	| SessionActiveClientChangedAction
 	| SessionActiveClientToolsChangedAction
@@ -86,6 +87,7 @@ export type ClientSessionAction =
 	| SessionTurnCancelledAction
 	| SessionTitleChangedAction
 	| SessionModelChangedAction
+	| SessionAgentChangedAction
 	| SessionActiveClientChangedAction
 	| SessionActiveClientToolsChangedAction
 	| SessionPendingMessageSetAction
@@ -209,6 +211,7 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in StateAction['type']]: bool
 	[ActionType.SessionUsage]: false,
 	[ActionType.SessionReasoning]: false,
 	[ActionType.SessionModelChanged]: true,
+	[ActionType.SessionAgentChanged]: true,
 	[ActionType.SessionServerToolsChanged]: false,
 	[ActionType.SessionActiveClientChanged]: true,
 	[ActionType.SessionActiveClientToolsChanged]: true,

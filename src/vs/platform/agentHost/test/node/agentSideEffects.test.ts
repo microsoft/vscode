@@ -23,7 +23,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { CustomizationStatus } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentSessionUri, MessageAttachmentKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../common/state/sessionState.js';
+import { buildSubagentSessionUri, MessageAttachmentKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionCustomization } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -57,6 +57,9 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	refreshSessionChangeset(): void { /* no-op */ }
 	setTurnSubscriberProbe(): void { /* no-op */ }
 	async computeTurnChangeset(session: string): Promise<string> { return `${session}/changeset/turn/x`; }
+	async computeCompareTurnsChangeset(session: string, originalTurnId: string, modifiedTurnId: string): Promise<string> {
+		return `${session}/changeset/compare/${originalTurnId}/${modifiedTurnId}`;
+	}
 
 	onToolCallEditsApplied(session: string, turnId: string): void {
 		this.toolCallEdits.push({ session, turnId });
@@ -864,7 +867,11 @@ suite('AgentSideEffects', () => {
 
 	suite('handleAction — session/activeClientChanged', () => {
 
-		test('calls setClientCustomizations and dispatches customizationsChanged', async () => {
+		setup(() => {
+			disposables.add(sideEffects.registerProgressListener(agent));
+		});
+
+		test('calls setClientCustomizations and dispatches customizationsChanged once', async () => {
 			setupSession();
 			agent.getSessionCustomizations = async () => [
 				{
@@ -908,7 +915,83 @@ suite('AgentSideEffects', () => {
 
 			const customizationActions = envelopes
 				.filter(e => e.action.type === ActionType.SessionCustomizationsChanged);
-			assert.ok(customizationActions.length >= 1, 'should dispatch at least one customizationsChanged');
+			assert.strictEqual(customizationActions.length, 1, 'should dispatch one full customizationsChanged replacement');
+			assert.strictEqual(
+				envelopes.filter(e => e.action.type === ActionType.SessionCustomizationUpdated).length,
+				0,
+				'should not dispatch customizationUpdated when progress matches the final state',
+			);
+		});
+
+		test('dispatches customizationUpdated for sync progress after initial replacement', async () => {
+			setupSession();
+			const customization = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
+			let currentCustomizations: readonly SessionCustomization[] = [];
+			agent.getSessionCustomizations = async () => currentCustomizations;
+			agent.setClientCustomizations = async (session, clientId, customizations) => {
+				agent.setClientCustomizationsCalls.push({ clientId, customizations });
+				currentCustomizations = [{
+					customization,
+					enabled: true,
+					status: CustomizationStatus.Loading,
+				}];
+				agent.fireProgress({
+					kind: 'action',
+					session,
+					action: {
+						type: ActionType.SessionCustomizationsChanged,
+						customizations: [...currentCustomizations],
+					},
+				});
+				await new Promise(resolve => setTimeout(resolve, 0));
+				currentCustomizations = [{
+					customization,
+					enabled: true,
+					status: CustomizationStatus.Loaded,
+				}];
+				agent.fireProgress({
+					kind: 'action',
+					session,
+					action: {
+						type: ActionType.SessionCustomizationUpdated,
+						customization,
+						enabled: true,
+						status: CustomizationStatus.Loaded,
+					},
+				});
+				return currentCustomizations.map(customization => ({ customization }));
+			};
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.SessionActiveClientChanged,
+				activeClient: {
+					clientId: 'test-client',
+					tools: [],
+					customizations: [customization],
+				},
+			});
+			await new Promise(resolve => setTimeout(resolve, 50));
+
+			const customizationsChanged = envelopes.filter(e => e.action.type === ActionType.SessionCustomizationsChanged);
+			assert.strictEqual(customizationsChanged.length, 1);
+			const firstCustomizationsChanged = customizationsChanged[0].action;
+			assert.strictEqual(firstCustomizationsChanged.type, ActionType.SessionCustomizationsChanged);
+			assert.deepStrictEqual(firstCustomizationsChanged.customizations, [{
+				customization,
+				enabled: true,
+				status: CustomizationStatus.Loading,
+			}]);
+
+			const customizationUpdated = envelopes.filter(e => e.action.type === ActionType.SessionCustomizationUpdated);
+			assert.deepStrictEqual(customizationUpdated.map(e => e.action), [{
+				type: ActionType.SessionCustomizationUpdated,
+				customization,
+				enabled: true,
+				status: CustomizationStatus.Loaded,
+			}]);
 		});
 
 		test('clears client customizations when activeClient has no customizations', () => {
@@ -932,7 +1015,11 @@ suite('AgentSideEffects', () => {
 			}]);
 			const customizationActions = envelopes
 				.filter(e => e.action.type === ActionType.SessionCustomizationsChanged);
-			assert.strictEqual(customizationActions.length, 0);
+			assert.strictEqual(customizationActions.length, 1);
+			assert.deepStrictEqual(customizationActions[0].action, {
+				type: ActionType.SessionCustomizationsChanged,
+				customizations: [],
+			});
 		});
 
 		test('clears client customizations when activeClient is null', () => {

@@ -22,6 +22,7 @@ import {
 } from '../../common/state/protocol/state.js';
 import { buildSubagentSessionUri } from '../../common/state/sessionState.js';
 import { buildClaudeToolMeta, getClaudeInvocationMessage, getClaudePastTenseMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
+import { stripClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
 
 /**
  * Phase 13 — replay mapper. Reduces a flat `SessionMessage[]` (the SDK's
@@ -248,7 +249,11 @@ class ReplayBuilder {
 					content: block.thinking,
 				});
 			} else if (block.type === 'tool_use' && typeof block.id === 'string' && typeof block.name === 'string') {
-				this._openToolUse(block.id, block.name, block.input);
+				// Strip the in-process MCP server prefix so the workbench resolves
+				// the workbench-registered tool by its unprefixed name (matches the
+				// live stream mapper). Without this, replayed client-tool calls
+				// fall back to the generic "Run MCP tool" rendering.
+				this._openToolUse(block.id, stripClientToolNamePrefix(block.name), block.input);
 			}
 			// Other block types (server_tool_use, etc.) are dropped silently per M7.
 		}

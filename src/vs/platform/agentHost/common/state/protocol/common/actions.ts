@@ -10,7 +10,7 @@ import type { URI } from './state.js';
 
 import type { RootAgentsChangedAction, RootActiveSessionsChangedAction, RootTerminalsChangedAction, RootConfigChangedAction } from '../channels-root/actions.js';
 
-import type { SessionReadyAction, SessionCreationFailedAction, SessionTurnStartedAction, SessionDeltaAction, SessionResponsePartAction, SessionToolCallStartAction, SessionToolCallDeltaAction, SessionToolCallReadyAction, SessionToolCallConfirmedAction, SessionToolCallCompleteAction, SessionToolCallResultConfirmedAction, SessionToolCallContentChangedAction, SessionTurnCompleteAction, SessionTurnCancelledAction, SessionErrorAction, SessionTitleChangedAction, SessionUsageAction, SessionReasoningAction, SessionModelChangedAction, SessionServerToolsChangedAction, SessionActiveClientChangedAction, SessionActiveClientToolsChangedAction, SessionPendingMessageSetAction, SessionPendingMessageRemovedAction, SessionQueuedMessagesReorderedAction, SessionInputRequestedAction, SessionInputAnswerChangedAction, SessionInputCompletedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionTruncatedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
+import type { SessionReadyAction, SessionCreationFailedAction, SessionTurnStartedAction, SessionDeltaAction, SessionResponsePartAction, SessionToolCallStartAction, SessionToolCallDeltaAction, SessionToolCallReadyAction, SessionToolCallConfirmedAction, SessionToolCallCompleteAction, SessionToolCallResultConfirmedAction, SessionToolCallContentChangedAction, SessionTurnCompleteAction, SessionTurnCancelledAction, SessionErrorAction, SessionTitleChangedAction, SessionUsageAction, SessionReasoningAction, SessionModelChangedAction, SessionAgentChangedAction, SessionServerToolsChangedAction, SessionActiveClientChangedAction, SessionActiveClientToolsChangedAction, SessionPendingMessageSetAction, SessionPendingMessageRemovedAction, SessionQueuedMessagesReorderedAction, SessionInputRequestedAction, SessionInputAnswerChangedAction, SessionInputCompletedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionTruncatedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
 
 import type { ChangesetStatusChangedAction, ChangesetFileSetAction, ChangesetFileRemovedAction, ChangesetOperationsChangedAction, ChangesetClearedAction } from '../channels-changeset/actions.js';
 
@@ -45,6 +45,7 @@ export const enum ActionType {
 	SessionUsage = 'session/usage',
 	SessionReasoning = 'session/reasoning',
 	SessionModelChanged = 'session/modelChanged',
+	SessionAgentChanged = 'session/agentChanged',
 	SessionServerToolsChanged = 'session/serverToolsChanged',
 	SessionActiveClientChanged = 'session/activeClientChanged',
 	SessionActiveClientToolsChanged = 'session/activeClientToolsChanged',
@@ -141,6 +142,7 @@ export type StateAction =
 	| SessionUsageAction
 	| SessionReasoningAction
 	| SessionModelChangedAction
+	| SessionAgentChangedAction
 	| SessionServerToolsChangedAction
 	| SessionActiveClientChangedAction
 	| SessionActiveClientToolsChangedAction

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, Details, GPUFeatureStatus, powerMonitor, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, Details, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -13,7 +13,7 @@ import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { Event } from '../../base/common/event.js';
 import { parse } from '../../base/common/jsonc.js';
 import { getPathLabel } from '../../base/common/labels.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { join, posix } from '../../base/common/path.js';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
@@ -125,7 +125,7 @@ import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/el
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
 import { ElectronAgentHostStarter } from '../../platform/agentHost/electron-main/electronAgentHostStarter.js';
 import { AgentHostProcessManager } from '../../platform/agentHost/node/agentHostService.js';
-import { AgentHostEnabledSettingId } from '../../platform/agentHost/common/agentService.js';
+import { isAgentHostEnabled } from '../../platform/agentHost/common/agentService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from '../../platform/remote/common/electronRemoteResources.js';
 import { Lazy } from '../../base/common/lazy.js';
 import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -226,6 +226,76 @@ export class CodeApplication extends Disposable {
 				return allowedPermissionsInCore.has(permission);
 			}
 			return false;
+		});
+
+		// Without this, starting recording in the issue reporting wizard takes
+		// a few seconds due to overhead of enumerating sources, so we warm up the sources in advance.
+		let cachedScreenSources: Electron.DesktopCapturerSource[] | undefined;
+		const warmUpScreenSources = () => {
+			desktopCapturer.getSources({
+				types: ['screen'],
+				thumbnailSize: { width: 0, height: 0 },
+			}).then(sources => { cachedScreenSources = sources; }).catch(() => { /* best-effort */ });
+		};
+		const invalidateScreenSourceCache = () => {
+			cachedScreenSources = undefined;
+			if (!isMacintosh || systemPreferences.getMediaAccessStatus('screen') === 'granted') {
+				warmUpScreenSources();
+			}
+		};
+		electronScreen.on('display-added', invalidateScreenSourceCache);
+		electronScreen.on('display-removed', invalidateScreenSourceCache);
+		electronScreen.on('display-metrics-changed', invalidateScreenSourceCache);
+		this._register(toDisposable(() => {
+			electronScreen.off('display-added', invalidateScreenSourceCache);
+			electronScreen.off('display-removed', invalidateScreenSourceCache);
+			electronScreen.off('display-metrics-changed', invalidateScreenSourceCache);
+		}));
+		if (!isMacintosh || systemPreferences.getMediaAccessStatus('screen') === 'granted') {
+			warmUpScreenSources();
+		}
+		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+			try {
+				const frame = request.frame;
+				const win = frame ? BrowserWindow.getAllWindows().find(w => w.webContents.mainFrame === frame) : undefined;
+
+				const displays = electronScreen.getAllDisplays();
+				let targetDisplay = displays[0];
+				if (win) {
+					const winBounds = win.getBounds();
+					targetDisplay = electronScreen.getDisplayNearestPoint({
+						x: winBounds.x + winBounds.width / 2,
+						y: winBounds.y + winBounds.height / 2,
+					});
+				}
+
+				if (!cachedScreenSources) {
+					cachedScreenSources = await desktopCapturer.getSources({
+						types: ['screen'],
+						thumbnailSize: { width: 0, height: 0 },
+					});
+				}
+
+				let match = cachedScreenSources.find(s => s.display_id === String(targetDisplay.id));
+				if (!match) {
+					// Cache may be stale even without a topology event
+					cachedScreenSources = await desktopCapturer.getSources({
+						types: ['screen'],
+						thumbnailSize: { width: 0, height: 0 },
+					});
+					match = cachedScreenSources.find(s => s.display_id === String(targetDisplay.id));
+				}
+
+				const chosen = match ?? cachedScreenSources[0];
+				if (!chosen) {
+					// No screen sources available (permission denied or transient failure).
+					callback({});
+					return;
+				}
+				callback({ video: chosen });
+			} catch {
+				callback({});
+			}
 		});
 
 		//#endregion
@@ -1109,7 +1179,7 @@ export class CodeApplication extends Disposable {
 		services.set(ILocalPtyService, ptyHostService);
 
 		// Agent Host
-		if (this.configurationService.getValue(AgentHostEnabledSettingId)) {
+		if (isAgentHostEnabled(this.configurationService)) {
 			const agentHostStarter = new ElectronAgentHostStarter(this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
 			this._register(new AgentHostProcessManager(agentHostStarter, this.logService, this.loggerService));
 		}
@@ -1303,7 +1373,7 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel(McpGatewayChannelName, mcpGatewayChannel);
 
 		// Logger
-		const loggerChannel = new LoggerChannel(accessor.get(ILoggerMainService),);
+		const loggerChannel = this._register(new LoggerChannel(accessor.get(ILoggerMainService)));
 		mainProcessElectronServer.registerChannel('logger', loggerChannel);
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 

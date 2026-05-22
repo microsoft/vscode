@@ -192,10 +192,31 @@ const funWorkingMessages = [
 
 const FUN_WORKING_MESSAGE_RATE = 100;
 
+type ThinkingPhrasesConfiguration = { mode?: 'replace' | 'append'; phrases?: string[] };
+
+function getCustomThinkingPhrases(configurationService: IConfigurationService): { customPhrases: string[]; replaceDefaults: boolean } {
+	const config = configurationService.getValue<ThinkingPhrasesConfiguration>(ChatConfiguration.ThinkingPhrases);
+	const customPhrases = Array.isArray(config?.phrases)
+		? config.phrases
+			.filter((phrase): phrase is string => typeof phrase === 'string')
+			.map(phrase => phrase.trim())
+			.filter(phrase => phrase.length > 0)
+		: [];
+
+	return {
+		customPhrases,
+		replaceDefaults: config?.mode === 'replace' && customPhrases.length > 0,
+	};
+}
+
 /** Returns an easter-egg message ~1 in {@link FUN_WORKING_MESSAGE_RATE}, else `undefined`. */
-export function maybePickFunWorkingMessage(): string | undefined {
-	if (Math.floor(Math.random() * FUN_WORKING_MESSAGE_RATE) === 0) {
-		return funWorkingMessages[Math.floor(Math.random() * funWorkingMessages.length)];
+export function maybePickFunWorkingMessage(configurationService: IConfigurationService, random = Math.random): string | undefined {
+	if (getCustomThinkingPhrases(configurationService).replaceDefaults) {
+		return undefined;
+	}
+
+	if (Math.floor(random() * FUN_WORKING_MESSAGE_RATE) === 0) {
+		return funWorkingMessages[Math.floor(random() * funWorkingMessages.length)];
 	}
 	return undefined;
 }
@@ -206,16 +227,10 @@ export function maybePickFunWorkingMessage(): string | undefined {
  * custom phrases are added to the defaults.
  */
 export function buildPhrasePool(defaults: string[], configurationService: IConfigurationService): string[] {
-	const config = configurationService.getValue<{ mode?: 'replace' | 'append'; phrases?: string[] }>(ChatConfiguration.ThinkingPhrases);
-	const customPhrases = Array.isArray(config?.phrases)
-		? config.phrases
-			.filter((phrase): phrase is string => typeof phrase === 'string')
-			.map(phrase => phrase.trim())
-			.filter(phrase => phrase.length > 0)
-		: [];
+	const { customPhrases, replaceDefaults } = getCustomThinkingPhrases(configurationService);
 
 	if (customPhrases.length > 0) {
-		return config?.mode === 'replace' ? [...customPhrases] : [...defaults, ...customPhrases];
+		return replaceDefaults ? [...customPhrases] : [...defaults, ...customPhrases];
 	}
 	return [...defaults];
 }
@@ -285,7 +300,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	get aggregatedDiff(): IEditSessionDiffStats { return this._aggregatedDiff; }
 
 	private getRandomWorkingMessage(category: WorkingMessageCategory = WorkingMessageCategory.Tool): string {
-		const fun = maybePickFunWorkingMessage();
+		const fun = maybePickFunWorkingMessage(this.configurationService);
 		if (fun) {
 			return fun;
 		}
