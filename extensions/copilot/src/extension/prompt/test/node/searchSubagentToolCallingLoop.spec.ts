@@ -22,9 +22,6 @@ import {
 } from '../../../prompt/node/searchSubagentToolCallingLoop';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 
-// Must match SearchSubagentToolCallingLoop.SAFETY_FACTORS.length
-const SAFETY_FACTOR_COUNT = 3;
-
 class TestSearchSubagentToolCallingLoop extends SearchSubagentToolCallingLoop {
 	public buildPromptCalls = 0;
 	public makeChatRequestCalls = 0;
@@ -50,8 +47,8 @@ class TestSearchSubagentToolCallingLoop extends SearchSubagentToolCallingLoop {
 		return nullRenderPromptResult();
 	}
 
-	public get safetyFactorIndex(): number {
-		return (this as any)._safetyFactorIndex;
+	public get didRetryAfterOverflow(): boolean {
+		return (this as any)._didRetryAfterOverflow;
 	}
 
 	public primeBuildPromptContext(): void {
@@ -219,7 +216,7 @@ describe('SearchSubagentToolCallingLoop.fetch context-overflow retry', () => {
 		expect(response.type).toBe(ChatFetchResponseType.Success);
 		expect(loop.makeChatRequestCalls).toBe(1);
 		expect(loop.buildPromptCalls).toBe(0);
-		expect(loop.safetyFactorIndex).toBe(0);
+		expect(loop.didRetryAfterOverflow).toBe(false);
 	});
 
 	it('retries once on context overflow and succeeds with shrunk budget', async () => {
@@ -231,35 +228,19 @@ describe('SearchSubagentToolCallingLoop.fetch context-overflow retry', () => {
 		expect(response.type).toBe(ChatFetchResponseType.Success);
 		expect(loop.makeChatRequestCalls).toBe(2);
 		expect(loop.buildPromptCalls).toBe(1);
-		expect(loop.safetyFactorIndex).toBe(1);
+		expect(loop.didRetryAfterOverflow).toBe(true);
 	});
 
-	it('advances through all shrink factors then succeeds', async () => {
+	it('returns the final BadRequest when the single retry also overflows', async () => {
 		const loop = createLoop();
-		loop.responseQueue.push(
-			overflowResponse(),
-			overflowResponse(),
-			successResponse(),
-		);
-
-		const response = await loop.callFetch(tokenSource.token);
-
-		expect(response.type).toBe(ChatFetchResponseType.Success);
-		expect(loop.makeChatRequestCalls).toBe(3);
-		expect(loop.buildPromptCalls).toBe(SAFETY_FACTOR_COUNT - 1);
-		expect(loop.safetyFactorIndex).toBe(SAFETY_FACTOR_COUNT - 1);
-	});
-
-	it('returns the final BadRequest after exhausting shrink factors', async () => {
-		const loop = createLoop();
-		const overflows = Array.from({ length: SAFETY_FACTOR_COUNT }, overflowResponse);
-		loop.responseQueue.push(...overflows);
+		loop.responseQueue.push(overflowResponse(), overflowResponse());
 
 		const response = await loop.callFetch(tokenSource.token);
 
 		expect(response.type).toBe(ChatFetchResponseType.BadRequest);
-		expect(loop.makeChatRequestCalls).toBe(SAFETY_FACTOR_COUNT);
-		expect(loop.buildPromptCalls).toBe(SAFETY_FACTOR_COUNT - 1);
+		expect(loop.makeChatRequestCalls).toBe(2);
+		expect(loop.buildPromptCalls).toBe(1);
+		expect(loop.didRetryAfterOverflow).toBe(true);
 	});
 
 	it('returns non-overflow BadRequest immediately without retry', async () => {
@@ -271,7 +252,7 @@ describe('SearchSubagentToolCallingLoop.fetch context-overflow retry', () => {
 		expect(response.type).toBe(ChatFetchResponseType.BadRequest);
 		expect(loop.makeChatRequestCalls).toBe(1);
 		expect(loop.buildPromptCalls).toBe(0);
-		expect(loop.safetyFactorIndex).toBe(0);
+		expect(loop.didRetryAfterOverflow).toBe(false);
 	});
 
 	it('stops retrying when cancellation is requested', async () => {
@@ -284,5 +265,47 @@ describe('SearchSubagentToolCallingLoop.fetch context-overflow retry', () => {
 		expect(response.type).toBe(ChatFetchResponseType.BadRequest);
 		expect(loop.makeChatRequestCalls).toBe(1);
 		expect(loop.buildPromptCalls).toBe(0);
+	});
+});
+
+describe('SearchSubagentToolCallingLoop.shouldAutoRetry', () => {
+	let disposables: DisposableStore;
+	let instantiationService: IInstantiationService;
+
+	beforeEach(() => {
+		disposables = new DisposableStore();
+		const serviceCollection = disposables.add(createExtensionUnitTestingServices());
+		serviceCollection.define(IChatHookService, new MockChatHookService());
+		const accessor = serviceCollection.createTestingAccessor();
+		instantiationService = accessor.get(IInstantiationService);
+	});
+
+	afterEach(() => {
+		disposables.dispose();
+	});
+
+	function createAutopilotLoop(): TestSearchSubagentToolCallingLoop {
+		const request = createMockChatRequest();
+		(request as any).permissionLevel = 'autopilot';
+		const options: ISearchSubagentToolCallingLoopOptions = {
+			conversation: createTestConversation(),
+			toolCallLimit: 10,
+			request,
+			location: ChatLocation.Panel,
+			promptText: 'find things',
+		};
+		const loop = instantiationService.createInstance(TestSearchSubagentToolCallingLoop, options);
+		disposables.add(loop);
+		return loop;
+	}
+
+	it('does not auto-retry on context-overflow BadRequest in autopilot mode', () => {
+		const loop = createAutopilotLoop();
+		expect((loop as any).shouldAutoRetry(overflowResponse())).toBe(false);
+	});
+
+	it('still auto-retries on unrelated BadRequest in autopilot mode', () => {
+		const loop = createAutopilotLoop();
+		expect((loop as any).shouldAutoRetry(badRequest('invalid_tool_schema'))).toBe(true);
 	});
 });

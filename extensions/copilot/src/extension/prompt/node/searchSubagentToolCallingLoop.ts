@@ -7,8 +7,7 @@ import { randomUUID } from 'crypto';
 import type { CancellationToken, ChatRequest, ChatResponseStream, LanguageModelToolInformation, Progress } from 'vscode';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { IChatHookService } from '../../../platform/chat/common/chatHookService';
-import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
-import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
+import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { ProxyAgenticEndpoint } from '../../../platform/endpoint/node/proxyAgenticEndpoint';
@@ -51,12 +50,12 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 
 	public static readonly ID = 'searchSubagentTool';
 
-	// Successive safety factors applied to the prompt's message budget. The first attempt mirrors
-	// the main agent loop in agentIntent.ts (0.9). Smaller factors are used as fallbacks when either
-	// (a) prompt-tsx throws BudgetExceededError during render, or (b) the API returns a 400 with a
-	// context-overflow reason. We should never propagate context_length_exceeded to the main agent
-	private static readonly SAFETY_FACTORS = [0.9, 0.66, 0.4];
-	private _safetyFactorIndex = 0;
+	// Render proactively at 0.9. If the model still returns a context-overflow 400,
+	// we do one retry at an aggressively smaller factor before surfacing
+	// a benign fallback to the main agent via the tool wrapper.
+	private static readonly INITIAL_SAFETY_FACTOR = 0.9;
+	private static readonly RETRY_SAFETY_FACTOR = 0.5;
+	private _didRetryAfterOverflow = false;
 	private _lastBuildPromptContext: IBuildPromptContext | undefined;
 
 	constructor(
@@ -135,9 +134,11 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		const tools = buildPromptContext.tools?.availableTools;
 		const toolTokens = tools?.length ? await endpoint.acquireTokenizer().countToolTokens(tools) : 0;
 
-		const factor = SearchSubagentToolCallingLoop.SAFETY_FACTORS[this._safetyFactorIndex];
+		const factor = this._didRetryAfterOverflow
+			? SearchSubagentToolCallingLoop.RETRY_SAFETY_FACTOR
+			: SearchSubagentToolCallingLoop.INITIAL_SAFETY_FACTOR;
 		const messageBudget = Math.max(1, Math.floor((endpoint.modelMaxPromptTokens - toolTokens) * factor));
-		const renderEndpoint = toolTokens > 0 || factor < 0.9 ? endpoint.cloneWithTokenOverride(messageBudget) : endpoint;
+		const renderEndpoint = toolTokens > 0 || this._didRetryAfterOverflow ? endpoint.cloneWithTokenOverride(messageBudget) : endpoint;
 		const renderer = PromptRenderer.create(
 			this.instantiationService,
 			renderEndpoint,
@@ -209,38 +210,48 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 				return response;
 			}
 
-			if (this._safetyFactorIndex >= SearchSubagentToolCallingLoop.SAFETY_FACTORS.length - 1) {
-				this._sendContextOverflowTelemetry('exhausted', endpoint.model, this._safetyFactorIndex);
+			if (this._didRetryAfterOverflow) {
+				this._sendContextOverflowTelemetry('exhausted', endpoint.model, SearchSubagentToolCallingLoop.RETRY_SAFETY_FACTOR);
 				return response;
 			}
 
-			this._safetyFactorIndex++;
-			this._logService.warn(`[searchSubagent] context_length_exceeded from API; re-rendering with smaller safety factor (index ${this._safetyFactorIndex})`);
-			this._sendContextOverflowTelemetry('retried', endpoint.model, this._safetyFactorIndex);
+			this._didRetryAfterOverflow = true;
+			this._logService.warn(`[searchSubagent] context_length_exceeded from API; re-rendering once at safety factor ${SearchSubagentToolCallingLoop.RETRY_SAFETY_FACTOR}`);
+			this._sendContextOverflowTelemetry('retried', endpoint.model, SearchSubagentToolCallingLoop.RETRY_SAFETY_FACTOR);
 			const rerendered = await this.buildPrompt(this._lastBuildPromptContext, { report: () => { } }, token);
 			currentMessages = rerendered.messages;
 		}
 	}
 
+	/**
+	 * Skip the autopilot auto-retry layer for context-overflow BadRequest.
+	 */
+	protected override shouldAutoRetry(response: ChatResponse): boolean {
+		if (isContextOverflowBadRequest(response)) {
+			return false;
+		}
+		return super.shouldAutoRetry(response);
+	}
+
 	private _sendContextOverflowTelemetry(
 		outcome: 'retried' | 'exhausted',
 		model: string,
-		safetyFactorIndex: number,
+		safetyFactor: number,
 	): void {
 		/* __GDPR__
 			"searchSubagent.contextOverflow" : {
 				"owner": "t-guomaggie",
-				"comment": "Tracks when the search subagent shrinks its prompt budget after the model returned a 400 with a context-overflow reason, and whether the shrink path could still recover.",
-				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the loop could still retry. One of: 'retried' (advanced to a smaller safety factor and refetched), 'exhausted' (no more factors to try; failure is surfaced to the tool wrapper)." },
+				"comment": "Tracks when the search subagent's model returns a 400 with a context-overflow reason, and whether the single shrink-and-retry recovered.",
+				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "One of: 'retried' (overflowed on the initial 0.9 budget, re-rendering at the retry factor), 'exhausted' (also overflowed on the retry; failure surfaced to the tool wrapper as a benign fallback)." },
 				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model id used by the subagent." },
-				"safetyFactorIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Index into the SAFETY_FACTORS array after the shrink (0 = first, length-1 = smallest)." }
+				"safetyFactor": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The message-budget multiplier in effect after the shrink. Currently always RETRY_SAFETY_FACTOR, but logged as a value so tuning is visible if we change it." }
 			}
 		*/
 		this._telemetryService.sendMSFTTelemetryEvent('searchSubagent.contextOverflow', {
 			outcome,
 			model,
 		}, {
-			safetyFactorIndex,
+			safetyFactor,
 		});
 	}
 }
