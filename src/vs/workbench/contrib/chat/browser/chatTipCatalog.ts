@@ -30,6 +30,13 @@ export const enum ChatTipTier {
 }
 
 /**
+ * Treatment names for tip messages overridable via the workbench assignment service.
+ */
+export const enum ChatTipExperiment {
+	OpenAgentsWindowTip = 'openagentswindowtip',
+}
+
+/**
  * Context provided to tip builders for dynamic message construction.
  */
 export interface ITipBuildContext {
@@ -37,6 +44,11 @@ export interface ITipBuildContext {
 	 * Keybinding service for looking up keyboard shortcuts.
 	 */
 	readonly keybindingService: IKeybindingService;
+	/**
+	 * Experimental tip message overrides keyed by treatment name (see {@link ChatTipExperiment}).
+	 * Builders should fall back to their default localized strings when a treatment is not set.
+	 */
+	readonly experimentalTipMessages: ReadonlyMap<string, string>;
 }
 
 /**
@@ -415,14 +427,17 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	{
 		id: 'tip.agentsWindow',
 		tier: ChatTipTier.Qol,
-		buildMessage() {
-			return new MarkdownString(
-				localize(
-					'tip.agentsWindow',
-					"Work across multiple projects at once in the [Agents window](command:{0} \"Open Agents Window\").",
-					OPEN_AGENTS_WINDOW_COMMAND_ID
-				)
+		buildMessage(ctx) {
+			const defaultMessage = localize(
+				'tip.agentsWindow',
+				"Work across multiple projects at once in the [Agents window](command:{0} \"Open Agents Window\").",
+				OPEN_AGENTS_WINDOW_COMMAND_ID
 			);
+			const experimentalTemplate = ctx.experimentalTipMessages.get(ChatTipExperiment.OpenAgentsWindowTip);
+			const message = experimentalTemplate
+				? experimentalTemplate.replace(/\{0\}/g, OPEN_AGENTS_WINDOW_COMMAND_ID)
+				: defaultMessage;
+			return new MarkdownString(message);
 		},
 		when: ContextKeyExpr.and(IsWebContext.negate(), OPEN_AGENTS_WINDOW_PRECONDITION),
 		excludeWhenCommandsExecuted: [
