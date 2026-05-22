@@ -256,6 +256,12 @@ export class ChangesetSessionCoordinator extends Disposable {
 		}
 		if (parsed.kind === ChangesetKind.Turn && parsed.turnId) {
 			await this._changesets.computeTurnChangeset(parsed.sessionUri, parsed.turnId);
+		} else if (parsed.kind === ChangesetKind.Compare && parsed.originalTurnId && parsed.modifiedTurnId) {
+			// Compare-turns is computed once on subscribe. Both turns are
+			// typically historical so the snapshot doesn't need to track
+			// live edits; `onFirstSubscriber` / `onLastSubscriber` do not
+			// need to participate.
+			await this._changesets.computeCompareTurnsChangeset(parsed.sessionUri, parsed.originalTurnId, parsed.modifiedTurnId);
 		} else {
 			// Static changesets are seeded by `onSessionRestored` /
 			// `onSessionCreated`. Re-register defensively in case the

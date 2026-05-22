@@ -30,7 +30,8 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { SessionItemContextMenuId } from '../../../sessions/browser/views/sessionsList.js';
 import { BranchPicker } from './branchPicker.js';
 import { ClaudePermissionModePicker } from './claudePermissionModePicker.js';
-import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider, CopilotCloudSessionType, LocalSessionType } from './copilotChatSessionsProvider.js';
+import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider, CopilotCloudSessionType } from './copilotChatSessionsProvider.js';
+import { LocalSessionType } from '../../localChatSessions/browser/localChatSessionsProvider.js';
 import { IsolationPicker } from './isolationPicker.js';
 import { ModePicker } from './modePicker.js';
 import { CloudModelPicker } from './modelPicker.js';
@@ -101,7 +102,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatLocal),
+				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatLocal, IsActiveSessionLocal),
 			}],
 		});
 	}
@@ -118,7 +119,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatClaudeCode, IsActiveSessionCopilotChatLocal),
+				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatClaudeCode, IsActiveSessionCopilotChatLocal, IsActiveSessionLocal),
 			}],
 		});
 	}
@@ -152,7 +153,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatLocal),
+				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatLocal, IsActiveSessionLocal),
 			}],
 		});
 	}
@@ -288,6 +289,11 @@ export function modelPickerStorageKey(sessionType: string): string {
 	return `sessions.modelPicker.${sessionType}.selectedModelId`;
 }
 
+export function shouldShowSessionManageModelsAction(sessionsManagementService: ISessionsManagementService): boolean {
+	const session = sessionsManagementService.activeSession.get();
+	return session?.providerId === COPILOT_PROVIDER_ID && session.sessionType === SessionType.Local;
+}
+
 function getVendorFromModelIdentifier(modelIdentifier: string): string | undefined {
 	const firstSlash = modelIdentifier.indexOf('/');
 	return firstSlash === -1 ? undefined : modelIdentifier.substring(0, firstSlash);
@@ -342,7 +348,7 @@ export class SessionModelPicker extends Disposable {
 			},
 			getModels: () => getAvailableModels(this._languageModelsService, this._sessionsManagementService),
 			useGroupedModelPicker: () => true,
-			showManageModelsAction: () => false,
+			showManageModelsAction: () => shouldShowSessionManageModelsAction(this._sessionsManagementService),
 			showUnavailableFeatured: () => false,
 			showFeatured: () => true,
 		};
@@ -591,6 +597,7 @@ registerAction2(class DeleteSessionAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(ChatSessionProviderIdContext.key, COPILOT_PROVIDER_ID),
 					ContextKeyExpr.notEquals('chatSessionType', ClaudeCodeSessionType.id),
+					ContextKeyExpr.notEquals('chatSessionType', LocalSessionType.id),
 				),
 			}]
 		});

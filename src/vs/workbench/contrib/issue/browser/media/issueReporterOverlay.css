@@ -9,7 +9,7 @@
  * A floating capture bar appears on step 3.
  */
 
-.spacer {
+.issue-reporter-wizard .wizard-toolbar > .wizard-toolbar-spacer {
 	flex: 1;
 }
 
@@ -32,7 +32,7 @@
 	padding-right: 0;
 }
 
-.wizard-update-banner {
+.issue-reporter-wizard .wizard-update-banner {
 	padding: 8px 16px;
 	text-align: center;
 	color: var(--vscode-button-foreground);
@@ -90,7 +90,7 @@
 }
 
 /* Floating Capture Bar (debug toolbar style) */
-.wizard-floating-bar {
+.issue-reporter-floating-bar {
 	position: fixed;
 	top: 35px;
 	right: 30%;
@@ -117,11 +117,11 @@
 	max-width: none;
 }
 
-.wizard-floating-bar * {
+.issue-reporter-floating-bar * {
 	flex-shrink: 0;
 }
 
-.wizard-floating-drag {
+.issue-reporter-floating-bar .wizard-floating-drag {
 	cursor: grab;
 	width: 20px;
 	opacity: 0.5;
@@ -130,11 +130,11 @@
 	justify-content: center;
 }
 
-.wizard-floating-drag.dragged {
+.issue-reporter-floating-bar .wizard-floating-drag.dragged {
 	cursor: grabbing;
 }
 
-.wizard-floating-bar .wizard-nav-btn {
+.issue-reporter-floating-bar .wizard-nav-btn {
 	display: flex;
 	flex-direction: row;
 	align-items: center;
@@ -144,7 +144,7 @@
 	line-height: 1;
 }
 
-.wizard-floating-bar .monaco-button {
+.issue-reporter-floating-bar .monaco-button {
 	display: flex;
 	flex-direction: row;
 	align-items: center;
@@ -158,12 +158,12 @@
 	box-sizing: border-box;
 }
 
-.wizard-floating-bar .wizard-nav-btn > * {
+.issue-reporter-floating-bar .wizard-nav-btn > * {
 	display: flex;
 	align-items: center;
 }
 
-.wizard-floating-delay {
+.issue-reporter-floating-bar .wizard-floating-delay {
 	height: 24px;
 	padding: 0 6px;
 	border: 1px solid var(--vscode-input-border, #555);
@@ -176,14 +176,14 @@
 }
 
 /* Segmented screenshot button */
-.wizard-segmented-btn {
+.issue-reporter-floating-bar .wizard-segmented-btn {
 	display: flex;
 	align-items: stretch;
 	border-radius: 4px;
 	overflow: hidden;
 }
 
-.wizard-segmented-main {
+.issue-reporter-floating-bar .wizard-segmented-main {
 	display: flex;
 	align-items: center;
 	gap: 5px;
@@ -199,7 +199,7 @@
 	box-sizing: border-box;
 }
 
-.monaco-button.wizard-segmented-main {
+.issue-reporter-floating-bar .monaco-button.wizard-segmented-main {
 	display: inline-flex;
 	width: auto;
 	flex: 0 0 auto;
@@ -214,7 +214,7 @@
 }
 
 /* Thin white divider between the two segments */
-.monaco-button.wizard-segmented-main::after {
+.issue-reporter-floating-bar .monaco-button.wizard-segmented-main::after {
 	content: '';
 	position: absolute;
 	right: 0;
@@ -224,20 +224,20 @@
 	background: rgba(255, 255, 255, 0.3);
 }
 
-.wizard-segmented-main:hover {
+.issue-reporter-floating-bar .wizard-segmented-main:hover {
 	background: var(--vscode-button-hoverBackground, #1177bb);
 }
 
-.wizard-segmented-main.disabled:hover {
+.issue-reporter-floating-bar .wizard-segmented-main.disabled:hover {
 	background: var(--vscode-button-background, #0e639c);
 }
 
-.wizard-segmented-main > * {
+.issue-reporter-floating-bar .wizard-segmented-main > * {
 	display: flex;
 	align-items: center;
 }
 
-.wizard-segmented-dropdown {
+.issue-reporter-floating-bar .wizard-segmented-dropdown {
 	display: flex;
 	align-items: center;
 	padding: 4px 4px;
@@ -251,7 +251,7 @@
 	box-sizing: border-box;
 }
 
-.monaco-button.wizard-segmented-dropdown {
+.issue-reporter-floating-bar .monaco-button.wizard-segmented-dropdown {
 	display: inline-flex;
 	width: auto;
 	flex: 0 0 auto;
@@ -262,15 +262,15 @@
 	min-width: 0;
 }
 
-.wizard-segmented-dropdown:hover {
+.issue-reporter-floating-bar .wizard-segmented-dropdown:hover {
 	background: var(--vscode-button-hoverBackground, #1177bb);
 }
 
-.wizard-segmented-dropdown.disabled:hover {
+.issue-reporter-floating-bar .wizard-segmented-dropdown.disabled:hover {
 	background: var(--vscode-button-background, #0e639c);
 }
 
-.wizard-segmented-dropdown > * {
+.issue-reporter-floating-bar .wizard-segmented-dropdown > * {
 	display: flex;
 	align-items: center;
 }
@@ -279,23 +279,23 @@
 /* Only dimmed via JS disabled class at N-1 attachments */
 
 /* Disabled state for segmented buttons when max attachments reached */
-.wizard-segmented-main.disabled,
-.wizard-segmented-dropdown.disabled,
-.monaco-button.wizard-segmented-main.disabled,
-.monaco-button.wizard-segmented-dropdown.disabled {
+.issue-reporter-floating-bar .wizard-segmented-main.disabled,
+.issue-reporter-floating-bar .wizard-segmented-dropdown.disabled,
+.issue-reporter-floating-bar .monaco-button.wizard-segmented-main.disabled,
+.issue-reporter-floating-bar .monaco-button.wizard-segmented-dropdown.disabled {
 	opacity: 0.4;
 	cursor: default;
 }
 
 /* Recording state in floating bar */
-.wizard-floating-bar .wizard-nav-btn.recording,
-.wizard-floating-bar .monaco-button.recording {
+.issue-reporter-floating-bar .wizard-nav-btn.recording,
+.issue-reporter-floating-bar .monaco-button.recording {
 	color: var(--vscode-testing-iconErrored, #f14c4c);
-	animation: recording-pulse 1.5s ease-in-out infinite;
+	animation: issue-reporter-recording-pulse 1.5s ease-in-out infinite;
 }
 
 /* Toolbar */
-.wizard-toolbar {
+.issue-reporter-wizard .wizard-toolbar {
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -306,19 +306,19 @@
 }
 
 /* Progress area */
-.wizard-progress-area {
+.issue-reporter-wizard .wizard-progress-area {
 	display: flex;
 	align-items: center;
 	gap: 10px;
 }
 
-.wizard-progress-dots {
+.issue-reporter-wizard .wizard-progress-dots {
 	display: flex;
 	gap: 6px;
 	align-items: center;
 }
 
-.wizard-progress-dot {
+.issue-reporter-wizard .wizard-progress-dot {
 	width: 10px;
 	height: 10px;
 	border-radius: 50%;
@@ -328,19 +328,19 @@
 	opacity: 0.4;
 }
 
-.wizard-progress-dot.active {
+.issue-reporter-wizard .wizard-progress-dot.active {
 	border-color: var(--vscode-focusBorder, #007acc);
 	background: var(--vscode-focusBorder, #007acc);
 	opacity: 1;
 }
 
-.wizard-progress-dot.completed {
+.issue-reporter-wizard .wizard-progress-dot.completed {
 	border-color: var(--vscode-focusBorder, #007acc);
 	background: var(--vscode-focusBorder, #007acc);
 	opacity: 0.7;
 }
 
-.wizard-step-indicator {
+.issue-reporter-wizard .wizard-step-indicator {
 	font-size: 12px;
 	font-weight: 600;
 	white-space: nowrap;
@@ -348,7 +348,7 @@
 	font-variant-numeric: tabular-nums;
 }
 
-.wizard-step-separator {
+.issue-reporter-wizard .wizard-step-separator {
 	display: inline-block;
 	width: 2px;
 	height: 14px;
@@ -358,7 +358,7 @@
 	vertical-align: middle;
 }
 
-.wizard-step-label {
+.issue-reporter-wizard .wizard-step-label {
 	font-size: 12px;
 	font-weight: 600;
 	white-space: nowrap;
@@ -366,7 +366,7 @@
 }
 
 /* Step Container */
-.wizard-step-container {
+.issue-reporter-wizard .wizard-step-container {
 	flex: 1;
 	position: relative;
 	overflow: hidden;
@@ -374,7 +374,7 @@
 }
 
 /* Individual Steps */
-.wizard-step {
+.issue-reporter-wizard .wizard-step {
 	display: flex;
 	flex-direction: column;
 	padding: 24px 40px;
@@ -385,7 +385,7 @@
 }
 
 /* Wizard Typography */
-.wizard-heading {
+.issue-reporter-wizard .wizard-heading {
 	margin: 0;
 	font-size: 22px;
 	font-weight: 600;
@@ -393,14 +393,14 @@
 	line-height: 1.3;
 }
 
-.wizard-subtitle {
+.issue-reporter-wizard .wizard-subtitle {
 	margin: 0;
 	font-size: 13px;
 	color: var(--vscode-descriptionForeground, #999);
 	line-height: 1.4;
 }
 
-.wizard-shortcut-hint {
+.issue-reporter-wizard .wizard-shortcut-hint {
 	margin-top: 4px;
 	display: inline-flex;
 	flex-wrap: wrap;
@@ -408,13 +408,13 @@
 	gap: 4px;
 }
 
-.wizard-shortcut.monaco-keybinding {
+.issue-reporter-wizard .wizard-shortcut.monaco-keybinding {
 	margin: 0 2px;
 	vertical-align: middle;
 }
 
 /* Wizard Inputs */
-.wizard-textarea {
+.issue-reporter-wizard .wizard-textarea {
 	width: 100%;
 	min-height: 120px;
 	font-size: 13px;
@@ -431,21 +431,21 @@
 	box-sizing: border-box;
 }
 
-.wizard-textarea:focus {
+.issue-reporter-wizard .wizard-textarea:focus {
 	border-color: var(--vscode-focusBorder, #007acc);
 }
 
-.wizard-textarea::placeholder {
+.issue-reporter-wizard .wizard-textarea::placeholder {
 	color: var(--vscode-input-placeholderForeground, #888);
 }
 
-.wizard-textarea.invalid-input {
+.issue-reporter-wizard .wizard-textarea.invalid-input {
 	border-color: var(--vscode-inputValidation-errorBorder, #be1100) !important;
 	background: var(--vscode-inputValidation-errorBackground, rgba(190, 17, 0, 0.1));
 }
 
 /* Category Buttons (Step 1) */
-.wizard-type-buttons {
+.issue-reporter-wizard .wizard-type-buttons {
 	display: flex;
 	gap: 10px;
 	flex-wrap: wrap;
@@ -454,11 +454,11 @@
 
 /* Inside a flex-column .wizard-field the parent already supplies the
 label/control gap, so the buttons must not add their own margin. */
-.wizard-field > .wizard-type-buttons {
+.issue-reporter-wizard .wizard-field > .wizard-type-buttons {
 	margin-top: 0;
 }
 
-.monaco-button.wizard-type-btn {
+.issue-reporter-wizard .monaco-button.wizard-type-btn {
 	display: inline-flex;
 	flex: 0 0 auto;
 	width: auto;
@@ -474,16 +474,16 @@ label/control gap, so the buttons must not add their own margin. */
 	transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.monaco-button.wizard-type-btn:hover {
+.issue-reporter-wizard .monaco-button.wizard-type-btn:hover {
 	background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06)) !important;
 }
 
-.monaco-button.wizard-type-btn .codicon {
+.issue-reporter-wizard .monaco-button.wizard-type-btn .codicon {
 	margin-right: 0;
 }
 
 /* Radio circle before each category button */
-.monaco-button.wizard-type-btn::before {
+.issue-reporter-wizard .monaco-button.wizard-type-btn::before {
 	content: '';
 	display: inline-block;
 	width: 14px;
@@ -495,36 +495,36 @@ label/control gap, so the buttons must not add their own margin. */
 	transition: border-color 0.15s ease;
 }
 
-.monaco-button.wizard-type-btn:hover::before {
+.issue-reporter-wizard .monaco-button.wizard-type-btn:hover::before {
 	border-color: var(--vscode-focusBorder, #007acc);
 }
 
-.monaco-button.wizard-type-btn.selected::before {
+.issue-reporter-wizard .monaco-button.wizard-type-btn.selected::before {
 	border-color: var(--vscode-focusBorder, #007acc);
 	background: var(--vscode-focusBorder, #007acc);
 	box-shadow: inset 0 0 0 2px var(--vscode-editor-background, #1e1e1e);
 }
 
-.monaco-button.wizard-type-btn.selected {
+.issue-reporter-wizard .monaco-button.wizard-type-btn.selected {
 	border-color: transparent;
 	background: transparent !important;
 }
 
-.monaco-button.wizard-type-btn:focus-visible {
+.issue-reporter-wizard .monaco-button.wizard-type-btn:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder, #007acc);
 	outline-offset: -1px;
 }
 
-.wizard-type-buttons.invalid-input .monaco-button.wizard-type-btn::before {
+.issue-reporter-wizard .wizard-type-buttons.invalid-input .monaco-button.wizard-type-btn::before {
 	border-color: var(--vscode-inputValidation-errorBorder, #be1100) !important;
 }
 
-.monaco-button.wizard-type-btn.hidden {
+.issue-reporter-wizard .monaco-button.wizard-type-btn.hidden {
 	display: none;
 }
 
 /* Shortcut badge - shared style for keyboard shortcut indicators */
-.wizard-shortcut-badge {
+.issue-reporter-wizard .wizard-shortcut-badge {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -540,46 +540,46 @@ label/control gap, so the buttons must not add their own margin. */
 	margin-left: 2px;
 }
 
-.wizard-nav-btn.primary .wizard-shortcut-badge,
-.monaco-button .wizard-shortcut-badge {
+.issue-reporter-wizard .wizard-nav-btn.primary .wizard-shortcut-badge,
+.issue-reporter-wizard .monaco-button .wizard-shortcut-badge {
 	border-color: rgba(255, 255, 255, 0.3);
 	color: var(--vscode-button-foreground, #fff);
 	opacity: 0.7;
 }
 
-.wizard-type-buttons.invalid-input .wizard-type-btn {
+.issue-reporter-wizard .wizard-type-buttons.invalid-input .wizard-type-btn {
 	border-color: var(--vscode-inputValidation-errorBorder, #be1100);
 }
 
-.wizard-field-error {
+.issue-reporter-wizard .wizard-field-error {
 	color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground, #f48771)) !important;
 	font-size: 12px;
 	line-height: 1.4;
 	min-height: 1.4em;
 }
 
-.wizard-field-error.hidden {
+.issue-reporter-wizard .wizard-field-error.hidden {
 	visibility: hidden;
 	min-height: 1.4em;
 }
 
-.wizard-similar-issues {
+.issue-reporter-wizard .wizard-similar-issues {
 	margin-top: 8px;
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground, #999);
 }
 
-.wizard-similar-heading {
+.issue-reporter-wizard .wizard-similar-heading {
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
 	margin-bottom: 4px;
 }
 
-.wizard-similar-status {
+.issue-reporter-wizard .wizard-similar-status {
 	line-height: 1.4;
 }
 
-.wizard-similar-list {
+.issue-reporter-wizard .wizard-similar-list {
 	margin: 0;
 	padding-left: 18px;
 	display: flex;
@@ -587,33 +587,33 @@ label/control gap, so the buttons must not add their own margin. */
 	gap: 4px;
 }
 
-.wizard-similar-item {
+.issue-reporter-wizard .wizard-similar-item {
 	line-height: 1.4;
 }
 
-.wizard-similar-link {
+.issue-reporter-wizard .wizard-similar-link {
 	color: var(--vscode-textLink-foreground, #3794ff);
 	text-decoration: none;
 }
 
-.wizard-similar-link:hover {
+.issue-reporter-wizard .wizard-similar-link:hover {
 	color: var(--vscode-textLink-activeForeground, #3794ff);
 	text-decoration: underline;
 }
 
-.wizard-similar-state {
+.issue-reporter-wizard .wizard-similar-state {
 	margin-left: 6px;
 	color: var(--vscode-descriptionForeground, #999);
 }
 
-.wizard-type-icon {
+.issue-reporter-wizard .wizard-type-icon {
 	display: flex;
 	align-items: center;
 	font-size: 16px;
 }
 
 /* Screenshot Cards (Step 3) */
-.wizard-screenshots {
+.issue-reporter-wizard .wizard-screenshots {
 	display: flex;
 	gap: 10px;
 	flex-wrap: wrap;
@@ -621,14 +621,14 @@ label/control gap, so the buttons must not add their own margin. */
 	min-height: 50px;
 }
 
-.wizard-screenshots-empty {
+.issue-reporter-wizard .wizard-screenshots-empty {
 	color: var(--vscode-descriptionForeground, #888);
 	font-style: italic;
 	display: flex;
 	align-items: center;
 }
 
-.wizard-screenshot-card {
+.issue-reporter-wizard .wizard-screenshot-card {
 	position: relative;
 	width: 120px;
 	height: 75px;
@@ -640,20 +640,20 @@ label/control gap, so the buttons must not add their own margin. */
 	flex-shrink: 0;
 }
 
-.wizard-screenshot-card:hover,
-.wizard-screenshot-card:focus-visible {
+.issue-reporter-wizard .wizard-screenshot-card:hover,
+.issue-reporter-wizard .wizard-screenshot-card:focus-visible {
 	border-color: var(--vscode-focusBorder, #007acc);
 	outline: none;
 }
 
-.wizard-screenshot-card img {
+.issue-reporter-wizard .wizard-screenshot-card img {
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
 	display: block;
 }
 
-.wizard-screenshot-delete {
+.issue-reporter-wizard .wizard-screenshot-delete {
 	position: absolute;
 	top: 4px;
 	right: 4px;
@@ -673,20 +673,20 @@ label/control gap, so the buttons must not add their own margin. */
 	transition: opacity .15s;
 }
 
-.wizard-screenshot-delete:hover {
+.issue-reporter-wizard .wizard-screenshot-delete:hover {
 	background: var(--vscode-button-hoverBackground, var(--vscode-button-background, #1177bb));
 }
 
-.wizard-screenshot-delete .codicon {
+.issue-reporter-wizard .wizard-screenshot-delete .codicon {
 	color: inherit;
 }
 
-.wizard-screenshot-card:hover .wizard-screenshot-delete,
-.wizard-screenshot-card:focus-within .wizard-screenshot-delete {
+.issue-reporter-wizard .wizard-screenshot-card:hover .wizard-screenshot-delete,
+.issue-reporter-wizard .wizard-screenshot-card:focus-within .wizard-screenshot-delete {
 	opacity: 1;
 }
 
-.wizard-screenshot-add {
+.issue-reporter-wizard .wizard-screenshot-add {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -694,81 +694,81 @@ label/control gap, so the buttons must not add their own margin. */
 	background: transparent;
 }
 
-.wizard-screenshot-plus {
+.issue-reporter-wizard .wizard-screenshot-plus {
 	font-size: 28px;
 	color: var(--vscode-descriptionForeground, #888);
 }
 
-.wizard-screenshot-add:hover .wizard-screenshot-plus {
+.issue-reporter-wizard .wizard-screenshot-add:hover .wizard-screenshot-plus {
 	color: var(--vscode-focusBorder, #007acc);
 }
 
-.wizard-screenshot-add.disabled {
+.issue-reporter-wizard .wizard-screenshot-add.disabled {
 	opacity: 0.4;
 	cursor: default;
 }
 
-.wizard-screenshot-add.disabled:hover .wizard-screenshot-plus {
+.issue-reporter-wizard .wizard-screenshot-add.disabled:hover .wizard-screenshot-plus {
 	color: var(--vscode-descriptionForeground, #888);
 }
 
 /* Screenshot Controls */
 
-.wizard-screenshot-actions {
+.issue-reporter-wizard .wizard-screenshot-actions {
 	display: flex;
 	align-items: center;
 	gap: 12px;
 	flex-shrink: 0;
 }
 
-.wizard-delay-group {
+.issue-reporter-wizard .wizard-delay-group {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 }
 
-.wizard-delay-label {
+.issue-reporter-wizard .wizard-delay-label {
 	font-size: 12px;
 	white-space: nowrap;
 	color: var(--vscode-descriptionForeground, #999);
 }
 
-.wizard-delay-select {
+.issue-reporter-wizard .wizard-delay-select {
 	min-width: 120px;
 }
 
-.wizard-delay-select .monaco-select-box {
+.issue-reporter-wizard .wizard-delay-select .monaco-select-box {
 	height: 28px;
 	padding: 2px 23px 2px 8px;
 }
 
-.wizard-capture-btn {
+.issue-reporter-wizard .wizard-capture-btn {
 	gap: 6px;
 }
 
-.wizard-capture-btn.disabled,
-.monaco-button.wizard-capture-btn:disabled {
+.issue-reporter-wizard .wizard-capture-btn.disabled,
+.issue-reporter-wizard .monaco-button.wizard-capture-btn:disabled {
 	opacity: 0.5;
 	pointer-events: none;
 }
 
-.wizard-capture-icon {
+.issue-reporter-wizard .wizard-capture-icon {
 	display: flex;
 	font-size: 14px;
 }
 
 /* Review Step (Step 4) */
-.wizard-field {
+.issue-reporter-wizard .wizard-field {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
 }
 
-.wizard-field.hidden {
+.issue-reporter-wizard .wizard-field.hidden {
 	display: none;
 }
 
-.wizard-field-label {
+.issue-reporter-wizard .wizard-field-label {
 	font-size: 12px;
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
@@ -777,42 +777,42 @@ label/control gap, so the buttons must not add their own margin. */
 	display: block;
 }
 
-.wizard-field-label:first-child {
+.issue-reporter-wizard .wizard-field-label:first-child {
 	margin-top: 0;
 }
 
-.wizard-describe-content {
+.issue-reporter-wizard .wizard-describe-content {
 	display: flex;
 	flex-direction: column;
 }
 
-.wizard-field .monaco-inputbox.invalid-input,
-.wizard-field .monaco-inputbox.invalid-input > .ibwrapper,
-.wizard-field .monaco-inputbox.invalid-input > .ibwrapper > .input,
-.wizard-field .monaco-inputbox.invalid-input .input {
+.issue-reporter-wizard .wizard-field .monaco-inputbox.invalid-input,
+.issue-reporter-wizard .wizard-field .monaco-inputbox.invalid-input > .ibwrapper,
+.issue-reporter-wizard .wizard-field .monaco-inputbox.invalid-input > .ibwrapper > .input,
+.issue-reporter-wizard .wizard-field .monaco-inputbox.invalid-input .input {
 	border-color: var(--vscode-inputValidation-errorBorder, #be1100) !important;
 	background: var(--vscode-inputValidation-errorBackground, rgba(190, 17, 0, 0.1)) !important;
 }
 
-.wizard-extension-field.invalid-input .monaco-select-box {
+.issue-reporter-wizard .wizard-extension-field.invalid-input .monaco-select-box {
 	border-color: var(--vscode-inputValidation-errorBorder, #be1100) !important;
 	background: var(--vscode-inputValidation-errorBackground, rgba(190, 17, 0, 0.1)) !important;
 }
 
-.wizard-extension-select {
+.issue-reporter-wizard .wizard-extension-select {
 	max-width: 420px;
 }
 
-.wizard-extension-select .monaco-select-box {
+.issue-reporter-wizard .wizard-extension-select .monaco-select-box {
 	min-height: 32px;
 	padding: 5px 23px 5px 8px;
 }
 
-.wizard-extension-select .monaco-select-box-dropdown-container .monaco-list-row.option-disabled {
+.issue-reporter-wizard .wizard-extension-select .monaco-select-box-dropdown-container .monaco-list-row.option-disabled {
 	display: none !important;
 }
 
-.wizard-extension-select .monaco-select-box-dropdown-container .monaco-list-row[data-index="0"].option-disabled ~ .monaco-list-row {
+.issue-reporter-wizard .wizard-extension-select .monaco-select-box-dropdown-container .monaco-list-row[data-index="0"].option-disabled ~ .monaco-list-row {
 	transform: translateY(-22px);
 }
 
@@ -820,13 +820,13 @@ label/control gap, so the buttons must not add their own margin. */
 error (the 1.4em reserved line directly below the input/buttons). The error
 takes precedence when shown; otherwise the status text fills that slot.
 This keeps the row height constant regardless of which is visible. */
-.wizard-source-field,
-.wizard-extension-field {
+.issue-reporter-wizard .wizard-source-field,
+.issue-reporter-wizard .wizard-extension-field {
 	position: relative;
 }
 
-.wizard-target-status,
-.wizard-extension-status {
+.issue-reporter-wizard .wizard-target-status,
+.issue-reporter-wizard .wizard-extension-status {
 	position: absolute;
 	left: 0;
 	right: 0;
@@ -838,49 +838,49 @@ This keeps the row height constant regardless of which is visible. */
 }
 
 /* Hide the status while its sibling field-error is visible to avoid overlap. */
-.wizard-source-field:has(> .wizard-field-error:not(.hidden)) .wizard-target-status,
-.wizard-extension-field:has(> .wizard-field-error:not(.hidden)) .wizard-extension-status {
+.issue-reporter-wizard .wizard-source-field:has(> .wizard-field-error:not(.hidden)) .wizard-target-status,
+.issue-reporter-wizard .wizard-extension-field:has(> .wizard-field-error:not(.hidden)) .wizard-extension-status {
 	display: none;
 }
 
 /* Target row: source field + extension dropdown sit side-by-side.
 Wraps to a new line on narrow widths; collapses naturally when the
 extension field is hidden (no fixed-width placeholder needed). */
-.wizard-target-row {
+.issue-reporter-wizard .wizard-target-row {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0 24px;
 	align-items: flex-start;
 }
 
-.wizard-target-row .wizard-source-field {
+.issue-reporter-wizard .wizard-target-row .wizard-source-field {
 	flex: 0 0 auto;
 }
 
-.wizard-target-row .wizard-extension-field {
+.issue-reporter-wizard .wizard-target-row .wizard-extension-field {
 	flex: 1 1 320px;
 	min-width: 240px;
 	max-width: 480px;
 }
 
-.wizard-extension-field.hidden {
+.issue-reporter-wizard .wizard-extension-field.hidden {
 	display: none;
 }
 
 /* Title label row: label + AI generate button */
-.wizard-title-label-row {
+.issue-reporter-wizard .wizard-title-label-row {
 	display: flex;
 	align-items: center;
 	gap: 8px;
 	margin-top: 12px;
 }
 
-.wizard-title-label-row .wizard-field-label {
+.issue-reporter-wizard .wizard-title-label-row .wizard-field-label {
 	margin-top: 0;
 	margin-bottom: 0;
 }
 
-.wizard-ai-title-btn.monaco-button {
+.issue-reporter-wizard .wizard-ai-title-btn.monaco-button {
 	width: auto;
 	padding: 2px 6px 2px 4px;
 	display: flex;
@@ -894,14 +894,14 @@ extension field is hidden (no fixed-width placeholder needed). */
 	line-height: 1.4;
 }
 
-.wizard-ai-title-btn.monaco-button[disabled],
-.wizard-ai-title-btn.monaco-button.disabled {
+.issue-reporter-wizard .wizard-ai-title-btn.monaco-button[disabled],
+.issue-reporter-wizard .wizard-ai-title-btn.monaco-button.disabled {
 	opacity: 0.55;
 	cursor: default;
 }
 
 /* Description guidance text */
-.wizard-description-guidance {
+.issue-reporter-wizard .wizard-description-guidance {
 	margin-top: 0;
 	margin-bottom: 4px;
 	font-style: italic;
@@ -909,13 +909,13 @@ extension field is hidden (no fixed-width placeholder needed). */
 	white-space: pre-line;
 }
 
-.wizard-md-hint {
+.issue-reporter-wizard .wizard-md-hint {
 	margin-top: 0;
 	margin-bottom: 4px;
 }
 
 /* Review: description rendered content */
-.review-value.review-description {
+.issue-reporter-wizard .review-value.review-description {
 	white-space: normal;
 	max-height: none;
 	overflow: visible;
@@ -924,30 +924,30 @@ extension field is hidden (no fixed-width placeholder needed). */
 	border-radius: 4px;
 }
 
-.review-description .rendered-markdown {
+.issue-reporter-wizard .review-description .rendered-markdown {
 	color: inherit;
 }
 
-.review-description .rendered-markdown p:first-child {
+.issue-reporter-wizard .review-description .rendered-markdown p:first-child {
 	margin-top: 0;
 }
 
-.review-description .rendered-markdown p:last-child {
+.issue-reporter-wizard .review-description .rendered-markdown p:last-child {
 	margin-bottom: 0;
 }
 
-.wizard-review-details {
+.issue-reporter-wizard .wizard-review-details {
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
 	margin-top: 8px;
 }
 
-.wizard-review-similar-section.hidden {
+.issue-reporter-wizard .wizard-review-similar-section.hidden {
 	display: none;
 }
 
-.review-thumbnails {
+.issue-reporter-wizard .review-thumbnails {
 	display: flex;
 	gap: 10px;
 	margin-top: 4px;
@@ -955,12 +955,12 @@ extension field is hidden (no fixed-width placeholder needed). */
 }
 
 /* Review attachment cards - same size as step 3 cards */
-.review-attachment-card {
+.issue-reporter-wizard .review-attachment-card {
 	cursor: pointer;
 }
 
 /* Upload Progress Overlay */
-.review-progress-overlay {
+.issue-reporter-wizard .review-progress-overlay {
 	position: absolute;
 	inset: 0;
 	display: none;
@@ -971,14 +971,14 @@ extension field is hidden (no fixed-width placeholder needed). */
 	z-index: 2;
 }
 
-.upload-pending .review-progress-overlay,
-.upload-uploading .review-progress-overlay,
-.upload-done .review-progress-overlay {
+.issue-reporter-wizard .upload-pending .review-progress-overlay,
+.issue-reporter-wizard .upload-uploading .review-progress-overlay,
+.issue-reporter-wizard .upload-done .review-progress-overlay {
 	display: flex;
 }
 
 /* Spinning ring */
-.review-progress-ring {
+.issue-reporter-wizard .review-progress-ring {
 	width: 28px;
 	height: 28px;
 	border: 3px solid rgba(255, 255, 255, 0.3);
@@ -986,16 +986,16 @@ extension field is hidden (no fixed-width placeholder needed). */
 	border-radius: 50%;
 }
 
-.upload-uploading .review-progress-ring {
-	animation: spin 0.8s linear infinite;
+.issue-reporter-wizard .upload-uploading .review-progress-ring {
+	animation: issue-reporter-spin 0.8s linear infinite;
 }
 
-.upload-pending .review-progress-ring {
+.issue-reporter-wizard .upload-pending .review-progress-ring {
 	border-top-color: rgba(255, 255, 255, 0.3);
 }
 
 /* Checkmark */
-.review-progress-check {
+.issue-reporter-wizard .review-progress-check {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -1008,35 +1008,35 @@ extension field is hidden (no fixed-width placeholder needed). */
 }
 
 /* Button spinner */
-.wizard-nav-btn.uploading,
-.monaco-button.uploading {
+.issue-reporter-wizard .wizard-nav-btn.uploading,
+.issue-reporter-wizard .monaco-button.uploading {
 	pointer-events: none;
 	opacity: 0.8;
 }
 
-.wizard-btn-spinner {
+.issue-reporter-wizard .wizard-btn-spinner {
 	display: inline-block;
 	width: 14px;
 	height: 14px;
 	border: 2px solid rgba(255, 255, 255, 0.3);
 	border-top-color: #fff;
 	border-radius: 50%;
-	animation: spin 0.8s linear infinite;
+	animation: issue-reporter-spin 0.8s linear infinite;
 	vertical-align: middle;
 	margin-left: 6px;
 }
 
-@keyframes spin {
+@keyframes issue-reporter-spin {
 	to {
 		transform: rotate(360deg);
 	}
 }
 
-.wizard-submit-buttons {
+.issue-reporter-wizard .wizard-submit-buttons {
 	display: none;
 }
 
-.wizard-submit-btn {
+.issue-reporter-wizard .wizard-submit-btn {
 	padding: 8px 16px;
 	border: 1px solid var(--vscode-button-border, transparent);
 	border-radius: 4px;
@@ -1045,53 +1045,53 @@ extension field is hidden (no fixed-width placeholder needed). */
 	font-family: inherit;
 }
 
-.wizard-submit-gist {
+.issue-reporter-wizard .wizard-submit-gist {
 	background: var(--vscode-button-background, #0e639c);
 	color: var(--vscode-button-foreground, #fff);
 }
 
-.wizard-submit-gist:hover {
+.issue-reporter-wizard .wizard-submit-gist:hover {
 	background: var(--vscode-button-hoverBackground, #1177bb);
 }
 
-.wizard-submit-playwright {
+.issue-reporter-wizard .wizard-submit-playwright {
 	background: var(--vscode-button-secondaryBackground, #3a3d41);
 	color: var(--vscode-button-secondaryForeground, #fff);
 }
 
-.wizard-submit-playwright:hover {
+.issue-reporter-wizard .wizard-submit-playwright:hover {
 	background: var(--vscode-button-secondaryHoverBackground, #45494e);
 }
 
-.wizard-submit-preview,
-.wizard-submit-manual {
+.issue-reporter-wizard .wizard-submit-preview,
+.issue-reporter-wizard .wizard-submit-manual {
 	background: transparent;
 	color: var(--vscode-foreground, #ccc);
 	border: 1px solid var(--vscode-input-border, #3c3c3c);
 }
 
-.wizard-submit-preview:hover,
-.wizard-submit-manual:hover {
+.issue-reporter-wizard .wizard-submit-preview:hover,
+.issue-reporter-wizard .wizard-submit-manual:hover {
 	background: var(--vscode-list-hoverBackground, #2a2d2e);
 }
 
-.wizard-step-review {
+.issue-reporter-wizard .wizard-step-review {
 	gap: 8px;
 }
 
-.review-section {
+.issue-reporter-wizard .review-section {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
 }
 
-.review-label {
+.issue-reporter-wizard .review-label {
 	font-size: 12px;
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
 }
 
-.review-value {
+.issue-reporter-wizard .review-value {
 	font-size: 13px;
 	color: var(--vscode-descriptionForeground, #999);
 	white-space: pre-wrap;
@@ -1101,53 +1101,53 @@ extension field is hidden (no fixed-width placeholder needed). */
 	text-overflow: ellipsis;
 }
 
-.review-target-repo {
+.issue-reporter-wizard .review-target-repo {
 	color: var(--vscode-descriptionForeground, #999);
 	font-size: 12px;
 }
 
 /* Diagnostic data sections (System Info, Extensions, Experiments) */
-.review-diagnostics {
+.issue-reporter-wizard .review-diagnostics {
 	margin-top: 12px;
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
 }
 
-.review-diag-heading {
+.issue-reporter-wizard .review-diag-heading {
 	display: flex;
 	flex-direction: column;
 	align-items: flex-start;
 	gap: 4px;
 }
 
-.review-diag-heading-title {
+.issue-reporter-wizard .review-diag-heading-title {
 	margin: 0;
 	font-size: 13px;
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
 }
 
-.review-diag-bulk-actions {
+.issue-reporter-wizard .review-diag-bulk-actions {
 	display: flex;
 	justify-content: flex-start;
 	margin-bottom: 2px;
 }
 
-.review-diag-toggle-all.monaco-button {
+.issue-reporter-wizard .review-diag-toggle-all.monaco-button {
 	font-size: 12px;
 	padding: 2px 8px;
 	width: auto;
 	flex: none;
 }
 
-.review-diag-group {
+.issue-reporter-wizard .review-diag-group {
 	border: 1px solid var(--vscode-input-border, #444);
 	border-radius: 4px;
 	padding: 6px 12px;
 }
 
-.review-performance-data {
+.issue-reporter-wizard .review-performance-data {
 	border: 1px solid var(--vscode-input-border, #444);
 	border-radius: 4px;
 	padding: 8px 12px;
@@ -1157,7 +1157,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	position: relative;
 }
 
-.review-performance-data.refreshing::after {
+.issue-reporter-wizard .review-performance-data.refreshing::after {
 	content: '';
 	position: absolute;
 	inset: 0;
@@ -1168,7 +1168,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	z-index: 1;
 }
 
-.review-performance-data.refreshing::before {
+.issue-reporter-wizard .review-performance-data.refreshing::before {
 	content: '';
 	position: absolute;
 	top: 50%;
@@ -1179,56 +1179,56 @@ extension field is hidden (no fixed-width placeholder needed). */
 	border: 2px solid var(--vscode-progressBar-background, var(--vscode-focusBorder, #007acc));
 	border-top-color: transparent;
 	border-radius: 50%;
-	animation: review-performance-spin 0.8s linear infinite;
+	animation: issue-reporter-review-performance-spin 0.8s linear infinite;
 	z-index: 2;
 	pointer-events: none;
 }
 
-@keyframes review-performance-spin {
+@keyframes issue-reporter-review-performance-spin {
 	to {
 		transform: rotate(360deg);
 	}
 }
 
-.review-performance-data .review-diag-group {
+.issue-reporter-wizard .review-performance-data .review-diag-group {
 	border: 0;
 	border-top: 1px solid var(--vscode-input-border, #444);
 	border-radius: 0;
 	padding: 6px 0 0;
 }
 
-.review-performance-title-row {
+.issue-reporter-wizard .review-performance-title-row {
 	display: flex;
 	align-items: center;
 	gap: 8px;
 }
 
-.review-performance-title {
+.issue-reporter-wizard .review-performance-title {
 	font-size: 13px;
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
 }
 
-.review-performance-refresh.monaco-button {
+.issue-reporter-wizard .review-performance-refresh.monaco-button {
 	flex: none;
 	width: auto;
 	font-size: 12px;
 	padding: 2px 8px;
 }
 
-.review-performance-description {
+.issue-reporter-wizard .review-performance-description {
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground, #888);
 }
 
-.review-diag-header {
+.issue-reporter-wizard .review-diag-header {
 	display: flex;
 	align-items: center;
 	gap: 8px;
 	min-height: 28px;
 }
 
-.review-diag-check-wrap {
+.issue-reporter-wizard .review-diag-check-wrap {
 	display: flex;
 	align-items: center;
 	gap: 4px;
@@ -1236,19 +1236,19 @@ extension field is hidden (no fixed-width placeholder needed). */
 	white-space: nowrap;
 }
 
-.review-diag-checkbox {
+.issue-reporter-wizard .review-diag-checkbox {
 	margin: 0;
 	flex-shrink: 0;
 }
 
-.review-diag-check-label {
+.issue-reporter-wizard .review-diag-check-label {
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground, #888);
 	cursor: pointer;
 	white-space: nowrap;
 }
 
-.review-diag-title {
+.issue-reporter-wizard .review-diag-title {
 	font-size: 13px;
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
@@ -1256,7 +1256,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	flex-shrink: 0;
 }
 
-.review-diag-toggle.monaco-button {
+.issue-reporter-wizard .review-diag-toggle.monaco-button {
 	flex-shrink: 0;
 	font-size: 12px;
 	padding: 2px 8px 2px 4px;
@@ -1264,7 +1264,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	flex: none;
 }
 
-.review-diag-content {
+.issue-reporter-wizard .review-diag-content {
 	margin-top: 6px;
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground, #888);
@@ -1272,39 +1272,39 @@ extension field is hidden (no fixed-width placeholder needed). */
 	overflow: auto;
 }
 
-.review-diag-table {
+.issue-reporter-wizard .review-diag-table {
 	width: 100%;
 	border-collapse: collapse;
 }
 
-.review-diag-table td,
-.review-diag-table th {
+.issue-reporter-wizard .review-diag-table td,
+.issue-reporter-wizard .review-diag-table th {
 	padding: 2px 8px 2px 0;
 	vertical-align: top;
 	text-align: left;
 	font-size: 12px;
 }
 
-.review-diag-key {
+.issue-reporter-wizard .review-diag-key {
 	white-space: nowrap;
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
 	width: 120px;
 }
 
-.review-ext-table th {
+.issue-reporter-wizard .review-ext-table th {
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
 	border-bottom: 1px solid var(--vscode-input-border, #444);
 	padding-bottom: 4px;
 }
 
-.review-ext-table td {
+.issue-reporter-wizard .review-ext-table td {
 	font-size: 11px;
 	padding: 2px 12px 2px 0;
 }
 
-.review-diag-sublabel {
+.issue-reporter-wizard .review-diag-sublabel {
 	font-size: 12px;
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
@@ -1312,18 +1312,18 @@ extension field is hidden (no fixed-width placeholder needed). */
 	margin-bottom: 2px;
 }
 
-.review-diag-sublabel:first-child {
+.issue-reporter-wizard .review-diag-sublabel:first-child {
 	margin-top: 0;
 }
 
-.review-diag-pre {
+.issue-reporter-wizard .review-diag-pre {
 	margin: 0;
 	font-size: 11px;
 	white-space: pre-wrap;
 	word-break: break-all;
 }
 
-.review-diag-loading {
+.issue-reporter-wizard .review-diag-loading {
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground, #888);
 	font-style: italic;
@@ -1331,7 +1331,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 }
 
 /* Bottom Navigation */
-.wizard-nav {
+.issue-reporter-wizard .wizard-nav {
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -1341,7 +1341,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 }
 
 /* Button widget overrides for wizard nav */
-.wizard-nav .monaco-button {
+.issue-reporter-wizard .wizard-nav .monaco-button {
 	padding: 6px 16px;
 	white-space: nowrap;
 	width: auto;
@@ -1349,7 +1349,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 }
 
 /* Navigation buttons */
-.wizard-nav-btn {
+.issue-reporter-wizard .wizard-nav-btn {
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -1365,29 +1365,29 @@ extension field is hidden (no fixed-width placeholder needed). */
 	transition: all 0.15s ease;
 }
 
-.wizard-nav-btn:hover {
+.issue-reporter-wizard .wizard-nav-btn:hover {
 	background: rgba(255, 255, 255, 0.06);
 	border-color: var(--vscode-foreground, #999);
 }
 
-.wizard-nav-btn.primary {
+.issue-reporter-wizard .wizard-nav-btn.primary {
 	color: var(--vscode-button-foreground, #fff);
 	background: var(--vscode-button-background, #0e639c);
 	border-color: var(--vscode-button-background, #0e639c);
 }
 
-.wizard-nav-btn.primary:hover {
+.issue-reporter-wizard .wizard-nav-btn.primary:hover {
 	background: var(--vscode-button-hoverBackground, #1177bb);
 	border-color: var(--vscode-button-hoverBackground, #1177bb);
 }
 
-.wizard-nav-btn.submit {
+.issue-reporter-wizard .wizard-nav-btn.submit {
 	background: var(--vscode-testing-runAction, #73c991);
 	border-color: var(--vscode-testing-runAction, #73c991);
 	color: #000;
 }
 
-.wizard-nav-btn.submit:hover {
+.issue-reporter-wizard .wizard-nav-btn.submit:hover {
 	filter: brightness(1.1);
 }
 
@@ -1677,53 +1677,53 @@ extension field is hidden (no fixed-width placeholder needed). */
 
 /* Recording UI */
 
-.wizard-record-btn,
-.monaco-button.wizard-record-btn {
+.issue-reporter-floating-bar .wizard-record-btn,
+.issue-reporter-floating-bar .monaco-button.wizard-record-btn {
 	gap: 6px;
 	border-color: #c33 !important;
 	color: #c33 !important;
 }
 
-.wizard-record-btn:hover,
-.monaco-button.wizard-record-btn:hover {
+.issue-reporter-floating-bar .wizard-record-btn:hover,
+.issue-reporter-floating-bar .monaco-button.wizard-record-btn:hover {
 	background: rgba(204, 51, 51, 0.1) !important;
 }
 
-.wizard-record-btn .wizard-record-icon {
+.issue-reporter-floating-bar .wizard-record-btn .wizard-record-icon {
 	display: flex;
 	font-size: 14px;
 	color: var(--vscode-charts-red, #c33);
 }
 
-.wizard-record-btn.recording,
-.monaco-button.wizard-record-btn.recording {
+.issue-reporter-floating-bar .wizard-record-btn.recording,
+.issue-reporter-floating-bar .monaco-button.wizard-record-btn.recording {
 	background: var(--vscode-statusBarItem-errorBackground, #c33) !important;
 	border-color: var(--vscode-statusBarItem-errorBackground, #c33) !important;
 	color: var(--vscode-statusBarItem-errorForeground, var(--vscode-button-foreground, #fff)) !important;
-	animation: recording-pulse 1.5s ease-in-out infinite;
+	animation: issue-reporter-recording-pulse 1.5s ease-in-out infinite;
 	font-variant-numeric: tabular-nums;
 	min-width: 160px;
 }
 
-.wizard-record-btn.recording .wizard-record-icon {
+.issue-reporter-floating-bar .wizard-record-btn.recording .wizard-record-icon {
 	color: var(--vscode-statusBarItem-errorForeground, var(--vscode-button-foreground, #fff));
 }
 
-.wizard-record-btn.recording:hover,
-.monaco-button.wizard-record-btn.recording:hover {
+.issue-reporter-floating-bar .wizard-record-btn.recording:hover,
+.issue-reporter-floating-bar .monaco-button.wizard-record-btn.recording:hover {
 	background: var(--vscode-statusBarItem-errorBackground, #c33) !important;
 	border-color: var(--vscode-statusBarItem-errorBackground, #c33) !important;
 	color: var(--vscode-statusBarItem-errorForeground, var(--vscode-button-foreground, #fff)) !important;
 	filter: brightness(1.15);
 }
 
-.wizard-recording-elapsed {
+.issue-reporter-floating-bar .wizard-recording-elapsed {
 	font-size: 11px;
 	font-variant-numeric: tabular-nums;
 	opacity: 0.9;
 }
 
-@keyframes recording-pulse {
+@keyframes issue-reporter-recording-pulse {
 
 	0%,
 	100% {
@@ -1736,7 +1736,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 }
 
 /* -- Recording card -- */
-.wizard-recording-card {
+.issue-reporter-wizard .wizard-recording-card {
 	background: var(--vscode-editor-background, #1a1a1a);
 	display: flex;
 	align-items: center;
@@ -1744,7 +1744,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	position: relative;
 }
 
-.wizard-recording-card > .wizard-screenshot-img {
+.issue-reporter-wizard .wizard-recording-card > .wizard-screenshot-img {
 	position: absolute;
 	inset: 0;
 	width: 100%;
@@ -1753,7 +1753,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	border-radius: inherit;
 }
 
-.wizard-recording-play {
+.issue-reporter-wizard .wizard-recording-play {
 	font-size: 28px;
 	color: #fff;
 	opacity: 0.8;
@@ -1763,11 +1763,11 @@ extension field is hidden (no fixed-width placeholder needed). */
 	z-index: 1;
 }
 
-.wizard-recording-card:hover .wizard-recording-play {
+.issue-reporter-wizard .wizard-recording-card:hover .wizard-recording-play {
 	opacity: 1;
 }
 
-.wizard-recording-duration {
+.issue-reporter-wizard .wizard-recording-duration {
 	position: absolute;
 	bottom: 4px;
 	right: 6px;

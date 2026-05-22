@@ -107,7 +107,8 @@ import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../cha
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
 import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from '../../agentSessions/agentHost/agentHostChatInputPicker.js';
-import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostBranchPickerAction, OpenAgentHostIsolationPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostBranchPickerAction, OpenAgentHostCustomAgentPickerAction, OpenAgentHostIsolationPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { WorkbenchAgentHostAgentPickerActionItem } from '../../agentSessions/agentHost/agentHostCustomAgentPicker.js';
 import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
@@ -408,6 +409,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatSessionHasTargetedModels: IContextKey<boolean>;
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
+	// Stored so `openAgentHostCustomAgentPicker()` (the future keybinding
+	// parallel to `openModePicker`) can open the picker programmatically.
+	private customAgentWidget: WorkbenchAgentHostAgentPickerActionItem | undefined;
 	private permissionWidget: PermissionPickerActionItem | undefined;
 	private readonly permissionWidgetDisposeListener = this._register(new MutableDisposable<IDisposable>());
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
@@ -705,7 +709,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.initSelectedModel();
 
 		const resetCurrentLanguageModelIfUnavailable = () => {
-			if (shouldResetOnModelListChange(this._currentLanguageModel.get()?.identifier, this.getModels())) {
+			const modelIdentifier = this._currentLanguageModel.get()?.identifier;
+			const models = this.getModels();
+			if (this._currentSessionType === SessionType.CopilotCLI) {
+				if (shouldResetOnModelListChange(modelIdentifier, models) && !models.some(m => m.metadata.id === modelIdentifier)) {
+					const ids = models.map(m => m.identifier).join(', ');
+					const metadataIds = models.map(m => m.metadata.id).join(', ');
+					logChangesToStateModel(this._inputModel, `resetting current language model due to model list change from ${modelIdentifier}, identifiers: ${ids}, metadataIds: ${metadataIds}`, undefined, undefined, this.logService);
+					this.setCurrentLanguageModelToDefault();
+				}
+			} else if (shouldResetOnModelListChange(modelIdentifier, models)) {
 				this.setCurrentLanguageModelToDefault();
 			}
 		};
@@ -879,6 +892,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 		this.modeWidget?.show();
+	}
+
+	public openAgentHostCustomAgentPicker(): void {
+		this.customAgentWidget?.show();
 	}
 
 	private _showCombinedPhonePickerSheet(): void {
@@ -1093,7 +1110,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _setEmptyModelState() {
 		logChangesToStateModel(this._inputModel, `setting empty model state for ${this._widget?.viewModel?.sessionResource.toString()} in ${this._currentSessionKey}`, undefined, undefined, this.logService);
-		if (this._inputModel?.state?.get()?.permissionLevel !== this.getDefaultPermissionLevel()) {
+		const currentLevel = this._inputModel?.state?.get()?.permissionLevel;
+		if (currentLevel === undefined || !isChatPermissionLevel(currentLevel)) {
 			this.setPermissionLevel(this.getDefaultPermissionLevel());
 		}
 
@@ -1230,7 +1248,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
-		logChangesToStateModel(this._inputModel, `setCurrentLanguageModel to ${model.identifier} in ${this._currentSessionKey}`, undefined, undefined, this.logService);
+		const modelDetails = this.getModels().map(m => `${m.identifier} (${m.metadata.id})`).join(', ');
+		logChangesToStateModel(this._inputModel, `setCurrentLanguageModel to ${model.identifier} in ${this._currentSessionKey}, modelDetials = ${modelDetails}`, undefined, undefined, this.logService);
 		this._currentLanguageModel.set(model, undefined);
 
 		if (this.cachedWidth) {
@@ -2533,6 +2552,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = this._createModePickerDelegate();
 					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate, pickerOptions);
+				} else if (action.id === OpenAgentHostCustomAgentPickerAction.ID && action instanceof MenuItemAction && this._widget) {
+					// Workbench-chat custom-agent picker for Agent Host sessions.
+					// Hidden in the Agents Window via the action's `when` clause
+					// (`!isSessionsWindow`).
+					return this.customAgentWidget = this.instantiationService.createInstance(
+						WorkbenchAgentHostAgentPickerActionItem,
+						action,
+						pickerOptions,
+						this._widget,
+					);
 				} else if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {
 					// Use provided delegate if available, otherwise create default delegate
 					const getActiveSessionType = () => {

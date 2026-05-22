@@ -123,16 +123,33 @@ export class AgentsWindow {
 	 * button to be enabled (indicates the session provider/extension host
 	 * is ready) before clicking it.
 	 *
-	 * Clicking the explicit send button is more reliable than pressing
-	 * Enter — Enter requires the editor to still be focused, but VS Code
-	 * may re-focus other elements during initialization.
+	 * After clicking, verifies the new-session homepage disappears to
+	 * confirm the send took effect. Retries the click if the view is
+	 * still visible (the first click can silently fail if the button
+	 * moved or an overlay intercepted the event).
 	 */
 	async submitNewSessionPrompt(prompt: string, sendButtonRetryCount: number = 600): Promise<void> {
 		await this.code.waitForElement(NEW_CHAT_EDITOR);
 		await this.code.waitAndClick(NEW_CHAT_EDITOR);
 		await this.code.waitForTypeInEditor(this.newChatEditorInputSelector, prompt);
 		await this.code.waitForElement(SEND_BUTTON_ENABLED, undefined, sendButtonRetryCount);
-		await this.code.waitAndClick(SEND_BUTTON_ENABLED);
+
+		const maxClickAttempts = 3;
+		for (let attempt = 1; attempt <= maxClickAttempts; attempt++) {
+			await this.code.waitAndClick(SEND_BUTTON_ENABLED);
+			// Verify the new-session view disappeared (confirms send took effect).
+			try {
+				await this.code.waitForElement(NEW_SESSION_VIEW, result => !result, 30 /* ~3 seconds */);
+				return; // View gone — send succeeded
+			} catch {
+				// View still present — click may not have fired; retry
+				if (attempt < maxClickAttempts) {
+					await new Promise(r => setTimeout(r, 1000));
+				}
+			}
+		}
+		// Proceed even if the view didn't disappear — the send may have
+		// worked but the view transition is slow.
 	}
 
 	/**

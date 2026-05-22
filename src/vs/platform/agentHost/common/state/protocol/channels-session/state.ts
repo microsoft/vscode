@@ -175,6 +175,13 @@ export interface SessionSummary {
 	project?: ProjectInfo;
 	/** Currently selected model */
 	model?: ModelSelection;
+	/**
+	 * Currently selected custom agent.
+	 *
+	 * Absent (`undefined`) means no custom agent is selected for this session
+	 * — the session uses the provider's default behavior.
+	 */
+	agent?: AgentSelection;
 	/** The working directory URI for this session */
 	workingDirectory?: URI;
 	/**
@@ -190,6 +197,26 @@ export interface SessionSummary {
 // ─── Model Selection ─────────────────────────────────────────────────────────
 // `ModelSelection` is declared in channels-root/state.ts (the model lives on
 // `AgentInfo`); we import it above for use in `SessionSummary.model`.
+
+// ─── Agent Selection ─────────────────────────────────────────────────────────
+
+/**
+ * A selected custom agent for a session.
+ *
+ * The `uri` identifies a specific custom agent (matching a
+ * {@link CustomizationAgentRef.uri | `CustomizationAgentRef.uri`} exposed
+ * via the session's effective customizations). Consumers resolve the
+ * agent's display name by looking up `uri` in
+ * {@link SessionCustomization.agents | `SessionCustomization.agents`}.
+ *
+ * A session with no `agent` selected uses the provider's default behavior.
+ *
+ * @category Session State
+ */
+export interface AgentSelection {
+	/** Stable agent URI (matches a {@link CustomizationAgentRef.uri}) */
+	uri: URI;
+}
 
 // ─── Session Config Types ────────────────────────────────────────────────────
 
@@ -1228,6 +1255,24 @@ export type ToolResultContent =
 // ─── Customization Types ─────────────────────────────────────────────────────
 
 /**
+ * A lightweight reference to a custom agent contributed by a customization.
+ *
+ * Custom agents have a single `name` (sourced from the agent file's YAML
+ * frontmatter, or derived from the file name); they do not have a separate
+ * display name.
+ *
+ * @category Customization Types
+ */
+export interface CustomizationAgentRef {
+	/** Stable agent URI */
+	uri: URI;
+	/** Agent name (from frontmatter `name`, or file-derived) */
+	name: string;
+	/** Optional short description for UI preview (from frontmatter `description`) */
+	description?: string;
+}
+
+/**
  * A reference to an [Open Plugins](https://open-plugins.com/) plugin.
  *
  * This is intentionally thin — AHP specifies plugin identity and metadata
@@ -1291,4 +1336,16 @@ export interface SessionCustomization {
 	 * Human-readable status detail (e.g. error message or degradation warning).
 	 */
 	statusMessage?: string;
+	/**
+	 * Custom agents contributed by this customization, as resolved by the
+	 * agent host after parsing the customization.
+	 *
+	 * Consumers MUST treat an absent field as "unknown" (e.g. the host has
+	 * not finished parsing the customization yet). An empty array means the
+	 * host parsed the customization and it contributes no agents.
+	 *
+	 * Clients are not authoritative here: only the agent host populates
+	 * this field.
+	 */
+	agents?: CustomizationAgentRef[];
 }

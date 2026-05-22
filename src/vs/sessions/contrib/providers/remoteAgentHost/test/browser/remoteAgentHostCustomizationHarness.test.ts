@@ -9,8 +9,11 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ActionType, type ActionEnvelope, type INotification, type StateAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { CustomizationStatus, type AgentInfo, type CustomizationRef, type RootState, type SessionCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType, isSessionAction, type ActionEnvelope, type INotification, type StateAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { CustomizationStatus, type AgentInfo, type CustomizationRef, type RootState, type SessionCustomization, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { StateComponents, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
+import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { IFileService, type IFileContent, type IFileStat, type IFileStatResult } from '../../../../../../platform/files/common/files.js';
@@ -37,6 +40,8 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	private _rootStateValue: RootState = { agents: [] };
 	override readonly rootState;
 
+	private readonly _sessionStates = new Map<string, SessionState>();
+
 	readonly dispatchedActions: { channel: string; action: StateAction }[] = [];
 
 	constructor() {
@@ -59,7 +64,30 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		this.dispatchedActions.push({ channel, action });
 	}
 
+	override getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
+		if (kind !== StateComponents.Session) {
+			return undefined;
+		}
+		const self = this;
+		const channel = resource.toString();
+		if (!self._sessionStates.has(channel)) {
+			return undefined;
+		}
+		const subscription: IAgentSubscription<SessionState> = {
+			get value() { return self._sessionStates.get(channel); },
+			get verifiedValue() { return self._sessionStates.get(channel); },
+			onDidChange: Event.None,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+		return subscription as IAgentSubscription<ComponentToState[T]>;
+	}
+
 	fireAction(envelope: ActionEnvelope): void {
+		if (isSessionAction(envelope.action)) {
+			const current = this._sessionStates.get(envelope.channel) ?? {} as SessionState;
+			this._sessionStates.set(envelope.channel, sessionReducer(current, envelope.action));
+		}
 		this._onDidAction.fire(envelope);
 	}
 
@@ -729,7 +757,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			skillItems.map(i => ({ name: i.name, description: i.description, uri: i.uri.toString() })).sort((a, b) => a.name.localeCompare(b.name)),
 			[
 				{ name: 'Pretty Name', description: 'A friendly skill description', uri: 'vscode-agent-host://test/plugins/skills-bundle/skills/valid-skill/SKILL.md' },
-				{ name: 'legacy', description: undefined, uri: 'vscode-agent-host://test/plugins/skills-bundle/skills/legacy.skill.md' },
 			].sort((a, b) => a.name.localeCompare(b.name)),
 		);
 

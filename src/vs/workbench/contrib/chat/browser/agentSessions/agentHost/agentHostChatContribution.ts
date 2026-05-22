@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
@@ -213,6 +214,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const customizations = observableValue<CustomizationRef[]>('agentCustomizations', []);
 		const updateCustomizations = async () => {
 			const refs = await resolveCustomizationRefs(this._promptsService, syncProvider, this._agentPluginService, bundler, sessionType);
+			if (equals(customizations.get(), refs)) {
+				return;
+			}
 			customizations.set(refs, undefined);
 		};
 		store.add(syncProvider.onDidChange(() => updateCustomizations()));

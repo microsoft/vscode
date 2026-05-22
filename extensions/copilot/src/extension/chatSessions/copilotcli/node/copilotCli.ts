@@ -96,6 +96,10 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 	}
 
 	private _fetchAndCacheModels(): void {
+		if (!this._authenticationService.anyGitHubSession) {
+			this.logService.info('[CopilotCLIModels] Skipping model fetch since there is no GitHub session');
+			return;
+		}
 		const availableModels = this._availableModels = this._getAvailableModels();
 		availableModels.then(models => {
 			// Bail out if a newer fetch has superseded this one (e.g. auth changed mid-flight).

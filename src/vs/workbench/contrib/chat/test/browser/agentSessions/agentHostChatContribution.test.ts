@@ -4425,6 +4425,131 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(ac.activeClient.customizations?.length, 1);
 			assert.strictEqual(ac.activeClient.customizations?.[0].uri, 'file:///plugin-b');
 		});
+
+		test('does not dispatch activeClientChanged when an existing session is restored and this client is already active', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const sessionResource = AgentSession.uri('copilot', 'existing-session');
+			const summary: SessionSummary = {
+				resource: sessionResource.toString(),
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+			};
+			agentHostService.sessionStates.set(sessionResource.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				activeClient: {
+					clientId: agentHostService.clientId,
+					tools: [],
+					customizations: [],
+				},
+			});
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.strictEqual(
+				agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientChanged').length,
+				0,
+			);
+		});
+
+		test('dispatches activeClientChanged when restoring a session where another client is active', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const sessionResource = AgentSession.uri('copilot', 'existing-session');
+			const summary: SessionSummary = {
+				resource: sessionResource.toString(),
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+			};
+			agentHostService.sessionStates.set(sessionResource.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				activeClient: {
+					clientId: 'other-client',
+					tools: [],
+				},
+			});
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientChanged');
+			assert.strictEqual(activeClientActions.length, 1);
+			assert.strictEqual(activeClientActions[0].channel, sessionResource.toString());
+		});
+
+		test('dispatches activeClientChanged when restoring a session where current client customizations are stale', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const customizations = observableValue<CustomizationRef[]>('customizations', [
+				{ uri: 'file:///plugin-new', displayName: 'Plugin New' },
+			]);
+			const sessionResource = AgentSession.uri('copilot', 'existing-session');
+			const summary: SessionSummary = {
+				resource: sessionResource.toString(),
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+			};
+			agentHostService.sessionStates.set(sessionResource.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				activeClient: {
+					clientId: agentHostService.clientId,
+					tools: [],
+					customizations: [{ uri: 'file:///plugin-old', displayName: 'Plugin Old' }],
+				},
+			});
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				customizations,
+			}));
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientChanged');
+			assert.strictEqual(activeClientActions.length, 1);
+			const activeClientAction = activeClientActions[0].action;
+			assert.strictEqual(activeClientAction.type, 'session/activeClientChanged');
+			assert.deepStrictEqual(activeClientAction.activeClient?.customizations, [
+				{ uri: 'file:///plugin-new', displayName: 'Plugin New' },
+			]);
+		});
 	});
 
 	// ---- Subagent grouping ----------------------------------------------

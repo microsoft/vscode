@@ -167,6 +167,19 @@ export interface ISessionChangeset {
 	readonly modifiedCheckpointRef: IObservable<string | undefined>;
 }
 
+/**
+ * A custom agent reference used by session-level selection. Mirrors the Agent
+ * Host protocol's `AgentSelection` shape but lives in the sessions layer so the
+ * sessions service API does not leak the protocol type to non-Agent-Host
+ * consumers.
+ */
+export interface ISessionAgentRef {
+	/** Stable agent URI (matches the contributing customization's agent ref). */
+	readonly uri: string;
+	/** Agent name. */
+	readonly name: string;
+}
+
 export interface IChatCheckpoints {
 	/** Reference to the first checkpoint in the chat. */
 	readonly firstCheckpointRef: string;
@@ -243,7 +256,6 @@ export interface ISession {
 	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
-	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
@@ -257,8 +269,8 @@ export interface ISession {
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** The chats belonging to this session group. */
 	readonly chats: IObservable<readonly IChat[]>;
-	/** The main (first) chat of this session. */
-	readonly mainChat: IChat;
+	/** The main (first) chat of this session. Providers may replace it for a new session via {@link ISessionsProvider.createNewChat}. */
+	readonly mainChat: IObservable<IChat>;
 	/** Capabilities of this session. */
 	readonly capabilities: ISessionCapabilities;
 }
