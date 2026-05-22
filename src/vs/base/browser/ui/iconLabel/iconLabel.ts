@@ -108,6 +108,7 @@ export class IconLabel extends Disposable {
 	private readonly hoverDelegate: IHoverDelegate;
 	private readonly customHovers: Map<HTMLElement, IDisposable> = new Map();
 	private currentBgColorClassName: string | undefined;
+	private currentBgColorElement: HTMLElement | undefined;
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		super();
@@ -194,7 +195,8 @@ export class IconLabel extends Disposable {
 		this.clearBgColorClassName();
 		if (options?.bgColorClassName) {
 			this.currentBgColorClassName = options.bgColorClassName;
-			this.getDecorationContainer()?.classList.add(this.currentBgColorClassName ?? '');
+			this.currentBgColorElement = this.getDecorationContainer() ?? this.labelContainer;
+			this.currentBgColorElement.classList.add(this.currentBgColorClassName);
 		}
 		this.domNode.element.setAttribute('aria-label', ariaLabel);
 		this.labelContainer.classList.value = '';
@@ -261,8 +263,9 @@ export class IconLabel extends Disposable {
 		if (!this.currentBgColorClassName) {
 			return;
 		}
-		this.getDecorationContainer()?.classList.remove(this.currentBgColorClassName);
+		this.currentBgColorElement?.classList.remove(this.currentBgColorClassName);
 		this.currentBgColorClassName = undefined;
+		this.currentBgColorElement = undefined;
 	}
 
 	private getDecorationContainer(): HTMLElement | undefined {
