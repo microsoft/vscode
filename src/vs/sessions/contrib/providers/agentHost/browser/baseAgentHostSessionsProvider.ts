@@ -1084,11 +1084,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (!state || state instanceof Error) {
 					return;
 				}
+				if (state.status !== 'ready') {
+					return;
+				}
 				const files: IChatSessionFileChange2[] = state.files.map(f => {
 					const after = f.edit.after?.uri;
 					const before = f.edit.before?.uri;
+					const uri = after ?? before ?? f.id;
 					return {
-						uri: URI.parse((after ?? before)!),
+						uri: URI.parse(uri),
 						originalUri: before ? URI.parse(before) : undefined,
 						modifiedUri: after ? URI.parse(after) : undefined,
 						insertions: f.edit.diff?.added ?? 0,
