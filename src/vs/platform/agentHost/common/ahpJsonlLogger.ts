@@ -66,7 +66,7 @@ export class AhpJsonlLogger extends Disposable {
 				...(typeof byteLength === 'number' ? { byteLength } : {}),
 			}
 		};
-		const line = `${JSON.stringify(entry)}\n`;
+		const line = `${stringifyAhpLogEntry(entry)}\n`;
 		const buffer = VSBuffer.fromString(line);
 		this._queue = this._queue.then(() => this._appendLine(buffer)).catch(error => {
 			this._logService.error('[AHPLog] Failed to write transport log', error);
@@ -124,6 +124,10 @@ export class AhpJsonlLogger extends Disposable {
 
 export function getAhpLogByteLength(text: string): number {
 	return VSBuffer.fromString(text).byteLength;
+}
+
+export function stringifyAhpLogEntry(value: unknown): string {
+	return JSON.stringify(value, (_key, nestedValue) => URI.isUri(nestedValue) ? nestedValue.toString() : nestedValue);
 }
 
 function toFileTimestamp(date: Date): string {

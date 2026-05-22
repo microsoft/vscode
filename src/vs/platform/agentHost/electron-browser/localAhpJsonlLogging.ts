@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
+import { AhpJsonlLogger, getAhpLogByteLength, stringifyAhpLogEntry } from '../common/ahpJsonlLogger.js';
 import type { AuthenticateParams, IAgentService } from '../common/agentService.js';
 
 const REDACTED_VALUE = '<redacted>';
@@ -132,7 +132,7 @@ function isAuthenticateParams(value: unknown): value is AuthenticateParams {
 
 function safeStringify(value: unknown): string {
 	try {
-		return JSON.stringify(value);
+		return stringifyAhpLogEntry(value);
 	} catch {
 		return '';
 	}
