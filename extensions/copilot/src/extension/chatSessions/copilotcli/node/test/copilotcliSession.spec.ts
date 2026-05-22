@@ -5,7 +5,7 @@
 
 import type { Session, SessionOptions } from '@github/copilot/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ChatParticipantToolToken } from 'vscode';
+import type { ChatParticipantToolToken, ChatResponseStream } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { NoopOTelService, resolveOTelConfig } from '../../../../../platform/otel/common/index';
@@ -286,6 +286,100 @@ describe('CopilotCLISession', () => {
 		expect(session.status).toBe(ChatSessionStatus.Completed);
 		expect(stream.output.join('\n')).toContain('Echo: Hello');
 		// Listeners are disposed after completion, so we only assert original streamed content.
+	});
+
+	it('routes in-flight output to the latest attached stream', async () => {
+		let continueSend!: () => void;
+		let markSendStarted!: () => void;
+		const sendStarted = new Promise<void>(resolve => { markSendStarted = resolve; });
+		sdkSession.send = async ({ prompt }) => {
+			sdkSession.emit('user.message', { content: prompt });
+			markSendStarted();
+			await new Promise<void>(resolve => { continueSend = resolve; });
+			sdkSession.emit('assistant.message', { messageId: 'after-reattach', content: 'After reattach' });
+		};
+
+		const session = await createSession();
+		const firstStream = new MockChatResponseStream();
+		const firstStreamAttachment = disposables.add(session.attachStream(firstStream));
+		const request = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+		await sendStarted;
+
+		const secondStream = new MockChatResponseStream();
+		disposables.add(session.attachStream(secondStream));
+		firstStreamAttachment.dispose();
+		continueSend();
+		await request;
+
+		expect(firstStream.output.join('\n')).not.toContain('After reattach');
+		expect(secondStream.output.join('\n')).toContain('After reattach');
+	});
+
+	it('routed response stream is not thenable', async () => {
+		const session = await createSession();
+		const routedStream = (session as unknown as { readonly _stream: unknown })._stream;
+
+		await expect(Promise.race([
+			Promise.resolve(routedStream).then(value => value === routedStream),
+			new Promise<boolean>(resolve => setTimeout(() => resolve(false), 10)),
+		])).resolves.toBe(true);
+	});
+
+	it('drops writes to a closed attached stream', async () => {
+		class ClosedChatResponseStream extends MockChatResponseStream {
+			override markdown(): void {
+				throw new Error('Response stream has been closed');
+			}
+		}
+
+		sdkSession.send = async () => {
+			sdkSession.emit('assistant.message', { messageId: 'closed-stream', content: 'Dropped' });
+		};
+
+		const session = await createSession();
+		disposables.add(session.attachStream(new ClosedChatResponseStream()));
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+		expect(session.status).toBe(ChatSessionStatus.Completed);
+	});
+
+	it('falls back when async stream methods reject as closed', async () => {
+		class ClosedExternalEditStream extends MockChatResponseStream {
+			override externalEdit(): Promise<string> {
+				return Promise.reject(new Error('Response stream has been closed'));
+			}
+		}
+
+		const session = await createSession();
+		disposables.add(session.attachStream(new ClosedExternalEditStream()));
+		const routedStream = (session as unknown as { readonly _stream: ChatResponseStream })._stream;
+		let callbackRan = false;
+
+		await expect(routedStream.externalEdit(Uri.file('/workspace/file.ts'), async () => {
+			callbackRan = true;
+		})).resolves.toBe('');
+
+		expect(callbackRan).toBe(true);
+	});
+
+	it('does not re-invoke externalEdit callback when the underlying call already started it', async () => {
+		class MidFlightCloseStream extends MockChatResponseStream {
+			override async externalEdit(_target: Uri | Uri[], callback: () => Thenable<unknown>): Promise<string> {
+				await callback();
+				throw new Error('Response stream has been closed');
+			}
+		}
+
+		const session = await createSession();
+		disposables.add(session.attachStream(new MidFlightCloseStream()));
+		const routedStream = (session as unknown as { readonly _stream: ChatResponseStream })._stream;
+		let invocations = 0;
+
+		await expect(routedStream.externalEdit(Uri.file('/workspace/file.ts'), async () => {
+			invocations++;
+		})).resolves.toBe('');
+
+		expect(invocations).toBe(1);
 	});
 
 	it('switches model when different modelId provided', async () => {
@@ -1753,9 +1847,9 @@ describe('CopilotCLISession', () => {
 			await Promise.all([firstRequest, remoteRequest]);
 
 			firstTokenSource.dispose(true);
-			expect(firstStream.output.join('')).toContain('Echo: First prompt');
+			expect(firstStream.output.join('')).toEqual('');
 			const output = remoteStream.output.join('');
-			expect(output).not.toContain('Echo: First prompt');
+			expect(output).toContain('Echo: First prompt');
 			expect(output).toContain('Remote control is disabled. Use /remote on to enable it.');
 		});
 

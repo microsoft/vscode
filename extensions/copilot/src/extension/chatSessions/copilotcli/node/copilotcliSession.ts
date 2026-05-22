@@ -47,6 +47,7 @@ import { type McCommand, type McEvent, type McSessionCreateResult, MissionContro
 import { handleMcpPermission, handleReadPermission, handleShellPermission, handleWritePermission, type PermissionRequest, type PermissionRequestResult, showInteractivePermissionPrompt } from './permissionHelpers';
 import { TodoSqlQuery } from './todoSqlQuery';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from './userInputHelpers';
+import { createSingleCallFunction } from '../../../../util/vs/base/common/functional';
 
 /**
  * Known commands that can be sent to a CopilotCLI session instead of a free-form prompt.
@@ -93,6 +94,112 @@ interface McSharedState {
 	mcSessionResource: import('vscode').Uri;
 }
 const mcStateBySessionId = new Map<string, McSharedState>();
+
+class CopilotCLIResponseStreamRouter {
+	private _stream: vscode.ChatResponseStream | undefined;
+	private readonly _routedStream: vscode.ChatResponseStream = {
+		markdown: (value: string | vscode.MarkdownString): void => { this._call('markdown', [value]); },
+		anchor: (value: vscode.Uri | vscode.Location, title?: string): void => { this._call('anchor', [value, title]); },
+		button: (command: vscode.Command): void => { this._call('button', [command]); },
+		filetree: (value: vscode.ChatResponseFileTree[], baseUri: vscode.Uri): void => { this._call('filetree', [value, baseUri]); },
+		progress: (value: string, task?: (progress: vscode.Progress<vscode.ChatResponseWarningPart | vscode.ChatResponseReferencePart>) => Thenable<string | void>): void => { this._call('progress', [value, task]); },
+		reference: (value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }): void => { this._call('reference', [value, iconPath]); },
+		push: (part: vscode.ExtendedChatResponsePart): void => { this._call('push', [part]); },
+		thinkingProgress: (thinkingDelta: vscode.ThinkingDelta): void => { this._call('thinkingProgress', [thinkingDelta]); },
+		hookProgress: (hookType: vscode.ChatHookType, stopReason?: string, systemMessage?: string): void => { this._call('hookProgress', [hookType, stopReason, systemMessage]); },
+		textEdit: (target: vscode.Uri, editsOrDone: vscode.TextEdit | vscode.TextEdit[] | true): void => { this._call('textEdit', [target, editsOrDone]); },
+		notebookEdit: (target: vscode.Uri, editsOrDone: vscode.NotebookEdit | vscode.NotebookEdit[] | true): void => { this._call('notebookEdit', [target, editsOrDone]); },
+		workspaceEdit: (edits: vscode.ChatWorkspaceFileEdit[]): void => { this._call('workspaceEdit', [edits]); },
+		externalEdit: (target: vscode.Uri | vscode.Uri[], callback: () => Thenable<unknown>): Thenable<string> => this._call('externalEdit', [target, createSingleCallFunction(callback)]) as Thenable<string>,
+		markdownWithVulnerabilities: (value: string | vscode.MarkdownString, vulnerabilities: vscode.ChatVulnerability[]): void => { this._call('markdownWithVulnerabilities', [value, vulnerabilities]); },
+		codeblockUri: (uri: vscode.Uri, isEdit?: boolean): void => { this._call('codeblockUri', [uri, isEdit]); },
+		confirmation: (title: string, message: string | vscode.MarkdownString, data: unknown, buttons?: string[]): void => { this._call('confirmation', [title, message, data, buttons]); },
+		questionCarousel: (questions: vscode.ChatQuestion[], allowSkip?: boolean): Thenable<Record<string, unknown> | undefined> => this._call('questionCarousel', [questions, allowSkip]) as Thenable<Record<string, unknown> | undefined>,
+		warning: (message: string | vscode.MarkdownString): void => { this._call('warning', [message]); },
+		info: (message: string | vscode.MarkdownString): void => { this._call('info', [message]); },
+		reference2: (value: vscode.Uri | vscode.Location | string | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }, options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind } }): void => { this._call('reference2', [value, iconPath, options]); },
+		codeCitation: (value: vscode.Uri, license: string, snippet: string): void => { this._call('codeCitation', [value, license, snippet]); },
+		beginToolInvocation: (toolCallId: string, toolName: string, streamData?: vscode.ChatToolInvocationStreamData & { subagentInvocationId?: string }): void => { this._call('beginToolInvocation', [toolCallId, toolName, streamData]); },
+		updateToolInvocation: (toolCallId: string, streamData: vscode.ChatToolInvocationStreamData): void => { this._call('updateToolInvocation', [toolCallId, streamData]); },
+		clearToPreviousToolInvocation: (reason: vscode.ChatResponseClearToPreviousToolInvocationReason): void => { this._call('clearToPreviousToolInvocation', [reason]); },
+		usage: (usage: vscode.ChatResultUsage): void => { this._call('usage', [usage]); },
+	};
+	private static readonly _closedStreamErrorFragment = 'Response stream has been closed'.toLowerCase();
+
+	constructor(
+		private readonly _logService: ILogService,
+		private readonly _sessionId: string,
+	) { }
+
+	get stream(): vscode.ChatResponseStream {
+		return this._routedStream;
+	}
+
+	attach(stream: vscode.ChatResponseStream): IDisposable {
+		this._stream = stream;
+		return toDisposable(() => {
+			if (this._stream === stream) {
+				this._stream = undefined;
+			}
+		});
+	}
+
+	private static _isClosedStreamError(error: unknown): boolean {
+		if (!error) {
+			return false;
+		}
+		const message = error instanceof Error ? error.message : String(error);
+		return message.toLowerCase().includes(CopilotCLIResponseStreamRouter._closedStreamErrorFragment);
+	}
+
+	private _call(method: string, args: unknown[]): unknown {
+		const stream = this._stream;
+		if (!stream) {
+			return this._fallback(method, args);
+		}
+
+		const fn = (stream as unknown as Record<string, unknown>)[method];
+		if (typeof fn !== 'function') {
+			return this._fallback(method, args);
+		}
+
+		try {
+			const result = fn.apply(stream, args);
+			if (method === 'externalEdit' || method === 'questionCarousel') {
+				return Promise.resolve(result).catch(error => this._handleCallError(error, method, args, stream));
+			}
+			return result;
+		} catch (error) {
+			return this._handleCallError(error, method, args, stream);
+		}
+	}
+
+	private _handleCallError(error: unknown, method: string, args: unknown[], stream: vscode.ChatResponseStream): unknown {
+		if (CopilotCLIResponseStreamRouter._isClosedStreamError(error)) {
+			if (this._stream === stream) {
+				this._stream = undefined;
+			}
+			this._logService.trace(`[CopilotCLISession] Dropping ${method} for closed response stream in session ${this._sessionId}`);
+			return this._fallback(method, args);
+		}
+		throw error;
+	}
+
+	private _fallback(method: string, args: unknown[]): unknown {
+		if (method === 'externalEdit') {
+			const callback = args[1];
+			if (typeof callback === 'function') {
+				// The callback is the caller's proceed signal; dropping it would stall the tool when only the UI stream is gone.
+				return Promise.resolve().then(() => (callback as () => Thenable<unknown>)()).then(() => '');
+			}
+			return Promise.resolve('');
+		}
+		if (method === 'questionCarousel') {
+			return Promise.resolve(undefined);
+		}
+		return undefined;
+	}
+}
 
 const MISSION_CONTROL_KEEPALIVE_INTERVAL_MS = 10_000;
 
@@ -760,7 +867,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 	private _onDidChangeTitle = this.add(new Emitter<string>());
 	public onDidChangeTitle = this._onDidChangeTitle.event;
-	private _stream?: vscode.ChatResponseStream;
+	private readonly _streamRouter: CopilotCLIResponseStreamRouter;
+	private readonly _stream: vscode.ChatResponseStream;
 	private _toolInvocationToken?: ChatParticipantToolToken;
 	public get sdkSession() {
 		return this._sdkSession;
@@ -820,17 +928,14 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	) {
 		super();
 		this.sessionId = _sdkSession.sessionId;
+		this._streamRouter = new CopilotCLIResponseStreamRouter(this.logService, this.sessionId);
+		this._stream = this._streamRouter.stream;
 		this._missionControlApiClient = this.instantiationService.createInstance(MissionControlApiClient);
 		this.add(toDisposable(() => this._todoSqlQuery.dispose()));
 	}
 
 	attachStream(stream: vscode.ChatResponseStream): IDisposable {
-		this._stream = stream;
-		return toDisposable(() => {
-			if (this._stream === stream) {
-				this._stream = undefined;
-			}
-		});
+		return this._streamRouter.attach(stream);
 	}
 
 	public setPermissionLevel(level: string | undefined): void {
