@@ -101,9 +101,9 @@ export class AgentInstructionsLocator extends Disposable {
 		if (!useCopilotInstructionsFiles) {
 			logger?.logInfo('Copilot instructions files are disabled via configuration.');
 		} else {
-			const githubConfigFile: IWorkspaceInstructionFile = { fileName: COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, type: AgentInstructionFileType.copilotInstructionsMd };
-			promises.push(this.findFilesInRoots(rootFolders, GITHUB_CONFIG_FOLDER, [githubConfigFile], token, resolvedAgentFiles)); // copilot-instructions.md in .copilot folder under workspace root
-			promises.push(this.findFilesInRoots([this.envService.userHome], COPILOT_CONFIG_FOLDER, [githubConfigFile], token, resolvedAgentFiles)); // copilot-instructions.md in ~/.copilot folder
+			const copilotInstructionsFile: IWorkspaceInstructionFile = { fileName: COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, type: AgentInstructionFileType.copilotInstructionsMd };
+			promises.push(this.findFilesInRoots(rootFolders, GITHUB_CONFIG_FOLDER, [copilotInstructionsFile], token, resolvedAgentFiles)); // copilot-instructions.md in .github folder under workspace root
+			promises.push(this.findFilesInRoots([this.envService.userHome], COPILOT_CONFIG_FOLDER, [copilotInstructionsFile], token, resolvedAgentFiles)); // copilot-instructions.md in ~/.copilot folder
 		}
 
 		// Files at the workspace root itself (AGENTS.md / CLAUDE.md / CLAUDE.local.md).
