@@ -1849,7 +1849,7 @@ suite('LocalAgentHostSessionsProvider - active-session uncommitted refresh rotat
 			};
 		}), [{
 			uri: 'file:///repo/file.ts',
-			originalUri: 'session-db:///before/file.ts',
+			originalUri: 'vscode-agent-host://local/session-db/-/before/file.ts',
 			modifiedUri: 'file:///repo/file.ts',
 			insertions: 2,
 			deletions: 1,
