@@ -6,10 +6,3 @@ tsconfig*.json
 build/**
 esbuild*.mts
 package-lock.json
-node_modules/@vscode/extension-telemetry/**
-node_modules/@microsoft/1ds-**/**
-node_modules/@microsoft/applicationinsights-**/**
-node_modules/@microsoft/dynamicproto-js/**
-node_modules/@nevware21/**/**
-node_modules/picomatch/**
-node_modules/which/**
