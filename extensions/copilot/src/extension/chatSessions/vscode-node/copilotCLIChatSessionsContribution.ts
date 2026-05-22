@@ -1360,12 +1360,21 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		}
 	}
 
-	private sendTelemetryForHandleRequest(request: vscode.ChatRequest, context: vscode.ChatContext): void {
-		const { chatSessionContext } = context;
+	private sendTelemetryForHandleRequest(request: vscode.ChatRequest, chatSessionContext: vscode.ChatSessionContext | undefined): void {
 		const hasChatSessionItem = String(!!chatSessionContext?.chatSessionItem);
 		const isUntitled = String(chatSessionContext?.isUntitled);
 		const hasDelegatePrompt = String(request.command === 'delegate');
-
+		let isolation: string | undefined = undefined;
+		let isWorktree: string | undefined = undefined;
+		if (chatSessionContext) {
+			const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource));
+			const id = existingSessionId ?? SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource);
+			const isNewSession = chatSessionContext.isUntitled && !existingSessionId;
+			// Isoluation mode will be initialized only for new sessions.
+			const isolationMode = _sessionIsolation.get(id);
+			isolation = isNewSession ? isolationMode : undefined;
+			isWorktree = isNewSession ? String(isolationMode === IsolationMode.Worktree) : undefined;
+		}
 		/* __GDPR__
 		"copilotcli.chat.invoke" : {
 			"owner": "joshspicer",
@@ -1373,14 +1382,18 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The unique chat request ID." },
 			"hasChatSessionItem": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Invoked with a chat session item." },
 			"isUntitled": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the chat session is untitled." },
-			"hasDelegatePrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the prompt is a /delegate command." }
+			"hasDelegatePrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the prompt is a /delegate command." },
+			"isolation": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The isolation mode of the session, if applicable." },
+			"isWorktree": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the isolation mode is Worktree." }
 		}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('copilotcli.chat.invoke', {
 			chatRequestId: request.id,
 			hasChatSessionItem,
 			isUntitled,
-			hasDelegatePrompt
+			hasDelegatePrompt,
+			isolation,
+			isWorktree
 		});
 	}
 
@@ -1448,7 +1461,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				}
 			}
 
-			this.sendTelemetryForHandleRequest(request, context);
+			this.sendTelemetryForHandleRequest(request, chatSessionContext);
 
 			const [authInfo,] = await Promise.all([this.copilotCLISDK.getAuthInfo().catch((ex) => this.logService.error(ex, 'Authorization failed')), this.lockRepoOptionForSession(context, token)]);
 			if (!authInfo) {
