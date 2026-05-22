@@ -33,9 +33,9 @@ class DecorationRule {
 		} else {
 			const { color, backgroundColor, letter } = data;
 			if (ThemeIcon.isThemeIcon(letter)) {
-				return `${color}+${backgroundColor}+${letter.id}`;
+				return backgroundColor !== undefined ? `${color}+${backgroundColor}+${letter.id}` : `${color}+${letter.id}`;
 			} else {
-				return `${color}/${backgroundColor}/${letter}`;
+				return backgroundColor !== undefined ? `${color}/${backgroundColor}/${letter}` : `${color}/${letter}`;
 			}
 		}
 	}
