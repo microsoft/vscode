@@ -420,8 +420,17 @@ export class AgentHostSessionAdapter implements ISession {
 
 	setBranchChanges(files: readonly IChatSessionFileChange2[]): void {
 		this._branchChangesPopulated = true;
-		if (!sessionFileChangesEqual(this.changes.get(), files)) {
-			this.changes.set(files, undefined);
+
+		const mapDiffUri = this._options.mapDiffUri;
+		const mapped = mapDiffUri ? files.map(f => ({
+			...f,
+			uri: mapDiffUri(f.uri),
+			originalUri: f.originalUri ? mapDiffUri(f.originalUri) : undefined,
+			modifiedUri: f.modifiedUri ? mapDiffUri(f.modifiedUri) : undefined,
+		})) : files;
+
+		if (!sessionFileChangesEqual(this.changes.get(), mapped)) {
+			this.changes.set(mapped, undefined);
 		}
 	}
 }
