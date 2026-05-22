@@ -11,14 +11,17 @@ import type { BrowserView } from './browserView.js';
 
 /**
  * Manages device emulation for a browser view. The renderer is authoritative
- * for layout (it computes the on-screen size and emulation scale); this class
- * just forwards values to `webContents.enableDeviceEmulation` and manages the
- * touch / media / user-agent overrides that have no native Electron equivalent.
+ * for the on-screen container size and scale; this class derives the emulated
+ * viewport from the current device profile (falling back to container size /
+ * scale when width/height are unset) and forwards values to
+ * `webContents.enableDeviceEmulation`. It also manages the touch / media /
+ * user-agent overrides that have no native Electron equivalent.
  */
 export class BrowserViewEmulator extends Disposable {
 
 	private _device: IBrowserDeviceProfile | undefined;
 	private readonly _defaultUserAgent: string;
+	private _lastLayout = { containerWidth: 1024, containerHeight: 768, scale: 1, hostZoom: 1 };
 	private _lastApplied: { viewportWidth: number; viewportHeight: number; scale: number; hostZoom: number } | undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<IBrowserDeviceProfile | undefined>());
@@ -64,25 +67,38 @@ export class BrowserViewEmulator extends Disposable {
 		this._lastApplied = undefined;
 		if (!device && this.isSafeToApplyEmulation()) {
 			this.browser.webContents.disableDeviceEmulation();
+		} else {
+			// New device may carry new width / height / deviceScaleFactor — reapply
+			// using the last container size + scale pushed via layout().
+			this._reapply();
 		}
 
 		this._onDidChange.fire(device);
 	}
 
 	/**
-	 * Apply viewport + scale via Chromium's emulation API. `hostZoom` is the host
-	 * window's CSS-to-screen zoom factor: bounds in main are multiplied by it,
-	 * so the emulation scale must be too or the emulated viewport won't fill
-	 * the WebContentsView when the workbench is zoomed.
+	 * Update the cached layout (container size + scale + host zoom) and reapply
+	 * emulation. The emulated viewport is derived from the current device's
+	 * width / height; when those are undefined the viewport auto-fits to the
+	 * container at the given scale. `hostZoom` is the host window's
+	 * CSS-to-screen zoom factor — bounds in main are multiplied by it, so the
+	 * emulation scale must be too or the emulated viewport won't fill the
+	 * WebContentsView when the workbench is zoomed.
 	 */
-	applyScreenEmulation(viewportWidth: number, viewportHeight: number, scale: number, hostZoom: number): void {
+	applyScreenEmulation(containerWidth: number, containerHeight: number, scale: number, hostZoom: number): void {
+		this._lastLayout = { containerWidth, containerHeight, scale, hostZoom };
+		this._reapply();
+	}
+
+	private _reapply(): void {
 		if (!this._device || !this.isSafeToApplyEmulation()) {
 			return;
 		}
-		const w = Math.max(1, Math.round(viewportWidth));
-		const h = Math.max(1, Math.round(viewportHeight));
-		const z = Math.max(0.01, hostZoom);
+		const { containerWidth, containerHeight, scale, hostZoom } = this._lastLayout;
 		const s = Math.max(0.01, scale);
+		const z = Math.max(0.01, hostZoom);
+		const w = Math.max(1, Math.round(this._device.width || containerWidth / s));
+		const h = Math.max(1, Math.round(this._device.height || containerHeight / s));
 		const last = this._lastApplied;
 		if (last && last.viewportWidth === w && last.viewportHeight === h
 			&& Math.abs(last.scale - s) < 0.0001 && Math.abs(last.hostZoom - z) < 0.0001) {
