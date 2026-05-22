@@ -39,7 +39,6 @@ function resolveBaseOptions(config: ExtensionRunConfig): esbuild.BuildOptions {
 			'picomatch',
 			'request-light',
 			'tunnel',
-			'vscode-languageclient',
 			'vscode-languageserver-textdocument',
 			'vscode-tas-client',
 			'vscode-uri',
