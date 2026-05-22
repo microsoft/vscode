@@ -241,13 +241,6 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 		return !!this.modelMetadata.supported_endpoints?.includes(ModelSupportedEndpoint.Messages);
 	}
 
-	/**
-	 * Custom endpoints always carry their own auth (api-key / x-api-key / Authorization)
-	 * via {@link getExtraHeaders}, so the chat fetcher must not fall back to the CAPI
-	 * Copilot bearer token for `Authorization`.
-	 */
-	public readonly ownsAuthorization = true;
-
 	protected override _isReservedHeader(lowerKey: string): boolean {
 		if (CustomEndpointOAIEndpoint._overridableReservedAuthHeaders.has(lowerKey)) {
 			return false;

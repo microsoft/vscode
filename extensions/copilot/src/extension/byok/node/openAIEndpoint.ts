@@ -138,6 +138,13 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		this._customHeaders = this._sanitizeCustomHeaders(_modelMetadata.requestHeaders);
 	}
 
+	/**
+	 * BYOK endpoints supply their own credential (`api-key` / `Authorization`)
+	 * via {@link getExtraHeaders}, so the chat fetcher must not fall back to the
+	 * CAPI Copilot bearer token nor raise a missing-key error for these requests.
+	 */
+	public readonly ownsAuthorization = true;
+
 	protected _isReservedHeader(lowerKey: string): boolean {
 		return OpenAIEndpoint._reservedHeaders.has(lowerKey);
 	}
