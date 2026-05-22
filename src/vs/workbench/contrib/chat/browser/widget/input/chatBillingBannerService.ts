@@ -11,7 +11,7 @@ import { MenuId, MenuRegistry } from '../../../../../../platform/actions/common/
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IsDevelopmentContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
-import { ChatContextKeys } from '../../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
