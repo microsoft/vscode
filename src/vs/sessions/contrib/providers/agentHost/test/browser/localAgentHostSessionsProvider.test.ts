@@ -16,7 +16,7 @@ import { AgentSession, IAgentHostService, type IAgentCreateSessionConfig, type I
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CustomizationStatus, SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -24,7 +24,7 @@ import { IFileDialogService } from '../../../../../../platform/dialogs/common/di
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { SessionStatus } from '../../../../../services/sessions/common/session.js';
@@ -35,6 +35,8 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
+
+type SubscriptionState = SessionState | ChangesetState;
 
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
@@ -141,8 +143,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	// ---- Session-state subscriptions ---------------------------------------
 
-	private readonly _sessionStateEmitters = new Map<string, Emitter<SessionState>>();
-	private readonly _sessionStateValues = new Map<string, SessionState>();
+	private readonly _sessionStateEmitters = new Map<string, Emitter<SubscriptionState>>();
+	private readonly _sessionStateValues = new Map<string, SubscriptionState>();
 	public sessionSubscribeCounts = new Map<string, number>();
 	public sessionUnsubscribeCounts = new Map<string, number>();
 
@@ -152,7 +154,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this.sessionSubscribeCounts.set(key, (this.sessionSubscribeCounts.get(key) ?? 0) + 1);
 		let emitter = this._sessionStateEmitters.get(key);
 		if (!emitter) {
-			emitter = new Emitter<SessionState>();
+			emitter = new Emitter<SubscriptionState>();
 			this._sessionStateEmitters.set(key, emitter);
 		}
 		const self = this;
@@ -175,6 +177,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		const key = AgentSession.uri(provider, rawId).toString();
 		this._sessionStateValues.set(key, state);
 		this._sessionStateEmitters.get(key)?.fire(state);
+	}
+
+	setChangesetState(changesetUri: string, state: ChangesetState): void {
+		this._sessionStateValues.set(changesetUri, state);
+		this._sessionStateEmitters.get(changesetUri)?.fire(state);
 	}
 
 	setAgents(agents: AgentInfo[]): void {
@@ -1748,6 +1755,10 @@ suite('LocalAgentHostSessionsProvider - active-session uncommitted refresh rotat
 		return `${AgentSession.uri(sessionType, rawId).toString()}/changeset/uncommitted`;
 	}
 
+	function branchChangesKeyFor(rawId: string, sessionType: string = 'copilotcli'): string {
+		return `${AgentSession.uri(sessionType, rawId).toString()}/changeset/session`;
+	}
+
 	test('subscribes to <activeSession>/changeset/uncommitted when an AHP session becomes active', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
 
@@ -1804,5 +1815,44 @@ suite('LocalAgentHostSessionsProvider - active-session uncommitted refresh rotat
 
 		const unsubsForA = agentHost.sessionUnsubscribeCounts.get(uncommittedKeyFor('sess-A')) ?? 0;
 		assert.strictEqual(unsubsForA, 1, 'leaving the agents window (no active session) must release the subscription');
+	});
+
+	test('active branch changeset uses before content URI as the diff original', () => {
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		fireSessionAdded(agentHost, 'sess-A', { title: 'Session A' });
+		const session = provider.getSessions().find(session => session.title.get() === 'Session A');
+		assert.ok(session);
+
+		activeSession.set(makeActive('sess-A', provider.id), undefined);
+		const key = branchChangesKeyFor('sess-A');
+		agentHost.setChangesetState(key, {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'file:///repo/file.ts',
+				edit: {
+					before: { uri: 'file:///repo/file.ts', content: { uri: 'session-db:///before/file.ts' } },
+					after: { uri: 'file:///repo/file.ts', content: { uri: 'file:///repo/file.ts' } },
+					diff: { added: 2, removed: 1 },
+				},
+			}],
+		});
+
+		const changes = session.changes.get();
+		assert.deepStrictEqual(changes.map(change => {
+			assert.ok(isIChatSessionFileChange2(change));
+			return {
+				uri: change.uri.toString(),
+				originalUri: change.originalUri?.toString(),
+				modifiedUri: change.modifiedUri?.toString(),
+				insertions: change.insertions,
+				deletions: change.deletions,
+			};
+		}), [{
+			uri: 'file:///repo/file.ts',
+			originalUri: 'session-db:///before/file.ts',
+			modifiedUri: 'file:///repo/file.ts',
+			insertions: 2,
+			deletions: 1,
+		}]);
 	});
 });
