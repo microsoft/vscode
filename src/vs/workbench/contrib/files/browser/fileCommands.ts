@@ -241,10 +241,15 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 		}
 
 		const quoteStyle = configurationService.getValue<'none' | 'double' | 'single'>('explorer.copyPathQuoteStyle');
-		const quote = quoteStyle === 'double' ? '"' : quoteStyle === 'single' ? "'" : '';
+		const quoteMap: Record<'none' | 'double' | 'single', string> = { none: '', double: '"', single: "'" };
+		const quote = quoteMap[quoteStyle] ?? '';
 		const text = resources.map(resource => {
 			const label = labelService.getUriLabel(resource, { relative, noPrefix: true, separator });
-			return quote ? `${quote}${label}${quote}` : label;
+			if (!quote) {
+				return label;
+			}
+			const escapedLabel = label.replaceAll(quote, `\\${quote}`);
+			return `${quote}${escapedLabel}${quote}`;
 		}).join(lineDelimiter);
 		await clipboardService.writeText(text);
 	}
