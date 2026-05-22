@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
-import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { isAgentHostEnabled } from '../../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
@@ -37,7 +37,7 @@ class LocalAgentHostContribution extends Disposable implements IWorkbenchContrib
 	) {
 		super();
 
-		if (!configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+		if (!isAgentHostEnabled(configurationService)) {
 			return;
 		}
 
