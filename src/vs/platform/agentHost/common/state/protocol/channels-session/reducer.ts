@@ -245,11 +245,15 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 		// ── Lifecycle ──────────────────────────────────────────────────────────
 
 		case ActionType.SessionReady:
-			return {
-				...state,
-				lifecycle: SessionLifecycle.Ready,
-				summary: { ...state.summary, status: SessionStatus.Idle },
-			};
+			// `SessionReady` is purely a lifecycle transition (Creating ->
+			// Ready). It must not touch `summary.status`: for provisional
+			// sessions the first turn can start before materialization
+			// completes, so an `activeTurn` may already be set when this
+			// action is dispatched (e.g. from a materialize-session handler).
+			// Other reducers keep `summary.status` in sync with the activity
+			// state via `summaryStatus`/`refreshSummaryStatus`, so leaving it
+			// alone here is correct.
+			return { ...state, lifecycle: SessionLifecycle.Ready };
 
 		case ActionType.SessionCreationFailed:
 			return {

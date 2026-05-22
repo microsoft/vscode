@@ -270,6 +270,12 @@ export interface ITokenPriceTier {
 	readonly outputPrice: number;
 	/** Cost in AICs per million cached (read) tokens */
 	readonly cacheReadTokenPrice: number;
+	/**
+	 * The largest prompt size (in tokens) billed at this tier's rates.
+	 * Derived from CAPI `billing.token_prices.<tier>.context_max`.
+	 * Present only when CAPI provides a `long_context` tier.
+	 */
+	readonly contextMax?: number;
 }
 
 /**
@@ -320,6 +326,15 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly customModel?: CustomModel;
 	readonly isExtensionContributed?: boolean;
 	readonly maxPromptImages?: number;
+	/**
+	 * When true, this endpoint owns its own credentials via {@link IEndpoint.getExtraHeaders}
+	 * (e.g. a BYOK target with a user-supplied `api-key`, `x-api-key`, or `Authorization`) and
+	 * the chat fetcher must not fall back to the CAPI Copilot token for the `Authorization`
+	 * header. Prevents leaking the user's CAPI bearer token to third-party endpoints, and
+	 * avoids over-sending an unintended `Authorization: Bearer …` to gateways (strict
+	 * APIM policies, etc.) that validate the header.
+	 */
+	readonly ownsAuthorization?: boolean;
 	/**
 	 * Handles processing of responses from a chat endpoint. Each endpoint can have different response formats.
 	 * @param telemetryService The telemetry service

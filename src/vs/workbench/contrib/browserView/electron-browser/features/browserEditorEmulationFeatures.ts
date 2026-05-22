@@ -30,7 +30,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quic
 import { defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
-import { BrowserEditor, BrowserEditorContribution, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, IContainerLayout, IContainerLayoutOverride } from '../browserEditor.js';
+import { BrowserEditor, BrowserEditorContribution, IContainerLayout, IContainerLayoutOverride } from '../browserEditor.js';
 import { BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserViewActions.js';
 
 const CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE = new RawContextKey<boolean>(
@@ -462,9 +462,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		this._toolbar.refresh();
 		this._syncContextKeys(model.device, this._screen);
 		this._updateSashState();
-		if (model.device) {
-			this._setToolbarVisible(true);
-		}
+		this._setToolbarVisible(!!model.device);
 		store.add(model.onDidChangeDevice(device => {
 			this._updateSashState();
 			// Turning emulation off discards any in-progress screen overrides so
@@ -477,11 +475,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 			}
 			this._toolbar.refresh();
 			this._syncContextKeys(device, this._screen);
-			if (device && !this._toolbar.isVisible) {
-				this._setToolbarVisible(true);
-			} else if (!device && this._toolbar.isVisible) {
-				this._setToolbarVisible(false);
-			}
+			this._setToolbarVisible(!!device);
 			this.editor.layoutBrowserContainer();
 		}));
 	}
@@ -493,6 +487,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		this._screenInflight = undefined;
 		this._toolbar.refresh();
 		this._syncContextKeys(undefined, undefined);
+		this._setToolbarVisible(false);
 	}
 
 	// -- Public API consumed by toolbar + actions --------------------------
@@ -756,14 +751,13 @@ class ShowBrowserEmulationToolbarAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.showEmulationToolbar';
 
 	constructor() {
-		const when = ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate());
 		super({
 			id: ShowBrowserEmulationToolbarAction.ID,
 			title: localize2('browser.showEmulationToolbar', 'Show Emulation Toolbar'),
 			category: BrowserActionCategory,
 			icon: Codicon.deviceMobile,
 			f1: true,
-			precondition: when,
+			precondition: BROWSER_EDITOR_ACTIVE,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Developer,

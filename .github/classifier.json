@@ -15,6 +15,7 @@
 		"bracket-pair-colorization": {"assign": ["hediet"]},
 		"bracket-pair-guides": {"assign": ["hediet"]},
 		"breadcrumbs": {"assign": []},
+		"browser-integration": {"assign": ["kycutler", "jruales"]},
 		"callhierarchy": {"assign": []},
 		"chat-terminal": {"assign": ["meganrogge"]},
 		"chat-terminal-output-monitor": {"assign": ["meganrogge"]},

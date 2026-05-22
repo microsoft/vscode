@@ -47,6 +47,8 @@ import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/bro
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { buildSessionHoverContent } from '../sessionHoverContent.js';
 
 const $ = DOM.$;
 
@@ -200,6 +202,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly hoverService: IHoverService,
 		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly accessibilityService: IAccessibilityService,
+		private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		this._motionReducedSignal = observableSignalFromEvent('reduceMotion', this.accessibilityService.onDidChangeReducedMotion);
 	}
@@ -257,6 +260,15 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// by the time the row renders. Only fires for sessions that become
 		// visible in the viewport (O(visible rows), not O(all sessions)).
 		this.agentSessionsService.model.observeSession(element.resource);
+
+		// Rich hover on the row showing folder, branch, diff stats and provider.
+		// Shown to the right of the row, similar to the extensions list.
+		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
+			content: buildSessionHoverContent(element, this.sessionsProvidersService),
+			appearance: { showPointer: true },
+			position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
+			persistence: { hideOnHover: false },
+		}), { groupId: 'sessions-list' }));
 
 		// Toolbar context
 		template.titleToolbar.context = element;
@@ -826,6 +838,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const accessibilityService = instantiationService.invokeFunction(accessor => accessor.get(IAccessibilityService));
+		const sessionsProvidersService = instantiationService.invokeFunction(accessor => accessor.get(ISessionsProvidersService));
 		const sessionRenderer = new SessionItemRenderer(
 			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s) },
 			approvalModel,
@@ -835,6 +848,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			hoverService,
 			agentSessionsService,
 			accessibilityService,
+			sessionsProvidersService,
 		);
 
 		const showMoreRenderer = new SessionShowMoreRenderer();

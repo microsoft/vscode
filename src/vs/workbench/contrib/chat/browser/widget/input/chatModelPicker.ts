@@ -1363,7 +1363,7 @@ export class ModelPickerWidget extends Disposable {
 				getWidgetRole: () => 'menu' as const,
 			},
 			{
-				footerText: localize('chat.tokens.costHint', "Larger size may increase cost in longer sessions"),
+				footerText: localize('chat.tokens.costHint', "Larger context may increase cost"),
 			}
 		);
 	}

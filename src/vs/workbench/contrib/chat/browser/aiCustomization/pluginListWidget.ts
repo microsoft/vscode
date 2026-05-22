@@ -21,7 +21,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
@@ -41,6 +41,7 @@ import { ICustomizationHarnessService, isPluginCustomizationItem, type ICustomiz
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
 
 const $ = DOM.$;
 
@@ -469,6 +470,7 @@ export class PluginListWidget extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
@@ -977,14 +979,12 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private async getRemotePluginItems(query: string): Promise<readonly ICustomizationItem[]> {
-		const provider = this.harnessService.getActiveDescriptor().itemProvider;
-		if (!provider) {
+		if (!this.harnessService.getActiveDescriptor().itemProvider) {
 			return [];
 		}
-		const sessionResource = this.harnessService.activeSessionResource.get();
 
 		try {
-			const provided = await provider.provideChatSessionCustomizations(sessionResource, CancellationToken.None) ?? [];
+			const provided = await this.itemsModel.getActiveItemSource().fetchProviderItems();
 			return provided.filter(item =>
 				isPluginCustomizationItem(item)
 				&& (!query
