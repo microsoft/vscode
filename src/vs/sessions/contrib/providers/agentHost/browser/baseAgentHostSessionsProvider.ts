@@ -40,7 +40,7 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
 import { computePullRequestIcon } from '../../../github/common/types.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
-import { mapProtocolStatus } from './agentHostDiffs.js';
+import { changesetFilesToChanges, mapProtocolStatus } from './agentHostDiffs.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { createChangesets } from '../../copilotChatSessions/browser/copilotChatSessionsChangesets.js';
 
@@ -1087,18 +1087,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (state.status !== 'ready') {
 					return;
 				}
-				const files: IChatSessionFileChange2[] = state.files.map(f => {
-					const after = f.edit.after?.uri;
-					const before = f.edit.before?.uri;
-					const uri = after ?? before ?? f.id;
-					return {
-						uri: URI.parse(uri),
-						originalUri: before ? URI.parse(before) : undefined,
-						modifiedUri: after ? URI.parse(after) : undefined,
-						insertions: f.edit.diff?.added ?? 0,
-						deletions: f.edit.diff?.removed ?? 0,
-					};
-				});
+				const files = changesetFilesToChanges(state.files);
 				target.adapter.setBranchChanges(files);
 			};
 			apply(ref.object.value);
