@@ -6,6 +6,18 @@ This document describes the phased implementation of a **worker-per-extension is
 
 The design preserves full backward compatibility with the existing VS Code extension API while introducing fine-grained isolation, per-extension resource accounting, crash containment, and eventually a permission model analogous to mobile app sandboxing — but for editor extensions.
 
+### Working Process
+
+**This plan is executed one phase at a time.** After completing each phase:
+
+1. All acceptance criteria checkboxes are checked off (` ` → `x`).
+2. A **Phase Status** line is added at the top of the phase section marking it `✅ COMPLETE` with the date.
+3. Only then does work begin on the next phase.
+
+Each phase's unit tests must pass and TypeScript must compile before moving on. Progress is tracked directly in this document.
+
+---
+
 ### Design Principles
 
 1. **Transparency**: Extensions do not need to opt in or change code. The sandbox is invisible to well-behaved extensions.
