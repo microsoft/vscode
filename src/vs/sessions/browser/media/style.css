@@ -194,6 +194,17 @@
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .header {
 	cursor: pointer;
+	background: transparent;
+	position: relative;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: var(--vscode-agentsPanel-background);
+	z-index: -1;
+	pointer-events: none;
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .header-content {
