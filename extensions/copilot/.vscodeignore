@@ -23,6 +23,7 @@ assets/walkthroughs/**
 node_modules/@github/copilot/index.js
 node_modules/@github/copilot/clipboard/**
 node_modules/@github/copilot/prebuilds/**
+node_modules/@github/copilot/mxc-bin/**/_manifest/**
 node_modules/@github/copilot/sharp/**
 !node_modules/@github/copilot/package.json
 !node_modules/@github/copilot/sdk/**/package.json

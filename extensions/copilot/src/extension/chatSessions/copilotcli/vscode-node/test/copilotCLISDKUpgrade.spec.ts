@@ -120,9 +120,6 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('mxc-bin', 'arm64', 'wxc-test-proxy.exe'),
 			path.join('mxc-bin', 'arm64', 'wxc-windows-sandbox-daemon.exe'),
 			path.join('mxc-bin', 'arm64', 'wxc-windows-sandbox-guest.exe'),
-			path.join('mxc-bin', 'arm64', '_manifest', 'spdx_2.2', 'bsi.cose'),
-			path.join('mxc-bin', 'arm64', '_manifest', 'spdx_2.2', 'manifest.cat'),
-			path.join('mxc-bin', 'arm64', '_manifest', 'spdx_2.2', 'manifest.spdx.cose'),
 			path.join('mxc-bin', 'x64', 'lxc-exec'),
 			path.join('mxc-bin', 'x64', 'winhttp-proxy-shim.exe'),
 			path.join('mxc-bin', 'x64', 'wslcsdk.dll'),
@@ -130,9 +127,6 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('mxc-bin', 'x64', 'wxc-test-proxy.exe'),
 			path.join('mxc-bin', 'x64', 'wxc-windows-sandbox-daemon.exe'),
 			path.join('mxc-bin', 'x64', 'wxc-windows-sandbox-guest.exe'),
-			path.join('mxc-bin', 'x64', '_manifest', 'spdx_2.2', 'bsi.cose'),
-			path.join('mxc-bin', 'x64', '_manifest', 'spdx_2.2', 'manifest.cat'),
-			path.join('mxc-bin', 'x64', '_manifest', 'spdx_2.2', 'manifest.spdx.cose'),
 			// parsing commands for shell.
 			'tree-sitter-bash.wasm',
 			'tree-sitter.wasm',
@@ -214,6 +208,9 @@ async function findAllBinaries(dir: string): Promise<string[]> {
 				return;
 			}
 			if (entry.isDirectory()) {
+				if (entry.name === '_manifest') {
+					return;
+				}
 				await findFilesRecursively(fullPath);
 			} else if (entry.isFile()) {
 				const isBinary = await isBinaryFile(fullPath);

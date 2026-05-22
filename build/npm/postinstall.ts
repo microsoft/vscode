@@ -152,6 +152,21 @@ function removeParcelWatcherPrebuild(dir: string) {
 	}
 }
 
+function removeCopilotMxcBin(dir: string) {
+	const copilotMxcBinFolder = path.join(root, dir, 'node_modules', '@github', 'copilot', 'mxc-bin');
+	if (fs.existsSync(copilotMxcBinFolder)) {
+		fs.rmSync(copilotMxcBinFolder, { recursive: true, force: true });
+		log(dir || '.', `Removed @github/copilot mxc-bin folder ${copilotMxcBinFolder}`);
+	}
+}
+
+function removeRootAndRemoteCopilotMxcBin() {
+	removeCopilotMxcBin('');
+	removeCopilotMxcBin('remote');
+	removeCopilotMxcBin('.build/distro/npm');
+	removeCopilotMxcBin('.build/distro/npm/remote');
+}
+
 function getNpmrcConfigKeys(npmrcPath: string): string[] {
 	if (!fs.existsSync(npmrcPath)) {
 		return [];
@@ -234,6 +249,8 @@ async function runWithConcurrency(tasks: (() => Promise<void>)[], concurrency: n
 }
 
 async function main() {
+	removeRootAndRemoteCopilotMxcBin();
+
 	if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
 		log('.', 'All dependencies up to date, skipping postinstall.');
 		child_process.execSync('git config pull.rebase merges');
@@ -308,6 +325,7 @@ async function main() {
 	const concurrency = Math.min(os.cpus().length, 8);
 	log('.', `Running ${parallelTasks.length} npm installs with concurrency ${concurrency}...`);
 	await runWithConcurrency(parallelTasks, concurrency);
+	removeRootAndRemoteCopilotMxcBin();
 
 	child_process.execSync('git config pull.rebase merges');
 	child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
