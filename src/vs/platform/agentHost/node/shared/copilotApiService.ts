@@ -30,26 +30,33 @@ export interface ICopilotApiServiceRequestOptions {
 }
 
 /**
- * Envelope returned by the GitHub `copilot_internal/v2/token` endpoint.
- * @see https://docs.github.com/en/rest/copilot
+ * Subset of the GitHub `copilot_internal/user` response we care about.
+ * The full payload carries entitlement info; we only need `endpoints` (for
+ * routing CAPI requests) and `access_type_sku` (which `CAPIClient.updateDomains`
+ * stamps onto requests).
  */
-interface ICopilotTokenEnvelope {
-	readonly token: string;
-	readonly expires_at: number;
-	readonly refresh_in: number;
-	readonly endpoints?: { readonly api?: string };
-	readonly sku?: string;
+interface ICopilotUserResponse {
+	readonly endpoints?: {
+		readonly api?: string;
+		readonly telemetry?: string;
+		readonly proxy?: string;
+		readonly 'origin-tracker'?: string;
+	};
+	readonly access_type_sku?: string;
 }
 
-interface ICachedToken {
-	readonly githubToken: string;
-	readonly copilotToken: string;
+interface ICachedClient {
+	readonly capiClient: CAPIClient;
 	readonly expiresAt: number;
 }
 
-interface ICapiInit {
-	readonly capiClient: CAPIClient;
-	readonly tokenUrl: string;
+/**
+ * Memoized parts of `CAPIClient` construction that don't depend on the user
+ * token. Built once and reused by every per-token client.
+ */
+interface ICapiBase {
+	readonly extensionInfo: IExtensionInformation;
+	readonly userUrl: string;
 }
 
 // #endregion
@@ -67,12 +74,16 @@ interface ICapiInit {
 export const COPILOT_API_ERROR_STATUS_STREAMING = 520;
 
 /**
- * Refresh the cached Copilot token this many seconds before its real expiry,
- * so an in-flight request never hits a token that expires mid-request.
+ * Re-resolve the CAPI endpoint discovery this many seconds before the cache
+ * entry's notional expiry. The `/copilot_internal/user` response itself
+ * carries no expiry, so we apply a fixed TTL and refresh ahead of it.
  */
-const TOKEN_REFRESH_BUFFER_SECONDS = 5 * 60;
+const CAPI_CONTEXT_REFRESH_BUFFER_SECONDS = 5 * 60;
 
-const TOKEN_API_VERSION = '2025-04-01';
+/** Conservative TTL for the `/copilot_internal/user` discovery result. */
+const CAPI_CONTEXT_TTL_SECONDS = 30 * 60;
+
+const USER_API_VERSION = '2025-04-01';
 
 // #endregion
 
@@ -173,38 +184,48 @@ export const ICopilotApiService = createDecorator<ICopilotApiService>('copilotAp
  * ## Goals
  *
  * 1. **Single source of truth for CAPI auth.** Callers pass a raw GitHub token
- *    and never deal with Copilot session token minting, expiry, refresh, or
- *    invalidation themselves.
+ *    and never deal with endpoint discovery or routing themselves.
  * 2. **Stable surface for chat agents.** A small, typed API that abstracts the
  *    underlying `CAPIClient`, SSE framing, and Anthropic event taxonomy so
  *    feature code can focus on prompting.
  * 3. **Resource-safe streaming.** Async-generator output that fully releases
  *    the underlying HTTP connection regardless of how the consumer terminates
  *    iteration (early `break`, thrown error, abort, or natural end-of-stream).
- * 4. **Skew- and revocation-tolerant token cache.** Tokens stay cached as long
- *    as they're usable, are re-minted when the server tells us they're stale
- *    (`refresh_in`), and are invalidated immediately on `401`/`403` so callers
- *    self-heal without restarting the host.
+ * 4. **Skew- and revocation-tolerant context cache.** Endpoint/sku discovery
+ *    stays cached as long as it's usable and is invalidated immediately on
+ *    `401`/`403` so callers self-heal without restarting the host.
+ *
+ * ## Auth strategy
+ *
+ * The GitHub user token IS the credential. There is no Copilot session-token
+ * mint; we send `Authorization: Bearer <github-token>` directly to CAPI's
+ * `/v1/messages` and `/models` endpoints. This mirrors what the
+ * `@github/copilot` CLI does (see `fetchCopilotUser` and
+ * `CopilotAnthropicClient.createWithOAuthToken` in `github/copilot-agent-runtime`).
+ *
+ * The `endpoints.api` URL CAPI requests are routed to is discovered per-token
+ * by calling `GET /copilot_internal/user` once and caching the result. This
+ * works for both consumer (`api.githubcopilot.com`) and Enterprise
+ * (`api.enterprise.githubcopilot.com`) accounts without configuration.
  *
  * ## Non-goals
  *
  * - Per-conversation history, retry/backoff, or rate-limit handling. Callers
  *   own request orchestration.
- * - GitHub Enterprise auth host derivation. The mint URL comes from
- *   `IProductService.defaultChatAgent.tokenEntitlementUrl`. See the TODO in
- *   `_buildCapiInit` for what GHE support would require.
  *
  * ## Concurrency model
  *
- * - Multiple in-flight requests for the same GitHub token share a single
- *   token mint via an in-flight de-dup map (no thundering herd on cold
- *   start).
- * - The token cache holds **one** entry. Callers that alternate between two
- *   GitHub tokens will pay a mint round-trip on every alternation; this is
- *   intentional — the agent host is single-tenant in practice.
+ * - Each cached entry is a **distinct {@link CAPIClient} instance** with its
+ *   own discovered domain state. Concurrent in-flight requests for two
+ *   different GitHub tokens cannot trample each other's `endpoints.api` —
+ *   token A's request will always route through the client built for A.
+ * - Multiple in-flight requests for the **same** GitHub token share a single
+ *   endpoint-discovery call via the per-token cache map (no thundering herd
+ *   on cold start).
  * - `AbortSignal` is forwarded to the outgoing API request (messages, models)
- *   but **not** to the shared token mint, so cancellation propagates to the
- *   caller's own request without affecting concurrent callers sharing the mint.
+ *   but **not** to the shared discovery call, so cancellation propagates to
+ *   the caller's own request without affecting concurrent callers sharing the
+ *   discovery.
  *
  * ## Error semantics
  *
@@ -219,9 +240,9 @@ export const ICopilotApiService = createDecorator<ICopilotApiService>('copilotAp
  *   `status` set to {@link COPILOT_API_ERROR_STATUS_STREAMING} (the upstream
  *   HTTP status was 200 and is no longer meaningful) and the server-supplied
  *   error envelope preserved verbatim.
- * - Failures of the internal Copilot token-mint endpoint throw plain
- *   `Error` (not `CopilotApiError`) with a `"Copilot token minting failed:
- *   ..."` prefix — token mint is an implementation detail of this service
+ * - Failures of the `/copilot_internal/user` discovery call throw plain
+ *   `Error` (not `CopilotApiError`) with a `"Copilot endpoint discovery
+ *   failed: ..."` prefix — it is an implementation detail of this service
  *   and is not part of the Anthropic-shaped CAPI surface.
  * - Malformed JSON in an SSE `data:` line is logged and skipped, not thrown.
  */
@@ -285,9 +306,8 @@ export class CopilotApiService implements ICopilotApiService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private _capiInitPromise: Promise<ICapiInit> | null = null;
-	private _cachedToken: ICachedToken | null = null;
-	private readonly _pendingTokenMints = new Map<string, Promise<string>>();
+	private _capiBasePromise: Promise<ICapiBase> | null = null;
+	private readonly _clientsByToken = new Map<string, Promise<ICachedClient>>();
 	private readonly _fetch: FetchFunction;
 
 	constructor(
@@ -330,8 +350,7 @@ export class CopilotApiService implements ICopilotApiService {
 	}
 
 	async models(githubToken: string, options?: ICopilotApiServiceRequestOptions): Promise<CCAModel[]> {
-		const { capiClient, tokenUrl } = await this._getCapiInit();
-		const copilotToken = await this._getCopilotToken(githubToken, capiClient, tokenUrl);
+		const capiClient = await this._getClientForToken(githubToken);
 
 		this._logService.debug('[CopilotApiService] GET models');
 
@@ -340,7 +359,7 @@ export class CopilotApiService implements ICopilotApiService {
 				method: 'GET',
 				headers: {
 					...options?.headers,
-					'Authorization': `Bearer ${copilotToken}`,
+					'Authorization': `Bearer ${githubToken}`,
 				},
 				signal: options?.signal,
 			},
@@ -349,7 +368,7 @@ export class CopilotApiService implements ICopilotApiService {
 
 		if (!response.ok) {
 			if (response.status === 401 || response.status === 403) {
-				this._invalidateCachedToken(githubToken);
+				this._invalidateClientForToken(githubToken);
 			}
 			const text = await response.text().catch(() => '');
 			throw buildCopilotApiHttpError(response.status, response.statusText, text, 'CAPI models request failed');
@@ -363,18 +382,17 @@ export class CopilotApiService implements ICopilotApiService {
 
 	// #region Lazy Init
 
-	private _getCapiInit(): Promise<ICapiInit> {
-		if (!this._capiInitPromise) {
-			this._capiInitPromise = this._buildCapiInit().catch(err => {
-				this._capiInitPromise = null;
-				this._cachedToken = null;
+	private _getCapiBase(): Promise<ICapiBase> {
+		if (!this._capiBasePromise) {
+			this._capiBasePromise = this._buildCapiBase().catch(err => {
+				this._capiBasePromise = null;
 				throw err;
 			});
 		}
-		return this._capiInitPromise;
+		return this._capiBasePromise;
 	}
 
-	private async _buildCapiInit(): Promise<ICapiInit> {
+	private async _buildCapiBase(): Promise<ICapiBase> {
 		const [machineId, deviceId] = await Promise.all([
 			getMachineId(err => this._logService.warn('[CopilotApiService] getMachineId failed', err)),
 			getDevDeviceId(err => this._logService.warn('[CopilotApiService] getDevDeviceId failed', err)),
@@ -390,25 +408,12 @@ export class CopilotApiService implements ICopilotApiService {
 			buildType: this._productService.quality === 'stable' ? 'prod' : 'dev',
 		};
 
-		const fetch = this._fetch;
-		const capiClient = new CAPIClient(extensionInfo, undefined, {
-			fetch: (url, options) => fetch(url, {
-				method: options.method ?? 'GET',
-				headers: options.headers,
-				body: options.body,
-				signal: options.signal as AbortSignal | undefined,
-			}),
-		});
+		// The user-info endpoint is hosted on api.github.com for consumer accounts.
+		// For GitHub Enterprise the host changes, but we don't currently support
+		// GHE in the agent host — see CopilotAgent for the same assumption.
+		const userUrl = 'https://api.github.com/copilot_internal/user';
 
-		// TODO(GHE): For GitHub Enterprise users the mint URL must point to
-		// `api.<enterprise-host>/copilot_internal/v2/token` instead. This
-		// requires threading the enterprise host URL through `ICopilotApiService`
-		// (e.g. as an extra parameter on `messages`/`models`, or as a separate
-		// `create(enterpriseHost?)` factory) and deriving the URL the same way
-		// `defaultAccount.ts` does for the main workbench auth path.
-		const tokenUrl = this._productService.defaultChatAgent.tokenEntitlementUrl;
-
-		return { capiClient, tokenUrl };
+		return { extensionInfo, userUrl };
 	}
 
 	// #endregion
@@ -452,8 +457,7 @@ export class CopilotApiService implements ICopilotApiService {
 		stream: boolean,
 		options?: ICopilotApiServiceRequestOptions,
 	): Promise<Response> {
-		const { capiClient, tokenUrl } = await this._getCapiInit();
-		const copilotToken = await this._getCopilotToken(githubToken, capiClient, tokenUrl);
+		const capiClient = await this._getClientForToken(githubToken);
 		const requestId = generateUuid();
 
 		this._logService.debug('[CopilotApiService] POST messages', `model=${request.model} stream=${stream} requestId=${requestId}`);
@@ -474,7 +478,7 @@ export class CopilotApiService implements ICopilotApiService {
 				headers: {
 					...options?.headers,
 					'Content-Type': 'application/json',
-					'Authorization': `Bearer ${copilotToken}`,
+					'Authorization': `Bearer ${githubToken}`,
 					'X-Request-Id': requestId,
 					'OpenAI-Intent': 'conversation',
 				},
@@ -485,7 +489,7 @@ export class CopilotApiService implements ICopilotApiService {
 		);
 		if (!response.ok) {
 			if (response.status === 401 || response.status === 403) {
-				this._invalidateCachedToken(githubToken);
+				this._invalidateClientForToken(githubToken);
 			}
 			const text = await response.text().catch(() => '');
 			throw buildCopilotApiHttpError(response.status, response.statusText, text);
@@ -496,75 +500,90 @@ export class CopilotApiService implements ICopilotApiService {
 
 	// #endregion
 
-	// #region Token Minting
+	// #region Per-Token Client
 
-	private async _getCopilotToken(githubToken: string, capiClient: CAPIClient, tokenUrl: string): Promise<string> {
-		const now = Date.now() / 1000;
-		if (
-			this._cachedToken &&
-			this._cachedToken.githubToken === githubToken &&
-			this._cachedToken.expiresAt - now > TOKEN_REFRESH_BUFFER_SECONDS
-		) {
-			return this._cachedToken.copilotToken;
+	/**
+	 * Resolve a {@link CAPIClient} that has had its domains updated for the
+	 * supplied user. Concurrent callers for the same token share one
+	 * `/copilot_internal/user` discovery via the cache map; callers with
+	 * different tokens get their **own** `CAPIClient` instance, so the
+	 * `updateDomains` mutation for token A can never affect a request being
+	 * dispatched for token B.
+	 */
+	private _getClientForToken(githubToken: string): Promise<CAPIClient> {
+		const nowSeconds = Date.now() / 1000;
+		const existing = this._clientsByToken.get(githubToken);
+		if (existing) {
+			return existing.then(entry => {
+				if (entry.expiresAt - nowSeconds > CAPI_CONTEXT_REFRESH_BUFFER_SECONDS) {
+					return entry.capiClient;
+				}
+				// Stale — evict and recurse to build a fresh entry.
+				this._clientsByToken.delete(githubToken);
+				return this._getClientForToken(githubToken);
+			}).catch(err => {
+				// A previous failed build leaked into the cache; evict and rebuild.
+				this._clientsByToken.delete(githubToken);
+				throw err;
+			});
 		}
 
-		if (!this._pendingTokenMints.has(githubToken)) {
-			// Omit the caller's signal here: a deduped mint is shared across
-			// concurrent callers, so aborting one must not cancel the mint for
-			// the others. Each caller still forwards its signal to the API call.
-			const mint = this._mintToken(githubToken, capiClient, tokenUrl)
-				.finally(() => { this._pendingTokenMints.delete(githubToken); });
-			this._pendingTokenMints.set(githubToken, mint);
-		}
-		return this._pendingTokenMints.get(githubToken)!;
+		// Omit the caller's signal here: a deduped build is shared across
+		// concurrent callers, so aborting one must not cancel it for the
+		// others. Each caller still forwards its signal to the API call.
+		const pending = this._buildClientForToken(githubToken).catch(err => {
+			this._clientsByToken.delete(githubToken);
+			throw err;
+		});
+		this._clientsByToken.set(githubToken, pending);
+		return pending.then(entry => entry.capiClient);
 	}
 
-	private _invalidateCachedToken(githubToken: string): void {
-		if (this._cachedToken?.githubToken === githubToken) {
-			this._cachedToken = null;
-		}
+	private _invalidateClientForToken(githubToken: string): void {
+		this._clientsByToken.delete(githubToken);
 	}
 
-	private async _mintToken(githubToken: string, capiClient: CAPIClient, tokenUrl: string): Promise<string> {
-		this._logService.debug('[CopilotApiService] Minting new Copilot token');
+	private async _buildClientForToken(githubToken: string): Promise<ICachedClient> {
+		const { extensionInfo, userUrl } = await this._getCapiBase();
+		const fetch = this._fetch;
+		const capiClient = new CAPIClient(extensionInfo, undefined, {
+			fetch: (url, options) => fetch(url, {
+				method: options.method ?? 'GET',
+				headers: options.headers,
+				body: options.body,
+				signal: options.signal as AbortSignal | undefined,
+			}),
+		});
 
-		const response = await this._fetch(tokenUrl, {
+		this._logService.debug('[CopilotApiService] Discovering CAPI endpoints via /copilot_internal/user');
+
+		const response = await this._fetch(userUrl, {
 			method: 'GET',
 			headers: {
-				'Authorization': `token ${githubToken}`,
-				'X-GitHub-Api-Version': TOKEN_API_VERSION,
+				'Authorization': `Bearer ${githubToken}`,
+				'Accept': 'application/json',
+				'X-GitHub-Api-Version': USER_API_VERSION,
 			},
 		});
 
 		if (!response.ok) {
 			const text = await response.text().catch(() => '');
-			throw new Error(`Copilot token minting failed: ${response.status} ${response.statusText} — ${text}`);
+			throw new Error(`Copilot endpoint discovery failed: ${response.status} ${response.statusText} — ${text}`);
 		}
 
-		const envelope: ICopilotTokenEnvelope = await response.json();
+		const envelope: ICopilotUserResponse = await response.json();
 
 		capiClient.updateDomains(
-			{ endpoints: envelope.endpoints ?? {}, sku: envelope.sku ?? '' },
+			{ endpoints: envelope.endpoints ?? {}, sku: envelope.access_type_sku ?? '' },
 			undefined,
 		);
 
-		// Prefer `refresh_in` over `expires_at` so clients with skewed clocks
-		// don't end up re-minting on every request. Mirrors the behavior in
-		// extensions/copilot/.../copilotTokenManager.ts.
-		const nowSeconds = Date.now() / 1000;
-		const expiresAt = typeof envelope.refresh_in === 'number'
-			? nowSeconds + envelope.refresh_in + TOKEN_REFRESH_BUFFER_SECONDS
-			: envelope.expires_at;
+		this._logService.debug('[CopilotApiService] CAPI endpoint discovered, api=', envelope.endpoints?.api);
 
-		this._cachedToken = {
-			githubToken,
-			copilotToken: envelope.token,
-			expiresAt,
+		return {
+			capiClient,
+			expiresAt: Date.now() / 1000 + CAPI_CONTEXT_TTL_SECONDS,
 		};
-
-		this._logService.debug('[CopilotApiService] Token minted, cacheValidUntil:', expiresAt, 'serverExpiresAt:', envelope.expires_at);
-
-		return envelope.token;
 	}
 
 	// #endregion

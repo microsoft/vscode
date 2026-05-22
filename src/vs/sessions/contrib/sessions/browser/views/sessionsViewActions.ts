@@ -353,9 +353,12 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		sessionsManagementService.openNewSessionView();
 		const view = await viewsService.openView<NewChatViewPane>(NewChatViewId, true);
-		const workspace = context.sessions[0].workspace.get();
-		if (view && workspace) {
-			view.selectWorkspace({ providerId: context.sessions[0].providerId, workspace });
+		const session = context.sessions[0];
+		const workspace = session.workspace.get();
+		const folderUri = workspace?.folders[0]?.root;
+		const providerId = session.providerId;
+		if (view && folderUri) {
+			view.selectWorkspace(folderUri, providerId);
 		}
 		// On mobile web, the sidebar drawer covers the viewport; close it so
 		// the new session view becomes visible after creation. Routes through
@@ -389,7 +392,7 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 		super({
 			id: 'sessionsView.sectionArchive',
 			title: localize2('archiveSection', "Mark All as Done"),
-			icon: Codicon.check,
+			icon: Codicon.checkAll,
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
@@ -669,7 +672,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 		if (newTitle) {
 			const trimmedTitle = newTitle.trim();
 			if (trimmedTitle) {
-				await sessionsManagementService.renameChat(session, session.mainChat.resource, trimmedTitle);
+				await sessionsManagementService.renameChat(session, session.mainChat.get().resource, trimmedTitle);
 			}
 		}
 	}
@@ -893,6 +896,6 @@ registerAction2(class AddChatAction extends Action2 {
 			return;
 		}
 
-		sessionsManagementService.openNewChatInSession(activeSession);
+		await sessionsManagementService.openNewChatInSession(activeSession);
 	}
 });

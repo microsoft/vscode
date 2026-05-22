@@ -1131,6 +1131,7 @@ export class ChatMcpServersStarting implements IChatMcpServersStarting {
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
+	| IChatUsage
 	| IChatTreeData
 	| IChatMultiDiffData
 	| IChatMultiDiffDataSerialized

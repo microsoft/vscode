@@ -15,7 +15,6 @@ import { StateComponents } from '../../../../../../platform/agentHost/common/sta
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import type { IChatWidget } from '../../chat.js';
-import type { IChatInputPickerOptions } from '../../widget/input/chatInputPickerActionItem.js';
 import { AgentHostChatInputPicker, isClaimedByDedicatedPicker } from './agentHostChatInputPicker.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
@@ -66,7 +65,6 @@ export class AgentHostGenericConfigChips extends Disposable {
 
 	constructor(
 		private readonly _widget: IChatWidget,
-		private readonly _pickerOptions: IChatInputPickerOptions | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
@@ -162,14 +160,15 @@ export class AgentHostGenericConfigChips extends Disposable {
 	}
 
 	private _readSchemaProperties(): readonly [string, SessionConfigPropertySchema][] | undefined {
+		const sessionResource = this._widget.viewModel?.sessionResource;
 		if (this._subRef.value) {
 			const state = this._subRef.value.sub.value;
 			if (!state || state instanceof Error || !state.config) {
 				return undefined;
 			}
-			return Object.entries(state.config.schema.properties);
+			const overlay = sessionResource ? this._provisional.getResolvedConfig(sessionResource) : undefined;
+			return Object.entries((overlay?.schema ?? state.config.schema).properties);
 		}
-		const sessionResource = this._widget.viewModel?.sessionResource;
 		if (this._initialResolved && sessionResource && this._initialResolved.sessionResource.toString() === sessionResource.toString()) {
 			return Object.entries(this._initialResolved.result.schema.properties);
 		}
@@ -204,7 +203,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 			if (this._chips.has(property)) {
 				continue;
 			}
-			const chip = this._instantiationService.createInstance(AgentHostChatInputPicker, this._widget, property, this._pickerOptions);
+			const chip = this._instantiationService.createInstance(AgentHostChatInputPicker, this._widget, property);
 			// `chat-input-picker-item` matches the class that
 			// `ChatInputPickerActionViewItem` applies to the dedicated
 			// chips' container — required so the secondary-toolbar styling

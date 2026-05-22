@@ -1708,6 +1708,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.parent,				// in that case the workbench will span the entire site
 				this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? DEFAULT_EMPTY_WINDOW_DIMENSIONS : DEFAULT_WORKSPACE_WINDOW_DIMENSIONS // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 			);
+
 			this.logService.trace(`Layout#layout, height: ${this._mainContainerDimension.height}, width: ${this._mainContainerDimension.width}`);
 
 			size(this.mainContainer, this._mainContainerDimension.width, this._mainContainerDimension.height);
