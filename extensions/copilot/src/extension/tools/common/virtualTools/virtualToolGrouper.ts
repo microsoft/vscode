@@ -86,6 +86,7 @@ export class VirtualToolGrouper implements IToolCategorization {
 
 		const predictedToolsSw = new StopWatch();
 		const predictedToolsPromise = this._getPredictedTools(query, tools, token).then(tools => ({ tools, durationMs: predictedToolsSw.elapsed() }));
+		predictedToolsPromise.catch(() => { }); // prevent unhandled rejection; error is handled in _addEmbeddingMatchedTools
 
 		// Separate builtin tools from extension/MCP tools
 		const builtinTools = byToolset[BuiltInToolGroupHandler.BUILT_IN_GROUP_KEY] || [];
