@@ -169,7 +169,7 @@ export class MockAgent implements IAgent {
 		return this.customizations;
 	}
 
-	async setClientCustomizations(clientId: string, customizations: CustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
+	async setClientCustomizations(session: URI, clientId: string, customizations: CustomizationRef[]): Promise<ISyncedCustomization[]> {
 		this.setClientCustomizationsCalls.push({ clientId, customizations });
 		const results: ISyncedCustomization[] = customizations.map(c => ({
 			customization: {
@@ -178,7 +178,14 @@ export class MockAgent implements IAgent {
 				status: CustomizationStatus.Loaded,
 			},
 		}));
-		progress?.(results);
+		this._onDidSessionProgress.fire({
+			kind: 'action',
+			session,
+			action: {
+				type: ActionType.SessionCustomizationsChanged,
+				customizations: results.map(result => result.customization),
+			},
+		});
 		return results;
 	}
 
@@ -502,7 +509,6 @@ export class ScriptedMockAgent implements IAgent {
 					initialReasoning,
 					_action(session, {
 						type: ActionType.SessionReasoning,
-						session: sessionStr,
 						turnId: tid,
 						partId,
 						content: ' about this...',
@@ -544,7 +550,6 @@ export class ScriptedMockAgent implements IAgent {
 					// Client tools don't get auto-ready — toolStart with toolClientId only emits tool_start
 					this._onDidSessionProgress.fire(_action(session, {
 						type: ActionType.SessionToolCallStart,
-						session: sessionStr,
 						turnId: tid,
 						toolCallId: 'tc-client-1',
 						toolName: 'runTests',
@@ -571,7 +576,6 @@ export class ScriptedMockAgent implements IAgent {
 					await timeout(10);
 					this._onDidSessionProgress.fire(_action(session, {
 						type: ActionType.SessionToolCallStart,
-						session: sessionStr,
 						turnId: tid,
 						toolCallId: 'tc-client-perm-1',
 						toolName: 'runTests',
@@ -775,7 +779,6 @@ function _action(session: URI, action: import('../../common/state/sessionActions
 function _markdown(session: URI, sessionStr: string, turnId: string, content: string, parentToolCallId?: string): IAgentActionSignal {
 	return _action(session, {
 		type: ActionType.SessionResponsePart,
-		session: sessionStr,
 		turnId,
 		part: { kind: ResponsePartKind.Markdown, id: `mock-md-${++_mockPartIdCounter}`, content },
 	}, parentToolCallId);
@@ -785,7 +788,6 @@ function _markdown(session: URI, sessionStr: string, turnId: string, content: st
 function _reasoning(session: URI, sessionStr: string, turnId: string, content: string): IAgentActionSignal {
 	return _action(session, {
 		type: ActionType.SessionResponsePart,
-		session: sessionStr,
 		turnId,
 		part: { kind: ResponsePartKind.Reasoning, id: `mock-rs-${++_mockPartIdCounter}`, content },
 	});
@@ -793,22 +795,22 @@ function _reasoning(session: URI, sessionStr: string, turnId: string, content: s
 
 /** Creates a {@link ActionType.SessionTurnComplete} signal. */
 function _idle(session: URI, sessionStr: string, turnId: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.SessionTurnComplete, session: sessionStr, turnId });
+	return _action(session, { type: ActionType.SessionTurnComplete, turnId });
 }
 
 /** Creates a {@link ActionType.SessionError} signal. */
 function _error(session: URI, sessionStr: string, turnId: string, errorType: string, message: string, stack?: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.SessionError, session: sessionStr, turnId, error: { errorType, message, stack } });
+	return _action(session, { type: ActionType.SessionError, turnId, error: { errorType, message, stack } });
 }
 
 /** Creates a {@link ActionType.SessionTitleChanged} signal. */
 function _titleChanged(session: URI, sessionStr: string, title: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.SessionTitleChanged, session: sessionStr, title });
+	return _action(session, { type: ActionType.SessionTitleChanged, title });
 }
 
 /** Creates a {@link ActionType.SessionUsage} signal. */
 function _usage(session: URI, sessionStr: string, turnId: string, usage: UsageInfo): IAgentActionSignal {
-	return _action(session, { type: ActionType.SessionUsage, session: sessionStr, turnId, usage });
+	return _action(session, { type: ActionType.SessionUsage, turnId, usage });
 }
 
 /**
@@ -835,7 +837,6 @@ function _toolStart(session: URI, sessionStr: string, turnId: string, toolCallId
 	}
 	const signals: IAgentActionSignal[] = [_action(session, {
 		type: ActionType.SessionToolCallStart,
-		session: sessionStr,
 		turnId,
 		toolCallId,
 		toolName,
@@ -846,7 +847,6 @@ function _toolStart(session: URI, sessionStr: string, turnId: string, toolCallId
 	if (!opts?.toolClientId) {
 		signals.push(_action(session, {
 			type: ActionType.SessionToolCallReady,
-			session: sessionStr,
 			turnId,
 			toolCallId,
 			invocationMessage,
@@ -859,7 +859,7 @@ function _toolStart(session: URI, sessionStr: string, turnId: string, toolCallId
 
 /** Creates a {@link ActionType.SessionToolCallComplete} signal. */
 function _toolComplete(session: URI, sessionStr: string, turnId: string, toolCallId: string, result: ToolCallResult, parentToolCallId?: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.SessionToolCallComplete, session: sessionStr, turnId, toolCallId, result }, parentToolCallId);
+	return _action(session, { type: ActionType.SessionToolCallComplete, turnId, toolCallId, result }, parentToolCallId);
 }
 
 /** Creates a {@link IAgentToolPendingConfirmationSignal}. */

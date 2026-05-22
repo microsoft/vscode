@@ -5,7 +5,6 @@
 
 import { PromptElement, PromptElementProps, PromptPiece, PromptSizing } from '@vscode/prompt-tsx';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
-import { isHiddenModelG } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../../platform/networking/common/anthropic';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { IToolDeferralService } from '../../../../platform/networking/common/toolDeferralService';
@@ -625,19 +624,22 @@ class AnthropicPromptResolver implements IAgentPrompt {
 	) { }
 
 	private isSonnet4(endpoint: IChatEndpoint): boolean {
-		return endpoint.model === 'claude-sonnet-4' || endpoint.model === 'claude-sonnet-4-20250514';
+		return endpoint.model === 'claude-sonnet-4' || endpoint.model === 'claude-sonnet-4-20250514'
+			|| endpoint.family === 'claude-sonnet-4';
 	}
 
 	private isClaude45(endpoint: IChatEndpoint): boolean {
-		return endpoint.model.includes('4-5') || endpoint.model.includes('4.5');
+		return endpoint.model.includes('4-5') || endpoint.model.includes('4.5')
+			|| endpoint.family.includes('4-5') || endpoint.family.includes('4.5');
 	}
 
 	private isOpus(endpoint: IChatEndpoint): boolean {
-		return endpoint.model.startsWith('claude-opus');
+		return endpoint.model.startsWith('claude-opus') || endpoint.family.startsWith('claude-opus');
 	}
 
 	private isOpus47(endpoint: IChatEndpoint): boolean {
-		return endpoint.model.startsWith('claude-opus-4-7') || endpoint.model.startsWith('claude-opus-4.7');
+		return endpoint.model.startsWith('claude-opus-4-7') || endpoint.model.startsWith('claude-opus-4.7')
+			|| endpoint.family.startsWith('claude-opus-4-7') || endpoint.family.startsWith('claude-opus-4.7');
 	}
 
 	resolveSystemPrompt(endpoint: IChatEndpoint): SystemPrompt | undefined {
@@ -693,21 +695,3 @@ class AnthropicReminderInstructions extends PromptElement<ReminderInstructionsPr
 }
 
 PromptRegistry.registerPrompt(AnthropicPromptResolver);
-
-class HiddenModelGPromptResolver implements IAgentPrompt {
-	static readonly familyPrefixes: readonly string[] = [];
-
-	static matchesModel(endpoint: IChatEndpoint): boolean {
-		return isHiddenModelG(endpoint);
-	}
-
-	resolveSystemPrompt(_endpoint: IChatEndpoint): SystemPrompt | undefined {
-		return Claude46OpusPrompt;
-	}
-
-	resolveReminderInstructions(_endpoint: IChatEndpoint): ReminderInstructionsConstructor | undefined {
-		return AnthropicReminderInstructionsOptimized;
-	}
-}
-
-PromptRegistry.registerPrompt(HiddenModelGPromptResolver);

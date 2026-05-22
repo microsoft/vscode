@@ -42,6 +42,10 @@ class MockProtocolClient extends Disposable {
 	readonly onDidAction = Event.None;
 	readonly onDidNotification = Event.None;
 	readonly onDidChangeConnectionState = Event.None;
+	readonly onDidReceiveOtlpLogs = Event.None;
+	readonly connectionState = 'connecting' as const;
+	readonly initializeResult = undefined;
+	readonly telemetryCapabilities = undefined;
 
 	public connectDeferred = new DeferredPromise<void>();
 
@@ -157,10 +161,10 @@ suite('RemoteAgentHostService', () => {
 		} as Partial<ILabelService>);
 
 		// Mock the instantiation service to capture created protocol clients.
-		// `_connectTo` calls `createInstance` for both `WebSocketClientTransport` and
-		// `RemoteAgentHostProtocolClient`. We only care about tracking the protocol
-		// client; for the transport we return a no-op disposable so the test can
-		// continue to assert on `createdClients.length`.
+		// `_connectTo` calls `createInstance` for `WebSocketClientTransport`
+		// and `RemoteAgentHostProtocolClient`. We only care about tracking
+		// the protocol client; for the transport we return a no-op
+		// disposable so the test can keep asserting on `createdClients.length`.
 		const mockInstantiationService: Partial<IInstantiationService> = {
 			createInstance: (ctor: unknown, ...args: unknown[]) => {
 				const ctorName = (ctor as { name?: string }).name;

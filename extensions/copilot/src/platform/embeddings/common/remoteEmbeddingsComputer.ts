@@ -64,6 +64,10 @@ export class RemoteEmbeddingsComputer implements IEmbeddingsComputer {
 		});
 		try {
 			return await logExecTime(this._logService, 'RemoteEmbeddingsComputer::computeEmbeddings', async () => {
+				// The remote embeddings endpoint requires GitHub authentication.
+				if (!this._authService.anyGitHubSession) {
+					return { type: embeddingType, values: [] };
+				}
 
 				// Determine endpoint type: use CAPI for no-auth users, otherwise use GitHub
 				const copilotToken = await this._authService.getCopilotToken();

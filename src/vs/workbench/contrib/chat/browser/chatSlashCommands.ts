@@ -31,6 +31,8 @@ import { IChatWidgetService } from './chat.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from './aiCustomization/aiCustomizationManagement.js';
+import { getChatSessionType } from '../common/model/chatUri.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
 
@@ -66,9 +68,13 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			sessionTypes: [SessionType.Local],
-		}, async () => {
-			await instantiationService.invokeFunction(showConfigureHooksQuickPick);
+			sessionTypes: [SessionType.Local, SessionType.AgentHostCopilot],
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			if (getChatSessionType(sessionResource) === SessionType.AgentHostCopilot) {
+				await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Hooks);
+			} else {
+				await instantiationService.invokeFunction(showConfigureHooksQuickPick);
+			}
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'models',
@@ -77,7 +83,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-		}, async () => {
+		}, async (_promp) => {
 			await commandService.executeCommand(OpenModelPickerAction.ID);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
@@ -121,9 +127,13 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			sessionTypes: [SessionType.Local],
-		}, async () => {
-			await commandService.executeCommand(OpenModePickerAction.ID);
+			sessionTypes: [SessionType.Local, SessionType.AgentHostCopilot],
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			if (getChatSessionType(sessionResource) === SessionType.AgentHostCopilot) {
+				await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Agents);
+			} else {
+				await commandService.executeCommand(OpenModePickerAction.ID);
+			}
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'skills',
@@ -132,9 +142,13 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			sessionTypes: [SessionType.Local],
-		}, async () => {
-			await commandService.executeCommand(CONFIGURE_SKILLS_ACTION_ID);
+			sessionTypes: [SessionType.Local, SessionType.AgentHostCopilot],
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			if (getChatSessionType(sessionResource) === SessionType.AgentHostCopilot) {
+				await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Skills);
+			} else {
+				await commandService.executeCommand(CONFIGURE_SKILLS_ACTION_ID);
+			}
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'instructions',
@@ -143,9 +157,13 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			sessionTypes: [SessionType.Local],
-		}, async () => {
-			await commandService.executeCommand(CONFIGURE_INSTRUCTIONS_ACTION_ID);
+			sessionTypes: [SessionType.Local, SessionType.AgentHostCopilot],
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			if (getChatSessionType(sessionResource) === SessionType.AgentHostCopilot) {
+				await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Instructions);
+			} else {
+				await commandService.executeCommand(CONFIGURE_INSTRUCTIONS_ACTION_ID);
+			}
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'prompts',
@@ -154,9 +172,13 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			sessionTypes: [SessionType.Local],
-		}, async () => {
-			await commandService.executeCommand(CONFIGURE_PROMPTS_ACTION_ID);
+			sessionTypes: [SessionType.Local, SessionType.AgentHostCopilot],
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			if (getChatSessionType(sessionResource) === SessionType.AgentHostCopilot) {
+				await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Prompts);
+			} else {
+				await commandService.executeCommand(CONFIGURE_PROMPTS_ACTION_ID);
+			}
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'fork',

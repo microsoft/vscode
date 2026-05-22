@@ -73,6 +73,8 @@ function estimateEventSize(event: SessionEvent, limit: number): number {
 export interface SessionTranslationState {
 	/** Whether session.start has been emitted. */
 	started: boolean;
+	/** Whether session.title_changed has been emitted. */
+	titleEmitted: boolean;
 	/** ID of the last event emitted (for parentId chaining). */
 	lastEventId: string | null;
 	/** Number of events dropped due to size gate. */
@@ -83,7 +85,24 @@ export interface SessionTranslationState {
  * Create a fresh translation state for a new session.
  */
 export function createSessionTranslationState(): SessionTranslationState {
-	return { started: false, lastEventId: null, droppedCount: 0 };
+	return { started: false, titleEmitted: false, lastEventId: null, droppedCount: 0 };
+}
+
+/** Maximum length for a session title derived from a user message. */
+const MAX_TITLE_LENGTH = 60;
+
+/**
+ * Derive a session display title from a user message. Matches the label format
+ * used by the `Delete Cloud Session Data` quick pick so the local UI and the
+ * cloud-side title stay in sync.
+ */
+export function deriveTitleFromUserMessage(content: string): string | undefined {
+	if (!content) {
+		return undefined;
+	}
+	return content.length > MAX_TITLE_LENGTH
+		? content.substring(0, MAX_TITLE_LENGTH) + '...'
+		: content;
 }
 
 /**
@@ -140,10 +159,23 @@ export function translateSpan(
 		// invocation, not a real user turn. The CLI explicitly does NOT bridge
 		// user.message events from sub-agents to the parent session.
 		if (userRequest && !subagentId) {
+			const beforeLen = events.length;
 			pushEvent(events, state, 'user.message', {
 				content: userRequest,
 				agentMode: 'interactive',
 			});
+
+			// Emit session.title_changed (ephemeral) once, derived from the first
+			// user message — mirrors CLI behavior so the cloud shows a meaningful
+			// session title instead of a generic placeholder. Skip when user.message
+			// was dropped by the size gate.
+			if (!state.titleEmitted && events.length > beforeLen) {
+				const title = deriveTitleFromUserMessage(userRequest);
+				if (title) {
+					state.titleEmitted = true;
+					pushEvent(events, state, 'session.title_changed', { title }, /*ephemeral*/ true);
+				}
+			}
 		}
 
 		// Extract assistant response + tool requests
@@ -188,6 +220,36 @@ export function translateSpan(
 					code: 'failure',
 				} : undefined,
 			}, /*ephemeral*/ false, subagentId);
+		}
+	}
+
+	if (operationName === GenAiOperationName.CHAT) {
+		const inputTokens = span.attributes[GenAiAttr.USAGE_INPUT_TOKENS] as number | undefined;
+		const outputTokens = span.attributes[GenAiAttr.USAGE_OUTPUT_TOKENS] as number | undefined;
+		const model = (span.attributes[GenAiAttr.RESPONSE_MODEL] as string | undefined)
+			?? (span.attributes[GenAiAttr.REQUEST_MODEL] as string | undefined);
+
+		if (typeof inputTokens === 'number' && typeof outputTokens === 'number') {
+			const data: Record<string, unknown> = {
+				model: model ?? 'unknown',
+				inputTokens,
+				outputTokens,
+			};
+
+			// Optional fields — include when available
+			const cacheReadTokens = span.attributes[GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS] as number | undefined;
+			if (typeof cacheReadTokens === 'number') {
+				data.cacheReadTokens = cacheReadTokens;
+			}
+			const timeToFirstToken = span.attributes[CopilotChatAttr.TIME_TO_FIRST_TOKEN] as number | undefined;
+			if (typeof timeToFirstToken === 'number') {
+				data.timeToFirstTokenMs = timeToFirstToken;
+			}
+			if (span.endTime > span.startTime) {
+				data.duration = span.endTime - span.startTime;
+			}
+
+			pushEvent(events, state, 'assistant.usage', data, /*ephemeral*/ true, subagentId);
 		}
 	}
 
@@ -256,12 +318,21 @@ export function translateDebugLogEntry(
 					? entry.attrs.userRequest
 					: undefined;
 			if (content) {
+				const beforeLen = events.length;
 				// See translateSpan: do not set `source`, or the cloud renderer
 				// will treat the message as synthetic and hide it.
 				pushEventAt(events, state, ts, 'user.message', {
 					content,
 					agentMode: 'interactive',
 				});
+
+				if (!state.titleEmitted && events.length > beforeLen) {
+					const title = deriveTitleFromUserMessage(content);
+					if (title) {
+						state.titleEmitted = true;
+						pushEventAt(events, state, ts, 'session.title_changed', { title }, /*ephemeral*/ true);
+					}
+				}
 			}
 			break;
 		}
@@ -298,6 +369,31 @@ export function translateDebugLogEntry(
 						code: 'failure',
 					} : undefined,
 				});
+			}
+			break;
+		}
+
+		case 'llm_request': {
+			const inputTokens = entry.attrs.inputTokens;
+			const outputTokens = entry.attrs.outputTokens;
+			if (typeof inputTokens === 'number' && typeof outputTokens === 'number') {
+				const data: Record<string, unknown> = {
+					model: typeof entry.attrs.model === 'string' ? entry.attrs.model : 'unknown',
+					inputTokens,
+					outputTokens,
+				};
+				const cacheReadTokens = entry.attrs.cacheReadTokens ?? entry.attrs.cachedTokens;
+				if (typeof cacheReadTokens === 'number') {
+					data.cacheReadTokens = cacheReadTokens;
+				}
+				const ttft = entry.attrs.ttft;
+				if (typeof ttft === 'number') {
+					data.timeToFirstTokenMs = ttft;
+				}
+				if (typeof entry.dur === 'number' && entry.dur > 0) {
+					data.duration = entry.dur;
+				}
+				pushEventAt(events, state, ts, 'assistant.usage', data, /*ephemeral*/ true);
 			}
 			break;
 		}

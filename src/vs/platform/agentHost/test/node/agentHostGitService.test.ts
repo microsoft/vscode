@@ -222,6 +222,48 @@ suite('AgentHostGitService', () => {
 		test('returns empty for empty input', () => {
 			assert.deepStrictEqual(parseGitDiffRawNumstat('', root, sessionUri, sha), []);
 		});
+
+		test('anchors after side to afterRef when provided (ref->ref diffs)', () => {
+			// In a checkpoint / ref->ref diff, both the before and the after
+			// content must be anchored to commits — never to the working
+			// tree. With `afterRef` set, both `after.uri` and
+			// `after.content.uri` are `git-blob:` URIs so the diff reflects
+			// the state at that commit even if the working tree diverges
+			// (e.g. file renamed, deleted, or modified on disk since).
+			const toSha = 'beef5678beef5678beef5678beef5678beef5678';
+			const segments: string[] = [
+				':100644 100644 0000000 1111111 M', 'modified.ts',
+				':000000 100644 0000000 2222222 A', 'added.ts',
+				':100644 000000 3333333 0000000 D', 'deleted.ts',
+				':100644 100644 4444444 5555555 R100', 'old/path.ts', 'new/path.ts',
+				'5\t2\tmodified.ts',
+				'10\t0\tadded.ts',
+				'0\t7\tdeleted.ts',
+				'3\t3\t', 'old/path.ts', 'new/path.ts',
+				'',
+			];
+			const diffs = parseGitDiffRawNumstat(segments.join('\x00'), root, sessionUri, sha, toSha);
+			assert.deepStrictEqual(diffs, [
+				{
+					before: { uri: 'file:///repo/modified.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'modified.ts') } },
+					after: { uri: buildGitBlobUri(sessionUri, toSha, 'modified.ts'), content: { uri: buildGitBlobUri(sessionUri, toSha, 'modified.ts') } },
+					diff: { added: 5, removed: 2 },
+				},
+				{
+					after: { uri: buildGitBlobUri(sessionUri, toSha, 'added.ts'), content: { uri: buildGitBlobUri(sessionUri, toSha, 'added.ts') } },
+					diff: { added: 10, removed: 0 },
+				},
+				{
+					before: { uri: 'file:///repo/deleted.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'deleted.ts') } },
+					diff: { added: 0, removed: 7 },
+				},
+				{
+					before: { uri: 'file:///repo/old/path.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'old/path.ts') } },
+					after: { uri: buildGitBlobUri(sessionUri, toSha, 'new/path.ts'), content: { uri: buildGitBlobUri(sessionUri, toSha, 'new/path.ts') } },
+					diff: { added: 3, removed: 3 },
+				},
+			]);
+		});
 	});
 
 	test('exports the well-known empty-tree object SHA', () => {

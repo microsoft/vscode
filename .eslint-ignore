@@ -1,4 +1,3 @@
-**/build/*/**/*.js
 **/dist/**/*
 **/extensions/**/*.d.ts
 **/extensions/**/build/**

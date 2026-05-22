@@ -79,7 +79,7 @@ The **active session is always visible** even if it would be excluded by filters
 
 ### Find
 
-A built-in find widget filters the list by session title and section label. When active, it bypasses workspace group capping so all matching sessions are visible.
+A built-in find widget filters the list by session title and section label. When a search pattern is entered, it bypasses workspace group capping so all matching sessions are visible. Simply opening the find widget (without typing) does not reorder the list.
 
 ### Pinning
 
