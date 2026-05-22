@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getImageDimensions } from '../../../util/common/imageUtils';
+import { getImageDimensions, getImageDimensionsFromBytes as readImageDimensionsFromBytes } from '../../../util/common/imageUtils';
 
 type ImageTelemetrySource = 'clipboard' | 'screenshot' | 'file' | 'url' | 'unknown';
 
@@ -218,11 +218,15 @@ function getImageDimensionsFromDataUrl(url: string): ImageTelemetryDimensions | 
 
 function getImageDimensionsFromBytes(data: Uint8Array | undefined, mimeType: string | undefined): ImageTelemetryDimensions | undefined {
 	const normalizedMimeType = mimeType?.toLowerCase().split(';')[0].trim();
-	if (!data || !normalizedMimeType?.startsWith('image/')) {
+	if (!data || normalizeMimeType(normalizedMimeType) === 'unknown') {
 		return undefined;
 	}
 
-	return getImageDimensionsFromDataUrl(`data:${normalizedMimeType};base64,${bytesToBase64(data)}`);
+	try {
+		return readImageDimensionsFromBytes(data, normalizedMimeType);
+	} catch {
+		return undefined;
+	}
 }
 
 function normalizeMimeType(mimeType: string | undefined): 'png' | 'jpeg' | 'gif' | 'webp' | 'unknown' {
@@ -303,15 +307,6 @@ function isArrayIndexKey(key: string): boolean {
 
 function isByteValue(value: unknown): value is number {
 	return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 255;
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-	let binary = '';
-	const chunkSize = 0x8000;
-	for (let chunkOffset = 0; chunkOffset < bytes.length; chunkOffset += chunkSize) {
-		binary += String.fromCodePoint(...bytes.subarray(chunkOffset, chunkOffset + chunkSize));
-	}
-	return btoa(binary);
 }
 
 function getByteLength(value: unknown): number | undefined {

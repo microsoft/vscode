@@ -18,6 +18,7 @@ import { IChatEndpoint } from '../../../networking/common/networking';
 import { NullRequestLogger } from '../../../requestLogger/node/nullRequestLogger';
 import { IExperimentationService, NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
+import { createPngBytes } from '../../../image/common/test/testImageData';
 import { ICAPIClientService } from '../../common/capiClient';
 import { AutomodeService } from '../automodeService';
 
@@ -27,17 +28,6 @@ function createMockHeaders(entries: Record<string, string> = {}): { get(name: st
 		lower[k.toLowerCase()] = v;
 	}
 	return { get: (name: string) => lower[name.toLowerCase()] ?? null };
-}
-
-const pngSignaturePrefix = [0x89, 0x50, 0x4E, 0x47];
-
-function createPngBytes(width: number, height: number): Uint8Array {
-	const bytes = new Uint8Array(24);
-	bytes.set(pngSignaturePrefix, 0);
-	const dataView = new DataView(bytes.buffer);
-	dataView.setUint32(16, width, false);
-	dataView.setUint32(20, height, false);
-	return bytes;
 }
 
 /**

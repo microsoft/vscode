@@ -5,21 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { getImageTelemetryEventMeasurements, getImageTelemetryMeasurementsFromMessages, getImageTelemetryMeasurementsFromReferences } from '../imageTelemetry';
-
-const pngSignaturePrefix = [0x89, 0x50, 0x4E, 0x47];
-
-function createPngBytes(width: number, height: number): Uint8Array {
-	const bytes = new Uint8Array(24);
-	bytes.set(pngSignaturePrefix, 0);
-	const dataView = new DataView(bytes.buffer);
-	dataView.setUint32(16, width, false);
-	dataView.setUint32(20, height, false);
-	return bytes;
-}
-
-function createPngDataUrl(width: number, height: number): string {
-	return `data:image/png;base64,${btoa(String.fromCodePoint(...createPngBytes(width, height)))}`;
-}
+import { createPngBytes, createPngDataUrl } from './testImageData';
 
 describe('imageTelemetry', () => {
 	it('collects MIME and byte counts from message data URLs', () => {
@@ -125,12 +111,37 @@ describe('imageTelemetry', () => {
 	});
 
 	it('does not throw when image dimensions cannot be read', () => {
-		const measurements = getImageTelemetryMeasurementsFromMessages([
+		const messageMeasurements = getImageTelemetryMeasurementsFromMessages([
 			{ content: [{ imageUrl: { url: 'data:image/png;base64,AQIDBA==' } }] }
+		]);
+		const referenceMeasurements = getImageTelemetryMeasurementsFromReferences([
+			{ id: 'bad-png', value: { mimeType: 'image/png', data: new Uint8Array(24), isPasted: true } }
+		]);
+
+		expect(messageMeasurements).toMatchObject({
+			imageCount: 1,
+			maxImageWidth: 0,
+			maxImageHeight: 0,
+			maxImagePixels: 0,
+			totalImagePixels: 0,
+		});
+		expect(referenceMeasurements).toMatchObject({
+			imageCount: 1,
+			maxImageWidth: 0,
+			maxImageHeight: 0,
+			maxImagePixels: 0,
+			totalImagePixels: 0,
+		});
+	});
+
+	it('does not collect dimensions from unsupported image reference MIME types', () => {
+		const measurements = getImageTelemetryMeasurementsFromReferences([
+			{ id: 'vector', value: { mimeType: 'image/svg+xml', data: createPngBytes(7, 11), isPasted: true } }
 		]);
 
 		expect(measurements).toMatchObject({
 			imageCount: 1,
+			imageUnknownMimeCount: 1,
 			maxImageWidth: 0,
 			maxImageHeight: 0,
 			maxImagePixels: 0,
