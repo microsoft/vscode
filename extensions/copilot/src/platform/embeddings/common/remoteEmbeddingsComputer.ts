@@ -128,7 +128,8 @@ export class RemoteEmbeddingsComputer implements IEmbeddingsComputer {
 							batchInputLength: batch.length,
 							statusCode: response.status,
 						});
-						throw new Error(`Error fetching embeddings: ${response.status}`);
+						this._logService.warn(`Error fetching embeddings: ${response.status}`);
+						return { type: embeddingType, values: embeddingsOut };
 					}
 
 					type EmbeddingResponse = {
