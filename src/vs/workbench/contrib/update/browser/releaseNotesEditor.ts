@@ -91,11 +91,12 @@ export class ReleaseNotesManager extends Disposable {
 	}
 
 	public async show(version: string, useCurrentFile: boolean): Promise<boolean> {
-		const releaseNoteText = await this.loadReleaseNotes(version, useCurrentFile);
+		const gitVersion = this._productService.gitVersion ?? version;
+		const releaseNoteText = await this.loadReleaseNotes(gitVersion, useCurrentFile);
 		const base = await this.getBase(useCurrentFile);
 		this._lastMeta = { text: releaseNoteText, base };
 		const html = await this.renderBody(this._lastMeta);
-		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", version);
+		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", gitVersion);
 
 		const activeEditorPane = this._editorService.activeEditorPane;
 		if (this._currentReleaseNotes) {

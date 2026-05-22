@@ -16,7 +16,7 @@ import { ITsCodeAuthService, ITsCodeTokenStore } from '../common/tsCodeAuth.js';
 
 export class TsCodeOAuthProvider extends Disposable implements IAuthenticationProvider {
 	readonly id = 'tscode-oauth';
-	readonly label = 'TSCode';
+	readonly label = 'TestAgent';
 	readonly supportsMultipleAccounts = false;
 
 	private readonly _onDidChangeSessions = this._register(new Emitter<AuthenticationSessionsChangeEvent>());
