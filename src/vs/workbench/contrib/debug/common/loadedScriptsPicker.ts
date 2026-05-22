@@ -8,7 +8,7 @@ import { Source } from './debugSource.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IDebugService, IDebugSession } from './debug.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../../editor/common/services/getFileIconInfo.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -96,7 +96,7 @@ function _createPick(source: Source, filter: string, editorService: IEditorServi
 			label,
 			description: desc === '.' ? undefined : desc,
 			highlights: { label: labelHighlights ?? undefined, description: descHighlights ?? undefined },
-			iconClasses: getIconClasses(modelService, languageService, source.uri),
+			iconClasses: getFileIconInfo(modelService, languageService, source.uri).classes,
 			accept: () => {
 				if (source.available) {
 					source.openInEditor(editorService, { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 });

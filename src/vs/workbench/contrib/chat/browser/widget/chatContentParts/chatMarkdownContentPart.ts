@@ -28,7 +28,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type SymbolTag } from '../../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
-import { getIconClasses } from '../../../../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../../../../editor/common/services/getFileIconInfo.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { EditDeltaInfo } from '../../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../../nls.js';
@@ -998,7 +998,7 @@ export class CollapsedCodeBlock extends Disposable {
 				statusIconEl.classList.add(...statusIconClasses);
 				statusLabelEl.textContent = localize('chat.codeblock.edited', 'Edited');
 				const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
-				pillIconClasses = getIconClasses(this.modelService, this.languageService, uri, fileKind);
+				pillIconClasses = getFileIconInfo(this.modelService, this.languageService, uri, fileKind).classes;
 				iconEl.classList.add(...pillIconClasses);
 				this.pillElement.classList.remove('progress-filling');
 				progressFill.style.width = '0%';

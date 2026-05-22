@@ -29,7 +29,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../../editor/common/services/getFileIconInfo.js';
 import { basename } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../workbench/browser/labels.js';
@@ -430,7 +430,7 @@ export class NewChatContextAttachments extends Disposable {
 			return searchResult.results.map(result => ({
 				label: basename(result.resource),
 				description: this.labelService.getUriLabel(result.resource, { relative: true }),
-				iconClasses: getIconClasses(this.modelService, this.languageService, result.resource, FileKind.FILE),
+				iconClasses: getFileIconInfo(this.modelService, this.languageService, result.resource, FileKind.FILE).classes,
 				id: result.resource.toString(),
 			} satisfies IQuickPickItem));
 		} catch {
@@ -474,7 +474,7 @@ export class NewChatContextAttachments extends Disposable {
 						picks.push({
 							label: child.name,
 							description: this.labelService.getUriLabel(child.resource, { relative: true }),
-							iconClasses: getIconClasses(this.modelService, this.languageService, child.resource, FileKind.FILE),
+							iconClasses: getFileIconInfo(this.modelService, this.languageService, child.resource, FileKind.FILE).classes,
 							id: child.resource.toString(),
 						});
 					}

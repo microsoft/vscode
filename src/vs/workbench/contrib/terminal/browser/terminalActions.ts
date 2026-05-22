@@ -19,7 +19,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { EndOfLinePreference } from '../../../../editor/common/model.js';
-import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../../editor/common/services/getFileIconInfo.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
@@ -1678,7 +1678,7 @@ async function pickTerminalCwd(accessor: ServicesAccessor, cancel?: Cancellation
 			label,
 			description: description !== label ? description : undefined,
 			pair: pair,
-			iconClasses: getIconClasses(modelService, languageService, pair.cwd, FileKind.ROOT_FOLDER)
+			iconClasses: getFileIconInfo(modelService, languageService, pair.cwd, FileKind.ROOT_FOLDER).classes
 		};
 	});
 	const options: IPickOptions<Item> = {

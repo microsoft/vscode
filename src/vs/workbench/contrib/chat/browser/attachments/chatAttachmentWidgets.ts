@@ -29,7 +29,7 @@ import { LanguageFeatureRegistry } from '../../../../../editor/common/languageFe
 import { Location, SymbolKind } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
-import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../../../editor/common/services/getFileIconInfo.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
@@ -679,7 +679,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		// Derive icon classes from resourceUri for file/folder icons
 		if (isStringVariableEntry(attachment) && attachment.icon && (ThemeIcon.isFile(attachment.icon) || ThemeIcon.isFolder(attachment.icon)) && attachment.resourceUri) {
 			const fileKind = ThemeIcon.isFolder(attachment.icon) ? FileKind.FOLDER : FileKind.FILE;
-			const iconClasses = getIconClasses(this.modelService, this.languageService, attachment.resourceUri, fileKind);
+			const iconClasses = getFileIconInfo(this.modelService, this.languageService, attachment.resourceUri, fileKind).classes;
 			this.label.setLabel(attachmentLabel, correspondingContentReference?.options?.status?.description, { extraClasses: iconClasses });
 		} else {
 			const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
