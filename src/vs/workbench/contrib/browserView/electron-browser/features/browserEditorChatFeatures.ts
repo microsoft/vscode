@@ -404,6 +404,15 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 
 			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
 			widget?.attachmentModel?.addContext(...toAttach);
+
+			type IntegratedBrowserAddScreenshotToChatAddedEvent = {};
+
+			type IntegratedBrowserAddScreenshotToChatAddedClassification = {
+				owner: 'jruales';
+				comment: 'A screenshot was successfully added to chat from Integrated Browser.';
+			};
+
+			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {});
 		} catch (error) {
 			this.logService.error('BrowserEditor.addScreenshotToChat: Failed to capture screenshot', error);
 		}
