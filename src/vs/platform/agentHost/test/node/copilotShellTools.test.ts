@@ -19,9 +19,11 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { ISandboxHelperService } from '../../../sandbox/common/sandboxHelperService.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../../sandbox/common/terminalSandboxMxcRuntime.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { TerminalClaimKind, type TerminalClaim, type TerminalInfo } from '../../common/state/protocol/state.js';
 import { formatTerminalText, IAgentHostTerminalManager, type ICommandFinishedEvent, type ISendTextOptions } from '../../node/agentHostTerminalManager.js';
@@ -130,7 +132,20 @@ suite('CopilotShellTools', () => {
 		};
 	}
 
-	function createServices(options?: { sandboxEnabled?: boolean; deletedFolders?: string[] }): { instantiationService: IInstantiationService; terminalManager: TestAgentHostTerminalManager; agentConfigurationService: IFakeAgentConfigurationService } {
+	function createStubSandboxHelperService(): ISandboxHelperService {
+		// Stub used by every test that constructs a `ShellManager`. Avoids loading
+		// the real node-only `SandboxHelperService`, which dynamically imports
+		// `@microsoft/mxc-sdk` and fails to resolve in the electron renderer test
+		// runner used by `scripts/test.bat`.
+		return {
+			_serviceBrand: undefined,
+			checkSandboxDependencies: async () => undefined,
+			getWindowsMxcFilesystemPolicy: async () => ({ readonlyPaths: [], readwritePaths: [] }),
+			getWindowsMxcEnvironment: async () => [],
+		} satisfies ISandboxHelperService;
+	}
+
+	function createServices(options?: { sandboxEnabled?: boolean; deletedFolders?: string[]; createdFiles?: Map<string, string> }): { instantiationService: IInstantiationService; terminalManager: TestAgentHostTerminalManager; agentConfigurationService: IFakeAgentConfigurationService } {
 		const terminalManager = new TestAgentHostTerminalManager();
 		const initialSandboxValues: Record<string, unknown> = {};
 		if (options?.sandboxEnabled) {
@@ -147,7 +162,12 @@ suite('CopilotShellTools', () => {
 		services.set(IAgentHostTerminalManager, terminalManager);
 		services.set(IAgentConfigurationService, agentConfigurationService.service);
 		services.set(IFileService, {
-			createFile: async () => ({} as never),
+			createFile: async (uri: URI, content: VSBuffer) => {
+				if (options?.createdFiles) {
+					options.createdFiles.set(uri.path, content.toString());
+				}
+				return ({} as never);
+			},
 			createFolder: async () => ({} as never),
 			del: async (uri: URI) => { options?.deletedFolders?.push(uri.path); },
 			realpath: async () => undefined,
@@ -156,6 +176,10 @@ suite('CopilotShellTools', () => {
 			userHome: URI.file('/home/test-user'),
 		} as Partial<IEnvironmentService> & { userHome: URI } as IEnvironmentService);
 		services.set(IProductService, { dataFolderName: '.test-data' } as Partial<IProductService> as IProductService);
+		// Stub the sandbox helper so the engine never imports `@microsoft/mxc-sdk`
+		// (a node-only dynamic import that fails to resolve in the electron
+		// renderer test runner used by `scripts/test.bat` on Windows CI).
+		services.set(ISandboxHelperService, createStubSandboxHelperService());
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		services.set(IInstantiationService, instantiationService);
 		services.set(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
@@ -270,6 +294,7 @@ suite('CopilotShellTools', () => {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IAgentHostTerminalManager, terminalManager);
+		services.set(ISandboxHelperService, createStubSandboxHelperService());
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		services.set(IInstantiationService, instantiationService);
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
@@ -289,6 +314,7 @@ suite('CopilotShellTools', () => {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IAgentHostTerminalManager, terminalManager);
+		services.set(ISandboxHelperService, createStubSandboxHelperService());
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		services.set(IInstantiationService, instantiationService);
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
@@ -695,7 +721,74 @@ suite('CopilotShellTools', () => {
 		}
 	});
 
+	test('primary shell tool writes a sandbox config exposing the working directory as writable', async () => {
+		// Cross-platform smoke test: enabling the sandbox should result in a sandbox config file
+		// being written, and the session's working directory should be a writable path in that
+		// config. The JSON shape differs between POSIX (`filesystem.allowWrite`) and the Windows
+		// MXC runtime (`filesystem.readwritePaths`).
+		const createdFiles = new Map<string, string>();
+		const workingDirectory = URI.file('/workspace/test-workspace');
+		const { instantiationService, terminalManager } = createServices({ sandboxEnabled: true, createdFiles });
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), workingDirectory));
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
+		const bashTool = tools.find(tool => tool.name === 'bash');
+		assert.ok(bashTool);
+
+		const invocation: ToolInvocation = {
+			sessionId: 'session-1',
+			toolCallId: 'tool-1',
+			toolName: 'bash',
+			arguments: { command: 'echo hello', timeout: 1 },
+		};
+		await bashTool.handler({ command: 'echo hello', timeout: 1 }, invocation);
+
+		const sandboxConfigEntry = [...createdFiles.entries()].find(([path]) => /vscode-sandbox-settings-.*\.json$/.test(path));
+		assert.ok(sandboxConfigEntry, `Expected a sandbox config file to be written. Files: ${[...createdFiles.keys()].join(', ')}`);
+		const config = JSON.parse(sandboxConfigEntry[1]);
+		const writablePaths: string[] = platform.isWindows ? config.filesystem.readwritePaths : config.filesystem.allowWrite;
+		assert.ok(Array.isArray(writablePaths), `Expected writable paths array. Got: ${JSON.stringify(config.filesystem)}`);
+		const expectedPath = platform.isWindows ? '\\workspace\\test-workspace' : '/workspace/test-workspace';
+		assert.ok(writablePaths.includes(expectedPath), `Expected working directory in writable paths. Got: ${JSON.stringify(writablePaths)}`);
+	});
+
+	test('primary shell tool merges configured filesystem allowRead paths into the sandbox config', async () => {
+		// Cross-platform: pick the OS-specific filesystem setting key and verify the configured
+		// allowRead path lands in the rendered sandbox config (POSIX `filesystem.allowRead` /
+		// Windows MXC `filesystem.readonlyPaths`).
+		const createdFiles = new Map<string, string>();
+		const configuredReadPath = platform.isWindows ? 'C:\\tools\\custom' : '/tools/custom';
+		const fileSystemKey = platform.isWindows
+			? AgentHostSandboxKey.WindowsFileSystem
+			: platform.isMacintosh ? AgentHostSandboxKey.MacFileSystem : AgentHostSandboxKey.LinuxFileSystem;
+		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true, createdFiles });
+		agentConfigurationService.setSandboxValue(fileSystemKey, { allowRead: [configuredReadPath] });
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), URI.file('/workspace/test-workspace')));
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
+		const bashTool = tools.find(tool => tool.name === 'bash');
+		assert.ok(bashTool);
+
+		const invocation: ToolInvocation = {
+			sessionId: 'session-1',
+			toolCallId: 'tool-1',
+			toolName: 'bash',
+			arguments: { command: 'echo hello', timeout: 1 },
+		};
+		await bashTool.handler({ command: 'echo hello', timeout: 1 }, invocation);
+
+		const sandboxConfigEntry = [...createdFiles.entries()].find(([path]) => /vscode-sandbox-settings-.*\.json$/.test(path));
+		assert.ok(sandboxConfigEntry, `Expected a sandbox config file to be written. Files: ${[...createdFiles.keys()].join(', ')}`);
+		const config = JSON.parse(sandboxConfigEntry[1]);
+		const readablePaths: string[] = platform.isWindows ? config.filesystem.readonlyPaths : config.filesystem.allowRead;
+		assert.ok(Array.isArray(readablePaths), `Expected readable paths array. Got: ${JSON.stringify(config.filesystem)}`);
+		assert.ok(readablePaths.includes(configuredReadPath), `Expected configured read path in readable paths. Got: ${JSON.stringify(readablePaths)}`);
+	});
+
 	test('primary shell tool requests confirmation before rerunning outside the sandbox', async function () {
+		// The Windows sandbox only exposes Off/AllowNetwork — there is no "enabled but network-blocked"
+		// state, so `requiresUnsandboxConfirmation` is unreachable on Windows.
+		if (platform.isWindows) {
+			this.skip();
+		}
 		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
 		// `requiresUnsandboxConfirmation` only fires when unsandboxed commands are allowed AND a
 		// blocked domain is detected — otherwise the engine keeps the command sandboxed.
@@ -734,6 +827,11 @@ suite('CopilotShellTools', () => {
 	});
 
 	test('primary shell tool returns sandbox_blocked when user declines unsandboxed rerun', async function () {
+		// See above: the Windows sandbox never reports blocked domains, so this confirmation flow
+		// is unreachable on Windows.
+		if (platform.isWindows) {
+			this.skip();
+		}
 		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
 		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, true);
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));

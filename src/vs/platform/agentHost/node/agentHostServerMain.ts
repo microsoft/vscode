@@ -55,6 +55,8 @@ import { IDiffComputeService } from '../common/diffComputeService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { SessionDataService } from './sessionDataService.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../sandbox/common/terminalSandboxMxcRuntime.js';
+import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService.js';
+import { SandboxHelperService } from '../../sandbox/node/sandboxHelper.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { resolveServerUrls } from './serverUrls.js';
@@ -207,6 +209,7 @@ async function main(): Promise<void> {
 	diServices.set(ITelemetryService, telemetryService);
 	const instantiationService = new InstantiationService(diServices);
 	diServices.set(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
+	diServices.set(ISandboxHelperService, new SandboxHelperService());
 	const gitService = instantiationService.createInstance(AgentHostGitService);
 	diServices.set(IAgentHostGitService, gitService);
 	const checkpointService = disposables.add(instantiationService.createInstance(AgentHostCheckpointService));

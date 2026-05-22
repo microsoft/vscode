@@ -14,6 +14,7 @@ import { IEnvironmentService } from '../../../environment/common/environment.js'
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { ISandboxHelperService } from '../../../sandbox/common/sandboxHelperService.js';
 import type { ITerminalSandboxResolvedNetworkDomains } from '../../../sandbox/common/terminalSandboxService.js';
 import { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { TerminalClaimKind, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
@@ -126,6 +127,7 @@ export class ShellManager extends Disposable {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 		@IAgentConfigurationService private readonly _agentConfigurationService: IAgentConfigurationService,
+		@ISandboxHelperService private readonly _sandboxHelper: ISandboxHelperService,
 	) {
 		super();
 
@@ -170,6 +172,7 @@ export class ShellManager extends Disposable {
 				this._environmentService,
 				this._productService,
 				this._agentConfigurationService,
+				this._sandboxHelper,
 				sessionId,
 				this.workingDirectory,
 			);

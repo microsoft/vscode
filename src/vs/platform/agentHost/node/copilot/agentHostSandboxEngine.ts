@@ -11,8 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { IProductService } from '../../../product/common/productService.js';
-import type { ISandboxDependencyStatus, ISandboxHelperService } from '../../../sandbox/common/sandboxHelperService.js';
-import { SandboxHelperService } from '../../../sandbox/node/sandboxHelper.js';
+import { ISandboxHelperService, type ISandboxDependencyStatus } from '../../../sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema, sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
@@ -36,11 +35,9 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 		private readonly _environmentService: INativeEnvironmentService,
 		private readonly _productService: IProductService,
 		private readonly _agentConfigurationService: IAgentConfigurationService,
+		sandboxHelper: ISandboxHelperService,
 	) {
-		// `ISandboxHelperService` is not registered in the agent host DI container,
-		// so construct the node implementation directly. The helper just probes for
-		// bubblewrap / sandbox-exec binaries on the local machine.
-		this._sandboxHelper = new SandboxHelperService();
+		this._sandboxHelper = sandboxHelper;
 		this.onDidChangeSandboxSettings = this._agentConfigurationService.onDidRootConfigChange;
 	}
 
@@ -115,10 +112,11 @@ export function createAgentHostSandboxEngine(
 	environmentService: IEnvironmentService,
 	productService: IProductService,
 	agentConfigurationService: IAgentConfigurationService,
+	sandboxHelper: ISandboxHelperService,
 	sessionId: string,
 	workingDirectory: URI | undefined,
 ): TerminalSandboxEngine {
-	const host = new AgentHostTerminalSandboxHost(sessionId, workingDirectory, environmentService as INativeEnvironmentService, productService, agentConfigurationService);
+	const host = new AgentHostTerminalSandboxHost(sessionId, workingDirectory, environmentService as INativeEnvironmentService, productService, agentConfigurationService, sandboxHelper);
 	return instantiationService.createInstance(TerminalSandboxEngine, host);
 }
 
