@@ -7,6 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedOpts, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ChangesetStatus } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/state.js';
 import { ChangesetSummary, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ISessionChangeset, ISessionFileChange, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -22,8 +23,17 @@ export function createChangesets(
 		return constObservable([]);
 	}
 
-	return constObservable(changesets.map(
-		c => options.instantiationService.createInstance(AgentHostChangeset, resource, options, c)));
+	// First changeset with a non-template URI is the default, if any;
+	// otherwise just the first one. This should be the "Branch Changes"
+	// changeset.
+	const defaultChangeset = changesets.find(c => !c.uriTemplate.includes('{')) ?? changesets[0];
+
+	return constObservable(changesets.map(changeset => {
+		const isDefault = changeset === defaultChangeset;
+		return options.instantiationService.createInstance(AgentHostChangeset, resource, options, {
+			...changeset, isDefault
+		});
+	}));
 }
 
 export class AgentHostChangeset extends Disposable implements ISessionChangeset {
@@ -40,7 +50,7 @@ export class AgentHostChangeset extends Disposable implements ISessionChangeset 
 	constructor(
 		resource: URI,
 		options: IAgentHostAdapterOptions,
-		changesetSummary: ChangesetSummary,
+		changesetSummary: ChangesetSummary & { isDefault: boolean },
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
@@ -50,8 +60,7 @@ export class AgentHostChangeset extends Disposable implements ISessionChangeset 
 		this.description = changesetSummary.description;
 
 		this.isEnabled = constObservable(true);
-		this.isDefault = constObservable(true);
-		this.isLoadingChanges = constObservable(false);
+		this.isDefault = constObservable(changesetSummary.isDefault);
 
 		this.originalCheckpointRef = constObservable(undefined);
 		this.modifiedCheckpointRef = constObservable(undefined);
@@ -73,12 +82,20 @@ export class AgentHostChangeset extends Disposable implements ISessionChangeset 
 			return observableFromEvent(subscriptionRef.object.onDidChange, () => subscriptionRef.object.value);
 		});
 
+		this.isLoadingChanges = derived(reader => {
+			const changesetState = changesetStateObs.read(reader).read(reader);
+			if (!changesetState || changesetState instanceof Error) {
+				return false;
+			}
+			return changesetState.status === ChangesetStatus.Computing;
+		});
+
 		this.changes = derivedOpts({ equalsFn: sessionFileChangesEqual }, reader => {
 			const changesetState = changesetStateObs.read(reader).read(reader);
 			if (!changesetState || changesetState instanceof Error) {
 				return [];
 			}
-			if (changesetState.status !== 'ready') {
+			if (changesetState.status !== ChangesetStatus.Ready) {
 				return [];
 			}
 

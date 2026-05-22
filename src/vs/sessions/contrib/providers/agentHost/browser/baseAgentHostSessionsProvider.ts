@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedOpts, IObservable, ISettableObservable, observableFromPromise, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, observableFromPromise, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -21,7 +21,7 @@ import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../plat
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentSelection, CustomizationAgentRef, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary, type ChangesetSummary } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChangesetState, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -39,9 +39,10 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
 import { computePullRequestIcon } from '../../../github/common/types.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
-import { mapProtocolStatus } from './agentHostDiffs.js';
+import { changesetFilesToChanges, mapProtocolStatus } from './agentHostDiffs.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { createChangesets } from './agentHostSessionChangesets.js';
+import { buildSessionChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
 
 // ============================================================================
 // AgentHostSessionAdapter — shared adapter for local and remote sessions
@@ -347,7 +348,7 @@ export class AgentHostSessionAdapter implements ISession {
 
 			// `metadata.changesets` (catalogue) drives the chip aggregate.
 			// The dropdown content is built separately via `createChangesets`.
-			if (metadata.changesets !== undefined) {
+			if (metadata.changesets !== undefined && !this._branchChangesPopulated) {
 				const nextChanges = synthesizeChangesFromCatalogue(metadata.changesets, this.resource);
 				if (!sessionFileChangesEqual(this.changes.get(), nextChanges)) {
 					this.changes.set(nextChanges, tx);
@@ -402,12 +403,39 @@ export class AgentHostSessionAdapter implements ISession {
 	 * synthesized {@link changes} value actually changed.
 	 */
 	applyCatalogueCounts(catalogue: readonly ChangesetSummary[] | undefined): boolean {
+		if (this._branchChangesPopulated) {
+			return false;
+		}
 		const next = synthesizeChangesFromCatalogue(catalogue, this.resource);
 		if (sessionFileChangesEqual(this.changes.get(), next)) {
 			return false;
 		}
 		this.changes.set(next, undefined);
 		return true;
+	}
+
+	/**
+	 * Once real per-file changes have been resolved by subscribing to the
+	 * session-wide changeset URI, `_branchChangesPopulated` is flipped so
+	 * the catalogue synthesizer in {@link update} / {@link applyCatalogueCounts}
+	 * stops overwriting the per-file list with its aggregate placeholder.
+	 */
+	private _branchChangesPopulated = false;
+
+	setBranchChanges(files: readonly IChatSessionFileChange2[]): void {
+		this._branchChangesPopulated = true;
+
+		const mapDiffUri = this._options.mapDiffUri;
+		const mapped = mapDiffUri ? files.map(f => ({
+			...f,
+			uri: mapDiffUri(f.uri),
+			originalUri: f.originalUri ? mapDiffUri(f.originalUri) : undefined,
+			modifiedUri: f.modifiedUri ? mapDiffUri(f.modifiedUri) : undefined,
+		})) : files;
+
+		if (!sessionFileChangesEqual(this.changes.get(), mapped)) {
+			this.changes.set(mapped, undefined);
+		}
 	}
 }
 
@@ -1004,6 +1032,47 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@ISessionsManagementService protected readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
+
+		// Subscribe to the active session's "branch changes" (session-wide)
+		// changeset URI and feed real per-file entries into the adapter's
+		// `changes` observable so the Changes view shows file URIs instead
+		// of the catalogue-synthesized aggregate placeholder.
+		const branchChangesetTarget = derived(reader => {
+			const active = this._sessionsManagementService.activeSession.read(reader);
+			if (!active || active.providerId !== this.id) {
+				return;
+			}
+			const rawId = active.resource.path.replace(/^\//, '');
+			if (!rawId) {
+				return;
+			}
+			const adapter = this._sessionCache.get(rawId);
+			if (!adapter) {
+				return;
+			}
+			const backendUri = AgentSession.uri(active.sessionType, rawId);
+			return { adapter, uri: URI.parse(buildSessionChangesetUri(backendUri.toString())) };
+		});
+
+		this._register(autorun(reader => {
+			const target = branchChangesetTarget.read(reader);
+			if (!target || !this.connection) {
+				return;
+			}
+			const ref = reader.store.add(this.connection.getSubscription(StateComponents.Changeset, target.uri));
+			const apply = (state: ChangesetState | Error | undefined) => {
+				if (!state || state instanceof Error) {
+					return;
+				}
+				if (state.status !== 'ready') {
+					return;
+				}
+				const files = changesetFilesToChanges(state.files);
+				target.adapter.setBranchChanges(files);
+			};
+			apply(ref.object.value);
+			reader.store.add(ref.object.onDidChange(s => apply(s)));
+		}));
 	}
 
 	// -- Subclass hooks -------------------------------------------------------
