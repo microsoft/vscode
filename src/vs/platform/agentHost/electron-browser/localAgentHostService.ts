@@ -16,7 +16,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
-import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
+import { AhpJsonlLogger, getAhpLogEntryByteLength } from '../common/ahpJsonlLogger.js';
 import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
@@ -148,7 +148,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			const revived = revive(e) as ActionEnvelope;
 			if (this._ahpLogger) {
 				const frame = { jsonrpc: '2.0' as const, method: 'action', params: e };
-				this._ahpLogger.log(frame, 's2c', getAhpLogByteLength(JSON.stringify(frame)));
+				this._ahpLogger.log(frame, 's2c', getAhpLogEntryByteLength(frame));
 			}
 			this._subscriptionManager.receiveEnvelope(revived);
 			this._onDidAction.fire(revived);
@@ -156,7 +156,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		store.add(this._proxy.onDidNotification(e => {
 			if (this._ahpLogger) {
 				const frame = { jsonrpc: '2.0' as const, method: 'notification', params: { notification: e } };
-				this._ahpLogger.log(frame, 's2c', getAhpLogByteLength(JSON.stringify(frame)));
+				this._ahpLogger.log(frame, 's2c', getAhpLogEntryByteLength(frame));
 			}
 			this._onDidNotification.fire(revive(e));
 		}));

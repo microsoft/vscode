@@ -126,6 +126,10 @@ export function getAhpLogByteLength(text: string): number {
 	return VSBuffer.fromString(text).byteLength;
 }
 
+export function getAhpLogEntryByteLength(value: unknown): number {
+	return getAhpLogByteLength(stringifyAhpLogEntry(value));
+}
+
 export function stringifyAhpLogEntry(value: unknown): string {
 	return JSON.stringify(value, (_key, nestedValue) => URI.isUri(nestedValue) ? nestedValue.toString() : nestedValue);
 }
