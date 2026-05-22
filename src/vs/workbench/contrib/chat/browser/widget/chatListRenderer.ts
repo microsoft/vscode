@@ -1404,15 +1404,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		let content: IChatRendererContent[] = [];
 		const explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry);
+		const explicitImageVariables = explicitFileOrImageVariables.filter(variable => variable.kind === 'image');
+		const explicitFileOrDirectoryVariables = explicitFileOrImageVariables.filter(variable => variable.kind === 'file' || variable.kind === 'directory');
 		const otherVariables = element.variables.filter(variable => !isExplicitFileOrImageVariableEntry(variable));
-		const explicitAttachmentSummary = getExplicitFileOrImageAttachmentSummary(explicitFileOrImageVariables);
-		const shouldHideAttachmentSummary = explicitAttachmentSummary !== undefined && element.messageText.trim() === explicitAttachmentSummary;
 		if (!element.confirmation) {
 			const markdown = isChatFollowup(element.message) ?
 				element.message.message :
 				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, element.message);
 			const attachmentSummary = !element.messageText.trim() && !explicitFileOrImageVariables.length ? getExplicitFileOrImageAttachmentSummary(element.variables) : undefined;
-			const requestMarkdown = shouldHideAttachmentSummary ? undefined : markdown.trim() ? markdown : attachmentSummary;
+			const requestMarkdown = markdown.trim() ? markdown : attachmentSummary;
 			if (requestMarkdown) {
 				content = [{ content: new MarkdownString(requestMarkdown), kind: 'markdownContent' }];
 			}
@@ -1428,11 +1428,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		dom.clearNode(templateData.value);
 		const parts: IChatContentPart[] = [];
-		const explicitAttachmentsPart = explicitFileOrImageVariables.length ? this.renderAttachments(explicitFileOrImageVariables, element.contentReferences, element.modelId, templateData) : undefined;
-		if (explicitAttachmentsPart?.domNode) {
-			explicitAttachmentsPart.domNode.classList.add('chat-request-attachment-cards');
-			templateData.value.appendChild(explicitAttachmentsPart.domNode);
-			templateData.elementDisposables.add(explicitAttachmentsPart);
+		const explicitImageAttachmentsPart = explicitImageVariables.length ? this.renderAttachments(explicitImageVariables, element.contentReferences, element.modelId, templateData) : undefined;
+		if (explicitImageAttachmentsPart?.domNode) {
+			explicitImageAttachmentsPart.domNode.classList.add('chat-request-attachment-cards', 'chat-request-image-attachments');
+			templateData.value.appendChild(explicitImageAttachmentsPart.domNode);
+			templateData.elementDisposables.add(explicitImageAttachmentsPart);
+		}
+		const explicitFileAttachmentsPart = explicitFileOrDirectoryVariables.length ? this.renderAttachments(explicitFileOrDirectoryVariables, element.contentReferences, element.modelId, templateData) : undefined;
+		if (explicitFileAttachmentsPart?.domNode) {
+			explicitFileAttachmentsPart.domNode.classList.add('chat-request-attachment-cards', 'chat-request-file-attachments');
+			explicitFileAttachmentsPart.domNode.style.display = 'flex';
+			explicitFileAttachmentsPart.domNode.style.flexDirection = 'column';
+			explicitFileAttachmentsPart.domNode.style.alignItems = 'flex-end';
+			explicitFileAttachmentsPart.domNode.style.flexWrap = 'nowrap';
+			templateData.value.appendChild(explicitFileAttachmentsPart.domNode);
+			templateData.elementDisposables.add(explicitFileAttachmentsPart);
 		}
 		const contentContainer = templateData.value;
 

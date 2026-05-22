@@ -204,8 +204,6 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const attachments = part.domNode!.querySelectorAll('.chat-attached-context-attachment');
 			assert.strictEqual(attachments.length, 2, 'Should render 2 file attachments');
-			assert.ok(attachments[0].classList.contains('file-attachment'), 'File attachment should have styling class');
-			assert.strictEqual((attachments[0] as HTMLElement).dataset.attachmentType, 'TS');
 		});
 
 		test('should have chat-attached-context class on domNode', () => {

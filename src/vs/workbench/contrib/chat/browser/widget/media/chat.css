@@ -842,17 +842,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-dnd-overlay .attach-context-overlay-text {
-	padding: 6px 8px;
-	border-radius: 6px;
-	display: inline-flex;
+	padding: 0.6em;
+	margin: 0.2em;
+	line-height: 12px;
+	height: 12px;
+	display: flex;
 	align-items: center;
-	gap: 6px;
-	line-height: normal;
 	text-align: center;
 }
 
 .chat-dnd-overlay .attach-context-overlay-text .codicon {
-	font-size: inherit;
+	height: 12px;
+	font-size: 12px;
+	margin-right: 3px;
 }
 
 .monaco-workbench .interactive-session .chat-input-container {
@@ -2342,6 +2344,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	cursor: pointer;
 }
 
+.interactive-session .chat-attached-context .chat-attached-context-attachment .chat-attached-context-download-button {
+	display: none;
+}
+
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .codicon {
 	font-size: 14px;
 }
@@ -3429,6 +3435,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 	}
 
+	.interactive-item-container.interactive-request .value {
+		display: flex !important;
+		flex-direction: column !important;
+		align-items: flex-end !important;
+	}
+
 	.interactive-item-container.interactive-request .value .rendered-markdown {
 		background-color: var(--vscode-chat-requestBubbleBackground);
 		border-radius: var(--vscode-cornerRadius-xLarge);
@@ -3476,6 +3488,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.interactive-item-container.interactive-request .value > .chat-request-attachment-cards {
 		width: fit-content;
+		flex: 0 0 auto;
 		max-width: 90%;
 		margin-left: auto;
 		margin-bottom: 6px;
@@ -3486,43 +3499,74 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		gap: 8px;
 	}
 
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment {
-		box-sizing: border-box;
-		width: 88px;
-		height: 88px;
-		padding: 8px;
-		border-radius: 8px;
-		background-color: var(--vscode-input-background);
-		border-color: var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
-		align-items: flex-start;
-		justify-content: space-between;
+	.interactive-item-container.interactive-request .value > .chat-request-image-attachments,
+	.interactive-item-container.interactive-request .value > .chat-request-file-attachments,
+	.interactive-item-container.interactive-request .value > .rendered-markdown {
+		flex: 0 0 auto;
 	}
 
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment {
-		color: var(--vscode-foreground);
-		flex-direction: column;
+	.interactive-item-container.interactive-request .value > .chat-request-file-attachments {
+		flex-direction: column !important;
+		align-items: flex-end !important;
+		flex-wrap: nowrap !important;
+		gap: 6px;
 	}
 
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment::after,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment::after {
-		content: attr(data-attachment-type);
-		max-width: 100%;
-		box-sizing: border-box;
-		padding: 1px 6px;
-		border: 1px solid var(--vscode-input-border, transparent);
-		border-radius: 4px;
+	.interactive-item-container.interactive-request .value .chat-request-file-attachments .chat-attached-context-attachment {
+		position: relative;
+		margin-left: 24px;
+		overflow: visible;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-file-attachments .chat-attached-context-attachment::before {
+		content: '';
+		position: absolute;
+		left: -24px;
+		top: 0;
+		bottom: 0;
+		width: 24px;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-file-attachments .chat-attached-context-attachment .chat-attached-context-download-button {
+		display: flex;
+		visibility: hidden;
+		opacity: 0;
+		position: absolute;
+		left: -22px;
+		top: 50%;
+		transform: translateY(-50%);
+		width: 18px;
+		height: 18px;
+		min-width: 18px;
+		margin: 0;
+		padding: 0;
+		align-items: center;
+		justify-content: center;
+		background: transparent;
 		color: var(--vscode-descriptionForeground);
-		font-size: 11px;
-		line-height: 16px;
-		text-transform: uppercase;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		border-radius: 4px;
+		z-index: 1;
+		transition: opacity 80ms ease-out;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-file-attachments .chat-attached-context-attachment:hover .chat-attached-context-download-button,
+	.interactive-item-container.interactive-request .value .chat-request-file-attachments .chat-attached-context-attachment:focus-within .chat-attached-context-download-button {
+		visibility: visible;
+		opacity: 1;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-file-attachments .chat-attached-context-attachment .chat-attached-context-download-button:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
 	}
 
 	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment {
+		box-sizing: border-box;
+		width: 88px;
+		height: 88px;
+		border-radius: 8px;
 		padding: 0;
+		background-color: var(--vscode-input-background);
+		border-color: var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
 		overflow: hidden;
 		justify-content: center;
 	}
@@ -3546,40 +3590,38 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		display: none;
 	}
 
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment .monaco-icon-label,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment .monaco-icon-label {
-		width: 100%;
-		min-height: 0;
-		align-items: flex-start;
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment .chat-attached-context-download-button {
+		display: flex !important;
+		visibility: hidden;
+		opacity: 0;
+		position: absolute;
+		right: 6px;
+		top: 6px;
+		width: 28px !important;
+		height: 28px !important;
+		min-width: 28px !important;
+		margin: 0 !important;
+		padding: 0 !important;
+		border-radius: 50%;
+		background-color: var(--vscode-input-background);
+		color: var(--vscode-foreground);
+		border: 1px solid var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
+		box-shadow: 0 1px 4px rgb(0 0 0 / 45%);
+		align-items: center;
+		justify-content: center;
+		transition: opacity 80ms ease-out;
 	}
 
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment .monaco-icon-label::before,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment .monaco-icon-label::before {
-		display: none;
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment .chat-attached-context-download-button .codicon {
+		color: var(--vscode-foreground) !important;
+		font-size: 16px;
+		margin: 0 !important;
 	}
 
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment .monaco-icon-label-container,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment .monaco-icon-label-container {
-		min-width: 0;
-		width: 100%;
-	}
-
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment .monaco-icon-label,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment .monaco-icon-label-container,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment .monaco-highlighted-label,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment .monaco-icon-label,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment .monaco-icon-label-container,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment .monaco-highlighted-label {
-		max-width: 100%;
-	}
-
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.file-attachment .monaco-highlighted-label,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.directory-attachment .monaco-highlighted-label {
-		white-space: normal;
-		display: -webkit-box;
-		-webkit-line-clamp: 2;
-		line-clamp: 2;
-		-webkit-box-orient: vertical;
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment:hover .chat-attached-context-download-button,
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment:focus-within .chat-attached-context-download-button {
+		visibility: visible;
+		opacity: 1;
 	}
 
 	.interactive-request .header.header-disabled,
