@@ -651,8 +651,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 			assert.deepStrictEqual(
 				calls.map(c => ({ address: c.address, uri: c.uri.toString() })),
 				[
-					{ address: 'test.example:1234', uri: 'file:///plugins/foo' },
-					{ address: 'test.example:1234', uri: 'file:///plugins/bar' },
+					{ address: 'test.example:1234', uri: 'file:///plugins' },
+					{ address: 'test.example:1234', uri: 'file:///plugins' },
 				],
 			);
 		});
@@ -715,7 +715,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 			assert.deepStrictEqual(
 				calls.map(c => c.uri.toString()),
-				['file:///plugins/foo'],
+				['file:///plugins'],
 			);
 		});
 	});
