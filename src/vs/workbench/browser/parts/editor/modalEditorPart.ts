@@ -379,19 +379,12 @@ export class ModalEditorPart {
 		};
 		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, updateLabel));
 
-		// Reflect active editor's typeId as a class on the modal block, so
-		// individual editors (e.g. AI Customizations) can style the header.
-		let activeEditorTypeClass: string | undefined;
+		// Reflect modal-options from the active editor (e.g. compact header)
+		// as classes on the modal block.
 		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => {
 			const activeEditor = editorPart.activeGroup.activeEditor;
-			if (activeEditorTypeClass) {
-				modalElement.classList.remove(activeEditorTypeClass);
-				activeEditorTypeClass = undefined;
-			}
-			if (activeEditor?.typeId) {
-				activeEditorTypeClass = `modal-editor-for-${activeEditor.typeId.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
-				modalElement.classList.add(activeEditorTypeClass);
-			}
+			const editorModalOptions = activeEditor?.getModalEditorOptions?.();
+			modalElement.classList.toggle('compact-header', !!editorModalOptions?.compactHeader);
 		}));
 
 		// Handle double-click on header to toggle maximize

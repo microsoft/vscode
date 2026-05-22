@@ -374,6 +374,13 @@ export interface IModalEditorPartOptions {
 	 * after the modal editor is opened.
 	 */
 	readonly sidebar?: IModalEditorSidebar;
+
+	/**
+	 * When true, the modal editor renders a simplified header
+	 * (no title icon, transparent background, no bottom border).
+	 * Useful for editors that provide their own header chrome.
+	 */
+	readonly compactHeader?: boolean;
 }
 
 /**
