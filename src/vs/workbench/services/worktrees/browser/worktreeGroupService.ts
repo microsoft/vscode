@@ -8,6 +8,7 @@ import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IObservable, ISettableObservable, derived, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { isAbsolute } from '../../../../base/common/path.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -87,7 +88,7 @@ export class WorktreeGroupService extends Disposable implements IWorktreeGroupSe
 	private readonly _pendingActiveWorktree: ISettableObservable<URI | undefined>;
 	readonly activeWorktree: IObservable<IWorktree | undefined>;
 
-	private readonly _byUri = new ResourceMap<Worktree>();
+	private readonly _byUri: ResourceMap<Worktree>;
 	private readonly _watcher = this._register(new MutableDisposable());
 	private _refreshInFlight: Promise<void> | undefined;
 
@@ -99,6 +100,11 @@ export class WorktreeGroupService extends Disposable implements IWorktreeGroupSe
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+
+		// Use the extUri comparison key so case-insensitive filesystems
+		// (Windows, default APFS) and encoded URI variants resolve to the
+		// same worktree on lookup.
+		this._byUri = new ResourceMap<Worktree>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 
 		this._worktrees = observableValue<readonly IWorktree[]>(this, []);
 		this.worktrees = this._worktrees;
@@ -228,17 +234,21 @@ export class WorktreeGroupService extends Disposable implements IWorktreeGroupSe
 			}
 
 			if (stat?.isFile) {
-				// Linked worktree: `.git` is a file `gitdir: <path>`.
+				// Linked worktree: `.git` is a file `gitdir: <path>`. `git
+				// worktree add` writes absolute paths, but be defensive:
+				// resolve relative values against the worktree root.
 				const content = await tryReadFile(this.fileService, dotGit);
 				const match = content && /^gitdir:\s*(.+)$/m.exec(content);
 				if (match) {
 					const gitDirPath = match[1].trim();
-					const gitDirUri = URI.file(gitDirPath);
+					const gitDirUri = isAbsolute(gitDirPath)
+						? URI.file(gitDirPath)
+						: joinPath(dirname(dotGit), gitDirPath);
 					const commonDirFile = joinPath(gitDirUri, 'commondir');
 					const commonDirContents = await tryReadFile(this.fileService, commonDirFile);
 					if (commonDirContents) {
 						const rel = commonDirContents.trim();
-						return rel.startsWith('/')
+						return isAbsolute(rel)
 							? URI.file(rel)
 							: joinPath(gitDirUri, rel);
 					}

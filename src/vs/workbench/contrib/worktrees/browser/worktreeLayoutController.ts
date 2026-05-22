@@ -50,6 +50,7 @@ interface IWorktreeLayoutEntry {
 	readonly worktreeResource: string;
 	readonly viewState?: IWorktreeViewState;
 	readonly editorWorkingSet?: IEditorWorkingSet;
+	readonly panelVisible?: boolean;
 }
 
 const WORKTREE_LAYOUT_STATE_KEY = 'worktrees.layoutState';
@@ -313,6 +314,9 @@ export class WorktreeLayoutController extends Disposable {
 				if (entry.viewState) {
 					this._viewStateByWorktree.set(uri, entry.viewState);
 				}
+				if (typeof entry.panelVisible === 'boolean') {
+					this._panelVisibilityByWorktree.set(uri, entry.panelVisible);
+				}
 			}
 		} catch {
 			this._storageService.remove(WORKTREE_LAYOUT_STATE_KEY, StorageScope.WORKSPACE);
@@ -329,6 +333,7 @@ export class WorktreeLayoutController extends Disposable {
 		const allResources = new ResourceMap<true>();
 		this._workingSets.forEach((_, r) => allResources.set(r, true));
 		this._viewStateByWorktree.forEach((_, r) => allResources.set(r, true));
+		this._panelVisibilityByWorktree.forEach((_, r) => allResources.set(r, true));
 
 		if (allResources.size === 0) {
 			this._storageService.remove(WORKTREE_LAYOUT_STATE_KEY, StorageScope.WORKSPACE);
@@ -341,6 +346,7 @@ export class WorktreeLayoutController extends Disposable {
 				worktreeResource: resource.toString(),
 				editorWorkingSet: this._workingSets.get(resource),
 				viewState: this._viewStateByWorktree.get(resource),
+				panelVisible: this._panelVisibilityByWorktree.get(resource),
 			});
 		});
 		this._storageService.store(WORKTREE_LAYOUT_STATE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);

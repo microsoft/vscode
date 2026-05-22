@@ -49,20 +49,26 @@ export class WorktreeTerminalContribution extends Disposable implements IWorkben
 			if (instance.shellLaunchConfig.hideFromUser) {
 				return;
 			}
-			if (instance.shellLaunchConfig.attachPersistentProcess && this._activeKey) {
-				instance.getInitialCwd().then(cwd => {
-					if (!cwd || this._activeKey === undefined) {
-						return;
-					}
-					if (cwd.toLowerCase() !== this._activeKey) {
-						const available = this._getAvailableTerminal(instance);
-						if (available) {
-							this._terminalService.moveToBackground(available);
-							this._logService.trace(`[WorktreeTerminal] Hid restored terminal ${available.instanceId} (cwd: ${cwd})`);
-						}
-					}
-				});
+			if (!instance.shellLaunchConfig.attachPersistentProcess || !this._activeKey) {
+				return;
 			}
+			void (async () => {
+				let cwd: string;
+				try {
+					cwd = await instance.getInitialCwd();
+				} catch {
+					return; // terminal disposed mid-flight or cwd unresolvable
+				}
+				if (!cwd || this._activeKey === undefined || cwd.toLowerCase() === this._activeKey) {
+					return;
+				}
+				const available = this._getAvailableTerminal(instance);
+				if (!available) {
+					return;
+				}
+				this._terminalService.moveToBackground(available);
+				this._logService.trace(`[WorktreeTerminal] Hid restored terminal ${available.instanceId} (cwd: ${cwd})`);
+			})();
 		}));
 	}
 

@@ -61,28 +61,34 @@ export class WorktreeSwitcherViewItem extends BaseActionViewItem {
 				separator.style.display = 'none';
 				branchIcon.style.display = 'none';
 				branchLabel.textContent = '';
-				hover.update(localize('worktrees.switcher.tooltip.none', "Switch Worktree..."));
+				const tooltip = localize('worktrees.switcher.tooltip.none', "Switch Worktree...");
+				hover.update(tooltip);
+				root.setAttribute('aria-label', tooltip);
 				return;
 			}
 
 			root.classList.remove('empty');
 			// Main worktree → repo icon; linked → list-tree (matches SCM's worktree picker).
 			worktreeIcon.className = `icon ${ThemeIcon.asClassName(active.isMain ? Codicon.repo : Codicon.listTree)}`;
-			worktreeLabel.textContent = active.label.read(reader);
+			const activeLabel = active.label.read(reader);
+			worktreeLabel.textContent = activeLabel;
 
 			const branch = active.branch.read(reader);
+			let tooltip: string;
 			if (branch) {
 				separator.style.display = '';
 				branchIcon.style.display = '';
 				branchIcon.className = `icon branch ${ThemeIcon.asClassName(Codicon.gitBranch)}`;
 				branchLabel.textContent = branch;
-				hover.update(localize('worktrees.switcher.tooltip', "{0} ({1}) — Click to switch worktree", active.label.read(reader), branch));
+				tooltip = localize('worktrees.switcher.tooltip', "{0} ({1}) — Click to switch worktree", activeLabel, branch);
 			} else {
 				separator.style.display = 'none';
 				branchIcon.style.display = 'none';
 				branchLabel.textContent = '';
-				hover.update(localize('worktrees.switcher.tooltip.nobranch', "{0} — Click to switch worktree", active.label.read(reader)));
+				tooltip = localize('worktrees.switcher.tooltip.nobranch', "{0} — Click to switch worktree", activeLabel);
 			}
+			hover.update(tooltip);
+			root.setAttribute('aria-label', tooltip);
 		}));
 
 		this._register(DOM.addDisposableListener(root, DOM.EventType.CLICK, e => {
