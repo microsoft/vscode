@@ -131,17 +131,27 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		this.logService.debug(`[FileDialogService] Preferred home: preferLocal=${preferLocal}, userLocalValue=${preferredHomeConfig.userLocalValue}, userRemoteValue=${preferredHomeConfig.userRemoteValue}`);
 
 		if (preferredHomeCandidate) {
-			const path = preferLocal ? undefined : await this.pathService.path;
-			const normalize = preferLocal ? localPathNormalize : path!.normalize;
-			const isAbsolute = preferLocal ? localPathIsAbsolute : path!.isAbsolute;
+			let _path: Promise<{ isAbsolute: (p: string) => boolean; normalize: (p: string) => string }> | undefined;
+			const getPath = async () => {
+				if (preferLocal) {
+					_path = Promise.resolve({
+						isAbsolute: localPathIsAbsolute,
+						normalize: localPathNormalize,
+					});
+				} else {
+					_path = this.pathService.path;
+				}
+
+				return _path!;
+			};
 
 			let preferredHomeUri: URI | undefined;
 
 			if (preferredHomeCandidate.startsWith('~')) {
 				// Handle tilde expansion
 				if (preferredHomeCandidate === '~' || preferredHomeCandidate.startsWith('~/') || preferredHomeCandidate.startsWith('~\\')) {
-					const relativePath = normalize(preferredHomeCandidate.slice(2));
-					if (!isAbsolute(relativePath)) {
+					const relativePath = (await getPath()).normalize(preferredHomeCandidate.slice(2));
+					if (!(await getPath()).isAbsolute(relativePath)) {
 						preferredHomeUri = resources.joinPath(await getUserHome(), relativePath);
 					} else {
 						this.logService.debug(`[FileDialogService] Preferred home path after ~ resolved to absolute: ${relativePath}`);
@@ -151,8 +161,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 				}
 			} else {
 				// Handle absolute paths
-				if (isAbsolute(preferredHomeCandidate)) {
-					const preferredHomeNormalized = normalize(preferredHomeCandidate);
+				if ((await getPath()).isAbsolute(preferredHomeCandidate)) {
+					const preferredHomeNormalized = (await getPath()).normalize(preferredHomeCandidate);
 					preferredHomeUri = resources.toLocalResource(await this.pathService.fileURI(preferredHomeNormalized), this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
 				} else {
 					this.logService.debug(`[FileDialogService] Preferred home files.dialog.defaultPath is not absolute: ${preferredHomeCandidate}`);
