@@ -41,6 +41,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { CONTEXT_MODELS_SEARCH_FOCUS } from '../../common/constants.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../../../base/common/severity.js';
+import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 
 const $ = DOM.$;
 
@@ -90,6 +91,30 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 				? localize('models.cacheCost.singular', 'Cache Cost: {0} credit per 1M tokens', model.metadata.cacheCost)
 				: localize('models.cacheCost.plural', 'Cache Cost: {0} credits per 1M tokens', model.metadata.cacheCost));
 			markdown.appendText(`\n`);
+		}
+
+		if (model.metadata.longContextInputCost !== undefined || model.metadata.longContextOutputCost !== undefined || model.metadata.longContextCacheCost !== undefined) {
+			markdown.appendText(`\n`);
+			markdown.appendMarkdown(`**${localize('models.longContextPricing', 'Long Context Pricing')}**`);
+			markdown.appendText(`\n`);
+			if (model.metadata.longContextInputCost !== undefined) {
+				markdown.appendMarkdown(model.metadata.longContextInputCost === 1
+					? localize('models.longContextInputCost.singular', 'Input Cost: {0} credit per 1M tokens', model.metadata.longContextInputCost)
+					: localize('models.longContextInputCost.plural', 'Input Cost: {0} credits per 1M tokens', model.metadata.longContextInputCost));
+				markdown.appendText(`\n`);
+			}
+			if (model.metadata.longContextOutputCost !== undefined) {
+				markdown.appendMarkdown(model.metadata.longContextOutputCost === 1
+					? localize('models.longContextOutputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.longContextOutputCost)
+					: localize('models.longContextOutputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.longContextOutputCost));
+				markdown.appendText(`\n`);
+			}
+			if (model.metadata.longContextCacheCost !== undefined) {
+				markdown.appendMarkdown(model.metadata.longContextCacheCost === 1
+					? localize('models.longContextCacheCost.singular', 'Cache Cost: {0} credit per 1M tokens', model.metadata.longContextCacheCost)
+					: localize('models.longContextCacheCost.plural', 'Cache Cost: {0} credits per 1M tokens', model.metadata.longContextCacheCost));
+				markdown.appendText(`\n`);
+			}
 		}
 	}
 
@@ -744,6 +769,65 @@ interface IActionsColumnTemplateData extends IModelTableColumnTemplateData {
 	readonly actionBar: ToolBar;
 }
 
+function createProviderGroupActions(
+	viewModel: ChatModelsViewModel,
+	vendor: ILanguageModelProviderDescriptor,
+	groupName: string,
+	languageModelsService: ILanguageModelsService,
+	dialogService: IDialogService,
+): IAction[] {
+	const configuration = vendor.configuration as IJSONSchema | undefined;
+	if (!configuration) {
+		return [];
+	}
+
+	const actions: IAction[] = [];
+	const configurationProperties = configuration.properties;
+	actions.push(toAction({
+		id: 'goToSettingsAction',
+		label: localize('models.goToSettings', "Open in Language Models (JSON)"),
+		run: () => languageModelsService.openLanguageModelsProviderGroupSettings(vendor.vendor, groupName)
+	}));
+	actions.push(new Separator());
+	actions.push(toAction({
+		id: 'renameGroupAction',
+		label: localize('models.renameGroup', 'Rename Group'),
+		run: () => languageModelsService.renameLanguageModelsProviderGroup(vendor.vendor, groupName)
+	}));
+	if (configurationProperties?.apiKey) {
+		actions.push(toAction({
+			id: 'updateApiKeyAction',
+			label: localize('models.updateApiKey', "Update API Key"),
+			run: () => languageModelsService.updateLanguageModelsProviderGroupApiKey(vendor.vendor, groupName)
+		}));
+	}
+	if (configurationProperties?.models?.defaultSnippets?.[0]) {
+		actions.push(toAction({
+			id: 'addModelAction',
+			label: localize('models.addModel', "Add Model"),
+			run: () => languageModelsService.addLanguageModelsProviderGroupModel(vendor.vendor, groupName)
+		}));
+	}
+	actions.push(new Separator());
+	actions.push(toAction({
+		id: 'deleteAction',
+		label: localize('models.deleteAction', 'Delete'),
+		class: ThemeIcon.asClassName(Codicon.trash),
+		run: async () => {
+			const result = await dialogService.confirm({
+				type: 'info',
+				message: localize('models.deleteConfirmation', "Would you like to delete {0}?", groupName)
+			});
+			if (!result.confirmed) {
+				return;
+			}
+			await languageModelsService.removeLanguageModelsProviderGroup(vendor.vendor, groupName);
+			viewModel.refresh();
+		}
+	}));
+	return actions;
+}
+
 class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemplateData> {
 	static readonly TEMPLATE_ID = 'actions';
 
@@ -793,27 +877,7 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 		const primaryActions: IAction[] = [];
 		const secondaryActions: IAction[] = [];
 		if (vendorEntry.vendor.configuration) {
-			secondaryActions.push(toAction({
-				id: 'configureAction',
-				label: localize('models.configure', 'Configure...'),
-				run: () => this.languageModelsService.configureLanguageModelsProviderGroup(vendorEntry.vendor.vendor, vendorEntry.group.name)
-			}));
-			secondaryActions.push(toAction({
-				id: 'deleteAction',
-				label: localize('models.deleteAction', 'Delete'),
-				class: ThemeIcon.asClassName(Codicon.trash),
-				run: async () => {
-					const result = await this.dialogService.confirm({
-						type: 'info',
-						message: localize('models.deleteConfirmation', "Would you like to delete {0}?", vendorEntry.group.name)
-					});
-					if (!result.confirmed) {
-						return;
-					}
-					await this.languageModelsService.removeLanguageModelsProviderGroup(vendorEntry.vendor.vendor, vendorEntry.group.name);
-					this.viewModel.refresh();
-				}
-			}));
+			secondaryActions.push(...createProviderGroupActions(this.viewModel, vendorEntry.vendor, vendorEntry.group.name, this.languageModelsService, this.dialogService));
 		} else if (vendorEntry.vendor.managementCommand) {
 			primaryActions.push(toAction({
 				id: 'manageVendor',
@@ -954,6 +1018,7 @@ export class ChatModelsWidget extends Disposable {
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 
@@ -1341,26 +1406,21 @@ export class ChatModelsWidget extends Disposable {
 			}
 
 			if (configureGroup && configureVendor) {
-				if (configureVendor.managementCommand || configureVendor.configuration) {
+				const groupActions = configureVendor.managementCommand
+					? [toAction({
+						id: 'manageVendor',
+						label: localize('models.manageProvider', 'Manage {0}...', configureGroup),
+						run: async () => {
+							await this.commandService.executeCommand(configureVendor.managementCommand!, configureVendor.vendor);
+							await this.viewModel.refresh();
+						}
+					})]
+					: createProviderGroupActions(this.viewModel, configureVendor, configureGroup, this.languageModelsService, this.dialogService);
+				if (groupActions.length) {
 					if (actions.length) {
 						actions.push(new Separator());
 					}
-					if (configureVendor.managementCommand) {
-						actions.push(toAction({
-							id: 'configureVendor',
-							label: localize('models.configureContextMenu', 'Configure'),
-							run: async () => {
-								await this.commandService.executeCommand(configureVendor.managementCommand!, configureVendor.vendor);
-								await this.viewModel.refresh();
-							}
-						}));
-					} else {
-						actions.push(toAction({
-							id: 'configureVendor',
-							label: localize('models.configureContextMenu', 'Configure'),
-							run: () => this.languageModelsService.configureLanguageModelsProviderGroup(configureVendor.vendor, configureGroup!)
-						}));
-					}
+					actions.push(...groupActions);
 				}
 			}
 

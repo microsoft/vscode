@@ -111,6 +111,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		abortController: AbortController,
 		dbRef: IReference<ISessionDatabase>,
 		subagents: SubagentRegistry,
+		clientId: string | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -129,7 +130,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
-			ClaudeSdkMessageRouter, sessionUri, dbRef, subagents,
+			ClaudeSdkMessageRouter, sessionUri, dbRef, subagents, clientId,
 		));
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*
@@ -144,6 +145,26 @@ export class ClaudeSdkPipeline extends Disposable {
 	get isResumed(): boolean { return this._isResumed; }
 
 	get isAborted(): boolean { return this._abortController.signal.aborted; }
+
+	/**
+	 * Phase 10 \u2014 narrow public wrapper around the internal
+	 * {@link _rebindQuery} so {@link ClaudeAgentSession.rebindForClientTools}
+	 * can drive a yield-restart without exposing the private rebind
+	 * machinery to every collaborator.
+	 */
+	rebindForRestart(): Promise<void> {
+		return this._rebindQuery('restart');
+	}
+
+	/**
+	 * Phase 10 — update the workbench `clientId` that the stream mapper
+	 * stamps onto subsequent `SessionToolCallStart` events. Called by the
+	 * session whenever {@link SessionClientToolsModel} receives a new
+	 * clientId via `setClientTools`.
+	 */
+	setClientId(clientId: string | undefined): void {
+		this._router.setClientId(clientId);
+	}
 
 	/** Attach the rematerializer hook for abort / crash recovery. Optional — tests that exercise only the dispose path skip this. */
 	attachRematerializer(rematerializer: IRematerializer): void {

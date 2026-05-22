@@ -13,6 +13,7 @@ import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -288,19 +289,40 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const isArchived = element.isArchived.read(reader);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			this._motionReducedSignal.read(reader);
-			const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, gitHubInfo?.pullRequest?.icon);
-			const iconSelector = ThemeIcon.asCSSSelector(icon);
-			const iconColor = icon.color ? asCssVariable(icon.color.id) : '';
 
-			if (iconSelector !== template.currentIconSelector) {
-				template.currentIconSelector = iconSelector;
-				DOM.clearNode(template.iconContainer);
-				const iconSpan = DOM.append(template.iconContainer, $(`span${iconSelector}`));
-				iconSpan.style.color = iconColor;
+			// In-progress sessions get the shared pixel-art spinner (when motion is allowed)
+			// instead of the codicon `loading~spin`. Use a sentinel selector key so subsequent
+			// renders with the same state skip rebuilding the DOM and don't restart the animation.
+			const isPixelSpinner = sessionStatus === SessionStatus.InProgress && !this.accessibilityService.isMotionReduced();
+			if (isPixelSpinner) {
+				const pixelSpinnerKey = '__pixel_spinner__';
+				const iconColor = asCssVariable('textLink.foreground');
+				if (template.currentIconSelector !== pixelSpinnerKey) {
+					template.currentIconSelector = pixelSpinnerKey;
+					DOM.clearNode(template.iconContainer);
+					const spinner = createPixelSpinner(template.iconContainer);
+					spinner.style.color = iconColor;
+				} else {
+					const spinner = template.iconContainer.firstElementChild as HTMLElement | null;
+					if (spinner) {
+						spinner.style.color = iconColor;
+					}
+				}
 			} else {
-				const iconSpan = template.iconContainer.firstElementChild as HTMLElement | null;
-				if (iconSpan) {
+				const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, gitHubInfo?.pullRequest?.icon);
+				const iconSelector = ThemeIcon.asCSSSelector(icon);
+				const iconColor = icon.color ? asCssVariable(icon.color.id) : '';
+
+				if (iconSelector !== template.currentIconSelector) {
+					template.currentIconSelector = iconSelector;
+					DOM.clearNode(template.iconContainer);
+					const iconSpan = DOM.append(template.iconContainer, $(`span${iconSelector}`));
 					iconSpan.style.color = iconColor;
+				} else {
+					const iconSpan = template.iconContainer.firstElementChild as HTMLElement | null;
+					if (iconSpan) {
+						iconSpan.style.color = iconColor;
+					}
 				}
 			}
 			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
@@ -512,10 +534,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon {
 		switch (status) {
 			case SessionStatus.InProgress:
-				if (this.accessibilityService.isMotionReduced()) {
-					return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
-				}
-				return { ...ThemeIcon.modify(Codicon.loading, 'spin'), color: themeColorFromId('textLink.foreground') };
+				// When motion is allowed, the pixel spinner is rendered directly in renderSession
+				// and this method is not consulted; here we only provide the reduced-motion fallback.
+				return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
 			case SessionStatus.NeedsInput: return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
 			case SessionStatus.Error: return { ...Codicon.error, color: themeColorFromId('errorForeground') };
 			default:
@@ -645,7 +666,9 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				: localize('showLessCompact', "Show less");
 		} else {
 			template.textContent = element.kind === 'folders'
-				? localize('showMoreWorkspacesCompact', "+{0} more workspaces", element.remainingCount)
+				? element.remainingCount === 1
+					? localize('showMoreWorkspaceCompact', "+{0} workspace", element.remainingCount)
+					: localize('showMoreWorkspacesCompact', "+{0} workspaces", element.remainingCount)
 				: localize('showMoreCompact', "+{0} more", element.remainingCount);
 		}
 	}
@@ -671,7 +694,9 @@ class SessionsAccessibilityProvider {
 					: localize('showLessAria', "Show fewer sessions");
 			}
 			return element.kind === 'folders'
-				? localize('showMoreWorkspacesAria', "Show {0} more workspaces", element.remainingCount)
+				? element.remainingCount === 1
+					? localize('showMoreWorkspaceAria', "Show {0} more workspace", element.remainingCount)
+					: localize('showMoreWorkspacesAria', "Show {0} more workspaces", element.remainingCount)
 				: localize('showMoreAria', "Show {0} more sessions", element.remainingCount);
 		}
 		const title = element.title.get();
@@ -757,7 +782,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly expandedWorkspaceGroups = new Set<string>();
 	private expandedMoreFolders = false;
 	private openWindowSourceFolder: URI | undefined;
-	private findOpen = false;
+	private hasFindPattern = false;
 	private suspendCollapseStatePersistence = false;
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
@@ -934,10 +959,29 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
+		let isFindOpen = false;
+		let findPattern = '';
+		const updateFindPatternState = () => {
+			const hasFindPattern = isFindOpen && findPattern.length > 0;
+			if (hasFindPattern !== this.hasFindPattern) {
+				this.hasFindPattern = hasFindPattern;
+				this.update();
+			}
+		};
+
 		this._register(this.tree.onDidChangeFindOpenState(open => {
-			this.findOpen = open;
+			isFindOpen = open;
 			this._onDidChangeFindOpenState.fire(open);
-			this.update();
+			updateFindPatternState();
+		}));
+
+		// Only treat the find as "active" for layout purposes (bypassing workspace
+		// capping and per-group limits) once the user has actually typed a pattern
+		// and the find widget is open. Opening the empty find widget should not
+		// reorder the list, and closing find should restore the capped layout.
+		this._register(this.tree.onDidChangeFindPattern(pattern => {
+			findPattern = pattern;
+			updateFindPatternState();
 		}));
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(() => {
@@ -1016,10 +1060,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);
 
 		// Partition workspace sections into "primary" (meets criteria) and "more"
-		// when grouping by workspace. Find widget bypasses partitioning. When the
-		// user has chosen "Show All Sessions" (uncapped), show every workspace
-		// group inline instead of hiding some behind a "more workspaces" entry.
-		const partitionFolders = grouping === SessionsGrouping.Workspace && !this.findOpen && this.workspaceGroupCapped;
+		// when grouping by workspace. An active find pattern bypasses partitioning
+		// so all matching sessions are visible. When the user has chosen
+		// "Show All Sessions" (uncapped), show every workspace group inline instead
+		// of hiding some behind a "more workspaces" entry.
+		const partitionFolders = grouping === SessionsGrouping.Workspace && !this.hasFindPattern && this.workspaceGroupCapped;
 		const moreFolderSectionIds = new Set<string>();
 		if (partitionFolders) {
 			const workspaceSections = sections.filter(s => s.id.startsWith('workspace:'));
@@ -1068,7 +1113,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const isWorkspaceGroup = grouping === SessionsGrouping.Workspace
 				&& section.id.startsWith('workspace:');
 			const exceedsLimit = isWorkspaceGroup
-				&& !this.findOpen
+				&& !this.hasFindPattern
 				&& section.sessions.length > SessionsList.WORKSPACE_GROUP_LIMIT;
 			const isExpanded = exceedsLimit && (this.expandedWorkspaceGroups.has(section.label) || !this.workspaceGroupCapped);
 			const isCapped = exceedsLimit && !isExpanded;
@@ -1111,15 +1156,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		const moreFolderSections: ISessionSection[] = [];
-		// When expanding the "more workspaces" group, the archived ("Done")
-		// section is moved to sit right above the "Show less" action so that
-		// the additional workspaces appear contiguously with the primary ones.
-		const deferArchived = partitionFolders && this.expandedMoreFolders;
+		// The archived ("Done") section should always appear after the
+		// "more workspaces" toggle (both collapsed and expanded states)
+		// so it remains the very last group in the list.
 		let archivedSection: ISessionSection | undefined;
 		for (const section of sections) {
 			if (moreFolderSectionIds.has(section.id)) {
 				moreFolderSections.push(section);
-			} else if (deferArchived && section.id === 'archived') {
+			} else if (partitionFolders && section.id === 'archived') {
 				archivedSection = section;
 			} else {
 				children.push(renderSection(section));
@@ -1131,9 +1175,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 				for (const section of moreFolderSections) {
 					children.push(renderSection(section));
 				}
-				if (archivedSection) {
-					children.push(renderSection(archivedSection));
-				}
 				children.push({
 					element: { showMore: true as const, kind: 'folders' as const, mode: 'less' as const, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },
 				});
@@ -1142,7 +1183,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					element: { showMore: true as const, kind: 'folders' as const, mode: 'more' as const, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: moreFolderSections.length },
 				});
 			}
-		} else if (archivedSection) {
+		}
+		if (archivedSection) {
 			children.push(renderSection(archivedSection));
 		}
 

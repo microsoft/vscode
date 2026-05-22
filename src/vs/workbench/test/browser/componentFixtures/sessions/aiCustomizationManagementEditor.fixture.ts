@@ -34,7 +34,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSources } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService, SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
@@ -829,7 +829,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
 				override getStorageSourceFilter() {
-					return { sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin] };
+					return { sources: AICustomizationSources.all };
 				}
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
@@ -1047,7 +1047,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
 				override getStorageSourceFilter() {
-					return { sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin] };
+					return { sources: AICustomizationSources.all };
 				}
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {

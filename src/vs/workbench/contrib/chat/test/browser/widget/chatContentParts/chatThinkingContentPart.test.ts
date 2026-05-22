@@ -13,7 +13,7 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatThinkingContentPart } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
+import { ChatThinkingContentPart, maybePickFunWorkingMessage } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
@@ -22,7 +22,7 @@ import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatConte
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { ThinkingDisplayMode } from '../../../../common/constants.js';
+import { ChatConfiguration, ThinkingDisplayMode } from '../../../../common/constants.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { ILanguageModelsService } from '../../../../common/languageModels.js';
@@ -130,6 +130,15 @@ suite('ChatThinkingContentPart', () => {
 
 	teardown(() => {
 		disposables.dispose();
+	});
+
+	test('replace thinking phrases suppresses fun default phrases', () => {
+		mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, {
+			mode: 'replace',
+			phrases: ['Custom phrase'],
+		});
+
+		assert.strictEqual(maybePickFunWorkingMessage(mockConfigurationService, () => 0), undefined);
 	});
 
 	suite('ThinkingDisplayMode.Collapsed', () => {

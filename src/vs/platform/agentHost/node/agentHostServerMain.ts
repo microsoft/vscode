@@ -24,9 +24,10 @@ import { localize } from '../../../nls.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { parseArgs, OPTIONS } from '../../environment/node/argv.js';
-import { getLogLevel, ILogService, NullLogService } from '../../log/common/log.js';
+import { getLogLevel, ILogService } from '../../log/common/log.js';
 import { LogService } from '../../log/common/logService.js';
 import { LoggerService } from '../../log/node/loggerService.js';
+import { OtlpEmitterLogger, OtlpLogEmitter } from '../common/otlp/otlpLogEmitter.js';
 import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
@@ -60,6 +61,8 @@ import { AgentPluginManager } from './agentPluginManager.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
 import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
+import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
+import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
@@ -157,16 +160,21 @@ async function main(): Promise<void> {
 	// Logging — production logging unless --quiet
 	let logService: ILogService;
 	let loggerService: LoggerService | undefined;
+	// Shared by every ProtocolServerHandler this process spawns. Always
+	// created (cost is negligible) so that the OTLP logs channel is
+	// available even in `--quiet` mode where there is no file logger.
+	const otlpLogEmitter = disposables.add(new OtlpLogEmitter());
+	const otlpLogger = disposables.add(new OtlpEmitterLogger(otlpLogEmitter));
 
 	if (options.quiet) {
-		logService = new NullLogService();
+		logService = disposables.add(new LogService(otlpLogger));
 	} else {
 		const services = new ServiceCollection();
 		services.set(IProductService, productService);
 		services.set(INativeEnvironmentService, environmentService);
 		loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);
 		const logger = loggerService.createLogger('agenthost-server', { name: localize('agentHostServer', "Agent Host Server") });
-		logService = disposables.add(new LogService(logger));
+		logService = disposables.add(new LogService(logger, [otlpLogger]));
 		services.set(ILogService, logService);
 		log('Starting standalone agent host server');
 	}
@@ -198,9 +206,12 @@ async function main(): Promise<void> {
 	diServices.set(ITelemetryService, telemetryService);
 	const instantiationService = new InstantiationService(diServices);
 	const gitService = instantiationService.createInstance(AgentHostGitService);
+	diServices.set(IAgentHostGitService, gitService);
+	const checkpointService = disposables.add(instantiationService.createInstance(AgentHostCheckpointService));
+	diServices.set(IAgentHostCheckpointService, checkpointService);
 
 	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
-	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService);
+	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService);
 	disposables.add(agentService);
 
 	// Register agents
@@ -267,6 +278,7 @@ async function main(): Promise<void> {
 		{
 			defaultDirectory: URI.file(os.homedir()).toString(),
 			completionTriggerCharacters: agentService.completionTriggerCharacters,
+			otlpLogEmitter,
 		},
 		clientFileSystemProvider,
 		logService,
