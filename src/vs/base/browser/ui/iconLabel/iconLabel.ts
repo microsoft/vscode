@@ -270,17 +270,8 @@ export class IconLabel extends Disposable {
 
 	private getDecorationContainer(): HTMLElement | undefined {
 		const listRow = this.domNode.element.closest('.monaco-list-row');
-		if (!listRow) {
-			return undefined;
-		}
-
-		for (const child of listRow.children) {
-			if (dom.isHTMLElement(child) && child.classList.contains('monaco-tl-decoration-container')) {
-				return child;
-			}
-		}
-
-		return undefined;
+		// eslint-disable-next-line no-restricted-syntax
+		return listRow?.querySelector(':scope > .monaco-tl-decoration-container') ?? undefined;
 	}
 
 	private getOrCreateSuffixNode() {
