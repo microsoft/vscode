@@ -8,6 +8,7 @@ import { $ } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { HoverStyle, IDelayedHoverOptions, type IHoverLifecycleOptions, type IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -19,7 +20,8 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { basename, dirname, extname } from '../../../../../base/common/path.js';
+import { basename, dirname } from '../../../../../base/common/path.js';
+import { joinPath } from '../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -39,6 +41,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { fillInSymbolsDragData } from '../../../../../platform/dnd/browser/dnd.js';
 import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../../platform/editor/browser/editor.js';
 import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
@@ -47,6 +50,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
@@ -247,13 +251,13 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IFileService private readonly fileService: IFileService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const fileBasename = basename(resource.path);
-		const attachmentType = attachment.kind === 'directory' ? localize('chat.directoryAttachmentType', "Folder") : extname(fileBasename).slice(1).toUpperCase() || localize('chat.fileAttachmentType', "File");
-		this.element.classList.add(attachment.kind === 'directory' ? 'directory-attachment' : 'file-attachment');
-		this.element.dataset.attachmentType = attachmentType;
 		const fileDirname = dirname(resource.path);
 		const friendlyName = `${fileBasename} ${fileDirname}`;
 		let ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
@@ -283,11 +287,46 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
+		if (attachment.kind === 'file') {
+			this.attachSaveButton(resource, fileBasename, options.supportsDeletion);
+		}
 
 		this.instantiationService.invokeFunction(accessor => {
 			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
 		});
 		this.addResourceOpenHandlers(resource, range);
+	}
+
+	private attachSaveButton(resource: URI, name: string, supportsDeletion: boolean): void {
+		if (supportsDeletion) {
+			return;
+		}
+
+		const saveButton = new Button(this.element, {
+			supportIcons: true,
+			hoverDelegate: createInstantHoverDelegate(),
+			title: localize('chat.attachment.saveFileButton', "Save As...")
+		});
+		saveButton.element.classList.add('chat-attached-context-download-button');
+		saveButton.element.tabIndex = -1;
+		saveButton.icon = Codicon.cloudDownload;
+		this.element.insertBefore(saveButton.element, this.label.element);
+		this._register(saveButton);
+		this._register(saveButton.onDidClick(async e => {
+			e.preventDefault();
+			e.stopPropagation();
+			const defaultUri = joinPath(await this.fileDialogService.defaultFilePath(), name);
+			const target = await this.fileDialogService.showSaveDialog({ defaultUri });
+			if (!target) {
+				return;
+			}
+
+			try {
+				await this.fileService.copy(resource, target, true);
+			} catch (error) {
+				this.notificationService.error(localize('chat.attachment.saveFileError', "Failed to save file: {0}", error));
+			}
+		}));
 	}
 
 	private renderOmittedWarning(friendlyName: string, ariaLabel: string) {
@@ -453,6 +492,9 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		@ILabelService private readonly labelService: ILabelService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IFileService private readonly fileService: IFileService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 		this.element.classList.add('image-attachment');
@@ -483,6 +525,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
 		this._register(createImageElements(resource, attachment.name, fullName, this.element, imageData ?? (attachment.value as Uint8Array), this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
+		this.attachSaveButton(resource, imageData, attachment.name, options.supportsDeletion);
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 
 		// Wire up click + keyboard (Enter/Space) open handlers
@@ -504,6 +547,41 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 	private async openInCarousel(id: string, name: string, data: Uint8Array | undefined, referenceUri: URI | undefined): Promise<void> {
 		const resource = referenceUri ?? URI.from({ scheme: 'data', path: `${id}/${encodeURIComponent(name)}` });
 		await this.chatImageCarouselService.openCarouselAtResource(resource, data);
+	}
+
+	private attachSaveButton(resource: URI | undefined, imageData: Uint8Array | undefined, name: string, supportsDeletion: boolean): void {
+		if (supportsDeletion || (!resource && !imageData)) {
+			return;
+		}
+
+		const saveButton = new Button(this.element, {
+			supportIcons: true,
+			hoverDelegate: createInstantHoverDelegate(),
+			title: localize('chat.attachment.saveImageButton', "Save Image As...")
+		});
+		saveButton.element.classList.add('chat-attached-context-download-button');
+		saveButton.element.tabIndex = -1;
+		saveButton.icon = Codicon.cloudDownload;
+		this._register(saveButton);
+		this._register(saveButton.onDidClick(async e => {
+			e.preventDefault();
+			e.stopPropagation();
+			const defaultUri = joinPath(await this.fileDialogService.defaultFilePath(), name);
+			const target = await this.fileDialogService.showSaveDialog({ defaultUri });
+			if (!target) {
+				return;
+			}
+
+			try {
+				if (resource) {
+					await this.fileService.copy(resource, target, true);
+				} else if (imageData) {
+					await this.fileService.writeFile(target, VSBuffer.wrap(imageData));
+				}
+			} catch (error) {
+				this.notificationService.error(localize('chat.attachment.saveImageError', "Failed to save image: {0}", error));
+			}
+		}));
 	}
 }
 
