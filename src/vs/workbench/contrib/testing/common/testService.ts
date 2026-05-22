@@ -174,6 +174,12 @@ export const waitForTestToBeIdle = (testService: ITestService, test: Incremental
  * in strictly descending order.
  */
 export const testsInFile = async function* (testService: ITestService, ident: IUriIdentityService, uri: URI, waitForIdle = true, descendInFile = true): AsyncIterable<readonly IncrementalTestCollectionItem[]> {
+	// Canonicalize the URI so that comparisons against test item URIs (which are
+	// stored in their canonical form via asCanonicalUri() during deserialization)
+	// work correctly in remote environments such as WSL, SSH, and dev containers
+	// where URI.file(path) may produce a non-canonical form. Fixes #275268.
+	uri = ident.asCanonicalUri(uri);
+
 	// In this function we go to a bit of effort to avoid awaiting unnecessarily
 	// and bulking the test collections we do collect for consumers. This fixes
 	// a performance issue (#235819) where a large number of tests in a file
