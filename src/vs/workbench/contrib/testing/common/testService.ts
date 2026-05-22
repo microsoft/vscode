@@ -178,7 +178,7 @@ export const testsInFile = async function* (testService: ITestService, ident: IU
 	// stored in their canonical form via asCanonicalUri() during deserialization)
 	// work correctly in remote environments such as WSL, SSH, and dev containers
 	// where URI.file(path) may produce a non-canonical form. Fixes #275268.
-	uri = ident.asCanonicalUri(uri);
+	const canonicalUri = ident.asCanonicalUri(uri);
 
 	// In this function we go to a bit of effort to avoid awaiting unnecessarily
 	// and bulking the test collections we do collect for consumers. This fixes
@@ -186,7 +186,7 @@ export const testsInFile = async function* (testService: ITestService, ident: IU
 	// would cause a long delay switching editors.
 	const queue = new LinkedList<Iterable<string> | DeferredPromise<Iterable<string>>>();
 
-	const existing = [...testService.collection.getNodeByUrl(uri)].sort((a, b) => a.item.extId.length - b.item.extId.length);
+	const existing = [...testService.collection.getNodeByUrl(canonicalUri)].sort((a, b) => a.item.extId.length - b.item.extId.length);
 
 	// getNodeByUrl will return all known tests in the URI, but this can include
 	// children of tests even when `descendInFile` is false. Remove those cases.
@@ -230,7 +230,7 @@ export const testsInFile = async function* (testService: ITestService, ident: IU
 				continue;
 			}
 
-			if (ident.extUri.isEqual(uri, test.item.uri)) {
+			if (ident.extUri.isEqual(canonicalUri, test.item.uri)) {
 				gather.push(test);
 
 				if (!descendInFile) {
@@ -238,7 +238,7 @@ export const testsInFile = async function* (testService: ITestService, ident: IU
 				}
 			}
 
-			if (ident.extUri.isEqualOrParent(uri, test.item.uri)) {
+			if (ident.extUri.isEqualOrParent(canonicalUri, test.item.uri)) {
 				let prom: Promise<void> | undefined;
 				if (test.expand === TestItemExpandState.Expandable) {
 					prom = testService.collection.expand(test.item.extId, 1);

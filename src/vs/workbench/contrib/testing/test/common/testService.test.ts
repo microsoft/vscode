@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IExtUri } from '../../../../../base/common/resources.js';
+import { ExtUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -114,6 +114,7 @@ suite('Workbench - Test Service', () => {
 		test('canonicalizes URI before comparing with stored test URIs (#275268)', async () => {
 			const canonicalUri = URI.from({ scheme: 'vscode-remote', authority: 'wsl+Ubuntu', path: '/home/user/test.py' });
 			const rawUri = URI.file('/home/user/test.py');
+			const extUri = new ExtUri(() => false);
 
 			// Build a collection where test items are stored with the canonical URI.
 			const collection = new TestTestCollection();
@@ -128,10 +129,7 @@ suite('Workbench - Test Service', () => {
 			// simulating a remote environment where URI.file() produces a non-canonical form.
 			const ident = upcastPartial<IUriIdentityService>({
 				asCanonicalUri: (u: URI) => u.toString() === rawUri.toString() ? canonicalUri : u,
-				extUri: upcastPartial<IExtUri>({
-					isEqual: (a: URI, b: URI) => a.toString() === b.toString(),
-					isEqualOrParent: (a: URI, b: URI) => a.toString() === b.toString(),
-				}),
+				extUri,
 			});
 
 			const testService = upcastPartial<ITestService>({
