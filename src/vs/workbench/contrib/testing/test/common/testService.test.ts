@@ -130,7 +130,7 @@ suite('Workbench - Test Service', () => {
 			// Mock IUriIdentityService: asCanonicalUri maps rawUri to canonicalUri,
 			// simulating a remote environment where URI.file() produces a non-canonical form.
 			const ident = upcastPartial<IUriIdentityService>({
-				asCanonicalUri: (u: URI) => u.toString() === rawUri.toString() ? canonicalUri : u,
+				asCanonicalUri: (u: URI) => extUri.isEqual(u, rawUri) ? canonicalUri : u,
 				extUri,
 			});
 
@@ -203,7 +203,7 @@ suite('Workbench - Test Service', () => {
 			assert.deepStrictEqual([...collection.getNodeByUrl(rawUri)].map(t => t.item.extId), []);
 
 			const ident = upcastPartial<IUriIdentityService>({
-				asCanonicalUri: (u: URI) => u.toString() === rawUri.toString() ? canonicalUri : u,
+				asCanonicalUri: (u: URI) => extUri.isEqual(u, rawUri) ? canonicalUri : u,
 				extUri,
 			});
 
