@@ -25,12 +25,12 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { ClaudeFolderInfo } from '../claude/common/claudeFolderInfo';
 import { ClaudeSessionUri } from '../claude/common/claudeSessionUri';
 import { ClaudeAgentManager } from '../claude/node/claudeCodeAgent';
-import { CLAUDE_REASONING_EFFORT_PROPERTY, formatClaudeModelDetails, IClaudeCodeModels, pickReasoningEffort } from '../claude/node/claudeCodeModels';
+import { CLAUDE_REASONING_EFFORT_PROPERTY, IClaudeCodeModels, pickReasoningEffort } from '../claude/node/claudeCodeModels';
 import { IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../claude/node/claudeModelId';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
 import { IClaudeCodeSessionService } from '../claude/node/sessionParser/claudeCodeSessionService';
-import { formatModelDetailsWithCredits } from '../../../platform/chat/common/chatModelDetails';
+import { formatModelDetails, formatModelDetailsWithMultiplier } from '../../../platform/chat/common/chatModelDetails';
 import { IClaudeCodeSessionInfo, IClaudeCodeSession, SYNTHETIC_MODEL_ID } from '../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
@@ -181,12 +181,9 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
 			let details: string | undefined;
 			if (modelDetailsEnabled && endpoint) {
-				if (creditsUsed !== undefined) {
-					details = formatModelDetailsWithCredits(endpoint.name, creditsUsed);
-				} else {
-					details = formatClaudeModelDetails(endpoint);
-				}
+				details = formatModelDetails(endpoint.name, endpoint.multiplier, creditsUsed);
 			}
+
 			return {
 				...(details ? { details } : {}),
 				...(result.errorDetails ? { errorDetails: result.errorDetails } : {}),
@@ -226,7 +223,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 	}
 
 	/**
-	 * Resolves the display string for each unique non-synthetic model id observed in the
+	 * Resolves model info for each unique non-synthetic model id observed in the
 	 * session's assistant messages. Returns `undefined` (not an empty map) when no model
 	 * ids are present, when the caller has cancelled, or when no ids resolve to known
 	 * endpoints — so callers can skip the per-turn details work entirely.
@@ -254,7 +251,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			}
 			const endpoint = await this.claudeModels.resolveEndpoint(modelId, undefined);
 			if (endpoint) {
-				detailsByModelId.set(modelId, formatClaudeModelDetails(endpoint));
+				detailsByModelId.set(modelId, formatModelDetailsWithMultiplier(endpoint.name, endpoint.multiplier));
 			}
 		}));
 		if (token.isCancellationRequested) {

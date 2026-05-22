@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { commands, extensions, window } from 'vscode';
 import { IAuthenticationService, MinimalModeError } from '../../../platform/authentication/common/authentication';
+import { TokenErrorReason } from '../../../platform/authentication/common/copilotToken';
 import { ContactSupportError, EnterpriseManagedError, GitHubLoginFailedError, InvalidTokenError, NotSignedUpError, RateLimitedError, SubscriptionExpiredError } from '../../../platform/authentication/vscode-node/copilotTokenManager';
 import { SESSION_LOGIN_MESSAGE } from '../../../platform/authentication/vscode-node/session';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -36,6 +37,7 @@ const showLogViewContextKey = `github.copilot.chat.showLogView`;
 const debugReportFeedbackContextKey = 'github.copilot.debugReportFeedback';
 
 const previewFeaturesDisabledContextKey = 'github.copilot.previewFeaturesDisabled';
+const blackbirdExternalIndexingDisabledContextKey = 'github.copilot.blackbirdExternalIndexingDisabled';
 
 const clientByokEnabledContextKey = 'github.copilot.clientByokEnabled';
 
@@ -140,11 +142,12 @@ export class ContextKeysContribution extends Disposable {
 			const reason = e.message || e;
 			const data = TelemetryData.createAndMarkAsIssued({ reason });
 			this._telemetryService.sendGHTelemetryErrorEvent('activationFailed', data.properties, data.measurements);
-			const message =
-				reason === 'GitHubLoginFailed'
-					? SESSION_LOGIN_MESSAGE
-					: `GitHub Copilot could not connect to server. Extension activation failed: "${reason}"`;
-			this._logService.error(message);
+			if (reason === ('GitHubLoginFailed' satisfies TokenErrorReason)) {
+				// Expected in BYOK / air-gapped flows where the user is not signed in to GitHub.
+				this._logService.debug(SESSION_LOGIN_MESSAGE);
+			} else {
+				this._logService.error(`GitHub Copilot could not connect to server. Extension activation failed: "${reason}"`);
+			}
 		}
 
 		if (error instanceof NotSignedUpError) {
@@ -210,6 +213,15 @@ export class ContextKeysContribution extends Disposable {
 		}
 	}
 
+	private async _updateBlackbirdExternalIndexingDisabledContext() {
+		try {
+			const copilotToken = await this._authenticationService.getCopilotToken();
+			commands.executeCommand('setContext', blackbirdExternalIndexingDisabledContextKey, !copilotToken.isBlackbirdExternalIndexingEnabled());
+		} catch (e) {
+			commands.executeCommand('setContext', blackbirdExternalIndexingDisabledContextKey, undefined);
+		}
+	}
+
 	private async _updateClientByokEnabledContext() {
 		const hasGitHubSession = !!this._authenticationService.anyGitHubSession;
 		try {
@@ -244,6 +256,7 @@ export class ContextKeysContribution extends Disposable {
 		this._inspectContext();
 		this._updateQuotaExceededContext();
 		this._updatePreviewFeaturesDisabledContext();
+		this._updateBlackbirdExternalIndexingDisabledContext();
 		this._updateClientByokEnabledContext();
 		this._updateShowLogViewContext();
 		this._updatePermissiveSessionContext();

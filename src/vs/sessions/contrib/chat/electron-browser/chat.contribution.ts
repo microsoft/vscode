@@ -59,16 +59,14 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private tryResolveAndSelect(folderUri: URI): boolean {
-		for (const provider of this.sessionsProvidersService.getProviders()) {
-			const workspace = provider.resolveWorkspace(folderUri);
-			if (workspace) {
-				this.viewsService.openView<NewChatViewPane>(SessionsViewId).then(view => {
-					view?.selectWorkspace({ providerId: provider.id, workspace });
-				});
-				return true;
-			}
+		const resolved = this.sessionsManagementService.resolveWorkspace(folderUri);
+		if (!resolved) {
+			return false;
 		}
-		return false;
+		this.viewsService.openView<NewChatViewPane>(SessionsViewId).then(view => {
+			view?.selectWorkspace(folderUri);
+		});
+		return true;
 	}
 }
 

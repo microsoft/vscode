@@ -6,6 +6,7 @@
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -553,6 +554,9 @@ async function connectWithProgress(
 		return connection;
 	} catch (err) {
 		handle.close();
+		if (isCancellationError(err)) {
+			return undefined;
+		}
 		notificationService.error(localize('sshConnectFailed', "Failed to connect via SSH to {0}: {1}", displayHost, String(err)));
 		return undefined;
 	} finally {
@@ -589,10 +593,14 @@ async function promptForRemoteFolder(
 	if (!workspace) {
 		return;
 	}
+	const folderUri = workspace.folders[0]?.root;
+	if (!folderUri) {
+		return;
+	}
 
 	sessionsManagementService.openNewSessionView();
 	const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
-	view?.selectWorkspace({ providerId: provider.id, workspace });
+	view?.selectWorkspace(folderUri);
 }
 
 registerAction2(class extends Action2 {
@@ -935,10 +943,14 @@ async function promptForTunnelFolder(
 	if (!workspace) {
 		return;
 	}
+	const folderUri = workspace.folders[0]?.root;
+	if (!folderUri) {
+		return;
+	}
 
 	sessionsManagementService.openNewSessionView();
 	const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
-	view?.selectWorkspace({ providerId: provider.id, workspace });
+	view?.selectWorkspace(folderUri);
 }
 
 registerAction2(class extends Action2 {

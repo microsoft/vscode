@@ -67,7 +67,7 @@ import { IChatQuotaService } from '../../platform/chat/common/chatQuotaService';
 import { ChatQuotaService } from '../../platform/chat/common/chatQuotaServiceImpl';
 import { IConversationOptions } from '../../platform/chat/common/conversationOptions';
 import { IInteractionService, InteractionService } from '../../platform/chat/common/interactionService';
-import { BaseConfig, Config, ConfigKey, CopilotConfigPrefix, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, IConfigurationService } from '../../platform/configuration/common/configurationService';
+import { BaseConfig, Config, ConfigKey, ConfigTarget, CopilotConfigPrefix, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, IConfigurationService } from '../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { IDiffService } from '../../platform/diff/common/diffService';
 import { DiffServiceImpl } from '../../platform/diff/node/diffServiceImpl';
@@ -419,7 +419,7 @@ class OverridableConfigurationService extends DefaultsOnlyConfigurationService {
 		this._overrides = overrides;
 	}
 
-	override async setConfig<T>(key: BaseConfig<T>, value: T): Promise<void> {
+	override async setConfig<T>(key: BaseConfig<T>, value: T, _target?: ConfigTarget): Promise<void> {
 		const existing = this._overrides.get(key.id);
 		if (existing === value) {
 			return;

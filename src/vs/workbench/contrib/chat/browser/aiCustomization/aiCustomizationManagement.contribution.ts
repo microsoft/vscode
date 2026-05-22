@@ -34,9 +34,8 @@ import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../services/agentHost/comm
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
-import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -54,7 +53,7 @@ import {
 	AICustomizationManagementCommands,
 	AICustomizationManagementItemMenuId,
 	AICustomizationManagementSection,
-	BUILTIN_STORAGE,
+	AICustomizationSource,
 } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
@@ -148,7 +147,7 @@ function extractURI(context: AICustomizationContext): URI {
 /**
  * Extracts storage type from context.
  */
-function extractStorage(context: AICustomizationContext): PromptsStorage | undefined {
+function extractSource(context: AICustomizationContext): AICustomizationSource | undefined {
 	if (URI.isUri(context) || typeof context === 'string') {
 		return undefined;
 	}
@@ -220,14 +219,14 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const storage = extractStorage(context);
+		const source = extractSource(context);
 
 		const editorPane = await editorService.openEditor({
 			resource: extractURI(context)
 		});
 
 		const codeEditor = getCodeEditor(editorPane?.getControl());
-		if (codeEditor && (storage === PromptsStorage.extension || storage === PromptsStorage.plugin)) {
+		if (codeEditor && (source === AICustomizationSources.extension || source === AICustomizationSources.plugin)) {
 			codeEditor.updateOptions({
 				readOnly: true,
 				readOnlyMessage: new MarkdownString(localize('readonlyPluginFile', "This file is provided by a plugin or extension and cannot be edited.")),
@@ -295,7 +294,7 @@ registerAction2(class extends Action2 {
 		const editorService = accessor.get(IEditorService);
 
 		const uri = extractURI(context);
-		const storage = extractStorage(context);
+		const source = extractSource(context);
 		const promptType = extractPromptType(context);
 		const itemId = extractItemId(context);
 		const isSkill = promptType === PromptsType.skill;
@@ -304,7 +303,7 @@ registerAction2(class extends Action2 {
 		const fileName = isSkill ? basename(dirname(uri)) : basename(uri);
 
 		// Plugin-provided files: offer to uninstall the plugin
-		if (storage === PromptsStorage.plugin) {
+		if (source === AICustomizationSources.plugin) {
 			const agentPluginService = accessor.get(IAgentPluginService);
 			const plugin = agentPluginService.plugins.get().find(p => isEqualOrParent(uri, p.uri));
 			if (plugin) {
@@ -322,7 +321,7 @@ registerAction2(class extends Action2 {
 		}
 
 		// Extension and built-in files cannot be deleted
-		if (storage === PromptsStorage.extension || storage === BUILTIN_STORAGE) {
+		if (source === AICustomizationSources.extension || source === AICustomizationSources.builtin) {
 			await dialogService.info(
 				localize('cannotDeleteExtension', "Cannot Delete Extension File"),
 				localize('cannotDeleteExtensionDetail', "Files provided by extensions cannot be deleted. You can disable the extension if you no longer want to use this customization.")
@@ -349,7 +348,7 @@ registerAction2(class extends Action2 {
 			try {
 				telemetryService.publicLog2<CustomizationEditorDeleteItemEvent, CustomizationEditorDeleteItemClassification>('chatCustomizationEditor.deleteItem', {
 					promptType: promptType ?? '',
-					storage: storage ?? '',
+					storage: source ?? '',
 				});
 			} catch {
 				// Telemetry must not block deletion
@@ -365,7 +364,7 @@ registerAction2(class extends Action2 {
 					if (edits.length > 0) {
 						const updated = applyEdits(text, edits);
 						await fileService.writeFile(uri, VSBuffer.fromString(updated));
-						if (storage === PromptsStorage.local) {
+						if (source === AICustomizationSources.local) {
 							const projectRoot = workspaceService.getActiveProjectRoot();
 							if (projectRoot) {
 								await workspaceService.commitFiles(projectRoot, [uri]);
@@ -388,7 +387,7 @@ registerAction2(class extends Action2 {
 			await fileService.del(deleteTarget, { useTrash, recursive: isSkill });
 
 			// Commit the deletion to git (sessions: main repo + worktree)
-			if (storage === PromptsStorage.local) {
+			if (source === AICustomizationSources.local) {
 				const projectRoot = workspaceService.getActiveProjectRoot();
 				if (projectRoot) {
 					await workspaceService.deleteFiles(projectRoot, [deleteTarget]);
@@ -444,9 +443,9 @@ registerAction2(class extends Action2 {
  * When clause that hides an action for read-only (extension, plugin, built-in) items.
  */
 const WHEN_ITEM_IS_DELETABLE = ContextKeyExpr.and(
-	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.extension),
-	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.plugin),
-	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.extension),
+	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.plugin),
+	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
 );
 
 /**
@@ -458,7 +457,7 @@ const WHEN_ITEM_IS_DELETABLE = ContextKeyExpr.and(
  * plugin-related actions ("Show Plugin", "Uninstall Plugin") for them.
  */
 const WHEN_ITEM_IS_PLUGIN = ContextKeyExpr.and(
-	ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.plugin),
+	ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.plugin),
 	ContextKeyExpr.regex(AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, new RegExp(`^${SYNCED_CUSTOMIZATION_SCHEME}:`)).negate(),
 );
 
@@ -669,7 +668,7 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	order: 1,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
 	),
 });
@@ -681,7 +680,7 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	order: 1,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
 	),
 });
@@ -693,7 +692,7 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
 	),
 });
@@ -705,7 +704,7 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
 	),
 });
@@ -768,11 +767,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				// so the customization editor opens in the matching context.
 				const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
 				if (sessionResource) {
-					const sessionType = getChatSessionType(sessionResource);
-					const harness = harnessService.findHarnessById(sessionType);
-					if (harness) {
-						harnessService.setActiveHarness(sessionType);
-					}
+					harnessService.setActiveSession(sessionResource);
 				}
 
 				const input = AICustomizationManagementEditorInput.getOrCreate();

@@ -337,3 +337,59 @@ suite('ExecuteHandoffAction', () => {
 		assert.ok(result.error?.includes('No handoffs available'));
 	});
 });
+
+suite('SwitchToNextPinnedModelAction', () => {
+	const store = new DisposableStore();
+	let instantiationService: TestInstantiationService;
+
+	let chatExecuteActions: DisposableStore;
+	suiteSetup(() => {
+		chatExecuteActions = registerChatExecuteActions();
+	});
+
+	suiteTeardown(() => {
+		chatExecuteActions.dispose();
+	});
+
+	setup(() => {
+		instantiationService = store.add(new TestInstantiationService());
+	});
+
+	teardown(() => {
+		store.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('invokes switchToNextPinnedModel on the last focused widget', async () => {
+		let switchCalls = 0;
+		const mockWidget = {
+			input: {
+				switchToNextPinnedModel: () => {
+					switchCalls++;
+				}
+			}
+		} as unknown as IChatWidget;
+
+		const mockWidgetService = new class extends MockChatWidgetService {
+			override readonly lastFocusedWidget = mockWidget;
+		};
+
+		instantiationService.set(IChatWidgetService, mockWidgetService);
+
+		const handler = CommandsRegistry.getCommand('workbench.action.chat.switchToNextPinnedModel')?.handler;
+		assert.ok(handler);
+
+		await runCommandAsync<void>(handler, instantiationService);
+		assert.strictEqual(switchCalls, 1);
+	});
+
+	test('is a no-op when there is no focused widget', async () => {
+		instantiationService.set(IChatWidgetService, new MockChatWidgetService());
+
+		const handler = CommandsRegistry.getCommand('workbench.action.chat.switchToNextPinnedModel')?.handler;
+		assert.ok(handler);
+
+		await runCommandAsync<void>(handler, instantiationService);
+	});
+});

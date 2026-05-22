@@ -23,8 +23,9 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, IParsedChatRequest } from '../common/requestParser/chatParserTypes.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { TipEligibilityTracker } from './chatTipEligibilityTracker.js';
-import { ChatTipTier, extractCommandIds, ITipBuildContext, ITipDefinition, TIP_CATALOG } from './chatTipCatalog.js';
+import { ChatTipExperiment, ChatTipTier, extractCommandIds, ITipBuildContext, ITipDefinition, TIP_CATALOG } from './chatTipCatalog.js';
 import { ChatTipStorageKeys, TipTrackingCommands } from './chatTipStorageKeys.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 
 type ChatTipEvent = {
 	tipId: string;
@@ -200,6 +201,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	private _thinkingPhrasesEverModified: boolean;
 	private _tipsHiddenForSession = false;
 	private readonly _tipCommandListener = this._register(new MutableDisposable());
+	private readonly _experimentalTipMessages = new Map<string, string>();
 
 	constructor(
 		@IProductService private readonly _productService: IProductService,
@@ -212,10 +214,13 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		@ICommandService private readonly _commandService: ICommandService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
 	) {
 		super();
 		this._tracker = this._register(instantiationService.createInstance(TipEligibilityTracker, TIP_CATALOG));
 		this._createSlashCommandsUsageTracker = this._register(new CreateSlashCommandsUsageTracker(this._chatService, this._storageService, () => this._contextKeyService));
+		this._fetchExperimentalTipMessages();
+		this._register(this._assignmentService.onDidRefetchAssignments(() => this._fetchExperimentalTipMessages()));
 		this._register(this._chatEntitlementService.onDidChangeQuotaExceeded(() => {
 			if (this._chatEntitlementService.quotas.chat?.percentRemaining === 0 && this._shownTip) {
 				this.hideTip();
@@ -429,7 +434,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 
 		// Tips are only relevant after sign-in has completed.
-		if (this._chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
+		if (this._chatEntitlementService.entitlement === ChatEntitlement.Unknown && !this._chatEntitlementService.hasByokModels) {
 			return undefined;
 		}
 
@@ -819,9 +824,17 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		return !!defaultChatAgent?.chatExtensionId;
 	}
 
+	private _fetchExperimentalTipMessages(): void {
+		this._assignmentService.getTreatment<string>(ChatTipExperiment.OpenAgentsWindowTip).then(value => {
+			if (typeof value === 'string' && value.length > 0) {
+				this._experimentalTipMessages.set(ChatTipExperiment.OpenAgentsWindowTip, value);
+			}
+		});
+	}
+
 	private _createTip(tipDef: ITipDefinition): IChatTip {
 		// Build the tip message with dynamic keybindings and command labels
-		const ctx: ITipBuildContext = { keybindingService: this._keybindingService };
+		const ctx: ITipBuildContext = { keybindingService: this._keybindingService, experimentalTipMessages: this._experimentalTipMessages };
 		const rawMessage = tipDef.buildMessage(ctx);
 
 		// Add "Tip:" prefix once here, avoiding duplication in individual tip definitions
@@ -852,7 +865,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		this._tipCommandListener.clear();
 
 		// Build message to extract enabled commands dynamically
-		const ctx: ITipBuildContext = { keybindingService: this._keybindingService };
+		const ctx: ITipBuildContext = { keybindingService: this._keybindingService, experimentalTipMessages: this._experimentalTipMessages };
 		const rawMessage = tip.buildMessage(ctx);
 		const enabledCommands = extractCommandIds(rawMessage.value);
 

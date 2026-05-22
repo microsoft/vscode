@@ -25,7 +25,7 @@ import { TOOLS_AND_GROUPS_LIMIT } from './virtualToolsConstants';
 import { describeBulkToolGroups } from './virtualToolSummarizer';
 import { ISummarizedToolCategory, ISummarizedToolCategoryUpdatable, IToolCategorization, IToolGroupingCache } from './virtualToolTypes';
 
-const CATEGORIZATION_ENDPOINT = 'copilot-fast';
+const CATEGORIZATION_ENDPOINT = 'copilot-utility-small';
 const SUMMARY_PREFIX = 'Call this tool when you need access to a new category of tools. The category of tools is described as follows:\n\n';
 const SUMMARY_SUFFIX = '\n\nBe sure to call this tool if you need a capability related to the above.';
 

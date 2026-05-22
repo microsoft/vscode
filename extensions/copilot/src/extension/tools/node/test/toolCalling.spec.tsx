@@ -235,10 +235,16 @@ suite('ChatToolCalls thinking handling', () => {
 		expect(hasThinkingPart(result)).toBe(false);
 	});
 
-	test('non-historical: includes thinking regardless of apiType/modelId', async () => {
+	test('non-historical: includes thinking when modelId matches (regardless of apiType)', async () => {
 		const endpoint = makeEndpoint('gpt-5', 'chatCompletions');
-		const result = await render(endpoint, [makeThinkingRound('claude-3.7-sonnet')], false);
+		const result = await render(endpoint, [makeThinkingRound('gpt-5')], false);
 		expect(hasThinkingPart(result)).toBe(true);
+	});
+
+	test('non-historical: drops thinking when modelId mismatches', async () => {
+		const endpoint = makeEndpoint('gpt-5', 'responses');
+		const result = await render(endpoint, [makeThinkingRound('claude-4.6-sonnet')], false);
+		expect(hasThinkingPart(result)).toBe(false);
 	});
 
 	test('historical: backward-compat reads phaseModelId when modelId is missing', async () => {

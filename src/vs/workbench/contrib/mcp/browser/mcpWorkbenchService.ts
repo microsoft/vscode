@@ -674,7 +674,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	}
 
 	private async handleMcpInstallUri(uri: URI): Promise<boolean> {
-		let parsed: IMcpServerConfiguration & { name: string; inputs?: IMcpServerVariable[]; gallery?: boolean };
+		let parsed: IMcpServerConfiguration & { name: string; inputs?: IMcpServerVariable[] };
 		try {
 			parsed = JSON.parse(decodeURIComponent(uri.query));
 		} catch (e) {
@@ -682,7 +682,27 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 
 		try {
-			const { name, inputs, gallery, ...config } = parsed;
+			const { name, inputs, ...config } = parsed;
+
+			// When a gallery field is present and the gallery service is available,
+			// verify the server exists in the active gallery by name. If verified,
+			// route through the gallery-only path (matching handleMcpServerByName).
+			if (config.gallery && this.mcpGalleryService.isEnabled()) {
+				try {
+					// Verify by name against the active gallery (not by URL, which would
+					// make outbound requests to untrusted URLs from the protocol payload).
+					const [galleryServer] = await this.mcpGalleryService.getMcpServersFromGallery([{ name }]);
+					if (galleryServer) {
+						const local = this.local.find(e => e.name === galleryServer.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, galleryServer, undefined);
+						this.open(local);
+						return true;
+					}
+					this.logService.info(`MCP server '${name}' not found in gallery, installing as local`);
+				} catch (e) {
+					this.logService.info(`Gallery verification failed for MCP server '${name}', installing as local`);
+				}
+			}
+
 			if (config.type === undefined) {
 				(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>parsed).command ? McpServerType.LOCAL : McpServerType.REMOTE;
 			}

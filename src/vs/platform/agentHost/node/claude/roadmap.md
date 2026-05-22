@@ -97,7 +97,7 @@ Phase numbers are stable identifiers — code comments, plan files
 do **not** renumber. The actual landing order diverges from numeric order
 to unblock self-hosting sooner:
 
-**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 11 → 12 → 6.5 → 14 → 15**
+**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 10.5 → 11 → 12 → 6.5 → 14 → 15**
 
 Phase 13 (session restoration) is pulled forward immediately after Phase 9
 because it unlocks two high-leverage capabilities:
@@ -444,7 +444,7 @@ round-trip correctly.
 Exit criteria: a workbench client sees the Claude provider listed, can pick
 a Claude model, but can't yet send a message.
 
-### Phase 5 — Session lifecycle: create / dispose / list / shutdown
+### Phase 5 — Session lifecycle: create / dispose / list / shutdown ✅ **DONE**
 
 Implement the lifecycle methods that don't require live LLM traffic.
 **Provisional / materialize is the load-bearing model in this phase**
@@ -520,7 +520,7 @@ restarts find materialised sessions; externally-created Claude Code
 sessions appear; agent host can shut down cleanly. Fork is deferred to
 Phase 6.5.
 
-### Phase 6 — `sendMessage` + streaming progress events (single-turn, no tools)
+### Phase 6 — `sendMessage` + streaming progress events (single-turn, no tools) ✅ **DONE**
 
 Wire the proxy + SDK from Phase 3 into a real session. **Port the lifecycle
 machinery from `claudeCodeAgent.ts`:**
@@ -714,7 +714,7 @@ with restored sessions, and honors the workbench's "keep `[0..N]`
 INCLUSIVE" semantic. The reverted heuristic is **not** retained behind a
 flag.
 
-### Phase 7 — Tool calls + permission + user input
+### Phase 7 — Tool calls + permission + user input ✅ **DONE**
 
 Wire the SDK's tool-use loop through to the agent host's tool infrastructure.
 **Transcript-only in this phase** — file edit tracking is Phase 8.
@@ -777,7 +777,7 @@ Exit criteria: a real "read this file" prompt completes end-to-end.
   — see roadmap.md` marker at the call site so the upgrade path stays
   discoverable. Implement when Phase N introduces multi-action plan UX.
 
-### Phase 8 — File edit tracking
+### Phase 8 — File edit tracking ✅ **DONE**
 
 Build the Claude analog of `fileEditTracker.ts` from `node/copilot/`.
 
@@ -802,6 +802,102 @@ client-side accept of one and reject of the other behaves correctly.
 
 Exit criteria: file diffs render in the workbench; per-file accept/reject
 works.
+
+### Phase 8.5 — Rich tool-call rendering parity with Copilot ✅ **DONE**
+
+Claude's tool-call cards today only carry the static display name from
+[`claudeToolDisplay.ts`](./claudeToolDisplay.ts) (`"Run shell command"`,
+`"Find files"`, ...). Copilot's [`copilotToolDisplay.ts`](../copilot/copilotToolDisplay.ts)
+formats the actual `tool_use.input` into the row title and tags the row
+with a `toolKind` so the workbench renders terminal / search /
+subagent specially. Phase 12 already laid the `_meta.toolKind:
+'subagent'` half down; this phase finishes the parity for the rest of
+the SDK's built-in tools.
+
+Gap surfaced live: a `Bash` permission card reads *"Run shell command"*
+with no command attached, and `Bash` / `Grep` / `Glob` rows render in
+the generic tool renderer instead of the dedicated terminal / search
+renderers.
+
+Scope:
+
+- **Port the Copilot helper shape** into
+  [`claudeToolDisplay.ts`](./claudeToolDisplay.ts), keyed off the SDK's
+  `tool_use.input` schemas:
+  - `getClaudeInvocationMessage(toolName, displayName, input)` →
+    markdown that includes the actual params (`` Running `git status` ``,
+    `Reading [src/foo.ts](src/foo.ts)`, `` Searching for `pattern` ``,
+    `Fetching [https://...](https://...)`).
+  - `getClaudePastTenseMessage(toolName, displayName, input, success)` →
+    success/failure-aware past-tense (`` Ran `git status` ``,
+    `Read foo.ts`, `Searched for ...`); replaces the
+    `"<displayName> finished"` hardcode at
+    [`claudeMapSessionEvents.ts:332`](./claudeMapSessionEvents.ts#L332).
+  - `getClaudeToolKind(toolName)` → `'terminal' | 'subagent' |
+    'search' | undefined`. `Bash` / `BashOutput` / `KillBash` →
+    `'terminal'`; `Grep` / `Glob` → `'search'`; `Task` →
+    `'subagent'` (Phase 12 already does this; consolidate the call
+    site).
+  - `getClaudeShellLanguage(toolName)` → `'bash'` for the shell tools
+    (drives terminal renderer's syntax highlighting).
+  - `getClaudeToolInputString(toolName, input)` → the canonical
+    "input as code" string used for the code block under the row
+    (e.g. the multi-line `command` for `Bash`, the formatted
+    arguments for the rest).
+  - Per-tool input typings live alongside the helpers
+    (`IClaudeBashInput`, `IClaudeGrepInput`, ...), validated
+    defensively (Claude's input can be malformed across SDK
+    versions — fall back to the static display name on shape
+    mismatch).
+- **Wire the helpers through both code paths**:
+  - [`claudeCanUseTool.ts`](./claudeCanUseTool.ts) — set
+    `invocationMessage` on `pending_confirmation` from the rich
+    helper so the **permission card shows the actual command /
+    file / pattern**, not just the display name. Add `toolKind` and
+    `language` to the signal so the card uses the terminal renderer
+    when relevant.
+  - [`claudeMapSessionEvents.ts`](./claudeMapSessionEvents.ts) —
+    set `invocationMessage` on `SessionToolCallReady` for the
+    non-interactive (auto-approved) path, set `pastTenseMessage` on
+    `SessionToolCallComplete`, and emit `_meta.toolKind` /
+    `_meta.language` on the `tool_use` block alongside the existing
+    `_meta.toolKind: 'subagent'` (single canonical path; Phase 12's
+    spawn helpers consume the same field).
+  - **Replay path** — `claudeReplayMapper.ts` writes the same
+    `_meta.toolKind` / `_meta.language` and rich
+    invocation/past-tense on historical `tool_use` blocks so
+    restored sessions render identically to live ones.
+- **Snapshot test** in `claudeToolDisplay.test.ts` covering each tool
+  row × `{ invocation, pastTense, toolKind, language, inputString }`.
+  Mirrors the existing display-name snapshot so any new SDK tool
+  added to the `TOOL_ROWS` table forces a snapshot update.
+
+Tests:
+
+- Unit: snapshot table covers every tool; `getClaudeInvocationMessage`
+  defends against malformed input shapes and falls back cleanly.
+- Integration: an interactive `Bash` request → the
+  `pending_confirmation` signal carries the command in
+  `invocationMessage` and `_meta.toolKind: 'terminal'`; the same flow
+  on completion emits a past-tense message that includes the command.
+
+Manual E2E:
+
+- Live: ask the Claude agent to run a shell command. The permission
+  card should render in the **terminal** style with the command
+  highlighted; the card should read *Running `git status`* (or
+  similar) instead of *Run shell command*. After approval the row
+  collapses to *Ran `git status`*. Same for `Grep` / `Glob`
+  rendering in the search style.
+- Replay: open a historical Claude session that contains shell and
+  search tool calls. The historical rows should render in the same
+  terminal / search style as the live rows.
+
+Exit criteria: Claude tool-call cards (live and replayed) match
+Copilot's rendering quality — permission cards show the actual
+invocation, terminal tools render in the terminal renderer, search
+tools render in the search renderer. Adding a new SDK tool means
+adding one row to `TOOL_ROWS` and updating the snapshot test.
 
 ### Phase 9 — Abort + steering + model change + shutdown polish ✅ **DONE**
 
@@ -884,7 +980,7 @@ restart), killed subprocess triggers recovery.
 
 Exit criteria: parity with Copilot agent on stop / steer / switch model.
 
-### Phase 10 — Client-provided tools (in-process MCP)
+### Phase 10 — Client-provided tools (in-process MCP) ✅ **DONE**
 
 The Claude SDK exposes **two distinct MCP entry points** that classify into
 different M11 buckets — do not conflate them:
@@ -931,6 +1027,34 @@ Exit criteria: client tools callable from a Claude session.
   Check what `ideMcpServer.ts` does.
 - Idle timeout for the MCP gateway — sensible default?
 
+### Phase 10.5 — Unified `ClaudeAgentSession` lifecycle ✅ **DONE**
+
+Structural follow-up to Phase 10. The dual-map session pattern
+(`_provisionalSessions` + `_sessions`) is the direct source of every
+race bug surfaced by Phase 10's council review. Each was fixed with
+compensation code; this phase collapses the structure so the
+compensation goes away.
+
+**Goal:** one `_sessions` map of `ClaudeAgentSession` objects that own
+their own `materialize()` lifecycle. Delete `_provisionalSessions`,
+`IClaudeProvisionalSession`, and the `ClaudeMaterializer` class (pure
+helpers move to a new `claudeSdkOptions.ts` module).
+
+**Scope:** internal refactor — `IAgent` surface unchanged. 8 bite-size
+steps, each landing behind the agentHost test suite. Phase 10's race
+regressions remain green and become trivially true once the structural
+split is gone. `CopilotAgent` uses the same pattern but stays as
+reference only (different lifecycle semantics — no MCP, no
+yield-restart).
+
+Exit criteria: zero `_provisionalSessions` / `IClaudeProvisionalSession`
+/ `ClaudeMaterializer` references under `src/vs/platform/agentHost/`;
+Phase 10 race regressions still passing; E2E scenario (create →
+set-model → send → set-client-tools → send → rebind → abort →
+dispose) clean across the whole session lifecycle.
+
+Full step-by-step plan: [phase10.5-plan.md](./phase10.5-plan.md).
+
 ### Phase 11 — Customizations / plugins (full surface)
 
 **Inbound (host → SDK):**
@@ -972,7 +1096,7 @@ Exit criteria: customization round-trip works; toggle is defer-and-coalesce
 by default and restart-required only when tool sets diverge; workbench
 renders Claude customizations like Copilot's.
 
-### Phase 12 — Subagents
+### Phase 12 — Subagents ✅ **DONE**
 
 Subagents are inner sessions spawned by the SDK (e.g. when the model
 delegates to a sub-task). The protocol has first-class support; we need to
@@ -999,6 +1123,52 @@ Scope:
 
 Tests: trigger a subagent, verify the signal fires with a valid URI,
 verify `getSessionMessages` returns the subagent transcript.
+
+Manual end-to-end validation (run before each release of this surface):
+
+1. **Live spawn renders correctly.** Launch the Agents window
+   (`./scripts/code.sh --agents`), start a fresh `claude` session, switch
+   the agent picker to **Claude**, and send a prompt that asks for two
+   parallel subagents (e.g. *"Spin up 2 subagents that do something, I
+   want to make sure they render correctly"*). Verify in the chat:
+   - Two parent rows appear, one per Task tool_use, each labeled with
+     the `subagent_type` (e.g. "Explore") rather than the literal tool
+     name. The row's description matches the `description` field from
+     the `tool_use.input` (not the prompt).
+   - Each parent row enters the **Running** state immediately (no stuck
+     `Streaming` spinner) — confirms `buildTopLevelSubagentReadyAction`
+     is emitting the synthetic `SessionToolCallReady` with
+     `_meta.toolKind: 'subagent'` even though the SDK skips `canUseTool`
+     for the Task tool.
+   - Inner tool calls (Glob / Read / etc.) are nested under their
+     parent row, with their own past-tense completion messages.
+   - Each parent row collapses to **Ran subagent** when its
+     `tool_result` lands; no orphan rows survive after the turn ends.
+   - Final assistant text from the parent appears below the subagent
+     rows.
+2. **Replay of a historical session renders correctly.** With the
+   Agents window still open, click an older session in the sidebar that
+   includes Task spawns (any prior chat where the agent delegated to a
+   subagent works). Verify:
+   - The historical parent rows render with the same labels as the
+     live path — confirms the replay mapper
+     (`claudeReplayMapper.ts`) sets `_meta.toolKind: 'subagent'` on
+     completed/cancelled Task tool_use blocks, and the workbench
+     attaches the same UI affordances.
+   - Clicking a subagent marker opens the subagent transcript inline,
+     pulled via `ClaudeAgent.getSessionMessages` →
+     `getSubagentTranscript(uri, registry, sdk, log, token)`. The
+     strategy chain (TextSuffix → PromptMatch → Native) resolves the
+     `agentId` from the parent's primed `SubagentRegistry` on first
+     open and from the cached `spawn.agentId` on subsequent opens.
+   - Inner content (text, thinking, tool calls) appears in the
+     subagent view.
+   - No console errors / no `[Claude]` warn-logs in the renderer or
+     agentHost log for the resolved sessions.
+
+Validated against this build: see the `Spin up 2 subagents...`
+run captured in the Phase 12 plan's Step 14 ("E2E validation")
+appendix; both flows rendered as specified.
 
 Exit criteria: subagent sessions are first-class for clients.
 
