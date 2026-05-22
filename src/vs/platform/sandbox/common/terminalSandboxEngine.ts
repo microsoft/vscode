@@ -8,6 +8,7 @@ import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { posix, win32 } from '../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../base/common/platform.js';
+import { arch } from '../../../base/common/process.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
@@ -523,7 +524,9 @@ export class TerminalSandboxEngine extends Disposable {
 		this._runAsNode = runtimeInfo.runAsNode ?? false;
 		this._userHome = await this._host.getUserHome();
 		this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'sandbox-runtime', 'dist', 'cli.js');
-		this._rgPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg');
+		const rgPlatform = this._os === OperatingSystem.Windows ? 'win32' : this._os === OperatingSystem.Macintosh ? 'darwin' : 'linux';
+		const rgBinary = this._os === OperatingSystem.Windows ? 'rg.exe' : 'rg';
+		this._rgPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'ripgrep-universal', 'bin', `${rgPlatform}-${arch}`, rgBinary);
 		this._mxcPath = this._windowsMxcRuntime.getExecutablePath(this._appRoot, runtimeInfo.arch);
 	}
 

@@ -7,6 +7,7 @@ import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
+import { arch } from '../../../../base/common/process.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
@@ -143,6 +144,16 @@ suite('TerminalSandboxEngine', () => {
 
 		strictEqual(wrapped.isSandboxWrapped, true);
 		ok(!wrapped.command.startsWith('ELECTRON_RUN_AS_NODE='), `Did not expect ELECTRON_RUN_AS_NODE prefix. Actual: ${wrapped.command}`);
+	});
+
+	test('wrapCommand adds ripgrep-universal platform-arch bin directory to PATH', async () => {
+		const host = createHost();
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+		await engine.getSandboxConfigPath();
+
+		const wrapped = await engine.wrapCommand('echo hi');
+
+		ok(wrapped.command.includes(`/app/node_modules/@vscode/ripgrep-universal/bin/linux-${arch}`), `Expected ripgrep-universal platform-arch path in command. Actual: ${wrapped.command}`);
 	});
 
 	test('onDidChangeRoots triggers a sandbox config rewrite on the next wrap', async () => {
