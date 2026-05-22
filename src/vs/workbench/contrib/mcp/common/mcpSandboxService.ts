@@ -8,6 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { dirname, posix, win32 } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { arch } from '../../../../base/common/process.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -263,7 +264,10 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		const execPath = await this._getExecPath(os, appRoot, remoteAuthority);
 		const tempDir = await this._getTempDir(remoteAuthority);
 		const srtPath = this._pathJoin(os, appRoot, 'node_modules', '@vscode', 'sandbox-runtime', 'dist', 'cli.js');
-		const rgPath = this._pathJoin(os, appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg');
+		// @vscode/ripgrep-universal ships per-platform-arch binaries under bin/{platform}-{arch}/{rg|rg.exe}
+		const rgPlatform = os === OperatingSystem.Windows ? 'win32' : os === OperatingSystem.Macintosh ? 'darwin' : 'linux';
+		const rgBinary = os === OperatingSystem.Windows ? 'rg.exe' : 'rg';
+		const rgPath = this._pathJoin(os, appRoot, 'node_modules', '@vscode', 'ripgrep-universal', 'bin', `${rgPlatform}-${arch}`, rgBinary);
 		const sandboxConfigPath = tempDir ? await this._updateSandboxConfig(tempDir, configTarget, sandboxConfig, launchCwd) : undefined;
 		this._logService.debug(`McpSandboxService: Updated sandbox config path: ${sandboxConfigPath}`);
 		return { execPath, srtPath, rgPath, sandboxConfigPath, tempDir };
