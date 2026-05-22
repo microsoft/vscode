@@ -428,7 +428,7 @@ export class PureItemProviderItemSource extends Disposable implements IAICustomi
 		super();
 		this.onDidAICustomizationItemsChange = this.itemProvider.onDidChange;
 
-		// Invalidate cache when provider or skills change
+		// Invalidate cache when the provider changes
 		this._register(this.itemProvider.onDidChange(() => {
 			this.cachedPromise = undefined;
 		}));
