@@ -13,7 +13,7 @@ import { RemoteAuthorities } from '../../../base/common/network.js';
 import * as performance from '../../../base/common/performance.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { IIPCLogger } from '../../../base/parts/ipc/common/ipc.js';
+import { BufferWriter, IIPCLogger, serialize } from '../../../base/parts/ipc/common/ipc.js';
 import { Client, ISocket, PersistentProtocol, ProtocolConstants, SocketCloseEventType } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ILogService } from '../../log/common/log.js';
 import { RemoteAgentConnectionContext } from './remoteAgentEnvironment.js';
@@ -22,6 +22,7 @@ import { IRemoteSocketFactoryService } from './remoteSocketFactoryService.js';
 import { ISignService } from '../../sign/common/sign.js';
 
 const RECONNECT_TIMEOUT = 30 * 1000 /* 30s */;
+const MAX_FRESH_HANDSHAKE_ATTEMPTS = 3;
 
 export const enum ConnectionType {
 	Management = 1,
@@ -62,7 +63,39 @@ export interface ConnectionTypeRequest {
 
 export interface ErrorMessage {
 	type: 'error';
+	/** Human-readable diagnostic. Always populated for backward compatibility with older/forked clients. */
 	reason: string;
+	/** Stable machine-readable code. Newer servers always populate this; control flow (e.g. recovery decisions) matches on it. */
+	reasonCode?: ConnectionRejectionReason;
+	/** Optional runtime context appended to the code's default description. */
+	detail?: string;
+}
+
+/** Stable machine-readable rejection codes. Values must remain unchanged. */
+export const enum ConnectionRejectionReason {
+	UnknownReconnectionTokenNeverSeen = 'unknown-reconnection-token-never-seen',
+	UnknownReconnectionTokenSeenBefore = 'unknown-reconnection-token-seen-before',
+	DuplicateReconnectionToken = 'duplicate-reconnection-token',
+	HandshakeMalformed = 'handshake-malformed',
+	HandshakeInvalid = 'handshake-invalid',
+	AuthRefused = 'auth-refused',
+	VersionMismatch = 'version-mismatch',
+	UnknownInitialData = 'unknown-initial-data',
+}
+
+/** Default human-readable description for a rejection code. */
+export function describeConnectionRejection(code: ConnectionRejectionReason): string {
+	switch (code) {
+		case ConnectionRejectionReason.UnknownReconnectionTokenNeverSeen: return 'Unknown reconnection token (never seen)';
+		case ConnectionRejectionReason.UnknownReconnectionTokenSeenBefore: return 'Unknown reconnection token (seen before)';
+		case ConnectionRejectionReason.DuplicateReconnectionToken: return 'Duplicate reconnection token';
+		case ConnectionRejectionReason.HandshakeMalformed: return 'Malformed handshake message';
+		case ConnectionRejectionReason.HandshakeInvalid: return 'Invalid handshake message';
+		case ConnectionRejectionReason.AuthRefused: return 'Unauthorized client refused';
+		case ConnectionRejectionReason.VersionMismatch: return 'Client refused: version mismatch';
+		case ConnectionRejectionReason.UnknownInitialData: return 'Unknown initial data received';
+		default: return `Unknown connection rejection: ${code}`;
+	}
 }
 
 export interface OKMessage {
@@ -79,6 +112,8 @@ interface ISimpleConnectionOptions<T extends RemoteConnection = RemoteConnection
 	connectionToken: string | undefined;
 	reconnectionToken: string;
 	reconnectionProtocol: PersistentProtocol | null;
+	/** Reuse the existing protocol but tell the server `reconnection=false` (stale-token recovery). The protocol's owner reacts via {@link PersistentProtocol.onDidResetSession} to queue any post-reset init messages. */
+	isFreshHandshakeOnExistingProtocol: boolean;
 	remoteSocketFactoryService: IRemoteSocketFactoryService;
 	signService: ISignService;
 	logService: ILogService;
@@ -232,7 +267,7 @@ async function connectToRemoteExtensionHostAgent<T extends RemoteConnection>(opt
 
 	let socket: ISocket;
 	try {
-		socket = await createSocket(options.logService, options.remoteSocketFactoryService, options.connectTo, RemoteAuthorities.getServerRootPath(), `reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`, connectionTypeToString(connectionType), `renderer-${connectionTypeToString(connectionType)}-${options.reconnectionToken}`, timeoutCancellationToken);
+		socket = await createSocket(options.logService, options.remoteSocketFactoryService, options.connectTo, RemoteAuthorities.getServerRootPath(), `reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol && !options.isFreshHandshakeOnExistingProtocol ? 'true' : 'false'}`, connectionTypeToString(connectionType), `renderer-${connectionTypeToString(connectionType)}-${options.reconnectionToken}`, timeoutCancellationToken);
 	} catch (error) {
 		options.logService.error(`${logPrefix} socketFactory.connect() failed or timed out. Error:`);
 		options.logService.error(error);
@@ -245,6 +280,11 @@ async function connectToRemoteExtensionHostAgent<T extends RemoteConnection>(opt
 	let ownsProtocol: boolean;
 	if (options.reconnectionProtocol) {
 		options.reconnectionProtocol.beginAcceptReconnection(socket, null);
+		if (options.isFreshHandshakeOnExistingProtocol) {
+			// Fires onDidResetSession synchronously; listeners (e.g. ManagementPersistentConnection) queue
+			// any post-reset init messages while _isReconnecting is still true so they replay in order.
+			options.reconnectionProtocol.resetSessionStateForFreshHandshake();
+		}
 		protocol = options.reconnectionProtocol;
 		ownsProtocol = false;
 	} else {
@@ -387,7 +427,7 @@ export interface IConnectionOptions<T extends RemoteConnection = RemoteConnectio
 	ipcLogger: IIPCLogger | null;
 }
 
-async function resolveConnectionOptions<T extends RemoteConnection>(options: IConnectionOptions<T>, reconnectionToken: string, reconnectionProtocol: PersistentProtocol | null): Promise<ISimpleConnectionOptions<T>> {
+async function resolveConnectionOptions<T extends RemoteConnection>(options: IConnectionOptions<T>, reconnectionToken: string, reconnectionProtocol: PersistentProtocol | null, isFreshHandshakeOnExistingProtocol: boolean): Promise<ISimpleConnectionOptions<T>> {
 	const { connectTo, connectionToken } = await options.addressProvider.getAddress();
 	return {
 		commit: options.commit,
@@ -396,6 +436,7 @@ async function resolveConnectionOptions<T extends RemoteConnection>(options: ICo
 		connectionToken: connectionToken,
 		reconnectionToken: reconnectionToken,
 		reconnectionProtocol: reconnectionProtocol,
+		isFreshHandshakeOnExistingProtocol,
 		remoteSocketFactoryService: options.remoteSocketFactoryService,
 		signService: options.signService,
 		logService: options.logService
@@ -440,7 +481,7 @@ async function createInitialConnection<T extends PersistentConnection, O extends
 	for (let attempt = 1; ; attempt++) {
 		try {
 			const reconnectionToken = generateUuid();
-			const simpleOptions = await resolveConnectionOptions(options, reconnectionToken, null);
+			const simpleOptions = await resolveConnectionOptions(options, reconnectionToken, null, false);
 			const result = await connectionFactory(simpleOptions);
 			return result;
 		} catch (err) {
@@ -458,7 +499,7 @@ async function createInitialConnection<T extends PersistentConnection, O extends
 }
 
 export async function connectRemoteAgentTunnel(options: IConnectionOptions, tunnelRemoteHost: string, tunnelRemotePort: number): Promise<PersistentProtocol> {
-	const simpleOptions = await resolveConnectionOptions(options, generateUuid(), null);
+	const simpleOptions = await resolveConnectionOptions(options, generateUuid(), null, false);
 	const protocol = await doConnectRemoteAgentTunnel(simpleOptions, { host: tunnelRemoteHost, port: tunnelRemotePort }, CancellationToken.None);
 	return protocol;
 }
@@ -564,16 +605,19 @@ export abstract class PersistentConnection extends Disposable {
 	private _isReconnecting: boolean = false;
 	private _isDisposed: boolean = false;
 	private _reconnectionGraceTime: number = ProtocolConstants.ReconnectionGraceTime;
+	private _reconnectionToken: string;
+	/** Updated when we re-handshake against a replaced server with a fresh token. */
+	public get reconnectionToken(): string { return this._reconnectionToken; }
 
 	constructor(
 		private readonly _connectionType: ConnectionType,
 		protected readonly _options: IConnectionOptions,
-		public readonly reconnectionToken: string,
+		reconnectionToken: string,
 		public readonly protocol: PersistentProtocol,
 		private readonly _reconnectionFailureIsFatal: boolean
 	) {
 		super();
-
+		this._reconnectionToken = reconnectionToken;
 
 		this._onDidStateChange.fire(new ConnectionGainEvent(this.reconnectionToken, 0, 0));
 
@@ -643,7 +687,7 @@ export abstract class PersistentConnection extends Disposable {
 			// no more attempts!
 			return;
 		}
-		const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
+		let logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
 		this._options.logService.info(`${logPrefix} starting reconnecting loop. You can get more information with the trace log level.`);
 		this._onDidStateChange.fire(new ConnectionLostEvent(this.reconnectionToken, this.protocol.getMillisSinceLastIncomingData()));
 		const TIMES = [0, 5, 5, 10, 10, 10, 10, 10, 30];
@@ -656,9 +700,15 @@ export abstract class PersistentConnection extends Disposable {
 		}
 		const loopStartTime = Date.now();
 		let attempt = -1;
+		// Bounded retry for stale-token recovery if the server gets replaced
+		// repeatedly within one loop (e.g. flapping).
+		let freshHandshakeAttempts = 0;
+		let nextAttemptIsFreshHandshake = false;
 		do {
 			attempt++;
 			const waitTime = (attempt < TIMES.length ? TIMES[attempt] : TIMES[TIMES.length - 1]);
+			const isFreshHandshakeThisAttempt = nextAttemptIsFreshHandshake;
+			nextAttemptIsFreshHandshake = false;
 			try {
 				if (waitTime > 0) {
 					const sleepPromise = sleep(waitTime);
@@ -678,7 +728,7 @@ export abstract class PersistentConnection extends Disposable {
 				// connection was lost, let's try to re-establish it
 				this._onDidStateChange.fire(new ReconnectionRunningEvent(this.reconnectionToken, this.protocol.getMillisSinceLastIncomingData(), attempt + 1));
 				this._options.logService.info(`${logPrefix} resolving connection...`);
-				const simpleOptions = await resolveConnectionOptions(this._options, this.reconnectionToken, this.protocol);
+				const simpleOptions = await resolveConnectionOptions(this._options, this.reconnectionToken, this.protocol, isFreshHandshakeThisAttempt);
 				this._options.logService.info(`${logPrefix} connecting to ${simpleOptions.connectTo}...`);
 				await this._reconnect(simpleOptions, createTimeoutCancellation(RECONNECT_TIMEOUT));
 				this._options.logService.info(`${logPrefix} reconnected!`);
@@ -687,6 +737,21 @@ export abstract class PersistentConnection extends Disposable {
 				break;
 			} catch (err) {
 				if (err.code === 'VSCODE_CONNECTION_ERROR') {
+					// Only Management recovers transparently. ExtHost takes the existing
+					// permanent-failure path which the workbench handles by restarting the host.
+					const isStaleToken = err.reasonCode === ConnectionRejectionReason.UnknownReconnectionTokenNeverSeen
+						|| err.reasonCode === ConnectionRejectionReason.UnknownReconnectionTokenSeenBefore;
+					if (this._connectionType === ConnectionType.Management && isStaleToken && freshHandshakeAttempts < MAX_FRESH_HANDSHAKE_ATTEMPTS && Date.now() - loopStartTime < graceTime) {
+						// Server has no record of our token, so it was replaced
+						// (typical after a long client sleep). Re-handshake fresh
+						// rather than failing the user to Reload Window.
+						freshHandshakeAttempts++;
+						this._options.logService.info(`${logPrefix} server reported stale reconnection token (attempt ${freshHandshakeAttempts}/${MAX_FRESH_HANDSHAKE_ATTEMPTS}); re-handshaking with a fresh token.`);
+						this._reconnectionToken = generateUuid();
+						logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
+						nextAttemptIsFreshHandshake = true;
+						continue;
+					}
 					this._options.logService.error(`${logPrefix} A permanent error occurred in the reconnecting loop! Will give up now! Error:`);
 					this._options.logService.error(err);
 					this._onReconnectionPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), attempt + 1, false);
@@ -757,13 +822,26 @@ export class ManagementPersistentConnection extends PersistentConnection {
 
 	constructor(options: IConnectionOptions, remoteAuthority: string, clientId: string, reconnectionToken: string, protocol: PersistentProtocol) {
 		super(ConnectionType.Management, options, reconnectionToken, protocol, /*reconnectionFailureIsFatal*/true);
-		this.client = this._register(new Client<RemoteAgentConnectionContext>(protocol, {
-			remoteAuthority: remoteAuthority,
-			clientId: clientId
-		}, options.ipcLogger));
+		const context: RemoteAgentConnectionContext = { remoteAuthority, clientId };
+		const writer = new BufferWriter();
+		serialize(writer, context);
+		const serializedContext = writer.buffer;
+		this.client = this._register(new Client<RemoteAgentConnectionContext>(protocol, context, options.ipcLogger));
+
+		// On a stale-token recovery, the protocol's session state is wiped and the new server expects the IPC
+		// init context as msg #1. Re-queue it (and replay live event subscriptions) synchronously here while
+		// _isReconnecting is still true so they ride out with the next endAcceptReconnection replay.
+		this._register(protocol.onDidResetSession(() => {
+			protocol.send(serializedContext);
+			this.client.replayEventSubscriptions();
+		}));
 	}
 
 	protected async _reconnect(options: ISimpleConnectionOptions, timeoutCancellationToken: CancellationToken): Promise<void> {
+		if (options.isFreshHandshakeOnExistingProtocol) {
+			// Reject in-flight calls up front; the replaced server can't answer them.
+			this.client.cancelPendingCalls();
+		}
 		await doConnectRemoteAgentManagement(options, timeoutCancellationToken);
 	}
 }
@@ -797,12 +875,40 @@ function safeDisposeProtocolAndSocket(protocol: PersistentProtocol): void {
 
 function getErrorFromMessage(msg: any): Error | null {
 	if (msg && msg.type === 'error') {
-		const error = new Error(`Connection error: ${msg.reason}`);
+		const rawReason: string | undefined = msg.reason;
+		const reasonCode: ConnectionRejectionReason | undefined = msg.reasonCode ?? inferReasonCodeFromLegacyReason(rawReason);
+		const detail: string | undefined = msg.detail;
+		const baseReason = rawReason ?? (reasonCode ? describeConnectionRejection(reasonCode) : 'unknown');
+		const reason = detail ? `${baseReason}: ${detail}` : baseReason;
+		const error = new Error(`Connection error: ${reason}`);
 		// eslint-disable-next-line local/code-no-any-casts
 		(<any>error).code = 'VSCODE_CONNECTION_ERROR';
+		// eslint-disable-next-line local/code-no-any-casts
+		(<any>error).reasonCode = reasonCode;
 		return error;
 	}
 	return null;
+}
+
+/**
+ * Best-effort map from a legacy `reason: string` to a {@link ConnectionRejectionReason}
+ * when talking to an older/forked server that doesn't populate {@link ErrorMessage.reasonCode}.
+ * Only covers the codes that recovery logic acts on; everything else stays undefined.
+ */
+function inferReasonCodeFromLegacyReason(reason: string | undefined): ConnectionRejectionReason | undefined {
+	if (!reason) {
+		return undefined;
+	}
+	if (reason.indexOf('Unknown reconnection token (never seen)') !== -1) {
+		return ConnectionRejectionReason.UnknownReconnectionTokenNeverSeen;
+	}
+	if (reason.indexOf('Unknown reconnection token (seen before)') !== -1) {
+		return ConnectionRejectionReason.UnknownReconnectionTokenSeenBefore;
+	}
+	if (reason.indexOf('Duplicate reconnection token') !== -1) {
+		return ConnectionRejectionReason.DuplicateReconnectionToken;
+	}
+	return undefined;
 }
 
 function sanitizeGraceTime(candidate: number, fallback: number): number {
