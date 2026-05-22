@@ -32,6 +32,8 @@ interface ITargetMetadata {
  */
 export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
+	// MXC SDK ships per-arch SPDX catalog manifests that Get-AuthenticodeSignature reports as UnknownError.
+	private static readonly authenticodeExclude = /[\\/]node_modules[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/][^\\/]+[\\/]_manifest[\\/][^\\/]+[\\/]manifest\.cat$/i;
 	private static readonly versionInfoInclude = /^.+\.(exe|dll|node|msi)$/i;
 	private static readonly versionInfoExclude = /^(dxil\.dll|ffmpeg\.dll|msalruntime\.dll)$/i;
 	private static readonly dpkgLockError = /dpkg frontend lock was locked by another process|unable to acquire the dpkg frontend lock|could not get lock \/var\/lib\/dpkg\/lock-frontend/i;
@@ -370,7 +372,11 @@ export class TestContext {
 			if (entry.isDirectory()) {
 				this.collectAuthenticodeFiles(filePath, files);
 			} else if (TestContext.authenticodeInclude.test(entry.name)) {
-				files.push(filePath);
+				if (TestContext.authenticodeExclude.test(filePath)) {
+					this.log(`Skipping excluded file from Authenticode validation: ${filePath}`);
+				} else {
+					files.push(filePath);
+				}
 			}
 		}
 	}
