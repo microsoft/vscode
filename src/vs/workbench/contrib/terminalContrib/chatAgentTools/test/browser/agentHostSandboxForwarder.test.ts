@@ -14,7 +14,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, IRemoteAgentHostConnectionInfo } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { AgentHostSandboxConfigKey } from '../../../../../../platform/agentHost/common/sandboxConfigSchema.js';
+import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ActionEnvelope, IRootConfigChangedAction, INotification, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -136,19 +136,17 @@ class MockRemoteAgentHostService extends mock<IRemoteAgentHostService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function rootStateWithSandboxSchema(values: Record<string, unknown> = {}): RootState {
+function rootStateWithSandboxSchema(sandbox: Record<string, unknown> = {}): RootState {
 	return {
 		agents: [],
 		config: {
 			schema: {
 				type: 'object',
 				properties: {
-					[AgentHostSandboxConfigKey.Enabled]: { type: 'string', title: 'Sandbox Enabled' },
-					[AgentHostSandboxConfigKey.AllowUnsandboxedCommands]: { type: 'boolean', title: 'Allow Unsandboxed' },
-					[AgentHostSandboxConfigKey.AllowedNetworkDomains]: { type: 'array', title: 'Allowed Domains' },
+					[AgentHostSandboxConfigKey.Sandbox]: { type: 'object', title: 'Agent Sandbox' },
 				},
 			},
-			values,
+			values: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
 		},
 	};
 }
@@ -210,7 +208,7 @@ suite('AgentHostSandboxForwarder', () => {
 
 		assert.deepStrictEqual(local.dispatched, [{
 			type: ActionType.RootConfigChanged,
-			config: { [AgentHostSandboxConfigKey.Enabled]: AgentSandboxEnabledValue.On },
+			config: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
 		}]);
 	});
 
@@ -228,7 +226,7 @@ suite('AgentHostSandboxForwarder', () => {
 	test('skips no-op dispatch when rootState already matches workbench values', () => {
 		const { local } = setup(disposables, { [AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On });
 
-		local.setRootState(rootStateWithSandboxSchema({ [AgentHostSandboxConfigKey.Enabled]: AgentSandboxEnabledValue.On }));
+		local.setRootState(rootStateWithSandboxSchema({ [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On }));
 
 		assert.deepStrictEqual(local.dispatched, []);
 	});
@@ -236,7 +234,7 @@ suite('AgentHostSandboxForwarder', () => {
 	test('re-dispatches when the workbench sandbox setting changes', () => {
 		const { local, configurationService } = setup(disposables, { [AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On });
 
-		local.setRootState(rootStateWithSandboxSchema({ [AgentHostSandboxConfigKey.Enabled]: AgentSandboxEnabledValue.On }));
+		local.setRootState(rootStateWithSandboxSchema({ [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On }));
 		// Initial state already matches → no dispatch.
 		assert.deepStrictEqual(local.dispatched, []);
 
@@ -250,7 +248,7 @@ suite('AgentHostSandboxForwarder', () => {
 
 		assert.deepStrictEqual(local.dispatched, [{
 			type: ActionType.RootConfigChanged,
-			config: { [AgentHostSandboxConfigKey.Enabled]: AgentSandboxEnabledValue.AllowNetwork },
+			config: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.AllowNetwork } },
 		}]);
 	});
 
@@ -262,7 +260,7 @@ suite('AgentHostSandboxForwarder', () => {
 
 		assert.deepStrictEqual(remoteConn.dispatched, [{
 			type: ActionType.RootConfigChanged,
-			config: { [AgentHostSandboxConfigKey.Enabled]: AgentSandboxEnabledValue.On },
+			config: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
 		}]);
 	});
 
@@ -283,8 +281,10 @@ suite('AgentHostSandboxForwarder', () => {
 		const expectedPatch = {
 			type: ActionType.RootConfigChanged,
 			config: {
-				[AgentHostSandboxConfigKey.Enabled]: AgentSandboxEnabledValue.On,
-				[AgentHostSandboxConfigKey.AllowUnsandboxedCommands]: true,
+				[AgentHostSandboxConfigKey.Sandbox]: {
+					[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+					[AgentHostSandboxKey.AllowUnsandboxedCommands]: true,
+				},
 			},
 		};
 		assert.deepStrictEqual(local.dispatched.at(-1), expectedPatch);
@@ -293,7 +293,7 @@ suite('AgentHostSandboxForwarder', () => {
 
 	test('ignores unrelated configuration changes', () => {
 		const { local, configurationService } = setup(disposables, { [AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On });
-		local.setRootState(rootStateWithSandboxSchema({ [AgentHostSandboxConfigKey.Enabled]: AgentSandboxEnabledValue.On }));
+		local.setRootState(rootStateWithSandboxSchema({ [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On }));
 		assert.deepStrictEqual(local.dispatched, []);
 
 		configurationService.onDidChangeConfigurationEmitter.fire({

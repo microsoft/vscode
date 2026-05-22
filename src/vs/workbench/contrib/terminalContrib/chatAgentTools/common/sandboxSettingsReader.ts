@@ -78,16 +78,17 @@ export function readSandboxSetting<T>(configurationService: IConfigurationServic
 
 /**
  * Reads the currently-configured sandbox values for forwarding to an agent
- * host. The returned record is keyed by the prefix-free agent-host config
- * keys ({@link AgentHostSandboxConfigKey}); keys without a user value are
- * omitted entirely.
+ * host. The returned record is keyed by the prefix-free agent-host sandbox
+ * sub-keys ({@link AgentHostSandboxKey}); keys without a user value are
+ * omitted entirely. Callers should nest this under the agent host's
+ * top-level `sandbox` config key when dispatching a `RootConfigChanged`.
  */
 export function readAgentHostSandboxValues(configurationService: IConfigurationService, logService: ILogService): Record<string, unknown> {
 	const values: Record<string, unknown> = {};
-	for (const [settingId, hostKey] of Object.entries(sandboxSettingIdToAgentHostKey)) {
+	for (const [settingId, sandboxKey] of Object.entries(sandboxSettingIdToAgentHostKey)) {
 		const value = readSandboxSetting<unknown>(configurationService, logService, settingId);
 		if (value !== undefined) {
-			values[hostKey] = value;
+			values[sandboxKey] = value;
 		}
 	}
 	return values;

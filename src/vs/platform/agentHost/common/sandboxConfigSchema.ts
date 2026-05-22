@@ -9,13 +9,23 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../sandbox/c
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 
 /**
- * Well-known keys for sandbox settings stored on the agent host's root config
- * bag. These are intentionally a flat, prefix-free namespace owned by the
- * agent host — distinct from the workbench's `chat.agent.sandbox.*` setting
- * IDs. Hosts (today: the workbench client) translate from their setting IDs
- * to these keys when forwarding values via a `RootConfigChanged` action.
+ * Top-level keys the agent host's root config bag exposes for sandboxing.
+ * All sandbox-related values live nested under {@link AgentHostSandboxConfigKey.Sandbox}
+ * — the persisted JSON has a single `"sandbox": { ... }` object rather than a
+ * dozen flat keys.
  */
 export const enum AgentHostSandboxConfigKey {
+	Sandbox = 'sandbox',
+}
+
+/**
+ * Well-known sub-keys inside the agent host's `sandbox` object. These are
+ * intentionally a flat, prefix-free namespace owned by the agent host —
+ * distinct from the workbench's `chat.agent.sandbox.*` setting IDs. Hosts
+ * (today: the workbench client) translate from their setting IDs to these
+ * keys when forwarding values via a `RootConfigChanged` action.
+ */
+export const enum AgentHostSandboxKey {
 	Enabled = 'enabled',
 	WindowsEnabled = 'enabled.windows',
 	AllowUnsandboxedCommands = 'allowUnsandboxedCommands',
@@ -27,6 +37,20 @@ export const enum AgentHostSandboxConfigKey {
 	AllowedNetworkDomains = 'allowedNetworkDomains',
 	DeniedNetworkDomains = 'deniedNetworkDomains',
 }
+
+/** Shape of the persisted/forwarded `sandbox` object. */
+export type ISandboxConfigValue = Partial<{
+	[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue;
+	[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue;
+	[AgentHostSandboxKey.AllowUnsandboxedCommands]: boolean;
+	[AgentHostSandboxKey.AutoApproveUnsandboxedCommands]: boolean;
+	[AgentHostSandboxKey.LinuxFileSystem]: Record<string, unknown>;
+	[AgentHostSandboxKey.MacFileSystem]: Record<string, unknown>;
+	[AgentHostSandboxKey.WindowsFileSystem]: Record<string, unknown>;
+	[AgentHostSandboxKey.AdvancedRuntime]: Record<string, unknown>;
+	[AgentHostSandboxKey.AllowedNetworkDomains]: string[];
+	[AgentHostSandboxKey.DeniedNetworkDomains]: string[];
+}>;
 
 /**
  * Schema for the subset of workbench sandbox settings that hosts (today: the
@@ -45,69 +69,76 @@ export const enum AgentHostSandboxConfigKey {
  * schema (and validation) free of backward-compat baggage.
  */
 export const sandboxConfigSchema = createSchema({
-	[AgentHostSandboxConfigKey.Enabled]: schemaProperty<AgentSandboxEnabledValue>({
-		type: 'string',
-		title: localize('agentHost.config.sandbox.enabled.title', "Agent Sandbox"),
-		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On, AgentSandboxEnabledValue.AllowNetwork],
-	}),
-	[AgentHostSandboxConfigKey.WindowsEnabled]: schemaProperty<AgentSandboxEnabledValue>({
-		type: 'string',
-		title: localize('agentHost.config.sandbox.windowsEnabled.title', "Agent Sandbox (Windows)"),
-		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On, AgentSandboxEnabledValue.AllowNetwork],
-	}),
-	[AgentHostSandboxConfigKey.AllowUnsandboxedCommands]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.sandbox.allowUnsandboxedCommands.title', "Allow Unsandboxed Commands"),
-	}),
-	[AgentHostSandboxConfigKey.AutoApproveUnsandboxedCommands]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.sandbox.autoApproveUnsandboxedCommands.title', "Auto-Approve Unsandboxed Commands"),
-	}),
-	[AgentHostSandboxConfigKey.LinuxFileSystem]: schemaProperty<Record<string, unknown>>({
+	[AgentHostSandboxConfigKey.Sandbox]: schemaProperty<ISandboxConfigValue>({
 		type: 'object',
-		title: localize('agentHost.config.sandbox.linuxFileSystem.title', "Linux Sandbox Filesystem"),
-	}),
-	[AgentHostSandboxConfigKey.MacFileSystem]: schemaProperty<Record<string, unknown>>({
-		type: 'object',
-		title: localize('agentHost.config.sandbox.macFileSystem.title', "macOS Sandbox Filesystem"),
-	}),
-	[AgentHostSandboxConfigKey.WindowsFileSystem]: schemaProperty<Record<string, unknown>>({
-		type: 'object',
-		title: localize('agentHost.config.sandbox.windowsFileSystem.title', "Windows Sandbox Filesystem"),
-	}),
-	[AgentHostSandboxConfigKey.AdvancedRuntime]: schemaProperty<Record<string, unknown>>({
-		type: 'object',
-		title: localize('agentHost.config.sandbox.advancedRuntime.title', "Advanced Sandbox Runtime"),
-	}),
-	[AgentHostSandboxConfigKey.AllowedNetworkDomains]: schemaProperty<string[]>({
-		type: 'array',
-		title: localize('agentHost.config.network.allowedDomains.title', "Allowed Network Domains"),
-		items: { type: 'string', title: localize('agentHost.config.network.allowedDomains.item.title', "Domain") },
-	}),
-	[AgentHostSandboxConfigKey.DeniedNetworkDomains]: schemaProperty<string[]>({
-		type: 'array',
-		title: localize('agentHost.config.network.deniedDomains.title', "Denied Network Domains"),
-		items: { type: 'string', title: localize('agentHost.config.network.deniedDomains.item.title', "Domain") },
+		title: localize('agentHost.config.sandbox.title', "Agent Sandbox"),
+		properties: {
+			[AgentHostSandboxKey.Enabled]: {
+				type: 'string',
+				title: localize('agentHost.config.sandbox.enabled.title', "Sandbox Enabled"),
+				enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On, AgentSandboxEnabledValue.AllowNetwork],
+			},
+			[AgentHostSandboxKey.WindowsEnabled]: {
+				type: 'string',
+				title: localize('agentHost.config.sandbox.windowsEnabled.title', "Sandbox Enabled (Windows)"),
+				enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On, AgentSandboxEnabledValue.AllowNetwork],
+			},
+			[AgentHostSandboxKey.AllowUnsandboxedCommands]: {
+				type: 'boolean',
+				title: localize('agentHost.config.sandbox.allowUnsandboxedCommands.title', "Allow Unsandboxed Commands"),
+			},
+			[AgentHostSandboxKey.AutoApproveUnsandboxedCommands]: {
+				type: 'boolean',
+				title: localize('agentHost.config.sandbox.autoApproveUnsandboxedCommands.title', "Auto-Approve Unsandboxed Commands"),
+			},
+			[AgentHostSandboxKey.LinuxFileSystem]: {
+				type: 'object',
+				title: localize('agentHost.config.sandbox.linuxFileSystem.title', "Linux Sandbox Filesystem"),
+			},
+			[AgentHostSandboxKey.MacFileSystem]: {
+				type: 'object',
+				title: localize('agentHost.config.sandbox.macFileSystem.title', "macOS Sandbox Filesystem"),
+			},
+			[AgentHostSandboxKey.WindowsFileSystem]: {
+				type: 'object',
+				title: localize('agentHost.config.sandbox.windowsFileSystem.title', "Windows Sandbox Filesystem"),
+			},
+			[AgentHostSandboxKey.AdvancedRuntime]: {
+				type: 'object',
+				title: localize('agentHost.config.sandbox.advancedRuntime.title', "Advanced Sandbox Runtime"),
+			},
+			[AgentHostSandboxKey.AllowedNetworkDomains]: {
+				type: 'array',
+				title: localize('agentHost.config.sandbox.allowedDomains.title', "Allowed Network Domains"),
+				items: { type: 'string', title: localize('agentHost.config.sandbox.allowedDomains.item.title', "Domain") },
+			},
+			[AgentHostSandboxKey.DeniedNetworkDomains]: {
+				type: 'array',
+				title: localize('agentHost.config.sandbox.deniedDomains.title', "Denied Network Domains"),
+				items: { type: 'string', title: localize('agentHost.config.sandbox.deniedDomains.item.title', "Domain") },
+			},
+		},
 	}),
 });
 
 /**
  * Maps modern workbench sandbox setting IDs (the ones the engine asks about)
- * to the prefix-free keys stored on the agent host's root config bag.
+ * to the sub-keys inside the agent host's `sandbox` config object.
  *
  * Deprecated setting IDs are intentionally absent: hosts forwarding values
  * into the agent host are expected to migrate deprecated → modern IDs
  * before dispatching `RootConfigChanged`.
  */
-export const sandboxSettingIdToAgentHostKey: Readonly<Record<string, AgentHostSandboxConfigKey>> = {
-	[AgentSandboxSettingId.AgentSandboxEnabled]: AgentHostSandboxConfigKey.Enabled,
-	[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: AgentHostSandboxConfigKey.WindowsEnabled,
-	[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]: AgentHostSandboxConfigKey.AllowUnsandboxedCommands,
-	[AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands]: AgentHostSandboxConfigKey.AutoApproveUnsandboxedCommands,
-	[AgentSandboxSettingId.AgentSandboxLinuxFileSystem]: AgentHostSandboxConfigKey.LinuxFileSystem,
-	[AgentSandboxSettingId.AgentSandboxMacFileSystem]: AgentHostSandboxConfigKey.MacFileSystem,
-	[AgentSandboxSettingId.AgentSandboxWindowsFileSystem]: AgentHostSandboxConfigKey.WindowsFileSystem,
-	[AgentSandboxSettingId.AgentSandboxAdvancedRuntime]: AgentHostSandboxConfigKey.AdvancedRuntime,
-	[AgentNetworkDomainSettingId.AllowedNetworkDomains]: AgentHostSandboxConfigKey.AllowedNetworkDomains,
-	[AgentNetworkDomainSettingId.DeniedNetworkDomains]: AgentHostSandboxConfigKey.DeniedNetworkDomains,
+export const sandboxSettingIdToAgentHostKey: Readonly<Record<string, AgentHostSandboxKey>> = {
+	[AgentSandboxSettingId.AgentSandboxEnabled]: AgentHostSandboxKey.Enabled,
+	[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: AgentHostSandboxKey.WindowsEnabled,
+	[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]: AgentHostSandboxKey.AllowUnsandboxedCommands,
+	[AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands]: AgentHostSandboxKey.AutoApproveUnsandboxedCommands,
+	[AgentSandboxSettingId.AgentSandboxLinuxFileSystem]: AgentHostSandboxKey.LinuxFileSystem,
+	[AgentSandboxSettingId.AgentSandboxMacFileSystem]: AgentHostSandboxKey.MacFileSystem,
+	[AgentSandboxSettingId.AgentSandboxWindowsFileSystem]: AgentHostSandboxKey.WindowsFileSystem,
+	[AgentSandboxSettingId.AgentSandboxAdvancedRuntime]: AgentHostSandboxKey.AdvancedRuntime,
+	[AgentNetworkDomainSettingId.AllowedNetworkDomains]: AgentHostSandboxKey.AllowedNetworkDomains,
+	[AgentNetworkDomainSettingId.DeniedNetworkDomains]: AgentHostSandboxKey.DeniedNetworkDomains,
 };
+

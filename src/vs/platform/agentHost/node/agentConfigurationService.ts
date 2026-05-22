@@ -268,7 +268,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		try {
 			const raw = fs.readFileSync(this._rootConfigResource.fsPath, 'utf8');
 			const parsed = JSON.parse(raw) as Record<string, unknown>;
-			return agentHostCustomizationConfigSchema.validateOrDefault(parsed, defaults);
+			return {
+				...agentHostCustomizationConfigSchema.validateOrDefault(parsed, defaults),
+				...sandboxConfigSchema.validateOrDefault(parsed, {}),
+			};
 		} catch (err) {
 			const code = err && typeof err === 'object' && hasKey(err, { code: true }) ? String(err.code) : undefined;
 			if (code !== 'ENOENT') {

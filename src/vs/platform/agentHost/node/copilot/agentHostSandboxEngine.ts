@@ -15,7 +15,7 @@ import type { ISandboxDependencyStatus, ISandboxHelperService } from '../../../s
 import { SandboxHelperService } from '../../../sandbox/node/sandboxHelper.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
-import { sandboxConfigSchema, sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
+import { AgentHostSandboxConfigKey, sandboxConfigSchema, sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
 
 /** Subdirectory under the user home + product data folder where the engine creates its temp dir. */
 const SANDBOX_TEMP_DIR_NAME = 'tmp';
@@ -89,16 +89,18 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 	}
 
 	getSandboxSetting<T>(settingId: string): T | undefined {
-		// The agent host stores sandbox settings under prefix-free keys
-		// (e.g. `enabled` rather than `chat.agent.sandbox.enabled`). Map from
-		// the engine's modern setting ID into that namespace; unknown IDs
-		// (which include all deprecated keys — handled host-side by the
-		// workbench client) resolve to undefined.
-		const key = sandboxSettingIdToAgentHostKey[settingId];
-		if (key === undefined) {
+		// The agent host stores sandbox settings nested under a single
+		// top-level `sandbox` object with prefix-free sub-keys (e.g.
+		// `sandbox.enabled` rather than `chat.agent.sandbox.enabled`). Map
+		// from the engine's modern setting ID into that sub-key namespace;
+		// unknown IDs (which include all deprecated keys — handled host-side
+		// by the workbench client) resolve to undefined.
+		const innerKey = sandboxSettingIdToAgentHostKey[settingId];
+		if (innerKey === undefined) {
 			return undefined;
 		}
-		return this._agentConfigurationService.getRootValue(sandboxConfigSchema, key) as T | undefined;
+		const sandbox = this._agentConfigurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
+		return sandbox?.[innerKey] as T | undefined;
 	}
 }
 

@@ -20,7 +20,7 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../../sandbox/common/terminalSandboxMxcRuntime.js';
-import { AgentHostSandboxConfigKey } from '../../common/sandboxConfigSchema.js';
+import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { TerminalClaimKind, type TerminalClaim, type TerminalInfo } from '../../common/state/protocol/state.js';
@@ -106,8 +106,9 @@ suite('CopilotShellTools', () => {
 		setSandboxValue(key: string, value: unknown): void;
 	}
 
-	function createFakeAgentConfigurationService(initial?: Record<string, unknown>): IFakeAgentConfigurationService {
-		const configValues: Record<string, unknown> = { ...initial };
+	function createFakeAgentConfigurationService(initialSandbox?: Record<string, unknown>): IFakeAgentConfigurationService {
+		const sandbox: Record<string, unknown> = { ...initialSandbox };
+		const configValues: Record<string, unknown> = { [AgentHostSandboxConfigKey.Sandbox]: sandbox };
 		const emitter = disposables.add(new Emitter<void>());
 		const service: IAgentConfigurationService = {
 			_serviceBrand: undefined,
@@ -123,7 +124,7 @@ suite('CopilotShellTools', () => {
 		return {
 			service,
 			setSandboxValue(key, value) {
-				configValues[key] = value;
+				sandbox[key] = value;
 				emitter.fire();
 			},
 		};
@@ -133,12 +134,12 @@ suite('CopilotShellTools', () => {
 		const terminalManager = new TestAgentHostTerminalManager();
 		const initialSandboxValues: Record<string, unknown> = {};
 		if (options?.sandboxEnabled) {
-			initialSandboxValues[AgentHostSandboxConfigKey.Enabled] = AgentSandboxEnabledValue.On;
+			initialSandboxValues[AgentHostSandboxKey.Enabled] = AgentSandboxEnabledValue.On;
 			// Windows uses a separate enable key; the engine treats
 			// `Enabled=On` on non-Windows and `WindowsEnabled=AllowNetwork`
 			// on Windows as "sandbox active". Set both so tests exercise
 			// the sandbox path on every OS.
-			initialSandboxValues[AgentHostSandboxConfigKey.WindowsEnabled] = AgentSandboxEnabledValue.AllowNetwork;
+			initialSandboxValues[AgentHostSandboxKey.WindowsEnabled] = AgentSandboxEnabledValue.AllowNetwork;
 		}
 		const agentConfigurationService = createFakeAgentConfigurationService(initialSandboxValues);
 		const services = new ServiceCollection();
@@ -698,7 +699,7 @@ suite('CopilotShellTools', () => {
 		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
 		// `requiresUnsandboxConfirmation` only fires when unsandboxed commands are allowed AND a
 		// blocked domain is detected — otherwise the engine keeps the command sandboxed.
-		agentConfigurationService.setSandboxValue(AgentHostSandboxConfigKey.AllowUnsandboxedCommands, true);
+		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, true);
 		terminalManager.commandDetectionSupported = true;
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
 		const confirmationRequests: IUnsandboxedCommandConfirmationRequest[] = [];
@@ -734,7 +735,7 @@ suite('CopilotShellTools', () => {
 
 	test('primary shell tool returns sandbox_blocked when user declines unsandboxed rerun', async function () {
 		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
-		agentConfigurationService.setSandboxValue(AgentHostSandboxConfigKey.AllowUnsandboxedCommands, true);
+		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, true);
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, terminalManager, new NullLogService(), async () => false);
 		const bashTool = tools.find(tool => tool.name === 'bash');
@@ -756,7 +757,7 @@ suite('CopilotShellTools', () => {
 
 	test('primary shell tool asks for confirmation when requestUnsandboxedExecution is explicitly set', async function () {
 		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
-		agentConfigurationService.setSandboxValue(AgentHostSandboxConfigKey.AllowUnsandboxedCommands, true);
+		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, true);
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
 		const confirmationRequests: IUnsandboxedCommandConfirmationRequest[] = [];
 		const tools = await createShellTools(shellManager, terminalManager, new NullLogService(), async request => {
@@ -829,8 +830,8 @@ suite('CopilotShellTools', () => {
 
 	test('primary shell tool skips confirmation when autoApproveUnsandboxedCommands is enabled', async function () {
 		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
-		agentConfigurationService.setSandboxValue(AgentHostSandboxConfigKey.AllowUnsandboxedCommands, true);
-		agentConfigurationService.setSandboxValue(AgentHostSandboxConfigKey.AutoApproveUnsandboxedCommands, true);
+		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, true);
+		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AutoApproveUnsandboxedCommands, true);
 		terminalManager.commandDetectionSupported = true;
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
 		const confirmationRequests: IUnsandboxedCommandConfirmationRequest[] = [];

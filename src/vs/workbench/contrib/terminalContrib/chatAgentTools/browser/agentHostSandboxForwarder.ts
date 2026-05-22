@@ -7,6 +7,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../b
 import { equals } from '../../../../../base/common/objects.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AgentHostSandboxConfigKey } from '../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ROOT_STATE_URI } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -92,27 +93,19 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 			return;
 		}
 		const schemaProperties = rootState.config?.schema.properties;
-		if (!schemaProperties) {
+		if (!schemaProperties?.[AgentHostSandboxConfigKey.Sandbox]) {
+			// Older hosts that don't advertise the `sandbox` config key —
+			// skip silently.
 			return;
 		}
 		const desired = readAgentHostSandboxValues(this._configurationService, this._logService);
-		const currentValues = rootState.config?.values ?? {};
-		const patch: Record<string, unknown> = {};
-		for (const [key, value] of Object.entries(desired)) {
-			if (!schemaProperties[key]) {
-				// Older hosts that don't know this sandbox key — skip silently.
-				continue;
-			}
-			if (!equals(currentValues[key], value)) {
-				patch[key] = value;
-			}
-		}
-		if (Object.keys(patch).length === 0) {
+		const current = (rootState.config?.values?.[AgentHostSandboxConfigKey.Sandbox] as Record<string, unknown> | undefined) ?? {};
+		if (equals(current, desired)) {
 			return;
 		}
 		connection.dispatch(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
-			config: patch,
+			config: { [AgentHostSandboxConfigKey.Sandbox]: desired },
 		});
 	}
 }

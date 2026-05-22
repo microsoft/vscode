@@ -9,7 +9,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
-import { AgentHostSandboxConfigKey } from '../../../../../../platform/agentHost/common/sandboxConfigSchema.js';
+import { AgentHostSandboxKey } from '../../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 import { readAgentHostSandboxValues, readSandboxSetting } from '../../common/sandboxSettingsReader.js';
 
 suite('sandboxSettingsReader', () => {
@@ -85,7 +85,7 @@ suite('sandboxSettingsReader', () => {
 		);
 	});
 
-	test('readAgentHostSandboxValues builds a bag keyed by prefix-free agent-host keys', () => {
+	test('readAgentHostSandboxValues builds a bag keyed by prefix-free agent-host sandbox sub-keys', () => {
 		const cfg = new TestConfigurationService();
 		cfg.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 		cfg.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
@@ -94,9 +94,9 @@ suite('sandboxSettingsReader', () => {
 		const bag = readAgentHostSandboxValues(cfg, new NullLogService());
 
 		assert.deepStrictEqual(bag, {
-			[AgentHostSandboxConfigKey.Enabled]: AgentSandboxEnabledValue.On,
-			[AgentHostSandboxConfigKey.AllowUnsandboxedCommands]: true,
-			[AgentHostSandboxConfigKey.AllowedNetworkDomains]: ['example.com'],
+			[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+			[AgentHostSandboxKey.AllowUnsandboxedCommands]: true,
+			[AgentHostSandboxKey.AllowedNetworkDomains]: ['example.com'],
 		});
 	});
 
