@@ -28,7 +28,7 @@ export const SessionIsMaximizedContext = new RawContextKey<boolean>('sessionIsMa
 
 //#endregion
 
-//#region < --- Chat Bar --- >
+//#region < --- Sessions Part --- >
 
 export const ActiveSessionsContext = new RawContextKey<string>('activeSessions', '', localize('activeSessions', "The identifier of the active sessions panel"));
 export const SessionsFocusContext = new RawContextKey<boolean>('sessionsFocus', false, localize('sessionsFocus', "Whether the sessions part has keyboard focus"));
