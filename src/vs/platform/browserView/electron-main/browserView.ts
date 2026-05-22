@@ -503,7 +503,7 @@ export class BrowserView extends Disposable {
 		this._view.setBorderRadius(Math.round(bounds.cornerRadius * bounds.zoomFactor));
 
 		if (bounds.emulation) {
-			this.emulator.applyScreenEmulation(bounds.emulation.viewportWidth, bounds.emulation.viewportHeight, bounds.emulation.scale, bounds.zoomFactor);
+			this.emulator.applyScreenEmulation(bounds.width, bounds.height, bounds.emulation.scale, bounds.zoomFactor);
 		}
 
 		this._view.setBounds({
