@@ -134,14 +134,10 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		text: verbosity ? { verbosity } : undefined,
 	};
 
-	if (shouldTriggerResponsesApiCompaction) {
-		// The compaction trigger is a zero-argument Responses API input item. Keep it
-		// as the final input item so the server compacts the context that precedes it.
-		body.input = [
-			...(body.input ?? []),
-			createResponsesApiCompactionTriggerInputItem(),
-		];
-	}
+	body.input = [
+		...(body.input ?? []),
+		createResponsesApiCompactionTriggerInputItem(),
+	];
 
 	body.truncation = configService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation) ?
 		'auto' :
