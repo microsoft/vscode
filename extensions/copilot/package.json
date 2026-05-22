@@ -1973,7 +1973,6 @@
       },
       {
         "vendor": "customendpoint",
-        "when": "productQualityType != 'stable'",
         "displayName": "Custom Endpoint",
         "configuration": {
           "type": "object",
