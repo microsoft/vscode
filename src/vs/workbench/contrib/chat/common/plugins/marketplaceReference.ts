@@ -135,7 +135,7 @@ function parseUriMarketplaceReference(rawValue: string): IMarketplaceReference |
 		return undefined;
 	}
 	const ref = uri.fragment || undefined;
-	const cloneUri = uri.fragment ? uri.with({ fragment: null }) : uri;
+	const cloneUri = uri.fragment ? uri.with({ fragment: '' }) : uri;
 
 	const gitSuffix = '.git';
 	const sanitizedAuthority = sanitizePathSegment(uri.authority.toLowerCase());

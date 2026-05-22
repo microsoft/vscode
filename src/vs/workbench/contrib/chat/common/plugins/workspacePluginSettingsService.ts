@@ -108,7 +108,13 @@ function marketplaceEntryToReference(entry: IExtraMarketplaceJson): IMarketplace
 }
 
 function appendMarketplaceRef(value: string, ref: string | undefined): string {
-	return ref ? `${value}#${ref}` : value;
+	if (!ref) {
+		return value;
+	}
+
+	const fragmentIndex = value.indexOf('#');
+	const baseValue = fragmentIndex === -1 ? value : value.slice(0, fragmentIndex);
+	return `${baseValue}#${ref}`;
 }
 
 /**

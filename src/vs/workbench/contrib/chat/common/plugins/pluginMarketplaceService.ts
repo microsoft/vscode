@@ -463,7 +463,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			if (token.isCancellationRequested) {
 				return undefined;
 			}
-			const ref = encodeGitHubPathSegment(reference.ref ?? 'main');
+			const ref = encodeURIComponent(reference.ref ?? 'main');
 			const url = `https://raw.githubusercontent.com/${repo}/${ref}/${defPath}`;
 			try {
 				const context = await this._requestService.request({ type: 'GET', url, callSite: 'pluginMarketplaceService.fetchPluginList' }, token);
@@ -907,7 +907,7 @@ function normalizeMarketplacePath(value: string): string {
 }
 
 function encodeGitHubPathSegment(value: string): string {
-	return value.split('/').map(encodeURIComponent).join('/');
+	return encodeURIComponent(value);
 }
 
 /**
