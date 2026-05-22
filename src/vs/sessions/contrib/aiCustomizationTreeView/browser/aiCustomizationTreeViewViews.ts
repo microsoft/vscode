@@ -41,7 +41,7 @@ import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSource, AICustomizationSources, IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 //#region Context Keys
 
@@ -423,16 +423,16 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			const builtinSkills = cached.skills.filter(s => s.storage === BUILTIN_STORAGE);
 
 			if (workspaceSkills.length > 0) {
-				groups.push(this.createGroupItem(promptType, PromptsStorage.local, workspaceSkills.length));
+				groups.push(this.createGroupItem(promptType, AICustomizationSources.local, workspaceSkills.length));
 			}
 			if (userSkills.length > 0) {
-				groups.push(this.createGroupItem(promptType, PromptsStorage.user, userSkills.length));
+				groups.push(this.createGroupItem(promptType, AICustomizationSources.user, userSkills.length));
 			}
 			if (extensionSkills.length > 0) {
-				groups.push(this.createGroupItem(promptType, PromptsStorage.extension, extensionSkills.length));
+				groups.push(this.createGroupItem(promptType, AICustomizationSources.extension, extensionSkills.length));
 			}
 			if (builtinSkills.length > 0) {
-				groups.push(this.createGroupItem(promptType, BUILTIN_STORAGE, builtinSkills.length));
+				groups.push(this.createGroupItem(promptType, AICustomizationSources.builtin, builtinSkills.length));
 			}
 
 			return groups;
@@ -494,29 +494,29 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 	/**
 	 * Creates a group item with consistent structure.
 	 */
-	private createGroupItem(promptType: PromptsType, storage: AICustomizationPromptsStorage, count: number): IAICustomizationGroupItem {
+	private createGroupItem(promptType: PromptsType, storage: AICustomizationSource, count: number): IAICustomizationGroupItem {
 		const storageLabels: Record<string, string> = {
-			[PromptsStorage.local]: localize('workspaceWithCount', "Workspace ({0})", count),
-			[PromptsStorage.user]: localize('userWithCount', "User ({0})", count),
-			[PromptsStorage.extension]: localize('extensionsWithCount', "Extensions ({0})", count),
-			[PromptsStorage.plugin]: localize('pluginsWithCount', "Plugins ({0})", count),
-			[BUILTIN_STORAGE]: localize('builtinWithCount', "Built-in ({0})", count),
+			[AICustomizationSources.local]: localize('workspaceWithCount', "Workspace ({0})", count),
+			[AICustomizationSources.user]: localize('userWithCount', "User ({0})", count),
+			[AICustomizationSources.extension]: localize('extensionsWithCount', "Extensions ({0})", count),
+			[AICustomizationSources.plugin]: localize('pluginsWithCount', "Plugins ({0})", count),
+			[AICustomizationSources.builtin]: localize('builtinWithCount', "Built-in ({0})", count),
 		};
 
 		const storageIcons: Record<string, ThemeIcon> = {
-			[PromptsStorage.local]: workspaceIcon,
-			[PromptsStorage.user]: userIcon,
-			[PromptsStorage.extension]: extensionIcon,
-			[PromptsStorage.plugin]: pluginIcon,
-			[BUILTIN_STORAGE]: builtinIcon,
+			[AICustomizationSources.local]: workspaceIcon,
+			[AICustomizationSources.user]: userIcon,
+			[AICustomizationSources.extension]: extensionIcon,
+			[AICustomizationSources.plugin]: pluginIcon,
+			[AICustomizationSources.builtin]: builtinIcon,
 		};
 
 		const storageSuffixes: Record<string, string> = {
-			[PromptsStorage.local]: 'workspace',
-			[PromptsStorage.user]: 'user',
-			[PromptsStorage.extension]: 'extensions',
-			[PromptsStorage.plugin]: 'plugins',
-			[BUILTIN_STORAGE]: 'builtin',
+			[AICustomizationSources.local]: 'workspace',
+			[AICustomizationSources.user]: 'user',
+			[AICustomizationSources.extension]: 'extensions',
+			[AICustomizationSources.plugin]: 'plugins',
+			[AICustomizationSources.builtin]: 'builtin',
 		};
 
 		return {

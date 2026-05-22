@@ -50,10 +50,14 @@ export interface IBackgroundTodoDeltaMetadata {
 	readonly newRoundCount: number;
 	/** Total number of individual tool calls across new rounds. */
 	readonly newToolCallCount: number;
-	/** Number of meaningful (mutating/executing) tool calls in new rounds. */
-	readonly meaningfulToolCallCount: number;
-	/** Number of context (read-only) tool calls in new rounds. */
-	readonly contextToolCallCount: number;
+	/** Number of substantive (non-excluded) tool calls across ALL new rounds
+	 *  (current turn + any unprocessed history rounds). */
+	readonly substantiveToolCallCount: number;
+	/** Number of substantive tool calls from the current turn only
+	 *  (`promptContext.toolCallRounds`).  Used by the invocation policy
+	 *  so that unprocessed rounds from previous turns don't inflate the
+	 *  threshold and trigger spurious passes. */
+	readonly currentTurnSubstantiveToolCallCount: number;
 	/** True when this is the very first delta for the session (no rounds processed yet). */
 	readonly isInitialDelta: boolean;
 	/** True when the delta contains only a user request and zero new rounds. */
@@ -113,19 +117,35 @@ export class BackgroundTodoDeltaTracker {
 
 		const userRequest = promptContext.query;
 		let newToolCallCount = 0;
-		let meaningfulToolCallCount = 0;
-		let contextToolCallCount = 0;
+		let substantiveToolCallCount = 0;
 		for (const round of newRounds) {
 			for (const call of round.toolCalls) {
 				const category = classifyTool(call.name);
-				if (category === 'meaningful') {
-					meaningfulToolCallCount++;
-					newToolCallCount++;
-				} else if (category === 'context') {
-					contextToolCallCount++;
+				if (category === 'substantive') {
+					substantiveToolCallCount++;
 					newToolCallCount++;
 				}
 				// excluded tools are not counted
+			}
+		}
+
+		// Count substantive calls from current-turn rounds only so that
+		// unprocessed history rounds don't inflate the policy threshold.
+		const currentTurnRoundIds = new Set<string>();
+		for (const round of currentRounds) {
+			if (!this._processedRoundIds.has(round.id)) {
+				currentTurnRoundIds.add(round.id);
+			}
+		}
+		let currentTurnSubstantiveToolCallCount = 0;
+		for (const round of newRounds) {
+			if (!currentTurnRoundIds.has(round.id)) {
+				continue;
+			}
+			for (const call of round.toolCalls) {
+				if (classifyTool(call.name) === 'substantive') {
+					currentTurnSubstantiveToolCallCount++;
+				}
 			}
 		}
 
@@ -137,8 +157,8 @@ export class BackgroundTodoDeltaTracker {
 			metadata: {
 				newRoundCount: newRounds.length,
 				newToolCallCount,
-				meaningfulToolCallCount,
-				contextToolCallCount,
+				substantiveToolCallCount,
+				currentTurnSubstantiveToolCallCount,
 				isInitialDelta,
 				isRequestOnly: newRounds.length === 0,
 			},

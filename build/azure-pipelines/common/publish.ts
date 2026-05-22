@@ -903,7 +903,7 @@ async function processArtifact(
 			await stagingContainerClient.createIfNotExists();
 
 			const now = new Date().valueOf();
-			const oneHour = 60 * 60 * 1000;
+			const oneHour = 120 * 60 * 1000;
 			const oneHourAgo = new Date(now - oneHour);
 			const oneHourFromNow = new Date(now + oneHour);
 			const userDelegationKey = await blobServiceClient.getUserDelegationKey(oneHourAgo, oneHourFromNow);

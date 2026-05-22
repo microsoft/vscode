@@ -7,16 +7,16 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { IAICustomizationWorkspaceService, applyStorageSourceFilter, IStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
-import { type AICustomizationPromptsStorage, AICustomizationManagementSection, BUILTIN_STORAGE, sectionToPromptType } from './aiCustomizationManagement.js';
-import { ICustomizationHarnessService, ICustomizationItemProvider, IHarnessDescriptor } from '../../common/customizationHarnessService.js';
+import { IAICustomizationWorkspaceService, IStorageSourceFilter, AICustomizationSources, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
+import { type AICustomizationSource, AICustomizationManagementSection, sectionToPromptType } from './aiCustomizationManagement.js';
+import { ICustomizationHarnessService, ICustomizationItemProvider } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 
 /**
  * Snapshot of the list widget's internal state, passed in to avoid coupling.
  */
 export interface IDebugWidgetState {
-	readonly allItems: readonly { readonly name?: string; readonly storage?: AICustomizationPromptsStorage; readonly groupKey?: string; readonly syncable?: boolean; readonly pluginUri?: URI }[];
+	readonly allItems: readonly { readonly name?: string; readonly source?: AICustomizationSource; readonly groupKey?: string; readonly syncable?: boolean; readonly pluginUri?: URI }[];
 	readonly displayEntries: readonly { type: string; label?: string; count?: number; collapsed?: boolean }[];
 }
 
@@ -34,10 +34,9 @@ export async function generateCustomizationDebugReport(
 	promptsService: IPromptsService,
 	workspaceService: IAICustomizationWorkspaceService,
 	widgetState: IDebugWidgetState,
-	activeDescriptor?: IHarnessDescriptor,
-	promptsServiceItemProvider?: ICustomizationItemProvider,
-	harnessService?: ICustomizationHarnessService,
-	agentPluginService?: IAgentPluginService,
+	promptsServiceItemProvider: ICustomizationItemProvider,
+	harnessService: ICustomizationHarnessService,
+	agentPluginService: IAgentPluginService,
 ): Promise<string> {
 	const promptType = sectionToPromptType(section);
 	const filter = workspaceService.getStorageSourceFilter(promptType);
@@ -48,6 +47,8 @@ export async function generateCustomizationDebugReport(
 	lines.push(`Active root: ${workspaceService.getActiveProjectRoot()?.fsPath ?? '(none)'}`);
 	lines.push(`Sections: [${workspaceService.managementSections.join(', ')}]`);
 	lines.push(`Filter sources: [${filter.sources.join(', ')}]`);
+
+	const activeDescriptor = harnessService.getActiveDescriptor();
 
 	// Active harness descriptor
 	if (activeDescriptor) {
@@ -75,28 +76,21 @@ export async function generateCustomizationDebugReport(
 	lines.push('');
 
 	// Determine which provider the widget actually uses (mirrors getItemSource logic)
-	const extensionProvider = activeDescriptor?.itemProvider;
-	const effectiveProvider = extensionProvider ?? promptsServiceItemProvider;
+	const extensionProvider = activeDescriptor.itemProvider;
 
 	// Stage 1: Provider output
-	if (effectiveProvider) {
-		let providerLabel: string;
-		if (extensionProvider) {
-			providerLabel = 'Extension Provider';
-		} else {
-			providerLabel = 'PromptsService Adapter (fallback — no extension provider registered)';
-		}
-		await appendProviderData(lines, effectiveProvider, promptType, providerLabel);
+	if (extensionProvider) {
+		const providerLabel = 'Extension Provider';
+		const sessionResource = harnessService.activeSessionResource.get();
+		await appendProviderData(lines, extensionProvider, sessionResource, promptType, providerLabel);
 	} else {
+		// Stage 2: Raw PromptsService data — always useful for diagnostics
 		lines.push('--- Stage 1: No provider available ---');
 		lines.push('');
-	}
-
-	// Stage 2: Raw PromptsService data — always useful for diagnostics
-	if (!extensionProvider) {
 		await appendRawServiceData(lines, promptsService, promptType);
 		await appendFilteredData(lines, promptsService, promptType, filter);
 	}
+
 
 	// Stage 3: Widget state
 	appendWidgetState(lines, widgetState);
@@ -133,10 +127,10 @@ async function getPromptFilesByStorage(promptsService: IPromptsService, promptTy
 	return { localFiles, userFiles, extensionFiles };
 }
 
-async function appendProviderData(lines: string[], provider: ICustomizationItemProvider, promptType: PromptsType, label: string): Promise<void> {
+async function appendProviderData(lines: string[], provider: ICustomizationItemProvider, sessionResource: URI, promptType: PromptsType, label: string): Promise<void> {
 	lines.push(`--- Stage 1: Provider Output (${label}) ---`);
 
-	const allItems = await provider.provideChatSessionCustomizations(CancellationToken.None);
+	const allItems = await provider.provideChatSessionCustomizations(sessionResource, CancellationToken.None);
 	if (!allItems) {
 		lines.push('  Provider returned undefined');
 		lines.push('');
@@ -160,9 +154,7 @@ async function appendProviderData(lines: string[], provider: ICustomizationItemP
 			if (item.description) {
 				lines.push(`      desc: ${item.description}`);
 			}
-			if (item.storage) {
-				lines.push(`      storage: ${item.storage}`);
-			}
+			lines.push(`      source: ${item.source}`);
 			if (item.groupKey) {
 				lines.push(`      groupKey: ${item.groupKey}`);
 			}
@@ -269,18 +261,18 @@ async function appendFilteredData(lines: string[], promptsService: IPromptsServi
 function appendWidgetState(lines: string[], state: IDebugWidgetState): void {
 	lines.push('--- Stage 3: Widget State (loadItems → filterItems) ---');
 	lines.push(`  allItems (after loadItems): ${state.allItems.length}`);
-	lines.push(`    local:     ${state.allItems.filter(i => i.storage === PromptsStorage.local).length}`);
-	lines.push(`    user:      ${state.allItems.filter(i => i.storage === PromptsStorage.user).length}`);
-	lines.push(`    extension: ${state.allItems.filter(i => i.storage === PromptsStorage.extension).length}`);
-	lines.push(`    plugin:    ${state.allItems.filter(i => i.storage === PromptsStorage.plugin).length}`);
-	lines.push(`    built-in:  ${state.allItems.filter(i => i.storage === BUILTIN_STORAGE).length}`);
+	lines.push(`    local:     ${state.allItems.filter(i => i.source === AICustomizationSources.local).length}`);
+	lines.push(`    user:      ${state.allItems.filter(i => i.source === AICustomizationSources.user).length}`);
+	lines.push(`    extension: ${state.allItems.filter(i => i.source === AICustomizationSources.extension).length}`);
+	lines.push(`    plugin:    ${state.allItems.filter(i => i.source === AICustomizationSources.plugin).length}`);
+	lines.push(`    built-in:  ${state.allItems.filter(i => i.source === AICustomizationSources.builtin).length}`);
 	const syncableCount = state.allItems.filter(i => i.syncable).length;
 	if (syncableCount > 0) {
 		lines.push(`    syncable:  ${syncableCount}`);
 	}
 
 	for (const item of state.allItems) {
-		const flags: string[] = [`storage=${item.storage ?? '?'}`, `groupKey=${item.groupKey ?? '(none)'}`];
+		const flags: string[] = [`storage=${item.source ?? '?'}`, `groupKey=${item.groupKey ?? '(none)'}`];
 		if (item.syncable) {
 			flags.push('syncable');
 		}

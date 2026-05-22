@@ -12,14 +12,15 @@ import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpo
 import { modelSupportsToolSearch } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { buildToolInputSchema } from '../../../platform/endpoint/node/messagesApi';
 import { ILogService } from '../../../platform/log/common/logService';
-import { ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, isAnthropicMemoryToolEnabled } from '../../../platform/networking/common/anthropic';
+import { ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, modelSupportsMemory } from '../../../platform/networking/common/anthropic';
 import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { IResponseDelta, OpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { APIUsage } from '../../../platform/networking/common/openai';
-import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
+import { buildOTelInputFromChatMessages } from './byokOTelHelpers';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { toErrorMessage } from '../../../util/common/errorMessage';
@@ -140,7 +141,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					},
 				});
 
-			const memoryToolEnabled = isAnthropicMemoryToolEnabled(model.id, this._configurationService, this._experimentationService);
+			const memoryToolEnabled = modelSupportsMemory(model.id);
 
 			// Requires the client-side tool_search tool in the request: without it, defer-loaded tools can't be retrieved.
 			// If the user disables tool_search in the tool picker, it won't be present here and tool search is skipped.
@@ -397,6 +398,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 						"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
 						"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
 						"associatedRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Another request ID that this request is associated with (eg, the originating request of a summarization request)." },
+						"turn": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "How many turns have been made in the conversation.", "isMeasurement": true },
 						"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort level" },
 						"reasoningSummary": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning summary level" },
 						"fetcher": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The fetcher used for the request" },
@@ -505,28 +507,11 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					otelSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs), this._otelService.config.maxAttributeSizeChars));
 				}
 				try {
-					const roleNames: Record<number, string> = { 1: 'user', 2: 'assistant', 3: 'system' };
-					const inputMsgs = messages.map(m => {
-						const msg = m as LanguageModelChatMessage;
-						const role = roleNames[msg.role] ?? String(msg.role);
-						const parts: Array<{ type: string; content?: string | unknown; id?: string; name?: string; arguments?: unknown; response?: unknown }> = [];
-						if (Array.isArray(msg.content)) {
-							for (const p of msg.content) {
-								if (p instanceof LanguageModelTextPart) {
-									parts.push({ type: 'text', content: p.value });
-								} else if (p instanceof LanguageModelToolCallPart) {
-									parts.push({ type: 'tool_call', id: p.callId, name: p.name, arguments: p.input });
-								} else if (p instanceof LanguageModelToolResultPart) {
-									const resultText = p.content.map((c: unknown) => c instanceof LanguageModelTextPart ? c.value : '').join('');
-									parts.push({ type: 'tool_call_response', id: p.callId, response: resultText });
-								}
-							}
-						}
-						if (parts.length === 0) {
-							parts.push({ type: 'text', content: '[non-text content]' });
-						}
-						return { role, parts };
-					});
+					const { systemTexts, inputMsgs } = buildOTelInputFromChatMessages(messages);
+					const systemInstructions = toSystemInstructions(systemTexts);
+					if (systemInstructions) {
+						otelSpan.setAttribute(GenAiAttr.SYSTEM_INSTRUCTIONS, truncateForOTel(JSON.stringify(systemInstructions), this._otelService.config.maxAttributeSizeChars));
+					}
 					otelSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(inputMsgs), this._otelService.config.maxAttributeSizeChars));
 				} catch { /* swallow */ }
 			}

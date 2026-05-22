@@ -96,7 +96,7 @@ class OpenPullRequestAction extends Action2 {
 			return;
 		}
 
-		const gitHubInfo = activeSession.gitHubInfo.get();
+		const gitHubInfo = activeSession.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
 		if (!gitHubInfo?.pullRequest?.uri) {
 			return;
 		}

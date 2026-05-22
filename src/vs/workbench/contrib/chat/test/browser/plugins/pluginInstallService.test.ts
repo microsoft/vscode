@@ -239,6 +239,9 @@ suite('PluginInstallService', () => {
 
 		instantiationService.stub(IAgentPluginRepositoryService, {
 			getPluginInstallUri: (plugin: IMarketplacePlugin) => {
+				if (plugin.sourceDescriptor.kind !== PluginSourceKind.RelativePath) {
+					return state.pluginSourceInstallUris.get(plugin.sourceDescriptor.kind) ?? URI.file(`/cache/agentPlugins/${plugin.sourceDescriptor.kind}/default`);
+				}
 				return URI.joinPath(state.ensureRepositoryResult, plugin.source);
 			},
 			getRepositoryUri: () => state.ensureRepositoryResult,

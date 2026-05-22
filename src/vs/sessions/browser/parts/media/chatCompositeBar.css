@@ -61,12 +61,14 @@
 /* When an indicator is shown on a tab without a close button (e.g. the main chat),
 	reserve right-side space so the absolutely-positioned indicator doesn't overlap the label. */
 .chat-composite-bar-tab:not(:has(.chat-composite-bar-tab-actions)).unread,
+.chat-composite-bar-tab:not(:has(.chat-composite-bar-tab-actions)).needs-input,
 .chat-composite-bar-tab:not(:has(.chat-composite-bar-tab-actions)).in-progress {
 	padding-right: 22px;
 }
 
 /* Indicator: absolutely positioned over the close-action slot.
-	Shows a small yellow dot for unread, or a spinner for in-progress.
+	Shows a small blue dot for unread, a yellow dot when input is needed,
+	or a spinner for in-progress.
 	Only one mode is set on the element at a time (mutually exclusive in JS). */
 .chat-composite-bar-tab-indicator {
 	display: none;
@@ -82,6 +84,7 @@
 }
 
 .chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator,
+.chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator,
 .chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator {
 	display: flex;
 }
@@ -92,11 +95,19 @@
 	justify-content: center;
 }
 
-.chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator-icon::before {
+.chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator-icon::before,
+.chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator-icon::before {
 	content: '';
 	width: 6px;
 	height: 6px;
 	border-radius: 50%;
+}
+
+.chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator-icon::before {
+	background-color: var(--vscode-textLink-foreground);
+}
+
+.chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator-icon::before {
 	background-color: var(--vscode-list-warningForeground);
 }
 

@@ -187,11 +187,13 @@ export class TestEndpointProvider implements IEndpointProvider {
 		}
 		return Array.from(this._chatEndpoints.values());
 	}
-	async getChatEndpoint(requestOrFamilyOrModel: LanguageModelChat | ChatRequest | ChatEndpointFamily): Promise<IChatEndpoint> {
+	getChatEndpoint(requestOrModel: LanguageModelChat | ChatRequest): Promise<IChatEndpoint>;
+	getChatEndpoint(family: ChatEndpointFamily): Promise<IChatEndpoint | undefined>;
+	async getChatEndpoint(requestOrFamilyOrModel: LanguageModelChat | ChatRequest | ChatEndpointFamily): Promise<IChatEndpoint | undefined> {
 		if (typeof requestOrFamilyOrModel !== 'string') {
-			requestOrFamilyOrModel = 'copilot-base';
+			requestOrFamilyOrModel = 'copilot-utility';
 		}
-		if (requestOrFamilyOrModel === 'copilot-base') {
+		if (requestOrFamilyOrModel === 'copilot-utility') {
 			return await this.getChatEndpointInfo(this.gpt4ModelToRunAgainst ?? CHAT_MODEL.GPT41, await this._modelLabChatModelMetadata, await this._prodChatModelMetadata);
 		} else {
 			return await this.getChatEndpointInfo(this.gpt4oMiniModelToRunAgainst ?? CHAT_MODEL.GPT4OMINI, await this._modelLabChatModelMetadata, await this._prodChatModelMetadata);
