@@ -8,6 +8,7 @@ import { equals } from '../../../../../base/common/objects.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
+import { ROOT_STATE_URI } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -109,7 +110,7 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 		if (Object.keys(patch).length === 0) {
 			return;
 		}
-		connection.dispatch({
+		connection.dispatch(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: patch,
 		});

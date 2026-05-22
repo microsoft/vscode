@@ -48,7 +48,7 @@ class MockAgentConnection {
 	readonly onDidAction: Event<ActionEnvelope> = Event.None;
 	readonly onDidNotification: Event<INotification> = Event.None;
 
-	dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+	dispatch(_channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
 		this.dispatched.push(action);
 	}
 
@@ -75,8 +75,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly onDidNotification = this.inner.onDidNotification;
 	override readonly rootState = this.inner.rootState;
 
-	override dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
-		this.inner.dispatch(action);
+	override dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+		this.inner.dispatch(channel, action);
 	}
 
 	get dispatched(): readonly (SessionAction | TerminalAction | IRootConfigChangedAction)[] {

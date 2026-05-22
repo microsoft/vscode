@@ -12,10 +12,12 @@ import { sandboxSettingIdToAgentHostKey } from '../../../../../platform/agentHos
 /** Setting IDs that affect the engine's sandbox configuration (modern + deprecated). */
 export const SANDBOX_SETTING_KEYS: readonly string[] = [
 	AgentSandboxSettingId.AgentSandboxEnabled,
+	AgentSandboxSettingId.AgentSandboxWindowsEnabled,
 	AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
 	AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands,
 	AgentSandboxSettingId.AgentSandboxLinuxFileSystem,
 	AgentSandboxSettingId.AgentSandboxMacFileSystem,
+	AgentSandboxSettingId.AgentSandboxWindowsFileSystem,
 	AgentSandboxSettingId.AgentSandboxAdvancedRuntime,
 	AgentSandboxSettingId.DeprecatedAgentSandboxEnabled,
 	AgentSandboxSettingId.DeprecatedAgentSandboxLinuxFileSystem,

@@ -17,10 +17,12 @@ import { createSchema, schemaProperty } from './agentHostSchema.js';
  */
 export const enum AgentHostSandboxConfigKey {
 	Enabled = 'enabled',
+	WindowsEnabled = 'enabled.windows',
 	AllowUnsandboxedCommands = 'allowUnsandboxedCommands',
 	AutoApproveUnsandboxedCommands = 'autoApproveUnsandboxedCommands',
 	LinuxFileSystem = 'fileSystem.linux',
 	MacFileSystem = 'fileSystem.mac',
+	WindowsFileSystem = 'fileSystem.windows',
 	AdvancedRuntime = 'advanced.runtime',
 	AllowedNetworkDomains = 'allowedNetworkDomains',
 	DeniedNetworkDomains = 'deniedNetworkDomains',
@@ -48,6 +50,11 @@ export const sandboxConfigSchema = createSchema({
 		title: localize('agentHost.config.sandbox.enabled.title', "Agent Sandbox"),
 		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On, AgentSandboxEnabledValue.AllowNetwork],
 	}),
+	[AgentHostSandboxConfigKey.WindowsEnabled]: schemaProperty<AgentSandboxEnabledValue>({
+		type: 'string',
+		title: localize('agentHost.config.sandbox.windowsEnabled.title', "Agent Sandbox (Windows)"),
+		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On, AgentSandboxEnabledValue.AllowNetwork],
+	}),
 	[AgentHostSandboxConfigKey.AllowUnsandboxedCommands]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.sandbox.allowUnsandboxedCommands.title', "Allow Unsandboxed Commands"),
@@ -63,6 +70,10 @@ export const sandboxConfigSchema = createSchema({
 	[AgentHostSandboxConfigKey.MacFileSystem]: schemaProperty<Record<string, unknown>>({
 		type: 'object',
 		title: localize('agentHost.config.sandbox.macFileSystem.title', "macOS Sandbox Filesystem"),
+	}),
+	[AgentHostSandboxConfigKey.WindowsFileSystem]: schemaProperty<Record<string, unknown>>({
+		type: 'object',
+		title: localize('agentHost.config.sandbox.windowsFileSystem.title', "Windows Sandbox Filesystem"),
 	}),
 	[AgentHostSandboxConfigKey.AdvancedRuntime]: schemaProperty<Record<string, unknown>>({
 		type: 'object',
@@ -90,10 +101,12 @@ export const sandboxConfigSchema = createSchema({
  */
 export const sandboxSettingIdToAgentHostKey: Readonly<Record<string, AgentHostSandboxConfigKey>> = {
 	[AgentSandboxSettingId.AgentSandboxEnabled]: AgentHostSandboxConfigKey.Enabled,
+	[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: AgentHostSandboxConfigKey.WindowsEnabled,
 	[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]: AgentHostSandboxConfigKey.AllowUnsandboxedCommands,
 	[AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands]: AgentHostSandboxConfigKey.AutoApproveUnsandboxedCommands,
 	[AgentSandboxSettingId.AgentSandboxLinuxFileSystem]: AgentHostSandboxConfigKey.LinuxFileSystem,
 	[AgentSandboxSettingId.AgentSandboxMacFileSystem]: AgentHostSandboxConfigKey.MacFileSystem,
+	[AgentSandboxSettingId.AgentSandboxWindowsFileSystem]: AgentHostSandboxConfigKey.WindowsFileSystem,
 	[AgentSandboxSettingId.AgentSandboxAdvancedRuntime]: AgentHostSandboxConfigKey.AdvancedRuntime,
 	[AgentNetworkDomainSettingId.AllowedNetworkDomains]: AgentHostSandboxConfigKey.AllowedNetworkDomains,
 	[AgentNetworkDomainSettingId.DeniedNetworkDomains]: AgentHostSandboxConfigKey.DeniedNetworkDomains,

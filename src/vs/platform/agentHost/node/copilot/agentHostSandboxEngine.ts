@@ -80,6 +80,14 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 		return this._sandboxHelper.checkSandboxDependencies();
 	}
 
+	async getWindowsMxcFilesystemPolicy() {
+		return this._sandboxHelper.getWindowsMxcFilesystemPolicy();
+	}
+
+	async getWindowsMxcEnvironment() {
+		return this._sandboxHelper.getWindowsMxcEnvironment();
+	}
+
 	getSandboxSetting<T>(settingId: string): T | undefined {
 		// The agent host stores sandbox settings under prefix-free keys
 		// (e.g. `enabled` rather than `chat.agent.sandbox.enabled`). Map from

@@ -19,6 +19,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../../sandbox/common/terminalSandboxMxcRuntime.js';
 import { AgentHostSandboxConfigKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
@@ -133,6 +134,11 @@ suite('CopilotShellTools', () => {
 		const initialSandboxValues: Record<string, unknown> = {};
 		if (options?.sandboxEnabled) {
 			initialSandboxValues[AgentHostSandboxConfigKey.Enabled] = AgentSandboxEnabledValue.On;
+			// Windows uses a separate enable key; the engine treats
+			// `Enabled=On` on non-Windows and `WindowsEnabled=AllowNetwork`
+			// on Windows as "sandbox active". Set both so tests exercise
+			// the sandbox path on every OS.
+			initialSandboxValues[AgentHostSandboxConfigKey.WindowsEnabled] = AgentSandboxEnabledValue.AllowNetwork;
 		}
 		const agentConfigurationService = createFakeAgentConfigurationService(initialSandboxValues);
 		const services = new ServiceCollection();
@@ -151,6 +157,7 @@ suite('CopilotShellTools', () => {
 		services.set(IProductService, { dataFolderName: '.test-data' } as Partial<IProductService> as IProductService);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		services.set(IInstantiationService, instantiationService);
+		services.set(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
 		return { instantiationService, terminalManager, agentConfigurationService };
 	}
 
@@ -661,10 +668,6 @@ suite('CopilotShellTools', () => {
 	});
 
 	test('primary shell tool wraps commands through the sandbox engine when the sandbox is enabled', async function () {
-		if (platform.isWindows) {
-			// Sandbox is not supported on Windows.
-			this.skip();
-		}
 		const { instantiationService, terminalManager } = createServices({ sandboxEnabled: true });
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
@@ -680,15 +683,18 @@ suite('CopilotShellTools', () => {
 		await bashTool.handler({ command: 'echo hello', timeout: 1 }, invocation);
 
 		const sentCommand = terminalManager.sentTexts[0]?.data ?? '';
-		assert.ok(sentCommand.includes('sandbox-runtime'), `Expected the command to be wrapped by the sandbox runtime. Sent: ${sentCommand}`);
-		assert.ok(sentCommand.includes('echo hello'), `Wrapped command should still contain the user command. Sent: ${sentCommand}`);
+		// POSIX wraps via `sandbox-runtime` and embeds the user command;
+		// Windows wraps via the MXC executable and carries the user command
+		// in the JSON config file referenced by the wrapper.
+		if (platform.isWindows) {
+			assert.ok(sentCommand.includes('wxc-exec'), `Expected the command to be wrapped by the MXC runtime. Sent: ${sentCommand}`);
+		} else {
+			assert.ok(sentCommand.includes('sandbox-runtime'), `Expected the command to be wrapped by the sandbox runtime. Sent: ${sentCommand}`);
+			assert.ok(sentCommand.includes('echo hello'), `Wrapped command should still contain the user command. Sent: ${sentCommand}`);
+		}
 	});
 
 	test('primary shell tool requests confirmation before rerunning outside the sandbox', async function () {
-		if (platform.isWindows) {
-			// Sandbox is not supported on Windows.
-			this.skip();
-		}
 		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
 		// `requiresUnsandboxConfirmation` only fires when unsandboxed commands are allowed AND a
 		// blocked domain is detected — otherwise the engine keeps the command sandboxed.
@@ -727,10 +733,6 @@ suite('CopilotShellTools', () => {
 	});
 
 	test('primary shell tool returns sandbox_blocked when user declines unsandboxed rerun', async function () {
-		if (platform.isWindows) {
-			// Sandbox is not supported on Windows.
-			this.skip();
-		}
 		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
 		agentConfigurationService.setSandboxValue(AgentHostSandboxConfigKey.AllowUnsandboxedCommands, true);
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
@@ -753,10 +755,6 @@ suite('CopilotShellTools', () => {
 	});
 
 	test('primary shell tool asks for confirmation when requestUnsandboxedExecution is explicitly set', async function () {
-		if (platform.isWindows) {
-			// Sandbox is not supported on Windows.
-			this.skip();
-		}
 		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
 		agentConfigurationService.setSandboxValue(AgentHostSandboxConfigKey.AllowUnsandboxedCommands, true);
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
@@ -793,10 +791,6 @@ suite('CopilotShellTools', () => {
 	});
 
 	test('primary shell tool returns unsandboxed_disabled when allowUnsandboxedCommands is off', async function () {
-		if (platform.isWindows) {
-			// Sandbox is not supported on Windows.
-			this.skip();
-		}
 		const { instantiationService, terminalManager } = createServices({ sandboxEnabled: true });
 		// `chat.agent.sandbox.allowUnsandboxedCommands` is intentionally not set,
 		// so the engine would silently re-sandbox the command. The shell tool
@@ -834,10 +828,6 @@ suite('CopilotShellTools', () => {
 	});
 
 	test('primary shell tool skips confirmation when autoApproveUnsandboxedCommands is enabled', async function () {
-		if (platform.isWindows) {
-			// Sandbox is not supported on Windows.
-			this.skip();
-		}
 		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
 		agentConfigurationService.setSandboxValue(AgentHostSandboxConfigKey.AllowUnsandboxedCommands, true);
 		agentConfigurationService.setSandboxValue(AgentHostSandboxConfigKey.AutoApproveUnsandboxedCommands, true);

@@ -106,7 +106,7 @@ suite('TerminalSandboxEngine', () => {
 	}
 
 	function enableWindowsSandbox(): void {
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.AllowNetwork);
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.AllowNetwork);
 	}
 
 	setup(() => {
@@ -248,7 +248,7 @@ suite('TerminalSandboxEngine', () => {
 	});
 
 	test('isEnabled returns true on Windows when Windows sandbox setting allows network even if global sandboxing is off', async () => {
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
 		enableWindowsSandbox();
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
@@ -290,7 +290,7 @@ suite('TerminalSandboxEngine', () => {
 
 	test('wrapCommand applies Windows filesystem setting to MXC config', async () => {
 		enableWindowsSandbox();
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsFileSystem, {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsFileSystem, {
 			allowWrite: ['C:\\configured\\write'],
 			allowRead: ['C:\\configured\\read'],
 			denyRead: ['C:\\configured\\secret'],
@@ -346,7 +346,7 @@ suite('TerminalSandboxEngine', () => {
 
 	test('allowNetwork maps to MXC allow network config on Windows', async () => {
 		enableWindowsSandbox();
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
 
