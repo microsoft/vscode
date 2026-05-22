@@ -262,7 +262,7 @@
 	align-items: center;
 	gap: 8px;
 	flex-shrink: 0;
-	padding: 12px 2px;
+	padding: 16px 0;
 }
 
 .ai-customization-list-widget .list-search-container,
@@ -384,7 +384,7 @@
 }
 
 .ai-customization-group-header .group-label {
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-medium);
 	text-transform: capitalize;
 	color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
 	overflow: hidden;
@@ -394,12 +394,12 @@
 
 .ai-customization-group-header .group-count {
 	flex-shrink: 0;
-	font-size: 10px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-label2);
+	font-weight: var(--vscode-agents-fontWeight-medium);
 	color: var(--vscode-descriptionForeground);
 	min-width: 14px;
-	text-align: center;
-	line-height: 16px;
+	text-align: right;
+	margin-top: 2px;
 }
 
 .ai-customization-group-header .group-info {
@@ -593,7 +593,7 @@
 .ai-customization-list-widget .section-title-header,
 .mcp-list-widget .section-title-header {
 	flex-shrink: 0;
-	padding: 4px 4px 32px 4px;
+	padding: 0 0 32px;
 	border-bottom: 1px solid var(--vscode-panel-border);
 }
 
@@ -618,16 +618,15 @@
 
 .ai-customization-list-widget .section-title-header .section-title,
 .mcp-list-widget .section-title-header .section-title {
-	font-size: 22px;
-	font-weight: 600;
-	line-height: 1.2;
+	font-size: var(--vscode-agents-fontSize-heading2);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	margin: 0;
 	color: var(--vscode-foreground);
 }
 
 .ai-customization-list-widget .section-title-header .section-title-description,
 .mcp-list-widget .section-title-header .section-title-description {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	line-height: 1.45;
 	color: var(--vscode-descriptionForeground);
 	margin: 0 0 8px 0;
@@ -640,7 +639,7 @@
 
 .ai-customization-list-widget .section-title-header .section-title-link,
 .mcp-list-widget .section-title-header .section-title-link {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	/* Match the description's line-height so the link's inline-flex line-box */
 	/* does not change the total header height between sections. */
 	line-height: 1.45;
@@ -665,7 +664,7 @@
 }
 
 .ai-customization-list-widget .section-footer .section-footer-description {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	margin: 0 0 8px 0;
 }
@@ -767,6 +766,12 @@
 	height: 100%;
 	display: flex;
 	flex-direction: column;
+	padding: 40px 40px 16px;
+	background: var(--vscode-agentsPanel-background);
+	border: 1px solid var(--vscode-agentsPanel-border);
+	border-radius: 6px;
+	overflow: hidden;
+	box-sizing: border-box;
 }
 
 /* Embedded MCP server detail view */
