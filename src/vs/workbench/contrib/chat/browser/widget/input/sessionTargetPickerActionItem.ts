@@ -239,7 +239,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		const labelElements = [];
 		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
 		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
-		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...labelElements);
 

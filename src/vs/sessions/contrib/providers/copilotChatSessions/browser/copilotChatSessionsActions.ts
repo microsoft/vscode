@@ -36,6 +36,7 @@ import { ModePicker } from './modePicker.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { INewChatModelPickerService } from '../../../chat/browser/newChatModelPicker.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 
@@ -238,15 +239,15 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 		));
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig, 'sessions.defaultCopilot.localModelPicker',
-			() => {
-				const picker = instantiationService.createInstance(SessionModelPicker);
+			(_action, _options, scopedInstantiationService) => {
+				const picker = scopedInstantiationService.createInstance(SessionModelPicker);
 				return new PickerActionViewItem(picker);
 			},
 		));
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig, 'sessions.defaultCopilot.cloudModelPicker',
-			() => {
-				const picker = instantiationService.createInstance(CloudModelPicker);
+			(_action, _options, scopedInstantiationService) => {
+				const picker = scopedInstantiationService.createInstance(CloudModelPicker);
 				return new PickerActionViewItem(picker);
 			},
 		));
@@ -287,6 +288,11 @@ export function modelPickerStorageKey(sessionType: string): string {
 	return `sessions.modelPicker.${sessionType}.selectedModelId`;
 }
 
+export function shouldShowSessionManageModelsAction(sessionsManagementService: ISessionsManagementService): boolean {
+	const session = sessionsManagementService.activeSession.get();
+	return session?.providerId === COPILOT_PROVIDER_ID && session.sessionType === SessionType.Local;
+}
+
 function getVendorFromModelIdentifier(modelIdentifier: string): string | undefined {
 	const firstSlash = modelIdentifier.indexOf('/');
 	return firstSlash === -1 ? undefined : modelIdentifier.substring(0, firstSlash);
@@ -313,6 +319,7 @@ export class SessionModelPicker extends Disposable {
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@INewChatModelPickerService private readonly _newChatModelPickerService: INewChatModelPickerService,
 	) {
 		super();
 
@@ -340,16 +347,17 @@ export class SessionModelPicker extends Disposable {
 			},
 			getModels: () => getAvailableModels(this._languageModelsService, this._sessionsManagementService),
 			useGroupedModelPicker: () => true,
-			showManageModelsAction: () => false,
+			showManageModelsAction: () => shouldShowSessionManageModelsAction(this._sessionsManagementService),
 			showUnavailableFeatured: () => false,
 			showFeatured: () => true,
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
-			hideChevrons: observableValue('hideChevrons', false),
+			compact: observableValue('compact', false),
 		};
 		const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 		this._modelPicker = instantiationService.createInstance(ModelPickerActionItem, action, this._delegate, pickerOptions);
+		this._register(this._newChatModelPickerService.registerModelPicker(() => this._modelPicker.openModelPicker()));
 
 		this._initModel();
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => this._initModel()));
@@ -588,6 +596,7 @@ registerAction2(class DeleteSessionAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(ChatSessionProviderIdContext.key, COPILOT_PROVIDER_ID),
 					ContextKeyExpr.notEquals('chatSessionType', ClaudeCodeSessionType.id),
+					ContextKeyExpr.notEquals('chatSessionType', LocalSessionType.id),
 				),
 			}]
 		});

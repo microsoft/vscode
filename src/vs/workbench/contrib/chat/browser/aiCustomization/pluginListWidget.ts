@@ -981,9 +981,10 @@ export class PluginListWidget extends Disposable {
 		if (!provider) {
 			return [];
 		}
+		const sessionResource = this.harnessService.activeSessionResource.get();
 
 		try {
-			const provided = await provider.provideChatSessionCustomizations(CancellationToken.None) ?? [];
+			const provided = await provider.provideChatSessionCustomizations(sessionResource, CancellationToken.None) ?? [];
 			return provided.filter(item =>
 				isPluginCustomizationItem(item)
 				&& (!query

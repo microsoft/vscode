@@ -127,7 +127,7 @@ suite('CopilotShellTools', () => {
 
 	function markCreatedTerminalsExist(terminalManager: TestAgentHostTerminalManager): void {
 		for (const created of terminalManager.created) {
-			terminalManager.existingTerminalUris.add(created.params.terminal);
+			terminalManager.existingTerminalUris.add(created.params.channel);
 		}
 	}
 
@@ -186,6 +186,25 @@ suite('CopilotShellTools', () => {
 		assert.ok(unknownDefault === 'bash' || unknownDefault === 'powershell');
 	});
 
+	test('zsh executable keeps bash tool name but uses zsh-specific guidance', async () => {
+		const { instantiationService, terminalManager } = createServices();
+		terminalManager.defaultShell = '/bin/zsh';
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
+		const bashTool = tools.find(tool => tool.name === 'bash');
+
+		assert.ok(bashTool);
+		assert.strictEqual(bashTool.name, 'bash');
+		assert.ok(bashTool.description);
+		const description = bashTool.description;
+		assert.match(description, /persistent zsh terminal session/);
+		assert.match(description, /zsh globbing features/);
+		assert.match(description, /bare == or ===/);
+		assert.match(description, /status as a variable name/);
+		assert.doesNotMatch(description, /bang history/);
+		assert.doesNotMatch(description, /# comments/);
+	});
+
 	test('getOrCreateShell reuses an idle shell after the reference is disposed', async () => {
 		const terminalManager = new TestAgentHostTerminalManager();
 		// Pretend created terminals exist and are still running.
@@ -223,6 +242,27 @@ suite('CopilotShellTools', () => {
 		assert.strictEqual(terminalManager.created.length, 2);
 		first.dispose();
 		second.dispose();
+	});
+
+	test('shell helper tools (read/write/shutdown/list/redirect) are registered with skipPermission: true', async () => {
+		// Regression guard: the SDK's built-in shell helpers never call
+		// `permissions.request`. Our PTY-backed overrides must mirror that
+		// or the agent host will surface a permission prompt for every
+		// `write_bash` / `read_bash` / `bash_shutdown` / `list_bash` call,
+		// which breaks interactive shell flows.
+		const { instantiationService, terminalManager } = createServices();
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
+
+		const skipPermissionByName = Object.fromEntries(tools.map(t => [t.name, t.skipPermission ?? false]));
+		assert.deepStrictEqual(skipPermissionByName, {
+			bash: false,
+			read_bash: true,
+			write_bash: true,
+			bash_shutdown: true,
+			list_bash: true,
+			powershell: true,
+		});
 	});
 
 	test('primary shell tool normalizes multiline command input', async () => {

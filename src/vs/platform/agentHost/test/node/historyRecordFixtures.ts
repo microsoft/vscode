@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { isString } from '../../../../base/common/types.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
@@ -398,7 +399,8 @@ export async function mapSessionEventsToHistoryRecords(
 			}
 			const rewrittenArgs = stripRedundantCdPrefix(d.toolName, parameters, workingDirectory) ? tryStringify(parameters) : undefined;
 			toolInfoByCallId.set(d.toolCallId, { toolName: d.toolName, parameters, rewrittenArgs });
-			if (isEditTool(d.toolName)) {
+			const command = isString(parameters?.command) ? parameters.command : undefined;
+			if (isEditTool(d.toolName, command)) {
 				editToolCallIds.push(d.toolCallId);
 			}
 		}

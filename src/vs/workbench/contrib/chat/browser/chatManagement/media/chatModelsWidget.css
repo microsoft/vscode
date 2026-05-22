@@ -52,6 +52,28 @@
 	width: 100%;
 	border-spacing: 0;
 	border-collapse: separate;
+	overflow: hidden;
+}
+
+.models-widget .models-table-container > .monaco-scrollable-element {
+	width: 100%;
+	height: 100%;
+}
+
+.models-widget .models-table-container .models-table-viewport {
+	width: 100%;
+	height: 100%;
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: none;
+}
+
+.models-widget .models-table-container .models-table-viewport::-webkit-scrollbar {
+	display: none;
+}
+
+.models-widget .models-table-container .models-table-inner {
+	height: 100%;
 }
 
 .models-widget .models-table-container .monaco-table-tr {
@@ -210,4 +232,41 @@
 .models-widget .models-table-container .monaco-table .monaco-list:not(:focus) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row),
 .models-widget .models-table-container .monaco-table .monaco-list:not(.focused) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row) {
 	background-color: var(--vscode-editor-background);
+}
+
+/** Hidden row styling **/
+
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .model-name,
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .model-cost-grid,
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .model-token-limits,
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .model-capabilities,
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .model-status-icon {
+	opacity: 0.55;
+}
+
+.models-widget .models-table-container .models-gutter-column .monaco-action-bar {
+	width: 100%;
+}
+
+.models-widget .models-table-container .monaco-table-tr.models-vendor-row .models-gutter-column .monaco-action-bar .actions-container {
+	justify-content: space-between;
+}
+
+.models-widget .models-table-container .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar .actions-container {
+	justify-content: flex-end;
+}
+
+/** Visibility toggle action in the gutter column.
+ * The action is only visible on row focus/hover, or when the model/group
+ * is currently hidden so the user can spot what to click to bring it
+ * back. **/
+.models-widget .models-table-container .monaco-table-td .models-gutter-column .model-visibility-toggle {
+	visibility: hidden;
+}
+
+.models-widget .models-table-container .monaco-list-row.focused .monaco-table-td .models-gutter-column .model-visibility-toggle,
+.models-widget .models-table-container .monaco-list-row.selected .monaco-table-td .models-gutter-column .model-visibility-toggle,
+.models-widget .models-table-container .monaco-list-row:hover .monaco-table-td .models-gutter-column .model-visibility-toggle,
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .models-gutter-column .model-visibility-toggle {
+	visibility: visible;
 }

@@ -245,6 +245,7 @@ class StandaloneEnvironmentService implements IEnvironmentService {
 	readonly isBuilt: boolean = false;
 	readonly disableTelemetry: boolean = false;
 	readonly serviceMachineIdResource: URI = URI.from({ scheme: 'monaco', authority: 'serviceMachineIdResource' });
+	readonly agentSessionsWorkspace: URI = URI.from({ scheme: 'monaco', authority: 'agentSessionsWorkspace' });
 	readonly policyFile?: URI | undefined = undefined;
 }
 
@@ -1143,6 +1144,10 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
 		return { id: 'default', name: 'Default', enterprise: false };
+	}
+
+	resolveGitHubUrl(path: string): string {
+		return `https://github.com/${path}`;
 	}
 
 	async signIn(): Promise<IDefaultAccount | null> {

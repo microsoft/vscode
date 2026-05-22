@@ -44,6 +44,7 @@ jobs:
         fetchDepth: 1
         fetchTags: false
         sparseCheckoutDirectories: build/azure-pipelines/config test/sanity .nvmrc
+        retryCountOnTaskFailure: 3
         displayName: Checkout test/sanity
 
       - ${{ if eq(parameters.os, 'windows') }}:

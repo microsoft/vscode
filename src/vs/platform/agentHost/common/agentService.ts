@@ -13,7 +13,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IAgentSubscription } from './state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
-import { ProtectedResourceMetadata, type ConfigSchema, type FileEdit, type MessageAttachment, type ModelSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
+import { ProtectedResourceMetadata, type ChangesetSummary, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionCustomization, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
@@ -29,6 +29,12 @@ export const enum AgentHostIpcChannels {
 	Logger = 'agentHostLogger',
 	/** Channel for WebSocket client connection count (server process management only) */
 	ConnectionTracker = 'agentHostConnectionTracker',
+	/**
+	 * Channel registered by the remote server that proxies AHP JSON-RPC
+	 * frames between a renderer and the agent host running on the server.
+	 * Pairs with `AgentHostIpcChannelTransport` on the renderer side.
+	 */
+	RemoteProxy = 'agentHostProxy',
 }
 
 /** Configuration key that controls whether the local agent host process is spawned. */
@@ -39,6 +45,9 @@ export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
 
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
+
+/** Configuration key that controls whether Agent Host uses its terminal tool override for Copilot SDK sessions. */
+export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
 
 /**
  * Configuration key that holds the absolute path to a locally-installed
@@ -61,6 +70,108 @@ export const AgentHostClaudeAgentSdkPathSettingId = 'chat.agentHost.claudeAgent.
  * by developers as an override.
  */
 export const AgentHostClaudeSdkPathEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_PATH';
+
+// -- OpenTelemetry settings ------------------------------------------------------
+//
+// The `chat.agentHost.otel.*` namespace surfaces the same exporter knobs the CLI
+// runtime documents in `extensions/copilot/docs/monitoring/agent_monitoring.md`,
+// but routes them through the agent host process so the user's settings stay in
+// VS Code instead of leaking via shell env.
+//
+// `chat.agentHost.otel.dbSpanExporter.enabled` switches on the in-process
+// loopback receiver + persistent SQLite span store; the other settings still
+// apply because the user's external sink (when configured) is then fed by an
+// outbound forwarder rather than by the SDK directly.
+
+/** Master toggle for agent-host OTel. Explicit opt-in; other settings imply this when set. */
+export const AgentHostOTelEnabledSettingId = 'chat.agentHost.otel.enabled';
+/** Exporter type for the SDK's OTel pipeline. One of: `otlp-http`, `otlp-grpc`, `console`, `file`. */
+export const AgentHostOTelExporterTypeSettingId = 'chat.agentHost.otel.exporterType';
+/** OTLP endpoint URL when `exporterType` is `otlp-http` or `otlp-grpc`. */
+export const AgentHostOTelOtlpEndpointSettingId = 'chat.agentHost.otel.otlpEndpoint';
+/** Whether to include prompt/response content in span attributes (privacy-sensitive). */
+export const AgentHostOTelCaptureContentSettingId = 'chat.agentHost.otel.captureContent';
+/** Output path when `exporterType` is `file`. */
+export const AgentHostOTelOutfileSettingId = 'chat.agentHost.otel.outfile';
+/** When true, ALL spans are persisted to a local SQLite store regardless of `exporterType`. */
+export const AgentHostOTelDbSpanExporterEnabledSettingId = 'chat.agentHost.otel.dbSpanExporter.enabled';
+
+/**
+ * Path of the local SQLite span database, relative to `INativeEnvironmentService.userDataPath`.
+ * Kept here so both the renderer-side export action and the agent-host-side service
+ * use the same on-disk location.
+ */
+export const AgentHostOTelSpansDbSubPath = 'agent-host/otel/agent-host-traces.db';
+
+/**
+ * Environment variables consumed by `AgentHostOTelService` inside the agent host
+ * process. The workbench-side agent-host starters translate the corresponding
+ * `chat.agentHost.otel.*` settings into these variables (settings → env), while
+ * any value already present on the parent process's env wins (developer override).
+ *
+ * These names match the conventions documented in
+ * `extensions/copilot/docs/monitoring/agent_monitoring.md` so the same external
+ * tooling and `OTEL_EXPORTER_OTLP_*` config recipes work unchanged.
+ */
+export const AgentHostOTelEnvVars = Object.freeze({
+	Enabled: 'COPILOT_OTEL_ENABLED',
+	ExporterType: 'COPILOT_OTEL_EXPORTER_TYPE',
+	OtlpEndpoint: 'OTEL_EXPORTER_OTLP_ENDPOINT',
+	OtlpEndpointAlt: 'COPILOT_OTEL_ENDPOINT',
+	OtlpProtocol: 'OTEL_EXPORTER_OTLP_PROTOCOL',
+	OtlpHeaders: 'OTEL_EXPORTER_OTLP_HEADERS',
+	CaptureContent: 'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
+	FilePath: 'COPILOT_OTEL_FILE_EXPORTER_PATH',
+	SourceName: 'COPILOT_OTEL_SOURCE_NAME',
+	DbSpanExporterEnabled: 'COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED',
+} as const);
+
+/**
+ * Snapshot of the `chat.agentHost.otel.*` settings; produced by the workbench-side
+ * starters and merged with the parent process's env (env wins on key collision).
+ */
+export interface IAgentHostOTelSettings {
+	readonly enabled?: boolean;
+	readonly exporterType?: string;
+	readonly otlpEndpoint?: string;
+	readonly captureContent?: boolean;
+	readonly outfile?: string;
+	readonly dbSpanExporterEnabled?: boolean;
+}
+
+/**
+ * Build the env-var overlay for the agent host process from user settings and
+ * inherited env. Settings are translated to env vars, but if the same env var is
+ * already present on `inheritedEnv` it wins (developer override).
+ *
+ * Only sets a key when the underlying setting was explicitly configured — empty
+ * string / undefined settings are dropped so they don't shadow inherited env.
+ */
+export function buildAgentHostOTelEnv(
+	settings: IAgentHostOTelSettings,
+	inheritedEnv: Readonly<Record<string, string | undefined>>,
+): Record<string, string> {
+	const out: Record<string, string> = {};
+	const setIfMissing = (key: string, value: string | undefined): void => {
+		if (value === undefined || value === '' || inheritedEnv[key] !== undefined) {
+			return;
+		}
+		out[key] = value;
+	};
+	if (settings.enabled) {
+		setIfMissing(AgentHostOTelEnvVars.Enabled, 'true');
+	}
+	setIfMissing(AgentHostOTelEnvVars.ExporterType, settings.exporterType);
+	setIfMissing(AgentHostOTelEnvVars.OtlpEndpoint, settings.otlpEndpoint);
+	setIfMissing(AgentHostOTelEnvVars.FilePath, settings.outfile);
+	if (settings.captureContent !== undefined) {
+		setIfMissing(AgentHostOTelEnvVars.CaptureContent, settings.captureContent ? 'true' : 'false');
+	}
+	if (settings.dbSpanExporterEnabled) {
+		setIfMissing(AgentHostOTelEnvVars.DbSpanExporterEnabled, 'true');
+	}
+	return out;
+}
 
 /** Result of starting the agent host WebSocket server on-demand. */
 export interface IAgentHostSocketInfo {
@@ -111,11 +222,25 @@ export interface IAgentSessionMetadata {
 	/** Human-readable description of what the session is currently doing. */
 	readonly activity?: string;
 	readonly model?: ModelSelection;
+	/**
+	 * Selected custom agent for this session. Absent (`undefined`) means no
+	 * custom agent is selected — the session uses the provider's default
+	 * behavior.
+	 */
+	readonly agent?: AgentSelection;
 	readonly workingDirectory?: URI;
 	readonly customizationDirectory?: URI;
 	readonly isRead?: boolean;
 	readonly isArchived?: boolean;
-	readonly diffs?: readonly FileEdit[];
+	/**
+	 * Catalogue of changesets the agent can produce for this session — the
+	 * {@link ChangesetSummary | catalogue} that travels on
+	 * `SessionSummary.changesets`. Lightweight summary entries (id / label /
+	 * URI template / aggregate counts) without per-file detail; clients
+	 * subscribe to a specific expanded changeset URI when they need the full
+	 * file list.
+	 */
+	readonly changesets?: readonly ChangesetSummary[];
 	/**
 	 * Side-channel metadata mirroring {@link SessionState._meta}, propagated
 	 * to clients via per-session state subscriptions.
@@ -212,6 +337,11 @@ export const GITHUB_COPILOT_PROTECTED_RESOURCE: ProtectedResourceMetadata = {
 export interface IAgentCreateSessionConfig {
 	readonly provider?: AgentProvider;
 	readonly model?: ModelSelection;
+	/**
+	 * Initial custom agent selection for the new session. Omit to start with
+	 * no custom agent selected (provider default behavior).
+	 */
+	readonly agent?: AgentSelection;
 	readonly session?: URI;
 	readonly workingDirectory?: URI;
 	readonly config?: Record<string, unknown>;
@@ -462,6 +592,14 @@ export interface IAgent {
 	/** Change the model for an existing session. */
 	changeModel(session: URI, model: ModelSelection): Promise<void>;
 
+	/**
+	 * Change (or clear) the selected custom agent for an existing session.
+	 * Passing `undefined` clears the selection and resets the session to no
+	 * selected custom agent (provider default behavior). Optional so non-
+	 * Copilot agents can opt out.
+	 */
+	changeAgent?(session: URI, agent: AgentSelection | undefined): Promise<void>;
+
 	/** Respond to a pending permission request from the SDK. */
 	respondToPermissionRequest(requestId: string, approved: boolean): void;
 
@@ -525,13 +663,13 @@ export interface IAgent {
 	onArchivedChanged?(session: URI, isArchived: boolean): Promise<void>;
 
 	/**
-	 * Receives client-provided customization refs and syncs them (e.g. copies
-	 * plugin files to local storage). Returns per-customization status with
-	 * local plugin directories.
+	 * Receives client-provided customization refs for a session and syncs them
+	 * (e.g. copies plugin files to local storage). The agent publishes
+	 * customization state actions as the sync progresses.
 	 *
 	 * The agent MAY defer a client restart until all active sessions are idle.
 	 */
-	setClientCustomizations(clientId: string, customizations: CustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]>;
+	setClientCustomizations(session: URI, clientId: string, customizations: CustomizationRef[]): Promise<ISyncedCustomization[]>;
 
 	/**
 	 * Receives client-provided tool definitions to make available in a
@@ -683,8 +821,14 @@ export interface IAgentService {
 	 * Dispatch a client-originated action to the server. The server applies
 	 * it to state, triggers side effects, and echoes it back via
 	 * {@link onDidAction} with the client's origin for reconciliation.
+	 *
+	 * `channel` is the protocol URI string identifying the channel the action
+	 * targets (a session URI for session actions, terminal URI for terminal
+	 * actions, or {@link ROOT_STATE_URI} for root actions). Strings are used
+	 * rather than {@link URI} objects so that authority-less scheme URIs
+	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -737,7 +881,15 @@ export interface IAgentConnection {
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined;
 
 	// ---- Action dispatch ----------------------------------------------------
-	dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void;
+	/**
+	 * Dispatch a client-originated action. `channel` is the protocol URI
+	 * string identifying the channel the action targets (a session URI for
+	 * session actions, terminal URI for terminal actions, or
+	 * `ROOT_STATE_URI` for root-config actions). Strings are used rather
+	 * than {@link URI} objects so authority-less scheme URIs like
+	 * `ahp-root://` survive the wire format without normalization.
+	 */
+	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;

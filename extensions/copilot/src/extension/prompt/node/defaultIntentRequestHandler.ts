@@ -486,7 +486,7 @@ export class DefaultIntentRequestHandler {
 
 	private async getErrorDetails(error: ChatFetchError) {
 		const status = await this._octoKitService.getGitHubOutageStatus();
-		return getErrorDetailsFromChatFetchError(error, this._authenticationService.copilotToken?.copilotPlan, status);
+		return getErrorDetailsFromChatFetchError(error, this._authenticationService.copilotToken?.copilotPlan, status, this._authenticationService.copilotToken?.tokenBasedBilling, this._authenticationService.copilotToken?.quotaInfo.quota_reset_date);
 	}
 
 	private async processResult(fetchResult: ChatResponse, responseMessage: string, chatResult: ChatResult | void, metadataFragment: Partial<IResultMetadata>, baseModelTelemetry: ConversationalBaseTelemetryData, rounds: IToolCallRound[]): Promise<ChatResult> {

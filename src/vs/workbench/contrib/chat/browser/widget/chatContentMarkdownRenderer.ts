@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, reset } from '../../../../../base/browser/dom.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../base/browser/markdownRenderer.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -18,6 +18,25 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 
 const _remoteImageDisallowed = () => false;
+
+const nonPlainTextMarkdownSyntax = /[\\`*_[\]<>|&$~]/;
+const gfmAutolink = /\b(?:https?:\/\/|www\.)/i;
+const blockMarkdownSyntax = /(^|\n)\s{0,3}(?:#{1,6}\s|>\s?|[-+]\s|\d+[.)]\s|---+\s*$)/;
+
+function renderPlainTextMarkdown(markdown: IMarkdownString, outElement?: HTMLElement): IRenderedMarkdown | undefined {
+	const value = markdown.value;
+	if (!value || nonPlainTextMarkdownSyntax.test(value) || gfmAutolink.test(value) || blockMarkdownSyntax.test(value)) {
+		return undefined;
+	}
+
+	const element = outElement ?? $('div');
+	element.classList.add('rendered-markdown');
+	reset(element, $('p', undefined, value.length > 100_000 ? `${value.substr(0, 100_000)}…` : value));
+	return {
+		element,
+		dispose: () => { }
+	};
+}
 
 export const allowedChatMarkdownHtmlTags = Object.freeze([
 	'b',
@@ -61,6 +80,21 @@ export const allowedChatMarkdownHtmlTags = Object.freeze([
 	'input', // Allowed for rendering checkboxes. Other types of inputs are removed and the inputs are always disabled
 ]);
 
+export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): MarkdownRenderOptions {
+	return {
+		...options,
+		sanitizerConfig: {
+			replaceWithPlaintext: true,
+			allowedTags: {
+				override: allowedChatMarkdownHtmlTags,
+			},
+			...options?.sanitizerConfig,
+			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME] },
+			remoteImageIsAllowed: _remoteImageDisallowed,
+		}
+	};
+}
+
 /**
  * This wraps the MarkdownRenderer and applies sanitizer options needed for chat content.
  */
@@ -74,18 +108,12 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 	) { }
 
 	render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown {
-		options = {
-			...options,
-			sanitizerConfig: {
-				replaceWithPlaintext: true,
-				allowedTags: {
-					override: allowedChatMarkdownHtmlTags,
-				},
-				...options?.sanitizerConfig,
-				allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME] },
-				remoteImageIsAllowed: _remoteImageDisallowed,
-			}
-		};
+		const plainTextResult = renderPlainTextMarkdown(markdown, outElement);
+		if (plainTextResult) {
+			return plainTextResult;
+		}
+
+		options = getChatMarkdownRenderOptions(options);
 
 		const mdWithBody: IMarkdownString = (markdown && markdown.supportHtml) ?
 			{
