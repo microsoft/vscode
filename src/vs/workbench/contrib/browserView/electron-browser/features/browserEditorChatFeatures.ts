@@ -22,7 +22,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
@@ -259,6 +259,25 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		return result.confirmed;
 	}
 
+	// -- Chat widget helpers --------------------------------------------
+
+	/**
+	 * Reveal the chat widget and wait for its viewModel to be bound before
+	 * returning. When the chat panel is opened for the first time the session
+	 * model loads asynchronously, and once it loads {@link ChatInputPart}'s
+	 * `_syncFromModel` clears any attachments that were added before the model
+	 * was bound. Callers must use this helper before calling
+	 * {@linkcode IChatWidget.attachmentModel.addContext} so the attachment is
+	 * not silently discarded.
+	 */
+	private async _revealChatWidgetForAttachment(): Promise<IChatWidget | undefined> {
+		const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+		if (widget && !widget.viewModel) {
+			await Event.toPromise(widget.onDidChangeViewModel);
+		}
+		return widget;
+	}
+
 	// -- Element Selection ----------------------------------------------
 
 	private async _attachElementDataToChat(elementData: IElementData, model: IBrowserViewModel) {
@@ -320,15 +339,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			return;
 		}
 
-		const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
-		if (widget && !widget.viewModel) {
-			// Wait for its viewModel to be bound BEFORE attaching.
-			// When the chat panel is opened for the first time the session
-			// model loads asynchronously, and once it loads ChatInputPart._syncFromModel
-			// clears any attachments that were added before the model was bound.
-			// Attaching before this point would leave us with a silently-discarded attachment.
-			await Event.toPromise(widget.onDidChangeViewModel);
-		}
+		const widget = await this._revealChatWidgetForAttachment();
 		widget?.attachmentModel?.addContext(...toAttach);
 
 		type IntegratedBrowserAddElementToChatAddedEvent = {
@@ -378,15 +389,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				icon: ThemeIcon.fromId(Codicon.terminal.id),
 			});
 
-			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
-			if (widget && !widget.viewModel) {
-				// Wait for its viewModel to be bound BEFORE attaching.
-				// When the chat panel is opened for the first time the session
-				// model loads asynchronously, and once it loads ChatInputPart._syncFromModel
-				// clears any attachments that were added before the model was bound.
-				// Attaching before this point would leave us with a silently-discarded attachment.
-				await Event.toPromise(widget.onDidChangeViewModel);
-			}
+			const widget = await this._revealChatWidgetForAttachment();
 			widget?.attachmentModel?.addContext(...toAttach);
 		} catch (error) {
 			this.logService.error('BrowserEditor.addConsoleLogsToChat: Failed to get console logs', error);
@@ -422,15 +425,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				mimeType: 'image/jpeg',
 			}];
 
-			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
-			if (widget && !widget.viewModel) {
-				// Wait for its viewModel to be bound BEFORE attaching.
-				// When the chat panel is opened for the first time the session
-				// model loads asynchronously, and once it loads ChatInputPart._syncFromModel
-				// clears any attachments that were added before the model was bound.
-				// Attaching before this point would leave us with a silently-discarded attachment.
-				await Event.toPromise(widget.onDidChangeViewModel);
-			}
+			const widget = await this._revealChatWidgetForAttachment();
 
 			widget?.attachmentModel?.addContext(...toAttach);
 
