@@ -91,7 +91,7 @@ function makeSession(resource: URI, opts?: {
 		description: chat.description,
 		chats: observableValue('chats', [chat]),
 		activeChat: observableValue('activeChat', chat),
-		mainChat: chat,
+		mainChat: constObservable(chat),
 		capabilities: { supportsMultipleChats: false },
 	};
 }

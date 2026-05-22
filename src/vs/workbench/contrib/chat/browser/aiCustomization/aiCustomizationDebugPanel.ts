@@ -7,8 +7,8 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { IAICustomizationWorkspaceService, applyStorageSourceFilter, IStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
-import { type AICustomizationPromptsStorage, AICustomizationManagementSection, BUILTIN_STORAGE, sectionToPromptType } from './aiCustomizationManagement.js';
+import { IAICustomizationWorkspaceService, IStorageSourceFilter, AICustomizationSources, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
+import { type AICustomizationSource, AICustomizationManagementSection, sectionToPromptType } from './aiCustomizationManagement.js';
 import { ICustomizationHarnessService, ICustomizationItemProvider } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 
@@ -16,7 +16,7 @@ import { IAgentPluginService } from '../../common/plugins/agentPluginService.js'
  * Snapshot of the list widget's internal state, passed in to avoid coupling.
  */
 export interface IDebugWidgetState {
-	readonly allItems: readonly { readonly name?: string; readonly storage?: AICustomizationPromptsStorage; readonly groupKey?: string; readonly syncable?: boolean; readonly pluginUri?: URI }[];
+	readonly allItems: readonly { readonly name?: string; readonly source?: AICustomizationSource; readonly groupKey?: string; readonly syncable?: boolean; readonly pluginUri?: URI }[];
 	readonly displayEntries: readonly { type: string; label?: string; count?: number; collapsed?: boolean }[];
 }
 
@@ -154,9 +154,7 @@ async function appendProviderData(lines: string[], provider: ICustomizationItemP
 			if (item.description) {
 				lines.push(`      desc: ${item.description}`);
 			}
-			if (item.storage) {
-				lines.push(`      storage: ${item.storage}`);
-			}
+			lines.push(`      source: ${item.source}`);
 			if (item.groupKey) {
 				lines.push(`      groupKey: ${item.groupKey}`);
 			}
@@ -263,18 +261,18 @@ async function appendFilteredData(lines: string[], promptsService: IPromptsServi
 function appendWidgetState(lines: string[], state: IDebugWidgetState): void {
 	lines.push('--- Stage 3: Widget State (loadItems → filterItems) ---');
 	lines.push(`  allItems (after loadItems): ${state.allItems.length}`);
-	lines.push(`    local:     ${state.allItems.filter(i => i.storage === PromptsStorage.local).length}`);
-	lines.push(`    user:      ${state.allItems.filter(i => i.storage === PromptsStorage.user).length}`);
-	lines.push(`    extension: ${state.allItems.filter(i => i.storage === PromptsStorage.extension).length}`);
-	lines.push(`    plugin:    ${state.allItems.filter(i => i.storage === PromptsStorage.plugin).length}`);
-	lines.push(`    built-in:  ${state.allItems.filter(i => i.storage === BUILTIN_STORAGE).length}`);
+	lines.push(`    local:     ${state.allItems.filter(i => i.source === AICustomizationSources.local).length}`);
+	lines.push(`    user:      ${state.allItems.filter(i => i.source === AICustomizationSources.user).length}`);
+	lines.push(`    extension: ${state.allItems.filter(i => i.source === AICustomizationSources.extension).length}`);
+	lines.push(`    plugin:    ${state.allItems.filter(i => i.source === AICustomizationSources.plugin).length}`);
+	lines.push(`    built-in:  ${state.allItems.filter(i => i.source === AICustomizationSources.builtin).length}`);
 	const syncableCount = state.allItems.filter(i => i.syncable).length;
 	if (syncableCount > 0) {
 		lines.push(`    syncable:  ${syncableCount}`);
 	}
 
 	for (const item of state.allItems) {
-		const flags: string[] = [`storage=${item.storage ?? '?'}`, `groupKey=${item.groupKey ?? '(none)'}`];
+		const flags: string[] = [`storage=${item.source ?? '?'}`, `groupKey=${item.groupKey ?? '(none)'}`];
 		if (item.syncable) {
 			flags.push('syncable');
 		}

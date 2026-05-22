@@ -96,12 +96,28 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		// Do NOT remove the configured entry — it stays persisted so startup reconnect
 		// can re-establish the SSH tunnel on next launch.
 		this._register(this._mainService.onDidCloseConnection(connectionId => {
+			this._logService.info(`[SSHRemoteAgentHost] onDidCloseConnection: connectionId=${connectionId}`);
 			const handle = this._connections.get(connectionId);
 			if (handle) {
+				this._logService.info(`[SSHRemoteAgentHost] onDidCloseConnection: found handle for ${connectionId}, cleaning up`);
 				this._connections.delete(connectionId);
 				handle.fireClose();
 				handle.dispose();
 				this._onDidChangeConnections.fire();
+
+				// Defense-in-depth: also signal the protocol client directly. The
+				// SSHRelayTransport normally observes `onDidRelayClose` (fired from
+				// the same shared-process code path as this event) and calls back
+				// into the client. If that IPC delivery is missed for any reason,
+				// the renderer-side client would stay in `Connected` until its
+				// liveness watchdog fires — which can take hours when the
+				// renderer is backgrounded and Chromium throttles `setTimeout`.
+				// Use the handle's address (e.g., "ssh:macbook-air") since
+				// RemoteAgentHostService keys its clients by address, not connectionId.
+				this._logService.info(`[SSHRemoteAgentHost] onDidCloseConnection: notifying protocol client for ${handle.localAddress}`);
+				this._remoteAgentHostService.notifyConnectionClosed(handle.localAddress);
+			} else {
+				this._logService.info(`[SSHRemoteAgentHost] onDidCloseConnection: no renderer-side handle for ${connectionId} (already cleaned up?)`);
 			}
 		}));
 

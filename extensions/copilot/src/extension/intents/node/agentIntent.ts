@@ -44,12 +44,13 @@ import { Conversation, normalizeSummariesOnRounds, RenderedUserMessageMetadata, 
 import { IBuildPromptContext, InternalToolReference } from '../../prompt/common/intents';
 import { getRequestedToolCallIterationLimit, IContinueOnErrorConfirmation } from '../../prompt/common/specialRequestTypes';
 import { ChatTelemetryBuilder } from '../../prompt/node/chatParticipantTelemetry';
+import { IntentInvocationMetadata } from '../../prompt/node/conversation';
 import { IDefaultIntentRequestHandlerOptions } from '../../prompt/node/defaultIntentRequestHandler';
 import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/node/intents';
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
 import { BackgroundSummarizationState, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
-import { BackgroundTodoDecision, BackgroundTodoProcessor } from '../../prompts/node/agent/backgroundTodoProcessor';
+import { BackgroundTodoDecision, BackgroundTodoProcessor, IBackgroundTodoExecutionContext } from '../../prompts/node/agent/backgroundTodoProcessor';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
 import { extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
 import { PromptRenderer, renderPromptElement } from '../../prompts/node/base/promptRenderer';
@@ -307,9 +308,11 @@ export class AgentIntent extends EditCodeIntent {
 			// the background pass even on a normal completion.
 			if (isBackgroundTodoAgentEnabled(this.configurationService, this.expService, request)) {
 				const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
-				if (todoProcessor) {
-					const turnId = conversation.getLatestTurn().id;
-					todoProcessor.requestFinalReview(turnId);
+				const currentTurn = conversation.getLatestTurn();
+				const invocation = currentTurn.getMetadata(IntentInvocationMetadata)?.value;
+				const executionContext = invocation instanceof AgentIntentInvocation ? invocation.getBackgroundTodoExecutionContext() : undefined;
+				if (todoProcessor && executionContext) {
+					todoProcessor.requestFinalReview(currentTurn.id, executionContext);
 					await todoProcessor.waitForCompletion();
 				}
 			}
@@ -450,6 +453,8 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 	/** Cached model capabilities from the most recent main agent render, reused by the background summarizer. */
 	private _lastModelCapabilities: { enableThinking: boolean; reasoningEffort: string | undefined; enableToolSearch: boolean; enableContextEditing: boolean } | undefined;
+
+	private _backgroundTodoExecutionContext: IBackgroundTodoExecutionContext | undefined;
 
 	/**
 	 * RNG used to jitter the background-summarization trigger threshold around 0.80.
@@ -1236,6 +1241,10 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		return this.intent.getOrCreateBackgroundTodoProcessor(sessionId);
 	}
 
+	getBackgroundTodoExecutionContext(): IBackgroundTodoExecutionContext | undefined {
+		return this._backgroundTodoExecutionContext;
+	}
+
 	/**
 	 * Kick off a background todo pass if the policy says to run.
 	 */
@@ -1256,26 +1265,29 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			return;
 		}
 
-		const { decision, reason, delta } = processor.shouldRun({
-			backgroundTodoAgentEnabled: isBackgroundTodoAgentEnabled(this.configurationService, this.expService, this.request),
-			todoToolExplicitlyEnabled: isTodoToolExplicitlyEnabled(this.request),
-			isAgentPrompt: this.prompt === AgentPrompt,
-			promptContext,
-		});
-
-		this.logService.debug(`[BackgroundTodo] policy decision: ${decision} (${reason})`);
-
-		const executionContext = {
+		const turnId = promptContext.conversation?.getLatestTurn()?.id;
+		const executionContext: IBackgroundTodoExecutionContext = {
 			instantiationService: this.instantiationService,
 			logService: this.logService,
 			toolsService: this.toolsService,
 			telemetryService: this.telemetryService,
 			promptContext,
 		};
+		this._backgroundTodoExecutionContext = executionContext;
+
+		const { decision, reason, delta } = processor.shouldRun({
+			backgroundTodoAgentEnabled: isBackgroundTodoAgentEnabled(this.configurationService, this.expService, this.request),
+			todoToolExplicitlyEnabled: isTodoToolExplicitlyEnabled(this.request),
+			isAgentPrompt: this.prompt === AgentPrompt,
+			promptContext,
+			turnId,
+		});
+
+		this.logService.debug(`[BackgroundTodo] policy decision: ${decision} (${reason})`);
 
 		if (decision === BackgroundTodoDecision.Wait && reason === 'processorInProgress' && delta) {
 			// Coalesce into the queue so the latest context is not lost.
-			processor.requestRegularPass(delta, executionContext, token);
+			processor.requestRegularPass(delta, executionContext, token, turnId);
 			return;
 		}
 
@@ -1283,7 +1295,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			return;
 		}
 
-		processor.requestRegularPass(delta, executionContext, token);
+		processor.requestRegularPass(delta, executionContext, token, turnId);
 	}
 
 	override processResponse = undefined;
