@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
+import { disposableTimeout, IntervalTimer } from '../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
@@ -69,6 +69,20 @@ const SSH_RECONNECT_MAX_DELAY = 30_000;
  * still being responsive to "the network just came back".
  */
 const SSH_RECONNECT_MAX_ATTEMPTS = 10;
+/**
+ * After this much wall-clock time, a paused auto-reconnect is automatically
+ * resumed by the periodic reconcile. Covers the case where reconnect attempts
+ * all failed quickly (e.g. network not ready right after sleep), exhausted the
+ * attempt budget, and no other trigger (config change, connection event) fired
+ * to give them a fresh chance.
+ */
+const SSH_RECONNECT_PAUSE_AUTO_RESUME_MS = 5 * 60 * 1000; // 5 minutes
+/**
+ * How often the periodic reconcile backstop runs. This fires {@link _reconcile}
+ * even when no event arrives, so a broken event chain doesn't leave SSH hosts
+ * disconnected indefinitely.
+ */
+const SSH_RECONNECT_PERIODIC_INTERVAL_MS = 60_000; // 1 minute
 
 /**
  * Per-host SSH auto-reconnect state. Owned by {@link RemoteAgentHostContribution._sshReconnectStates}
@@ -82,6 +96,8 @@ export class SSHReconnectState extends Disposable {
 	attempts = 0;
 	/** True after we've given up auto-reconnecting until something resumes us. */
 	paused = false;
+	/** Wall-clock timestamp when {@link paused} was last set to true. */
+	pausedAt = 0;
 
 	get hasPendingTimer(): boolean {
 		return !!this._timer.value;
@@ -208,6 +224,17 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		// Initial setup for configured entries and connected remotes
 		this._reconcile();
+
+		// Periodic backstop: even if the event-driven chain breaks (e.g. IPC
+		// delivery fails after a sleep/wake cycle), this ensures we retry SSH
+		// reconnects and reconcile providers at most once per minute.
+		this._register(new IntervalTimer()).cancelAndSet(
+			() => {
+				this._logService.trace('[RemoteAgentHost] Periodic reconcile (backstop)');
+				this._reconcile();
+			},
+			SSH_RECONNECT_PERIODIC_INTERVAL_MS,
+		);
 	}
 
 	private _reconcile(): void {
@@ -328,13 +355,26 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				continue;
 			}
 			if (this._pendingSSHReconnects.has(sshConfigHost)) {
+				this._logService.trace(`[RemoteAgentHost] SSH reconnect for ${sshConfigHost}: reconnect already in progress, skipping`);
 				continue;
 			}
 			const state = this._sshReconnectStates.get(sshConfigHost);
-			if (state && (state.hasPendingTimer || state.paused)) {
+			if (state?.hasPendingTimer) {
+				this._logService.trace(`[RemoteAgentHost] SSH reconnect for ${sshConfigHost}: retry timer already scheduled, skipping`);
 				continue;
 			}
+			if (state?.paused) {
+				const pausedMs = Date.now() - state.pausedAt;
+				if (pausedMs < SSH_RECONNECT_PAUSE_AUTO_RESUME_MS) {
+					this._logService.trace(`[RemoteAgentHost] SSH reconnect for ${sshConfigHost}: paused (${Math.round(pausedMs / 1000)}s ago), skipping`);
+					continue;
+				}
+				// Pause duration exceeded — give it another chance automatically.
+				this._logService.info(`[RemoteAgentHost] SSH reconnect for ${sshConfigHost}: auto-resuming after ${Math.round(pausedMs / 1000)}s pause`);
+				state.resetForResume();
+			}
 			if (!autoConnect) {
+				this._logService.trace(`[RemoteAgentHost] SSH reconnect for ${sshConfigHost}: auto-connect disabled, skipping`);
 				continue;
 			}
 			void this._attemptSSHReconnect(sshConfigHost, entry.name, address);
@@ -405,6 +445,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				provider?.unpublishCachedSessions();
 				const liveState = this._getOrCreateSSHReconnectState(sshConfigHost);
 				liveState.paused = true;
+				liveState.pausedAt = Date.now();
 				return;
 			}
 			this._logService.error(`[RemoteAgentHost] SSH reconnect failed for ${sshConfigHost}`, err);
@@ -432,6 +473,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			if (liveState.attempts >= SSH_RECONNECT_MAX_ATTEMPTS) {
 				this._logService.info(`[RemoteAgentHost] Pausing SSH auto-reconnect for ${sshConfigHost} after ${liveState.attempts} consecutive failures`);
 				liveState.paused = true;
+				liveState.pausedAt = Date.now();
 				return;
 			}
 			if (options.userInitiated) {
