@@ -10,7 +10,9 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { TestId } from '../../common/testId.js';
+import { MainThreadTestCollection } from '../../common/mainThreadTestCollection.js';
 import { ITestService, simplifyTestsToExecute, testsInFile } from '../../common/testService.js';
+import { TestDiffOpType, TestItemExpandState } from '../../common/testTypes.js';
 import { TestTestCollection, TestTestItem, getInitializedMainTestCollection, makeSimpleStubTree } from './testStubs.js';
 
 suite('Workbench - Test Service', () => {
@@ -144,6 +146,72 @@ suite('Workbench - Test Service', () => {
 			}
 
 			assert.deepStrictEqual(found, [new TestId(['ctrlId', 'test1']).toString()]);
+		});
+
+		test('finds live diff-added tests after collection-side canonicalization', async () => {
+			const canonicalUri = URI.from({ scheme: 'vscode-remote', authority: 'wsl+Ubuntu', path: '/home/user/test.py' });
+			const rawUri = URI.file('/home/user/test.py');
+			const extUri = new ExtUri(() => false);
+
+			const collection = new MainThreadTestCollection({
+				asCanonicalUri: (u: URI) => u.toString() === rawUri.toString() ? canonicalUri : u,
+			}, async () => { });
+
+			const testId = new TestId(['ctrlId', 'test1']).toString();
+			collection.apply([
+				{
+					op: TestDiffOpType.Add,
+					item: {
+						expand: TestItemExpandState.NotExpandable,
+						item: {
+							extId: new TestId(['ctrlId']).toString(),
+							label: 'root',
+							tags: [],
+							busy: false,
+							uri: undefined,
+							range: null,
+							description: null,
+							error: null,
+							sortText: null,
+						},
+					}
+				},
+				{
+					op: TestDiffOpType.Add,
+					item: {
+						expand: TestItemExpandState.NotExpandable,
+						item: {
+							extId: testId,
+							label: 'test1',
+							tags: [],
+							busy: false,
+							uri: rawUri,
+							range: null,
+							description: null,
+							error: null,
+							sortText: null,
+						},
+					}
+				}
+			]);
+
+			const ident = upcastPartial<IUriIdentityService>({
+				asCanonicalUri: (u: URI) => u.toString() === rawUri.toString() ? canonicalUri : u,
+				extUri,
+			});
+
+			const testService = upcastPartial<ITestService>({
+				collection,
+			});
+
+			const found: string[] = [];
+			for await (const batch of testsInFile(testService, ident, rawUri, false)) {
+				for (const item of batch) {
+					found.push(item.item.extId);
+				}
+			}
+
+			assert.deepStrictEqual(found, [testId]);
 		});
 	});
 });
