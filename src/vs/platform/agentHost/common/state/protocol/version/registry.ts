@@ -77,6 +77,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.SessionUsage]: '0.1.0',
 	[ActionType.SessionReasoning]: '0.1.0',
 	[ActionType.SessionModelChanged]: '0.1.0',
+	[ActionType.SessionAgentChanged]: '0.2.0',
 	[ActionType.SessionServerToolsChanged]: '0.1.0',
 	[ActionType.SessionActiveClientChanged]: '0.1.0',
 	[ActionType.SessionActiveClientToolsChanged]: '0.1.0',
@@ -145,6 +146,9 @@ export const NOTIFICATION_INTRODUCED_IN: { readonly [K in ProtocolNotificationMe
 	'root/sessionRemoved': '0.1.0',
 	'root/sessionSummaryChanged': '0.1.0',
 	'auth/required': '0.1.0',
+	'otlp/exportLogs': '0.2.0',
+	'otlp/exportTraces': '0.2.0',
+	'otlp/exportMetrics': '0.2.0',
 };
 
 /**

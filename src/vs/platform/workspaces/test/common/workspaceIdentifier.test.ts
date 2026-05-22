@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getWorkspaceIdentifier, getSingleFolderWorkspaceIdentifier } from '../../browser/workspaces.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { getWorkspaceIdentifier, getSingleFolderWorkspaceIdentifier } from '../../common/workspaceIdentifier.js';
 
 suite('Workspaces', () => {
 	test('workspace identifiers are stable', function () {

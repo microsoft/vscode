@@ -25,6 +25,7 @@ import { Event } from '../../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionTestingServices } from '../../../test/vscode-node/services';
 import { buildUtilityAliasModelInfo, CopilotLanguageModelWrapper, LanguageModelAccess } from '../languageModelAccess';
+import { buildReasoningEffortSchemaProperty, pickDefaultReasoningEffort } from '../../common/languageModelAccess';
 
 
 suite('CopilotLanguageModelWrapper', () => {
@@ -354,5 +355,34 @@ suite('buildUtilityAliasModelInfo', () => {
 		// upper bound to assert the subtraction happened without re-importing
 		// the constant in the test.
 		assert.ok(result.info.maxInputTokens! < 32_000 - 100, `expected maxInputTokens to subtract baseCount and completion reserve, got ${result.info.maxInputTokens}`);
+	});
+});
+
+suite('reasoning effort schema', () => {
+	test('claude family prefers high when available', () => {
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium', 'high'], 'claude-sonnet-4'), 'high');
+	});
+
+	test('non-claude family prefers medium when available', () => {
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium', 'high'], 'gpt-5'), 'medium');
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium', 'high'], 'some-other-family'), 'medium');
+	});
+
+	test('falls back to first advertised level when preferred is missing', () => {
+		// Claude without 'high' → first
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium'], 'claude-haiku'), 'low');
+		// Other family without 'medium' → first
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'high'], 'unknown-family'), 'low');
+	});
+
+	test('returns undefined for empty levels', () => {
+		assert.strictEqual(pickDefaultReasoningEffort([], 'gpt-5'), undefined);
+	});
+
+	test('buildReasoningEffortSchemaProperty always sets a concrete default for non-empty levels', () => {
+		const prop = buildReasoningEffortSchemaProperty(['low', 'high'], 'unknown-family');
+		assert.strictEqual(prop.default, 'low', 'expected first advertised level, never undefined');
+		assert.deepStrictEqual(prop.enum, ['low', 'high']);
+		assert.strictEqual(prop.group, 'navigation');
 	});
 });

@@ -322,6 +322,55 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
 		});
 
+		test('terminal tool call in history does not set pastTenseMessage (avoids duplicate render)', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						_meta: { toolKind: 'terminal' },
+						toolInput: 'echo hi',
+						pastTenseMessage: 'Ran echo hi',
+						content: [
+							{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///past', title: 'Terminal' },
+							{ type: ToolResultContentType.Text, text: 'hi' },
+						],
+						success: true,
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
+			assert.strictEqual(serialized.pastTenseMessage, undefined);
+		});
+
+		test('terminal tool call (by toolKind only) in history does not set pastTenseMessage', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						_meta: { toolKind: 'terminal' },
+						toolInput: 'echo hi',
+						pastTenseMessage: 'Ran echo hi',
+						content: [
+							{ type: ToolResultContentType.Text, text: 'hi' },
+						],
+						success: true,
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
+			assert.strictEqual(serialized.pastTenseMessage, undefined);
+		});
+
 		test('subagent tool call in history has correct subagent data', () => {
 			const turn = createTurn({
 				responseParts: [{

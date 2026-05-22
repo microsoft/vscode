@@ -2341,6 +2341,51 @@ suite('ComputeAutomaticInstructions', () => {
 		assert.ok(!paths.includes(`/home/user/.claude/CLAUDE.md`), 'Should not include ~/.claude/CLAUDE.md when disabled');
 	});
 
+	test('should collect ~/.copilot/copilot-instructions.md when enabled', async () => {
+		const rootFolderName = 'collect-copilot-home-test';
+		const rootFolder = `/${rootFolderName}`;
+		const rootFolderUri = URI.file(rootFolder);
+
+		workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+		await mockFiles(fileService, [
+			{
+				path: `/home/user/.copilot/copilot-instructions.md`,
+				contents: [
+					'Copilot guidelines from home',
+				]
+			},
+			{
+				path: `${rootFolder}/src/file.ts`,
+				contents: [
+					'console.log("test");',
+				]
+			},
+		]);
+
+		testConfigService.setUserConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES, true);
+		const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, localSessionType);
+		const variables = new ChatRequestVariableSet();
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await contextComputer.collect(variables, CancellationToken.None);
+
+		let instructionFiles = variables.asArray().filter(v => isPromptFileVariableEntry(v));
+		let paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+		assert.ok(paths.includes(`/home/user/.copilot/copilot-instructions.md`), 'Should include ~/.copilot/copilot-instructions.md when enabled');
+
+		testConfigService.setUserConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES, false);
+		const contextComputer2 = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, localSessionType);
+		const variables2 = new ChatRequestVariableSet();
+		variables2.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await contextComputer2.collect(variables2, CancellationToken.None);
+
+		instructionFiles = variables2.asArray().filter(v => isPromptFileVariableEntry(v));
+		paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+		assert.ok(!paths.includes(`/home/user/.copilot/copilot-instructions.md`), 'Should not include ~/.copilot/copilot-instructions.md when disabled');
+	});
+
 	test('should collect instructions from multi-root workspace', async () => {
 		const rootFolder1Name = 'multi-root-1';
 		const rootFolder1 = `/${rootFolder1Name}`;
