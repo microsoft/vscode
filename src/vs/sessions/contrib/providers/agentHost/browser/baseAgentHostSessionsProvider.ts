@@ -20,7 +20,7 @@ import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentSelection, CustomizationAgentRef, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary, type ChangesetSummary } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentSelection, CustomizationAgentRef, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type ChangesetSummary } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ChangesetState, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -43,6 +43,7 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { changesetFilesToChanges, mapProtocolStatus } from './agentHostDiffs.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { createChangesets } from '../../copilotChatSessions/browser/copilotChatSessionsChangesets.js';
+import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 
 // ============================================================================
 // AgentHostSessionAdapter — shared adapter for local and remote sessions
@@ -513,6 +514,8 @@ interface INewSessionConstructionContext {
 	 * takes over ownership of the same `sessionId` key.
 	 */
 	readonly onSessionState?: (sessionId: string, state: SessionState | undefined) => void;
+	/** Initial active-client snapshot for the eager `createSession`. Drift is reconciled by the handler before the first message. */
+	readonly activeClient?: SessionActiveClient;
 }
 
 /**
@@ -591,6 +594,8 @@ class NewSession extends Disposable {
 	private readonly _stateListener = this._register(new MutableDisposable());
 	private readonly _onSessionState: ((sessionId: string, state: SessionState | undefined) => void) | undefined;
 
+	private readonly _initialActiveClient: SessionActiveClient | undefined;
+
 	private readonly _logService: ILogService;
 	private readonly _providerId: string;
 
@@ -605,6 +610,7 @@ class NewSession extends Disposable {
 		this._providerId = ctx.providerId;
 		this._logService = ctx.logService;
 		this._onSessionState = ctx.onSessionState;
+		this._initialActiveClient = ctx.activeClient;
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
 		this._status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
@@ -812,6 +818,7 @@ class NewSession extends Disposable {
 					workingDirectory: this.workspaceUri,
 					config: this._config?.values,
 					...(this._selectedAgent ? { agent: { uri: this._selectedAgent.uri } } : {}),
+					...(this._initialActiveClient ? { activeClient: this._initialActiveClient } : {}),
 				});
 			} catch (err) {
 				this._logService.warn(`[${this._providerId}] Eager createSession failed for ${backendUri.toString()}: ${err}`);
@@ -1026,6 +1033,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IGitHubService protected readonly _gitHubService: IGitHubService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@ISessionsManagementService protected readonly _sessionsManagementService: ISessionsManagementService,
+		@IAgentHostActiveClientService protected readonly _activeClientService: IAgentHostActiveClientService,
 	) {
 		super();
 
@@ -1281,6 +1289,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// against the eagerly created agent-host record so it's freed
 		// immediately rather than waiting for the server-side
 		// empty-session GC.
+		const connection = this.connection;
 		const newSession = new NewSession({
 			workspace,
 			sessionType,
@@ -1294,6 +1303,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			onSessionState: (id, state) => state === undefined
 				? this._handleNewSessionStateGone(id)
 				: this._handleNewSessionStateUpdate(id, state),
+			activeClient: connection
+				? this._activeClientService.getActiveClient(this.resourceSchemeForProvider(sessionType.id), connection.clientId)
+				: undefined,
 		});
 		this._newSession = newSession;
 		this._onDidChangeSessionConfig.fire(newSession.sessionId);
@@ -1301,7 +1313,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Kick off the initial config resolve and the eager backend session
 		// in parallel. Both are non-blocking; failures are surfaced through
 		// the session's loading observable.
-		const connection = this.connection;
 		if (connection) {
 			void this._refreshNewSessionConfig(newSession);
 			newSession.eagerCreate(connection);
