@@ -128,8 +128,7 @@ class DecorationRule {
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(color)};`, element);
 
 		if (backgroundColor) {
-			const backgroundColorRule = backgroundColor ? `background-color: ${getColor(backgroundColor)};` : '';
-			createCSSRule(`.${this.itemBgColorClassName}`, `${backgroundColorRule}`, element);
+			createCSSRule(`.${this.itemBgColorClassName}`, `background-color: ${getColor(backgroundColor)};`, element);
 		}
 	}
 
