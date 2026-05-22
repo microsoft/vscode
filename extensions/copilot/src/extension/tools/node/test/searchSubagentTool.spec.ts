@@ -227,7 +227,7 @@ suite('SearchSubagentTool', () => {
 			expect(result).toBe(response);
 		});
 
-		test('drops the line when the captured path is outside the workspace', async () => {
+		test('drops the line when the path is outside the workspace', async () => {
 			const { tool } = makeToolInstance(false, 4, {
 				invokeFunction: sequencedInvokeFunction(
 					() => { throw new Error('outside workspace'); },
