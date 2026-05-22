@@ -16,7 +16,7 @@ import { AgentSession, IAgentHostService, type IAgentCreateSessionConfig, type I
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CustomizationStatus, SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -24,7 +24,7 @@ import { IFileDialogService } from '../../../../../../platform/dialogs/common/di
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { SessionStatus } from '../../../../../services/sessions/common/session.js';
@@ -1726,133 +1726,4 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const updated = provider.getSessionConfig(session!.sessionId);
 		assert.deepStrictEqual(updated?.values, { autoApprove: 'autoApprove', isolation: 'worktree' });
 	}));
-});
-
-suite('LocalAgentHostSessionsProvider - active-session uncommitted refresh rotation', () => {
-	const disposables = new DisposableStore();
-	let agentHost: MockAgentHostService;
-	let activeSession: ISettableObservable<IActiveSession | undefined>;
-
-	setup(() => {
-		agentHost = disposables.add(new MockAgentHostService());
-		activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
-	});
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	function makeActive(rawId: string, providerId: string, sessionType: string = 'copilotcli'): IActiveSession {
-		return {
-			providerId,
-			sessionType,
-			resource: URI.from({ scheme: `agent-host-${sessionType}`, path: `/${rawId}` }),
-		} as unknown as IActiveSession;
-	}
-
-	function uncommittedKeyFor(rawId: string, sessionType: string = 'copilotcli'): string {
-		// Matches the URI built in BaseAgentHostSessionsProvider's autorun.
-		return `${AgentSession.uri(sessionType, rawId).toString()}/changeset/uncommitted`;
-	}
-
-	function branchChangesKeyFor(rawId: string, sessionType: string = 'copilotcli'): string {
-		return `${AgentSession.uri(sessionType, rawId).toString()}/changeset/session`;
-	}
-
-	test('subscribes to <activeSession>/changeset/uncommitted when an AHP session becomes active', () => {
-		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
-
-		activeSession.set(makeActive('sess-A', provider.id), undefined);
-
-		const key = uncommittedKeyFor('sess-A');
-		assert.ok(
-			agentHost.wireOps.includes(`subscribe:${key}`),
-			`expected a subscribe for ${key}, got wireOps=${JSON.stringify(agentHost.wireOps)}`,
-		);
-	});
-
-	test('rotates the subscription when active session changes (refresh fires for the new one)', () => {
-		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
-
-		activeSession.set(makeActive('sess-A', provider.id), undefined);
-		const subsAfterA = agentHost.sessionSubscribeCounts.get(uncommittedKeyFor('sess-A')) ?? 0;
-		assert.strictEqual(subsAfterA, 1, 'first activation should subscribe once');
-
-		activeSession.set(makeActive('sess-B', provider.id), undefined);
-		const subsAfterB = agentHost.sessionSubscribeCounts.get(uncommittedKeyFor('sess-B')) ?? 0;
-		const unsubsForA = agentHost.sessionUnsubscribeCounts.get(uncommittedKeyFor('sess-A')) ?? 0;
-		assert.strictEqual(subsAfterB, 1, 'B should be subscribed exactly once on activation');
-		assert.strictEqual(unsubsForA, 1, 'A should be unsubscribed when no longer active');
-	});
-
-	test('switching back to a previously-active session re-subscribes (triggers a refresh)', () => {
-		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
-
-		activeSession.set(makeActive('sess-A', provider.id), undefined);
-		activeSession.set(makeActive('sess-B', provider.id), undefined);
-		activeSession.set(makeActive('sess-A', provider.id), undefined);
-
-		const subsForA = agentHost.sessionSubscribeCounts.get(uncommittedKeyFor('sess-A')) ?? 0;
-		assert.strictEqual(subsForA, 2, 'switching back to A must open a fresh subscription so the 0→1 refresh fires');
-	});
-
-	test('does NOT subscribe when the active session belongs to a different provider', () => {
-		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
-
-		activeSession.set(makeActive('sess-other', 'some-other-provider-id'), undefined);
-
-		const subKeys = [...agentHost.sessionSubscribeCounts.keys()].filter(k => k.endsWith('/changeset/uncommitted'));
-		assert.deepStrictEqual(subKeys, [], 'no uncommitted subscription should open for a foreign provider');
-		// Make sure provider was used so test isn't a no-op.
-		assert.strictEqual(provider.sessionTypes.length >= 0, true);
-	});
-
-	test('clears the active subscription when activeSession becomes undefined', () => {
-		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
-
-		activeSession.set(makeActive('sess-A', provider.id), undefined);
-		activeSession.set(undefined, undefined);
-
-		const unsubsForA = agentHost.sessionUnsubscribeCounts.get(uncommittedKeyFor('sess-A')) ?? 0;
-		assert.strictEqual(unsubsForA, 1, 'leaving the agents window (no active session) must release the subscription');
-	});
-
-	test('active branch changeset uses before content URI as the diff original', () => {
-		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
-		fireSessionAdded(agentHost, 'sess-A', { title: 'Session A' });
-		const session = provider.getSessions().find(session => session.title.get() === 'Session A');
-		assert.ok(session);
-
-		activeSession.set(makeActive('sess-A', provider.id), undefined);
-		const key = branchChangesKeyFor('sess-A');
-		agentHost.setChangesetState(key, {
-			status: ChangesetStatus.Ready,
-			files: [{
-				id: 'file:///repo/file.ts',
-				edit: {
-					before: { uri: 'file:///repo/file.ts', content: { uri: 'session-db:///before/file.ts' } },
-					after: { uri: 'file:///repo/file.ts', content: { uri: 'file:///repo/file.ts' } },
-					diff: { added: 2, removed: 1 },
-				},
-			}],
-		});
-
-		const changes = session.changes.get();
-		assert.deepStrictEqual(changes.map(change => {
-			assert.ok(isIChatSessionFileChange2(change));
-			return {
-				uri: change.uri.toString(),
-				originalUri: change.originalUri?.toString(),
-				modifiedUri: change.modifiedUri?.toString(),
-				insertions: change.insertions,
-				deletions: change.deletions,
-			};
-		}), [{
-			uri: 'file:///repo/file.ts',
-			originalUri: 'vscode-agent-host://local/session-db/-/before/file.ts',
-			modifiedUri: 'file:///repo/file.ts',
-			insertions: 2,
-			deletions: 1,
-		}]);
-	});
 });

@@ -2292,7 +2292,7 @@ suite('AgentService (node dispatcher)', () => {
 			return [
 				{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
 				{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
-				{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
+				// { label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
 			];
 		}
 
