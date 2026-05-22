@@ -105,7 +105,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 		const gitHubInfoObs = derivedOpts<{ owner: string; repo: string; pullRequestNumber: number } | undefined>({ equalsFn: structuralEquals },
 			reader => {
-				const gitHubInfo = sessionManagementService.activeSession.read(reader)?.gitHubInfo.read(reader);
+				const gitHubInfo = sessionManagementService.activeSession.read(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 
 				if (!gitHubInfo?.pullRequest) {
 					return undefined;

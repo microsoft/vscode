@@ -61,8 +61,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				return override;
 			}
 			const session = this.sessionsService.activeSession.read(reader);
-			const repo = session?.workspace.read(reader)?.repositories[0];
-			const root = repo?.workingDirectory ?? repo?.uri;
+			const folder = session?.workspace.read(reader)?.folders[0];
+			const root = folder?.workingDirectory;
 			if (root?.scheme === AGENT_HOST_SCHEME) {
 				return undefined;
 			}
@@ -80,8 +80,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			return override;
 		}
 		const session = this.sessionsService.activeSession.get();
-		const repo = session?.workspace.get()?.repositories[0];
-		const root = repo?.workingDirectory ?? repo?.uri;
+		const folder = session?.workspace.get()?.folders[0];
+		const root = folder?.workingDirectory;
 		if (root?.scheme === AGENT_HOST_SCHEME) {
 			return undefined;
 		}
@@ -122,13 +122,13 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 */
 	async commitFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
 		const session = this.sessionsService.activeSession.get();
-		const repo = session?.workspace.get()?.repositories[0];
-		if (!repo?.uri) {
+		const folder = session?.workspace.get()?.folders[0];
+		if (!folder?.root) {
 			return;
 		}
 
 		for (const fileUri of fileUris) {
-			await this.commitFileToRepos(fileUri, repo.uri, repo.workingDirectory);
+			await this.commitFileToRepos(fileUri, folder.root, folder.workingDirectory);
 		}
 	}
 
@@ -139,13 +139,13 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 */
 	async deleteFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
 		const session = this.sessionsService.activeSession.get();
-		const repo = session?.workspace.get()?.repositories[0];
-		if (!repo?.uri) {
+		const folder = session?.workspace.get()?.folders[0];
+		if (!folder?.root) {
 			return;
 		}
 
 		for (const fileUri of fileUris) {
-			await this.commitDeletionToRepos(fileUri, repo.uri, repo.workingDirectory);
+			await this.commitDeletionToRepos(fileUri, folder.root, folder.workingDirectory);
 		}
 	}
 

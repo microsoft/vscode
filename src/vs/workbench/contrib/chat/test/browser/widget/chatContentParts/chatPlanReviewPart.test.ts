@@ -306,6 +306,28 @@ suite('ChatPlanReviewPart', () => {
 			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'reject button should still be visible');
 		});
 
+		test('clicking Review while in feedback mode exits feedback mode', async () => {
+			createWidget(createMockReviewWithPlan());
+
+			const reviewButton = getReviewButton(widget)!;
+			reviewButton.click();
+			await tick();
+
+			// In feedback mode, the Review button label flips to "Cancel".
+			assert.ok(reviewButton.textContent?.includes('Cancel'), 'review button should read "Cancel" in feedback mode');
+
+			reviewButton.click();
+			await tick();
+
+			const feedbackSection = getFeedbackSection(widget);
+			assert.strictEqual(feedbackSection.style.display, 'none', 'feedback section should be hidden after Cancel');
+			assert.ok(!reviewButton.textContent?.includes('Cancel'), 'review button label should revert after exiting feedback mode');
+
+			const buttons = getFooterButtons(widget);
+			assert.ok(buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be back');
+			assert.ok(!buttons.some(b => b.textContent?.includes('Submit Feedback')), 'submit button should be gone');
+		});
+
 		test('approving with textarea content sends approval + feedback', () => {
 			// canProvideFeedback without planUri shows the textarea alongside
 			// the regular Approve/Reject buttons; typed feedback rides along

@@ -19,6 +19,8 @@ import { isNumber } from '../../../../base/common/types.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { compare } from '../../../../base/common/strings.js';
 import { groupBy } from '../../../../base/common/arrays.js';
+import * as nls from '../../../../nls.js';
+import type { IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry.js';
 
 export interface IWorkspaceSymbol {
 	name: string;
@@ -227,3 +229,11 @@ export interface NotebookPriorityInfo {
 	isFromSettings: boolean;
 	filenamePatterns: string[];
 }
+
+export const searchConfigurationNode: IConfigurationNode = {
+	id: 'search',
+	order: 13,
+	title: nls.localize('searchConfigurationTitle', "Search"),
+	type: 'object',
+	properties: {}
+};

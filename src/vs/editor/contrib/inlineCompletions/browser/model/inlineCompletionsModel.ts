@@ -78,7 +78,7 @@ export class InlineCompletionsModel extends Disposable {
 			return false;
 		}
 
-		return isSuggestionInViewport(this._editor, state.inlineSuggestion);
+		return isSuggestionInViewport(this._editor, state.inlineSuggestion, reader);
 	});
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
 

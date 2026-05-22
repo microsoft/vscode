@@ -362,7 +362,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 					if (converted?.has(threadId)) {
 						continue;
 					}
-					const baseUri = workspace?.repositories[0]?.workingDirectory ?? workspace?.repositories[0]?.uri;
+					const baseUri = workspace?.folders[0]?.workingDirectory;
 					if (!baseUri) {
 						continue;
 					}
@@ -639,7 +639,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 
 	async resolvePRReviewThread(sessionResource: URI, threadId: string): Promise<void> {
 		const session = this._sessionsManagementService.getSession(sessionResource);
-		const gitHubInfo = session?.gitHubInfo.get();
+		const gitHubInfo = session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
 		if (gitHubInfo?.pullRequest) {
 			const modelRef = this._gitHubService.createPullRequestReviewThreadsModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
 			try {

@@ -40,11 +40,12 @@ import { IChatSessionWorktreeService } from '../../common/chatSessionWorktreeSer
 import { isUntitledSessionId } from '../../common/utils';
 import { emptyWorkspaceInfo, getWorkingDirectory, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { buildChatHistoryFromEvents, RequestIdDetails, stripReminders } from '../common/copilotCLITools';
+import { ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { ICustomSessionTitleService } from '../common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
 import { SessionIdForCLI } from '../common/utils';
 import { getCopilotCLISessionDir } from './cliHelpers';
-import { formatModelDetails, getAgentFileNameFromFilePath, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isEnabledForCopilotCLI } from './copilotCli';
+import { getAgentFileNameFromFilePath, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isEnabledForCopilotCLI } from './copilotCli';
 import { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { CopilotCLISession, ICopilotCLISession } from './copilotcliSession';
 import { ICopilotCLISkills } from './copilotCLISkills';
@@ -1036,6 +1037,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				shutdown = sessionManager.closeSession(sessionId).catch(error => {
 					this.logService.error(`[CopilotCLISession] Failed to close session ${sessionId} after fetching chat history: ${error}`);
 				});
+			} catch (error) {
+				this.logService.error(`[CopilotCLISession] Failed to read session ${sessionId}, it may be corrupted: ${error}`);
+				return { history: [], events: [] };
 			} finally {
 				await shutdown;
 			}
@@ -1048,13 +1052,14 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		const detailsByCopilotId = new Map<string, RequestIdDetails>();
 		const defaultModeInstructions = agentId ? await this.resolveAgentModeInstructions(agentId) : undefined;
 
-		await Promise.all(storedDetails.map(async d => {
+		for (const d of storedDetails) {
 			if (d.copilotRequestId) {
-				const turnAgentId = d.modeInstructions?.uri || d.agentId;
-				const modeInstructions = (d.modeInstructions ?? (turnAgentId ? await this.resolveAgentModeInstructions(turnAgentId) : defaultModeInstructions)) ?? defaultModeInstructions;
-				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions, responseModelId: d.responseModelId });
+				// Agents from older requests isn't useful, hence to save time.
+				// Re-use the same custom agent from last request for all previous requests.
+				const modeInstructions = defaultModeInstructions;
+				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions, responseModelId: d.responseModelId, creditsUsed: d.creditsUsed });
 			}
-		}));
+		}
 		const getVSCodeRequestId = (sdkRequestId: string) => {
 			const stored = detailsByCopilotId.get(sdkRequestId);
 			if (stored) {
@@ -1140,14 +1145,14 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		};
 	}
 
-	private async getModelDetailsById(): Promise<ReadonlyMap<string, string>> {
+	private async getModelDetailsById(): Promise<ReadonlyMap<string, ModelDetailsInfo>> {
 		const models = await this._copilotCLIModels.getModels().catch(ex => {
 			this.logService.error(ex, 'Failed to get models');
 			return [];
 		});
-		const detailsById = new Map<string, string>();
+		const detailsById = new Map<string, ModelDetailsInfo>();
 		for (const model of models) {
-			detailsById.set(model.id.trim().toLowerCase(), formatModelDetails(model));
+			detailsById.set(model.id.trim().toLowerCase(), { name: model.name, multiplier: model.multiplier });
 		}
 		return detailsById;
 	}

@@ -4,17 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { ILogger, ILoggerOptions, isLogLevel, log, LogLevel } from '../common/log.js';
 import { ILoggerMainService } from './loggerService.js';
 
-export class LoggerChannel implements IServerChannel {
+export class LoggerChannel extends Disposable implements IServerChannel {
 
 	private readonly loggers = new ResourceMap<ILogger>();
 
-	constructor(private readonly loggerService: ILoggerMainService) { }
+	constructor(private readonly loggerService: ILoggerMainService) {
+		super();
+		this._register(this.loggerService.onDidChangeLoggers(({ removed }) => {
+			for (const loggerResource of removed) {
+				this.loggers.delete(loggerResource.resource);
+			}
+		}));
+	}
 
 	listen(_: unknown, event: string, windowId?: number): Event<any> {
 		switch (event) {
