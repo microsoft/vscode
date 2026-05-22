@@ -122,9 +122,6 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 	async preferredHome(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
 		const preferLocal = schemeFilter === Schemas.file;
-		const path = preferLocal ? undefined : await this.pathService.path;
-		const normalize = preferLocal ? localPathNormalize : path!.normalize;
-		const isAbsolute = preferLocal ? localPathIsAbsolute : path!.isAbsolute;
 
 		const userHome = await this.pathService.userHome({ preferLocal });
 		const preferredHomeConfig = this.configurationService.inspect<string>('files.dialog.defaultPath');
@@ -132,6 +129,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		this.logService.debug(`[FileDialogService] Preferred home: preferLocal=${preferLocal}, userLocalValue=${preferredHomeConfig.userLocalValue}, userRemoteValue=${preferredHomeConfig.userRemoteValue}`);
 
 		if (preferredHomeCandidate) {
+			const path = preferLocal ? undefined : await this.pathService.path;
+			const normalize = preferLocal ? localPathNormalize : path!.normalize;
+			const isAbsolute = preferLocal ? localPathIsAbsolute : path!.isAbsolute;
+
 			let preferredHomeUri: URI | undefined;
 
 			if (preferredHomeCandidate.startsWith('~')) {
