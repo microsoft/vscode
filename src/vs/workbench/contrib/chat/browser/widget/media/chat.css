@@ -842,19 +842,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-dnd-overlay .attach-context-overlay-text {
-	padding: 0.6em;
-	margin: 0.2em;
-	line-height: 12px;
-	height: 12px;
-	display: flex;
+	padding: 6px 8px;
+	border-radius: 6px;
+	display: inline-flex;
 	align-items: center;
+	gap: 6px;
+	line-height: normal;
 	text-align: center;
 }
 
 .chat-dnd-overlay .attach-context-overlay-text .codicon {
-	height: 12px;
-	font-size: 12px;
-	margin-right: 3px;
+	font-size: inherit;
 }
 
 .monaco-workbench .interactive-session .chat-input-container {
