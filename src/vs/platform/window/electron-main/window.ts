@@ -38,7 +38,7 @@ export interface IBaseWindow extends IDisposable {
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
 
-	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void;
 
 	matches(webContents: electron.WebContents): boolean;
 }

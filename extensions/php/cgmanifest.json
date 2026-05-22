@@ -6,7 +6,7 @@
 				"git": {
 					"name": "language-php",
 					"repositoryUrl": "https://github.com/KapitanOczywisty/language-php",
-					"commitHash": "b17fdadac1756fc13a0853c26fca2f0b4495c0bd"
+					"commitHash": "cd607a522b79c457fe78bf7a1b04511d1c49f693"
 				}
 			},
 			"license": "MIT",

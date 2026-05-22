@@ -76,9 +76,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _didRun: boolean = false;
 
-	private readonly _onDidRequestRerunCommand = new Emitter<{ command: string; shouldExecute?: boolean }>();
+	private readonly _onDidRequestRerunCommand = this._register(new Emitter<{ command: string; shouldExecute?: boolean }>());
 	readonly onDidRequestRerunCommand = this._onDidRequestRerunCommand.event;
-	private readonly _onDidUpdateQuickFixes = new Emitter<{ command: ITerminalCommand; actions: ITerminalAction[] | undefined }>();
+	private readonly _onDidUpdateQuickFixes = this._register(new Emitter<{ command: ITerminalCommand; actions: ITerminalAction[] | undefined }>());
 	readonly onDidUpdateQuickFixes = this._onDidUpdateQuickFixes.event;
 
 	constructor(

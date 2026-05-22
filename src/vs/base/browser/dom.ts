@@ -11,7 +11,7 @@ import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadl
 import { BugIndicatingError, onUnexpectedError } from '../common/errors.js';
 import * as event from '../common/event.js';
 import { KeyCode } from '../common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../common/lifecycle.js';
 import { RemoteAuthorities } from '../common/network.js';
 import * as platform from '../common/platform.js';
 import { URI } from '../common/uri.js';
@@ -120,6 +120,98 @@ export const {
 		}
 	};
 })();
+
+//#endregion
+
+//#region External Focus Tracking
+
+/**
+ * Information about external focus state, including the associated window.
+ */
+export interface IExternalFocusInfo {
+	readonly hasFocus: boolean;
+	readonly window?: CodeWindow;
+}
+
+/**
+ * A function that checks if a component outside the normal DOM tree has focus.
+ * Returns focus info including which window the component is associated with.
+ */
+export type ExternalFocusChecker = () => IExternalFocusInfo;
+
+/**
+ * A registry for functions that check if a component outside the normal DOM tree has focus.
+ * This is used to extend the concept of "window has focus" to include things like
+ * Electron WebContentsViews (browser views) that exist outside the workbench DOM.
+ */
+const externalFocusCheckers = new Set<ExternalFocusChecker>();
+
+/**
+ * Register a function that checks if a component outside the DOM has focus.
+ * This allows `hasExternalFocus` to detect when focus is in components like browser views,
+ * and `getExternalFocusWindow` to determine which window the focused component belongs to.
+ *
+ * @param checker A function that returns focus info for the component
+ * @returns A disposable to unregister the checker
+ */
+export function registerExternalFocusChecker(checker: ExternalFocusChecker): IDisposable {
+	externalFocusCheckers.add(checker);
+
+	return toDisposable(() => {
+		externalFocusCheckers.delete(checker);
+	});
+}
+
+/**
+ * Check if any registered external component has focus.
+ * This is used to extend focus detection beyond the normal DOM to include
+ * components like Electron WebContentsViews.
+ *
+ * @returns true if any registered external component has focus
+ */
+export function hasExternalFocus(): boolean {
+	for (const checker of externalFocusCheckers) {
+		if (checker().hasFocus) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Get the window associated with a focused external component.
+ * This is used to determine which window should receive UI like dialogs
+ * when an external component (like a browser view) has focus.
+ *
+ * @returns The window of the focused external component, or undefined if none
+ */
+export function getExternalFocusWindow(): CodeWindow | undefined {
+	for (const checker of externalFocusCheckers) {
+		const info = checker();
+		if (info.hasFocus && info.window) {
+			return info.window;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Check if the application has focus in any window, either via the normal DOM or via an
+ * external component like a browser view (which exists outside the document tree).
+ *
+ * @returns true if the application owns the current focus
+ */
+export function hasAppFocus(): boolean {
+	for (const { window } of getWindows()) {
+		if (window.document.hasFocus()) {
+			return true;
+		}
+	}
+	if (hasExternalFocus()) {
+		return true;
+	}
+	return false;
+}
 
 //#endregion
 
@@ -414,6 +506,57 @@ export function modify(targetWindow: Window, callback: () => void): IDisposable 
 }
 
 /**
+ * A scheduler that coalesces multiple `schedule()` calls into a single callback
+ * at the next animation frame. Similar to `RunOnceScheduler` but uses animation frames
+ * instead of timeouts.
+ */
+export class AnimationFrameScheduler implements IDisposable {
+
+	private readonly runner: () => void;
+	private readonly node: Node;
+	private readonly pendingRunner = new MutableDisposable<IDisposable>();
+
+	constructor(node: Node, runner: () => void) {
+		this.node = node;
+		this.runner = runner;
+	}
+
+	dispose(): void {
+		this.pendingRunner.dispose();
+	}
+
+	/**
+	 * Cancel the currently scheduled runner (if any).
+	 */
+	cancel(): void {
+		this.pendingRunner.clear();
+	}
+
+	/**
+	 * Schedule the runner to execute at the next animation frame.
+	 * If already scheduled, this is a no-op (the existing schedule is kept).
+	 * If currently in an animation frame, the runner will execute immediately.
+	 */
+	schedule(): void {
+		if (this.pendingRunner.value) {
+			return; // Already scheduled
+		}
+
+		this.pendingRunner.value = runAtThisOrScheduleAtNextAnimationFrame(getWindow(this.node), () => {
+			this.pendingRunner.clear();
+			this.runner();
+		});
+	}
+
+	/**
+	 * Returns true if a runner is scheduled.
+	 */
+	isScheduled(): boolean {
+		return this.pendingRunner.value !== undefined;
+	}
+}
+
+/**
  * Add a throttled listener. `handler` is fired at most every 8.33333ms or with the next animation frame (if browser supports it).
  */
 export interface IEventMerger<R, E> {
@@ -695,20 +838,6 @@ export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePositi
 }
 
 /**
- * Returns whether the element is in the bottom right quarter of the container.
- *
- * @param element the element to check for being in the bottom right quarter
- * @param container the container to check against
- * @returns true if the element is in the bottom right quarter of the container
- */
-export function isElementInBottomRightQuarter(element: HTMLElement, container: HTMLElement): boolean {
-	const position = getDomNodePagePosition(element);
-	const clientArea = getClientArea(container);
-
-	return position.left > clientArea.width / 2 && position.top > clientArea.height / 2;
-}
-
-/**
  * Returns the effective zoom on a given element before window zoom level is applied
  */
 export function getDomNodeZoomLevel(domNode: HTMLElement): number {
@@ -920,8 +1049,8 @@ export function isActiveDocument(element: Element): boolean {
 
 /**
  * Returns the active document across main and child windows.
- * Prefers the window with focus, otherwise falls back to
- * the main windows document.
+ * Prefers the window with focus (including external components like browser views),
+ * otherwise falls back to the main windows document.
  */
 export function getActiveDocument(): Document {
 	if (getWindowsCount() <= 1) {
@@ -929,7 +1058,18 @@ export function getActiveDocument(): Document {
 	}
 
 	const documents = Array.from(getWindows()).map(({ window }) => window.document);
-	return documents.find(doc => doc.hasFocus()) ?? mainWindow.document;
+	const focusedDoc = documents.find(doc => doc.hasFocus());
+	if (focusedDoc) {
+		return focusedDoc;
+	}
+
+	// Check if an external component (like browser view) has focus
+	const externalWindow = getExternalFocusWindow();
+	if (externalWindow) {
+		return externalWindow.document;
+	}
+
+	return mainWindow.document;
 }
 
 /**
@@ -1592,39 +1732,6 @@ export function triggerUpload(): Promise<FileList | undefined> {
 	});
 }
 
-export interface INotification extends IDisposable {
-	readonly onClick: event.Event<void>;
-}
-
-function sanitizeNotificationText(text: string): string {
-	return text.replace(/`/g, '\''); // convert backticks to single quotes
-}
-
-export async function triggerNotification(message: string, options?: { detail?: string; sticky?: boolean }): Promise<INotification | undefined> {
-	const permission = await Notification.requestPermission();
-	if (permission !== 'granted') {
-		return;
-	}
-
-	const disposables = new DisposableStore();
-
-	const notification = new Notification(sanitizeNotificationText(message), {
-		body: options?.detail ? sanitizeNotificationText(options.detail) : undefined,
-		requireInteraction: options?.sticky,
-	});
-
-	const onClick = new event.Emitter<void>();
-	disposables.add(addDisposableListener(notification, 'click', () => onClick.fire()));
-	disposables.add(addDisposableListener(notification, 'close', () => disposables.dispose()));
-
-	disposables.add(toDisposable(() => notification.close()));
-
-	return {
-		onClick: onClick.event,
-		dispose: () => disposables.dispose()
-	};
-}
-
 export enum DetectedFullscreenMode {
 
 	/**
@@ -1938,6 +2045,115 @@ export class DragAndDropObserver extends Disposable {
 			this.callbacks.onDrop?.(e);
 		}));
 	}
+}
+
+/**
+ * A wrapper around `ResizeObserver` that is disposable.
+ *
+ * Behavior is intentionally identical to using `new ResizeObserver(callback)`
+ * directly: the user-supplied callback runs synchronously inside the
+ * browser's resize-observation phase, with the entries the browser delivered.
+ * The wrapper adds three things on top:
+ *
+ * 1. Lifetime management: `dispose()` disconnects the underlying observer.
+ * 2. Auxiliary-window support: pass `targetWindow` so the observer is
+ *    constructed in the realm of the element being observed.
+ * 3. Attribution for the
+ *    `ResizeObserver loop completed with undelivered notifications` warning:
+ *    each instance carries a stable `name`, and just before invoking the
+ *    user callback we publish that name to a module-level slot. The warning
+ *    is delivered as a stackless `ErrorEvent` on `window` after callbacks
+ *    run, so error telemetry can swap in the most-recently-invoked
+ *    observer's name to pinpoint the offending consumer (see
+ *    {@link getRecentDisposableResizeObserverAttributionForLoopError}).
+ *
+ * @param name Stable identifier used in attribution. Prefer something that
+ * survives minification and refactors (e.g. the consumer class + purpose)
+ * since callstacks change across releases.
+ * @param callback Invoked synchronously when the browser delivers resize
+ * notifications, with the same entries the native `ResizeObserver` would
+ * have delivered.
+ * @param targetWindow The window whose `ResizeObserver` constructor should
+ * be used. Defaults to `mainWindow`. Pass the containing window when
+ * creating an observer for elements that live in an auxiliary window.
+ * @param options Optional configuration. `resizeObserverCtor` is a test
+ * seam that defaults to `targetWindow.ResizeObserver`.
+ */
+export class DisposableResizeObserver extends Disposable {
+
+	private readonly observer: ResizeObserver;
+	readonly name: string;
+
+	constructor(
+		name: string,
+		callback: ResizeObserverCallback,
+		targetWindow: CodeWindow = mainWindow,
+		options?: { resizeObserverCtor?: typeof ResizeObserver },
+	) {
+		super();
+		this.name = name;
+		const ctor = options?.resizeObserverCtor ?? targetWindow.ResizeObserver;
+		this.observer = new ctor((entries: ResizeObserverEntry[], observer) => {
+			_lastInvokedDisposableResizeObserver = this;
+			// Clear via a 0-ms timer (a new macrotask) rather than a
+			// microtask: microtask checkpoints run at the end of every
+			// script, i.e. after each ResizeObserver callback returns, but
+			// Chromium dispatches the synthetic `ResizeObserver loop
+			// completed with undelivered notifications` error *after* all
+			// callbacks in the observation phase finish. A microtask would
+			// clear the slot before the warning fires; a setTimeout(0)
+			// runs after the entire current task completes (callbacks +
+			// loop-error dispatch), so attribution survives long enough to
+			// be picked up by `window.onerror` while still being scoped to
+			// the same task that produced it. The equality check ensures
+			// only the *last* writer in a phase actually clears the slot.
+			setTimeout(() => {
+				if (_lastInvokedDisposableResizeObserver === this) {
+					_lastInvokedDisposableResizeObserver = undefined;
+				}
+			}, 0);
+			try {
+				callback(entries, observer);
+			} catch (e) {
+				onUnexpectedError(e);
+			}
+		});
+		this._register(toDisposable(() => this.observer.disconnect()));
+	}
+
+	observe(target: Element, options?: ResizeObserverOptions): IDisposable {
+		this.observer.observe(target, options);
+		return toDisposable(() => this.observer.unobserve(target));
+	}
+}
+
+/**
+ * The most recently invoked `DisposableResizeObserver`. Set just before each
+ * user callback runs and cleared by a 0-ms timer scheduled in the same step,
+ * so the slot only carries an attribution within the same task as the
+ * `ResizeObserver loop completed with undelivered notifications` warning
+ * (which fires synchronously at the end of the resize-observation phase).
+ * A microtask would be too eager — microtask checkpoints run between each
+ * callback, before the loop-error dispatch.
+ */
+let _lastInvokedDisposableResizeObserver: DisposableResizeObserver | undefined;
+
+/**
+ * If `message` looks like the ResizeObserver loop warning, return an
+ * attribution string built from the most recently invoked
+ * `DisposableResizeObserver` so error telemetry can replace its synthetic,
+ * stackless callstack with the offending observer's `name`. Returns
+ * `undefined` for unrelated messages or when no observer has fired yet.
+ */
+export function getRecentDisposableResizeObserverAttributionForLoopError(message: string | undefined | null): string | undefined {
+	if (typeof message !== 'string' || !message.includes('ResizeObserver loop')) {
+		return undefined;
+	}
+	const observer = _lastInvokedDisposableResizeObserver;
+	if (!observer) {
+		return undefined;
+	}
+	return `[DisposableResizeObserver(${observer.name})] ${message}`;
 }
 
 type HTMLElementAttributeKeys<T> = Partial<{ [K in keyof T]: T[K] extends Function ? never : T[K] extends object ? HTMLElementAttributeKeys<T[K]> : T[K] }>;
@@ -2631,3 +2847,33 @@ function setOrRemoveAttribute(element: HTMLOrSVGElement, key: string, value: unk
 type ElementAttributeKeys<T> = Partial<{
 	[K in keyof T]: T[K] extends Function ? never : T[K] extends object ? ElementAttributeKeys<T[K]> : Value<number | T[K] | undefined | null>;
 }>;
+
+/**
+ * A custom element that fires callbacks when connected to or disconnected from the DOM.
+ * Useful for tracking whether a template or component is currently mounted, especially
+ * with iframes/webviews that are sensitive to movement.
+ *
+ * @example
+ * ```ts
+ * const observer = document.createElement('connection-observer') as ConnectionObserverElement;
+ * observer.onDidConnect = () => console.log('mounted');
+ * observer.onDidDisconnect = () => console.log('unmounted');
+ * container.appendChild(observer);
+ * ```
+ */
+export class ConnectionObserverElement extends HTMLElement {
+	public onDidConnect?: () => void;
+	public onDidDisconnect?: () => void;
+
+	disconnectedCallback() {
+		this.onDidDisconnect?.();
+	}
+
+	connectedCallback() {
+		this.onDidConnect?.();
+	}
+}
+
+if (!customElements.get('connection-observer')) {
+	customElements.define('connection-observer', ConnectionObserverElement);
+}

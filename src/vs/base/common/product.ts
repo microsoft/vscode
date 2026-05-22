@@ -75,12 +75,18 @@ export interface IProductConfiguration {
 
 	readonly win32AppUserModelId?: string;
 	readonly win32MutexName?: string;
+	readonly win32SetupMutexName?: string;
 	readonly win32RegValueName?: string;
+	readonly win32NameVersion?: string;
+	readonly win32VersionedUpdate?: boolean;
+	readonly win32ContextMenu?: { readonly [arch: string]: { readonly clsid: string } };
 	readonly applicationName: string;
 	readonly embedderIdentifier?: string;
+	readonly agentsTelemetryAppName?: string;
 
 	readonly urlProtocol: string;
 	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
+	readonly sharedDataFolderName: string; // location for shared data (e.g. ~/.vscode-insiders-shared)
 
 	readonly builtInExtensions?: IBuiltInExtension[];
 	readonly walkthroughMetadata?: IProductWalkthrough[];
@@ -204,22 +210,13 @@ export interface IProductConfiguration {
 		readonly hasPrereleaseVersion?: boolean;
 		readonly excludeVersionRange?: string;
 	}>;
+	readonly extensionsForceVersionByQuality?: readonly string[];
+	readonly builtInExtensionsEnabledWithAutoUpdates: readonly string[];
+	readonly sessionsWindowAllowedExtensions?: readonly string[];
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
 
-	readonly defaultAccount?: {
-		readonly authenticationProvider: {
-			readonly id: string;
-			readonly enterpriseProviderId: string;
-			readonly enterpriseProviderConfig: string;
-			readonly enterpriseProviderUriSetting: string;
-			readonly scopes: string[][];
-		};
-		readonly tokenEntitlementUrl: string;
-		readonly chatEntitlementUrl: string;
-		readonly mcpRegistryDataUrl: string;
-	};
 	readonly authClientIdMetadataUrl?: string;
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
@@ -240,6 +237,34 @@ export interface IProductConfiguration {
 	readonly remoteDefaultExtensionsIfInstalledLocally?: string[];
 
 	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy>;
+
+	readonly onboardingKeymaps?: readonly IProductOnboardingKeymap[];
+	readonly onboardingThemes?: readonly IProductOnboardingTheme[];
+
+	/**
+	 * When running as an embedded app, the parent VS Code's policy
+	 * identity (win32RegValueName / darwinBundleIdentifier) so that
+	 * enterprise policies deployed to the parent also apply here.
+	 */
+	parentPolicyConfig?: {
+		win32RegValueName?: string;
+		darwinBundleIdentifier?: string;
+		urlProtocol?: string;
+	};
+}
+
+export interface IProductOnboardingKeymap {
+	readonly id: string;
+	readonly label: string;
+	readonly extensionId?: string;
+	readonly description: string;
+}
+
+export interface IProductOnboardingTheme {
+	readonly id: string;
+	readonly label: string;
+	readonly themeId: string;
+	readonly type: 'dark' | 'light' | 'hcDark' | 'hcLight';
 }
 
 export interface ITunnelApplicationConfig {
@@ -349,12 +374,13 @@ export interface IDefaultChatAgent {
 	readonly extensionId: string;
 	readonly chatExtensionId: string;
 
+	readonly chatExtensionOutputId: string;
+	readonly chatExtensionOutputExtensionStateCommand: string;
+
 	readonly documentationUrl: string;
 	readonly skusDocumentationUrl: string;
 	readonly publicCodeMatchesUrl: string;
-	readonly manageSettingsUrl: string;
 	readonly managePlanUrl: string;
-	readonly manageOverageUrl: string;
 	readonly upgradePlanUrl: string;
 	readonly signUpUrl: string;
 	readonly termsStatementUrl: string;
@@ -367,18 +393,20 @@ export interface IDefaultChatAgent {
 		apple: { id: string; name: string };
 	};
 
+	readonly providerExtensionId: string;
 	readonly providerUriSetting: string;
 	readonly providerScopes: string[][];
 
 	readonly entitlementUrl: string;
 	readonly entitlementSignupLimitedUrl: string;
+	readonly tokenEntitlementUrl: string;
+	readonly mcpRegistryDataUrl: string;
 
 	readonly chatQuotaExceededContext: string;
 	readonly completionsQuotaExceededContext: string;
 
 	readonly walkthroughCommand: string;
 	readonly completionsMenuCommand: string;
-	readonly completionsRefreshTokenCommand: string;
 	readonly chatRefreshTokenCommand: string;
 	readonly generateCommitMessageCommand: string;
 	readonly resolveMergeConflictsCommand: string;

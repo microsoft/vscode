@@ -82,6 +82,8 @@ export class SuggestDetailsWidget {
 	dispose(): void {
 		this._disposables.dispose();
 		this._renderDisposeable.dispose();
+		this._onDidClose.dispose();
+		this._onDidChangeContents.dispose();
 	}
 
 	private _configureFont(): void {

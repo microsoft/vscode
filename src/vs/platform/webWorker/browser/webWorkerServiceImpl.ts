@@ -33,9 +33,13 @@ export class WebWorkerService implements IWebWorkerService {
 	protected _createWorker(descriptor: WebWorkerDescriptor): Promise<Worker> {
 		const workerRunnerUrl = this.getWorkerUrl(descriptor);
 
-		const workerUrlWithNls = getWorkerBootstrapUrl(descriptor.label, workerRunnerUrl);
+		const workerUrlWithNls = getWorkerBootstrapUrl(descriptor.label, workerRunnerUrl, this._getWorkerLoadingFailedErrorMessage(descriptor));
 		const worker = new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrlWithNls) as unknown as string : workerUrlWithNls, { name: descriptor.label, type: 'module' });
 		return whenESMWorkerReady(worker);
+	}
+
+	protected _getWorkerLoadingFailedErrorMessage(_descriptor: WebWorkerDescriptor): string | undefined {
+		return undefined;
 	}
 
 	getWorkerUrl(descriptor: WebWorkerDescriptor): string {
@@ -71,7 +75,7 @@ export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Work
 	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, { ...options, type: 'module' });
 }
 
-function getWorkerBootstrapUrl(label: string, workerScriptUrl: string): string {
+function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerLoadingFailedErrorMessage: string | undefined): string {
 	if (/^((http:)|(https:)|(file:))/.test(workerScriptUrl) && workerScriptUrl.substring(0, globalThis.origin.length) !== globalThis.origin) {
 		// this is the cross-origin case
 		// i.e. the webpage is running at a different origin than where the scripts are loaded from
@@ -101,7 +105,11 @@ function getWorkerBootstrapUrl(label: string, workerScriptUrl: string): string {
 		`globalThis._VSCODE_FILE_ROOT = ${JSON.stringify(globalThis._VSCODE_FILE_ROOT)};`,
 		`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,
 		`globalThis.workerttPolicy = ttPolicy;`,
+
+		workerLoadingFailedErrorMessage ? 'try {' : '',
 		`await import(ttPolicy?.createScriptURL(${JSON.stringify(workerScriptUrl)}) ?? ${JSON.stringify(workerScriptUrl)});`,
+		workerLoadingFailedErrorMessage ? `} catch (err) { console.error(${JSON.stringify(workerLoadingFailedErrorMessage)}, err); throw err; }` : '',
+
 		`globalThis.postMessage({ type: 'vscode-worker-ready' });`,
 		`/*${label}*/`
 	]).join('')], { type: 'application/javascript' });

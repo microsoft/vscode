@@ -74,10 +74,10 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
-		this.watchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
+		this.watchExpressionsUpdatedScheduler = this._register(new RunOnceScheduler(() => {
 			this.needsRefresh = false;
 			this.tree.updateChildren();
-		}, 50);
+		}, 50));
 		this.watchExpressionsExist = CONTEXT_WATCH_EXPRESSIONS_EXIST.bindTo(contextKeyService);
 		this.watchExpressionsExist.set(this.debugService.getModel().getWatchExpressions().length > 0);
 		this.expressionRenderer = instantiationService.createInstance(DebugExpressionRenderer);
@@ -690,5 +690,32 @@ registerAction2(class CopyExpression extends ViewAction<WatchExpressionsView> {
 		if (value) {
 			clipboardService.writeText(value.name);
 		}
+	}
+});
+
+export const COPY_ALL_WATCH_EXPRESSIONS_COMMAND_ID = 'workbench.debug.viewlet.action.copyAllWatchExpressions';
+
+registerAction2(class CopyAllWatchExpressions extends ViewAction<WatchExpressionsView> {
+	constructor() {
+		super({
+			id: COPY_ALL_WATCH_EXPRESSIONS_COMMAND_ID,
+			title: localize('copyAllWatchExpressions', "Copy All"),
+			f1: false,
+			viewId: WATCH_VIEW_ID,
+			precondition: CONTEXT_WATCH_EXPRESSIONS_EXIST,
+			menu: {
+				id: MenuId.DebugWatchContext,
+				order: 45,
+				group: '3_modification'
+			}
+		});
+	}
+
+	runInView(accessor: ServicesAccessor): void {
+		const clipboardService = accessor.get(IClipboardService);
+		const debugService = accessor.get(IDebugService);
+		const watches = debugService.getModel().getWatchExpressions();
+		const lines = watches.map(w => `${w.name}: ${w.value}`);
+		clipboardService.writeText(lines.join('\n'));
 	}
 });

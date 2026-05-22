@@ -23,7 +23,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { PaneCompositeDescriptor, PaneCompositeRegistry, Extensions as PaneCompositeExtensions, PaneComposite } from '../../../browser/panecomposite.js';
+import { PaneCompositeDescriptor, PaneCompositeRegistry, PaneComposite } from '../../../browser/panecomposite.js';
 import { IWorkbenchLayoutService, Parts } from '../../layout/browser/layoutService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
@@ -150,7 +150,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 		// Open view container if part is visible and there is only one view container in location
 		if (
-			this.layoutService.isVisible(getPartByLocation(to)) &&
+			this.layoutService.isVisible(this.paneCompositeService.getPartId(to)) &&
 			this.viewDescriptorService.getViewContainersByLocation(to).filter(vc => this.isViewContainerActive(vc.id)).length === 1
 		) {
 			this.openViewContainer(viewContainer.id);
@@ -257,7 +257,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 			const isActive = viewContainerLocation !== null && this.paneCompositeService.getActivePaneComposite(viewContainerLocation);
 			if (viewContainerLocation !== null) {
-				return isActive ? this.layoutService.setPartHidden(true, getPartByLocation(viewContainerLocation)) : undefined;
+				return isActive ? this.layoutService.setPartHidden(true, this.paneCompositeService.getPartId(viewContainerLocation)) : undefined;
 			}
 		}
 	}
@@ -528,7 +528,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						editorGroupService.activeGroup.focus();
 					} else if (viewLocation !== null) {
 						// otherwise hide the part where the view lives if focused
-						layoutService.setPartHidden(true, getPartByLocation(viewLocation));
+						layoutService.setPartHidden(true, that.paneCompositeService.getPartId(viewLocation));
 					}
 				} else {
 					await viewsService.openView(viewDescriptor.id, !options?.preserveFocus);
@@ -670,7 +670,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			}
 		}
 
-		Registry.as<PaneCompositeRegistry>(getPaneCompositeExtension(viewContainerLocation)).registerPaneComposite(PaneCompositeDescriptor.create(
+		Registry.as<PaneCompositeRegistry>(this.paneCompositeService.getRegistryId(viewContainerLocation)).registerPaneComposite(PaneCompositeDescriptor.create(
 			PaneContainer,
 			viewContainer.id,
 			typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
@@ -682,7 +682,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private deregisterPaneComposite(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
-		Registry.as<PaneCompositeRegistry>(getPaneCompositeExtension(viewContainerLocation)).deregisterPaneComposite(viewContainer.id);
+		Registry.as<PaneCompositeRegistry>(this.paneCompositeService.getRegistryId(viewContainerLocation)).deregisterPaneComposite(viewContainer.id);
 	}
 
 	private createViewPaneContainer(element: HTMLElement, viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation, disposables: DisposableStore, instantiationService: IInstantiationService): ViewPaneContainer {
@@ -711,29 +711,5 @@ export class ViewsService extends Disposable implements IViewsService {
 }
 
 function getEnabledViewContainerContextKey(viewContainerId: string): string { return `viewContainer.${viewContainerId}.enabled`; }
-
-function getPaneCompositeExtension(viewContainerLocation: ViewContainerLocation): string {
-	switch (viewContainerLocation) {
-		case ViewContainerLocation.AuxiliaryBar:
-			return PaneCompositeExtensions.Auxiliary;
-		case ViewContainerLocation.Panel:
-			return PaneCompositeExtensions.Panels;
-		case ViewContainerLocation.Sidebar:
-		default:
-			return PaneCompositeExtensions.Viewlets;
-	}
-}
-
-export function getPartByLocation(viewContainerLocation: ViewContainerLocation): Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART | Parts.PANEL_PART {
-	switch (viewContainerLocation) {
-		case ViewContainerLocation.AuxiliaryBar:
-			return Parts.AUXILIARYBAR_PART;
-		case ViewContainerLocation.Panel:
-			return Parts.PANEL_PART;
-		case ViewContainerLocation.Sidebar:
-		default:
-			return Parts.SIDEBAR_PART;
-	}
-}
 
 registerSingleton(IViewsService, ViewsService, InstantiationType.Eager /* Eager because it registers viewlets and panels in the constructor which are required during workbench layout */);

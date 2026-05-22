@@ -7,7 +7,7 @@ import { app, BrowserWindow, Event as IpcEvent } from 'electron';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
-import { IDiagnosticInfo, IDiagnosticInfoOptions, IMainProcessDiagnostics, IProcessDiagnostics, IRemoteDiagnosticError, IRemoteDiagnosticInfo, IWindowDiagnostics } from '../common/diagnostics.js';
+import { IDiagnosticInfo, IDiagnosticInfoOptions, IGPULogMessage, IMainProcessDiagnostics, IProcessDiagnostics, IRemoteDiagnosticError, IRemoteDiagnosticInfo, IWindowDiagnostics } from '../common/diagnostics.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
 import { getAllWindowsExcludingOffscreen, IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -94,13 +94,24 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 			pidToNames.push({ pid, name });
 		}
 
+		type AppWithGPULogMethod = typeof app & {
+			getGPULogMessages(): IGPULogMessage[];
+		};
+
+		let gpuLogMessages: IGPULogMessage[] = [];
+		const customApp = app as AppWithGPULogMethod;
+		if (typeof customApp.getGPULogMessages === 'function') {
+			gpuLogMessages = customApp.getGPULogMessages();
+		}
+
 		return {
 			mainPID: process.pid,
 			mainArguments: process.argv.slice(1),
 			windows,
 			pidToNames,
 			screenReader: !!app.accessibilitySupportEnabled,
-			gpuFeatureStatus: app.getGPUFeatureStatus()
+			gpuFeatureStatus: app.getGPUFeatureStatus(),
+			gpuLogMessages
 		};
 	}
 

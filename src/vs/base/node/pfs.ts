@@ -129,7 +129,9 @@ async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
 	try {
 		return await fs.promises.readdir(path, { withFileTypes: true });
 	} catch (error) {
-		console.warn('[node.js fs] readdir with filetypes failed with error: ', error);
+		if (error.code !== 'ENOENT') {
+			console.warn('[node.js fs] readdir with filetypes failed with error: ', error);
+		}
 	}
 
 	// Fallback to manually reading and resolving each
@@ -152,7 +154,9 @@ async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
 			isDirectory = lstat.isDirectory();
 			isSymbolicLink = lstat.isSymbolicLink();
 		} catch (error) {
-			console.warn('[node.js fs] unexpected error from lstat after readdir: ', error);
+			if (error.code !== 'ENOENT') {
+				console.warn('[node.js fs] unexpected error from lstat after readdir: ', error);
+			}
 		}
 
 		result.push({

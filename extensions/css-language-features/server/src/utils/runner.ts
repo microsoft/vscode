@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ResponseError, CancellationToken, LSPErrorCodes } from 'vscode-languageserver';
-import { RuntimeEnvironment } from '../cssServer';
+import { RuntimeEnvironment } from '../cssServer.js';
 
 export function formatError(message: string, err: any): string {
 	if (err instanceof Error) {

@@ -50,19 +50,20 @@ import { IUserDataProfileService } from '../../../services/userDataProfile/commo
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService.js';
-import { ChatModeKind } from '../../chat/common/constants.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
+import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
+import { ContributionEnablementState, isContributionDisabled } from '../../chat/common/enablement.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
-import { ILanguageModelToolsService } from '../../chat/common/languageModelToolsService.js';
-import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
-import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
+import { extensionsFilterSubMenu, IExtensionsWorkbenchService, VIEWLET_ID } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
-import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
+import { startServerAndWaitForLiveTools } from '../common/mcpTypesUtils.js';
+import { McpAddConfigurationCommand, McpInstallFromManifestCommand } from './mcpCommandsAddConfiguration.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
 import './media/mcpServerAction.css';
 import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
@@ -81,7 +82,7 @@ export class ListMcpServerCommand extends Action2 {
 			icon: Codicon.server,
 			category,
 			f1: true,
-			precondition: ChatContextKeys.Setup.hidden.negate(),
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			menu: [{
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.or(
@@ -90,7 +91,7 @@ export class ListMcpServerCommand extends Action2 {
 					),
 					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 					ChatContextKeys.lockedToCodingAgent.negate(),
-					ChatContextKeys.Setup.hidden.negate(),
+					ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 				),
 				id: MenuId.ChatInput,
 				group: 'navigation',
@@ -115,17 +116,22 @@ export class ListMcpServerCommand extends Action2 {
 		store.add(pick);
 
 		store.add(autorun(reader => {
-			const servers = groupBy(mcpService.servers.read(reader).slice().sort((a, b) => (a.collection.presentation?.order || 0) - (b.collection.presentation?.order || 0)), s => s.collection.id);
+			const servers = groupBy(mcpService.servers.read(reader).slice().sort((a, b) => a.collection.order - b.collection.order), s => s.collection.id);
 			const firstRun = pick.items.length === 0;
 			pick.items = [
 				{ id: '$add', label: localize('mcp.addServer', 'Add Server'), description: localize('mcp.addServer.description', 'Add a new server configuration'), alwaysShow: true, iconClass: ThemeIcon.asClassName(Codicon.add) },
 				...Object.values(servers).filter(s => s!.length).flatMap((servers): (ItemType | IQuickPickSeparator)[] => [
 					{ type: 'separator', label: servers![0].collection.label, id: servers![0].collection.id },
-					...servers!.map(server => ({
-						id: server.definition.id,
-						label: server.definition.label,
-						description: McpConnectionState.toString(server.connectionState.read(reader)),
-					})),
+					...servers!.map(server => {
+						const disabled = isContributionDisabled(server.enablement.read(reader));
+						return {
+							id: server.definition.id,
+							label: server.definition.label,
+							description: disabled
+								? localize('mcp.disabled', 'Disabled')
+								: McpConnectionState.toString(server.connectionState.read(reader)),
+						};
+					}),
 				]),
 			];
 
@@ -158,7 +164,7 @@ export class ListMcpServerCommand extends Action2 {
 }
 
 interface ActionItem extends IQuickPickItem {
-	action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config' | 'configSampling' | 'samplingLog' | 'resources';
+	action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config' | 'configSampling' | 'samplingLog' | 'resources' | 'enable';
 }
 
 interface AuthActionItem extends IQuickPickItem {
@@ -234,11 +240,17 @@ export class McpServerOptionsCommand extends Action2 {
 
 		const items: (ActionItem | AuthActionItem | IQuickPickSeparator)[] = [];
 		const serverState = server.connectionState.get();
+		const disabled = isContributionDisabled(server.enablement.get());
 
 		items.push({ type: 'separator', label: localize('mcp.actions.status', 'Status') });
 
-		// Only show start when server is stopped or in error state
-		if (McpConnectionState.canBeStarted(serverState.state)) {
+		if (disabled) {
+			items.push({
+				label: localize('mcp.enableWorkspace', 'Enable Server (Workspace)'),
+				action: 'enable'
+			});
+		} else if (McpConnectionState.canBeStarted(serverState.state)) {
+			// Only show start when server is stopped or in error state
 			items.push({
 				label: localize('mcp.start', 'Start Server'),
 				action: 'start'
@@ -305,6 +317,9 @@ export class McpServerOptionsCommand extends Action2 {
 		}
 
 		switch (pick.action) {
+			case 'enable':
+				mcpService.enablementModel.setEnabled(server.definition.id, ContributionEnablementState.EnabledWorkspace);
+				break;
 			case 'start':
 				await server.start({ promptType: 'all-untrusted' });
 				server.showOutput();
@@ -549,9 +564,10 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 
 				protected override getHoverContents({ state, servers } = displayedStateCurrent.get()): string | undefined | IManagedHoverTooltipHTMLElement {
 					const link = (s: IMcpServer) => createMarkdownCommandLink({
-						title: s.definition.label,
+						text: s.definition.label,
 						id: McpCommandIds.ServerOptions,
 						arguments: [s.definition.id],
+						tooltip: localize('mcp.server.options.tooltip', 'Show server options for {0}', s.definition.label),
 					});
 
 					const single = servers.length === 1;
@@ -657,7 +673,7 @@ export class ResetMcpTrustCommand extends Action2 {
 			title: localize2('mcp.resetTrust', "Reset Trust"),
 			category,
 			f1: true,
-			precondition: ContextKeyExpr.and(McpContextKeys.toolsCount.greater(0), ChatContextKeys.Setup.hidden.negate()),
+			precondition: ContextKeyExpr.and(McpContextKeys.toolsCount.greater(0), ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 		});
 	}
 
@@ -675,7 +691,7 @@ export class ResetMcpCachedTools extends Action2 {
 			title: localize2('mcp.resetCachedTools', "Reset Cached Tools"),
 			category,
 			f1: true,
-			precondition: ContextKeyExpr.and(McpContextKeys.toolsCount.greater(0), ChatContextKeys.Setup.hidden.negate()),
+			precondition: ContextKeyExpr.and(McpContextKeys.toolsCount.greater(0), ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 		});
 	}
 
@@ -695,13 +711,13 @@ export class AddConfigurationAction extends Action2 {
 			},
 			category,
 			f1: true,
-			precondition: ChatContextKeys.Setup.hidden.negate(),
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			menu: {
 				id: MenuId.EditorContent,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.regex(ResourceContextKey.Path.key, /\.vscode[/\\]mcp\.json$/),
 					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID),
-					ChatContextKeys.Setup.hidden.negate(),
+					ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 				)
 			}
 		});
@@ -712,6 +728,26 @@ export class AddConfigurationAction extends Action2 {
 		const workspaceService = accessor.get(IWorkspaceContextService);
 		const target = configUri ? workspaceService.getWorkspaceFolder(URI.parse(configUri)) : undefined;
 		return instantiationService.createInstance(McpAddConfigurationCommand, target ?? undefined).run();
+	}
+}
+
+export class InstallFromManifestAction extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.InstallFromManifest,
+			title: localize2('mcp.installFromManifest', "Install Server from Manifest..."),
+			metadata: {
+				description: localize2('mcp.installFromManifest.description', "Install an MCP server from a JSON manifest file"),
+			},
+			category,
+			f1: true,
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
+		return instantiationService.createInstance(McpInstallFromManifestCommand).run();
 	}
 }
 
@@ -821,9 +857,18 @@ export class StartServer extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts) {
-		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
-		await s?.start({ promptType: 'all-untrusted', ...opts });
+	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts & { waitForLiveTools?: boolean }) {
+		let servers = accessor.get(IMcpService).servers.get();
+		if (serverId !== '*') {
+			servers = servers.filter(s => s.definition.id === serverId);
+		}
+
+		const startOpts: IMcpServerStartOpts = { promptType: 'all-untrusted', ...opts };
+		if (opts?.waitForLiveTools) {
+			await Promise.all(servers.map(s => startServerAndWaitForLiveTools(s, startOpts)));
+		} else {
+			await Promise.all(servers.map(s => s.start(startOpts)));
+		}
 	}
 }
 
@@ -851,15 +896,15 @@ export class McpBrowseCommand extends Action2 {
 			tooltip: localize2('mcp.command.browse.tooltip', "Browse MCP Servers"),
 			category,
 			icon: Codicon.search,
-			precondition: ChatContextKeys.Setup.hidden.negate(),
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			menu: [{
 				id: extensionsFilterSubMenu,
 				group: '1_predefined',
 				order: 1,
-				when: ChatContextKeys.Setup.hidden.negate(),
+				when: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			}, {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledMcpServersViewId), ChatContextKeys.Setup.hidden.negate()),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledMcpServersViewId), ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 				group: 'navigation',
 			}],
 		});
@@ -875,7 +920,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		id: McpCommandIds.Browse,
 		title: localize2('mcp.command.browse.mcp', "Browse MCP Servers"),
 		category,
-		precondition: ChatContextKeys.Setup.hidden.negate(),
+		precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 	},
 });
 
@@ -885,7 +930,7 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 			id: McpCommandIds.ShowInstalled,
 			title: localize2('mcp.command.show.installed', "Show Installed Servers"),
 			category,
-			precondition: ContextKeyExpr.and(HasInstalledMcpServersContext, ChatContextKeys.Setup.hidden.negate()),
+			precondition: ContextKeyExpr.and(HasInstalledMcpServersContext, ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			f1: true,
 		});
 	}
@@ -894,7 +939,7 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const view = await viewsService.openView(InstalledMcpServersViewId, true);
 		if (!view) {
-			await viewsService.openViewContainer(VIEW_CONTAINER.id);
+			await viewsService.openViewContainer(VIEWLET_ID);
 			await viewsService.openView(InstalledMcpServersViewId, true);
 		}
 	}
@@ -931,7 +976,7 @@ export class OpenUserMcpResourceCommand extends OpenMcpResourceCommand {
 			title: localize2('mcp.command.openUserMcp', "Open User Configuration"),
 			category,
 			f1: true,
-			precondition: ChatContextKeys.Setup.hidden.negate(),
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 		});
 	}
 
@@ -949,7 +994,7 @@ export class OpenRemoteUserMcpResourceCommand extends OpenMcpResourceCommand {
 			category,
 			f1: true,
 			precondition: ContextKeyExpr.and(
-				ChatContextKeys.Setup.hidden.negate(),
+				ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 				RemoteNameContext.notEqualsTo('')
 			)
 		});
@@ -971,7 +1016,7 @@ export class OpenWorkspaceFolderMcpResourceCommand extends Action2 {
 			category,
 			f1: true,
 			precondition: ContextKeyExpr.and(
-				ChatContextKeys.Setup.hidden.negate(),
+				ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 				WorkspaceFolderCountContext.notEqualsTo(0)
 			)
 		});
@@ -997,7 +1042,7 @@ export class OpenWorkspaceMcpResourceCommand extends Action2 {
 			category,
 			f1: true,
 			precondition: ContextKeyExpr.and(
-				ChatContextKeys.Setup.hidden.negate(),
+				ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 				WorkbenchStateContext.isEqualTo('workspace')
 			)
 		});
@@ -1019,7 +1064,7 @@ export class McpBrowseResourcesCommand extends Action2 {
 			id: McpCommandIds.BrowseResources,
 			title: localize2('mcp.browseResources', "Browse Resources..."),
 			category,
-			precondition: ContextKeyExpr.and(McpContextKeys.serverCount.greater(0), ChatContextKeys.Setup.hidden.negate()),
+			precondition: ContextKeyExpr.and(McpContextKeys.serverCount.greater(0), ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			f1: true,
 		});
 	}
@@ -1057,7 +1102,7 @@ export class McpConfigureSamplingModels extends Action2 {
 				label: model.name,
 				description: model.tooltip,
 				id,
-				picked: existingIds.size ? existingIds.has(id) : model.isDefault,
+				picked: existingIds.size ? existingIds.has(id) : model.isDefaultForLocation[ChatAgentLocation.Chat],
 			};
 		}).filter(isDefined);
 

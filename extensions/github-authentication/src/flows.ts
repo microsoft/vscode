@@ -354,7 +354,7 @@ class LocalServerFlow implements IFlow {
 				path: '/login/oauth/authorize',
 				query: searchParams.toString()
 			});
-			const server = new LoopbackAuthServer(path.join(__dirname, '../media'), loginUrl.toString(true), callbackUri.toString(true));
+			const server = new LoopbackAuthServer(path.join(__dirname, '../media'), loginUrl.toString(true), callbackUri.toString(true), env.isAppPortable);
 			const port = await server.start();
 
 			let codeToExchange;
@@ -420,7 +420,7 @@ class DeviceCodeFlow implements IFlow {
 
 		const json = await result.json() as IGitHubDeviceCodeResponse;
 
-		const button = l10n.t('Copy & Continue to {0}', signInProvider ? GitHubSocialSignInProviderLabels[signInProvider] : l10n.t('GitHub'));
+		const button = l10n.t('Copy & Continue to Browser');
 		const modalResult = await window.showInformationMessage(
 			l10n.t({ message: 'Your Code: {0}', args: [json.user_code], comment: ['The {0} will be a code, e.g. 123-456'] }),
 			{
@@ -667,11 +667,6 @@ export const enum GitHubSocialSignInProvider {
 	Google = 'google',
 	Apple = 'apple',
 }
-
-const GitHubSocialSignInProviderLabels = {
-	[GitHubSocialSignInProvider.Google]: l10n.t('Google'),
-	[GitHubSocialSignInProvider.Apple]: l10n.t('Apple'),
-};
 
 export function isSocialSignInProvider(provider: unknown): provider is GitHubSocialSignInProvider {
 	return provider === GitHubSocialSignInProvider.Google || provider === GitHubSocialSignInProvider.Apple;

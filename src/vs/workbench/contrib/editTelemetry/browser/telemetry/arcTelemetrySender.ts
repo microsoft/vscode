@@ -95,7 +95,7 @@ export class EditTelemetryReportInlineEditArcSender extends Disposable {
 					...forwardToChannelIf(isCopilotLikeExtension(data.$extensionId)),
 				});
 			}, () => {
-				this._store.deleteAndLeak(reporter);
+				this._store.delete(reporter);
 			}));
 		}));
 	}
@@ -145,6 +145,7 @@ export class CreateSuggestionIdForChatOrInlineChatCaller extends Disposable {
 				// eslint-disable-next-line local/code-no-any-casts
 				modeId: data.props.$$mode as any,
 				editDeltaInfo: EditDeltaInfo.fromEdit(edit, _prev),
+				sourceRequestId: undefined,
 			});
 		}));
 	}
@@ -255,7 +256,7 @@ export class EditTelemetryReportEditArcForChatOrInlineChatSender extends Disposa
 					...forwardToChannelIf(isCopilotLikeExtension(data.props.$extensionId)),
 				});
 			}, () => {
-				this._store.deleteAndLeak(reporter);
+				this._store.delete(reporter);
 			}));
 		}));
 	}

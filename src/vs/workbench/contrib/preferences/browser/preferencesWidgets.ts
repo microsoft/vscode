@@ -252,7 +252,7 @@ export class SettingsTargetsWidget extends Widget {
 		const hostLabel = remoteAuthority && this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority);
 		this.userLocalSettings.label = localize('userSettings', "User");
 		this.userRemoteSettings.label = localize('userSettingsRemote', "Remote") + (hostLabel ? ` [${hostLabel}]` : '');
-		this.workspaceSettings.label = localize('workspaceSettings', "Workspace");
+		this.workspaceSettings.label = this.contextService.getWorkspace().name || localize('workspaceSettings', "Workspace");
 		this.folderSettingsAction.label = localize('folderSettings', "Folder");
 	}
 
@@ -306,7 +306,7 @@ export class SettingsTargetsWidget extends Widget {
 
 	setResultCount(settingsTarget: SettingsTarget, count: number): void {
 		if (settingsTarget === ConfigurationTarget.WORKSPACE) {
-			let label = localize('workspaceSettings', "Workspace");
+			let label = this.contextService.getWorkspace().name ?? localize('workspaceSettings', "Workspace");
 			if (count) {
 				label += ` (${count})`;
 			}

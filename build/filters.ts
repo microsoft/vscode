@@ -44,11 +44,13 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!**/*.test.ts',
 	'!**/*.{d.ts,json,md}',
 	'!**/*.mp3',
+	'!**/*.tiff',
+	'!**/*.provisionprofile',
 
 	'!build/win32/**',
 	'!extensions/markdown-language-features/notebook-out/*.js',
 	'!extensions/markdown-math/notebook-out/**',
-	'!extensions/mermaid-chat-features/chat-webview-out/**',
+	'!extensions/mermaid-markdown-features/chat-webview-out/**',
 	'!extensions/ipynb/notebook-out/**',
 	'!extensions/notebook-renderers/renderer-out/**',
 	'!extensions/php-language-features/src/features/phpGlobalFunctions.ts',
@@ -61,6 +63,9 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/**/snippets/**',
 	'!extensions/**/colorize-fixtures/**',
 	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
+
+	// extensions/copilot has its own code style
+	'!extensions/copilot/**',
 
 	'!src/vs/base/browser/dompurify/**',
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
@@ -77,7 +82,6 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!LICENSES.chromium.html',
 	'!**/LICENSE',
 	'!**/*.mp3',
-	'!src/vs/loader.js',
 	'!src/vs/base/browser/dompurify/*',
 	'!src/vs/base/common/marked/marked.js',
 	'!src/vs/base/common/semver/semver.js',
@@ -88,6 +92,7 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!test/unit/assert.js',
 	'!resources/linux/snap/electron-launch',
 	'!build/ext.js',
+	'!build/darwin/patch-dmg.py',
 	'!build/npm/gyp/patches/gyp_spectre_mitigation_support.patch',
 	'!product.overrides.json',
 
@@ -125,6 +130,9 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!extensions/**/themes/**',
 	'!extensions/**/colorize-fixtures/**',
 
+	// extensions/copilot has its own code style
+	'!extensions/copilot/**',
+
 	// except specific file types
 	'!src/vs/*/**/*.d.ts',
 	'!src/typings/**/*.d.ts',
@@ -139,9 +147,12 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!**/Dockerfile.*',
 	'!**/*.Dockerfile',
 	'!**/*.dockerfile',
+	'!**/*.tiff',
 
 	// except for built files
-	'!extensions/mermaid-chat-features/chat-webview-out/*.js',
+	'!extensions/mermaid-markdown-features/chat-webview-out/*.js',
+	'!extensions/mermaid-markdown-features/markdown-preview-out/*.js',
+	'!extensions/mermaid-markdown-features/notebook-out/*.js',
 	'!extensions/markdown-language-features/media/*.js',
 	'!extensions/markdown-language-features/notebook-out/*.js',
 	'!extensions/markdown-math/notebook-out/*.js',
@@ -154,6 +165,8 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'**',
 	'!**/*.desktop',
 	'!**/*.json',
+	'!**/*.jsonc',
+	'!**/*.jsonl',
 	'!**/*.html',
 	'!**/*.template',
 	'!**/*.md',
@@ -174,7 +187,10 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!**/*.code-workspace',
 	'!**/*.js.map',
 	'!**/*.wasm',
+	'!**/*.tiff',
+	'!**/*.provisionprofile',
 	'!build/**/*.init',
+	'!build/darwin/patch-dmg.py',
 	'!build/linux/libcxx-fetcher.*',
 	'!build/npm/gyp/custom-headers/*.patch',
 	'!resources/linux/snap/snapcraft.yaml',
@@ -190,6 +206,12 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
+	'!extensions/mermaid-markdown-features/chat-webview-out/**',
+	'!extensions/mermaid-markdown-features/markdown-preview-out/**',
+	'!extensions/mermaid-markdown-features/notebook-out/**',
+
+	// extensions/copilot has its own code style
+	'!extensions/copilot/**',
 ]);
 
 export const tsFormattingFilter = Object.freeze<string[]>([
@@ -209,13 +231,14 @@ export const tsFormattingFilter = Object.freeze<string[]>([
 	'!extensions/html-language-features/server/lib/jquery.d.ts',
 	'!extensions/terminal-suggest/src/shell/zshBuiltinsCache.ts',
 	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
+
+	// extensions/copilot has its own code style
+	'!extensions/copilot/**',
 ]);
 
 export const eslintFilter = Object.freeze<string[]>([
-	'**/*.js',
-	'**/*.cjs',
-	'**/*.mjs',
-	'**/*.ts',
+	'**/*.{js,cjs,mjs}',
+	'**/*.{ts,tsx,mts,cts}',
 	'.eslint-plugin-local/**/*.ts',
 	...readFileSync(join(import.meta.dirname, '..', '.eslint-ignore'))
 		.toString()

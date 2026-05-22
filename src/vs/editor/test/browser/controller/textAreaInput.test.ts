@@ -48,7 +48,7 @@ suite('TextAreaInput', () => {
 	async function simulateInteraction(recorded: IRecorded): Promise<OutoingEvent[]> {
 		const disposables = new DisposableStore();
 		const host: ITextAreaInputHost = {
-			context: null,
+			context: null!,
 			getScreenReaderContent: function (): TextAreaState {
 				return new TextAreaState('', 0, 0, null, undefined);
 			},

@@ -25,6 +25,30 @@ export function getRemoteName(authority: string | undefined): string | undefined
 	return authority.substr(0, pos);
 }
 
+/**
+ * Returns the suffix part of the authority after the '+' character.
+ * For remote connections, this is typically the server/tunnel identifier.
+ * Examples:
+ * - For tunnels: `tunnel+myTunnel` returns `myTunnel`
+ * - For SSH: `ssh+myserver` returns `myserver`
+ * - For localhost: `localhost:8000` returns `undefined`
+ * @param authority The remote authority string.
+ * @returns The suffix after the '+' character, or undefined if there is no '+' character.
+ */
+export function getRemoteServerRootPath(authority: string): string | undefined;
+export function getRemoteServerRootPath(authority: undefined): undefined;
+export function getRemoteServerRootPath(authority: string | undefined): string | undefined;
+export function getRemoteServerRootPath(authority: string | undefined): string | undefined {
+	if (!authority) {
+		return undefined;
+	}
+	const pos = authority.indexOf('+');
+	if (pos < 0) {
+		return undefined;
+	}
+	return authority.substring(pos + 1);
+}
+
 export function parseAuthorityWithPort(authority: string): { host: string; port: number } {
 	const { host, port } = parseAuthority(authority);
 	if (typeof port === 'undefined') {

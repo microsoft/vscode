@@ -23,6 +23,7 @@
 	],
 	"exclude": [
 		"../../src/**/test/**",
-		"../../src/**/fixtures/**"
+		"../../src/**/fixtures/**",
+		"../../src/typings/editContext.d.ts"
 	]
 }
