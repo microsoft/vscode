@@ -134,7 +134,7 @@ function formatAicPrice(price: number): string {
 export function formatPricingLabel(pricing: IChatEndpointTokenPricing): string {
 	return l10n.t(
 		'In: {0} · Out: {1} AICs/1M tokens',
-		formatAicPrice(pricing.inputPrice),
-		formatAicPrice(pricing.outputPrice),
+		formatAicPrice(pricing.default.inputPrice),
+		formatAicPrice(pricing.default.outputPrice),
 	);
 }

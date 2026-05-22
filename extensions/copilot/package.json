@@ -1737,6 +1737,7 @@
         "vendor": "anthropic",
         "displayName": "Anthropic",
         "configuration": {
+          "type": "object",
           "properties": {
             "apiKey": {
               "type": "string",
@@ -1754,6 +1755,7 @@
         "vendor": "xai",
         "displayName": "xAI",
         "configuration": {
+          "type": "object",
           "properties": {
             "apiKey": {
               "type": "string",
@@ -1771,6 +1773,7 @@
         "vendor": "gemini",
         "displayName": "Google",
         "configuration": {
+          "type": "object",
           "properties": {
             "apiKey": {
               "type": "string",
@@ -1788,6 +1791,7 @@
         "vendor": "openrouter",
         "displayName": "OpenRouter",
         "configuration": {
+          "type": "object",
           "properties": {
             "apiKey": {
               "type": "string",
@@ -1805,6 +1809,7 @@
         "vendor": "openai",
         "displayName": "OpenAI",
         "configuration": {
+          "type": "object",
           "properties": {
             "apiKey": {
               "type": "string",
@@ -1987,10 +1992,15 @@
                 "responses",
                 "messages"
               ],
+              "enumItemLabels": [
+                "Chat Completions",
+                "Responses",
+                "Messages"
+              ],
               "enumDescriptions": [
-                "Chat Completions API.",
-                "Responses API.",
-                "Messages API."
+                "Chat Completions API",
+                "Responses API",
+                "Messages API"
               ],
               "default": "chat-completions",
               "title": "API Type",
@@ -2039,6 +2049,17 @@
                       "responses",
                       "messages"
                     ],
+                    "enumItemLabels": [
+                      "Chat Completions",
+                      "Responses",
+                      "Messages"
+                    ],
+                    "enumDescriptions": [
+                      "Chat Completions API",
+                      "Responses API",
+                      "Messages API"
+                    ],
+                    "title": "API Type",
                     "markdownDescription": "Request/response format used to talk to this endpoint:\n- `chat-completions`: Chat Completions API (default).\n- `responses`: Responses API.\n- `messages`: Messages API.\n\nWhen omitted, falls back to the group-level `apiType`, then to the URL path."
                   },
                   "toolCalling": {
@@ -6620,6 +6641,13 @@
         ]
       },
       {
+        "path": "./assets/prompts/chronicle-cost-tips.prompt.md",
+        "when": "github.copilot.sessionSearch.enabled",
+        "sessionTypes": [
+          "local"
+        ]
+      },
+      {
         "path": "./assets/prompts/chronicle-reindex.prompt.md",
         "when": "github.copilot.sessionSearch.enabled",
         "sessionTypes": [
@@ -6866,7 +6894,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "^1.0.48",
+    "@github/copilot": "1.0.49",
     "@google/genai": "^1.22.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",
@@ -6885,7 +6913,7 @@
     "@opentelemetry/sdk-trace-node": "^2.5.1",
     "@opentelemetry/semantic-conventions": "^1.39.0",
     "@sinclair/typebox": "^0.34.41",
-    "@vscode/copilot-api": "^0.3.1",
+    "@vscode/copilot-api": "^0.4.0",
     "@vscode/extension-telemetry": "^1.5.1",
     "@vscode/l10n": "^0.0.18",
     "@vscode/prompt-tsx": "^0.4.0-alpha.8",

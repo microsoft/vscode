@@ -47,9 +47,9 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../nod
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
+import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetadataStore.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
-import { SessionClientToolsDiff } from '../../node/claude/clientTools/claudeSessionClientToolsModel.js';
 import { IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
@@ -544,6 +544,7 @@ interface ITestContext {
 	readonly sessionData: RecordingSessionDataService;
 	readonly stateManager: AgentHostStateManager;
 	readonly configService: AgentConfigurationService;
+	readonly instantiationService: IInstantiationService;
 }
 
 /**
@@ -594,7 +595,7 @@ function createTestContext(
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
-	return { agent, proxy, api, sdk, sessionData, stateManager, configService };
+	return { agent, proxy, api, sdk, sessionData, stateManager, configService, instantiationService };
 }
 
 /** Drains the microtask queue so awaited refresh writes settle. */
@@ -1049,6 +1050,100 @@ suite('ClaudeAgent', () => {
 			startupCallCount: 0,
 			listSessionsCallCount: 0,
 		});
+	});
+
+	test('createProvisional creates a session without SDK startup contact', async () => {
+		const { sdk, instantiationService } = createTestContext(disposables);
+
+		const session = disposables.add(ClaudeAgentSession.createProvisional(
+			'test-session',
+			AgentSession.uri('claude', 'test-session'),
+			URI.file('/workspace'),
+			undefined,
+			undefined,
+			undefined,
+			new PendingRequestRegistry<CallToolResult>(),
+			'default',
+			instantiationService.createInstance(ClaudeSessionMetadataStore, 'claude'),
+			instantiationService,
+		));
+
+		assert.deepStrictEqual({
+			startupCallCount: sdk.startupCallCount,
+			sessionId: session.sessionId,
+			sessionUri: session.sessionUri.toString(),
+		}, {
+			startupCallCount: 0,
+			sessionId: 'test-session',
+			sessionUri: 'claude:/test-session',
+		});
+	});
+
+	test('pipeline methods throw before materialize on provisional sessions', async () => {
+		const { instantiationService } = createTestContext(disposables);
+		const session = disposables.add(ClaudeAgentSession.createProvisional(
+			'test-session',
+			AgentSession.uri('claude', 'test-session'),
+			URI.file('/workspace'),
+			undefined,
+			undefined,
+			undefined,
+			new PendingRequestRegistry<CallToolResult>(),
+			'default',
+			instantiationService.createInstance(ClaudeSessionMetadataStore, 'claude'),
+			instantiationService,
+		));
+
+		await assert.rejects(
+			session.send({
+				type: 'user',
+				message: { role: 'user', content: [{ type: 'text', text: 'hello' }] },
+				session_id: 'test-session',
+				parent_tool_use_id: null,
+			}, 'turn-1'),
+			/session is not materialized/i,
+		);
+	});
+
+	test('resume keeps the existing overlay model (materialize does not clobber on isResume)', async () => {
+		// On the resume path `session.materialize(ctx)` must NOT write the
+		// session overlay: the overlay is the SOURCE of model /
+		// permissionMode at resume time. If materialize wrote unconditionally,
+		// the user's prior model selection would be silently overwritten with
+		// whatever default `_resumeSession` had to fall back to.
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		// Phase 1: fresh materialize so the overlay is seeded with the
+		// session's initial model.
+		const initialModel = { id: 'claude-sonnet-4.6', config: { thinkingLevel: 'high' } };
+		const created = await agent.createSession({ workingDirectory: URI.file('/work-resume'), model: initialModel });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+
+		// Phase 2: user changes the model post-materialize — this hits the
+		// runtime path inside session.setModel and rewrites the overlay.
+		const updatedModel = { id: 'claude-opus-4.6', config: { thinkingLevel: 'medium' } };
+		await agent.changeModel(created.session, updatedModel);
+
+		// Phase 3: simulate cross-window resume by tearing the in-memory
+		// entry down and forcing the resume branch on the next send.
+		await agent.disposeSession(created.session);
+		sdk.sessionList = [{ sessionId, cwd: '/work-resume', summary: '', lastModified: Date.now() }];
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'turn 2', undefined, 'turn-2');
+
+		// Phase 4: confirm the overlay still carries the updated model from
+		// Phase 2. If materialize wrote unconditionally on resume, the
+		// overlay would carry whatever model the resume path passed in
+		// (typically the initial materialize-time model).
+		const metadataAfterResume = await agent.getSessionMetadata(created.session);
+		assert.deepStrictEqual(
+			metadataAfterResume?.model,
+			updatedModel,
+			'resume must not clobber the overlay model',
+		);
 	});
 
 	test('createSession honors config.session when the workbench pre-mints the URI', async () => {
@@ -3324,28 +3419,34 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		// deferred MUST resolve with `false` so the SDK's `for await`
 		// loop unwinds and the subprocess shuts down cleanly.
 		const sdk = new FakeClaudeAgentSdkService();
-		const warm = new FakeWarmQuery(sdk);
 		const fakeConfigService: IAgentConfigurationService = {
 			getSessionConfigValues: () => undefined,
 		} as unknown as IAgentConfigurationService;
+		const sessionData = new RecordingSessionDataService(createSessionDataService());
 		const services = new ServiceCollection(
 			[ILogService, new NullLogService()],
 			[IAgentConfigurationService, fakeConfigService],
+			[IClaudeAgentSdkService, sdk],
+			[ISessionDataService, sessionData],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
-		const dbRef = { object: new TestSessionDatabase(), dispose: () => { } };
-		const session = disposables.add(instantiationService.createInstance(
-			ClaudeAgentSession,
+		const session = disposables.add(ClaudeAgentSession.createProvisional(
 			'session-id',
 			URI.parse('claude:/session-id'),
+			URI.file('/workspace'),
 			undefined,
-			warm,
-			new AbortController(),
-			dbRef,
+			undefined,
+			undefined,
 			new PendingRequestRegistry<CallToolResult>(),
-			new SessionClientToolsDiff(),
 			'default',
+			instantiationService.createInstance(ClaudeSessionMetadataStore, 'claude'),
+			instantiationService,
 		));
+		await session.materialize({
+			proxyHandle: { baseUrl: 'http://127.0.0.1:0', nonce: 'n', dispose: () => { } },
+			canUseTool: async () => ({ behavior: 'deny', message: 'unused' }),
+			isResume: false,
+		});
 
 		const permission = session.requestPermission({
 			toolUseID: 'tu_1',

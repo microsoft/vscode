@@ -757,7 +757,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			skillItems.map(i => ({ name: i.name, description: i.description, uri: i.uri.toString() })).sort((a, b) => a.name.localeCompare(b.name)),
 			[
 				{ name: 'Pretty Name', description: 'A friendly skill description', uri: 'vscode-agent-host://test/plugins/skills-bundle/skills/valid-skill/SKILL.md' },
-				{ name: 'legacy', description: undefined, uri: 'vscode-agent-host://test/plugins/skills-bundle/skills/legacy.skill.md' },
 			].sort((a, b) => a.name.localeCompare(b.name)),
 		);
 

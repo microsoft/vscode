@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* eslint-disable no-restricted-globals */
+/* eslint-disable no-restricted-syntax */
 
 // Only `import type` is allowed in preload scripts — Electron preloads cannot resolve module imports at runtime.
 import type { IBrowserViewTheme } from '../common/browserView.js';
@@ -46,7 +47,6 @@ function init() {
 	// Listen for keydown events that the page did not handle and forward them for shortcut handling.
 	window.addEventListener('keydown', (event) => {
 		// Require that the event is trusted -- i.e. user-initiated.
-		// eslint-disable-next-line no-restricted-syntax
 		if (!(event instanceof KeyboardEvent) || !event.isTrusted) {
 			return;
 		}
@@ -155,10 +155,29 @@ function init() {
 		}
 	}, { capture: true });
 
+	// Invoked over IPC to support frames (executeJavaScriptInIsolatedWorld doesn't exist on WebFrameMain).
+	ipcRenderer.on('vscode:browserView:setTheme', (_event: unknown, theme: IBrowserViewTheme) => {
+		elementPicker.setTheme(theme);
+	});
+	ipcRenderer.on('vscode:browserView:startElementPicker', (_event: unknown) => {
+		elementPicker.start();
+	});
+	ipcRenderer.on('vscode:browserView:stopElementPicker', (_event: unknown) => {
+		elementPicker.stop();
+	});
+	ipcRenderer.on('vscode:browserView:highlightElement', (_event: unknown, { elementId }: { elementId: string }) => {
+		const element = getElement(elementId);
+		if (element) {
+			elementPicker.highlight(element);
+		}
+	});
+	ipcRenderer.on('vscode:browserView:hideHighlight', (_event: unknown) => {
+		elementPicker.hideHighlight();
+	});
+
 	const getElement = (id: string): Element | null => {
 		switch (id) {
 			case 'active':
-				// eslint-disable-next-line no-restricted-syntax
 				return document.activeElement;
 			case 'context-menu-target':
 				return contextMenuTargetRef?.deref() ?? null;
@@ -180,26 +199,18 @@ function init() {
 			} catch {
 				return '';
 			}
-		},
-		setTheme(theme: IBrowserViewTheme): void {
-			elementPicker.setTheme(theme);
-		},
-		pickElement: elementPicker.api,
-		highlightElement(id: string): boolean {
-			const element = getElement(id);
-			if (!element) {
-				return false;
-			}
-			elementPicker.highlight(element);
-			return true;
-		},
-		hideHighlight(): void {
-			elementPicker.hideHighlight();
 		}
 	};
 
+	// Generate a unique token for this frame instance. This token is used to
+	// correlate the Electron WebFrameMain (available via IPC senderFrame) with
+	// the CDP target session (discoverable via Runtime.evaluate in the main world).
+	const frameToken = `frame-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 	const mainWorldHelpers = {
-		getElement
+		getElement,
+		/** Opaque token exposed for CDP-side frame matching. */
+		getFrameToken(): string { return frameToken; }
 	};
 
 	try {
@@ -214,7 +225,7 @@ function init() {
 		console.error(error);
 	}
 
-	ipcRenderer.send('vscode:browserView:preloadReady');
+	ipcRenderer.send('vscode:browserView:preloadReady', frameToken);
 }
 
 /**
@@ -233,9 +244,7 @@ function findCommonVisibleAncestor(candidates: readonly (Node | null | undefined
 	// Find the nearest visible ancestor of a single element.
 	const findVisible = (el: Element): Element => {
 		for (let cur: Element | null = el; cur; cur = cur.parentElement) {
-			// eslint-disable-next-line no-restricted-syntax
 			const width = cur instanceof HTMLElement ? cur.offsetWidth : cur.clientWidth;
-			// eslint-disable-next-line no-restricted-syntax
 			const height = cur instanceof HTMLElement ? cur.offsetHeight : cur.clientHeight;
 			if (width > 0 && height > 0) {
 				return cur;
@@ -307,12 +316,6 @@ class ElementPicker {
 	private _highlightTarget: Element | undefined;
 	private _cursorStylesheet: HTMLStyleElement | undefined;
 
-	readonly api = {
-		start: (): boolean => this.start(),
-		stop: (): void => this.stop(),
-		isActive: (): boolean => this._selectionActive,
-	};
-
 	constructor(
 		private readonly _onPicked: (element: Element) => void,
 		private readonly _onStopped: () => void
@@ -376,7 +379,6 @@ class ElementPicker {
 			return true;
 		}
 		this._continuous = false; // for now
-		// eslint-disable-next-line no-restricted-syntax
 		document.documentElement.appendChild(this._shadowHost);
 		this._selectionActive = true;
 
@@ -385,13 +387,12 @@ class ElementPicker {
 		// Updated to crosshair in _onPointerDown, reset in _onPointerUp.
 		const cursorStyle = document.createElement('style');
 		cursorStyle.textContent = ElementPicker._CURSOR_DEFAULT;
-		// eslint-disable-next-line no-restricted-syntax
 		document.head.appendChild(cursorStyle);
 		this._cursorStylesheet = cursorStyle;
 
 		// Register high-frequency listeners only while selection is active.
 		window.addEventListener('pointermove', this._onPointerMove, true);
-		window.addEventListener('pointerleave', this._onPointerLeave, true);
+		document.addEventListener('pointerleave', this._onPointerLeave, true);
 		window.addEventListener('pointerdown', this._onPointerDown, true);
 		window.addEventListener('pointerup', this._onPointerUp, true);
 		window.addEventListener('click', this._onClick, true);
@@ -413,7 +414,7 @@ class ElementPicker {
 
 		// Remove high-frequency listeners.
 		window.removeEventListener('pointermove', this._onPointerMove, true);
-		window.removeEventListener('pointerleave', this._onPointerLeave, true);
+		document.removeEventListener('pointerleave', this._onPointerLeave, true);
 		window.removeEventListener('pointerdown', this._onPointerDown, true);
 		window.removeEventListener('pointerup', this._onPointerUp, true);
 		window.removeEventListener('click', this._onClick, true);
@@ -444,7 +445,6 @@ class ElementPicker {
 	 */
 	highlight(element: Element): void {
 		if (!this._shadowHost.parentNode) {
-			// eslint-disable-next-line no-restricted-syntax
 			document.documentElement.appendChild(this._shadowHost);
 		}
 		this._updateHighlight(element);
@@ -584,7 +584,6 @@ class ElementPicker {
 
 	/** Return the page element under a viewport point, skipping our own overlay host. */
 	private _pickElementAt(x: number, y: number): Element | undefined {
-		// eslint-disable-next-line no-restricted-syntax
 		const candidates = document.elementsFromPoint(x, y);
 		for (const el of candidates) {
 			if (el === this._shadowHost || this._shadowHost.contains(el)) {
@@ -654,7 +653,6 @@ class ElementPicker {
 		const labelTop = Math.max(0, Math.min(viewportHeight - labelHeight, idealTop));
 		// Use clientWidth (excludes scrollbar) rather than innerWidth so the
 		// label doesn't extend behind the scrollbar on Windows/Linux.
-		// eslint-disable-next-line no-restricted-syntax
 		const viewportWidth = document.documentElement.clientWidth;
 		// Position label at the element's left edge, but push it left if it
 		// would overflow the viewport. Clamp to 0 so it never goes off-screen.

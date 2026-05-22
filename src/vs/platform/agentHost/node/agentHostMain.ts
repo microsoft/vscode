@@ -36,6 +36,7 @@ import { getLogLevel, ILogService, isDevConsoleLogForwardingEnabled, registerDev
 import { LogService } from '../../log/common/logService.js';
 import { LoggerService } from '../../log/node/loggerService.js';
 import { LoggerChannel } from '../../log/common/logIpc.js';
+import { OtlpEmitterLogger, OtlpLogEmitter } from '../common/otlp/otlpLogEmitter.js';
 import { DefaultURITransformer } from '../../../base/common/uriIpc.js';
 import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -49,6 +50,9 @@ import { InstantiationService } from '../../instantiation/common/instantiationSe
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { SessionDataService } from './sessionDataService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../sandbox/common/terminalSandboxMxcRuntime.js';
+import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService.js';
+import { SandboxHelperService } from '../../sandbox/node/sandboxHelper.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
@@ -91,7 +95,14 @@ async function startAgentHost(): Promise<void> {
 	const loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);
 	server.registerChannel(AgentHostIpcChannels.Logger, new LoggerChannel(loggerService, () => DefaultURITransformer));
 	const logger = loggerService.createLogger('agenthost', { name: localize('agentHost', "Agent Host") });
-	const logService = new LogService(logger);
+	// OTLP log fan-out: any consumer that subscribes to the host's
+	// `ahp-otlp://logs/{level}` channel will receive every log record this
+	// `ILogService` produces, in addition to the regular file logger. The
+	// emitter is created here so it can be shared by every protocol
+	// handler instantiated below.
+	const otlpLogEmitter = disposables.add(new OtlpLogEmitter());
+	const otlpLogger = disposables.add(new OtlpEmitterLogger(otlpLogEmitter));
+	const logService = new LogService(logger, [otlpLogger]);
 	if (!environmentService.isBuilt && isDevConsoleLogForwardingEnabled) {
 		disposables.add(registerDevConsoleLogForwarder(logService));
 	}
@@ -123,6 +134,8 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IProductService, productService);
 		diServices.set(ITelemetryService, telemetryService);
 		instantiationService = new InstantiationService(diServices);
+		diServices.set(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
+		diServices.set(ISandboxHelperService, new SandboxHelperService());
 		const gitService = instantiationService.createInstance(AgentHostGitService);
 		diServices.set(IAgentHostGitService, gitService);
 		// Checkpoint service depends on session data + git services, so
@@ -223,6 +236,7 @@ async function startAgentHost(): Promise<void> {
 				{
 					defaultDirectory: URI.file(os.homedir()).toString(),
 					completionTriggerCharacters: agentService.completionTriggerCharacters,
+					otlpLogEmitter,
 				},
 				clientFileSystemProvider,
 				logService,
@@ -290,6 +304,7 @@ async function startAgentHost(): Promise<void> {
 		instantiationService,
 		environmentService.logsHome,
 		logService,
+		otlpLogEmitter,
 		disposables,
 		count => connectionCountEmitter.fire(count),
 	).catch(err => {
@@ -315,6 +330,7 @@ async function startWebSocketServer(
 	instantiationService: IInstantiationService,
 	logsHome: URI,
 	logService: ILogService,
+	otlpLogEmitter: OtlpLogEmitter,
 	disposables: DisposableStore,
 	onConnectionCountChanged: (count: number) => void,
 ): Promise<void> {
@@ -354,6 +370,7 @@ async function startWebSocketServer(
 		{
 			defaultDirectory: URI.file(os.homedir()).toString(),
 			completionTriggerCharacters: agentService.completionTriggerCharacters,
+			otlpLogEmitter,
 		},
 		clientFileSystemProvider,
 		logService,

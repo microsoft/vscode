@@ -89,6 +89,16 @@ export interface IChatMLFetcherErrorData {
 	resumeEventSeen: boolean | undefined;
 }
 
+function getTurnFromBaseTelemetry(baseTelemetry: TelemetryData): number | undefined {
+	const turnIndex = baseTelemetry.properties.turnIndex;
+	if (typeof turnIndex !== 'string') {
+		return undefined;
+	}
+
+	const parsedTurnIndex = Number(turnIndex);
+	return Number.isFinite(parsedTurnIndex) ? parsedTurnIndex : undefined;
+}
+
 export class ChatMLFetcherTelemetrySender {
 
 	public static sendSuccessTelemetry(
@@ -130,6 +140,7 @@ export class ChatMLFetcherTelemetrySender {
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
 				"associatedRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Another request ID that this request is associated with (eg, the originating request of a summarization request)." },
+				"turn": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "How many turns have been made in the conversation.", "isMeasurement": true },
 				"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort level" },
 				"reasoningSummary": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning summary level" },
 				"fetcher": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The fetcher used for the request" },
@@ -207,6 +218,7 @@ export class ChatMLFetcherTelemetrySender {
 			...(baseTelemetry?.properties.connectivityTestErrorGitHubRequestId ? { connectivityTestErrorGitHubRequestId: baseTelemetry.properties.connectivityTestErrorGitHubRequestId } : {}),
 			...(baseTelemetry?.properties.retryAfterFilterCategory ? { retryAfterFilterCategory: baseTelemetry.properties.retryAfterFilterCategory } : {}),
 		}, {
+			turn: getTurnFromBaseTelemetry(baseTelemetry),
 			totalTokenMax: chatEndpointInfo?.modelMaxPromptTokens ?? -1,
 			tokenCountMax: maxResponseTokens,
 			promptTokenCount: chatCompletion.usage?.prompt_tokens,
