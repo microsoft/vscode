@@ -8,7 +8,7 @@ import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IFileService } from '../../files/common/files.js';
-import { AhpJsonlLogger, getAhpLogEntryByteLength } from './ahpJsonlLogger.js';
+import { AhpJsonlLogger } from './ahpJsonlLogger.js';
 import { IRemoteFilesystemConnection } from './agentHostFileSystemProvider.js';
 import {
 	ContentEncoding, type DirectoryEntry, type ResourceDeleteParams, type ResourceDeleteResult,
@@ -65,7 +65,7 @@ export class AgentHostClientResourceChannel implements IServerChannel {
 	}
 
 	private _logReverseFrame(frame: object, dir: 'c2s' | 's2c'): void {
-		this._ahpLogger?.log(frame, dir, getAhpLogEntryByteLength(frame));
+		this._ahpLogger?.log(frame, dir);
 	}
 
 	private async _call<T>(_ctx: unknown, command: string, arg?: unknown): Promise<T> {
