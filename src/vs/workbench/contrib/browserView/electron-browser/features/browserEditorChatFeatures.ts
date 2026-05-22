@@ -400,6 +400,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				fullName: localize('browserScreenshot', 'Browser Screenshot'),
 				kind: 'image',
 				value: screenshotBuffer.buffer,
+				mimeType: 'image/jpeg',
 			}];
 
 			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
