@@ -127,7 +127,7 @@ suite('CopilotShellTools', () => {
 
 	function markCreatedTerminalsExist(terminalManager: TestAgentHostTerminalManager): void {
 		for (const created of terminalManager.created) {
-			terminalManager.existingTerminalUris.add(created.params.terminal);
+			terminalManager.existingTerminalUris.add(created.params.channel);
 		}
 	}
 

@@ -164,8 +164,8 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.getSubscriptionUnmanaged<ComponentToState[T]>(kind, resource);
 	}
 
-	dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
-		this._protocolClient?.dispatch(action);
+	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+		this._protocolClient?.dispatch(channel, action);
 	}
 
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {

@@ -118,6 +118,12 @@
 			justify-content: center;
 		}
 
+		> .monaco-pixel-spinner {
+			flex-shrink: 0;
+			width: 16px;
+			height: 16px;
+		}
+
 		&.session-icon-pulse > .codicon {
 			animation: session-needs-input-pulse 2s ease-in-out infinite;
 		}
@@ -487,6 +493,11 @@
 
 		> .codicon {
 			font-size: 14px;
+			height: 20px;
+		}
+
+		> .monaco-pixel-spinner {
+			width: 20px;
 			height: 20px;
 		}
 	}

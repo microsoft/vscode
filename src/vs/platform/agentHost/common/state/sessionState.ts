@@ -52,6 +52,8 @@ export {
 	type SessionConfigState,
 	type FileEdit as ISessionFileDiff,
 	type ModelSelection,
+	type AgentSelection,
+	type CustomizationAgentRef,
 	type SessionModelInfo,
 	type SessionState,
 	type SessionSummary,
@@ -135,7 +137,29 @@ export const enum FileEditKind {
 // ---- Well-known URIs --------------------------------------------------------
 
 /** URI for the root state subscription. */
-export const ROOT_STATE_URI = 'agenthost:/root';
+export const ROOT_STATE_URI = 'ahp-root://';
+
+/** Scheme used by {@link ROOT_STATE_URI}. */
+export const AHP_ROOT_SCHEME = 'ahp-root';
+
+/**
+ * Returns `true` when `uri` identifies the root channel, regardless of
+ * whether the caller passes the canonical wire form (`'ahp-root://'`) or a
+ * variant that has been round-tripped through the workbench {@link URI} class
+ * (which normalizes the authority-less form to `'ahp-root:'`). Always prefer
+ * this helper over a direct `=== ROOT_STATE_URI` comparison so the two
+ * spellings stay interchangeable.
+ */
+export function isAhpRootChannel(uri: string): boolean {
+	if (uri === ROOT_STATE_URI) {
+		return true;
+	}
+	try {
+		return ResourceURI.parse(uri).scheme === AHP_ROOT_SCHEME;
+	} catch {
+		return false;
+	}
+}
 
 // ---- VS Code-specific derived types -----------------------------------------
 

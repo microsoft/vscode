@@ -15,7 +15,7 @@ import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, TerminalAction } from './protocol/action-origin.generated.js';
 import type { ChangesetState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
-import { ROOT_STATE_URI, StateComponents } from './sessionState.js';
+import { isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
 
 // --- Public API --------------------------------------------------------------
 
@@ -116,10 +116,10 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 
 	/**
 	 * Process an incoming action envelope. The subscription determines
-	 * whether the action is relevant via {@link _isRelevantAction}.
+	 * whether the action is relevant via {@link _isRelevantEnvelope}.
 	 */
 	receiveEnvelope(envelope: ActionEnvelope): void {
-		if (!this._isRelevantAction(envelope.action)) {
+		if (!this._isRelevantEnvelope(envelope)) {
 			return;
 		}
 
@@ -144,8 +144,8 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	/** Apply the reducer to confirmed state. Subclasses must implement. */
 	protected abstract _applyReducer(state: T, action: StateAction): T;
 
-	/** Whether the given action targets this subscription. */
-	protected abstract _isRelevantAction(action: StateAction): boolean;
+	/** Whether the given envelope targets this subscription. */
+	protected abstract _isRelevantEnvelope(envelope: ActionEnvelope): boolean;
 
 	/** Return optimistic state if write-ahead is active, otherwise `undefined`. */
 	protected _getOptimisticState(): T | undefined {
@@ -190,8 +190,8 @@ export class RootStateSubscription extends BaseAgentSubscription<RootState> {
 		return rootReducer(state, action as RootAction, this._log);
 	}
 
-	protected override _isRelevantAction(action: StateAction): boolean {
-		return action.type.startsWith('root/');
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return isAhpRootChannel(envelope.channel) && envelope.action.type.startsWith('root/');
 	}
 }
 
@@ -253,8 +253,8 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 		return sessionReducer(state, action as IProtocolSessionAction, this._log);
 	}
 
-	protected override _isRelevantAction(action: StateAction): boolean {
-		return isSessionAction(action) && action.session === this._sessionUri;
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return isSessionAction(envelope.action) && envelope.channel === this._sessionUri;
 	}
 
 	protected override _onSnapshotApplied(fromSeq: number): void {
@@ -363,8 +363,8 @@ export class TerminalStateSubscription extends BaseAgentSubscription<TerminalSta
 		return terminalReducer(state, action as TerminalAction, this._log);
 	}
 
-	protected override _isRelevantAction(action: StateAction): boolean {
-		return action.type.startsWith('terminal/') && (action as { terminal: string }).terminal === this._terminalUri;
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return envelope.action.type.startsWith('terminal/') && envelope.channel === this._terminalUri;
 	}
 }
 
@@ -396,8 +396,8 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
 		return changesetReducer(state, action as ChangesetAction, this._log);
 	}
 
-	protected override _isRelevantAction(action: StateAction): boolean {
-		return isChangesetAction(action) && action.changeset === this._changesetUri;
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return isChangesetAction(envelope.action) && envelope.channel === this._changesetUri;
 	}
 }
 
@@ -517,10 +517,13 @@ export class AgentSubscriptionManager extends Disposable {
 	/**
 	 * Dispatch a client action. Applies optimistically to the relevant
 	 * subscription if applicable, then returns the clientSeq.
+	 *
+	 * `channel` is the protocol URI string identifying the channel the
+	 * action targets (a session URI for session actions, etc.).
 	 */
-	dispatchOptimistic(action: SessionAction | TerminalAction | IRootConfigChangedAction): number {
+	dispatchOptimistic(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): number {
 		if (isSessionAction(action)) {
-			const entry = this._subscriptions.get(URI.parse(action.session));
+			const entry = this._subscriptions.get(URI.parse(channel));
 			if (entry?.sub instanceof SessionStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
@@ -576,12 +579,12 @@ export class AgentSubscriptionManager extends Disposable {
 	 * subscription when {@link ROOT_STATE_URI} matches, otherwise reseats the
 	 * matching entry in {@link _subscriptions}. Unknown resources are ignored.
 	 */
-	applyReconnectSnapshot(resource: URI, state: unknown, fromSeq: number): void {
-		if (resource.toString() === ROOT_STATE_URI) {
+	applyReconnectSnapshot(resource: string, state: unknown, fromSeq: number): void {
+		if (isAhpRootChannel(resource)) {
 			this._rootState.handleSnapshot(state as RootState, fromSeq);
 			return;
 		}
-		const entry = this._subscriptions.get(resource);
+		const entry = this._subscriptions.get(URI.parse(resource));
 		if (!entry) {
 			return;
 		}

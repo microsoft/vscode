@@ -590,12 +590,18 @@ async function promptForRemoteFolder(
 	if (!workspace) {
 		return;
 	}
+	const folderUri = workspace.folders[0]?.root;
+	if (!folderUri) {
+		return;
+	}
 
 	sessionsManagementService.openNewSessionView();
 	// TODO: open the new-chat view and call selectWorkspace once the sessions
 	// part has a content area wired up. The previous call opened the
 	// `NewChatViewPane` view which was hosted in the removed
 	// ViewContainerLocation.ChatBar.
+	// const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
+	// view?.selectWorkspace(folderUri);
 	void provider;
 	void workspace;
 }
@@ -939,12 +945,18 @@ async function promptForTunnelFolder(
 	if (!workspace) {
 		return;
 	}
+	const folderUri = workspace.folders[0]?.root;
+	if (!folderUri) {
+		return;
+	}
 
 	sessionsManagementService.openNewSessionView();
 	// TODO: open the new-chat view and call selectWorkspace once the sessions
 	// part has a content area wired up. The previous call opened the
 	// `NewChatViewPane` view which was hosted in the removed
 	// ViewContainerLocation.ChatBar.
+	// const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
+	// view?.selectWorkspace(folderUri);
 	void provider;
 	void workspace;
 }

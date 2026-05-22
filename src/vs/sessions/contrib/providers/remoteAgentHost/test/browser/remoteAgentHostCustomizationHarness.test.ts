@@ -9,8 +9,11 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ActionType, type ActionEnvelope, type INotification, type StateAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { CustomizationStatus, type AgentInfo, type CustomizationRef, type RootState, type SessionCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType, isSessionAction, type ActionEnvelope, type INotification, type StateAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { CustomizationStatus, type AgentInfo, type CustomizationRef, type RootState, type SessionCustomization, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { StateComponents, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
+import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { IFileService, type IFileContent, type IFileStat, type IFileStatResult } from '../../../../../../platform/files/common/files.js';
@@ -18,11 +21,10 @@ import { PromptsType } from '../../../../../../workbench/contrib/chat/common/pro
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { IAICustomizationWorkspaceService } from '../../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { createRemoteAgentCustomizationItemProvider, RemoteAgentPluginController } from '../../browser/remoteAgentHostCustomizationHarness.js';
 import { CustomizationHarnessServiceBase, IHarnessDescriptor } from '../../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { PromptsStorage } from '../../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from '../../../../../../workbench/contrib/chat/test/common/promptSyntax/service/mockPromptsService.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -38,7 +40,9 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	private _rootStateValue: RootState = { agents: [] };
 	override readonly rootState;
 
-	readonly dispatchedActions: StateAction[] = [];
+	private readonly _sessionStates = new Map<string, SessionState>();
+
+	readonly dispatchedActions: { channel: string; action: StateAction }[] = [];
 
 	constructor() {
 		super();
@@ -56,11 +60,34 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		this._rootStateValue = rootState;
 	}
 
-	override dispatch(action: StateAction): void {
-		this.dispatchedActions.push(action);
+	override dispatch(channel: string, action: StateAction): void {
+		this.dispatchedActions.push({ channel, action });
+	}
+
+	override getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
+		if (kind !== StateComponents.Session) {
+			return undefined;
+		}
+		const self = this;
+		const channel = resource.toString();
+		if (!self._sessionStates.has(channel)) {
+			return undefined;
+		}
+		const subscription: IAgentSubscription<SessionState> = {
+			get value() { return self._sessionStates.get(channel); },
+			get verifiedValue() { return self._sessionStates.get(channel); },
+			onDidChange: Event.None,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+		return subscription as IAgentSubscription<ComponentToState[T]>;
 	}
 
 	fireAction(envelope: ActionEnvelope): void {
+		if (isSessionAction(envelope.action)) {
+			const current = this._sessionStates.get(envelope.channel) ?? {} as SessionState;
+			this._sessionStates.set(envelope.channel, sessionReducer(current, envelope.action));
+		}
 		this._onDidAction.fire(envelope);
 	}
 
@@ -123,9 +150,12 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		await controller.removeConfiguredPlugin(pluginA);
 
 		assert.deepStrictEqual(connection.dispatchedActions, [{
-			type: ActionType.RootConfigChanged,
-			config: {
-				customizations: [pluginB],
+			channel: 'ahp-root://',
+			action: {
+				type: ActionType.RootConfigChanged,
+				config: {
+					customizations: [pluginB],
+				},
 			},
 		}]);
 	});
@@ -202,11 +232,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: agentHostSessionId,
 				customizations: [synced],
 			},
 		});
@@ -253,11 +283,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: agentHostSessionId,
 				customizations: [synced],
 			},
 		});
@@ -351,11 +381,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: agentHostSessionId,
 				customizations: [synced],
 			},
 		});
@@ -405,11 +435,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: agentHostSessionId,
 				customizations: [synced],
 			},
 		});
@@ -459,11 +489,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: agentHostSessionId,
 				customizations: [sessionCustomization],
 			},
 		});
@@ -508,14 +538,14 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		disposables.add(provider.onDidChange(() => changeCount++));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: agentHostSessionId,
 				customizations: [{
 					customization: pluginRef,
-					enabled: true,
+					enabled: true
 				}],
 			},
 		});
@@ -554,15 +584,15 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: agentHostSessionId,
 				customizations: [{
 					customization: clientPlugin,
 					clientId: 'test-client',
-					enabled: true,
+					enabled: true
 				}],
 			},
 		});
@@ -604,9 +634,12 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		assert.strictEqual(connection.dispatchedActions.length, 1);
 		assert.deepStrictEqual(connection.dispatchedActions[0], {
-			type: ActionType.RootConfigChanged,
-			config: {
-				customizations: [pluginA, pluginC],
+			channel: 'ahp-root://',
+			action: {
+				type: ActionType.RootConfigChanged,
+				config: {
+					customizations: [pluginA, pluginC],
+				},
 			},
 		});
 	});
@@ -642,11 +675,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		));
 
 		connection.fireAction({
+			channel: agentHostSessionId,
 			serverSeq: 1,
 			origin: undefined,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
-				session: agentHostSessionId,
 				customizations: [
 					{ customization: clientA, clientId: 'test-client', enabled: true },
 					{ customization: clientB, clientId: 'test-client', enabled: true },
@@ -724,7 +757,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			skillItems.map(i => ({ name: i.name, description: i.description, uri: i.uri.toString() })).sort((a, b) => a.name.localeCompare(b.name)),
 			[
 				{ name: 'Pretty Name', description: 'A friendly skill description', uri: 'vscode-agent-host://test/plugins/skills-bundle/skills/valid-skill/SKILL.md' },
-				{ name: 'legacy', description: undefined, uri: 'vscode-agent-host://test/plugins/skills-bundle/skills/legacy.skill.md' },
 			].sort((a, b) => a.name.localeCompare(b.name)),
 		);
 
@@ -792,7 +824,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			id: harnessId,
 			label: 'Remote Agent Host (test)',
 			icon: ThemeIcon.fromId(Codicon.remote.id),
-			getStorageSourceFilter: () => ({ sources: [PromptsStorage.plugin] }),
+			getStorageSourceFilter: () => ({ sources: [AICustomizationSources.plugin] }),
 			itemProvider: provider,
 		};
 		const harnessService = disposables.add(new CustomizationHarnessServiceBase([descriptor], harnessId, new MockPromptsService()));

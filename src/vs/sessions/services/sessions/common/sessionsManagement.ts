@@ -9,8 +9,37 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IChat, ISession, ISessionType } from './session.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
 import { ISendRequestOptions } from './sessionsProvider.js';
+
+/**
+ * A (provider, session-type) pair returned by
+ * {@link ISessionsManagementService.getSessionTypesForFolder} so the UI can
+ * group session types by provider when more than one provider can serve the
+ * same folder.
+ */
+export interface IProviderSessionType {
+	readonly providerId: string;
+	readonly sessionType: ISessionType;
+}
+
+/**
+ * Options for {@link ISessionsManagementService.createNewSession}.
+ */
+export interface ICreateNewSessionOptions {
+	/**
+	 * Force creation through a specific provider. When omitted, the service
+	 * iterates registered providers and picks the first one whose
+	 * {@link ISessionsProvider.resolveWorkspace} succeeds for the folder URI
+	 * (and, when `sessionTypeId` is given, whose `getSessionTypes` includes it).
+	 */
+	readonly providerId?: string;
+	/**
+	 * The session type to use. When omitted, defaults to the first type the
+	 * chosen provider advertises for the folder URI.
+	 */
+	readonly sessionTypeId?: string;
+}
 
 export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session supports multiple chats"));
 
@@ -60,6 +89,21 @@ export interface ISessionsManagementService {
 	 * Get all session types from all registered providers.
 	 */
 	getAllSessionTypes(): ISessionType[];
+
+	/**
+	 * Get all session types that can serve the given workspace URI, across all
+	 * registered providers. Returns one entry per (provider × supported type),
+	 * so the UI can group types by provider when more than one provider can
+	 * serve the same workspace.
+	 */
+	getSessionTypesForFolder(folderUri: URI): IProviderSessionType[];
+
+	/**
+	 * Resolve a workspace URI to a workspace using the first provider whose
+	 * {@link ISessionsProvider.resolveWorkspace} succeeds. Returns `undefined`
+	 * when no registered provider can resolve the URI.
+	 */
+	resolveWorkspace(workspaceUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined;
 
 	/**
 	 * Fires when available session types change (providers added/removed).
@@ -140,10 +184,16 @@ export interface ISessionsManagementService {
 	openNewSessionView(): void;
 
 	/**
-	 * Create a new session for the given workspace.
-	 * Delegates to the provider identified by providerId.
+	 * Create a new session for the given folder.
+	 *
+	 * When `options.providerId` is omitted, iterates registered providers and
+	 * picks the first one whose {@link ISessionsProvider.resolveWorkspace}
+	 * succeeds for `folderUri` (and, when `options.sessionTypeId` is given,
+	 * whose `getSessionTypes` includes it). When `options.sessionTypeId` is
+	 * omitted, defaults to the chosen provider's first advertised type for
+	 * the folder.
 	 */
-	createNewSession(providerId: string, workspaceUri: URI, sessionTypeId?: string): ISession;
+	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession;
 
 	/**
 	 * Unset the new session
@@ -153,7 +203,7 @@ export interface ISessionsManagementService {
 	/**
 	 * Send a request, creating a new chat in the session.
 	 */
-	sendAndCreateChat(session: ISession, options: ISendRequestOptions): Promise<void>;
+	sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void>;
 
 	/**
 	 * Send a request for an existing chat within a session.
@@ -165,7 +215,7 @@ export interface ISessionsManagementService {
 	 * Adds a new chat to the session via the provider, makes it the active chat,
 	 * and shows a rich input for composing a message.
 	 */
-	openNewChatInSession(session: ISession): void;
+	openNewChatInSession(session: ISession): Promise<void>;
 
 	/** Navigate to the previous session in the navigation history. */
 	openPreviousSession(): Promise<void>;
@@ -177,12 +227,16 @@ export interface ISessionsManagementService {
 
 	/** Archive a session. */
 	archiveSession(session: ISession): Promise<void>;
+
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
+
 	/** Delete a session. */
 	deleteSession(session: ISession): Promise<void>;
+
 	/** Delete a single chat from a session by its URI. */
 	deleteChat(session: ISession, chatUri: URI): Promise<void>;
+
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;
 }

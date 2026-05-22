@@ -58,19 +58,15 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private tryResolveAndSelect(folderUri: URI): boolean {
-		for (const provider of this.sessionsProvidersService.getProviders()) {
-			const workspace = provider.resolveWorkspace(folderUri);
-			if (workspace) {
-				// TODO: open the new-chat view and call selectWorkspace once the sessions
-				// part has a content area wired up. The previous call opened the
-				// `NewChatViewPane` view (SessionsViewId) which was hosted in the removed
-				// ViewContainerLocation.ChatBar.
-				void workspace;
-				void provider;
-				return true;
-			}
+		const resolved = this.sessionsManagementService.resolveWorkspace(folderUri);
+		if (!resolved) {
+			return false;
 		}
-		return false;
+		// TODO: open the new-chat view and call selectWorkspace once the sessions
+		// part has a content area wired up. The previous call opened the
+		// `NewChatViewPane` view (SessionsViewId) which was hosted in the removed
+		// ViewContainerLocation.ChatBar.
+		return true;
 	}
 }
 

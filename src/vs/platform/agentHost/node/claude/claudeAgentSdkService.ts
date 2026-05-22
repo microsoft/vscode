@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { GetSessionMessagesOptions, GetSubagentMessagesOptions, ListSessionsOptions, ListSubagentsOptions, Options, SDKSessionInfo, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AnyZodRawShape, GetSessionMessagesOptions, GetSubagentMessagesOptions, InferShape, ListSessionsOptions, ListSubagentsOptions, McpSdkServerConfigWithInstance, Options, SDKSessionInfo, SdkMcpToolDefinition, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import * as fs from 'fs';
 import { pathToFileURL } from 'url';
 import { join, resolve } from '../../../../base/common/path.js';
@@ -14,78 +15,41 @@ import { AgentHostClaudeSdkPathEnvVar } from '../../common/agentService.js';
 export const IClaudeAgentSdkService = createDecorator<IClaudeAgentSdkService>('claudeAgentSdkService');
 
 /**
- * Lazy wrapper over `@anthropic-ai/claude-agent-sdk` for the agent host
- * Claude provider. The interface grows phase-by-phase; Phase 5 introduces
- * the decorator so {@link import('./claudeAgent.js').ClaudeAgent} can take
- * it as a constructor dependency. Phase 6 adds {@link startup} for
- * materialization. Method surfaces are added in subsequent slices alongside
- * the tests that exercise them.
+ * Pure per-method passthrough shim over `@anthropic-ai/claude-agent-sdk`.
+ *
+ * Every method on this interface corresponds 1:1 to a single SDK export.
+ * The shim owns lazy module loading and the first-failure log-once
+ * convention; it does NOT compose, wrap, or add behavior on top of the
+ * SDK's surface. Higher-level orchestration (e.g. building the in-process
+ * client-tool MCP server) lives in dedicated modules that depend on this
+ * interface for the raw bindings.
  */
 export interface IClaudeAgentSdkService {
 	readonly _serviceBrand: undefined;
 
-	/**
-	 * Enumerates persisted Claude sessions surfaced by the SDK's filesystem
-	 * scan. Phase 5 mirrors `IAgent.listSessions()` (no `dir` parameter):
-	 * the host translates this internally to `sdk.listSessions(undefined)`.
-	 *
-	 * Failures (corrupt module, postinstall mishap) reject with the SDK
-	 * loader's diagnostic. Callers MUST tolerate rejection without
-	 * collapsing the wider listing pipeline.
-	 */
 	listSessions(): Promise<readonly SDKSessionInfo[]>;
-
-	/**
-	 * Looks up a single session's metadata by id. Resolves to `undefined`
-	 * when the SDK has no record of it (deleted from disk, never created,
-	 * or just outside the searched project tree). Used by
-	 * {@link import('./claudeAgent.js').ClaudeAgent.getSessionMetadata}
-	 * to compose SDK-supplied fields (summary, cwd, timestamps) with the
-	 * per-session DB overlay. Phase 6.1 / Cycle D4.
-	 */
 	getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined>;
-
-	/**
-	 * Pre-warms the SDK subprocess and runs the init handshake. Returns
-	 * a {@link WarmQuery} whose `.query(promptIterable)` binds the
-	 * prompt iterable and returns a streaming `Query`. Aborting
-	 * `options.abortController` either rejects this promise (if init is
-	 * in flight) or causes the resulting Query to clean up resources
-		 * (sdk.d.ts section `startup`).
-	 *
-	 * Phase 6 calls this from {@link ClaudeAgent._materializeProvisional}
-	 * on the first `sendMessage`. Firing `onDidMaterializeSession` is
-	 * deliberately deferred until after the await resolves so AgentService
-	 * can atomically dispatch the deferred `sessionAdded` notification.
-	 */
 	startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery>;
-
-	/**
-	 * Reads a session's full transcript from disk via the SDK. Out-of-process:
-	 * no live `Query` is required — the SDK parses the JSONL file directly.
-	 * Phase 13 calls this from {@link import('./claudeAgent.js').ClaudeAgent.getSessionMessages}
-	 * with `{ includeSystemMessages: true }` so `compact_boundary` and other
-	 * allowlisted system subtypes survive into the replay mapper.
-	 */
 	getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]>;
-
-	/**
-	 * Lists subagent ids the SDK has indexed for a given session. The SDK
-	 * returns ids in directory-readdir order (alphabetical in practice —
-	 * NOT invocation order) so callers MUST NOT rely on positional
-	 * correlation. Phase 12 uses this to enumerate child transcripts for
-	 * the live + replay subagent URI ingress.
-	 */
 	listSubagents(sessionId: string, options?: ListSubagentsOptions): Promise<readonly string[]>;
-
-	/**
-	 * Reads a single subagent's transcript from disk via the SDK. Mirrors
-	 * {@link getSessionMessages} for the child session: out-of-process,
-	 * SDK parses the per-agent JSONL directly. Phase 12 consumes this from
-	 * {@link import('./claudeSubagentResolver.js').getSubagentTranscript}
-	 * when the requested URI carries an `agentId` discriminator.
-	 */
 	getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<readonly SessionMessage[]>;
+
+	createSdkMcpServer(options: {
+		name: string;
+		version?: string;
+		// SDK signature: `tools?: Array<SdkMcpToolDefinition<any>>`. The `any`
+		// here is required to match the SDK's own erased generic and to allow
+		// callers to pass an array of tools whose schemas differ from each other.
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		tools?: Array<SdkMcpToolDefinition<any>>;
+	}): Promise<McpSdkServerConfigWithInstance>;
+
+	tool<Schema extends AnyZodRawShape>(
+		name: string,
+		description: string,
+		inputSchema: Schema,
+		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>
+	): Promise<SdkMcpToolDefinition<Schema>>;
 }
 
 /**
@@ -103,18 +67,20 @@ export interface IClaudeSdkBindings {
 	getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<SessionMessage[]>;
 	listSubagents(sessionId: string, options?: ListSubagentsOptions): Promise<string[]>;
 	getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<SessionMessage[]>;
+	createSdkMcpServer(options: {
+		name: string;
+		version?: string;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		tools?: Array<SdkMcpToolDefinition<any>>;
+	}): McpSdkServerConfigWithInstance;
+	tool<Schema extends AnyZodRawShape>(
+		name: string,
+		description: string,
+		inputSchema: Schema,
+		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>
+	): SdkMcpToolDefinition<Schema>;
 }
 
-/**
- * Production implementation. The SDK module is loaded lazily via dynamic
- * `import()` because it pulls in non-trivial deps that aren't relevant
- * unless the user has opted into the Claude agent.
- *
- * The loader's caching / log-once-on-failure semantics are locked by the
- * dedicated test in {@link import('../../test/node/claudeAgent.test.ts')},
- * which subclasses this and overrides {@link _loadSdk} to fault on demand.
- * That's why {@link _loadSdk} is `protected` rather than `private`.
- */
 export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	declare readonly _serviceBrand: undefined;
 
@@ -122,14 +88,12 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	 * Cached resolved bindings. We deliberately cache the *resolved* value,
 	 * not the in-flight promise — if a transient `import()` failure recovers
 	 * (e.g. user fixes a broken `node_modules`), the next call retries.
-	 * Mirrors the convention in `agentHostTerminalManager.ts` for `node-pty`.
 	 */
 	private _sdkModule: IClaudeSdkBindings | undefined;
 
 	/**
 	 * Latched once we've logged a load failure, so a corrupt postinstall
-	 * doesn't flood `error` events on every `listSessions()` call (each
-	 * workbench refresh and session-list rerender hits this path).
+	 * doesn't flood `error` events on every `listSessions()` call.
 	 */
 	private _firstLoadFailureLogged = false;
 
@@ -165,6 +129,26 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	async getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<readonly SessionMessage[]> {
 		const sdk = await this._getSdk();
 		return sdk.getSubagentMessages(sessionId, agentId, options);
+	}
+
+	async createSdkMcpServer(options: {
+		name: string;
+		version?: string;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		tools?: Array<SdkMcpToolDefinition<any>>;
+	}): Promise<McpSdkServerConfigWithInstance> {
+		const sdk = await this._getSdk();
+		return sdk.createSdkMcpServer(options);
+	}
+
+	async tool<Schema extends AnyZodRawShape>(
+		name: string,
+		description: string,
+		inputSchema: Schema,
+		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>
+	): Promise<SdkMcpToolDefinition<Schema>> {
+		const sdk = await this._getSdk();
+		return sdk.tool(name, description, inputSchema, handler);
 	}
 
 	private async _getSdk(): Promise<IClaudeSdkBindings> {
@@ -208,3 +192,29 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 		return import(pathToFileURL(entry).href);
 	}
 }
+
+// #region Compile-time SDK drift detection
+//
+// Enforce that every method on IClaudeSdkBindings names a real export of
+// `@anthropic-ai/claude-agent-sdk` and is assignable from that export's
+// type. If the SDK renames or changes the signature of any of these
+// exports, the `_assertBindingsMatchSdk` assignment below stops type-
+// checking and the build fails — flagging that the shim needs updating.
+
+type SdkModule = typeof import('@anthropic-ai/claude-agent-sdk');
+
+type AssertBindingsMatchSdk = {
+	[K in keyof IClaudeSdkBindings]: K extends keyof SdkModule
+	? SdkModule[K] extends IClaudeSdkBindings[K]
+	? true
+	: ['SDK export signature drifted from IClaudeSdkBindings', K, SdkModule[K], IClaudeSdkBindings[K]]
+	: ['Not an export of @anthropic-ai/claude-agent-sdk', K];
+};
+
+// Forces the mapped type above to be eagerly checked: if any entry is not
+// `true`, this assignment fails to compile. Module-local so the runtime
+// surface stays clean — the only purpose is the type-level assertion.
+const _assertBindingsMatchSdk: { [K in keyof IClaudeSdkBindings]: true } = null as unknown as AssertBindingsMatchSdk;
+void _assertBindingsMatchSdk;
+
+// #endregion

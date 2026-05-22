@@ -188,7 +188,7 @@ export class ChatCompositeBar extends Disposable {
 		store.add(autorun(reader => {
 			const chats = session.chats.read(reader);
 			const activeChatUri = session.activeChat.read(reader)?.resource.toString() ?? '';
-			const mainChatUri = session.mainChat.resource.toString();
+			const mainChatUri = session.mainChat.read(reader).resource.toString();
 			this._rebuildTabs(chats, activeChatUri, mainChatUri);
 		}));
 

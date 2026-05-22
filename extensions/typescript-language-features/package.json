@@ -2892,22 +2892,26 @@
       {
         "command": "typescript.sortImports",
         "title": "%typescript.sortImports%",
-        "category": "TypeScript"
+        "category": "TypeScript",
+        "enablement": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && typescript.isManagedFile"
       },
       {
         "command": "javascript.sortImports",
         "title": "%typescript.sortImports%",
-        "category": "JavaScript"
+        "category": "JavaScript",
+        "enablement": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && typescript.isManagedFile"
       },
       {
         "command": "typescript.removeUnusedImports",
         "title": "%typescript.removeUnusedImports%",
-        "category": "TypeScript"
+        "category": "TypeScript",
+        "enablement": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && typescript.isManagedFile"
       },
       {
         "command": "javascript.removeUnusedImports",
         "title": "%typescript.removeUnusedImports%",
-        "category": "JavaScript"
+        "category": "JavaScript",
+        "enablement": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && typescript.isManagedFile"
       },
       {
         "command": "typescript.experimental.enableTsgo",
@@ -2978,19 +2982,19 @@
         },
         {
           "command": "typescript.sortImports",
-          "when": "supportedCodeAction =~ /(\\s|^)source\\.sortImports\\b/ && editorLangId =~ /^typescript(react)?$/"
+          "when": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && typescript.isManagedFile && supportedCodeAction =~ /(\\s|^)source\\.sortImports\\b/ && editorLangId =~ /^typescript(react)?$/"
         },
         {
           "command": "javascript.sortImports",
-          "when": "supportedCodeAction =~ /(\\s|^)source\\.sortImports\\b/ && editorLangId =~ /^javascript(react)?$/"
+          "when": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && typescript.isManagedFile && supportedCodeAction =~ /(\\s|^)source\\.sortImports\\b/ && editorLangId =~ /^javascript(react)?$/"
         },
         {
           "command": "typescript.removeUnusedImports",
-          "when": "supportedCodeAction =~ /(\\s|^)source\\.removeUnusedImports\\b/ && editorLangId =~ /^typescript(react)?$/"
+          "when": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && typescript.isManagedFile && supportedCodeAction =~ /(\\s|^)source\\.removeUnusedImports\\b/ && editorLangId =~ /^typescript(react)?$/"
         },
         {
           "command": "javascript.removeUnusedImports",
-          "when": "supportedCodeAction =~ /(\\s|^)source\\.removeUnusedImports\\b/ && editorLangId =~ /^javascript(react)?$/"
+          "when": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && typescript.isManagedFile && supportedCodeAction =~ /(\\s|^)source\\.removeUnusedImports\\b/ && editorLangId =~ /^javascript(react)?$/"
         }
       ],
       "editor/context": [
