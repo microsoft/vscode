@@ -371,7 +371,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			}
 			await this.removeRecentlyOpened(toRemove);
 
-			// Add entries up to the slot count Explorer requested via getJumpListSettings().minItems.
+			// Add entries up to the slot count Explorer requested (jumpListSettings.minItems).
 			let hasWorkspaces = false;
 			const items: JumpListItem[] = coalesce((await this.getRecentlyOpened()).workspaces.slice(0, jumpListSettings.minItems).map(recent => {
 				const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
