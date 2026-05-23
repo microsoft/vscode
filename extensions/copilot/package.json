@@ -2154,6 +2154,36 @@
               "description": "API key for the models. If not set then Entra ID (Azure AD) authentication with your Microsoft account credentials will be used.",
               "title": "API Key"
             },
+            "entraAuthProvider": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "microsoft",
+                    "microsoft-sovereign-cloud"
+                  ]
+                }
+              ],
+              "default": "microsoft",
+              "markdownDescription": "Microsoft authentication provider to use for Entra ID authentication. Use `microsoft-sovereign-cloud` when authenticating with VS Code's configured Microsoft Sovereign Cloud provider. This controls the auth provider/authority, not the requested token scope.",
+              "title": "Entra Auth Provider"
+            },
+            "entraScopes": {
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1
+                }
+              ],
+              "default": [
+                "https://cognitiveservices.azure.com/.default"
+              ],
+              "markdownDescription": "Entra ID scopes to request for Azure authentication. Defaults to commercial Cognitive Services. Configure this for sovereign cloud resource audiences, APIM/custom app scopes, or B2B tenant targeting with `VSCODE_TENANT:<tenant-id>`.",
+              "title": "Entra Scopes"
+            },
             "models": {
               "type": "array",
               "defaultSnippets": [
