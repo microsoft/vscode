@@ -57,8 +57,8 @@ export interface IExtensionHostInitData {
 	uiKind: UIKind;
 	messagePorts?: ReadonlyMap<string, MessagePortLike>;
 	handle?: string;
-	/** When true, this extension host runs as a worker-isolated supervisor. */
-	workerIsolated?: boolean;
+	/** List of extension IDs to activate in worker threads within this ext host process. */
+	workerIsolatedExtensions?: string[];
 }
 
 export interface IEnvironment {

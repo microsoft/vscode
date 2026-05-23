@@ -57,7 +57,7 @@ import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWo
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkspaceExtensionsConfigService } from '../../../services/extensionRecommendations/common/workspaceExtensionsConfig.js';
 import { EXTENSIONS_SUPPORT_AGENTS_WINDOW } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
-import { EXTENSIONS_WORKER_ISOLATED_CONFIGURATION_KEY } from '../../../services/extensions/common/extensionRunningLocationTracker.js';
+import { EXTENSIONS_WORKER_ISOLATED_CONFIGURATION_KEY, EXTENSIONS_WORKER_ISOLATED_SEPARATE_PROCESS_KEY } from '../../../services/extensions/common/extensionRunningLocationTracker.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -261,6 +261,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				defaultSnippets: [{
 					'body': ['pub.name']
 				}]
+			},
+			[EXTENSIONS_WORKER_ISOLATED_SEPARATE_PROCESS_KEY]: {
+				type: 'boolean',
+				markdownDescription: localize('extensions.workerIsolatedSeparateProcess', "When enabled, worker-isolated extensions run in a separate extension host process instead of as worker threads within the main extension host process."),
+				default: false,
 			},
 			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
 				type: 'object',

@@ -17,6 +17,7 @@ import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRu
 import { isProposedApiEnabled } from './extensions.js';
 
 export const EXTENSIONS_WORKER_ISOLATED_CONFIGURATION_KEY = 'extensions.experimental.workerIsolated';
+export const EXTENSIONS_WORKER_ISOLATED_SEPARATE_PROCESS_KEY = 'extensions.experimental.workerIsolatedSeparateProcess';
 
 export class ExtensionRunningLocationTracker {
 
@@ -216,24 +217,29 @@ export class ExtensionRunningLocationTracker {
 		}
 
 		// Handle worker-isolated extensions: assign to a dedicated affinity
+		// (only when NOT using in-process mode — in that mode, the main ext host spawns workers itself)
 		const workerIsolatedAffinities = new Set<number>();
 		if (extensionHostKind === ExtensionHostKind.LocalProcess) {
-			const workerIsolatedIds = this._configurationService.getValue<string[]>(EXTENSIONS_WORKER_ISOLATED_CONFIGURATION_KEY) || [];
-			let isolatedAffinity: number | undefined;
-			for (const extensionId of workerIsolatedIds) {
-				const group = groups.get(extensionId);
-				if (!group) {
-					continue;
+			const workerIsolatedSeparateProcess = this._configurationService.getValue<boolean>(EXTENSIONS_WORKER_ISOLATED_SEPARATE_PROCESS_KEY) ?? false;
+			if (workerIsolatedSeparateProcess) {
+				const workerIsolatedIds = this._configurationService.getValue<string[]>(EXTENSIONS_WORKER_ISOLATED_CONFIGURATION_KEY) || [];
+				let isolatedAffinity: number | undefined;
+				for (const extensionId of workerIsolatedIds) {
+					const group = groups.get(extensionId);
+					if (!group) {
+						this._logService.warn(`Worker isolation: extension '${extensionId}' not found in LocalProcess groups (not installed or assigned to a different host kind)`);
+						continue;
+					}
+					if (!isInitialAllocation) {
+						this._logService.info(`Ignoring configured worker isolation for '${extensionId}' because extension host(s) are already running. Reload window.`);
+						continue;
+					}
+					if (isolatedAffinity === undefined) {
+						isolatedAffinity = ++lastAffinity;
+						workerIsolatedAffinities.add(isolatedAffinity);
+					}
+					resultingAffinities.set(group, isolatedAffinity);
 				}
-				if (!isInitialAllocation) {
-					this._logService.info(`Ignoring configured worker isolation for '${extensionId}' because extension host(s) are already running. Reload window.`);
-					continue;
-				}
-				if (isolatedAffinity === undefined) {
-					isolatedAffinity = ++lastAffinity;
-					workerIsolatedAffinities.add(isolatedAffinity);
-				}
-				resultingAffinities.set(group, isolatedAffinity);
 			}
 		}
 

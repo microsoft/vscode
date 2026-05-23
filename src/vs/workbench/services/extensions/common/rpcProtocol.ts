@@ -15,7 +15,7 @@ import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { IURITransformer, transformIncomingURIs } from '../../../../base/common/uriIpc.js';
 import { IMessagePassingProtocol } from '../../../../base/parts/ipc/common/ipc.js';
 import { CanceledLazyPromise, LazyPromise } from './lazyPromise.js';
-import { getStringIdentifierForProxy, IRPCProtocol, Proxied, ProxyIdentifier, SerializableObjectWithBuffers } from './proxyIdentifier.js';
+import { IRPCProtocol, Proxied, ProxyIdentifier, SerializableObjectWithBuffers } from './proxyIdentifier.js';
 
 export interface JSONStringifyReplacer {
 	(key: string, value: any): any;
@@ -114,6 +114,13 @@ const noop = () => { };
 const _RPCProtocolSymbol = Symbol.for('rpcProtocol');
 const _RPCProxySymbol = Symbol.for('rpcProxy');
 
+export interface RPCProtocolOptions {
+	readonly identifierCount: number;
+	readonly getStringIdentifier: (nid: number) => string;
+	readonly logger?: IRPCProtocolLogger | null;
+	readonly transformer?: IURITransformer | null;
+}
+
 export class RPCProtocol extends Disposable implements IRPCProtocol {
 
 	[_RPCProtocolSymbol] = true;
@@ -127,6 +134,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	private readonly _logger: IRPCProtocolLogger | null;
 	private readonly _uriTransformer: IURITransformer | null;
 	private readonly _uriReplacer: JSONStringifyReplacer | null;
+	private readonly _getStringIdentifier: (nid: number) => string;
 	private _isDisposed: boolean;
 	private readonly _locals: any[];
 	private readonly _proxies: any[];
@@ -138,16 +146,17 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	private _unresponsiveTime: number;
 	private _asyncCheckUresponsive: RunOnceScheduler;
 
-	constructor(protocol: IMessagePassingProtocol, logger: IRPCProtocolLogger | null = null, transformer: IURITransformer | null = null) {
+	constructor(protocol: IMessagePassingProtocol, options: RPCProtocolOptions) {
 		super();
 		this._protocol = protocol;
-		this._logger = logger;
-		this._uriTransformer = transformer;
+		this._logger = options.logger ?? null;
+		this._uriTransformer = options.transformer ?? null;
 		this._uriReplacer = createURIReplacer(this._uriTransformer);
+		this._getStringIdentifier = options.getStringIdentifier;
 		this._isDisposed = false;
 		this._locals = [];
 		this._proxies = [];
-		for (let i = 0, len = ProxyIdentifier.count; i < len; i++) {
+		for (let i = 0, len = options.identifierCount; i < len; i++) {
 			this._locals[i] = null;
 			this._proxies[i] = null;
 		}
@@ -358,7 +367,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	}
 
 	private _receiveRequest(msgLength: number, req: number, rpcId: number, method: string, args: any[], usesCancellationToken: boolean): void {
-		this._logger?.logIncoming(msgLength, req, RequestInitiator.OtherSide, `receiveRequest ${getStringIdentifierForProxy(rpcId)}.${method}(`, args);
+		this._logger?.logIncoming(msgLength, req, RequestInitiator.OtherSide, `receiveRequest ${this._getStringIdentifier(rpcId)}.${method}(`, args);
 		const callId = String(req);
 
 		let promise: Promise<any>;
@@ -449,11 +458,11 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	private _doInvokeHandler(rpcId: number, methodName: string, args: any[]): any {
 		const actor = this._locals[rpcId];
 		if (!actor) {
-			throw new Error('Unknown actor ' + getStringIdentifierForProxy(rpcId));
+			throw new Error('Unknown actor ' + this._getStringIdentifier(rpcId));
 		}
 		const method = actor[methodName];
 		if (typeof method !== 'function') {
-			throw new Error('Unknown method ' + methodName + ' on actor ' + getStringIdentifierForProxy(rpcId));
+			throw new Error('Unknown method ' + methodName + ' on actor ' + this._getStringIdentifier(rpcId));
 		}
 		return method.apply(actor, args);
 	}
@@ -490,7 +499,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		this._pendingRPCReplies[callId] = new PendingRPCReply(result, disposable);
 		this._onWillSendRequest(req);
 		const msg = MessageIO.serializeRequest(req, rpcId, methodName, serializedRequestArguments, !!cancellationToken);
-		this._logger?.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `request: ${getStringIdentifierForProxy(rpcId)}.${methodName}(`, args);
+		this._logger?.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `request: ${this._getStringIdentifier(rpcId)}.${methodName}(`, args);
 		this._protocol.send(msg);
 		return result;
 	}
