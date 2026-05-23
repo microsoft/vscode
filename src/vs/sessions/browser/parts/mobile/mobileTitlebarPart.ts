@@ -215,13 +215,18 @@ export class MobileTitlebarPart extends Disposable {
 				added += c.insertions;
 				removed += c.deletions;
 			}
-			const hasChanges = changes.length > 0 && (added > 0 || removed > 0);
+			const hasChanges = changes.length > 0;
 			// Hide on welcome / new-chat — no session changes to view there.
 			const visible = hasChanges && !isNewChatRef.value;
 			changesPill.style.display = visible ? '' : 'none';
 			if (visible) {
-				changesAddedEl.textContent = `+${added}`;
-				changesRemovedEl.textContent = `-${removed}`;
+				if (added > 0 || removed > 0) {
+					changesAddedEl.textContent = `+${added}`;
+					changesRemovedEl.textContent = `-${removed}`;
+				} else {
+					changesAddedEl.textContent = `${changes.length} file${changes.length > 1 ? 's' : ''}`;
+					changesRemovedEl.textContent = '';
+				}
 				changesPill.title = localize('mobileTopBar.changesTooltip', "{0} files changed (+{1} -{2})", changes.length, added, removed);
 			}
 		};
