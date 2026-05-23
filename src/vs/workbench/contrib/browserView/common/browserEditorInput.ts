@@ -21,7 +21,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
@@ -120,7 +120,7 @@ export class BrowserEditorInput extends EditorInput {
 	onceModelResolves(cb: (model: IBrowserViewModel) => void): IDisposable {
 		if (this._model) {
 			cb(this._model);
-			return { dispose() { /* noop */ } };
+			return Disposable.None;
 		} else {
 			return Event.once(this.onDidResolveModel)(cb);
 		}

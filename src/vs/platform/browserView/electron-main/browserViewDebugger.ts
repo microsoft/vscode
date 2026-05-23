@@ -123,6 +123,12 @@ export class BrowserViewDebugger extends Disposable {
 				return result;
 			}
 		}
+
+		// This crashes Electron in some circumstances. Don't pass it through.
+		if (method === 'Emulation.setDeviceMetricsOverride') {
+			return Promise.resolve({});
+		}
+
 		return this.sendCommandRaw(method, params, sessionId);
 	}
 

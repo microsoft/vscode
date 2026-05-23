@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IBrowserDeviceProfile } from '../common/browserView.js';
 import { ILogService } from '../../log/common/log.js';
@@ -23,7 +23,7 @@ export class BrowserViewEmulator extends Disposable {
 	private _device: IBrowserDeviceProfile | undefined;
 	private readonly _defaultUserAgent: string;
 	private _lastLayout = { containerWidth: 1024, containerHeight: 768, scale: 1, hostZoom: 1 };
-	private _lastApplied: { viewportWidth: number; viewportHeight: number; scale: number; hostZoom: number } | undefined;
+	private _lastApplied: { viewportWidth: number; viewportHeight: number; scale: number; hostZoom: number; mobile: boolean } | undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<IBrowserDeviceProfile | undefined>());
 	readonly onDidChange: Event<IBrowserDeviceProfile | undefined> = this._onDidChange.event;
@@ -37,13 +37,10 @@ export class BrowserViewEmulator extends Disposable {
 
 		// Chromium may reset emulation on cross-process navigation.
 		const onNavigate = () => {
-			if (this._device) {
-				void this._applyTouchAndMedia();
-				this._lastApplied = undefined;
-			}
+			this._lastApplied = undefined;
+			void this._reapply();
 		};
 		this.browser.webContents.on('did-navigate', onNavigate);
-		this._register(toDisposable(() => this.browser.webContents.removeListener('did-navigate', onNavigate)));
 
 		// Intercept external CDP emulation commands and fold them into the device profile so there is a single source of truth.
 		this._register(this.browser.debugger.registerCommandInterceptor((method, params, session) => this._intercept(method, params, session)));
@@ -62,18 +59,13 @@ export class BrowserViewEmulator extends Disposable {
 			this.browser.webContents.setUserAgent(nextUA ?? this._defaultUserAgent);
 		}
 
-		const mobileChanged = !!prev?.mobile !== !!device?.mobile;
-		const toggled = !!prev !== !!device;
-		if (mobileChanged || toggled) {
-			await this._applyTouchAndMedia();
+		if (prev && !device && this.isSafeToApplyEmulation()) {
+			this.browser.webContents.disableDeviceEmulation();
+			void this._applyTouchAndMedia();
 		}
 
 		this._lastApplied = undefined;
-		if (!device && this.isSafeToApplyEmulation()) {
-			this.browser.webContents.disableDeviceEmulation();
-		} else {
-			// New device may carry new width / height / deviceScaleFactor — reapply
-			// using the last container size + scale pushed via layout().
+		if (device && this.isSafeToApplyEmulation()) {
 			this._reapply();
 		}
 
@@ -106,10 +98,11 @@ export class BrowserViewEmulator extends Disposable {
 		const mobile = !!this._device.mobile;
 		const last = this._lastApplied;
 		if (last && last.viewportWidth === w && last.viewportHeight === h
-			&& Math.abs(last.scale - s) < 0.0001 && Math.abs(last.hostZoom - z) < 0.0001) {
+			&& Math.abs(last.scale - s) < 0.0001 && Math.abs(last.hostZoom - z) < 0.0001
+			&& last.mobile === mobile) {
 			return;
 		}
-		this._lastApplied = { viewportWidth: w, viewportHeight: h, scale: s, hostZoom: z };
+		this._lastApplied = { viewportWidth: w, viewportHeight: h, scale: s, hostZoom: z, mobile };
 		const params: Electron.Parameters = {
 			screenPosition: mobile ? 'mobile' : 'desktop',
 			screenSize: { width: w, height: h },
@@ -129,6 +122,10 @@ export class BrowserViewEmulator extends Disposable {
 		}
 
 		this.browser.webContents.enableDeviceEmulation(params);
+
+		if (mobile !== last?.mobile) {
+			void this._applyTouchAndMedia();
+		}
 	}
 
 	private isSafeToApplyEmulation(): boolean {
@@ -160,12 +157,6 @@ export class BrowserViewEmulator extends Disposable {
 	 * (geolocation, timezone, CPU throttling, locale, vision deficiency, …)
 	 * falls through to raw CDP. Only the root session is intercepted — worker
 	 * and iframe sub-sessions get pass-through behavior.
-	 *
-	 * Note: Playwright's automatic / default `Emulation.*` traffic is blocked
-	 * at the Playwright CDP transport (see IPlaywrightActionScope) so the
-	 * workbench stays in control of device emulation. This interceptor only
-	 * sees commands issued from inside a caller-initiated Playwright action
-	 * or from other legitimate CDP clients (e.g. the DevTools panel).
 	 */
 	private _intercept(method: string, params: unknown, session: ICDPConnection | undefined): Promise<unknown> | undefined {
 		if (session && session.targetId !== this.browser.debugger.targetId) {
