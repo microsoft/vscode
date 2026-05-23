@@ -12,6 +12,7 @@ import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { AutoOpenBarrier, Promises, disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { UriList } from '../../../../base/common/dataTransfer.js';
 import { debounce } from '../../../../base/common/decorators.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -2563,7 +2564,7 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 	}
 
 	onDragEnter(e: DragEvent) {
-		if (!containsDragType(e, DataTransfers.FILES, DataTransfers.RESOURCES, TerminalDataTransfers.Terminals, CodeDataTransfers.FILES)) {
+		if (!containsDragType(e, DataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.INTERNAL_URI_LIST, TerminalDataTransfers.Terminals, CodeDataTransfers.FILES)) {
 			return;
 		}
 
@@ -2627,6 +2628,17 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 		const rawResources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 		if (rawResources) {
 			path = URI.parse(JSON.parse(rawResources)[0]);
+		}
+
+		// Unlike `DataTransfers.RESOURCES`, the internal uri-list also carries folders and
+		// preserves remote (e.g. dev container) URIs, so it is required to support dropping
+		// directories into the terminal when connected to a remote. See #11494.
+		const rawInternalUriList = e.dataTransfer.getData(DataTransfers.INTERNAL_URI_LIST);
+		if (!path && rawInternalUriList) {
+			const uriList = UriList.parse(rawInternalUriList);
+			if (uriList.length) {
+				path = URI.parse(uriList[0]);
+			}
 		}
 
 		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
