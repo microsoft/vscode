@@ -365,6 +365,40 @@ describe('createResponsesRequestBody', () => {
 		})).toBe(1234);
 	});
 
+	it('emits explicit message item types for system and user input messages', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.System,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'You are helpful.' }],
+			},
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input).toEqual([
+			{
+				type: 'message',
+				role: 'system',
+				content: [{ type: 'input_text', text: 'You are helpful.' }],
+			},
+			{
+				type: 'message',
+				role: 'user',
+				content: [{ type: 'input_text', text: 'Hello' }],
+			},
+		]);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
 	it('still slices websocket requests by stateful marker index when compaction is disabled', () => {
 		const services = createPlatformServices();
 		const wsManager = new NullChatWebSocketManager();
@@ -428,6 +462,7 @@ describe('createResponsesRequestBody', () => {
 			encrypted_content: 'enc_ws',
 		});
 		expect(webSocketBody.input).toContainEqual({
+			type: 'message',
 			role: 'user',
 			content: [{ type: 'input_text', text: 'after marker' }],
 		});
@@ -652,6 +687,7 @@ describe('createResponsesRequestBody', () => {
 			encrypted_content: 'enc_http',
 		});
 		expect(body.input).toContainEqual({
+			type: 'message',
 			role: 'user',
 			content: [{ type: 'input_text', text: 'after marker' }],
 		});
@@ -761,6 +797,43 @@ describe('createResponsesRequestBody', () => {
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
 
 		expect(body.input).toHaveLength(0);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('emits explicit message item type for image content attached to tool results', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_1',
+				content: [
+					{ type: Raw.ChatCompletionContentPartKind.Text, text: 'tool text' },
+					{ type: Raw.ChatCompletionContentPartKind.Image, imageUrl: { url: 'data:image/png;base64,abc', detail: 'low' } },
+				],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input).toEqual([
+			{
+				type: 'function_call_output',
+				call_id: 'call_1',
+				output: 'tool text',
+			},
+			{
+				type: 'message',
+				role: 'user',
+				content: [
+					{ type: 'input_text', text: 'Image associated with the above tool call:' },
+					{ type: 'input_image', detail: 'low', image_url: 'data:image/png;base64,abc' },
+				],
+			},
+		]);
 
 		accessor.dispose();
 		services.dispose();
