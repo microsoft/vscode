@@ -2623,39 +2623,48 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 			return;
 		}
 
-		// Check if files were dragged from the tree explorer
-		let path: URI | undefined;
-		const rawResources = e.dataTransfer.getData(DataTransfers.RESOURCES);
-		if (rawResources) {
-			path = URI.parse(JSON.parse(rawResources)[0]);
-		}
-
-		// Unlike `DataTransfers.RESOURCES`, the internal uri-list also carries folders and
-		// preserves remote (e.g. dev container) URIs, so it is required to support dropping
-		// directories into the terminal when connected to a remote. See #11494.
-		const rawInternalUriList = e.dataTransfer.getData(DataTransfers.INTERNAL_URI_LIST);
-		if (!path && rawInternalUriList) {
-			const uriList = UriList.parse(rawInternalUriList);
-			if (uriList.length) {
-				path = URI.parse(uriList[0]);
-			}
-		}
-
-		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
-		if (!path && rawCodeFiles) {
-			path = URI.file(JSON.parse(rawCodeFiles)[0]);
-		}
-
-		if (!path && e.dataTransfer.files.length > 0 && getPathForFile(e.dataTransfer.files[0])) {
-			// Check if the file was dragged from the filesystem
-			path = URI.file(getPathForFile(e.dataTransfer.files[0])!);
-		}
-
+		const path = this._getDroppedUri(e.dataTransfer);
 		if (!path) {
 			return;
 		}
 
 		this._onDropFile.fire(path);
+	}
+
+	/**
+	 * Resolves the resource that was dropped onto the terminal from the various drag data
+	 * transfers, in order of precedence.
+	 */
+	private _getDroppedUri(dataTransfer: DataTransfer): URI | undefined {
+		// Resources dragged from the tree explorer. Note that this transfer only carries
+		// files, not folders.
+		const rawResources = dataTransfer.getData(DataTransfers.RESOURCES);
+		if (rawResources) {
+			return URI.parse(JSON.parse(rawResources)[0]);
+		}
+
+		// Unlike `DataTransfers.RESOURCES`, the internal uri-list also carries folders and
+		// preserves remote (e.g. dev container) URIs, so it is required to support dropping
+		// directories into the terminal when connected to a remote. See #11494.
+		const rawInternalUriList = dataTransfer.getData(DataTransfers.INTERNAL_URI_LIST);
+		if (rawInternalUriList) {
+			const uriList = UriList.parse(rawInternalUriList);
+			if (uriList.length) {
+				return URI.parse(uriList[0]);
+			}
+		}
+
+		const rawCodeFiles = dataTransfer.getData(CodeDataTransfers.FILES);
+		if (rawCodeFiles) {
+			return URI.file(JSON.parse(rawCodeFiles)[0]);
+		}
+
+		// Check if the file was dragged from the filesystem
+		if (dataTransfer.files.length > 0 && getPathForFile(dataTransfer.files[0])) {
+			return URI.file(getPathForFile(dataTransfer.files[0])!);
+		}
+
+		return undefined;
 	}
 
 	private _getDropSide(e: DragEvent): 'before' | 'after' {
