@@ -32,6 +32,14 @@ export interface IBuildOptionsInput {
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
 	readonly isResume: boolean;
 	readonly mcpServers: Record<string, McpSdkServerConfigWithInstance> | undefined;
+	/**
+	 * Local plugin directories to load at SDK startup. Projected onto
+	 * `Options.plugins` as `{ type: 'local', path }`. Omitted from the
+	 * returned options entirely when empty so the SDK keeps its default
+	 * (no plugins). Built per-session from
+	 * {@link SessionClientCustomizationsDiff.consume}.
+	 */
+	readonly plugins?: readonly URI[];
 }
 
 /**
@@ -88,6 +96,9 @@ export async function buildOptions(
 			? { resume: input.sessionId }
 			: { sessionId: input.sessionId }),
 		...(input.mcpServers ? { mcpServers: input.mcpServers } : {}),
+		...(input.plugins && input.plugins.length > 0
+			? { plugins: input.plugins.map(p => ({ type: 'local' as const, path: p.fsPath })) }
+			: {}),
 		settingSources: ['user', 'project', 'local'],
 		settings: { env: settingsEnv },
 		systemPrompt: { type: 'preset', preset: 'claude_code' },

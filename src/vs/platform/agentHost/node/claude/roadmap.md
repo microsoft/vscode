@@ -97,7 +97,7 @@ Phase numbers are stable identifiers — code comments, plan files
 do **not** renumber. The actual landing order diverges from numeric order
 to unblock self-hosting sooner:
 
-**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 10.5 → 11 → 12 → 6.5 → 14 → 15**
+**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 10.5 → 11 → 12 → 6.5 → 14 → 15 → 16**
 
 Phase 13 (session restoration) is pulled forward immediately after Phase 9
 because it unlocks two high-leverage capabilities:
@@ -1321,6 +1321,91 @@ native binaries.
 Exit criteria: a fresh VS Code install can use the Claude agent without
 manually installing the SDK or setting any path. SDK upgrades arrive as
 marketplace extension updates.
+
+### Phase 16 — Eager session materialization at create time
+
+**Status:** follow-up to Phase 11. Phase 11's
+`getProjectedSessionCustomizations` already returns the SDK-resolved
+customization tier when the pipeline is bound, but for provisional
+sessions it returns only the client-pushed half. The full picture —
+SDK-discovered skills (`~/.claude/skills/**`), agents (`.claude/agents/**`),
+and `~/.claude/settings.json` MCP servers — only materializes after the
+first `sendMessage`. Workbench UX wants the full list available
+immediately on `createSession` so a draft session can show its true
+capability surface before the user types.
+
+**Direction:** collapse the provisional/materialize split for the
+non-fork `createSession` path. `createSession` synchronously
+materializes (spawns the SDK subprocess, opens the proxy refcount,
+runs the metadata write, fires `onDidMaterializeSession`) before
+returning.
+
+**Why this is its own phase, not part of Phase 11.** Phase 11's
+projector and SDK snapshot work stand on their own — they make
+`getSessionCustomizations` correct *whenever* the pipeline is bound.
+The eager-materialize change rewrites the M9 lifecycle contract,
+touches the `_sessionSequencer`'s first-send branch, changes
+disposable semantics for never-used sessions, and updates CONTEXT.md.
+Coupling the two would inflate Phase 11's blast radius for no review
+benefit; landing them serially keeps each change small.
+
+**Scope:**
+
+- `ClaudeAgent.createSession` calls `_materializeProvisional(sessionId)`
+  synchronously before returning. Return value's `provisional` flag is
+  either dropped or redefined ("no on-disk transcript yet" rather than
+  "no SDK" — settle in the plan).
+- `_sessionSequencer`'s "first call materializes" branch in
+  `sendMessage` is removed; every reachable session has a live pipeline.
+- `disposeSession` for a never-sent session now tears down a live
+  subprocess (the existing teardown handles it but is no longer free —
+  audit cost).
+- Fork path (Phase 6.5, when it lands) already materializes synchronously
+  on `forkSession` return — semantics align naturally.
+- CONTEXT.md M9: revise the "Provisional sessions own no SDK
+  resources" invariant; relax the "two-phase contract is locked"
+  framing; update the lifecycle tables to reflect "creation is the
+  materialize trigger". Phase 16 owns the doc update.
+- Tests that exercise the provisional → first-send materialize race
+  (Phase 10.5 regression coverage, Phase 11 mid-turn toggle race)
+  reworked against the new contract.
+- `getSessionCustomizations` for a freshly-created session now returns
+  the full SDK-resolved + client-pushed projection without waiting on
+  a send.
+
+**Trade-offs accepted (documented for posterity):**
+
+- Drafting is no longer free — every `createSession` pays a subprocess
+  spawn, plugin sync, proxy refcount, and metadata write.
+- A draft the user cancels without sending costs the same as a session
+  that runs a turn (minus the actual model call).
+- The two-phase model (provisional → materialized) collapses into a
+  single phase for non-fork creation. Fork already materializes
+  eagerly; this aligns the two paths.
+
+**Open design points** (settle in the phase plan when scheduled):
+
+- Does `IAgentCreateSessionResult.provisional` get dropped, or
+  redefined to mean "no on-disk SDK transcript yet" (true until the
+  first message lands and the SDK persists)? Workbench callers may
+  rely on the flag for deferred-notification semantics.
+- `_onDidMaterializeSession` fires from inside `createSession`. The
+  service-layer deferred `sessionAdded` dispatch (`agentService.ts:412`)
+  must still see the event between the create and the visibility
+  window — verify ordering.
+- Failure modes: if materialization throws (proxy down, SDK install
+  broken), does `createSession` reject? Probably yes — the user has
+  no usable session anyway. Today's lazy path lets the failure surface
+  on first `sendMessage` instead; eager surfaces it earlier, which is
+  arguably better UX.
+- E2E coverage: a workbench scenario that creates a session and
+  inspects `getSessionCustomizations` *without* sending a message,
+  verifies the full SDK-resolved list is present.
+
+Exit criteria: `getSessionCustomizations(freshlyCreatedSession)`
+returns the full SDK + client-pushed projection synchronously after
+`createSession` resolves; M9 doc updated; Phase 10.5 / 11 race tests
+reworked and green.
 
 ---
 

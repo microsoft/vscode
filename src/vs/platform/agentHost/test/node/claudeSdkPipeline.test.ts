@@ -140,6 +140,52 @@ suite('ClaudeSdkPipeline', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	suite('reloadPlugins', () => {
+
+		test('forwards to the SDK Query', async () => {
+			let reloadCallCount = 0;
+			class WarmWithReload extends FakeWarmQuery {
+				override query(_prompt: string | AsyncIterable<SDKUserMessage>): Query {
+					this.queryCallCount++;
+					const q = new ImmediatelyDoneQuery();
+					(q as unknown as { reloadPlugins: () => Promise<{ commands: { name: string }[] }> }).reloadPlugins =
+						async () => { reloadCallCount++; return { commands: [] }; };
+					return q;
+				}
+			}
+			const controller = new AbortController();
+			const warm = new WarmWithReload();
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			const fs = disposables.add(new InMemoryFileSystemProvider());
+			disposables.add(fileService.registerProvider('file', fs));
+			const db = new TestSessionDatabase();
+			const dbRef: IReference<ISessionDatabase> = { object: db, dispose: () => { } };
+			const services = new ServiceCollection(
+				[ILogService, new NullLogService()],
+				[IFileService, fileService],
+				[IDiffComputeService, createZeroDiffComputeService()],
+			);
+			const inst: IInstantiationService = disposables.add(new InstantiationService(services));
+			const subagents = disposables.add(new SubagentRegistry());
+			const pipeline = disposables.add(inst.createInstance(
+				ClaudeSdkPipeline,
+				'sess-2',
+				URI.parse('claude:/sess-2'),
+				warm,
+				controller,
+				dbRef,
+				subagents,
+				undefined,
+			));
+			// Bind the query by issuing a send (iterator closes immediately).
+			pipeline.send(makePrompt('p1'), 'turn-A').catch(() => { /* expected */ });
+			await Promise.resolve();
+
+			await pipeline.reloadPlugins();
+			assert.strictEqual(reloadCallCount, 1);
+		});
+	});
+
 	suite('initial state', () => {
 
 		test('isResumed starts false and isAborted starts false', () => {
