@@ -7,7 +7,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IContextKey, IContextKeyService, ContextKeyExpr, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { Action2, registerAction2, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -466,7 +466,7 @@ class AddElementToChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
 			menu: {
-				id: MenuId.BrowserActionsToolbar,
+				id: MenuId.BrowserChatActionsMenu,
 				group: 'actions',
 				order: 1,
 				when: ChatContextKeys.enabled
@@ -502,7 +502,7 @@ class AddConsoleLogsToChatAction extends Action2 {
 			f1: true,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			menu: {
-				id: MenuId.BrowserActionsToolbar,
+				id: MenuId.BrowserChatActionsMenu,
 				group: 'actions',
 				order: 3,
 				when: ChatContextKeys.enabled
@@ -529,7 +529,7 @@ class AddScreenshotToChatAction extends Action2 {
 			f1: true,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			menu: {
-				id: MenuId.BrowserActionsToolbar,
+				id: MenuId.BrowserChatActionsMenu,
 				group: 'actions',
 				order: 2,
 				when: ChatContextKeys.enabled
@@ -547,6 +547,18 @@ class AddScreenshotToChatAction extends Action2 {
 registerAction2(AddElementToChatAction);
 registerAction2(AddConsoleLogsToChatAction);
 registerAction2(AddScreenshotToChatAction);
+
+// Expose the chat actions submenu (Add Element to Chat, etc.) as a split button in the browser actions toolbar.
+// The primary action (chevron's left side) is the first item in the submenu.
+MenuRegistry.appendMenuItem(MenuId.BrowserActionsToolbar, {
+	submenu: MenuId.BrowserChatActionsMenu,
+	title: localize2('browser.chatActionsSubmenu', "Add to Chat"),
+	icon: Codicon.inspect,
+	group: 'actions',
+	order: 1,
+	when: ChatContextKeys.enabled,
+	isSplitButton: true
+});
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
