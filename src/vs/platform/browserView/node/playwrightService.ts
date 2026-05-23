@@ -25,6 +25,13 @@ interface PlaywrightTransport {
 	onclose?: (reason?: string) => void;
 }
 
+/**
+ * Tracks whether a caller-initiated Playwright action is currently in flight.
+ */
+export interface IPlaywrightActionScope {
+	activeCalls: number;
+}
+
 declare module 'playwright-core' {
 	interface BrowserType {
 		_connectOverCDPTransport(transport: PlaywrightTransport): Promise<Browser>;
@@ -107,6 +114,8 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 		const group = await this.browserViewGroupRemoteService.createGroup({ mainWindowId: this.windowId, sessionId });
 
+		const actionScope: IPlaywrightActionScope = { activeCalls: 0 };
+
 		let browser: Browser;
 		try {
 			const playwright = await import('playwright-core');
@@ -117,6 +126,19 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 					this.onclose?.();
 				},
 				send(message) {
+					// Block Playwright's automatic / default emulation traffic. We
+					// only forward `Emulation.*` to the view while a caller-initiated
+					// action is running (see IPlaywrightActionScope) so the workbench
+					// stays in control of device emulation. Other traffic — e.g. the
+					// setup Playwright issues on its own when connecting or creating
+					// pages — is acknowledged with a synthetic success response and
+					// never hits the view.
+					if (actionScope.activeCalls === 0 && typeof message.method === 'string' && message.method.startsWith('Emulation.')) {
+						setTimeout(() => {
+							transport.onmessage?.({ id: message.id, result: {}, sessionId: message.sessionId });
+						}, 1);
+						return;
+					}
 					void group.sendCDPMessage(message);
 				}
 			};
@@ -139,6 +161,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 			sessionId,
 			browser,
 			group,
+			actionScope,
 			this.logService,
 			this.agentNetworkFilterService,
 		);
@@ -339,6 +362,7 @@ class PlaywrightSession extends Disposable {
 		readonly sessionId: string,
 		private _browser: Browser,
 		readonly group: IBrowserViewGroup,
+		private readonly actionScope: IPlaywrightActionScope,
 		private readonly logService: ILogService,
 		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
@@ -556,7 +580,7 @@ class PlaywrightSession extends Disposable {
 		this._onContextAdded(page.context());
 		page.once('close', () => this._onPageRemoved(page));
 		page.setDefaultTimeout(10000);
-		this._tabs.set(page, new PlaywrightTab(page, this.agentNetworkFilterService));
+		this._tabs.set(page, new PlaywrightTab(page, this.actionScope, this.agentNetworkFilterService));
 
 		const deferred = new DeferredPromise<string>();
 		const timeout = setTimeout(() => deferred.error(new Error(`Timed out waiting for browser view`)), timeoutMs);

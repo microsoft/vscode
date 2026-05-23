@@ -11,6 +11,7 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
@@ -30,6 +31,8 @@ import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ITerminalProfileService, TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { ISessionTaskRunnerRegistry } from '../../chat/browser/sessionTaskRunner.js';
+import { AgentHostSessionTaskRunner } from './agentHostSessionTaskRunner.js';
 
 const SessionsTerminalViewVisibleContext = new RawContextKey<boolean>('sessionsTerminalViewVisible', false);
 
@@ -433,6 +436,28 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 }
 
 registerWorkbenchContribution2(SessionsTerminalContribution.ID, SessionsTerminalContribution, WorkbenchPhase.AfterRestored);
+
+/**
+ * Registers an {@link AgentHostSessionTaskRunner} with the
+ * {@link ISessionTaskRunnerRegistry}. Lives next to the other agent-host
+ * terminal wiring so that the runner is removed together with the rest of
+ * the sessions terminal contribution if the agents app shuts down.
+ */
+class RegisterAgentHostSessionTaskRunnerContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessions.registerAgentHostTaskRunner';
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ISessionTaskRunnerRegistry registry: ISessionTaskRunnerRegistry,
+	) {
+		super();
+		const runner = instantiationService.createInstance(AgentHostSessionTaskRunner);
+		this._register(registry.register(runner));
+	}
+}
+
+registerWorkbenchContribution2(RegisterAgentHostSessionTaskRunnerContribution.ID, RegisterAgentHostSessionTaskRunnerContribution, WorkbenchPhase.BlockStartup);
 
 class OpenSessionInTerminalAction extends Action2 {
 

@@ -32,6 +32,7 @@ export enum BrowserViewCommandId {
 	// Chat actions
 	AddElementToChat = `${commandPrefix}.addElementToChat`,
 	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
+	AddScreenshotToChat = `${commandPrefix}.addScreenshotToChat`,
 
 	// Dev Tools
 	ToggleDevTools = `${commandPrefix}.toggleDevTools`,
@@ -85,6 +86,9 @@ export interface IBrowserViewBounds {
 	height: number;
 	zoomFactor: number;
 	cornerRadius: number;
+	emulation?: {
+		scale: number;
+	};
 }
 
 export interface IBrowserViewCaptureScreenshotOptions {
@@ -156,6 +160,7 @@ export interface IBrowserViewState {
 	storageScope: BrowserViewStorageScope;
 	browserZoomIndex: number;
 	isElementSelectionActive: boolean;
+	device: IBrowserDeviceProfile | undefined;
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -256,6 +261,17 @@ export function browserZoomAccessibilityLabel(zoomFactor: number): string {
 }
 
 /**
+ * The active device emulation profile. `undefined` fields mean "use the host default" for that property.
+ */
+export interface IBrowserDeviceProfile {
+	readonly width?: number;
+	readonly height?: number;
+	readonly mobile?: boolean;
+	readonly userAgent?: string;
+	readonly deviceScaleFactor?: number;
+}
+
+/**
  * This should match the isolated world ID defined in `preload-browserView.ts`.
  */
 export const browserViewIsolatedWorldId = 999;
@@ -281,6 +297,7 @@ export interface IBrowserViewService {
 	onDynamicDidClose(id: string): Event<void>;
 	onDynamicDidSelectElement(id: string): Event<IElementData>;
 	onDynamicDidChangeElementSelectionActive(id: string): Event<boolean>;
+	onDynamicDidChangeDeviceEmulation(id: string): Event<IBrowserDeviceProfile | undefined>;
 
 	/**
 	 * Get all known browser views with their ownership and state information.
@@ -430,6 +447,9 @@ export interface IBrowserViewService {
 
 	/** Set the browser zoom index (independent from VS Code zoom). */
 	setBrowserZoomIndex(id: string, zoomIndex: number): Promise<void>;
+
+	/** Set or clear the active device profile for a browser view. */
+	setDeviceEmulation(id: string, device: IBrowserDeviceProfile | undefined): Promise<void>;
 
 	/**
 	 * Trust a certificate for a given host in the browser view's session.

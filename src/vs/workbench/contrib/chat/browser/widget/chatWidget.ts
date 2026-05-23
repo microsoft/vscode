@@ -54,7 +54,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IC
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
-import { IChatModel, IChatModelInputState, IChatResponseModel } from '../../common/model/chatModel.js';
+import { IChatModel, IChatModelInputState, IChatResponseModel, logChangesToStateModel } from '../../common/model/chatModel.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode } from '../../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
@@ -2040,7 +2040,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		const currentInputModel = this.viewModel?.model?.inputModel?.state?.get();
 		if (!model) {
+			logChangesToStateModel(this.viewModel?.model?.inputModel, `ChatWidget.setModel to empty, old ${this.viewModel?.sessionResource.toString()}`, undefined, currentInputModel, this.logService);
 			// Flush any unsent draft to the outgoing input model before we drop our
 			// reference to it, so the host's `willDisposeModel` persistence sees it.
 			this.inputPart.flushInputStateToModel();
@@ -2057,6 +2059,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (isEqual(model.sessionResource, this.viewModel?.sessionResource)) {
 			return;
 		}
+
+		logChangesToStateModel(model.inputModel, `ChatWidget.setModel new ${model.sessionResource.toString()}, old ${this.viewModel?.sessionResource.toString()}`, model.inputModel.state.get(), currentInputModel, this.logService);
 
 		if (this.viewModel?.editing) {
 			this.finishedEditing();
@@ -2360,10 +2364,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Track them now so tip exclusions still update for commands like /init.
 		this.chatTipService.recordSlashCommandUsage(agentSlashPromptPart.name);
 
-		const sessionType = getChatSessionType(sessionResource);
-
 		// need to resolve the slash command to get the prompt file
-		const slashCommand = await this.customizationHarnessService.resolvePromptSlashCommand(agentSlashPromptPart.name, sessionType, CancellationToken.None);
+		const slashCommand = await this.customizationHarnessService.resolvePromptSlashCommand(agentSlashPromptPart.name, sessionResource, CancellationToken.None);
 		if (!slashCommand) {
 			return true;
 		}

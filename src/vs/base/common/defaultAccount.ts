@@ -11,6 +11,7 @@ export interface IQuotaSnapshotData {
 	readonly quota_reset_at?: number;
 	readonly token_based_billing?: boolean;
 	readonly entitlement?: string;
+	readonly quota_remaining?: number;
 	readonly has_quota?: boolean;
 }
 

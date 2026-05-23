@@ -15,8 +15,8 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
-import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, isAgentHostEnabled } from '../common/agentService.js';
+import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
@@ -29,7 +29,7 @@ import { IFileService } from '../../files/common/files.js';
 import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AgentHostClientResourceChannel } from '../common/agentHostClientResourceChannel.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, AgentHostSessionSyncEnabledConfigKey, SESSION_SYNC_ENABLED_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 
 /**
  * Renderer-side implementation of {@link IAgentHostService} that connects
@@ -120,9 +120,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID) || e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)) {
 				this._updateTelemetryLevel();
 			}
+			if (e.affectsConfiguration(SESSION_SYNC_ENABLED_SETTING_ID)) {
+				this._updateSessionSyncEnabled();
+			}
 		}));
 
-		if (this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+		if (isAgentHostEnabled(this._configurationService)) {
 			this._connect();
 		}
 	}
@@ -143,12 +146,13 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		client.registerChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, new AgentHostClientResourceChannel(this._fileService, this._ahpLogger));
 		this._clientEventually.complete(client);
 		this._updateTelemetryLevel();
+		this._updateSessionSyncEnabled();
 
 		store.add(this._proxy.onDidAction(e => {
 			const revived = revive(e) as ActionEnvelope;
 			if (this._ahpLogger) {
 				const frame = { jsonrpc: '2.0' as const, method: 'action', params: e };
-				this._ahpLogger.log(frame, 's2c', getAhpLogByteLength(JSON.stringify(frame)));
+				this._ahpLogger.log(frame, 's2c');
 			}
 			this._subscriptionManager.receiveEnvelope(revived);
 			this._onDidAction.fire(revived);
@@ -156,7 +160,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		store.add(this._proxy.onDidNotification(e => {
 			if (this._ahpLogger) {
 				const frame = { jsonrpc: '2.0' as const, method: 'notification', params: { notification: e } };
-				this._ahpLogger.log(frame, 's2c', getAhpLogByteLength(JSON.stringify(frame)));
+				this._ahpLogger.log(frame, 's2c');
 			}
 			this._onDidNotification.fire(revive(e));
 		}));
@@ -172,9 +176,17 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	private _updateTelemetryLevel(): void {
-		this.dispatchAction({
+		this.dispatchAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(getTelemetryLevel(this._configurationService)) },
+		}, this.clientId, 0);
+	}
+
+	private _updateSessionSyncEnabled(): void {
+		const enabled = !!this._configurationService.getValue<boolean>(SESSION_SYNC_ENABLED_SETTING_ID);
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostSessionSyncEnabledConfigKey]: enabled },
 		}, this.clientId, 0);
 	}
 
@@ -220,8 +232,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private unsubscribe(resource: URI): void {
 		this._proxy.unsubscribe(resource, this.clientId);
 	}
-	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
-		this._proxy.dispatchAction(action, clientId, clientSeq);
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+		this._proxy.dispatchAction(channel, action, clientId, clientSeq);
 	}
 	private _nextSeq = 1;
 	nextClientSeq(): number {
@@ -240,9 +252,9 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
 	}
 
-	dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
-		const seq = this._subscriptionManager.dispatchOptimistic(action);
-		this.dispatchAction(action, this.clientId, seq);
+	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
+		this.dispatchAction(channel, action, this.clientId, seq);
 	}
 
 	resourceList(uri: URI): Promise<ResourceListResult> {

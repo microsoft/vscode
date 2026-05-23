@@ -108,6 +108,7 @@ export class ChatStatusDashboard extends DomWidget {
 	private readonly timeFormatter = safeIntl.DateTimeFormat(language, { hour: 'numeric', minute: 'numeric' });
 	private readonly quotaPercentageFormatter = safeIntl.NumberFormat(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 });
 	private readonly quotaCreditsFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 2, minimumFractionDigits: 0 });
+	private readonly quotaCreditsCompactFormatter = safeIntl.NumberFormat(language, { notation: 'compact', maximumFractionDigits: 1, minimumFractionDigits: 0 });
 
 	constructor(
 		private readonly options: IChatStatusDashboardOptions | undefined,
@@ -155,6 +156,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 		// Title header with plan name, CTA buttons, and manage action
 		let headerAdditionalSpendButton: Button | undefined;
+		let headerUpgradeButton: Button | undefined;
 		if (hasUsageSection && !this.options?.compactQuotaLayout) {
 			const planName = getChatPlanName(this.chatEntitlementService.entitlement);
 			const headerHost = this.options?.titleHeaderContainer ?? this.element;
@@ -185,13 +187,13 @@ export class ChatStatusDashboard extends DomWidget {
 				}
 			}
 
-			if (showUpgrade && !canConfigureAdditionalSpend) {
-				const upgradeButton = this._store.add(new Button(header, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate }));
-				upgradeButton.element.classList.add('header-cta-button');
-				upgradeButton.label = localize('upgrade', "Upgrade");
-				this._store.add(upgradeButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
+			if (showUpgrade) {
+				headerUpgradeButton = this._store.add(new Button(header, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate }));
+				headerUpgradeButton.element.classList.add('header-cta-button');
+				headerUpgradeButton.label = localize('upgrade', "Upgrade");
+				this._store.add(headerUpgradeButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
 				if (actionBarElement) {
-					header.insertBefore(upgradeButton.element, actionBarElement);
+					header.insertBefore(headerUpgradeButton.element, actionBarElement);
 				}
 			}
 		}
@@ -211,10 +213,10 @@ export class ChatStatusDashboard extends DomWidget {
 				}));
 			}
 
-			if (showUpgrade && !canConfigureAdditionalSpend) {
-				const upgradeButton = this._store.add(new Button(ctaContainer, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate }));
-				upgradeButton.label = localize('upgrade', "Upgrade");
-				this._store.add(upgradeButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
+			if (showUpgrade) {
+				headerUpgradeButton = this._store.add(new Button(ctaContainer, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate }));
+				headerUpgradeButton.label = localize('upgrade', "Upgrade");
+				this._store.add(headerUpgradeButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
 			}
 		}
 
@@ -228,7 +230,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 		// Usage section — always shown inline
 		if (hasVisibleUsageContent) {
-			this.renderUsageContent(this.element, token, headerAdditionalSpendButton, updatePromise);
+			this.renderUsageContent(this.element, token, headerAdditionalSpendButton, headerUpgradeButton, updatePromise);
 		}
 
 		// Premium chat included indicator (shown when premium chat is unlimited)
@@ -268,7 +270,7 @@ export class ChatStatusDashboard extends DomWidget {
 		this.renderSetupSection();
 	}
 
-	private renderUsageContent(container: HTMLElement, token: CancellationToken, headerAdditionalSpendButton: Button | undefined, updatePromise: Promise<void>): void {
+	private renderUsageContent(container: HTMLElement, token: CancellationToken, headerAdditionalSpendButton: Button | undefined, headerUpgradeButton: Button | undefined, updatePromise: Promise<void>): void {
 		const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota, resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
 		const compact = !!this.options?.compactQuotaLayout;
 		const planName = compact ? getChatPlanName(this.chatEntitlementService.entitlement) : undefined;
@@ -283,6 +285,11 @@ export class ChatStatusDashboard extends DomWidget {
 			// Update header additional spend button visibility based on callout
 			if (headerAdditionalSpendButton) {
 				headerAdditionalSpendButton.element.style.display = initialCalloutVisible ? '' : 'none';
+			}
+
+			// Update header upgrade button visibility: hide when manage budget button is visible
+			if (headerUpgradeButton) {
+				headerUpgradeButton.element.style.display = (headerAdditionalSpendButton && initialCalloutVisible) ? 'none' : '';
 			}
 
 			let chatQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
@@ -326,6 +333,9 @@ export class ChatStatusDashboard extends DomWidget {
 				if (headerAdditionalSpendButton) {
 					headerAdditionalSpendButton.element.style.display = calloutVisible ? '' : 'none';
 					headerAdditionalSpendButton.label = localize('manageBudget', "Manage Budget");
+				}
+				if (headerUpgradeButton) {
+					headerUpgradeButton.element.style.display = (headerAdditionalSpendButton && calloutVisible) ? 'none' : '';
 				}
 			};
 
@@ -509,7 +519,9 @@ export class ChatStatusDashboard extends DomWidget {
 		const newUser = isNewUser(this.chatEntitlementService) && !hasByokModels;
 		const anonymousUser = this.chatEntitlementService.anonymous;
 		const disabled = this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted;
-		const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown && !hasByokModels;
+		// Keep the Sign-in entry visible even when BYOK models are present so air-gapped
+		// users can still authenticate to unlock the full Copilot experience.
+		const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 		if (!(newUser || signedOut || disabled)) {
 			return;
 		}
@@ -528,7 +540,7 @@ export class ChatStatusDashboard extends DomWidget {
 		} else if (disabled) {
 			descriptionText = localize('enableDescription', "Enable Copilot to use AI features.");
 		} else {
-			descriptionText = localize('signInDescription', "Sign in to use Copilot AI features.");
+			descriptionText = localize('signInDescription', "Sign in to use GitHub Copilot AI features.");
 		}
 
 		let buttonLabel: string;
@@ -539,7 +551,7 @@ export class ChatStatusDashboard extends DomWidget {
 		} else if (disabled) {
 			buttonLabel = localize('enableCopilotButton', "Enable AI Features");
 		} else {
-			buttonLabel = localize('signInToUseAIFeatures', "Sign in to use AI Features");
+			buttonLabel = localize('signInToUseAIFeatures', "Sign in to use GitHub Copilot");
 		}
 
 		let commandId: string;
@@ -739,9 +751,16 @@ export class ChatStatusDashboard extends DomWidget {
 		const showCredits = () => {
 			if (typeof currentQuota !== 'string' && currentQuota.entitlement) {
 				const total = currentQuota.entitlement;
-				const used = total * (100 - currentQuota.percentRemaining) / 100;
-				const usedFormatted = this.quotaCreditsFormatter.value.format(used);
-				const totalFormatted = this.quotaCreditsFormatter.value.format(total);
+				const used = currentQuota.quotaRemaining !== undefined
+					? total - currentQuota.quotaRemaining
+					: total * (100 - currentQuota.percentRemaining) / 100;
+				const compactThreshold = 100_000;
+				const usedFormatted = used >= compactThreshold
+					? this.quotaCreditsCompactFormatter.value.format(used)
+					: this.quotaCreditsFormatter.value.format(used);
+				const totalFormatted = total >= compactThreshold
+					? this.quotaCreditsCompactFormatter.value.format(total)
+					: this.quotaCreditsFormatter.value.format(total);
 				quotaValueText.textContent = localize('quotaCreditsDisplay', "{0} / {1}", usedFormatted, totalFormatted);
 				quotaValueSuffix.textContent = isCompact
 					? localize('quotaLabelUsed', "{0} used", label)

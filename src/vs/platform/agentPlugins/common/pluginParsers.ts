@@ -12,6 +12,7 @@ import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
+import { parseFrontMatter } from '../../../base/common/yaml.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../mcp/common/mcpPlatformTypes.js';
 
 // ---------------------------------------------------------------------------
@@ -60,6 +61,11 @@ export interface IMcpServerDefinition {
 export interface INamedPluginResource {
 	readonly uri: URI;
 	readonly name: string;
+	/**
+	 * Optional short description, populated for resources whose readers
+	 * parse it from the file's YAML frontmatter (e.g. agents).
+	 */
+	readonly description?: string;
 }
 
 /** The result of parsing a single plugin directory. */
@@ -734,6 +740,45 @@ export async function readMarkdownComponents(dirs: readonly URI[], fileService: 
 	return items;
 }
 
+/**
+ * Reads `.md` files in agent directories and enriches each entry with
+ * the optional `name` / `description` from YAML frontmatter. Falls back
+ * to the file-derived name when frontmatter is missing or unreadable.
+ */
+export async function readAgentComponents(dirs: readonly URI[], fileService: IFileService): Promise<readonly INamedPluginResource[]> {
+	const files = await readMarkdownComponents(dirs, fileService);
+	if (files.length === 0) {
+		return files;
+	}
+	const enriched = await Promise.all(files.map(async file => {
+		try {
+			const content = await fileService.readFile(file.uri);
+			const frontmatter = parseFrontMatter(content.value.toString());
+			const fmName = frontmatter?.getStringValue('name')?.trim();
+			const fmDescription = frontmatter?.getStringValue('description')?.trim();
+			return {
+				uri: file.uri,
+				name: fmName || file.name,
+				...(fmDescription ? { description: fmDescription } : {}),
+			} satisfies INamedPluginResource;
+		} catch {
+			return file;
+		}
+	}));
+	// De-dupe again in case frontmatter `name` collides; first-seen wins.
+	const seen = new Set<string>();
+	const result: INamedPluginResource[] = [];
+	for (const item of enriched) {
+		if (seen.has(item.name)) {
+			continue;
+		}
+		seen.add(item.name);
+		result.push(item);
+	}
+	result.sort((a, b) => a.name.localeCompare(b.name));
+	return result;
+}
+
 async function readHooks(
 	pluginUri: URI,
 	paths: readonly URI[],
@@ -855,7 +900,7 @@ export async function parsePlugin(
 			? Promise.resolve(embeddedMcp)
 			: readMcpServers(mcpDirs, pluginUri.fsPath, formatConfig, fileService),
 		readSkills(pluginUri, skillDirs, fileService),
-		readMarkdownComponents(agentDirs, fileService),
+		readAgentComponents(agentDirs, fileService),
 	]);
 
 	return { hooks, mcpServers, skills, agents };

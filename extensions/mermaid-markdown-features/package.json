@@ -60,17 +60,17 @@
       "webview/context": [
         {
           "command": "_mermaid-markdown.openInEditor",
-          "when": "webviewId == 'vscode.mermaid-markdown-features.chatOutputItem' || ((webviewId == 'markdown.preview' || webviewId == 'vscode.markdown.preview.editor' || webviewId == 'notebook.output') && webviewSection == 'mermaid')",
+          "when": "webviewId == 'vscode.mermaid-markdown-features.chatOutputItem' || (webviewSection == 'mermaid' && (webviewId == 'markdown.preview' || webviewId == 'vscode.markdown.preview.editor' || webviewId == 'notebook.output'))",
           "group": "navigation@1"
         },
         {
           "command": "_mermaid-markdown.copySource",
-          "when": "webviewId == 'vscode.mermaid-markdown-features.chatOutputItem' || webviewId == 'vscode.mermaid-markdown-features.preview' || ((webviewId == 'markdown.preview' || webviewId == 'vscode.markdown.preview.editor' || webviewId == 'notebook.output') && webviewSection == 'mermaid')",
+          "when": "webviewId == 'vscode.mermaid-markdown-features.chatOutputItem' || webviewId == 'vscode.mermaid-markdown-features.preview' || (webviewSection == 'mermaid' && (webviewId == 'markdown.preview' || webviewId == 'vscode.markdown.preview.editor' || webviewId == 'notebook.output'))",
           "group": "navigation@2"
         },
         {
           "command": "_mermaid-markdown.resetPanZoom",
-          "when": "webviewId == 'vscode.mermaid-markdown-features.chatOutputItem' || webviewId == 'vscode.mermaid-markdown-features.preview'",
+          "when": "!mermaidError && (webviewId == 'vscode.mermaid-markdown-features.chatOutputItem' || webviewId == 'vscode.mermaid-markdown-features.preview')",
           "group": "navigation@3"
         }
       ]
@@ -82,26 +82,44 @@
           "order": 0,
           "type": "string",
           "enum": [
+            "vscode",
             "base",
             "forest",
             "dark",
             "default",
             "neutral"
           ],
-          "default": "default",
+          "enumDescriptions": [
+            "%config.markdown-mermaid.theme.vscode.description%",
+            "%config.markdown-mermaid.theme.base.description%",
+            "%config.markdown-mermaid.theme.forest.description%",
+            "%config.markdown-mermaid.theme.dark.description%",
+            "%config.markdown-mermaid.theme.default.description%",
+            "%config.markdown-mermaid.theme.neutral.description%"
+          ],
+          "default": "vscode",
           "description": "%config.markdown-mermaid.lightModeTheme.description%"
         },
         "markdown-mermaid.darkModeTheme": {
           "order": 1,
           "type": "string",
           "enum": [
+            "vscode",
             "base",
             "forest",
             "dark",
             "default",
             "neutral"
           ],
-          "default": "dark",
+          "enumDescriptions": [
+            "%config.markdown-mermaid.theme.vscode.description%",
+            "%config.markdown-mermaid.theme.base.description%",
+            "%config.markdown-mermaid.theme.forest.description%",
+            "%config.markdown-mermaid.theme.dark.description%",
+            "%config.markdown-mermaid.theme.default.description%",
+            "%config.markdown-mermaid.theme.neutral.description%"
+          ],
+          "default": "vscode",
           "description": "%config.markdown-mermaid.darkModeTheme.description%"
         },
         "markdown-mermaid.languages": {
@@ -170,6 +188,7 @@
       {
         "id": "vscode.markdown-it.mermaid-extension",
         "displayName": "Markdown-It Mermaid Renderer",
+        "requiresMessaging": "optional",
         "entrypoint": {
           "extends": "vscode.markdown-it-renderer",
           "path": "./notebook-out/index.js"

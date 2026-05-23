@@ -129,8 +129,36 @@ export class OpenAgentHostIsolationPickerAction extends Action2 {
 	override async run(): Promise<void> { /* the action view item handles interaction */ }
 }
 
+/**
+ * Workbench-chat custom-agent picker. Renders on `MenuId.ChatInput` to the
+ * LEFT of the chat mode picker (`OpenModePickerAction`, order 1) and the
+ * model picker (`OpenModelPickerAction`, order 3), giving the chip sequence
+ * `Agent | Interactive | Auto` to match the Agents-Window picker. Hidden
+ * inside the Agents Window — that surface renders its own picker into the
+ * same menu (see `vs/sessions/.../agentHostAgentPicker.ts`).
+ */
+export class OpenAgentHostCustomAgentPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openAgentHostCustomAgentPicker';
+	constructor() {
+		super({
+			id: OpenAgentHostCustomAgentPickerAction.ID,
+			title: localize2('agentHost.customAgentPicker', "Agent"),
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: [{
+				id: MenuId.ChatInput,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext.negate()),
+			}],
+		});
+	}
+	override async run(): Promise<void> { /* the action view item handles interaction */ }
+}
+
 registerAction2(OpenAgentHostModePickerAction);
 registerAction2(OpenAgentHostAutoApprovePickerAction);
 registerAction2(OpenAgentHostPermissionModePickerAction);
 registerAction2(OpenAgentHostBranchPickerAction);
 registerAction2(OpenAgentHostIsolationPickerAction);
+registerAction2(OpenAgentHostCustomAgentPickerAction);
