@@ -906,10 +906,6 @@ function normalizeMarketplacePath(value: string): string {
 	return normalized;
 }
 
-function encodeGitHubPathSegment(value: string): string {
-	return encodeURIComponent(value);
-}
-
 /**
  * Resolve plugin source from marketplace metadata.
  * - If pluginRoot exists, plugin source is resolved relative to it.
