@@ -21,7 +21,7 @@ import { ServiceCollection } from '../../instantiation/common/serviceCollection.
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
-import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription } from '../common/changesetUri.js';
+import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription, parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -147,7 +147,14 @@ export class AgentService extends Disposable implements IAgentService {
 	) {
 		super();
 		this._logService.info('AgentService initialized');
-		this._stateManager = this._register(new AgentHostStateManager(_logService));
+		this._stateManager = this._register(new AgentHostStateManager(_logService, {
+			changesetStateRetention: {
+				// The cache calls this lazily after construction. If a future state-manager
+				// initialization path registers changesets before `_changesets` is assigned,
+				// keep the entry pinned rather than evicting with incomplete liveness data.
+				canEvict: changeset => this._changesets ? this._isChangesetEvictable(changeset) : false,
+			},
+		}));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._onDidAction.fire(e)));
 		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
 
@@ -855,6 +862,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._resourceSubscribers.delete(resource);
 		this._changesetCoordinator.onLastSubscriber(resource);
+		this._stateManager.onChangesetLivenessChanged();
 		// An empty session whose last subscriber dropped is a candidate for
 		// full GC (provider session, worktree, on-disk state). Sessions with
 		// at least one turn fall through to {@link _maybeEvictIdleSession},
@@ -977,6 +985,47 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.removeSession(cachedKey);
 		}
 		this._stateManager.removeSession(evictionTargetKey);
+	}
+
+	/**
+	 * Subscriber-aware guard for {@link AgentHostStateManager}'s changeset retention.
+	 * The state manager owns the changeset state cache, but it deliberately
+	 * does not know about protocol subscribers or changeset compute lifetimes.
+	 * Keep that cross-component knowledge here, next to `_resourceSubscribers`:
+	 *
+	 * - A direct changeset subscriber means a client is rendering the expanded
+	 *   changeset URI, so evicting would make the next envelope target a missing
+	 *   state object.
+	 * - A parent session subscriber means the session catalogue can still be
+	 *   updated from the static changeset counts, so keep the backing state live
+	 *   while the session itself is observed.
+	 * - A subscribed subagent descendant pins the parent session tree; treat it
+	 *   like a parent-session subscriber for eviction purposes.
+	 * - An active static recompute owns the slot until it publishes or fails.
+	 *
+	 * Eviction that passes this predicate is silent and lossy only as a cache
+	 * operation: persisted diffs can rehydrate the changeset on the next restore
+	 * / subscribe path, and no client is currently observing the entry.
+	 */
+	private _isChangesetEvictable(changeset: string): boolean {
+		const changesetUri = URI.parse(changeset);
+		if (this._resourceSubscribers.has(changesetUri)) {
+			return false;
+		}
+		const parsed = parseChangesetUri(changeset);
+		if (!parsed) {
+			return false;
+		}
+		const sessionUri = URI.parse(parsed.sessionUri);
+		if (this._resourceSubscribers.has(sessionUri)) {
+			return false;
+		}
+		for (const subscribedUri of this._resourceSubscribers.keys()) {
+			if (this._isSubagentDescendantOf(subscribedUri, sessionUri)) {
+				return false;
+			}
+		}
+		return !this._changesets.isStaticChangesetComputeActive(changeset);
 	}
 
 	private _isSubagentDescendantOf(resource: URI, parent: URI): boolean {

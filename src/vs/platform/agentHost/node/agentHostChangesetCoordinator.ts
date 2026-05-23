@@ -333,15 +333,15 @@ export class ChangesetSessionCoordinator extends Disposable {
 		if (uncommittedRaw === undefined && sessionRaw === undefined && legacyRaw === undefined) {
 			return entry;
 		}
-		const restored = this._changesets.restorePersistedStaticChangesets(sessionStr, {
+		const restored = this._changesets.parsePersistedStaticChangesets(sessionStr, {
 			uncommittedRaw,
 			sessionRaw,
 			legacyRaw,
 		});
-		// `restorePersistedStaticChangesets` seeds the state manager; the
-		// catalogue itself is built here for unopened sessions only. Once
-		// the session is opened via `restoreSession`, the live overlay in
-		// `AgentService.listSessions` replaces this.
+		// `listSessions` must not seed full changeset state for every row;
+		// it only parses persisted blobs enough to render catalogue counts.
+		// Once the session is opened via `restoreSession`, the live overlay in
+		// `AgentService.listSessions` replaces this parse-only catalogue.
 		if (!liveSessionState) {
 			const catalogue = buildCatalogueFromPersistedDiffs(sessionStr, restored.uncommitted, restored.session);
 			if (catalogue) {
